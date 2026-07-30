@@ -40,11 +40,11 @@ dotnet run --project src/Lightbox.App   # launch the app
 - **Playback**: `▶ / ⏸` or Space, loops at the scene fps (default 12).
 - **Inbetweens**: set the count and easing in the toolbar, then `＋ Inbetween` fills the gap between the current key and the next key with painted, interpolated frames. Undo (`Ctrl+Z`) if the spacing isn't right.
 - **AI (needs an API key)**: set `ANTHROPIC_API_KEY` (or add `"anthropicApiKey"` to the Lightbox settings file) and the AI bar lights up. **✦ AI Inbetween** asks Claude to draw the inbetweens — useful where straight interpolation fails (arcs, rotation, overlap); **✦ AI Draw** paints strokes from a text prompt onto the current frame. Both return strokes in the document's own format and go through the same brush re-render as hand-painted frames, and both are one `Ctrl+Z` from gone.
+- **Layers**: the layer picker sits in the timeline bar — `＋P` adds a painted (raster) layer, `＋V` a vector layer, `👁` toggles visibility. Painting, inbetweening, and AI all operate on the active layer and respect its kind.
+- **Polish**: stroke smoothing on release (toggle), timeline thumbnails, onion-skin depth (1–3), fps control, `Export PNGs…` (numbered image sequence — feed it to ffmpeg for video), and a once-a-minute autosave (`Lightbox/autosave.lightbox.json` in your app-data folder — open it to recover after a crash).
 - **Save / Open**: `.lightbox.json` — the whole document, human- and LLM-readable.
 
 ## Roadmap
-
-- **M3 — robustness & vector polish**: vector layer UI, stroke smoothing, thumbnails, PNG sequence export, autosave.
 - **M4 — pure-raster inbetweening**: ML frame interpolation (RIFE/FILM via ONNX Runtime) + Claude-vision correspondence for imported/flattened art with no stroke record.
 - **Post-MVP**: tablet pressure, advanced brush engine (textured dabs, JSON brush presets), multi-layer UI, fill/coloring, GIF/MP4 export, AI breakdown poses & timing charts.
 

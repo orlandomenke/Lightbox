@@ -59,3 +59,20 @@ rendering, and input feel that a headless environment cannot verify.
 
 - Linux: needs `libfontconfig1` (`apt install libfontconfig1`).
 - If the canvas stays dark gray with no paper on some GPU/driver combo, report it — the renderer has a documented CPU-blit fallback path we can switch to.
+
+## Milestone 3 additions
+
+- [ ] Layer picker: `＋V` adds a vector layer; drawing on it works; `👁` hides/shows it; switching layers changes which drawing receives paint.
+- [ ] Onion depth 2–3 shows fainter ghosts further out.
+- [ ] "Smooth" toggle visibly relaxes jittery strokes on release.
+- [ ] Timeline cells show live thumbnails that update as you paint.
+- [ ] fps control changes playback speed immediately (even while playing).
+- [ ] `Export PNGs…` writes frame_0001.png… to the chosen folder; frames match what playback shows.
+- [ ] After a minute of editing, `Lightbox/autosave.lightbox.json` exists in app-data and opens correctly.
+
+## AI (needs ANTHROPIC_API_KEY)
+
+- [ ] Without a key the AI bar is disabled and the tooltip explains why.
+- [ ] With a key: draw two keyframes, `✦ AI Inbetween` → progress bar runs, frames appear between the keys, status reports the count.
+- [ ] `✦ AI Draw` with a prompt ("a small house") paints labeled strokes onto the current frame; Ctrl+Z removes them in one step.
+- [ ] Cancel (✕) stops a long request; app stays responsive throughout.

@@ -35,7 +35,21 @@
           <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
         </StackPanel>
 
-        <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
+        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+          <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
+          <NumericUpDown Value="{Binding OnionDepth}" Minimum="1" Maximum="3" Increment="1"
+                         FormatString="0" Width="100" VerticalAlignment="Center"
+                         ToolTip.Tip="Onion skin depth (frames each side)" />
+        </StackPanel>
+
+        <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
+                  ToolTip.Tip="Smooth strokes when you finish them" />
+
+        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+          <TextBlock Text="fps" VerticalAlignment="Center" />
+          <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
+                         FormatString="0" Width="100" VerticalAlignment="Center" />
+        </StackPanel>
 
         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
           <NumericUpDown Value="{Binding TweenCount}" Minimum="1" Maximum="9" Increment="1"
@@ -49,6 +63,8 @@
         <StackPanel Orientation="Horizontal" Spacing="6">
           <Button Content="Open…" Click="OnOpenClicked" />
           <Button Content="Save…" Click="OnSaveClicked" />
+          <Button Content="Export PNGs…" Click="OnExportClicked"
+                  ToolTip.Tip="Render every frame to a numbered PNG sequence" />
         </StackPanel>
       </StackPanel>
     </Border>
@@ -85,6 +101,17 @@
           <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
           <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
           <TextBlock Text="{Binding FrameLabel}" VerticalAlignment="Center" Margin="8,0" />
+          <ComboBox ItemsSource="{Binding LayerChoices}" SelectedIndex="{Binding ActiveLayerIndex}"
+                    Width="110" VerticalAlignment="Center" ToolTip.Tip="Active layer">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <Button Content="＋P" Command="{Binding AddPaintedLayerCommand}" ToolTip.Tip="Add a painted (raster) layer" />
+          <Button Content="＋V" Command="{Binding AddVectorLayerCommand}" ToolTip.Tip="Add a vector layer" />
+          <Button Content="👁" Command="{Binding ToggleActiveLayerVisibleCommand}" ToolTip.Tip="Toggle active layer visibility" />
         </StackPanel>
 
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
@@ -96,7 +123,7 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:FrameCell">
-                <Button Width="34" Height="42"
+                <Button Width="40" Height="50"
                         Classes.current="{Binding IsCurrent}"
                         Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SelectFrameCommand}"
                         CommandParameter="{Binding}"
@@ -110,8 +137,9 @@
                     </Style>
                   </Button.Styles>
                   <StackPanel>
+                    <Image Source="{Binding Thumb}" Width="32" Height="18" Stretch="Uniform"
+                           IsVisible="{Binding IsKeyed}" />
                     <TextBlock Text="{Binding Display}" HorizontalAlignment="Center" FontSize="11" />
-                    <TextBlock Text="●" HorizontalAlignment="Center" FontSize="10" IsVisible="{Binding IsKeyed}" />
                     <TextBlock Text="—" HorizontalAlignment="Center" FontSize="10" IsVisible="{Binding !IsKeyed}" />
                   </StackPanel>
                 </Button>

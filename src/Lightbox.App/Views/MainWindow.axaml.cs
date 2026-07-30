@@ -71,6 +71,20 @@ public partial class MainWindow : Window
         await writer.WriteAsync(_vm.SerializeDocument());
     }
 
+    private async void OnExportClicked(object? sender, RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Export PNG sequence to folder",
+            AllowMultiple = false,
+        });
+        if (folders.Count == 0) return;
+        var dir = folders[0].TryGetLocalPath();
+        if (dir is null) return;
+        var written = await Task.Run(() => Services.SequenceExporter.ExportPngSequence(_vm.Doc, dir));
+        _vm.AiStatus = $"Exported {written.Count} PNG frame(s).";
+    }
+
     private async void OnOpenClicked(object? sender, RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
