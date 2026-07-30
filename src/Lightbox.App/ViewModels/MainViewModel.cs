@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lightbox.Ai;
 using Lightbox.App.Input;
 using Lightbox.App.Rendering;
 using Lightbox.App.Services;
@@ -38,12 +39,24 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Fired with a fresh snapshot whenever the canvas must repaint.</summary>
     public event Action<RenderSnapshot>? SnapshotChanged;
 
-    public MainViewModel()
+    public MainViewModel() : this(ResolveArtist())
     {
+    }
+
+    /// <summary>Test seam: inject a fake artist (or null for "no API key").</summary>
+    public MainViewModel(IAiArtist? artist)
+    {
+        _artist = artist;
         _editor = new DocumentEditor(DocumentFactory.CreateDoc());
         _editor.Changed += OnDocumentChanged;
         _clock.Tick += OnPlaybackTick;
         RebuildFrameCells();
+    }
+
+    private static IAiArtist? ResolveArtist()
+    {
+        var key = ApiKeyProvider.GetApiKey();
+        return key is null ? null : new AnthropicArtist(key);
     }
 
     public Doc Doc => _editor.Doc;
@@ -227,6 +240,121 @@ public sealed partial class MainViewModel : ObservableObject
         VectorFrame v => v.Strokes,
         _ => [],
     };
+
+    // ---- AI -----------------------------------------------------------------
+
+    private readonly IAiArtist? _artist;
+    private CancellationTokenSource? _aiCts;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUseAi))]
+    private bool _aiBusy;
+
+    [ObservableProperty]
+    private string _aiStatus = "";
+
+    [ObservableProperty]
+    private string _aiPrompt = "";
+
+    public bool IsAiAvailable => _artist is not null;
+
+    public bool CanUseAi => IsAiAvailable && !AiBusy;
+
+    public string AiUnavailableHint => IsAiAvailable
+        ? ""
+        : "Set the ANTHROPIC_API_KEY environment variable (or add \"anthropicApiKey\" to the Lightbox settings file) to enable AI features.";
+
+    [RelayCommand]
+    private void CancelAi() => _aiCts?.Cancel();
+
+    /// <summary>
+    /// Claude draws the inbetweens between the key at/before the playhead and
+    /// the next key. Same insertion path as the deterministic engine — only
+    /// the frame producer differs.
+    /// </summary>
+    [RelayCommand]
+    private async Task AiInbetweenAsync()
+    {
+        if (_artist is null || AiBusy) return;
+        var layer = ActiveLayer;
+        var aIndex = ExposureSheet.KeyIndexAtOrBefore(layer, CurrentFrameIndex);
+        if (aIndex < 0) return;
+        var bIndex = ExposureSheet.NextKeyIndex(layer, aIndex);
+        if (bIndex < 0)
+        {
+            AiStatus = "Needs a second keyframe after the current one.";
+            return;
+        }
+
+        var ts = Enumerable.Range(1, TweenCount)
+            .Select(k => (double)k / (TweenCount + 1))
+            .ToList();
+        var request = new InbetweenRequest(
+            new SceneInfo(Scene.Width, Scene.Height, Scene.Fps),
+            StrokesOf(layer.Cels[aIndex].Frame!),
+            StrokesOf(layer.Cels[bIndex].Frame!),
+            ts,
+            TweenEasing);
+
+        var result = await RunAiAsync(
+            $"Claude is drawing {TweenCount} inbetween(s)…",
+            ct => _artist.GenerateInbetweensAsync(request, ct));
+        if (result is null) return;
+
+        var frames = result
+            .OrderBy(f => f.T)
+            .Select(f => (Frame)new PaintedFrame { Strokes = f.Strokes })
+            .ToList();
+        _editor.InsertInbetweens(layer.Id, aIndex, frames);
+        CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
+        AiStatus = $"Inserted {frames.Count} AI inbetween(s).";
+    }
+
+    /// <summary>Claude paints strokes from a text prompt onto the current frame.</summary>
+    [RelayCommand]
+    private async Task AiDrawAsync()
+    {
+        if (_artist is null || AiBusy || string.IsNullOrWhiteSpace(AiPrompt)) return;
+        var target = PaintTarget();
+        if (target is null) return;
+
+        var request = new DrawRequest(
+            new SceneInfo(Scene.Width, Scene.Height, Scene.Fps),
+            AiPrompt.Trim(),
+            target.Strokes);
+
+        var strokes = await RunAiAsync(
+            "Claude is drawing…",
+            ct => _artist.DrawAsync(request, ct));
+        if (strokes is null) return;
+
+        _editor.Perform(_ => target.Strokes.AddRange(strokes));
+        _cache.Invalidate(target.Id);
+        PublishSnapshot();
+        AiStatus = $"Drew {strokes.Count} stroke(s).";
+    }
+
+    /// <summary>Shared busy/cancel/error plumbing for AI calls; null on failure.</summary>
+    private async Task<T?> RunAiAsync<T>(string busyMessage, Func<CancellationToken, Task<AiResult<T>>> call)
+        where T : class
+    {
+        _aiCts = new CancellationTokenSource();
+        AiBusy = true;
+        AiStatus = busyMessage;
+        try
+        {
+            var result = await call(_aiCts.Token);
+            if (result.Outcome == AiOutcome.Success) return result.Value;
+            AiStatus = result.Message ?? "AI request failed.";
+            return null;
+        }
+        finally
+        {
+            AiBusy = false;
+            _aiCts.Dispose();
+            _aiCts = null;
+        }
+    }
 
     // ---- document I/O -------------------------------------------------------
 

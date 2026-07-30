@@ -39,11 +39,11 @@ dotnet run --project src/Lightbox.App   # launch the app
 - **Onion skin**: previous key tinted red, next key tinted blue.
 - **Playback**: `▶ / ⏸` or Space, loops at the scene fps (default 12).
 - **Inbetweens**: set the count and easing in the toolbar, then `＋ Inbetween` fills the gap between the current key and the next key with painted, interpolated frames. Undo (`Ctrl+Z`) if the spacing isn't right.
+- **AI (needs an API key)**: set `ANTHROPIC_API_KEY` (or add `"anthropicApiKey"` to the Lightbox settings file) and the AI bar lights up. **✦ AI Inbetween** asks Claude to draw the inbetweens — useful where straight interpolation fails (arcs, rotation, overlap); **✦ AI Draw** paints strokes from a text prompt onto the current frame. Both return strokes in the document's own format and go through the same brush re-render as hand-painted frames, and both are one `Ctrl+Z` from gone.
 - **Save / Open**: `.lightbox.json` — the whole document, human- and LLM-readable.
 
 ## Roadmap
 
-- **M2 — AI integration**: "AI Inbetween" and "AI Draw" via Claude (structured stroke output, same insertion path as the deterministic engine).
 - **M3 — robustness & vector polish**: vector layer UI, stroke smoothing, thumbnails, PNG sequence export, autosave.
 - **M4 — pure-raster inbetweening**: ML frame interpolation (RIFE/FILM via ONNX Runtime) + Claude-vision correspondence for imported/flattened art with no stroke record.
 - **Post-MVP**: tablet pressure, advanced brush engine (textured dabs, JSON brush presets), multi-layer UI, fill/coloring, GIF/MP4 export, AI breakdown poses & timing charts.

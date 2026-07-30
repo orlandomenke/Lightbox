@@ -53,6 +53,27 @@
       </StackPanel>
     </Border>
 
+    <!-- AI bar -->
+    <Border DockPanel.Dock="Top" Padding="8,4" Background="#232323"
+            ToolTip.Tip="{Binding AiUnavailableHint}">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Button Content="✦ AI Inbetween"
+                Command="{Binding AiInbetweenCommand}"
+                IsEnabled="{Binding CanUseAi}"
+                ToolTip.Tip="Ask Claude to draw the inbetweens between this key and the next" />
+        <TextBox Text="{Binding AiPrompt}" Width="320" Watermark="Describe what Claude should draw…"
+                 IsEnabled="{Binding CanUseAi}" />
+        <Button Content="✦ AI Draw"
+                Command="{Binding AiDrawCommand}"
+                IsEnabled="{Binding CanUseAi}"
+                ToolTip.Tip="Claude paints strokes onto the current frame" />
+        <Button Content="✕" Command="{Binding CancelAiCommand}" IsVisible="{Binding AiBusy}"
+                ToolTip.Tip="Cancel the AI request" />
+        <ProgressBar IsIndeterminate="True" Width="90" IsVisible="{Binding AiBusy}" VerticalAlignment="Center" />
+        <TextBlock Text="{Binding AiStatus}" VerticalAlignment="Center" Opacity="0.85" TextTrimming="CharacterEllipsis" />
+      </StackPanel>
+    </Border>
+
     <!-- Timeline -->
     <Border DockPanel.Dock="Bottom" Padding="8,6" Background="#1f1f1f">
       <DockPanel>
