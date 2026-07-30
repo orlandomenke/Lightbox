@@ -1,0 +1,174 @@
+using Lightbox.Core.Documents;
+using Lightbox.Core.Serialization;
+
+namespace Lightbox.Core.Timeline;
+
+/// <summary>
+/// The single entry point for document mutations, with snapshot-based
+/// undo/redo. Callers mutate through methods here (or wrap ad-hoc edits in
+/// <see cref="Perform"/>) so every change is undoable.
+///
+/// Snapshots are JSON clones — cheap at pencil-test scale; to be replaced by
+/// command deltas when heavy raster editing arrives (flagged in the plan).
+/// </summary>
+public sealed class DocumentEditor
+{
+    private readonly Stack<Doc> _undo = new();
+    private readonly Stack<Doc> _redo = new();
+    private const int MaxUndo = 64;
+
+    public Doc Doc { get; private set; }
+
+    public event Action? Changed;
+
+    public DocumentEditor(Doc doc)
+    {
+        Doc = doc;
+    }
+
+    public bool CanUndo => _undo.Count > 0;
+    public bool CanRedo => _redo.Count > 0;
+
+    /// <summary>Run a mutation as one undoable step.</summary>
+    public void Perform(Action<Doc> mutate)
+    {
+        PushUndo();
+        mutate(Doc);
+        Changed?.Invoke();
+    }
+
+    public void Undo()
+    {
+        if (_undo.Count == 0) return;
+        _redo.Push(Doc);
+        Doc = _undo.Pop();
+        Changed?.Invoke();
+    }
+
+    public void Redo()
+    {
+        if (_redo.Count == 0) return;
+        _undo.Push(Doc);
+        Doc = _redo.Pop();
+        Changed?.Invoke();
+    }
+
+    private void PushUndo()
+    {
+        _undo.Push(DocJson.Clone(Doc));
+        if (_undo.Count > MaxUndo)
+        {
+            // Stack has no trim; rebuild without the oldest entry.
+            var items = _undo.ToArray(); // newest..oldest
+            _undo.Clear();
+            for (var i = items.Length - 2; i >= 0; i--) _undo.Push(items[i]);
+        }
+        _redo.Clear();
+    }
+
+    // ---- Timeline operations ----------------------------------------------
+
+    /// <summary>Insert a new keyed (empty) frame on every layer after index i.</summary>
+    public void AddFrameAfter(int i)
+    {
+        Perform(doc =>
+        {
+            var at = Math.Clamp(i + 1, 0, doc.Scene.FrameCount);
+            foreach (var layer in doc.Scene.Layers)
+            {
+                PadCels(layer, doc.Scene.FrameCount);
+                layer.Cels.Insert(at, new Cel { Frame = NewEmptyFrame(layer) });
+            }
+            doc.Scene.FrameCount++;
+        });
+    }
+
+    /// <summary>Duplicate the exposed frame at index i into a new cel after it.</summary>
+    public void DuplicateFrame(int i)
+    {
+        Perform(doc =>
+        {
+            var at = Math.Clamp(i + 1, 0, doc.Scene.FrameCount);
+            foreach (var layer in doc.Scene.Layers)
+            {
+                PadCels(layer, doc.Scene.FrameCount);
+                var src = ExposureSheet.ExposedFrame(layer, i);
+                layer.Cels.Insert(at, new Cel { Frame = CloneFrame(src) });
+            }
+            doc.Scene.FrameCount++;
+        });
+    }
+
+    public void DeleteFrame(int i)
+    {
+        Perform(doc =>
+        {
+            if (doc.Scene.FrameCount <= 1) return;
+            foreach (var layer in doc.Scene.Layers)
+            {
+                PadCels(layer, doc.Scene.FrameCount);
+                if (i < layer.Cels.Count) layer.Cels.RemoveAt(i);
+            }
+            doc.Scene.FrameCount--;
+        });
+    }
+
+    /// <summary>
+    /// Insert already-built inbetween frames on a layer between key indices
+    /// a and b (exclusive). Frames may come from the deterministic engine or
+    /// the AI — same code path. Existing cels between a and b are replaced;
+    /// if there aren't enough cels, new ones are inserted.
+    /// </summary>
+    public void InsertInbetweens(string layerId, int aIndex, IReadOnlyList<Frame> frames)
+    {
+        Perform(doc =>
+        {
+            var layer = doc.Scene.Layers.First(l => l.Id == layerId);
+            PadCels(layer, doc.Scene.FrameCount);
+            var bIndex = ExposureSheet.NextKeyIndex(layer, aIndex);
+            var gap = bIndex < 0 ? 0 : bIndex - aIndex - 1;
+            var replace = Math.Min(gap, frames.Count);
+
+            for (var k = 0; k < replace; k++)
+                layer.Cels[aIndex + 1 + k].Frame = frames[k];
+
+            var extra = frames.Count - replace;
+            for (var k = 0; k < extra; k++)
+            {
+                var at = aIndex + 1 + replace + k;
+                foreach (var other in doc.Scene.Layers)
+                {
+                    PadCels(other, doc.Scene.FrameCount);
+                    other.Cels.Insert(at, new Cel
+                    {
+                        Frame = other.Id == layerId ? frames[replace + k] : null,
+                    });
+                }
+                doc.Scene.FrameCount++;
+            }
+        });
+    }
+
+    private static void PadCels(Layer layer, int frameCount)
+    {
+        while (layer.Cels.Count < frameCount) layer.Cels.Add(new Cel());
+    }
+
+    private static Frame NewEmptyFrame(Layer layer) => layer.Kind switch
+    {
+        LayerKind.Vector => new VectorFrame(),
+        _ => new PaintedFrame(),
+    };
+
+    private static Frame? CloneFrame(Frame? src) => src switch
+    {
+        null => null,
+        VectorFrame v => new VectorFrame { Strokes = v.Strokes.Select(s => s.Clone()).ToList() },
+        PaintedFrame p => new PaintedFrame
+        {
+            PngBase64 = p.PngBase64,
+            Strokes = p.Strokes.Select(s => s.Clone()).ToList(),
+        },
+        _ => throw new InvalidOperationException($"Unknown frame type {src.GetType().Name}"),
+    };
+}
