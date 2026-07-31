@@ -75,7 +75,10 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(IAiArtist? artist)
     {
         _artist = artist;
-        _editor = new DocumentEditor(DocumentFactory.CreateDoc());
+        var first = new DocumentTab(new DocumentEditor(DocumentFactory.CreateDoc()), "Untitled-1") { IsActive = true };
+        Tabs.Add(first);
+        _activeTab = first;
+        _editor = first.Editor;
         _editor.Changed += OnDocumentChanged;
         _clock.Tick += OnPlaybackTick;
         _autosave = new AutosaveService(() => Doc);
@@ -84,6 +87,117 @@ public sealed partial class MainViewModel : ObservableObject
         ColorPicker.HexCommitted += hex => ColorHex = hex;
         SyncLayerChoices();
         SyncLayerRows();
+    }
+
+    // ---- document tabs --------------------------------------------------------
+
+    public ObservableCollection<DocumentTab> Tabs { get; } = [];
+
+    [ObservableProperty]
+    private DocumentTab? _activeTab;
+
+    private bool _switchingTabs;
+    private int _untitledCounter = 1;
+
+    partial void OnActiveTabChanged(DocumentTab? value)
+    {
+        if (value is null) return;
+        foreach (var tab in Tabs) tab.IsActive = tab == value;
+        if (value.Editor == _editor) return;
+
+        _switchingTabs = true;
+        if (Tabs.FirstOrDefault(t => t.Editor == _editor) is { } leaving)
+        {
+            leaving.SavedFrameIndex = CurrentFrameIndex;
+            leaving.SavedLayerIndex = ActiveLayerIndex;
+        }
+        AttachEditor(value.Editor);
+        ActiveLayerIndex = Math.Clamp(value.SavedLayerIndex, 0, Scene.Layers.Count - 1);
+        CurrentFrameIndex = Math.Clamp(value.SavedFrameIndex, 0, Math.Max(0, Scene.FrameCount - 1));
+        _switchingTabs = false;
+    }
+
+    [RelayCommand]
+    private void ActivateTab(DocumentTab tab) => ActiveTab = tab;
+
+    private void AttachEditor(DocumentEditor editor)
+    {
+        _clock.Stop();
+        IsPlaying = false;
+        _strokeBuilder.Cancel();
+        _editor.Changed -= OnDocumentChanged;
+        _editor = editor;
+        _editor.Changed += OnDocumentChanged;
+        _cache.Clear();
+        _allThumbsDirty = true;
+        ClearPlaybackRange();
+        OnDocumentChanged();
+    }
+
+    /// <summary>Create a document from the File → New dialog in a new tab.</summary>
+    public void NewDocument(NewDocumentSettings settings)
+    {
+        var doc = DocumentFactory.CreateDoc(settings.Width, settings.Height, settings.Fps);
+        doc.Scene.Name = settings.Name;
+        doc.Scene.Ppi = settings.Ppi;
+        doc.Scene.BackgroundColor = settings.BackgroundColor;
+        doc.Scene.TransparentBackground = settings.TransparentBackground;
+        AddTab(new DocumentTab(new DocumentEditor(doc), settings.Name));
+    }
+
+    /// <summary>Open a loaded document in a new tab.</summary>
+    public void OpenDocumentTab(Doc doc, string? filePath)
+    {
+        var title = filePath is null ? NextUntitledName() : TitleFromPath(filePath);
+        AddTab(new DocumentTab(new DocumentEditor(doc), title) { FilePath = filePath });
+    }
+
+    /// <summary>Close a tab. The view confirms unsaved changes before calling this.</summary>
+    public void CloseTab(DocumentTab tab)
+    {
+        var index = Tabs.IndexOf(tab);
+        if (index < 0) return;
+        Tabs.Remove(tab);
+        if (Tabs.Count == 0)
+        {
+            Tabs.Add(new DocumentTab(new DocumentEditor(DocumentFactory.CreateDoc()), NextUntitledName()));
+        }
+        if (ActiveTab == tab || ActiveTab is null || !Tabs.Contains(ActiveTab))
+        {
+            ActiveTab = Tabs[Math.Clamp(index, 0, Tabs.Count - 1)];
+        }
+    }
+
+    /// <summary>The active document was written to disk: adopt the name, clear the dirty dot.</summary>
+    public void NotifySaved(string filePath)
+    {
+        if (ActiveTab is not { } tab) return;
+        tab.FilePath = filePath;
+        tab.Title = TitleFromPath(filePath);
+        tab.IsDirty = false;
+    }
+
+    private void AddTab(DocumentTab tab)
+    {
+        Tabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    private string NextUntitledName() => $"Untitled-{++_untitledCounter}";
+
+    private static string TitleFromPath(string path)
+    {
+        var name = Path.GetFileName(path);
+        const string suffix = ".lightbox.json";
+        return name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+            ? name[..^suffix.Length]
+            : Path.GetFileNameWithoutExtension(path);
+    }
+
+    private void MarkDocumentEdited()
+    {
+        _autosave.MarkDirty();
+        if (!_switchingTabs && ActiveTab is { } tab) tab.IsDirty = true;
     }
 
     /// <summary>The color docker's state, kept in sync with <see cref="ColorHex"/>.</summary>
@@ -192,7 +306,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (Scene.Fps == fps) return;
             Scene.Fps = fps;
             OnPropertyChanged();
-            _autosave.MarkDirty();
+            MarkDocumentEdited();
             if (IsPlaying)
             {
                 _clock.Stop();
@@ -584,7 +698,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (layer.OnionEnabled == enabled) return;
         layer.OnionEnabled = enabled;
-        _autosave.MarkDirty();
+        MarkDocumentEdited();
         PublishSnapshot();
     }
 
@@ -795,7 +909,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (frame is null) continue;
             passes.Add(new RenderPass(_cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity));
         }
-        using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes);
+        using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
         using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
             ?? throw new InvalidOperationException("PNG encode failed.");
         return Convert.ToBase64String(data.AsSpan());
@@ -834,18 +948,17 @@ public sealed partial class MainViewModel : ObservableObject
         return strokes.Count;
     }
 
+    /// <summary>Replace the ACTIVE tab's document (fresh editor, clean state).</summary>
     public void ReplaceDocument(Doc doc)
     {
-        _clock.Stop();
-        IsPlaying = false;
-        _editor.Changed -= OnDocumentChanged;
-        _editor = new DocumentEditor(doc);
-        _editor.Changed += OnDocumentChanged;
-        _cache.Clear();
-        _allThumbsDirty = true;
+        _switchingTabs = true;
+        var tab = ActiveTab ?? Tabs[0];
+        tab.Editor = new DocumentEditor(doc);
+        AttachEditor(tab.Editor);
         ActiveLayerIndex = 0;
         CurrentFrameIndex = 0;
-        OnDocumentChanged();
+        tab.IsDirty = false;
+        _switchingTabs = false;
     }
 
     public string SerializeDocument() => DocJson.Serialize(Doc);
@@ -856,7 +969,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void OnDocumentChanged()
     {
-        _autosave.MarkDirty();
+        MarkDocumentEdited();
         SyncLayerChoices();
         ClampCurrentFrame();
         SyncLayerRows();
@@ -1011,7 +1124,7 @@ public sealed partial class MainViewModel : ObservableObject
                 ?? throw new InvalidOperationException("Could not create compose surface.");
             _composeInfo = info;
         }
-        SceneRenderer.ComposeInto(_composeSurface, passes);
+        SceneRenderer.ComposeInto(_composeSurface, passes, SceneRenderer.BackgroundOf(scene));
         SnapshotChanged?.Invoke(new RenderSnapshot(_composeSurface.Snapshot(), scene.Width, scene.Height));
     }
 }

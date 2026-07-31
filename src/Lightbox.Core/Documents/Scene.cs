@@ -14,5 +14,14 @@ public sealed class Scene
 
     public int FrameCount { get; set; } = 1;
 
+    /// <summary>Paper color composited behind all layers.</summary>
+    public string BackgroundColor { get; set; } = "#ffffff";
+
+    /// <summary>Render with no paper at all (transparent PNG exports).</summary>
+    public bool TransparentBackground { get; set; }
+
+    /// <summary>Pixels per inch — metadata for future print/export work.</summary>
+    public int Ppi { get; set; } = 72;
+
     public List<Layer> Layers { get; set; } = [];
 }

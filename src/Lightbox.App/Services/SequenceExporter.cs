@@ -30,7 +30,7 @@ public static class SequenceExporter
                 passes.Add(new RenderPass(cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity));
             }
 
-            using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes);
+            using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
             using var data = image.Encode(SKEncodedImageFormat.Png, 100)
                 ?? throw new InvalidOperationException("PNG encode failed.");
             var path = Path.Combine(directory, $"frame_{i + 1:D4}.png");

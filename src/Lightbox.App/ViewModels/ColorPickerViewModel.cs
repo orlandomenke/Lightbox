@@ -134,7 +134,7 @@ public sealed partial class ColorPickerViewModel : ObservableObject
         if (ColorSpace.RgbToHex(rgb.R, rgb.G, rgb.B) == Hex && HasSynced) return;
         (_r, _g, _b) = rgb;
         HasSynced = true;
-        PushToAllModels(commit: false);
+        PushToAllModels(source: null, commit: false);
     }
 
     private bool HasSynced { get; set; }
@@ -150,15 +150,17 @@ public sealed partial class ColorPickerViewModel : ObservableObject
             ColorMode.Rgb => (Math.Clamp(Red, 0, 255) / 255, Math.Clamp(Green, 0, 255) / 255, Math.Clamp(Blue, 0, 255) / 255),
             _ => ColorSpace.CmykToRgb(Cyan / 100, Magenta / 100, Yellow / 100, Black / 100),
         };
-        if (source == ColorMode.Wheel) Hue = WheelHsv.H; // wheel is hue-authoritative
-        PushToAllModels(commit: true);
+        PushToAllModels(source, commit: true);
     }
 
     /// <summary>
-    /// Update every representation from the canonical color. Hue-carrying
+    /// Update every representation from the canonical color — EXCEPT the one
+    /// the user is editing. Writing recomputed values back into the source
+    /// control mid-drag makes its thumb fight the pointer (the wheel-snapping
+    /// bug), so the source keeps exactly what the user set. Hue-carrying
     /// models keep the previous hue when the color is achromatic.
     /// </summary>
-    private void PushToAllModels(bool commit)
+    private void PushToAllModels(ColorMode? source, bool commit)
     {
         _syncing = true;
 
@@ -166,21 +168,38 @@ public sealed partial class ColorPickerViewModel : ObservableObject
         var (hl, sl, l) = ColorSpace.RgbToHsl(_r, _g, _b);
         var (c, m, y, k) = ColorSpace.RgbToCmyk(_r, _g, _b);
         var achromatic = sv <= 0.0001;
-        var hue = achromatic ? Hue : hv;
+        var hue = source == ColorMode.Wheel
+            ? WheelHsv.H // the wheel is hue-authoritative while dragging it
+            : achromatic ? Hue : hv;
 
         Hue = hue;
-        HsvSaturation = sv * 100;
-        HsvValue = v * 100;
-        HslSaturation = sl * 100;
-        HslLightness = l * 100;
-        Red = _r * 255;
-        Green = _g * 255;
-        Blue = _b * 255;
-        Cyan = c * 100;
-        Magenta = m * 100;
-        Yellow = y * 100;
-        Black = k * 100;
-        WheelHsv = new HsvColor(1, hue, sv, v);
+        if (source != ColorMode.Hsv)
+        {
+            HsvSaturation = sv * 100;
+            HsvValue = v * 100;
+        }
+        if (source != ColorMode.Hsl)
+        {
+            HslSaturation = sl * 100;
+            HslLightness = l * 100;
+        }
+        if (source != ColorMode.Rgb)
+        {
+            Red = _r * 255;
+            Green = _g * 255;
+            Blue = _b * 255;
+        }
+        if (source != ColorMode.Cmyk)
+        {
+            Cyan = c * 100;
+            Magenta = m * 100;
+            Yellow = y * 100;
+            Black = k * 100;
+        }
+        if (source != ColorMode.Wheel)
+        {
+            WheelHsv = new HsvColor(1, hue, sv, v);
+        }
         OnPropertyChanged(nameof(SwatchBrush));
         OnPropertyChanged(nameof(Hex));
 

@@ -13,20 +13,26 @@ public sealed record RenderPass(SKBitmap Bitmap, SKColor? Tint, double Opacity);
 /// </summary>
 public static class SceneRenderer
 {
-    public static SKImage Compose(int width, int height, IReadOnlyList<RenderPass> passes)
+    public static SKImage Compose(int width, int height, IReadOnlyList<RenderPass> passes, SKColor? background = null)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var surface = SKSurface.Create(info)
             ?? throw new InvalidOperationException("Could not create compose surface.");
-        ComposeInto(surface, passes);
+        ComposeInto(surface, passes, background);
         return surface.Snapshot();
     }
 
+    /// <summary>The scene's paper color (or full transparency) as an SKColor.</summary>
+    public static SKColor BackgroundOf(Lightbox.Core.Documents.Scene scene) =>
+        scene.TransparentBackground
+            ? SKColors.Transparent
+            : Lightbox.Raster.BrushEngine.ParseColor(scene.BackgroundColor);
+
     /// <summary>Composite into an existing (reusable) surface — the hot path during painting.</summary>
-    public static void ComposeInto(SKSurface surface, IReadOnlyList<RenderPass> passes)
+    public static void ComposeInto(SKSurface surface, IReadOnlyList<RenderPass> passes, SKColor? background = null)
     {
         var canvas = surface.Canvas;
-        canvas.Clear(SKColors.White);
+        canvas.Clear(background ?? SKColors.White);
 
         foreach (var pass in passes)
         {

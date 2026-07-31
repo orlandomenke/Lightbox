@@ -244,18 +244,74 @@ public partial class MainWindow : Window
         Patterns = ["*.lightbox.json"],
     };
 
+    private async void OnNewClicked(object? sender, RoutedEventArgs e)
+    {
+        var settings = await new NewDocumentDialog().ShowDialog<NewDocumentSettings?>(this);
+        if (settings is null) return;
+        _vm.NewDocument(settings);
+    }
+
+    private async void OnCloseTabClicked(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is not DocumentTab tab) return;
+        if (tab.IsDirty && !await ConfirmDiscardAsync(tab.Title)) return;
+        _vm.CloseTab(tab);
+    }
+
+    private async Task<bool> ConfirmDiscardAsync(string title)
+    {
+        var result = false;
+        var dialog = new Window
+        {
+            Title = "Unsaved changes",
+            Width = 380,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        var discard = new Button { Content = "Discard changes", MinWidth = 120 };
+        var cancel = new Button { Content = "Cancel", MinWidth = 80, IsCancel = true };
+        discard.Click += (_, _) => { result = true; dialog.Close(); };
+        cancel.Click += (_, _) => dialog.Close();
+        dialog.Content = new StackPanel
+        {
+            Margin = new Avalonia.Thickness(16),
+            Spacing = 12,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = $"“{title}” has unsaved changes. Close it anyway?",
+                    TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                },
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    Spacing = 8,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    Children = { discard, cancel },
+                },
+            },
+        };
+        await dialog.ShowDialog(this);
+        return result;
+    }
+
     private async void OnSaveClicked(object? sender, RoutedEventArgs e)
     {
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save animation",
-            SuggestedFileName = "untitled.lightbox.json",
+            SuggestedFileName = $"{_vm.ActiveTab?.Title ?? "untitled"}.lightbox.json",
             FileTypeChoices = [LightboxFileType],
         });
         if (file is null) return;
-        await using var stream = await file.OpenWriteAsync();
-        await using var writer = new StreamWriter(stream);
-        await writer.WriteAsync(_vm.SerializeDocument());
+        await using (var stream = await file.OpenWriteAsync())
+        await using (var writer = new StreamWriter(stream))
+        {
+            await writer.WriteAsync(_vm.SerializeDocument());
+        }
+        _vm.NotifySaved(file.TryGetLocalPath() ?? file.Name);
     }
 
     private async void OnExportClicked(object? sender, RoutedEventArgs e)
@@ -284,6 +340,6 @@ public partial class MainWindow : Window
         await using var stream = await files[0].OpenReadAsync();
         using var reader = new StreamReader(stream);
         var json = await reader.ReadToEndAsync();
-        _vm.ReplaceDocument(DocJson.Deserialize(json));
+        _vm.OpenDocumentTab(DocJson.Deserialize(json), files[0].TryGetLocalPath());
     }
 }

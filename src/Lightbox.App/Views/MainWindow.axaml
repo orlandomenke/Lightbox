@@ -42,6 +42,13 @@
     <Style Selector="GridSplitter">
       <Setter Property="Background" Value="#141414" />
     </Style>
+    <Style Selector="Border.docTab">
+      <Setter Property="Background" Value="#242424" />
+      <Setter Property="CornerRadius" Value="4,4,0,0" />
+    </Style>
+    <Style Selector="Border.docTab.active">
+      <Setter Property="Background" Value="#33507a" />
+    </Style>
   </Window.Styles>
 
   <DockPanel>
@@ -49,6 +56,7 @@
     <!-- Menu bar -->
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="_File">
+        <MenuItem Header="_New…" Click="OnNewClicked" />
         <MenuItem Header="_Open…" Click="OnOpenClicked" />
         <MenuItem Header="_Save…" Click="OnSaveClicked" />
         <Separator />
@@ -133,6 +141,32 @@
         <ProgressBar IsIndeterminate="True" Width="90" IsVisible="{Binding AiBusy}" VerticalAlignment="Center" />
         <TextBlock Text="{Binding AiStatus}" VerticalAlignment="Center" Opacity="0.85" TextTrimming="CharacterEllipsis" />
       </StackPanel>
+    </Border>
+
+    <!-- Open documents: click to switch, ✕ to close, • marks unsaved changes -->
+    <Border DockPanel.Dock="Top" Background="#191919" Padding="4,3,4,0">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <ItemsControl ItemsSource="{Binding Tabs}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="2" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:DocumentTab">
+              <Border Classes="docTab" Classes.active="{Binding IsActive}" Padding="2,2,2,2">
+                <StackPanel Orientation="Horizontal" Spacing="0">
+                  <Button Content="{Binding DisplayTitle}" Background="Transparent" Padding="8,3"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateTabCommand}"
+                          CommandParameter="{Binding}" />
+                  <Button Content="✕" FontSize="10" Padding="5,3" Background="Transparent"
+                          Click="OnCloseTabClicked" ToolTip.Tip="Close document" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
     </Border>
 
     <!--
