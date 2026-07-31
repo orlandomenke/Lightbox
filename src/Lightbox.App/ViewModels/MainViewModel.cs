@@ -62,9 +62,17 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.Changed += OnDocumentChanged;
         _clock.Tick += OnPlaybackTick;
         _autosave = new AutosaveService(() => Doc);
+        ColorPicker = new ColorPickerViewModel();
+        ColorPicker.SetHex(ColorHex);
+        ColorPicker.HexCommitted += hex => ColorHex = hex;
         SyncLayerChoices();
         SyncLayerRows();
     }
+
+    /// <summary>The color docker's state, kept in sync with <see cref="ColorHex"/>.</summary>
+    public ColorPickerViewModel ColorPicker { get; }
+
+    partial void OnColorHexChanged(string value) => ColorPicker.SetHex(value);
 
     private static IAiArtist? ResolveArtist()
     {

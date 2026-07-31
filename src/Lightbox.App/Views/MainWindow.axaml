@@ -265,6 +265,135 @@
               </ItemsControl>
             </ScrollViewer>
         </controls:Docker>
+
+        <!-- Color docker: one color, several representations -->
+        <controls:Docker Title="Color">
+          <controls:Docker.TopBar>
+            <Border Classes="dockerBar">
+              <ComboBox ItemsSource="{Binding ColorPicker.ModeChoices}" SelectedItem="{Binding ColorPicker.Mode}"
+                        Width="120" ToolTip.Tip="Color picker representation" />
+            </Border>
+          </controls:Docker.TopBar>
+          <controls:Docker.BottomBar>
+            <Border Classes="dockerBar">
+              <DockPanel>
+                <Border DockPanel.Dock="Left" Width="28" Height="28" CornerRadius="3"
+                        BorderBrush="#555" BorderThickness="1"
+                        Background="{Binding ColorPicker.SwatchBrush}"
+                        ToolTip.Tip="Current color" />
+                <TextBox Text="{Binding ColorHex}" Margin="8,0,0,0" VerticalAlignment="Center"
+                         ToolTip.Tip="Hex color, e.g. #1a1a1a" />
+              </DockPanel>
+            </Border>
+          </controls:Docker.BottomBar>
+
+          <StackPanel Margin="8" Spacing="8">
+
+            <!-- Krita-style wheel: hue ring + value slider -->
+            <StackPanel Spacing="8" IsVisible="{Binding ColorPicker.IsWheelMode}">
+              <ColorSpectrum Shape="Ring" Components="HueSaturation" Height="190"
+                             HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}" />
+              <ColorSlider ColorModel="Hsva" ColorComponent="Component3"
+                           HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}"
+                           ToolTip.Tip="Value (brightness)" />
+            </StackPanel>
+
+            <!-- HSV sliders -->
+            <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsHsvMode}">
+              <DockPanel>
+                <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360" Margin="4,0" />
+              </DockPanel>
+              <DockPanel>
+                <TextBlock Text="S" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HsvSaturation}" Minimum="0" Maximum="100"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.HsvSaturation}" Minimum="0" Maximum="100" Margin="4,0" />
+              </DockPanel>
+              <DockPanel>
+                <TextBlock Text="V" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HsvValue}" Minimum="0" Maximum="100"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.HsvValue}" Minimum="0" Maximum="100" Margin="4,0" />
+              </DockPanel>
+            </StackPanel>
+
+            <!-- HSL sliders -->
+            <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsHslMode}">
+              <DockPanel>
+                <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360" Margin="4,0" />
+              </DockPanel>
+              <DockPanel>
+                <TextBlock Text="S" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HslSaturation}" Minimum="0" Maximum="100"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.HslSaturation}" Minimum="0" Maximum="100" Margin="4,0" />
+              </DockPanel>
+              <DockPanel>
+                <TextBlock Text="L" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HslLightness}" Minimum="0" Maximum="100"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.HslLightness}" Minimum="0" Maximum="100" Margin="4,0" />
+              </DockPanel>
+            </StackPanel>
+
+            <!-- RGB sliders -->
+            <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsRgbMode}">
+              <DockPanel>
+                <TextBlock Text="R" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255" Margin="4,0" />
+              </DockPanel>
+              <DockPanel>
+                <TextBlock Text="G" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Green}" Minimum="0" Maximum="255"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.Green}" Minimum="0" Maximum="255" Margin="4,0" />
+              </DockPanel>
+              <DockPanel>
+                <TextBlock Text="B" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Blue}" Minimum="0" Maximum="255"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.Blue}" Minimum="0" Maximum="255" Margin="4,0" />
+              </DockPanel>
+            </StackPanel>
+
+            <!-- CMYK sliders -->
+            <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsCmykMode}">
+              <DockPanel>
+                <TextBlock Text="C" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100" Margin="4,0" />
+              </DockPanel>
+              <DockPanel>
+                <TextBlock Text="M" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Magenta}" Minimum="0" Maximum="100"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.Magenta}" Minimum="0" Maximum="100" Margin="4,0" />
+              </DockPanel>
+              <DockPanel>
+                <TextBlock Text="Y" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Yellow}" Minimum="0" Maximum="100"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.Yellow}" Minimum="0" Maximum="100" Margin="4,0" />
+              </DockPanel>
+              <DockPanel>
+                <TextBlock Text="K" Width="16" VerticalAlignment="Center" />
+                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Black}" Minimum="0" Maximum="100"
+                               Increment="1" FormatString="0" Width="94" />
+                <Slider Value="{Binding ColorPicker.Black}" Minimum="0" Maximum="100" Margin="4,0" />
+              </DockPanel>
+            </StackPanel>
+
+          </StackPanel>
+        </controls:Docker>
       </StackPanel>
     </Border>
 
