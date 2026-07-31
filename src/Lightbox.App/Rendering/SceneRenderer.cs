@@ -18,6 +18,13 @@ public static class SceneRenderer
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var surface = SKSurface.Create(info)
             ?? throw new InvalidOperationException("Could not create compose surface.");
+        ComposeInto(surface, passes);
+        return surface.Snapshot();
+    }
+
+    /// <summary>Composite into an existing (reusable) surface — the hot path during painting.</summary>
+    public static void ComposeInto(SKSurface surface, IReadOnlyList<RenderPass> passes)
+    {
         var canvas = surface.Canvas;
         canvas.Clear(SKColors.White);
 
@@ -34,7 +41,6 @@ public static class SceneRenderer
             canvas.DrawBitmap(pass.Bitmap, 0, 0, paint);
         }
         canvas.Flush();
-        return surface.Snapshot();
     }
 
     public static readonly SKColor OnionPrevTint = new(0xd0, 0x40, 0x40);

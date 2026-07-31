@@ -27,13 +27,26 @@ public static class Inbetweener
         double t,
         Easing easing = Easing.EaseInOut)
     {
+        // Interpolate the *effective* drawings: erased strokes must not come
+        // back to life in the inbetweens, and eraser marks aren't artwork.
+        var ea = StrokeRecordCleaner.EffectiveStrokes(a);
+        var eb = StrokeRecordCleaner.EffectiveStrokes(b);
+
         var et = EasingOps.Ease(Math.Clamp(t, 0, 1), easing);
-        var strokes = new List<Stroke>();
-        foreach (var pair in StrokeMatcher.Match(a, b))
+
+        // Stable stamping order: keep A's paint order for everything anchored
+        // in A; B-only strokes go after, in B's paint order.
+        var indexInA = new Dictionary<string, int>();
+        for (var i = 0; i < ea.Count; i++) indexInA[ea[i].Id] = i;
+        var indexInB = new Dictionary<string, int>();
+        for (var i = 0; i < eb.Count; i++) indexInB[eb[i].Id] = i;
+
+        var ordered = new List<(int Key, Stroke Stroke)>();
+        foreach (var pair in StrokeMatcher.Match(ea, eb))
         {
             if (pair.A is not null && pair.B is not null)
             {
-                strokes.Add(StrokeInterpolator.Interpolate(pair.A, pair.B, et));
+                ordered.Add((indexInA[pair.A.Id], StrokeInterpolator.Interpolate(pair.A, pair.B, et)));
             }
             else if (pair.A is not null)
             {
@@ -43,7 +56,7 @@ public static class Inbetweener
                 {
                     var s = pair.A.Clone();
                     s.Brush.Opacity = op;
-                    strokes.Add(s);
+                    ordered.Add((indexInA[pair.A.Id], s));
                 }
             }
             else if (pair.B is not null)
@@ -54,11 +67,11 @@ public static class Inbetweener
                 {
                     var s = pair.B.Clone();
                     s.Brush.Opacity = op;
-                    strokes.Add(s);
+                    ordered.Add((ea.Count + indexInB[pair.B.Id], s));
                 }
             }
         }
-        return strokes;
+        return ordered.OrderBy(x => x.Key).Select(x => x.Stroke).ToList();
     }
 
     /// <summary>

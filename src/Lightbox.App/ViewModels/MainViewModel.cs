@@ -41,7 +41,8 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly PlaybackClock _clock = new();
 
     private DocumentEditor _editor;
-    private SKBitmap? _liveComposite;
+    private SKSurface? _composeSurface;
+    private SKImageInfo _composeInfo;
 
     /// <summary>Fired with a fresh snapshot whenever the canvas must repaint.</summary>
     public event Action<RenderSnapshot>? SnapshotChanged;
@@ -166,27 +167,86 @@ public sealed partial class MainViewModel : ObservableObject
         return i < 0 ? null : ActiveLayer.Cels[i].Frame;
     }
 
+    /// <summary>One pointer sample in document space.</summary>
+    public readonly record struct PointerSample(double X, double Y, double Pressure);
+
+    // Live-preview state: a persistent copy of the target frame that only the
+    // NEW segment of the stroke gets stamped into per pointer event — this is
+    // what keeps painting O(stroke length) instead of O(length²).
+    private SKBitmap? _liveComposite;
+    private int _liveStampedCount;
+    private bool _snapshotQueued;
+
     public void BeginStroke(double x, double y, double pressure)
     {
-        if (IsPlaying || PaintTarget() is null) return;
+        if (IsPlaying || PaintTarget() is not { } target) return;
         _strokeBuilder.Begin(
             IsEraser ? ToolKind.Eraser : ToolKind.Brush,
             ColorHex,
             new BrushSettings { Size = BrushSize, Hardness = BrushHardness, Opacity = 1, Spacing = 0.15 },
             x, y, pressure);
+
+        _liveComposite?.Dispose();
+        _liveComposite = _cache.Get(target, Scene.Width, Scene.Height).Copy();
+        _liveStampedCount = 0;
+        FlushLivePreview();
         PublishSnapshot();
     }
 
-    public void MoveStroke(double x, double y, double pressure)
+    /// <summary>All coalesced samples of one pointer event → one stamp + one (coalesced) repaint.</summary>
+    public void MoveStrokeBatch(IReadOnlyList<PointerSample> samples)
     {
         if (!_strokeBuilder.IsActive) return;
-        _strokeBuilder.Add(x, y, pressure);
-        PublishSnapshot();
+        foreach (var s in samples) _strokeBuilder.Add(s.X, s.Y, s.Pressure);
+        FlushLivePreview();
+        RequestSnapshot();
+    }
+
+    public void MoveStroke(double x, double y, double pressure) =>
+        MoveStrokeBatch([new PointerSample(x, y, pressure)]);
+
+    /// <summary>
+    /// Stamp only the not-yet-stamped tail of the live stroke into the
+    /// preview bitmap. (With stroke opacity below 1 the batch joints would
+    /// double-composite slightly — the preview accepts that; the committed
+    /// frame is always re-rendered exactly from the record.)
+    /// </summary>
+    private void FlushLivePreview()
+    {
+        if (_liveComposite is null || _strokeBuilder.Current is not { } live) return;
+        var points = live.Points;
+        if (_liveStampedCount >= points.Count) return;
+
+        var from = Math.Max(0, _liveStampedCount - 1); // overlap one point so segments connect
+        var tail = new Stroke
+        {
+            Tool = live.Tool,
+            Color = live.Color,
+            Brush = live.Brush,
+            Points = points.Skip(from).ToList(),
+        };
+        FrameRasterizer.Append(_liveComposite, tail);
+        _liveStampedCount = points.Count;
+    }
+
+    /// <summary>Coalesce repaints: at most one snapshot per dispatcher frame.</summary>
+    private void RequestSnapshot()
+    {
+        if (_snapshotQueued) return;
+        _snapshotQueued = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _snapshotQueued = false;
+            PublishSnapshot();
+        }, Avalonia.Threading.DispatcherPriority.Render);
     }
 
     public void EndStroke()
     {
         var stroke = _strokeBuilder.End();
+        _liveComposite?.Dispose();
+        _liveComposite = null;
+        _liveStampedCount = 0;
         if (stroke is null) return;
         var target = PaintTarget();
         if (target is null) return;
@@ -380,10 +440,12 @@ public sealed partial class MainViewModel : ObservableObject
         var ts = Enumerable.Range(1, TweenCount)
             .Select(k => (double)k / (TweenCount + 1))
             .ToList();
+        // Send the effective drawings — erased strokes must not leak into
+        // the model's input any more than into the deterministic tweens.
         var request = new InbetweenRequest(
             new SceneInfo(Scene.Width, Scene.Height, Scene.Fps),
-            StrokesOf(layer.Cels[aIndex].Frame!),
-            StrokesOf(layer.Cels[bIndex].Frame!),
+            StrokeRecordCleaner.EffectiveStrokes(StrokesOf(layer.Cels[aIndex].Frame!)),
+            StrokeRecordCleaner.EffectiveStrokes(StrokesOf(layer.Cels[bIndex].Frame!)),
             ts,
             TweenEasing);
 
@@ -637,20 +699,25 @@ public sealed partial class MainViewModel : ObservableObject
 
             var bmp = _cache.Get(frame, scene.Width, scene.Height);
 
-            // Live stroke preview: overlay the in-progress stroke on the
-            // active layer without touching the cached bitmap.
-            if (_strokeBuilder.IsActive && layer.Id == ActiveLayer.Id && _strokeBuilder.Current is { } live)
+            // Live stroke preview: the active layer shows the incrementally
+            // stamped live bitmap instead of the cached committed frame.
+            if (_liveComposite is not null && _strokeBuilder.IsActive && layer.Id == ActiveLayer.Id)
             {
-                _liveComposite?.Dispose();
-                _liveComposite = bmp.Copy();
-                FrameRasterizer.Append(_liveComposite, live);
                 bmp = _liveComposite;
             }
 
             passes.Add(new RenderPass(bmp, null, layer.Opacity));
         }
 
-        var image = SceneRenderer.Compose(scene.Width, scene.Height, passes);
-        SnapshotChanged?.Invoke(new RenderSnapshot(image, scene.Width, scene.Height));
+        var info = new SKImageInfo(scene.Width, scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        if (_composeSurface is null || !_composeInfo.Equals(info))
+        {
+            _composeSurface?.Dispose();
+            _composeSurface = SKSurface.Create(info)
+                ?? throw new InvalidOperationException("Could not create compose surface.");
+            _composeInfo = info;
+        }
+        SceneRenderer.ComposeInto(_composeSurface, passes);
+        SnapshotChanged?.Invoke(new RenderSnapshot(_composeSurface.Snapshot(), scene.Width, scene.Height));
     }
 }

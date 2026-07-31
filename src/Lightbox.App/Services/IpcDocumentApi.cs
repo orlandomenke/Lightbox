@@ -94,12 +94,14 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         var keyIndex = ExposureSheet.KeyIndexAtOrBefore(layer, p.FrameIndex);
         if (keyIndex < 0) return IpcProtocol.Response.Fail("No drawing at or before that frame on this layer.");
         var frame = layer.Cels[keyIndex].Frame!;
+        // Effective record only: erased strokes are not part of the drawing.
+        var strokes = Core.Inbetween.StrokeRecordCleaner.EffectiveStrokes(StrokesOf(frame));
         return IpcProtocol.Response.Success(new
         {
             p.FrameIndex,
             LayerId = layer.Id,
             KeyIndex = keyIndex,
-            Strokes = StrokesOf(frame).Select(StrokeWire.ToWire),
+            Strokes = strokes.Select(StrokeWire.ToWire),
         });
     }
 

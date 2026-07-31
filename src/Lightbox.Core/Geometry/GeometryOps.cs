@@ -100,6 +100,18 @@ public static class GeometryOps
         return pts;
     }
 
+    /// <summary>Distance from point p to the segment a–b.</summary>
+    public static double DistToSegment(StrokePoint p, StrokePoint a, StrokePoint b)
+    {
+        var abx = b.X - a.X;
+        var aby = b.Y - a.Y;
+        var lenSq = abx * abx + aby * aby;
+        if (lenSq == 0) return Dist(p, a);
+        var t = Math.Clamp(((p.X - a.X) * abx + (p.Y - a.Y) * aby) / lenSq, 0, 1);
+        var proj = new StrokePoint(a.X + t * abx, a.Y + t * aby, 0);
+        return Dist(p, proj);
+    }
+
     public readonly record struct BBox(double MinX, double MinY, double MaxX, double MaxY);
 
     public static BBox BoundsOf(IReadOnlyList<StrokePoint> points)

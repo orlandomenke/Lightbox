@@ -27,8 +27,12 @@ public sealed class CanvasControl : Control
     /// <summary>Begin a stroke at a document-space position (pressure 0..1).</summary>
     public event Action<double, double, double>? PaintStarted;
 
-    /// <summary>Extend the live stroke (document space).</summary>
-    public event Action<double, double, double>? PaintMoved;
+    /// <summary>
+    /// Extend the live stroke with ALL coalesced samples of one pointer event
+    /// (document space) — batched so the consumer repaints once per event,
+    /// not once per sample.
+    /// </summary>
+    public event Action<IReadOnlyList<ViewModels.MainViewModel.PointerSample>>? PaintMoved;
 
     public event Action? PaintEnded;
 
@@ -100,12 +104,16 @@ public sealed class CanvasControl : Control
     {
         base.OnPointerMoved(e);
         if (!_painting) return;
-        // Coalesced high-frequency samples, not just the latest position.
-        foreach (var pp in e.GetIntermediatePoints(this))
+        // Coalesced high-frequency samples, not just the latest position —
+        // delivered as one batch per event.
+        var points = e.GetIntermediatePoints(this);
+        var samples = new List<ViewModels.MainViewModel.PointerSample>(points.Count);
+        foreach (var pp in points)
         {
             var (x, y) = ToDoc(pp.Position);
-            PaintMoved?.Invoke(x, y, PressureOf(pp));
+            samples.Add(new ViewModels.MainViewModel.PointerSample(x, y, PressureOf(pp)));
         }
+        if (samples.Count > 0) PaintMoved?.Invoke(samples);
         e.Handled = true;
     }
 

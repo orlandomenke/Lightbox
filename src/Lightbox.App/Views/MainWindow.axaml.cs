@@ -20,7 +20,7 @@ public partial class MainWindow : Window
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
         Canvas.PaintStarted += _vm.BeginStroke;
-        Canvas.PaintMoved += _vm.MoveStroke;
+        Canvas.PaintMoved += _vm.MoveStrokeBatch;
         Canvas.PaintEnded += _vm.EndStroke;
 
         KeyDown += OnKeyDown;
