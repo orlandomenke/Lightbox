@@ -1,0 +1,46 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          # Avalonia 12's source generators need a recent Roslyn; the .NET 8
+          # SDK's compiler is too old even though the code targets net8.0.
+          dotnet-version: 10.0.x
+      - name: SkiaSharp native dependency
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+      - run: dotnet test Lightbox.sln -c Release
+
+  publish-win-x64:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Publish app (self-contained, no install/admin needed)
+        run: >
+          dotnet publish src/Lightbox.App/Lightbox.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishTrimmed=false -p:DebugType=none
+          -o publish/win-x64
+      - name: Publish MCP server into the same bundle
+        run: >
+          dotnet publish src/Lightbox.Mcp/Lightbox.Mcp.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishTrimmed=false -p:DebugType=none
+          -o publish/win-x64/mcp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Lightbox-win-x64
+          path: publish/win-x64
+          retention-days: 30

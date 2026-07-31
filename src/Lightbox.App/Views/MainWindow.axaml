@@ -1,0 +1,157 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Lightbox.App.ViewModels"
+        xmlns:render="using:Lightbox.App.Rendering"
+        x:Class="Lightbox.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Lightbox"
+        Width="1280" Height="800"
+        WindowStartupLocation="CenterScreen">
+
+  <DockPanel>
+
+    <!-- Toolbar -->
+    <Border DockPanel.Dock="Top" Padding="8,6" Background="#1f1f1f">
+      <StackPanel Orientation="Horizontal" Spacing="14">
+        <TextBlock Text="Lightbox" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
+
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <ToggleButton Content="Brush" IsChecked="{Binding !IsEraser}" IsEnabled="{Binding IsEraser}" />
+          <ToggleButton Content="Eraser" IsChecked="{Binding IsEraser}" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <TextBlock Text="Color" VerticalAlignment="Center" />
+          <TextBox Text="{Binding ColorHex}" Width="80" ToolTip.Tip="Hex color, e.g. #1a1a1a" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <TextBlock Text="Size" VerticalAlignment="Center" />
+          <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="60" Width="110" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <TextBlock Text="Hardness" VerticalAlignment="Center" />
+          <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+          <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
+          <NumericUpDown Value="{Binding OnionDepth}" Minimum="1" Maximum="3" Increment="1"
+                         FormatString="0" Width="100" VerticalAlignment="Center"
+                         ToolTip.Tip="Onion skin depth (frames each side)" />
+        </StackPanel>
+
+        <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
+                  ToolTip.Tip="Smooth strokes when you finish them" />
+
+        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+          <TextBlock Text="fps" VerticalAlignment="Center" />
+          <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
+                         FormatString="0" Width="100" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <NumericUpDown Value="{Binding TweenCount}" Minimum="1" Maximum="9" Increment="1"
+                         FormatString="0" Width="110" VerticalAlignment="Center"
+                         ToolTip.Tip="Number of inbetween frames to generate" />
+          <ComboBox ItemsSource="{Binding EasingChoices}" SelectedItem="{Binding TweenEasing}" Width="110" />
+          <Button Content="＋ Inbetween" Command="{Binding InsertInbetweensCommand}"
+                  ToolTip.Tip="Insert interpolated frames between this key and the next" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Button Content="Open…" Click="OnOpenClicked" />
+          <Button Content="Save…" Click="OnSaveClicked" />
+          <Button Content="Export PNGs…" Click="OnExportClicked"
+                  ToolTip.Tip="Render every frame to a numbered PNG sequence" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- AI bar -->
+    <Border DockPanel.Dock="Top" Padding="8,4" Background="#232323"
+            ToolTip.Tip="{Binding AiUnavailableHint}">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Button Content="✦ AI Inbetween"
+                Command="{Binding AiInbetweenCommand}"
+                IsEnabled="{Binding CanUseAi}"
+                ToolTip.Tip="Ask Claude to draw the inbetweens between this key and the next" />
+        <TextBox Text="{Binding AiPrompt}" Width="320" Watermark="Describe what Claude should draw…"
+                 IsEnabled="{Binding CanUseAi}" />
+        <Button Content="✦ AI Draw"
+                Command="{Binding AiDrawCommand}"
+                IsEnabled="{Binding CanUseAi}"
+                ToolTip.Tip="Claude paints strokes onto the current frame" />
+        <Button Content="✕" Command="{Binding CancelAiCommand}" IsVisible="{Binding AiBusy}"
+                ToolTip.Tip="Cancel the AI request" />
+        <ProgressBar IsIndeterminate="True" Width="90" IsVisible="{Binding AiBusy}" VerticalAlignment="Center" />
+        <TextBlock Text="{Binding AiStatus}" VerticalAlignment="Center" Opacity="0.85" TextTrimming="CharacterEllipsis" />
+      </StackPanel>
+    </Border>
+
+    <!-- Timeline -->
+    <Border DockPanel.Dock="Bottom" Padding="8,6" Background="#1f1f1f">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="6">
+          <Button Content="▶ / ⏸" Command="{Binding TogglePlaybackCommand}" ToolTip.Tip="Play / pause (Space)" />
+          <Button Content="＋ Frame" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
+          <Button Content="⧉ Dup" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
+          <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
+          <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
+          <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
+          <TextBlock Text="{Binding FrameLabel}" VerticalAlignment="Center" Margin="8,0" />
+          <ComboBox ItemsSource="{Binding LayerChoices}" SelectedIndex="{Binding ActiveLayerIndex}"
+                    Width="110" VerticalAlignment="Center" ToolTip.Tip="Active layer">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <Button Content="＋P" Command="{Binding AddPaintedLayerCommand}" ToolTip.Tip="Add a painted (raster) layer" />
+          <Button Content="＋V" Command="{Binding AddVectorLayerCommand}" ToolTip.Tip="Add a vector layer" />
+          <Button Content="👁" Command="{Binding ToggleActiveLayerVisibleCommand}" ToolTip.Tip="Toggle active layer visibility" />
+        </StackPanel>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding FrameCells}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="2" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:FrameCell">
+                <Button Width="40" Height="50"
+                        Classes.current="{Binding IsCurrent}"
+                        Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SelectFrameCommand}"
+                        CommandParameter="{Binding}"
+                        Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <Button.Styles>
+                    <Style Selector="Button">
+                      <Setter Property="Background" Value="#2a2a2a" />
+                    </Style>
+                    <Style Selector="Button.current">
+                      <Setter Property="Background" Value="#4a6ea9" />
+                    </Style>
+                  </Button.Styles>
+                  <StackPanel>
+                    <Image Source="{Binding Thumb}" Width="32" Height="18" Stretch="Uniform"
+                           IsVisible="{Binding IsKeyed}" />
+                    <TextBlock Text="{Binding Display}" HorizontalAlignment="Center" FontSize="11" />
+                    <TextBlock Text="—" HorizontalAlignment="Center" FontSize="10" IsVisible="{Binding !IsKeyed}" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <!-- Canvas -->
+    <render:CanvasControl x:Name="Canvas" />
+
+  </DockPanel>
+</Window>
