@@ -25,6 +25,8 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 "render_frame" => RenderFrame(request),
                 "insert_inbetweens" => InsertInbetweens(request),
                 "draw_strokes" => DrawStrokes(request),
+                "list_reference_views" => ListReferenceViews(),
+                "render_reference_view" => RenderReferenceView(request),
                 _ => IpcProtocol.Response.Fail($"Unknown op \"{request.Op}\"."),
             };
         }
@@ -146,6 +148,34 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         public int FrameIndex { get; set; }
         public string? LayerId { get; set; }
         public List<StrokeWire.StrokeDto> Strokes { get; set; } = [];
+    }
+
+    private IpcProtocol.Response ListReferenceViews()
+    {
+        var doc = vm.SaveTargetTab?.Doc ?? vm.Doc;
+        return IpcProtocol.Response.Success(new
+        {
+            Sheets = doc.ReferenceSheets.Select(s => new
+            {
+                s.Id,
+                s.Name,
+                Views = s.Views.Select(v => new { v.Id, v.Name, v.Width, v.Height }),
+            }),
+        });
+    }
+
+    private sealed class ViewRef
+    {
+        public string ViewId { get; set; } = "";
+    }
+
+    private IpcProtocol.Response RenderReferenceView(IpcProtocol.Request request)
+    {
+        var p = Payload<ViewRef>(request);
+        var doc = vm.SaveTargetTab?.Doc ?? vm.Doc;
+        var view = doc.ReferenceSheets.SelectMany(s => s.Views).FirstOrDefault(v => v.Id == p.ViewId)
+                   ?? throw new ArgumentException($"No reference view with id \"{p.ViewId}\".");
+        return IpcProtocol.Response.Success(new { PngBase64 = vm.RenderReferenceViewPng(view) });
     }
 
     private IpcProtocol.Response DrawStrokes(IpcProtocol.Request request)

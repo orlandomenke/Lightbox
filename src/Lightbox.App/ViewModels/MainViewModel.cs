@@ -81,7 +81,7 @@ public sealed partial class MainViewModel : ObservableObject
         _editor = first.Editor;
         _editor.Changed += OnDocumentChanged;
         _clock.Tick += OnPlaybackTick;
-        _autosave = new AutosaveService(() => Doc);
+        _autosave = new AutosaveService(() => SaveTargetTab?.Doc ?? Doc);
         ColorPicker = new ColorPickerViewModel();
         ColorPicker.SetHex(ColorHex);
         ColorPicker.HexCommitted += hex => ColorHex = hex;
@@ -103,6 +103,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (value is null) return;
         foreach (var tab in Tabs) tab.IsActive = tab == value;
+        OnPropertyChanged(nameof(ShowTimeline));
+        OnPropertyChanged(nameof(ReferenceSheetsView));
         if (value.Editor == _editor) return;
 
         _switchingTabs = true;
@@ -116,6 +118,15 @@ public sealed partial class MainViewModel : ObservableObject
         CurrentFrameIndex = Math.Clamp(value.SavedFrameIndex, 0, Math.Max(0, Scene.FrameCount - 1));
         _switchingTabs = false;
     }
+
+    /// <summary>The animation tab a save/AI call should target (a reference tab defers to its owner).</summary>
+    public DocumentTab? SaveTargetTab =>
+        ActiveTab?.Kind == DocumentTabKind.Reference ? ActiveTab.Owner ?? ActiveTab : ActiveTab;
+
+    /// <summary>Timeline is hidden on reference tabs regardless of the View-menu toggle.</summary>
+    public bool ShowTimeline => TimelineVisible && ActiveTab?.Kind != DocumentTabKind.Reference;
+
+    partial void OnTimelineVisibleChanged(bool value) => OnPropertyChanged(nameof(ShowTimeline));
 
     [RelayCommand]
     private void ActivateTab(DocumentTab tab) => ActiveTab = tab;
@@ -158,6 +169,8 @@ public sealed partial class MainViewModel : ObservableObject
         var index = Tabs.IndexOf(tab);
         if (index < 0) return;
         Tabs.Remove(tab);
+        // An animation tab takes its reference-view tabs with it.
+        foreach (var orphan in Tabs.Where(t => t.Owner == tab).ToList()) Tabs.Remove(orphan);
         if (Tabs.Count == 0)
         {
             Tabs.Add(new DocumentTab(new DocumentEditor(DocumentFactory.CreateDoc()), NextUntitledName()));
@@ -171,7 +184,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The active document was written to disk: adopt the name, clear the dirty dot.</summary>
     public void NotifySaved(string filePath)
     {
-        if (ActiveTab is not { } tab) return;
+        if (SaveTargetTab is not { } tab) return;
         tab.FilePath = filePath;
         tab.Title = TitleFromPath(filePath);
         tab.IsDirty = false;
@@ -197,7 +210,113 @@ public sealed partial class MainViewModel : ObservableObject
     private void MarkDocumentEdited()
     {
         _autosave.MarkDirty();
-        if (!_switchingTabs && ActiveTab is { } tab) tab.IsDirty = true;
+        if (_switchingTabs || ActiveTab is not { } tab) return;
+        if (tab.Kind == DocumentTabKind.Reference)
+        {
+            // Undo/redo replaces the wrapper doc's layer list; keep the owning
+            // document's view pointed at whatever the editor currently holds.
+            if (tab.View is { } view) view.Layers = Doc.Scene.Layers;
+            if (tab.Owner is { } owner) owner.IsDirty = true;
+        }
+        else
+        {
+            tab.IsDirty = true;
+        }
+    }
+
+    // ---- character sheets -----------------------------------------------------
+
+    /// <summary>Sheets of the active (or owning) document — fresh list so the docker re-reads.</summary>
+    public IReadOnlyList<ReferenceSheet> ReferenceSheetsView =>
+        (SaveTargetTab?.Doc ?? Doc).ReferenceSheets.ToList();
+
+    public void AddReferenceSheet()
+    {
+        var target = SaveTargetTab ?? Tabs[0];
+        target.Doc.ReferenceSheets.Add(new ReferenceSheet
+        {
+            Name = $"Character {target.Doc.ReferenceSheets.Count + 1}",
+        });
+        target.IsDirty = true;
+        OnPropertyChanged(nameof(ReferenceSheetsView));
+    }
+
+    public void AddReferenceView(ReferenceSheet sheet)
+    {
+        var target = SaveTargetTab ?? Tabs[0];
+        var view = ReferenceView.Create($"view {sheet.Views.Count + 1}", Scene.Width, Scene.Height);
+        sheet.Views.Add(view);
+        target.IsDirty = true;
+        OnPropertyChanged(nameof(ReferenceSheetsView));
+        OpenReferenceView(view);
+    }
+
+    /// <summary>A sheet or view was renamed in the docker.</summary>
+    public void MarkReferenceEdited()
+    {
+        if (SaveTargetTab is { } tab) tab.IsDirty = true;
+        _autosave.MarkDirty();
+        OnPropertyChanged(nameof(ReferenceSheetsView));
+    }
+
+    /// <summary>Open (or focus) the tab editing a character-sheet view.</summary>
+    public void OpenReferenceView(ReferenceView view)
+    {
+        if (Tabs.FirstOrDefault(t => t.View == view) is { } open)
+        {
+            ActiveTab = open;
+            return;
+        }
+        var owner = SaveTargetTab ?? Tabs[0];
+        var sheet = owner.Doc.ReferenceSheets.FirstOrDefault(s => s.Views.Contains(view));
+        // The wrapper scene SHARES the view's layer list: edits land in the
+        // owning document directly.
+        var wrapper = new Doc
+        {
+            Scene = new Scene
+            {
+                Name = view.Name,
+                Width = view.Width,
+                Height = view.Height,
+                FrameCount = 1,
+                Layers = view.Layers,
+            },
+        };
+        AddTab(new DocumentTab(new DocumentEditor(wrapper), $"{sheet?.Name ?? "Sheet"} / {view.Name}")
+        {
+            Kind = DocumentTabKind.Reference,
+            Owner = owner,
+            View = view,
+        });
+    }
+
+    /// <summary>Flatten one character-sheet view to PNG (for AI reference and MCP).</summary>
+    public string RenderReferenceViewPng(ReferenceView view)
+    {
+        var passes = new List<RenderPass>();
+        foreach (var layer in view.Layers)
+        {
+            if (!layer.Visible) continue;
+            var frame = ExposureSheet.ExposedFrame(layer, 0);
+            if (frame is null) continue;
+            passes.Add(new RenderPass(_cache.Get(frame, view.Width, view.Height), null, layer.Opacity));
+        }
+        using var image = SceneRenderer.Compose(view.Width, view.Height, passes);
+        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
+            ?? throw new InvalidOperationException("PNG encode failed.");
+        return Convert.ToBase64String(data.AsSpan());
+    }
+
+    /// <summary>Up to two rendered character-sheet views to ride along with AI requests.</summary>
+    private IReadOnlyList<string>? CollectReferenceImages()
+    {
+        var views = (SaveTargetTab?.Doc ?? Doc).ReferenceSheets
+            .SelectMany(s => s.Views)
+            .Where(v => v.Layers.Any(l => l.Visible))
+            .Take(2)
+            .Select(RenderReferenceViewPng)
+            .ToList();
+        return views.Count > 0 ? views : null;
     }
 
     /// <summary>The color docker's state, kept in sync with <see cref="ColorHex"/>.</summary>
@@ -826,7 +945,8 @@ public sealed partial class MainViewModel : ObservableObject
             StrokeRecordCleaner.EffectiveStrokes(StrokesOf(layer.Cels[aIndex].Frame!)),
             StrokeRecordCleaner.EffectiveStrokes(StrokesOf(layer.Cels[bIndex].Frame!)),
             ts,
-            TweenEasing);
+            TweenEasing,
+            CollectReferenceImages());
 
         var result = await RunAiAsync(
             $"Claude is drawing {TweenCount} inbetween(s)…",
@@ -853,7 +973,8 @@ public sealed partial class MainViewModel : ObservableObject
         var request = new DrawRequest(
             new SceneInfo(Scene.Width, Scene.Height, Scene.Fps),
             AiPrompt.Trim(),
-            StrokesOf(target));
+            StrokesOf(target),
+            CollectReferenceImages());
 
         var strokes = await RunAiAsync(
             "Claude is drawing…",
@@ -961,7 +1082,8 @@ public sealed partial class MainViewModel : ObservableObject
         _switchingTabs = false;
     }
 
-    public string SerializeDocument() => DocJson.Serialize(Doc);
+    /// <summary>Serialize the save target (a reference tab serializes its owning document).</summary>
+    public string SerializeDocument() => DocJson.Serialize(SaveTargetTab?.Doc ?? Doc);
 
     // ---- internals ----------------------------------------------------------
 

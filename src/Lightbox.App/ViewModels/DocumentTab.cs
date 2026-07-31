@@ -14,10 +14,21 @@ public sealed record NewDocumentSettings(
     string BackgroundColor,
     bool TransparentBackground);
 
+public enum DocumentTabKind
+{
+    Animation,
+    Reference,
+}
+
 /// <summary>
 /// One open document: its editor (which owns the undo history, so switching
 /// tabs never loses it), where it was saved, and whether it has unsaved
 /// changes (shown as a • in the tab strip).
+///
+/// A Reference tab edits a character-sheet view of its <see cref="Owner"/>
+/// animation document: its editor wraps a scene that shares the view's layer
+/// list, so edits land in the owning document (and dirty the owner, never
+/// this tab).
 /// </summary>
 public sealed partial class DocumentTab : ObservableObject
 {
@@ -26,6 +37,14 @@ public sealed partial class DocumentTab : ObservableObject
         Editor = editor;
         _title = title;
     }
+
+    public DocumentTabKind Kind { get; init; } = DocumentTabKind.Animation;
+
+    /// <summary>The animation tab whose document owns this reference view.</summary>
+    public DocumentTab? Owner { get; init; }
+
+    /// <summary>The character-sheet view this tab edits (Reference tabs only).</summary>
+    public ReferenceView? View { get; init; }
 
     internal DocumentEditor Editor { get; set; }
 

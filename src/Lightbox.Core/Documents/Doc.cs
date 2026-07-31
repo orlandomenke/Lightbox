@@ -10,4 +10,7 @@ public sealed class Doc
     public int Version { get; set; } = 1;
 
     public Scene Scene { get; set; } = new();
+
+    /// <summary>Character sheets: reference art outside the timeline.</summary>
+    public List<ReferenceSheet> ReferenceSheets { get; set; } = [];
 }

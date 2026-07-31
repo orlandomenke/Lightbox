@@ -30,7 +30,7 @@ public partial class MainWindow : Window
         {
             if (args.PropertyName is nameof(MainViewModel.SidebarOnRight)
                 or nameof(MainViewModel.SidebarVisible)
-                or nameof(MainViewModel.TimelineVisible))
+                or nameof(MainViewModel.ShowTimeline))
             {
                 ApplyDockLayout();
             }
@@ -63,7 +63,7 @@ public partial class MainWindow : Window
 
     // ---- docker geometry -----------------------------------------------------
 
-    private GridLength _timelineHeight = new(320, GridUnitType.Pixel);
+    private GridLength _timelineHeight = new(280, GridUnitType.Pixel);
     private GridLength _sidebarWidth = new(300, GridUnitType.Pixel);
     private int _sidebarColumn = 2;
 
@@ -76,7 +76,7 @@ public partial class MainWindow : Window
     {
         var rows = RootGrid.RowDefinitions;
         if (rows[2].Height.IsAbsolute && rows[2].Height.Value > 20) _timelineHeight = rows[2].Height;
-        if (_vm.TimelineVisible)
+        if (_vm.ShowTimeline)
         {
             rows[2].MinHeight = 180;
             rows[2].Height = _timelineHeight;
@@ -187,6 +187,24 @@ public partial class MainWindow : Window
     }
 
     private void OnClearPlaybackRange(object? sender, RoutedEventArgs e) => _vm.ClearPlaybackRange();
+
+    // ---- character sheets -----------------------------------------------------
+
+    private void OnAddReferenceSheet(object? sender, RoutedEventArgs e) => _vm.AddReferenceSheet();
+
+    private void OnAddReferenceView(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is Lightbox.Core.Documents.ReferenceSheet sheet)
+            _vm.AddReferenceView(sheet);
+    }
+
+    private void OnOpenReferenceView(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is Lightbox.Core.Documents.ReferenceView view)
+            _vm.OpenReferenceView(view);
+    }
+
+    private void OnReferenceRenamed(object? sender, RoutedEventArgs e) => _vm.MarkReferenceEdited();
 
     // ---- canvas view tools (view-only: never touch the document) -------------
 

@@ -34,6 +34,7 @@ public sealed class AnthropicArtist : IAiArtist
             Prompts.InbetweenSystem,
             Prompts.InbetweenUser(request),
             StrokeSchemas.InbetweenResult,
+            request.ReferenceImages,
             ct);
         if (call.Outcome != AiOutcome.Success)
             return Forward<List<InbetweenFrameResult>>(call);
@@ -66,6 +67,7 @@ public sealed class AnthropicArtist : IAiArtist
             Prompts.DrawSystem,
             Prompts.DrawUser(request),
             StrokeSchemas.DrawResult,
+            request.ReferenceImages,
             ct);
         if (call.Outcome != AiOutcome.Success)
             return Forward<List<Core.Documents.Stroke>>(call);
@@ -91,17 +93,28 @@ public sealed class AnthropicArtist : IAiArtist
 
     /// <summary>Run one structured-output request; returns the raw JSON text.</summary>
     private async Task<AiResult<string>> CallAsync(
-        string system, string user, string schemaJson, CancellationToken ct)
+        string system, string user, string schemaJson, IReadOnlyList<string>? referenceImages, CancellationToken ct)
     {
         var schema = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(schemaJson)
                      ?? throw new InvalidOperationException("Bad schema constant.");
+
+        // Character-sheet views ride along as image blocks before the task text.
+        var content = new List<ContentBlockParam>();
+        foreach (var png in referenceImages ?? [])
+        {
+            content.Add(new ImageBlockParam
+            {
+                Source = new Base64ImageSource { Data = png, MediaType = "image/png" },
+            });
+        }
+        content.Add(new TextBlockParam { Text = user });
 
         var parameters = new MessageCreateParams
         {
             Model = Model,
             MaxTokens = MaxTokens,
             System = new List<TextBlockParam> { new() { Text = system } },
-            Messages = [new() { Role = Role.User, Content = user }],
+            Messages = [new() { Role = Role.User, Content = content }],
             OutputConfig = new OutputConfig
             {
                 Format = new JsonOutputFormat { Schema = schema },

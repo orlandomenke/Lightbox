@@ -3,6 +3,7 @@
         xmlns:vm="using:Lightbox.App.ViewModels"
         xmlns:render="using:Lightbox.App.Rendering"
         xmlns:controls="using:Lightbox.App.Controls"
+        xmlns:docs="using:Lightbox.Core.Documents"
         x:Class="Lightbox.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Lightbox"
@@ -180,7 +181,7 @@
       <Grid.RowDefinitions>
         <RowDefinition Height="*" MinHeight="220" />
         <RowDefinition Height="Auto" />
-        <RowDefinition Height="320" MinHeight="180" />
+        <RowDefinition Height="280" MinHeight="180" />
       </Grid.RowDefinitions>
 
       <Grid x:Name="WorkArea" Grid.Row="0">
@@ -217,9 +218,11 @@
                 IsVisible="{Binding SidebarVisible}">
           <Grid Margin="4">
             <Grid.RowDefinitions>
-              <RowDefinition Height="*" MinHeight="120" />
+              <RowDefinition Height="*" MinHeight="90" />
               <RowDefinition Height="Auto" />
-              <RowDefinition Height="1.4*" MinHeight="250" />
+              <RowDefinition Height="1.4*" MinHeight="160" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="0.8*" MinHeight="90" />
             </Grid.RowDefinitions>
 
             <!-- Layer docker (its ✕ collapses the sidebar to its side; ⇄ switches sides) -->
@@ -409,16 +412,69 @@
                 </StackPanel>
               </ScrollViewer>
             </controls:Docker>
+
+            <GridSplitter Grid.Row="3" Height="5" ResizeDirection="Rows" />
+
+            <!-- Character sheet docker: reference views of the subject, outside the timeline -->
+            <controls:Docker Grid.Row="4" Title="Character sheets">
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <Button Content="＋ Sheet" Click="OnAddReferenceSheet"
+                          ToolTip.Tip="Add a character sheet (reference art, not part of the animation)" />
+                </Border>
+              </controls:Docker.TopBar>
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding ReferenceSheetsView}" Margin="4">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Vertical" Spacing="2" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="docs:ReferenceSheet">
+                      <StackPanel Spacing="1">
+                        <DockPanel>
+                          <Button DockPanel.Dock="Right" Content="＋ view" FontSize="11" Padding="6,2"
+                                  Click="OnAddReferenceView"
+                                  ToolTip.Tip="Add a view (front/side/…) to this sheet" />
+                          <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
+                                   FontWeight="SemiBold" VerticalAlignment="Center"
+                                   LostFocus="OnReferenceRenamed" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding Views}" Margin="14,0,0,4">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Orientation="Vertical" Spacing="1" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="docs:ReferenceView">
+                              <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="✎" FontSize="11" Padding="6,2"
+                                        Click="OnOpenReferenceView" ToolTip.Tip="Open this view in a tab" />
+                                <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
+                                         VerticalAlignment="Center" FontSize="12"
+                                         LostFocus="OnReferenceRenamed" />
+                              </DockPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </controls:Docker>
           </Grid>
         </Border>
       </Grid>
 
       <GridSplitter Grid.Row="1" Height="5" ResizeDirection="Rows"
-                    IsVisible="{Binding TimelineVisible}" />
+                    IsVisible="{Binding ShowTimeline}" />
 
-      <!-- Timeline docker (its ✕ collapses it downward; reopen via View menu) -->
+      <!-- Timeline docker (its ✕ collapses it downward; reopen via View menu; hidden on reference tabs) -->
       <controls:Docker Grid.Row="2" Title="Timeline" Margin="4,0,4,4"
-                       IsVisible="{Binding TimelineVisible}"
+                       IsVisible="{Binding ShowTimeline}"
                        CloseCommand="{Binding ToggleTimelineCommand}">
         <controls:Docker.TopBar>
           <Border Classes="dockerBar">

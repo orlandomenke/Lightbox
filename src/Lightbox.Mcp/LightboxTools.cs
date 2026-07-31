@@ -91,6 +91,28 @@ public static class LightboxTools
         return await Text("draw_strokes", new { frameIndex, layerId, strokes }, ct);
     }
 
+    [McpServerTool(Name = "list_reference_views"), Description(
+        "List the document's character sheets and their views (id, name, size). " +
+        "Character sheets are reference art of the subject (front/side/…) that " +
+        "lives outside the timeline — the authoritative design to keep frames " +
+        "on-model and to draw parts of the subject that motion reveals.")]
+    public static Task<string> ListReferenceViews(CancellationToken ct) =>
+        Text("list_reference_views", null, ct);
+
+    [McpServerTool(Name = "render_reference_view"), Description(
+        "Render one character-sheet view to an image so you can SEE the " +
+        "subject's design. Use it before drawing or inbetweening a character " +
+        "so your strokes stay on-model.")]
+    public static async Task<ImageContentBlock> RenderReferenceView(
+        [Description("View id from list_reference_views")] string viewId,
+        CancellationToken ct)
+    {
+        var result = await PipeBridge.CallAsync("render_reference_view", new { viewId }, ct);
+        var b64 = result.GetProperty("pngBase64").GetString()
+                  ?? throw new LightboxOpException("No image returned.");
+        return new ImageContentBlock { Data = Convert.FromBase64String(b64), MimeType = "image/png" };
+    }
+
     private static JsonElement ParseJsonArg(string json, string name)
     {
         try
