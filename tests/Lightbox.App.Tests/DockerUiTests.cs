@@ -22,7 +22,7 @@ public class LayerRowTests
         Assert.True(vm.LayerRows[0].IsActive); // new layer becomes active
 
         vm.AddFrameCommand.Execute(null);
-        Assert.All(vm.LayerRows, r => Assert.Equal(2, r.Cells.Count));
+        Assert.All(vm.LayerRows, r => Assert.Equal(2, r.Cells.Count(c => !c.IsVirtual)));
     }
 
     [AvaloniaFact]

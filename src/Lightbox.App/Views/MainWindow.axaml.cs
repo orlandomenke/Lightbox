@@ -3,6 +3,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Lightbox.App.ViewModels;
+using Lightbox.Core.Documents;
 using Lightbox.Core.Serialization;
 
 namespace Lightbox.App.Views;
@@ -56,6 +57,37 @@ public partial class MainWindow : Window
         if ((sender as Control)?.DataContext is LayerRow row)
             _vm.ActivateLayerCommand.Execute(row);
     }
+
+    // ---- timeline cell context menu -----------------------------------------
+
+    private static FrameCell? CellOf(object? sender) => (sender as Control)?.DataContext as FrameCell;
+
+    private void OnInsertKeyframe(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.InsertFrameAt(cell, FrameRole.Key);
+    }
+
+    private void OnInsertBreakdown(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.InsertFrameAt(cell, FrameRole.Breakdown);
+    }
+
+    private void OnInsertInbetweenFrame(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.InsertFrameAt(cell, FrameRole.Inbetween);
+    }
+
+    private void OnSetStartFrame(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.SetPlaybackStart(cell);
+    }
+
+    private void OnSetEndFrame(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.SetPlaybackEnd(cell);
+    }
+
+    private void OnClearPlaybackRange(object? sender, RoutedEventArgs e) => _vm.ClearPlaybackRange();
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {

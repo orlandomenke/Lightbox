@@ -31,6 +31,23 @@ public sealed partial class FrameCell(int index) : ObservableObject
     private bool _isCurrent;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsBreakdown))]
+    [NotifyPropertyChangedFor(nameof(IsInbetween))]
+    private FrameRole _role = FrameRole.Key;
+
+    public bool IsBreakdown => Role == FrameRole.Breakdown;
+
+    public bool IsInbetween => Role == FrameRole.Inbetween;
+
+    /// <summary>Beyond the timeline's last frame — insertable, but not playable yet.</summary>
+    [ObservableProperty]
+    private bool _isVirtual;
+
+    /// <summary>Outside the selected playback range (greyed out).</summary>
+    [ObservableProperty]
+    private bool _outOfRange;
+
+    [ObservableProperty]
     private Avalonia.Media.Imaging.Bitmap? _thumb;
 
     /// <summary>Frame id the current thumb was rendered from (staleness check).</summary>
@@ -209,6 +226,14 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<FrameCell> FrameCells =>
         LayerRows[LayerRows.Count - 1 - Math.Clamp(ActiveLayerIndex, 0, LayerRows.Count - 1)].Cells;
 
+    /// <summary>Cells shown per row: the real frames plus empty tail cells to insert into.</summary>
+    public int TimelineExtent => Scene.FrameCount + VirtualTail;
+
+    private const int VirtualTail = 24;
+
+    /// <summary>Last frame the ruler may scrub to.</summary>
+    public int MaxScrubFrame => Scene.FrameCount - 1;
+
     public string FrameLabel => $"{CurrentFrameIndex + 1} / {Scene.FrameCount}";
 
     partial void OnCurrentFrameIndexChanged(int value)
@@ -326,21 +351,144 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- commands -----------------------------------------------------------
 
+    // ---- playback transport --------------------------------------------------
+
+    private int _playDirection = 1;
+
+    /// <summary>Playback start (index, -1 = unset → first frame).</summary>
+    [ObservableProperty]
+    private int _playbackStartFrame = -1;
+
+    /// <summary>Playback end (index, -1 = unset → last frame).</summary>
+    [ObservableProperty]
+    private int _playbackEndFrame = -1;
+
+    partial void OnPlaybackStartFrameChanged(int value) => RefreshRangeHighlights();
+
+    partial void OnPlaybackEndFrameChanged(int value) => RefreshRangeHighlights();
+
+    private int EffectiveStartFrame =>
+        Math.Clamp(PlaybackStartFrame < 0 ? 0 : PlaybackStartFrame, 0, Math.Max(0, Scene.FrameCount - 1));
+
+    private int EffectiveEndFrame =>
+        Math.Clamp(PlaybackEndFrame < 0 ? Scene.FrameCount - 1 : PlaybackEndFrame, EffectiveStartFrame, Math.Max(0, Scene.FrameCount - 1));
+
+    [RelayCommand]
+    private void Play() => StartPlayback(1);
+
+    [RelayCommand]
+    private void PlayBackwards() => StartPlayback(-1);
+
+    [RelayCommand]
+    private void Pause()
+    {
+        if (!IsPlaying) return;
+        _clock.Stop();
+        IsPlaying = false;
+        PublishSnapshot();
+    }
+
+    private void StartPlayback(int direction)
+    {
+        _playDirection = direction;
+        if (IsPlaying) return;
+        _strokeBuilder.Cancel();
+        IsPlaying = true;
+        _clock.Start(Scene.Fps, PlaybackSpeedPercent);
+        PublishSnapshot();
+    }
+
     [RelayCommand]
     private void TogglePlayback()
     {
-        if (IsPlaying)
+        if (IsPlaying) Pause();
+        else Play();
+    }
+
+    [RelayCommand]
+    private void GoToStartFrame() => CurrentFrameIndex = EffectiveStartFrame;
+
+    [RelayCommand]
+    private void GoToEndFrame() => CurrentFrameIndex = EffectiveEndFrame;
+
+    [RelayCommand]
+    private void PreviousKeyframe()
+    {
+        var layer = ActiveLayer;
+        for (var i = Math.Min(CurrentFrameIndex, Scene.FrameCount) - 1; i >= 0; i--)
         {
-            _clock.Stop();
-            IsPlaying = false;
+            if (ExposureSheet.FrameAtExactIndex(layer, i) is not null)
+            {
+                CurrentFrameIndex = i;
+                return;
+            }
         }
-        else
+    }
+
+    [RelayCommand]
+    private void NextKeyframe()
+    {
+        var layer = ActiveLayer;
+        for (var i = CurrentFrameIndex + 1; i < Scene.FrameCount; i++)
         {
-            _strokeBuilder.Cancel();
-            IsPlaying = true;
-            _clock.Start(Scene.Fps, PlaybackSpeedPercent);
+            if (ExposureSheet.FrameAtExactIndex(layer, i) is not null)
+            {
+                CurrentFrameIndex = i;
+                return;
+            }
         }
-        PublishSnapshot();
+    }
+
+    /// <summary>One playback tick: advance in the play direction, looping inside the selected range.</summary>
+    public void StepPlayback()
+    {
+        var start = EffectiveStartFrame;
+        var end = EffectiveEndFrame;
+        var next = CurrentFrameIndex + _playDirection;
+        if (next > end) next = start;
+        else if (next < start) next = end;
+        CurrentFrameIndex = Math.Clamp(next, 0, Math.Max(0, Scene.FrameCount - 1));
+    }
+
+    // ---- playback range + frame insertion (timeline context menu) -----------
+
+    public void SetPlaybackStart(FrameCell cell) =>
+        PlaybackStartFrame = Math.Min(cell.Index, Scene.FrameCount - 1);
+
+    public void SetPlaybackEnd(FrameCell cell) =>
+        PlaybackEndFrame = Math.Min(cell.Index, Scene.FrameCount - 1);
+
+    public void ClearPlaybackRange()
+    {
+        PlaybackStartFrame = -1;
+        PlaybackEndFrame = -1;
+    }
+
+    /// <summary>
+    /// Insert a drawn frame with the given role at a timeline cell (possibly a
+    /// virtual one beyond the current end — the timeline extends to reach it),
+    /// or re-mark an existing frame's role.
+    /// </summary>
+    public void InsertFrameAt(FrameCell cell, FrameRole role)
+    {
+        if (cell.LayerIndex < 0 || cell.LayerIndex >= Scene.Layers.Count) return;
+        _editor.SetKeyAt(Scene.Layers[cell.LayerIndex].Id, cell.Index, role);
+        ActiveLayerIndex = cell.LayerIndex;
+        CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
+    }
+
+    private void RefreshRangeHighlights()
+    {
+        var rangeSet = PlaybackStartFrame >= 0 || PlaybackEndFrame >= 0;
+        var start = EffectiveStartFrame;
+        var end = EffectiveEndFrame;
+        foreach (var row in LayerRows)
+        {
+            foreach (var cell in row.Cells)
+            {
+                cell.OutOfRange = rangeSet && !cell.IsVirtual && (cell.Index < start || cell.Index > end);
+            }
+        }
     }
 
     [RelayCommand]
@@ -466,6 +614,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void SelectFrame(FrameCell cell)
     {
+        if (cell.IsVirtual) return; // no frame there yet — insert one via right-click
         if (cell.LayerIndex >= 0 && cell.LayerIndex < Scene.Layers.Count)
             ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = cell.Index;
@@ -488,7 +637,7 @@ public sealed partial class MainViewModel : ObservableObject
         var a = StrokesOf(layer.Cels[aIndex].Frame!);
         var b = StrokesOf(layer.Cels[bIndex].Frame!);
         var series = Inbetweener.InbetweenSeries(a, b, TweenCount, TweenEasing);
-        var frames = series.Select(strokes => NewFrameFor(layer, strokes)).ToList();
+        var frames = series.Select(strokes => NewFrameFor(layer, strokes, FrameRole.Inbetween)).ToList();
 
         _editor.InsertInbetweens(layer.Id, aIndex, frames);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
@@ -502,10 +651,10 @@ public sealed partial class MainViewModel : ObservableObject
     };
 
     /// <summary>A new frame of the layer's own kind carrying the given strokes.</summary>
-    private static Frame NewFrameFor(Layer layer, List<Stroke> strokes) => layer.Kind switch
+    private static Frame NewFrameFor(Layer layer, List<Stroke> strokes, FrameRole role = FrameRole.Key) => layer.Kind switch
     {
-        LayerKind.Vector => new VectorFrame { Strokes = strokes },
-        _ => new PaintedFrame { Strokes = strokes },
+        LayerKind.Vector => new VectorFrame { Strokes = strokes, Role = role },
+        _ => new PaintedFrame { Strokes = strokes, Role = role },
     };
 
     // ---- AI -----------------------------------------------------------------
@@ -572,7 +721,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         var frames = result
             .OrderBy(f => f.T)
-            .Select(f => NewFrameFor(layer, f.Strokes))
+            .Select(f => NewFrameFor(layer, f.Strokes, FrameRole.Inbetween))
             .ToList();
         _editor.InsertInbetweens(layer.Id, aIndex, frames);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
@@ -660,7 +809,7 @@ public sealed partial class MainViewModel : ObservableObject
     public int InsertExternalInbetweens(string layerId, int aIndex, List<List<Stroke>> strokeFrames)
     {
         var layer = Scene.Layers.First(l => l.Id == layerId);
-        var frames = strokeFrames.Select(s => NewFrameFor(layer, s)).ToList();
+        var frames = strokeFrames.Select(s => NewFrameFor(layer, s, FrameRole.Inbetween)).ToList();
         _editor.InsertInbetweens(layerId, aIndex, frames);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
         return frames.Count;
@@ -703,10 +852,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- internals ----------------------------------------------------------
 
-    private void OnPlaybackTick()
-    {
-        CurrentFrameIndex = (CurrentFrameIndex + 1) % Math.Max(1, Scene.FrameCount);
-    }
+    private void OnPlaybackTick() => StepPlayback();
 
     private void OnDocumentChanged()
     {
@@ -715,6 +861,8 @@ public sealed partial class MainViewModel : ObservableObject
         ClampCurrentFrame();
         SyncLayerRows();
         OnPropertyChanged(nameof(FrameLabel));
+        OnPropertyChanged(nameof(TimelineExtent));
+        OnPropertyChanged(nameof(MaxScrubFrame));
         OnPropertyChanged(nameof(Fps));
         PublishSnapshot();
         RefreshThumbnails();
@@ -754,16 +902,20 @@ public sealed partial class MainViewModel : ObservableObject
             row.SyncFromModel(layer, sceneIndex);
             row.IsActive = sceneIndex == active;
 
-            while (row.Cells.Count > Scene.FrameCount) row.Cells.RemoveAt(row.Cells.Count - 1);
-            while (row.Cells.Count < Scene.FrameCount) row.Cells.Add(new FrameCell(row.Cells.Count));
+            while (row.Cells.Count > TimelineExtent) row.Cells.RemoveAt(row.Cells.Count - 1);
+            while (row.Cells.Count < TimelineExtent) row.Cells.Add(new FrameCell(row.Cells.Count));
             foreach (var cell in row.Cells)
             {
+                var frame = ExposureSheet.FrameAtExactIndex(layer, cell.Index);
                 cell.LayerIndex = sceneIndex;
-                cell.IsKeyed = ExposureSheet.FrameAtExactIndex(layer, cell.Index) is not null;
+                cell.IsKeyed = frame is not null;
+                cell.Role = frame?.Role ?? FrameRole.Key;
+                cell.IsVirtual = cell.Index >= Scene.FrameCount;
                 cell.IsCurrent = cell.Index == CurrentFrameIndex;
             }
         }
         OnPropertyChanged(nameof(FrameCells));
+        RefreshRangeHighlights();
     }
 
     // ---- thumbnails ----------------------------------------------------------

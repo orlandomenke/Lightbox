@@ -50,12 +50,12 @@ public class MainViewModelTests
         vm.AddFrameCommand.Execute(null);
         vm.DuplicateFrameCommand.Execute(null);
         Assert.Equal(3, vm.Doc.Scene.FrameCount);
-        Assert.Equal(3, vm.FrameCells.Count);
+        Assert.Equal(3, vm.FrameCells.Count(c => !c.IsVirtual));
         Assert.Equal(2, vm.CurrentFrameIndex);
 
         vm.DeleteFrameCommand.Execute(null);
         Assert.Equal(2, vm.Doc.Scene.FrameCount);
-        Assert.Equal(2, vm.FrameCells.Count);
+        Assert.Equal(2, vm.FrameCells.Count(c => !c.IsVirtual));
         Assert.True(vm.CurrentFrameIndex <= 1);
     }
 
@@ -141,7 +141,7 @@ public class MainViewModelTests
         Assert.Equal(0, vm.CurrentFrameIndex);
         Assert.Equal(1, vm.Doc.Scene.FrameCount);
         Assert.Equal(100, vm.Doc.Scene.Width);
-        Assert.Single(vm.FrameCells);
+        Assert.Single(vm.FrameCells, c => !c.IsVirtual);
     }
 
     [AvaloniaFact]

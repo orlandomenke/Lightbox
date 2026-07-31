@@ -149,6 +149,31 @@ public sealed class DocumentEditor
         });
     }
 
+    /// <summary>
+    /// Make the cel at <paramref name="index"/> a drawn frame with the given
+    /// role — creating an empty frame on a hold cel, or re-marking an existing
+    /// one. An index beyond the timeline extends it (holds on every layer).
+    /// One undo step.
+    /// </summary>
+    public void SetKeyAt(string layerId, int index, FrameRole role)
+    {
+        if (index < 0) return;
+        Perform(doc =>
+        {
+            var scene = doc.Scene;
+            if (index >= scene.FrameCount) scene.FrameCount = index + 1;
+            foreach (var layer in scene.Layers) PadCels(layer, scene.FrameCount);
+
+            var target = scene.Layers.First(l => l.Id == layerId);
+            var cel = target.Cels[index];
+            if (cel.Frame is null)
+            {
+                cel.Frame = NewEmptyFrame(target);
+            }
+            cel.Frame.Role = role;
+        });
+    }
+
     private static void PadCels(Layer layer, int frameCount)
     {
         while (layer.Cels.Count < frameCount) layer.Cels.Add(new Cel());
@@ -163,9 +188,10 @@ public sealed class DocumentEditor
     private static Frame? CloneFrame(Frame? src) => src switch
     {
         null => null,
-        VectorFrame v => new VectorFrame { Strokes = v.Strokes.Select(s => s.Clone()).ToList() },
+        VectorFrame v => new VectorFrame { Role = v.Role, Strokes = v.Strokes.Select(s => s.Clone()).ToList() },
         PaintedFrame p => new PaintedFrame
         {
+            Role = p.Role,
             PngBase64 = p.PngBase64,
             Strokes = p.Strokes.Select(s => s.Clone()).ToList(),
         },

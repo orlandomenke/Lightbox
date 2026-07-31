@@ -17,8 +17,24 @@
     <Style Selector="Border.layerRow.active">
       <Setter Property="Background" Value="#33507a" />
     </Style>
+    <Style Selector="Border.layerRow.hiddenLayer">
+      <Setter Property="Opacity" Value="0.35" />
+    </Style>
     <Style Selector="Button.cel">
       <Setter Property="Background" Value="#2a2a2a" />
+    </Style>
+    <!-- Frame-role colors: key (default), breakdown, inbetween -->
+    <Style Selector="Button.cel.breakdown">
+      <Setter Property="Background" Value="#2e4053" />
+    </Style>
+    <Style Selector="Button.cel.tween">
+      <Setter Property="Background" Value="#2f4032" />
+    </Style>
+    <Style Selector="Button.cel.virtualCell">
+      <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <Style Selector="Button.cel.dim">
+      <Setter Property="Opacity" Value="0.45" />
     </Style>
     <Style Selector="Button.cel.current">
       <Setter Property="Background" Value="#4a6ea9" />
@@ -146,7 +162,17 @@
       <controls:Docker.BottomBar>
         <Border Classes="dockerBar">
           <StackPanel Orientation="Horizontal" Spacing="10">
-            <Button Content="▶ / ⏸" Command="{Binding TogglePlaybackCommand}" ToolTip.Tip="Play / pause (Space)" />
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <Button Content="⏮" Command="{Binding GoToStartFrameCommand}"
+                      ToolTip.Tip="To start frame (the set start frame, else the first)" />
+              <Button Content="⏪" Command="{Binding PreviousKeyframeCommand}" ToolTip.Tip="Previous keyframe" />
+              <Button Content="◀" Command="{Binding PlayBackwardsCommand}" ToolTip.Tip="Play backwards" />
+              <Button Content="⏸" Command="{Binding PauseCommand}" ToolTip.Tip="Pause" />
+              <Button Content="▶" Command="{Binding PlayCommand}" ToolTip.Tip="Play (Space toggles)" />
+              <Button Content="⏩" Command="{Binding NextKeyframeCommand}" ToolTip.Tip="Next keyframe" />
+              <Button Content="⏭" Command="{Binding GoToEndFrameCommand}"
+                      ToolTip.Tip="To end frame (the set end frame, else the last)" />
+            </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
               <TextBlock Text="fps" VerticalAlignment="Center" />
               <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
@@ -162,53 +188,78 @@
         </Border>
       </controls:Docker.BottomBar>
 
-      <!-- One row per layer: onion toggle, name, then the layer's cels -->
-      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" MaxHeight="200">
-        <ItemsControl ItemsSource="{Binding LayerRows}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <StackPanel Orientation="Vertical" Spacing="2" />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:LayerRow">
-              <Border Classes="layerRow" Classes.active="{Binding IsActive}" Padding="2">
-                <StackPanel Orientation="Horizontal" Spacing="2">
-                  <ToggleButton Content="◉" IsChecked="{Binding OnionEnabled}" Width="32"
-                                ToolTip.Tip="Onion skinning for this layer" />
-                  <Button Content="{Binding Name}" Width="110" Height="50"
-                          HorizontalContentAlignment="Left"
-                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateLayerCommand}"
-                          CommandParameter="{Binding}"
-                          ToolTip.Tip="Select this layer" />
-                  <ItemsControl ItemsSource="{Binding Cells}">
-                    <ItemsControl.ItemsPanel>
-                      <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="2" />
-                      </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="vm:FrameCell">
-                        <Button Width="40" Height="50" Classes="cel"
-                                Classes.current="{Binding IsCurrent}"
-                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectFrameCommand}"
-                                CommandParameter="{Binding}"
-                                Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-                          <StackPanel>
+      <!-- Ruler (scrubbable numbering, range indication) above one row per layer -->
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" MaxHeight="220">
+        <StackPanel Orientation="Vertical" Spacing="2">
+          <controls:TimelineRuler Height="22" HorizontalAlignment="Left"
+                                  LeadingInset="152" CellWidth="42"
+                                  Extent="{Binding TimelineExtent}"
+                                  MaxFrame="{Binding MaxScrubFrame}"
+                                  CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}"
+                                  RangeStart="{Binding PlaybackStartFrame}"
+                                  RangeEnd="{Binding PlaybackEndFrame}" />
+          <ItemsControl ItemsSource="{Binding LayerRows}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Vertical" Spacing="2" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:LayerRow">
+                <Border Classes="layerRow" Classes.active="{Binding IsActive}"
+                        Classes.hiddenLayer="{Binding !Visible}" Padding="2">
+                  <StackPanel Orientation="Horizontal" Spacing="2">
+                    <ToggleButton Content="👁" IsChecked="{Binding Visible}" Width="28" Padding="2"
+                                  ToolTip.Tip="Layer visibility" />
+                    <ToggleButton Content="◉" IsChecked="{Binding OnionEnabled}" Width="28" Padding="2"
+                                  ToolTip.Tip="Onion skinning for this layer" />
+                    <Button Content="{Binding Name}" Width="88" Height="44"
+                            HorizontalContentAlignment="Left"
+                            Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateLayerCommand}"
+                            CommandParameter="{Binding}"
+                            ToolTip.Tip="Select this layer" />
+                    <ItemsControl ItemsSource="{Binding Cells}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Orientation="Horizontal" Spacing="2" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FrameCell">
+                          <Button Width="40" Height="44" Classes="cel"
+                                  Classes.current="{Binding IsCurrent}"
+                                  Classes.breakdown="{Binding IsBreakdown}"
+                                  Classes.tween="{Binding IsInbetween}"
+                                  Classes.virtualCell="{Binding IsVirtual}"
+                                  Classes.dim="{Binding OutOfRange}"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectFrameCommand}"
+                                  CommandParameter="{Binding}"
+                                  Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
                             <Image Source="{Binding Thumb}" Width="32" Height="18" Stretch="Uniform"
                                    IsVisible="{Binding IsKeyed}" />
-                            <TextBlock Text="{Binding Display}" HorizontalAlignment="Center" FontSize="11" />
-                            <TextBlock Text="—" HorizontalAlignment="Center" FontSize="10" IsVisible="{Binding !IsKeyed}" />
-                          </StackPanel>
-                        </Button>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+                            <Button.ContextMenu>
+                              <ContextMenu>
+                                <MenuItem Header="Insert frame">
+                                  <MenuItem Header="Insert keyframe" Click="OnInsertKeyframe" />
+                                  <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
+                                  <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
+                                </MenuItem>
+                                <Separator />
+                                <MenuItem Header="Set start frame" Click="OnSetStartFrame" />
+                                <MenuItem Header="Set end frame" Click="OnSetEndFrame" />
+                                <MenuItem Header="Clear playback range" Click="OnClearPlaybackRange" />
+                              </ContextMenu>
+                            </Button.ContextMenu>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
       </ScrollViewer>
     </controls:Docker>
 
@@ -245,7 +296,8 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:LayerRow">
-                    <Border Classes="layerRow" Classes.active="{Binding IsActive}" Padding="2"
+                    <Border Classes="layerRow" Classes.active="{Binding IsActive}"
+                            Classes.hiddenLayer="{Binding !Visible}" Padding="2"
                             PointerPressed="OnLayerRowPressed">
                       <DockPanel>
                         <ToggleButton DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
