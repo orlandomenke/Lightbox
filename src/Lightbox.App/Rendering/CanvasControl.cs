@@ -10,9 +10,15 @@ using SkiaSharp;
 namespace Lightbox.App.Rendering;
 
 /// <summary>
-/// The drawing surface. Displays the composited scene (fit-to-view, centered)
-/// via a Skia lease draw operation, and translates pointer input into
-/// document-space paint events.
+/// The drawing surface. Displays the composited scene through a view
+/// transform — fit-to-view base plus user zoom / rotation / mirror / pan —
+/// and translates pointer input back into document space through the same
+/// (inverted) transform.
+///
+/// The view transform is strictly a drawing aid: it lives only here, never
+/// touches the document, the stroke record, or anything the inbetweeners
+/// see. Wheel zooms (Shift+wheel rotates) around the cursor; middle-drag
+/// pans; everything resets with <see cref="ResetView"/>.
 ///
 /// Threading: the draw op runs on Avalonia's render thread and reads only the
 /// immutable <see cref="RenderSnapshot"/>. Old snapshots are retired through a
@@ -37,6 +43,22 @@ public sealed class CanvasControl : Control
     /// <summary>Pointer position in view space while it hovers the canvas.</summary>
     private Point? _hoverPoint;
 
+    // ---- view-only transform state -------------------------------------------
+    private double _zoom = 1;
+    private double _rotationDeg;
+    private bool _mirrored;
+    private Vector _pan;
+
+    private const double MinZoom = 0.05;
+    private const double MaxZoom = 32;
+
+    /// <summary>Raised whenever zoom/rotation/mirror/pan change (for status UI).</summary>
+    public event Action? ViewChanged;
+
+    public double ZoomPercent => _zoom * 100;
+
+    public bool IsMirrored => _mirrored;
+
     public CanvasControl()
     {
         // The brush cursor drawn by the render op replaces the OS cursor.
@@ -56,6 +78,8 @@ public sealed class CanvasControl : Control
     public event Action? PaintEnded;
 
     private bool _painting;
+    private bool _panning;
+    private Point _panLast;
 
     public void UpdateSnapshot(RenderSnapshot snapshot)
     {
@@ -80,29 +104,43 @@ public sealed class CanvasControl : Control
         BrushCursor? cursor = null;
         if (_hoverPoint is { } p)
         {
-            var (scale, _, _) = Transform();
-            var radius = (float)Math.Max(1.0, BrushCursorSize / 2 * scale);
+            var radius = (float)Math.Max(1.0, BrushCursorSize / 2 * FitScale() * _zoom);
             cursor = new BrushCursor((float)p.X, (float)p.Y, radius);
         }
-        context.Custom(new DrawOp(new Rect(Bounds.Size), snapshot, cursor));
+        context.Custom(new DrawOp(new Rect(Bounds.Size), snapshot, ToSkMatrix(ViewMatrix()), cursor));
     }
 
     // ---- view <-> document transform ---------------------------------------
 
-    private (double Scale, double OffsetX, double OffsetY) Transform()
+    private double FitScale()
     {
         var snapshot = _snapshot;
-        if (snapshot is null || Bounds.Width <= 0 || Bounds.Height <= 0) return (1, 0, 0);
-        var scale = Math.Min(Bounds.Width / snapshot.DocWidth, Bounds.Height / snapshot.DocHeight);
-        var ox = (Bounds.Width - snapshot.DocWidth * scale) / 2;
-        var oy = (Bounds.Height - snapshot.DocHeight * scale) / 2;
-        return (scale, ox, oy);
+        if (snapshot is null || Bounds.Width <= 0 || Bounds.Height <= 0) return 1;
+        return Math.Min(Bounds.Width / snapshot.DocWidth, Bounds.Height / snapshot.DocHeight);
     }
 
-    private (double X, double Y) ToDoc(Point p)
+    /// <summary>Document → view matrix: center, mirror, scale, rotate, place.</summary>
+    private Matrix ViewMatrix()
     {
-        var (scale, ox, oy) = Transform();
-        return ((p.X - ox) / scale, (p.Y - oy) / scale);
+        var snapshot = _snapshot;
+        if (snapshot is null) return Matrix.Identity;
+        var s = FitScale() * _zoom;
+        return Matrix.CreateTranslation(-snapshot.DocWidth / 2.0, -snapshot.DocHeight / 2.0)
+               * Matrix.CreateScale(_mirrored ? -s : s, s)
+               * Matrix.CreateRotation(_rotationDeg * Math.PI / 180)
+               * Matrix.CreateTranslation(Bounds.Width / 2 + _pan.X, Bounds.Height / 2 + _pan.Y);
+    }
+
+    private static SKMatrix ToSkMatrix(Matrix m) => new(
+        (float)m.M11, (float)m.M21, (float)m.M31,
+        (float)m.M12, (float)m.M22, (float)m.M32,
+        0, 0, 1);
+
+    /// <summary>Map a view-space point to document space (exposed for tests).</summary>
+    public (double X, double Y) ViewToDoc(Point p)
+    {
+        var doc = p.Transform(ViewMatrix().Invert());
+        return (doc.X, doc.Y);
     }
 
     private static double PressureOf(PointerPoint pp)
@@ -113,16 +151,82 @@ public sealed class CanvasControl : Control
         return raw <= 0 ? 0.5 : Math.Clamp(raw, 0.0, 1.0);
     }
 
+    // ---- view tools -----------------------------------------------------------
+
+    private void ViewUpdated()
+    {
+        ViewChanged?.Invoke();
+        InvalidateVisual();
+    }
+
+    /// <summary>Zoom by a factor keeping the given view point fixed.</summary>
+    public void ZoomAt(Point anchor, double factor)
+    {
+        var (x, y) = ViewToDoc(anchor);
+        _zoom = Math.Clamp(_zoom * factor, MinZoom, MaxZoom);
+        ReanchorAt(anchor, new Point(x, y));
+    }
+
+    /// <summary>Rotate by degrees keeping the given view point fixed.</summary>
+    public void RotateAt(Point anchor, double degrees)
+    {
+        var (x, y) = ViewToDoc(anchor);
+        _rotationDeg = (_rotationDeg + degrees) % 360;
+        ReanchorAt(anchor, new Point(x, y));
+    }
+
+    /// <summary>Mirror the view horizontally, keeping the view center fixed.</summary>
+    public void ToggleMirror()
+    {
+        var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
+        var (x, y) = ViewToDoc(center);
+        _mirrored = !_mirrored;
+        ReanchorAt(center, new Point(x, y));
+    }
+
+    public void ZoomIn() => ZoomAt(new Point(Bounds.Width / 2, Bounds.Height / 2), 1.25);
+
+    public void ZoomOut() => ZoomAt(new Point(Bounds.Width / 2, Bounds.Height / 2), 1 / 1.25);
+
+    public void RotateBy(double degrees) => RotateAt(new Point(Bounds.Width / 2, Bounds.Height / 2), degrees);
+
+    public void ResetView()
+    {
+        _zoom = 1;
+        _rotationDeg = 0;
+        _mirrored = false;
+        _pan = default;
+        ViewUpdated();
+    }
+
+    /// <summary>Adjust pan so <paramref name="docPoint"/> maps back onto <paramref name="viewPoint"/>.</summary>
+    private void ReanchorAt(Point viewPoint, Point docPoint)
+    {
+        var mapped = docPoint.Transform(ViewMatrix());
+        _pan += viewPoint - mapped;
+        ViewUpdated();
+    }
+
     // ---- pointer input ------------------------------------------------------
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
         var pp = e.GetCurrentPoint(this);
+
+        if (pp.Properties.IsMiddleButtonPressed)
+        {
+            _panning = true;
+            _panLast = pp.Position;
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
+
         if (!pp.Properties.IsLeftButtonPressed) return;
         e.Pointer.Capture(this);
         _painting = true;
-        var (x, y) = ToDoc(pp.Position);
+        var (x, y) = ViewToDoc(pp.Position);
         PaintStarted?.Invoke(x, y, PressureOf(pp));
         e.Handled = true;
     }
@@ -145,6 +249,17 @@ public sealed class CanvasControl : Control
     {
         base.OnPointerMoved(e);
         _hoverPoint = e.GetPosition(this);
+
+        if (_panning)
+        {
+            var pos = e.GetPosition(this);
+            _pan += pos - _panLast;
+            _panLast = pos;
+            ViewUpdated();
+            e.Handled = true;
+            return;
+        }
+
         // While painting the snapshot publish repaints us anyway; hovering
         // needs its own invalidate to move the brush cursor.
         if (!_painting)
@@ -158,7 +273,7 @@ public sealed class CanvasControl : Control
         var samples = new List<ViewModels.MainViewModel.PointerSample>(points.Count);
         foreach (var pp in points)
         {
-            var (x, y) = ToDoc(pp.Position);
+            var (x, y) = ViewToDoc(pp.Position);
             samples.Add(new ViewModels.MainViewModel.PointerSample(x, y, PressureOf(pp)));
         }
         if (samples.Count > 0) PaintMoved?.Invoke(samples);
@@ -168,6 +283,13 @@ public sealed class CanvasControl : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_panning)
+        {
+            _panning = false;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
         if (!_painting) return;
         _painting = false;
         e.Pointer.Capture(null);
@@ -178,9 +300,25 @@ public sealed class CanvasControl : Control
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
+        _panning = false;
         if (!_painting) return;
         _painting = false;
         PaintEnded?.Invoke();
+    }
+
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    {
+        base.OnPointerWheelChanged(e);
+        var pos = e.GetPosition(this);
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            RotateAt(pos, e.Delta.Y * 10);
+        }
+        else
+        {
+            ZoomAt(pos, Math.Pow(1.15, e.Delta.Y));
+        }
+        e.Handled = true;
     }
 
     // ---- render-thread blit -------------------------------------------------
@@ -188,7 +326,7 @@ public sealed class CanvasControl : Control
     /// <summary>Brush cursor in view space (radius already view-scaled).</summary>
     private readonly record struct BrushCursor(float X, float Y, float Radius);
 
-    private sealed class DrawOp(Rect bounds, RenderSnapshot snapshot, BrushCursor? cursor) : ICustomDrawOperation
+    private sealed class DrawOp(Rect bounds, RenderSnapshot snapshot, SKMatrix view, BrushCursor? cursor) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -211,17 +349,18 @@ public sealed class CanvasControl : Control
             canvas.ClipRect(new SKRect(0, 0, (float)Bounds.Width, (float)Bounds.Height));
             canvas.Clear(new SKColor(0x2b, 0x2b, 0x2b));
 
-            var scale = Math.Min(Bounds.Width / snapshot.DocWidth, Bounds.Height / snapshot.DocHeight);
-            var ox = (Bounds.Width - snapshot.DocWidth * scale) / 2;
-            var oy = (Bounds.Height - snapshot.DocHeight * scale) / 2;
-            var dest = new SKRect(
-                (float)ox,
-                (float)oy,
-                (float)(ox + snapshot.DocWidth * scale),
-                (float)(oy + snapshot.DocHeight * scale));
+            canvas.Save();
+            canvas.Concat(in view);
+            using (var paint = new SKPaint { IsAntialias = true })
+            {
+                canvas.DrawImage(
+                    snapshot.Image,
+                    new SKRect(0, 0, snapshot.DocWidth, snapshot.DocHeight),
+                    new SKSamplingOptions(SKFilterMode.Linear),
+                    paint);
+            }
+            canvas.Restore();
 
-            using var paint = new SKPaint { IsAntialias = true };
-            canvas.DrawImage(snapshot.Image, dest, new SKSamplingOptions(SKFilterMode.Linear), paint);
             if (cursor is { } c) DrawBrushCursor(canvas, c);
             canvas.Restore();
         }

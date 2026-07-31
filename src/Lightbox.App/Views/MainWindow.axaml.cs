@@ -37,6 +37,14 @@ public partial class MainWindow : Window
         };
         ApplyDockLayout();
 
+        Canvas.ViewChanged += () =>
+        {
+            ZoomLabel.Content = $"{Canvas.ZoomPercent:0}%";
+            MirrorButton.Background = Canvas.IsMirrored
+                ? new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#4a6ea9"))
+                : Avalonia.Media.Brushes.Transparent;
+        };
+
         KeyDown += OnKeyDown;
         Loaded += (_, _) =>
         {
@@ -82,7 +90,7 @@ public partial class MainWindow : Window
         _sidebarColumn = _vm.SidebarOnRight ? 2 : 0;
         var canvasColumn = _vm.SidebarOnRight ? 0 : 2;
         Grid.SetColumn(Sidebar, _sidebarColumn);
-        Grid.SetColumn(Canvas, canvasColumn);
+        Grid.SetColumn(CanvasHost, canvasColumn);
         cols[canvasColumn].Width = new GridLength(1, GridUnitType.Star);
         cols[canvasColumn].MinWidth = 240;
         if (_vm.SidebarVisible)
@@ -177,6 +185,20 @@ public partial class MainWindow : Window
 
     private void OnClearPlaybackRange(object? sender, RoutedEventArgs e) => _vm.ClearPlaybackRange();
 
+    // ---- canvas view tools (view-only: never touch the document) -------------
+
+    private void OnZoomIn(object? sender, RoutedEventArgs e) => Canvas.ZoomIn();
+
+    private void OnZoomOut(object? sender, RoutedEventArgs e) => Canvas.ZoomOut();
+
+    private void OnRotateCw(object? sender, RoutedEventArgs e) => Canvas.RotateBy(15);
+
+    private void OnRotateCcw(object? sender, RoutedEventArgs e) => Canvas.RotateBy(-15);
+
+    private void OnToggleMirror(object? sender, RoutedEventArgs e) => Canvas.ToggleMirror();
+
+    private void OnResetView(object? sender, RoutedEventArgs e) => Canvas.ResetView();
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         // Don't hijack keys while the user is typing (layer rename, color hex, AI prompt).
@@ -201,6 +223,14 @@ public partial class MainWindow : Window
                 break;
             case { Key: Key.Right }:
                 _vm.CurrentFrameIndex = Math.Min(_vm.Doc.Scene.FrameCount - 1, _vm.CurrentFrameIndex + 1);
+                e.Handled = true;
+                break;
+            case { Key: Key.M, KeyModifiers: KeyModifiers.None }:
+                Canvas.ToggleMirror();
+                e.Handled = true;
+                break;
+            case { Key: Key.D0 or Key.NumPad0, KeyModifiers: KeyModifiers.None }:
+                Canvas.ResetView();
                 e.Handled = true;
                 break;
         }

@@ -156,8 +156,24 @@
           <ColumnDefinition Width="300" MinWidth="240" />
         </Grid.ColumnDefinitions>
 
-        <!-- Canvas -->
-        <render:CanvasControl x:Name="Canvas" Grid.Column="0" BrushCursorSize="{Binding BrushSize}" />
+        <!-- Canvas + view-tool overlay (zoom/rotate/mirror/pan are view-only) -->
+        <Panel x:Name="CanvasHost" Grid.Column="0">
+          <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushSize}" />
+          <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
+                  Background="#cc1f1f1f" CornerRadius="4" Padding="3">
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <Button Content="−" Click="OnZoomOut" ToolTip.Tip="Zoom out (mouse wheel)" />
+              <Button x:Name="ZoomLabel" Content="100%" MinWidth="52" Click="OnResetView"
+                      ToolTip.Tip="Current zoom — click to reset the whole view" />
+              <Button Content="＋" Click="OnZoomIn" ToolTip.Tip="Zoom in (mouse wheel)" />
+              <Button Content="↺" Click="OnRotateCcw" ToolTip.Tip="Rotate view 15° counter-clockwise (Shift+wheel)" />
+              <Button Content="↻" Click="OnRotateCw" ToolTip.Tip="Rotate view 15° clockwise (Shift+wheel)" />
+              <Button x:Name="MirrorButton" Content="⇋" Click="OnToggleMirror"
+                      ToolTip.Tip="Mirror the view horizontally (M) — a drawing aid, the artwork is untouched" />
+              <Button Content="⌂" Click="OnResetView" ToolTip.Tip="Reset zoom, rotation, mirror and pan (0)" />
+            </StackPanel>
+          </Border>
+        </Panel>
 
         <GridSplitter Grid.Column="1" Width="5" ResizeDirection="Columns"
                       IsVisible="{Binding SidebarVisible}" />
