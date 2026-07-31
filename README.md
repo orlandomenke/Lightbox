@@ -28,7 +28,24 @@ Every push builds a self-contained Windows bundle in CI:
 
 1. Repo → **Actions** tab → newest green `build` run → **Artifacts** → download `Lightbox-win-x64` (you must be signed in to GitHub).
 2. Unzip anywhere in your user profile, e.g. `%LOCALAPPDATA%\Lightbox`.
-3. Run `Lightbox.App.exe`. Nothing is installed, no .NET required, no admin. If SmartScreen objects (unsigned exe), click **More info → Run anyway** — that also needs no admin.
+3. Run `Lightbox.App.exe`. Nothing is installed, no .NET required, no admin.
+
+**If SmartScreen blocks it** (and policy hides "Run anyway"): SmartScreen only screens files carrying the Mark-of-the-Web download tag — remove the tag and it never triggers. Any of these work without admin:
+
+```powershell
+# A) Extract with tar (built into Windows 10+; writes no download tags)
+mkdir $env:LOCALAPPDATA\Lightbox
+tar -xf $env:USERPROFILE\Downloads\Lightbox-win-x64.zip -C $env:LOCALAPPDATA\Lightbox
+
+# B) Or unblock the zip BEFORE extracting with Explorer
+Unblock-File $env:USERPROFILE\Downloads\Lightbox-win-x64.zip
+#    (equivalent: right-click zip → Properties → Unblock → OK)
+
+# C) Or untag an already-extracted folder in place
+Get-ChildItem $env:LOCALAPPDATA\Lightbox -Recurse | Unblock-File
+```
+
+If it still blocks with an "administrator" message instead of SmartScreen, that's AppLocker/WDAC app-control policy — build from source instead (locally built binaries carry no download tag; see below).
 
 Prefer building yourself? Install the .NET SDK per-user (no admin) with the official script — `dotnet-install.ps1 -Channel 10.0 -InstallDir $env:LOCALAPPDATA\dotnet` — then `dotnet run --project src/Lightbox.App` from the clone.
 
