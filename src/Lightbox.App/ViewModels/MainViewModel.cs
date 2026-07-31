@@ -119,6 +119,13 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _sidebarVisible = true;
 
+    /// <summary>Which side the docker sidebar collapses to / sits on.</summary>
+    [ObservableProperty]
+    private bool _sidebarOnRight = true;
+
+    [ObservableProperty]
+    private bool _timelineVisible = true;
+
     public ObservableCollection<Layer> LayerChoices { get; } = [];
 
     /// <summary>Kind used by the layer docker's "+" button.</summary>
@@ -382,6 +389,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleSidebar() => SidebarVisible = !SidebarVisible;
+
+    [RelayCommand]
+    private void SwitchSidebarSide() => SidebarOnRight = !SidebarOnRight;
+
+    [RelayCommand]
+    private void ToggleTimeline() => TimelineVisible = !TimelineVisible;
 
     [RelayCommand]
     private void ActivateLayer(LayerRow row) => ActiveLayerIndex = row.SceneIndex;

@@ -160,4 +160,26 @@ public class SidebarTests
         vm.ToggleSidebarCommand.Execute(null);
         Assert.True(vm.SidebarVisible);
     }
+
+    [AvaloniaFact]
+    public void SwitchSidebarSide_FlipsSide()
+    {
+        var vm = new MainViewModel(null);
+        Assert.True(vm.SidebarOnRight);
+        vm.SwitchSidebarSideCommand.Execute(null);
+        Assert.False(vm.SidebarOnRight);
+        vm.SwitchSidebarSideCommand.Execute(null);
+        Assert.True(vm.SidebarOnRight);
+    }
+
+    [AvaloniaFact]
+    public void ToggleTimeline_FlipsVisibility()
+    {
+        var vm = new MainViewModel(null);
+        Assert.True(vm.TimelineVisible);
+        vm.ToggleTimelineCommand.Execute(null);
+        Assert.False(vm.TimelineVisible);
+        vm.ToggleTimelineCommand.Execute(null);
+        Assert.True(vm.TimelineVisible);
+    }
 }

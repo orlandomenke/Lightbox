@@ -20,10 +20,34 @@ public class Docker : ContentControl
     public static readonly StyledProperty<object?> BottomBarProperty =
         AvaloniaProperty.Register<Docker, object?>(nameof(BottomBar));
 
+    public static readonly StyledProperty<System.Windows.Input.ICommand?> CloseCommandProperty =
+        AvaloniaProperty.Register<Docker, System.Windows.Input.ICommand?>(nameof(CloseCommand));
+
+    public static readonly StyledProperty<object?> TitleBarExtraProperty =
+        AvaloniaProperty.Register<Docker, object?>(nameof(TitleBarExtra));
+
     public string? Title
     {
         get => GetValue(TitleProperty);
         set => SetValue(TitleProperty, value);
+    }
+
+    /// <summary>
+    /// Shown as a ✕ button at the right of the title strip. What "close" means
+    /// is the host's choice — a bottom docker collapses down, a side docker
+    /// collapses to its side. Null hides the button.
+    /// </summary>
+    public System.Windows.Input.ICommand? CloseCommand
+    {
+        get => GetValue(CloseCommandProperty);
+        set => SetValue(CloseCommandProperty, value);
+    }
+
+    /// <summary>Extra title-bar controls, placed just before the close button.</summary>
+    public object? TitleBarExtra
+    {
+        get => GetValue(TitleBarExtraProperty);
+        set => SetValue(TitleBarExtraProperty, value);
     }
 
     /// <summary>Option bar shown directly under the title (null = none).</summary>

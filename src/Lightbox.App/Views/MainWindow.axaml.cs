@@ -23,6 +23,13 @@ public partial class MainWindow : Window
         Canvas.PaintMoved += _vm.MoveStrokeBatch;
         Canvas.PaintEnded += _vm.EndStroke;
 
+        // Dock side is a view concern the VM only expresses as a bool.
+        _vm.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainViewModel.SidebarOnRight))
+                DockPanel.SetDock(Sidebar, _vm.SidebarOnRight ? Dock.Right : Dock.Left);
+        };
+
         KeyDown += OnKeyDown;
         Loaded += (_, _) =>
         {

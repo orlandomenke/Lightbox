@@ -37,6 +37,7 @@
       </MenuItem>
       <MenuItem Header="_View">
         <MenuItem Header="Sidebar" ToggleType="CheckBox" IsChecked="{Binding SidebarVisible}" />
+        <MenuItem Header="Timeline" ToggleType="CheckBox" IsChecked="{Binding TimelineVisible}" />
       </MenuItem>
     </Menu>
 
@@ -57,10 +58,16 @@
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Size" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="60" Width="110" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="60" Increment="1"
+                           FormatString="0.#" Width="100" VerticalAlignment="Center"
+                           ToolTip.Tip="Brush size (type an exact value)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Hardness" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="110" VerticalAlignment="Center"
+                           ToolTip.Tip="Brush hardness (type an exact value, 0–1)" />
           </StackPanel>
           <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
                     ToolTip.Tip="Smooth strokes when you finish them" />
@@ -71,10 +78,16 @@
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Size" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="60" Width="110" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="60" Increment="1"
+                           FormatString="0.#" Width="100" VerticalAlignment="Center"
+                           ToolTip.Tip="Eraser size (type an exact value)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Hardness" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="110" VerticalAlignment="Center"
+                           ToolTip.Tip="Eraser hardness (type an exact value, 0–1)" />
           </StackPanel>
           <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
                     ToolTip.Tip="Smooth strokes when you finish them" />
@@ -103,8 +116,10 @@
       </StackPanel>
     </Border>
 
-    <!-- Timeline docker -->
-    <controls:Docker DockPanel.Dock="Bottom" Title="Timeline" Margin="4">
+    <!-- Timeline docker (its ✕ collapses it downward; reopen via View menu) -->
+    <controls:Docker DockPanel.Dock="Bottom" Title="Timeline" Margin="4"
+                     IsVisible="{Binding TimelineVisible}"
+                     CloseCommand="{Binding ToggleTimelineCommand}">
       <controls:Docker.TopBar>
         <Border Classes="dockerBar">
           <StackPanel Orientation="Horizontal" Spacing="6">
@@ -197,22 +212,18 @@
       </ScrollViewer>
     </controls:Docker>
 
-    <!-- Closable sidebar of dockers -->
-    <Border DockPanel.Dock="Right" Width="250" Background="#1c1c1c"
+    <!-- Closable sidebar of dockers (dock side is switched from code-behind) -->
+    <Border x:Name="Sidebar" DockPanel.Dock="Right" Width="250" Background="#1c1c1c"
             IsVisible="{Binding SidebarVisible}">
-      <DockPanel>
-        <Border DockPanel.Dock="Top" Padding="6,2">
-          <DockPanel>
-            <Button DockPanel.Dock="Right" Content="✕" FontSize="11" Padding="6,2"
-                    Command="{Binding ToggleSidebarCommand}"
-                    ToolTip.Tip="Close sidebar (reopen via View menu)" />
-            <TextBlock Text="Dockers" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
-          </DockPanel>
-        </Border>
-
-        <StackPanel Spacing="4" Margin="4">
-          <!-- Layer docker -->
-          <controls:Docker Title="Layers">
+      <StackPanel Spacing="4" Margin="4">
+        <!-- Layer docker (its ✕ collapses the sidebar to its side; ⇄ switches sides) -->
+        <controls:Docker Title="Layers"
+                         CloseCommand="{Binding ToggleSidebarCommand}">
+          <controls:Docker.TitleBarExtra>
+            <Button Content="⇄" FontSize="11" Padding="6,2"
+                    Command="{Binding SwitchSidebarSideCommand}"
+                    ToolTip.Tip="Move the sidebar to the other side" />
+          </controls:Docker.TitleBarExtra>
             <controls:Docker.TopBar>
               <Border Classes="dockerBar">
                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -253,13 +264,12 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </ScrollViewer>
-          </controls:Docker>
-        </StackPanel>
-      </DockPanel>
+        </controls:Docker>
+      </StackPanel>
     </Border>
 
     <!-- Canvas -->
-    <render:CanvasControl x:Name="Canvas" />
+    <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushSize}" />
 
   </DockPanel>
 </Window>

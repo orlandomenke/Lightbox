@@ -20,9 +20,28 @@ namespace Lightbox.App.Rendering;
 /// </summary>
 public sealed class CanvasControl : Control
 {
+    /// <summary>Current tool size in document units — drives the brush-shape cursor.</summary>
+    public static readonly StyledProperty<double> BrushCursorSizeProperty =
+        AvaloniaProperty.Register<CanvasControl, double>(nameof(BrushCursorSize), 6.0);
+
+    public double BrushCursorSize
+    {
+        get => GetValue(BrushCursorSizeProperty);
+        set => SetValue(BrushCursorSizeProperty, value);
+    }
+
     private RenderSnapshot? _snapshot;
     private readonly Queue<SKImage> _retired = new();
     private const int RetiredKeep = 8;
+
+    /// <summary>Pointer position in view space while it hovers the canvas.</summary>
+    private Point? _hoverPoint;
+
+    public CanvasControl()
+    {
+        // The brush cursor drawn by the render op replaces the OS cursor.
+        Cursor = new Cursor(StandardCursorType.None);
+    }
 
     /// <summary>Begin a stroke at a document-space position (pressure 0..1).</summary>
     public event Action<double, double, double>? PaintStarted;
@@ -57,7 +76,15 @@ public sealed class CanvasControl : Control
     {
         var snapshot = _snapshot;
         if (snapshot is null || Bounds.Width <= 0 || Bounds.Height <= 0) return;
-        context.Custom(new DrawOp(new Rect(Bounds.Size), snapshot));
+
+        BrushCursor? cursor = null;
+        if (_hoverPoint is { } p)
+        {
+            var (scale, _, _) = Transform();
+            var radius = (float)Math.Max(1.0, BrushCursorSize / 2 * scale);
+            cursor = new BrushCursor((float)p.X, (float)p.Y, radius);
+        }
+        context.Custom(new DrawOp(new Rect(Bounds.Size), snapshot, cursor));
     }
 
     // ---- view <-> document transform ---------------------------------------
@@ -100,10 +127,31 @@ public sealed class CanvasControl : Control
         e.Handled = true;
     }
 
+    protected override void OnPointerEntered(PointerEventArgs e)
+    {
+        base.OnPointerEntered(e);
+        _hoverPoint = e.GetPosition(this);
+        InvalidateVisual();
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        _hoverPoint = null;
+        InvalidateVisual();
+    }
+
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (!_painting) return;
+        _hoverPoint = e.GetPosition(this);
+        // While painting the snapshot publish repaints us anyway; hovering
+        // needs its own invalidate to move the brush cursor.
+        if (!_painting)
+        {
+            InvalidateVisual();
+            return;
+        }
         // Coalesced high-frequency samples, not just the latest position —
         // delivered as one batch per event.
         var points = e.GetIntermediatePoints(this);
@@ -137,7 +185,10 @@ public sealed class CanvasControl : Control
 
     // ---- render-thread blit -------------------------------------------------
 
-    private sealed class DrawOp(Rect bounds, RenderSnapshot snapshot) : ICustomDrawOperation
+    /// <summary>Brush cursor in view space (radius already view-scaled).</summary>
+    private readonly record struct BrushCursor(float X, float Y, float Radius);
+
+    private sealed class DrawOp(Rect bounds, RenderSnapshot snapshot, BrushCursor? cursor) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -171,7 +222,33 @@ public sealed class CanvasControl : Control
 
             using var paint = new SKPaint { IsAntialias = true };
             canvas.DrawImage(snapshot.Image, dest, new SKSamplingOptions(SKFilterMode.Linear), paint);
+            if (cursor is { } c) DrawBrushCursor(canvas, c);
             canvas.Restore();
+        }
+
+        /// <summary>
+        /// The tool cursor: today the brush footprint is always a circle, so a
+        /// dark/light double ring keeps it visible on any background. New brush
+        /// shapes plug in here.
+        /// </summary>
+        private static void DrawBrushCursor(SKCanvas canvas, BrushCursor c)
+        {
+            using var dark = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.2f,
+                Color = new SKColor(0, 0, 0, 200),
+            };
+            using var light = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.2f,
+                Color = new SKColor(255, 255, 255, 200),
+            };
+            canvas.DrawCircle(c.X, c.Y, c.Radius, dark);
+            canvas.DrawCircle(c.X, c.Y, Math.Max(0.5f, c.Radius - 1.2f), light);
         }
     }
 }
