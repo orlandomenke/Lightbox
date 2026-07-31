@@ -39,8 +39,25 @@ jobs:
           -c Release -r win-x64 --self-contained true
           -p:PublishTrimmed=false -p:DebugType=none
           -o publish/win-x64/mcp
+      # The artifact (= downloaded zip) name says what kind of build this is:
+      #   release-main-…      build of main, for release-style testing
+      #   bugfix-<branch>-…   build of a fix/, bugfix/ or hotfix/ branch
+      #   branch-<branch>-…   any other feature/work branch
+      # plus the short commit SHA so builds of the same branch stay distinguishable.
+      - name: Artifact designation
+        id: designation
+        shell: bash
+        run: |
+          BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          case "$BRANCH" in
+            main)                    KIND="release" ;;
+            fix/*|bugfix/*|hotfix/*) KIND="bugfix" ;;
+            *)                       KIND="branch" ;;
+          esac
+          SAFE=$(printf '%s' "$BRANCH" | tr '/ _' '---' | tr -cd 'A-Za-z0-9.-')
+          echo "name=Lightbox-win-x64-${KIND}-${SAFE}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: Lightbox-win-x64
+          name: ${{ steps.designation.outputs.name }}
           path: publish/win-x64
           retention-days: 30
