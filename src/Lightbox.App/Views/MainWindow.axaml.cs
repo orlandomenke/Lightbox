@@ -206,6 +206,42 @@ public partial class MainWindow : Window
 
     private void OnReferenceRenamed(object? sender, RoutedEventArgs e) => _vm.MarkReferenceEdited();
 
+    // ---- brush presets --------------------------------------------------------
+
+    private void OnSavePresetClicked(object? sender, RoutedEventArgs e)
+    {
+        var preset = _vm.SaveCurrentAsPreset(PresetNameBox.Text ?? "");
+        PresetNameBox.Text = "";
+        _vm.AiStatus = $"Saved brush preset “{preset.Name}”.";
+    }
+
+    private async void OnImportBrushesClicked(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import brushes",
+            AllowMultiple = true,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Brush files")
+                {
+                    Patterns = ["*.abr", "*.gbr", "*.gih", "*.kpp"],
+                },
+            ],
+        });
+        if (files.Count == 0) return;
+
+        var payloads = new List<(string, byte[])>();
+        foreach (var file in files)
+        {
+            await using var stream = await file.OpenReadAsync();
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            payloads.Add((file.Name, memory.ToArray()));
+        }
+        _vm.ImportBrushFiles(payloads);
+    }
+
     // ---- canvas view tools (view-only: never touch the document) -------------
 
     private void OnZoomIn(object? sender, RoutedEventArgs e) => Canvas.ZoomIn();
@@ -244,6 +280,14 @@ public partial class MainWindow : Window
                 break;
             case { Key: Key.Right }:
                 _vm.CurrentFrameIndex = Math.Min(_vm.Doc.Scene.FrameCount - 1, _vm.CurrentFrameIndex + 1);
+                e.Handled = true;
+                break;
+            case { Key: Key.B, KeyModifiers: KeyModifiers.None }:
+                _vm.IsEraser = false; // back to the last-configured brush
+                e.Handled = true;
+                break;
+            case { Key: Key.E, KeyModifiers: KeyModifiers.None }:
+                _vm.IsEraser = true;
                 e.Handled = true;
                 break;
             case { Key: Key.M, KeyModifiers: KeyModifiers.None }:

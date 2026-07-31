@@ -18,7 +18,7 @@ public static class FrameRasterizer
         canvas.Clear(SKColors.Transparent);
         foreach (var stroke in strokes)
         {
-            BrushEngine.StampStroke(canvas, stroke, info);
+            BrushEngine.StampStroke(canvas, stroke, info, bitmap);
         }
         canvas.Flush();
         return bitmap;
@@ -29,7 +29,7 @@ public static class FrameRasterizer
     {
         var info = new SKImageInfo(layer.Width, layer.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(layer);
-        BrushEngine.StampStroke(canvas, stroke, info);
+        BrushEngine.StampStroke(canvas, stroke, info, layer);
         canvas.Flush();
     }
 
@@ -52,7 +52,7 @@ public static class FrameRasterizer
         }
         foreach (var stroke in frame.Strokes)
         {
-            BrushEngine.StampStroke(canvas, stroke, info);
+            BrushEngine.StampStroke(canvas, stroke, info, bitmap);
         }
         canvas.Flush();
         return bitmap;

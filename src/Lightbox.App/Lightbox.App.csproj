@@ -1,9 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Lightbox.App.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Lightbox.Core\Lightbox.Core.csproj" />
     <ProjectReference Include="..\Lightbox.Raster\Lightbox.Raster.csproj" />
     <ProjectReference Include="..\Lightbox.Ai\Lightbox.Ai.csproj" />
+    <ProjectReference Include="..\Lightbox.Import\Lightbox.Import.csproj" />
   </ItemGroup>
 
   <ItemGroup>

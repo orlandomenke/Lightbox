@@ -79,6 +79,9 @@
 
         <!-- Brush options -->
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding !IsEraser}">
+          <ComboBox ItemsSource="{Binding BrushPresetChoices}" SelectedItem="{Binding SelectedBrushPreset}"
+                    Width="130" VerticalAlignment="Center"
+                    ToolTip.Tip="Brush preset (B returns to the last configured brush)" />
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Color" VerticalAlignment="Center" />
             <TextBox Text="{Binding ColorHex}" Width="80" ToolTip.Tip="Hex color, e.g. #1a1a1a" />
@@ -100,6 +103,81 @@
           <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
                     ToolTip.Tip="Smooth strokes when you finish them" />
         </StackPanel>
+
+        <!-- Full brush parameters (both tools) -->
+        <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="All brush parameters">
+          <Button.Flyout>
+            <Flyout Placement="Bottom">
+              <StackPanel Width="300" Spacing="6">
+                <TextBlock Text="Brush parameters" FontWeight="SemiBold" FontSize="12" />
+                <DockPanel>
+                  <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1"
+                                 Increment="0.05" FormatString="0.00" Width="94" />
+                  <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Margin="4,0" />
+                </DockPanel>
+                <DockPanel>
+                  <TextBlock Text="Flow" Width="90" VerticalAlignment="Center" FontSize="12" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1"
+                                 Increment="0.05" FormatString="0.00" Width="94" />
+                  <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Margin="4,0" />
+                </DockPanel>
+                <DockPanel>
+                  <TextBlock Text="Spacing" Width="90" VerticalAlignment="Center" FontSize="12" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2"
+                                 Increment="0.02" FormatString="0.00" Width="94" />
+                  <Slider Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2" Margin="4,0" />
+                </DockPanel>
+                <DockPanel>
+                  <TextBlock Text="Wet edge" Width="90" VerticalAlignment="Center" FontSize="12" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
+                                 Increment="0.05" FormatString="0.00" Width="94" />
+                  <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="4,0" />
+                </DockPanel>
+                <DockPanel>
+                  <TextBlock Text="Granulation" Width="90" VerticalAlignment="Center" FontSize="12" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
+                                 Increment="0.05" FormatString="0.00" Width="94" />
+                  <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="4,0" />
+                </DockPanel>
+                <DockPanel>
+                  <TextBlock Text="Scatter" Width="90" VerticalAlignment="Center" FontSize="12" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
+                                 Increment="0.05" FormatString="0.00" Width="94" />
+                  <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="4,0" />
+                </DockPanel>
+                <DockPanel>
+                  <TextBlock Text="Rot. jitter" Width="90" VerticalAlignment="Center" FontSize="12" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
+                                 Increment="0.05" FormatString="0.00" Width="94" />
+                  <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                </DockPanel>
+                <DockPanel>
+                  <TextBlock Text="Press→size" Width="90" VerticalAlignment="Center" FontSize="12"
+                             ToolTip.Tip="Pressure→size response (0 = off, 1 = linear)" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4"
+                                 Increment="0.1" FormatString="0.0" Width="94" />
+                  <Slider Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4" Margin="4,0" />
+                </DockPanel>
+                <DockPanel>
+                  <TextBlock Text="Press→flow" Width="90" VerticalAlignment="Center" FontSize="12"
+                             ToolTip.Tip="Pressure→flow response (0 = off, 1 = linear)" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4"
+                                 Increment="0.1" FormatString="0.0" Width="94" />
+                  <Slider Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4" Margin="4,0" />
+                </DockPanel>
+                <Separator />
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Content="Save preset" Click="OnSavePresetClicked" />
+                  <TextBox x:Name="PresetNameBox" PlaceholderText="New preset name" Margin="0,0,6,0" />
+                </DockPanel>
+                <Button Content="Import brushes… (.abr .gbr .gih .kpp)" Click="OnImportBrushesClicked"
+                        HorizontalAlignment="Stretch"
+                        ToolTip.Tip="Photoshop and Krita/GIMP brushes: tip shapes and basic settings import; engine-specific features do not map 1:1" />
+              </StackPanel>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
 
         <!-- Eraser options -->
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsEraser}">

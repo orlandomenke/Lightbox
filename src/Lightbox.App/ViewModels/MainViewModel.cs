@@ -85,6 +85,7 @@ public sealed partial class MainViewModel : ObservableObject
         ColorPicker = new ColorPickerViewModel();
         ColorPicker.SetHex(ColorHex);
         ColorPicker.HexCommitted += hex => ColorHex = hex;
+        LoadBrushState();
         SyncLayerChoices();
         SyncLayerRows();
     }
@@ -347,17 +348,253 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(FrameLabel))]
     private int _currentFrameIndex;
 
-    [ObservableProperty]
-    private double _brushSize = 6;
+    // ---- brush tool state -----------------------------------------------------
+    // Two working configurations (brush + eraser); the bound properties edit
+    // whichever tool is active. Everything persists to brushes.json so B
+    // always returns to the brush exactly as last configured.
+
+    /// <summary>Test seam: redirect brush persistence away from the real settings dir.</summary>
+    internal static string? BrushStorePath { get; set; }
+
+    private BrushSettings _brushWork = new();
+    private BrushSettings _eraserWork = new() { Size = 14, Hardness = 0.9 };
+    private readonly List<BrushPreset> _userPresets = [];
+    private bool _applyingPreset;
+
+    private BrushSettings CurrentToolSettings => IsEraser ? _eraserWork : _brushWork;
+
+    public ObservableCollection<BrushPreset> BrushPresetChoices { get; } = [];
 
     [ObservableProperty]
-    private double _brushHardness = 0.8;
+    private BrushPreset? _selectedBrushPreset;
+
+    partial void OnSelectedBrushPresetChanged(BrushPreset? value)
+    {
+        if (value is null || _applyingPreset) return;
+        _applyingPreset = true;
+        IsEraser = value.Tool == ToolKind.Eraser;
+        _brushWork = value.Settings.Clone();
+        EnsurePresetTip(value);
+        NotifyBrushProperties();
+        _applyingPreset = false;
+        PersistBrushState();
+    }
+
+    /// <summary>A preset's custom tip must live in the document so it re-renders standalone.</summary>
+    private void EnsurePresetTip(BrushPreset preset)
+    {
+        if (preset.TipPng is null || preset.Settings.TipId is null) return;
+        var doc = (SaveTargetTab?.Doc ?? Doc);
+        if (doc.BrushTips.TryAdd(preset.Settings.TipId, preset.TipPng))
+        {
+            BrushTipRegistry.Register(doc.BrushTips);
+            MarkDocumentEdited();
+        }
+    }
+
+    private double GetBrush(Func<BrushSettings, double> get) => get(CurrentToolSettings);
+
+    private void SetBrush(Action<BrushSettings> set, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+    {
+        set(CurrentToolSettings);
+        OnPropertyChanged(name);
+        if (!_applyingPreset) PersistBrushState();
+    }
+
+    public double BrushSize
+    {
+        get => GetBrush(s => s.Size);
+        set => SetBrush(s => s.Size = Math.Clamp(value, 1, 500));
+    }
+
+    public double BrushHardness
+    {
+        get => GetBrush(s => s.Hardness);
+        set => SetBrush(s => s.Hardness = Math.Clamp(value, 0, 1));
+    }
+
+    public double BrushOpacity
+    {
+        get => GetBrush(s => s.Opacity);
+        set => SetBrush(s => s.Opacity = Math.Clamp(value, 0.01, 1));
+    }
+
+    public double BrushFlow
+    {
+        get => GetBrush(s => s.Flow);
+        set => SetBrush(s => s.Flow = Math.Clamp(value, 0.01, 1));
+    }
+
+    public double BrushSpacing
+    {
+        get => GetBrush(s => s.Spacing);
+        set => SetBrush(s => s.Spacing = Math.Clamp(value, 0.02, 2));
+    }
+
+    public double BrushWetEdge
+    {
+        get => GetBrush(s => s.WetEdge);
+        set => SetBrush(s => s.WetEdge = Math.Clamp(value, 0, 1));
+    }
+
+    public double BrushGranulation
+    {
+        get => GetBrush(s => s.Granulation);
+        set => SetBrush(s => s.Granulation = Math.Clamp(value, 0, 1));
+    }
+
+    public double BrushScatter
+    {
+        get => GetBrush(s => s.Scatter);
+        set => SetBrush(s => s.Scatter = Math.Clamp(value, 0, 1));
+    }
+
+    public double BrushRotationJitter
+    {
+        get => GetBrush(s => s.RotationJitter);
+        set => SetBrush(s => s.RotationJitter = Math.Clamp(value, 0, 1));
+    }
+
+    public double BrushPressureSizeGamma
+    {
+        get => GetBrush(s => s.PressureSizeGamma);
+        set => SetBrush(s => s.PressureSizeGamma = Math.Clamp(value, 0, 4));
+    }
+
+    public double BrushPressureFlowGamma
+    {
+        get => GetBrush(s => s.PressureFlowGamma);
+        set => SetBrush(s => s.PressureFlowGamma = Math.Clamp(value, 0, 4));
+    }
+
+    private static readonly string[] BrushPropertyNames =
+    [
+        nameof(BrushSize), nameof(BrushHardness), nameof(BrushOpacity), nameof(BrushFlow),
+        nameof(BrushSpacing), nameof(BrushWetEdge), nameof(BrushGranulation), nameof(BrushScatter),
+        nameof(BrushRotationJitter), nameof(BrushPressureSizeGamma), nameof(BrushPressureFlowGamma),
+    ];
+
+    private void NotifyBrushProperties()
+    {
+        foreach (var name in BrushPropertyNames) OnPropertyChanged(name);
+    }
+
+    /// <summary>Save the working brush as a reusable preset.</summary>
+    public BrushPreset SaveCurrentAsPreset(string name)
+    {
+        var preset = new BrushPreset
+        {
+            Name = string.IsNullOrWhiteSpace(name) ? $"Preset {BrushPresetChoices.Count + 1}" : name.Trim(),
+            Tool = IsEraser ? ToolKind.Eraser : ToolKind.Brush,
+            Settings = CurrentToolSettings.Clone(),
+        };
+        _userPresets.Add(preset);
+        BrushPresetChoices.Add(preset);
+        _applyingPreset = true;
+        SelectedBrushPreset = preset;
+        _applyingPreset = false;
+        PersistBrushState();
+        return preset;
+    }
+
+    /// <summary>Add imported presets (from .abr/.gbr/.gih/.kpp) and persist them.</summary>
+    public int AddImportedPresets(IEnumerable<BrushPreset> presets)
+    {
+        var added = 0;
+        foreach (var preset in presets)
+        {
+            _userPresets.Add(preset);
+            BrushPresetChoices.Add(preset);
+            added++;
+        }
+        if (added > 0) PersistBrushState();
+        return added;
+    }
+
+    /// <summary>
+    /// Import brush files (.abr/.gbr/.gih/.kpp) into presets. Unsupported or
+    /// broken files are skipped and counted, never fatal.
+    /// </summary>
+    public (int Added, int Failed) ImportBrushFiles(IEnumerable<(string Name, byte[] Bytes)> files)
+    {
+        var presets = new List<BrushPreset>();
+        var failed = 0;
+        foreach (var (name, bytes) in files)
+        {
+            try
+            {
+                foreach (var imported in Lightbox.Import.BrushImport.Read(name, bytes))
+                {
+                    presets.Add(new BrushPreset
+                    {
+                        Name = imported.Name,
+                        Tool = ToolKind.Brush,
+                        TipPng = imported.TipPngBase64,
+                        Settings = new BrushSettings
+                        {
+                            Size = Math.Clamp(imported.SizePx, 1, 500),
+                            Spacing = imported.Spacing,
+                            Opacity = imported.Opacity,
+                            Flow = imported.Flow,
+                            Hardness = imported.TipPngBase64 is null ? 0.8 : 1,
+                            TipId = imported.TipPngBase64 is null ? null : Ids.NewId("tip"),
+                        },
+                    });
+                }
+            }
+            catch
+            {
+                failed++;
+            }
+        }
+        var added = AddImportedPresets(presets);
+        AiStatus = failed == 0
+            ? $"Imported {added} brush(es)."
+            : $"Imported {added} brush(es); {failed} file(s) could not be read.";
+        return (added, failed);
+    }
+
+    private void PersistBrushState()
+    {
+        PresetStore.Save(new PresetStore.State
+        {
+            UserPresets = _userPresets,
+            LastBrushPresetId = SelectedBrushPreset?.Id,
+            LastBrush = _brushWork.Clone(),
+            LastEraser = _eraserWork.Clone(),
+        }, BrushStorePath);
+    }
+
+    private void LoadBrushState()
+    {
+        foreach (var preset in BuiltInPresets.Create()) BrushPresetChoices.Add(preset);
+        var state = PresetStore.Load(BrushStorePath);
+        foreach (var preset in state.UserPresets)
+        {
+            _userPresets.Add(preset);
+            BrushPresetChoices.Add(preset);
+        }
+        if (state.LastBrush is not null) _brushWork = state.LastBrush.Clone();
+        else _brushWork = new BrushSettings { Size = 6, Hardness = 0.8 };
+        if (state.LastEraser is not null) _eraserWork = state.LastEraser.Clone();
+        // Restore the selection WITHOUT re-applying the preset (the working
+        // settings above already carry the user's last tweaks on top of it).
+        _applyingPreset = true;
+        SelectedBrushPreset = BrushPresetChoices.FirstOrDefault(p => p.Id == state.LastBrushPresetId);
+        _applyingPreset = false;
+    }
 
     [ObservableProperty]
     private string _colorHex = "#1a1a1a";
 
     [ObservableProperty]
     private bool _isEraser;
+
+    partial void OnIsEraserChanged(bool value)
+    {
+        // The bound sliders now edit the other tool's configuration.
+        NotifyBrushProperties();
+    }
 
     [ObservableProperty]
     private bool _onionSkin = true;
@@ -499,10 +736,15 @@ public sealed partial class MainViewModel : ObservableObject
     public void BeginStroke(double x, double y, double pressure)
     {
         if (IsPlaying || PaintTarget() is not { } target) return;
+        if (!ActiveLayer.Visible)
+        {
+            AiStatus = $"Layer “{ActiveLayer.Name}” is hidden — enable its visibility to draw on it.";
+            return;
+        }
         _strokeBuilder.Begin(
             IsEraser ? ToolKind.Eraser : ToolKind.Brush,
             ColorHex,
-            new BrushSettings { Size = BrushSize, Hardness = BrushHardness, Opacity = 1, Spacing = 0.15 },
+            CurrentToolSettings.Clone(),
             x, y, pressure);
 
         _liveComposite?.Dispose();
@@ -548,7 +790,13 @@ public sealed partial class MainViewModel : ObservableObject
         _liveStampedCount = points.Count;
     }
 
-    /// <summary>Coalesce repaints: at most one snapshot per dispatcher frame.</summary>
+    /// <summary>
+    /// Coalesce repaints: at most one queued snapshot at a time. Posted at
+    /// Default priority — NEVER Render priority: jobs in the dispatcher's
+    /// render phase swallow the InvalidateVisual they trigger, which leaves
+    /// the canvas permanently un-scheduled (strokes only appeared after the
+    /// next unrelated event — the "frozen cursor, no lines" bug).
+    /// </summary>
     private void RequestSnapshot()
     {
         if (_snapshotQueued) return;
@@ -557,7 +805,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _snapshotQueued = false;
             PublishSnapshot();
-        }, Avalonia.Threading.DispatcherPriority.Render);
+        }, Avalonia.Threading.DispatcherPriority.Default);
     }
 
     public void EndStroke()
@@ -969,6 +1217,11 @@ public sealed partial class MainViewModel : ObservableObject
         if (_artist is null || AiBusy || string.IsNullOrWhiteSpace(AiPrompt)) return;
         var target = PaintTarget();
         if (target is null) return;
+        if (!ActiveLayer.Visible)
+        {
+            AiStatus = $"Layer “{ActiveLayer.Name}” is hidden — enable its visibility to draw on it.";
+            return;
+        }
 
         var request = new DrawRequest(
             new SceneInfo(Scene.Width, Scene.Height, Scene.Fps),
@@ -1092,6 +1345,8 @@ public sealed partial class MainViewModel : ObservableObject
     private void OnDocumentChanged()
     {
         MarkDocumentEdited();
+        BrushTipRegistry.Register(Doc.BrushTips);
+        OnPropertyChanged(nameof(ReferenceSheetsView));
         SyncLayerChoices();
         ClampCurrentFrame();
         SyncLayerRows();

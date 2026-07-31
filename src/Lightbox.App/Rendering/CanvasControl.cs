@@ -117,6 +117,8 @@ public sealed class CanvasControl : Control
 
     public void UpdateSnapshot(RenderSnapshot snapshot)
     {
+        if (Environment.GetEnvironmentVariable("LIGHTBOX_TRACE") is not null)
+            Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss.fff} UpdateSnapshot");
         var old = _snapshot;
         _snapshot = snapshot;
         if (old is not null)
@@ -128,10 +130,27 @@ public sealed class CanvasControl : Control
             }
         }
         InvalidateVisual();
+        // InvalidateVisual alone is not enough: when input goes quiet right
+        // after a publish (mouse released and held still), the dispatcher may
+        // never wake to paint it — the stroke only appeared on the NEXT event.
+        // An animation-frame request forces a compositor frame regardless.
+        if (!_framePending && TopLevel.GetTopLevel(this) is { } top)
+        {
+            _framePending = true;
+            top.RequestAnimationFrame(_ =>
+            {
+                _framePending = false;
+                InvalidateVisual();
+            });
+        }
     }
+
+    private bool _framePending;
 
     public override void Render(DrawingContext context)
     {
+        if (Environment.GetEnvironmentVariable("LIGHTBOX_TRACE") is not null)
+            Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss.fff} Render (snapshot={_snapshot is not null})");
         var snapshot = _snapshot;
         if (snapshot is null || Bounds.Width <= 0 || Bounds.Height <= 0) return;
 

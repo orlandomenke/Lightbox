@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Lightbox.Raster\Lightbox.Raster.csproj" />
+    <ProjectReference Include="..\..\src\Lightbox.Import\Lightbox.Import.csproj" />
   </ItemGroup>
 
 </Project>

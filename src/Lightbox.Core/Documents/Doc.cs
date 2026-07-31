@@ -13,4 +13,11 @@ public sealed class Doc
 
     /// <summary>Character sheets: reference art outside the timeline.</summary>
     public List<ReferenceSheet> ReferenceSheets { get; set; } = [];
+
+    /// <summary>
+    /// Custom brush tip shapes (id → grayscale PNG, base64). Strokes reference
+    /// them by <see cref="BrushSettings.TipId"/>, so a document re-renders
+    /// with no external resources.
+    /// </summary>
+    public Dictionary<string, string> BrushTips { get; set; } = [];
 }
