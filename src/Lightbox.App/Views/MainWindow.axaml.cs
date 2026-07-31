@@ -24,12 +24,18 @@ public partial class MainWindow : Window
         Canvas.PaintMoved += _vm.MoveStrokeBatch;
         Canvas.PaintEnded += _vm.EndStroke;
 
-        // Dock side is a view concern the VM only expresses as a bool.
+        // Dock geometry (side, collapse, min sizes) is a view concern the VM
+        // only expresses as booleans.
         _vm.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(MainViewModel.SidebarOnRight))
-                DockPanel.SetDock(Sidebar, _vm.SidebarOnRight ? Dock.Right : Dock.Left);
+            if (args.PropertyName is nameof(MainViewModel.SidebarOnRight)
+                or nameof(MainViewModel.SidebarVisible)
+                or nameof(MainViewModel.TimelineVisible))
+            {
+                ApplyDockLayout();
+            }
         };
+        ApplyDockLayout();
 
         KeyDown += OnKeyDown;
         Loaded += (_, _) =>
@@ -44,6 +50,53 @@ public partial class MainWindow : Window
         };
     }
 
+    // ---- docker geometry -----------------------------------------------------
+
+    private GridLength _timelineHeight = new(320, GridUnitType.Pixel);
+    private GridLength _sidebarWidth = new(300, GridUnitType.Pixel);
+    private int _sidebarColumn = 2;
+
+    /// <summary>
+    /// Keep the grid in step with the VM's docker booleans: collapse rows and
+    /// columns for hidden dockers (remembering their dragged size), and move
+    /// the sidebar between the left and right column.
+    /// </summary>
+    private void ApplyDockLayout()
+    {
+        var rows = RootGrid.RowDefinitions;
+        if (rows[2].Height.IsAbsolute && rows[2].Height.Value > 20) _timelineHeight = rows[2].Height;
+        if (_vm.TimelineVisible)
+        {
+            rows[2].MinHeight = 180;
+            rows[2].Height = _timelineHeight;
+        }
+        else
+        {
+            rows[2].MinHeight = 0;
+            rows[2].Height = GridLength.Auto;
+        }
+
+        var cols = WorkArea.ColumnDefinitions;
+        if (cols[_sidebarColumn].Width.IsAbsolute && cols[_sidebarColumn].Width.Value > 20)
+            _sidebarWidth = cols[_sidebarColumn].Width;
+        _sidebarColumn = _vm.SidebarOnRight ? 2 : 0;
+        var canvasColumn = _vm.SidebarOnRight ? 0 : 2;
+        Grid.SetColumn(Sidebar, _sidebarColumn);
+        Grid.SetColumn(Canvas, canvasColumn);
+        cols[canvasColumn].Width = new GridLength(1, GridUnitType.Star);
+        cols[canvasColumn].MinWidth = 240;
+        if (_vm.SidebarVisible)
+        {
+            cols[_sidebarColumn].MinWidth = 240;
+            cols[_sidebarColumn].Width = _sidebarWidth;
+        }
+        else
+        {
+            cols[_sidebarColumn].MinWidth = 0;
+            cols[_sidebarColumn].Width = GridLength.Auto;
+        }
+    }
+
     /// <summary>Clicking anywhere on a layer-docker row makes that layer active.</summary>
     private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -51,11 +104,46 @@ public partial class MainWindow : Window
             _vm.ActivateLayerCommand.Execute(row);
     }
 
-    /// <summary>Focusing a layer's name box (to rename) also selects that layer.</summary>
-    private void OnLayerRowFocused(object? sender, RoutedEventArgs e)
+    // ---- layer rename (double-click, both dockers) ---------------------------
+
+    private void OnLayerNameDoubleTapped(object? sender, TappedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is LayerRow row)
-            _vm.ActivateLayerCommand.Execute(row);
+        if ((sender as Control)?.DataContext is not LayerRow row) return;
+        row.IsRenaming = true;
+        if ((sender as Control)?.Parent is Panel panel)
+        {
+            var box = panel.Children.OfType<TextBox>().FirstOrDefault();
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                box?.Focus();
+                box?.SelectAll();
+            });
+        }
+        e.Handled = true;
+    }
+
+    private void OnLayerNameLostFocus(object? sender, RoutedEventArgs e)
+    {
+        // The LostFocus binding has already committed the text by now.
+        if ((sender as Control)?.DataContext is LayerRow row) row.IsRenaming = false;
+    }
+
+    private void OnLayerNameKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox box || box.DataContext is not LayerRow row) return;
+        switch (e.Key)
+        {
+            case Key.Enter:
+                row.Name = box.Text ?? ""; // commit through the row's write-through
+                row.IsRenaming = false;
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                box.Text = row.Name; // revert, so the LostFocus commit is a no-op
+                row.IsRenaming = false;
+                e.Handled = true;
+                break;
+        }
     }
 
     // ---- timeline cell context menu -----------------------------------------

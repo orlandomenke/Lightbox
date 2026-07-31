@@ -41,6 +41,10 @@ public sealed partial class LayerRow : ObservableObject
     [ObservableProperty]
     private bool _isActive;
 
+    /// <summary>True while the name is being edited (double-click to start).</summary>
+    [ObservableProperty]
+    private bool _isRenaming;
+
     public string KindLabel => Layer.Kind == LayerKind.Vector ? "V" : "R";
 
     internal void SyncFromModel(Layer layer, int sceneIndex)

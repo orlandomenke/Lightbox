@@ -5,6 +5,9 @@
              RequestedThemeVariant="Dark">
   <Application.Styles>
     <FluentTheme />
+    <!-- ColorSpectrum/ColorSlider templates live in a separate theme file;
+         without this include they render as nothing at all. -->
+    <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
 
     <!-- Docker: title strip, optional top/bottom option bars, content between. -->
     <Style Selector="controls|Docker">

@@ -39,6 +39,9 @@
     <Style Selector="Button.cel.current">
       <Setter Property="Background" Value="#4a6ea9" />
     </Style>
+    <Style Selector="GridSplitter">
+      <Setter Property="Background" Value="#141414" />
+    </Style>
   </Window.Styles>
 
   <DockPanel>
@@ -132,325 +135,375 @@
       </StackPanel>
     </Border>
 
-    <!-- Timeline docker (its ✕ collapses it downward; reopen via View menu) -->
-    <controls:Docker DockPanel.Dock="Bottom" Title="Timeline" Margin="4"
-                     IsVisible="{Binding TimelineVisible}"
-                     CloseCommand="{Binding ToggleTimelineCommand}">
-      <controls:Docker.TopBar>
-        <Border Classes="dockerBar">
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button Content="＋" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
-            <Button Content="⧉" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
-            <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
-            <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
-            <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
-            <TextBlock Text="{Binding FrameLabel}" VerticalAlignment="Center" Margin="8,0" />
-            <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding OnionDepth}" Minimum="1" Maximum="3" Increment="1"
-                           FormatString="0" Width="100" VerticalAlignment="Center"
-                           ToolTip.Tip="Onion skin depth (frames each side)" />
-            <NumericUpDown Value="{Binding TweenCount}" Minimum="1" Maximum="9" Increment="1"
-                           FormatString="0" Width="110" VerticalAlignment="Center"
-                           ToolTip.Tip="Number of inbetween frames to generate" />
-            <ComboBox ItemsSource="{Binding EasingChoices}" SelectedItem="{Binding TweenEasing}" Width="110" />
-            <Button Content="＋ Inbetween" Command="{Binding InsertInbetweensCommand}"
-                    ToolTip.Tip="Insert interpolated frames between this key and the next" />
-          </StackPanel>
-        </Border>
-      </controls:Docker.TopBar>
+    <!--
+      Working area: canvas + sidebar share the top row (draggable splitter
+      between them), the timeline owns the bottom row (draggable splitter
+      above it). Grid rows/columns mean dockers can never overlap; min sizes
+      are enforced from code-behind, and overflowing content scrolls inside
+      its own docker.
+    -->
+    <Grid x:Name="RootGrid">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*" MinHeight="220" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="320" MinHeight="180" />
+      </Grid.RowDefinitions>
 
-      <controls:Docker.BottomBar>
-        <Border Classes="dockerBar">
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <StackPanel Orientation="Horizontal" Spacing="2">
-              <Button Content="⏮" Command="{Binding GoToStartFrameCommand}"
-                      ToolTip.Tip="To start frame (the set start frame, else the first)" />
-              <Button Content="⏪" Command="{Binding PreviousKeyframeCommand}" ToolTip.Tip="Previous keyframe" />
-              <Button Content="◀" Command="{Binding PlayBackwardsCommand}" ToolTip.Tip="Play backwards" />
-              <Button Content="⏸" Command="{Binding PauseCommand}" ToolTip.Tip="Pause" />
-              <Button Content="▶" Command="{Binding PlayCommand}" ToolTip.Tip="Play (Space toggles)" />
-              <Button Content="⏩" Command="{Binding NextKeyframeCommand}" ToolTip.Tip="Next keyframe" />
-              <Button Content="⏭" Command="{Binding GoToEndFrameCommand}"
-                      ToolTip.Tip="To end frame (the set end frame, else the last)" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-              <TextBlock Text="fps" VerticalAlignment="Center" />
-              <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
-                             FormatString="0" Width="100" VerticalAlignment="Center" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-              <TextBlock Text="Speed %" VerticalAlignment="Center" />
-              <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
-                             FormatString="0" Width="110" VerticalAlignment="Center"
-                             ToolTip.Tip="Playback speed as a percentage of real time" />
-            </StackPanel>
-          </StackPanel>
-        </Border>
-      </controls:Docker.BottomBar>
+      <Grid x:Name="WorkArea" Grid.Row="0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" MinWidth="240" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="300" MinWidth="240" />
+        </Grid.ColumnDefinitions>
 
-      <!-- Ruler (scrubbable numbering, range indication) above one row per layer -->
-      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" MaxHeight="220">
-        <StackPanel Orientation="Vertical" Spacing="2">
-          <controls:TimelineRuler Height="22" HorizontalAlignment="Left"
-                                  LeadingInset="152" CellWidth="42"
-                                  Extent="{Binding TimelineExtent}"
-                                  MaxFrame="{Binding MaxScrubFrame}"
-                                  CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}"
-                                  RangeStart="{Binding PlaybackStartFrame}"
-                                  RangeEnd="{Binding PlaybackEndFrame}" />
-          <ItemsControl ItemsSource="{Binding LayerRows}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Orientation="Vertical" Spacing="2" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:LayerRow">
-                <Border Classes="layerRow" Classes.active="{Binding IsActive}"
-                        Classes.hiddenLayer="{Binding !Visible}" Padding="2">
-                  <StackPanel Orientation="Horizontal" Spacing="2">
-                    <ToggleButton Content="👁" IsChecked="{Binding Visible}" Width="28" Padding="2"
-                                  ToolTip.Tip="Layer visibility" />
-                    <ToggleButton Content="◉" IsChecked="{Binding OnionEnabled}" Width="28" Padding="2"
-                                  ToolTip.Tip="Onion skinning for this layer" />
-                    <Button Content="{Binding Name}" Width="88" Height="44"
-                            HorizontalContentAlignment="Left"
-                            Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateLayerCommand}"
-                            CommandParameter="{Binding}"
-                            ToolTip.Tip="Select this layer" />
-                    <ItemsControl ItemsSource="{Binding Cells}">
-                      <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <StackPanel Orientation="Horizontal" Spacing="2" />
-                        </ItemsPanelTemplate>
-                      </ItemsControl.ItemsPanel>
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:FrameCell">
-                          <Button Width="40" Height="44" Classes="cel"
-                                  Classes.current="{Binding IsCurrent}"
-                                  Classes.breakdown="{Binding IsBreakdown}"
-                                  Classes.tween="{Binding IsInbetween}"
-                                  Classes.virtualCell="{Binding IsVirtual}"
-                                  Classes.dim="{Binding OutOfRange}"
-                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectFrameCommand}"
-                                  CommandParameter="{Binding}"
-                                  Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-                            <Image Source="{Binding Thumb}" Width="32" Height="18" Stretch="Uniform"
-                                   IsVisible="{Binding IsKeyed}" />
-                            <Button.ContextMenu>
-                              <ContextMenu>
-                                <MenuItem Header="Insert frame">
-                                  <MenuItem Header="Insert keyframe" Click="OnInsertKeyframe" />
-                                  <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
-                                  <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
-                                </MenuItem>
-                                <Separator />
-                                <MenuItem Header="Set start frame" Click="OnSetStartFrame" />
-                                <MenuItem Header="Set end frame" Click="OnSetEndFrame" />
-                                <MenuItem Header="Clear playback range" Click="OnClearPlaybackRange" />
-                              </ContextMenu>
-                            </Button.ContextMenu>
-                          </Button>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+        <!-- Canvas -->
+        <render:CanvasControl x:Name="Canvas" Grid.Column="0" BrushCursorSize="{Binding BrushSize}" />
+
+        <GridSplitter Grid.Column="1" Width="5" ResizeDirection="Columns"
+                      IsVisible="{Binding SidebarVisible}" />
+
+        <!-- Closable sidebar of dockers (dock side is switched from code-behind) -->
+        <Border x:Name="Sidebar" Grid.Column="2" Background="#1c1c1c"
+                IsVisible="{Binding SidebarVisible}">
+          <Grid Margin="4">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="*" MinHeight="120" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="1.4*" MinHeight="250" />
+            </Grid.RowDefinitions>
+
+            <!-- Layer docker (its ✕ collapses the sidebar to its side; ⇄ switches sides) -->
+            <controls:Docker Grid.Row="0" Title="Layers"
+                             CloseCommand="{Binding ToggleSidebarCommand}">
+              <controls:Docker.TitleBarExtra>
+                <Button Content="⇄" FontSize="11" Padding="6,2"
+                        Command="{Binding SwitchSidebarSideCommand}"
+                        ToolTip.Tip="Move the sidebar to the other side" />
+              </controls:Docker.TitleBarExtra>
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
+                            ToolTip.Tip="Add a new layer of the selected kind" />
+                    <ComboBox ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
+                              Width="110" ToolTip.Tip="Kind of layer the + button creates" />
                   </StackPanel>
                 </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-      </ScrollViewer>
-    </controls:Docker>
+              </controls:Docker.TopBar>
 
-    <!-- Closable sidebar of dockers (dock side is switched from code-behind) -->
-    <Border x:Name="Sidebar" DockPanel.Dock="Right" Width="250" Background="#1c1c1c"
-            IsVisible="{Binding SidebarVisible}">
-      <StackPanel Spacing="4" Margin="4">
-        <!-- Layer docker (its ✕ collapses the sidebar to its side; ⇄ switches sides) -->
-        <controls:Docker Title="Layers"
-                         CloseCommand="{Binding ToggleSidebarCommand}">
-          <controls:Docker.TitleBarExtra>
-            <Button Content="⇄" FontSize="11" Padding="6,2"
-                    Command="{Binding SwitchSidebarSideCommand}"
-                    ToolTip.Tip="Move the sidebar to the other side" />
-          </controls:Docker.TitleBarExtra>
-            <controls:Docker.TopBar>
-              <Border Classes="dockerBar">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                  <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
-                          ToolTip.Tip="Add a new layer of the selected kind" />
-                  <ComboBox ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
-                            Width="110" ToolTip.Tip="Kind of layer the + button creates" />
+              <!-- Topmost layer first: visibility, then the name (double-click to rename) -->
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding LayerRows}" Margin="4">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Vertical" Spacing="2" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LayerRow">
+                      <Border Classes="layerRow" Classes.active="{Binding IsActive}"
+                              Classes.hiddenLayer="{Binding !Visible}" Padding="2"
+                              PointerPressed="OnLayerRowPressed">
+                        <DockPanel>
+                          <ToggleButton DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
+                                        Width="34" ToolTip.Tip="Layer visibility" />
+                          <TextBlock DockPanel.Dock="Right" Text="{Binding KindLabel}" Width="16"
+                                     VerticalAlignment="Center" Opacity="0.5" FontSize="11"
+                                     ToolTip.Tip="R = raster, V = vector" />
+                          <Panel Margin="4,0" MinHeight="30">
+                            <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}"
+                                       Background="Transparent" VerticalAlignment="Center"
+                                       DoubleTapped="OnLayerNameDoubleTapped"
+                                       ToolTip.Tip="Double-click to rename" />
+                            <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
+                                     LostFocus="OnLayerNameLostFocus" KeyDown="OnLayerNameKeyDown" />
+                          </Panel>
+                        </DockPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </controls:Docker>
+
+            <GridSplitter Grid.Row="1" Height="5" ResizeDirection="Rows" />
+
+            <!-- Color docker: one color, several representations -->
+            <controls:Docker Grid.Row="2" Title="Color">
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <ComboBox ItemsSource="{Binding ColorPicker.ModeChoices}" SelectedItem="{Binding ColorPicker.Mode}"
+                            Width="120" ToolTip.Tip="Color picker representation" />
+                </Border>
+              </controls:Docker.TopBar>
+              <controls:Docker.BottomBar>
+                <Border Classes="dockerBar">
+                  <DockPanel>
+                    <Border DockPanel.Dock="Left" Width="28" Height="28" CornerRadius="3"
+                            BorderBrush="#555" BorderThickness="1"
+                            Background="{Binding ColorPicker.SwatchBrush}"
+                            ToolTip.Tip="Current color" />
+                    <TextBox Text="{Binding ColorHex}" Margin="8,0,0,0" VerticalAlignment="Center"
+                             ToolTip.Tip="Hex color, e.g. #1a1a1a" />
+                  </DockPanel>
+                </Border>
+              </controls:Docker.BottomBar>
+
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="8" Spacing="8">
+
+                  <!-- Krita-style wheel: hue ring + value slider -->
+                  <StackPanel Spacing="8" IsVisible="{Binding ColorPicker.IsWheelMode}">
+                    <ColorSpectrum Shape="Ring" Components="HueSaturation" Height="190"
+                                   HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}" />
+                    <ColorSlider ColorModel="Hsva" ColorComponent="Component3"
+                                 HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}"
+                                 ToolTip.Tip="Value (brightness)" />
+                  </StackPanel>
+
+                  <!-- HSV sliders -->
+                  <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsHsvMode}">
+                    <DockPanel>
+                      <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="S" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HsvSaturation}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.HsvSaturation}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="V" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HsvValue}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.HsvValue}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                  </StackPanel>
+
+                  <!-- HSL sliders -->
+                  <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsHslMode}">
+                    <DockPanel>
+                      <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="S" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HslSaturation}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.HslSaturation}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="L" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HslLightness}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.HslLightness}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                  </StackPanel>
+
+                  <!-- RGB sliders -->
+                  <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsRgbMode}">
+                    <DockPanel>
+                      <TextBlock Text="R" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="G" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Green}" Minimum="0" Maximum="255"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.Green}" Minimum="0" Maximum="255" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="B" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Blue}" Minimum="0" Maximum="255"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.Blue}" Minimum="0" Maximum="255" Margin="4,0" />
+                    </DockPanel>
+                  </StackPanel>
+
+                  <!-- CMYK sliders -->
+                  <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsCmykMode}">
+                    <DockPanel>
+                      <TextBlock Text="C" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="M" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Magenta}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.Magenta}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="Y" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Yellow}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.Yellow}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="K" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Black}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="94" />
+                      <Slider Value="{Binding ColorPicker.Black}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                  </StackPanel>
+
                 </StackPanel>
-              </Border>
-            </controls:Docker.TopBar>
+              </ScrollViewer>
+            </controls:Docker>
+          </Grid>
+        </Border>
+      </Grid>
 
-            <!-- Topmost layer first: visibility, then the renamable name -->
-            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
-              <ItemsControl ItemsSource="{Binding LayerRows}" Margin="4">
-                <ItemsControl.ItemsPanel>
-                  <ItemsPanelTemplate>
-                    <StackPanel Orientation="Vertical" Spacing="2" />
-                  </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:LayerRow">
-                    <Border Classes="layerRow" Classes.active="{Binding IsActive}"
-                            Classes.hiddenLayer="{Binding !Visible}" Padding="2"
-                            PointerPressed="OnLayerRowPressed">
-                      <DockPanel>
-                        <ToggleButton DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
-                                      Width="34" ToolTip.Tip="Layer visibility" />
-                        <TextBlock DockPanel.Dock="Right" Text="{Binding KindLabel}" Width="16"
-                                   VerticalAlignment="Center" Opacity="0.5" FontSize="11"
-                                   ToolTip.Tip="R = raster, V = vector" />
+      <GridSplitter Grid.Row="1" Height="5" ResizeDirection="Rows"
+                    IsVisible="{Binding TimelineVisible}" />
+
+      <!-- Timeline docker (its ✕ collapses it downward; reopen via View menu) -->
+      <controls:Docker Grid.Row="2" Title="Timeline" Margin="4,0,4,4"
+                       IsVisible="{Binding TimelineVisible}"
+                       CloseCommand="{Binding ToggleTimelineCommand}">
+        <controls:Docker.TopBar>
+          <Border Classes="dockerBar">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Content="＋" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
+              <Button Content="⧉" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
+              <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
+              <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
+              <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
+              <TextBlock Text="{Binding FrameLabel}" VerticalAlignment="Center" Margin="8,0" />
+              <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
+              <NumericUpDown Value="{Binding OnionDepth}" Minimum="1" Maximum="3" Increment="1"
+                             FormatString="0" Width="100" VerticalAlignment="Center"
+                             ToolTip.Tip="Onion skin depth (frames each side)" />
+              <NumericUpDown Value="{Binding TweenCount}" Minimum="1" Maximum="9" Increment="1"
+                             FormatString="0" Width="110" VerticalAlignment="Center"
+                             ToolTip.Tip="Number of inbetween frames to generate" />
+              <ComboBox ItemsSource="{Binding EasingChoices}" SelectedItem="{Binding TweenEasing}" Width="110" />
+              <Button Content="＋ Inbetween" Command="{Binding InsertInbetweensCommand}"
+                      ToolTip.Tip="Insert interpolated frames between this key and the next" />
+            </StackPanel>
+          </Border>
+        </controls:Docker.TopBar>
+
+        <controls:Docker.BottomBar>
+          <Border Classes="dockerBar">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="2">
+                <Button Content="⏮" Command="{Binding GoToStartFrameCommand}"
+                        ToolTip.Tip="To start frame (the set start frame, else the first)" />
+                <Button Content="⏪" Command="{Binding PreviousKeyframeCommand}" ToolTip.Tip="Previous keyframe" />
+                <Button Content="◀" Command="{Binding PlayBackwardsCommand}" ToolTip.Tip="Play backwards" />
+                <Button Content="⏸" Command="{Binding PauseCommand}" ToolTip.Tip="Pause" />
+                <Button Content="▶" Command="{Binding PlayCommand}" ToolTip.Tip="Play (Space toggles)" />
+                <Button Content="⏩" Command="{Binding NextKeyframeCommand}" ToolTip.Tip="Next keyframe" />
+                <Button Content="⏭" Command="{Binding GoToEndFrameCommand}"
+                        ToolTip.Tip="To end frame (the set end frame, else the last)" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="fps" VerticalAlignment="Center" />
+                <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
+                               FormatString="0" Width="100" VerticalAlignment="Center" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="Speed %" VerticalAlignment="Center" />
+                <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
+                               FormatString="0" Width="110" VerticalAlignment="Center"
+                               ToolTip.Tip="Playback speed as a percentage of real time" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </controls:Docker.BottomBar>
+
+        <!-- Ruler (scrubbable numbering, range indication) above one row per layer -->
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+          <StackPanel Orientation="Vertical" Spacing="2">
+            <controls:TimelineRuler Height="22" HorizontalAlignment="Left"
+                                    LeadingInset="152" CellWidth="42"
+                                    Extent="{Binding TimelineExtent}"
+                                    MaxFrame="{Binding MaxScrubFrame}"
+                                    CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}"
+                                    RangeStart="{Binding PlaybackStartFrame}"
+                                    RangeEnd="{Binding PlaybackEndFrame}" />
+            <ItemsControl ItemsSource="{Binding LayerRows}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Vertical" Spacing="2" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:LayerRow">
+                  <Border Classes="layerRow" Classes.active="{Binding IsActive}"
+                          Classes.hiddenLayer="{Binding !Visible}" Padding="2">
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                      <ToggleButton Content="👁" IsChecked="{Binding Visible}" Width="28" Padding="2"
+                                    ToolTip.Tip="Layer visibility" />
+                      <ToggleButton Content="◉" IsChecked="{Binding OnionEnabled}" Width="28" Padding="2"
+                                    ToolTip.Tip="Onion skinning for this layer" />
+                      <Panel Width="88" Height="44">
+                        <Button Content="{Binding Name}" Width="88" Height="44"
+                                HorizontalContentAlignment="Left"
+                                IsVisible="{Binding !IsRenaming}"
+                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateLayerCommand}"
+                                CommandParameter="{Binding}"
+                                DoubleTapped="OnLayerNameDoubleTapped"
+                                ToolTip.Tip="Click to select, double-click to rename" />
                         <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                 Margin="4,0" BorderThickness="0" Background="Transparent"
-                                 VerticalAlignment="Center"
-                                 GotFocus="OnLayerRowFocused"
-                                 ToolTip.Tip="Click to rename" />
-                      </DockPanel>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-        </controls:Docker>
-
-        <!-- Color docker: one color, several representations -->
-        <controls:Docker Title="Color">
-          <controls:Docker.TopBar>
-            <Border Classes="dockerBar">
-              <ComboBox ItemsSource="{Binding ColorPicker.ModeChoices}" SelectedItem="{Binding ColorPicker.Mode}"
-                        Width="120" ToolTip.Tip="Color picker representation" />
-            </Border>
-          </controls:Docker.TopBar>
-          <controls:Docker.BottomBar>
-            <Border Classes="dockerBar">
-              <DockPanel>
-                <Border DockPanel.Dock="Left" Width="28" Height="28" CornerRadius="3"
-                        BorderBrush="#555" BorderThickness="1"
-                        Background="{Binding ColorPicker.SwatchBrush}"
-                        ToolTip.Tip="Current color" />
-                <TextBox Text="{Binding ColorHex}" Margin="8,0,0,0" VerticalAlignment="Center"
-                         ToolTip.Tip="Hex color, e.g. #1a1a1a" />
-              </DockPanel>
-            </Border>
-          </controls:Docker.BottomBar>
-
-          <StackPanel Margin="8" Spacing="8">
-
-            <!-- Krita-style wheel: hue ring + value slider -->
-            <StackPanel Spacing="8" IsVisible="{Binding ColorPicker.IsWheelMode}">
-              <ColorSpectrum Shape="Ring" Components="HueSaturation" Height="190"
-                             HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}" />
-              <ColorSlider ColorModel="Hsva" ColorComponent="Component3"
-                           HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}"
-                           ToolTip.Tip="Value (brightness)" />
-            </StackPanel>
-
-            <!-- HSV sliders -->
-            <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsHsvMode}">
-              <DockPanel>
-                <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360" Margin="4,0" />
-              </DockPanel>
-              <DockPanel>
-                <TextBlock Text="S" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HsvSaturation}" Minimum="0" Maximum="100"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.HsvSaturation}" Minimum="0" Maximum="100" Margin="4,0" />
-              </DockPanel>
-              <DockPanel>
-                <TextBlock Text="V" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HsvValue}" Minimum="0" Maximum="100"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.HsvValue}" Minimum="0" Maximum="100" Margin="4,0" />
-              </DockPanel>
-            </StackPanel>
-
-            <!-- HSL sliders -->
-            <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsHslMode}">
-              <DockPanel>
-                <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360" Margin="4,0" />
-              </DockPanel>
-              <DockPanel>
-                <TextBlock Text="S" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HslSaturation}" Minimum="0" Maximum="100"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.HslSaturation}" Minimum="0" Maximum="100" Margin="4,0" />
-              </DockPanel>
-              <DockPanel>
-                <TextBlock Text="L" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HslLightness}" Minimum="0" Maximum="100"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.HslLightness}" Minimum="0" Maximum="100" Margin="4,0" />
-              </DockPanel>
-            </StackPanel>
-
-            <!-- RGB sliders -->
-            <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsRgbMode}">
-              <DockPanel>
-                <TextBlock Text="R" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255" Margin="4,0" />
-              </DockPanel>
-              <DockPanel>
-                <TextBlock Text="G" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Green}" Minimum="0" Maximum="255"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.Green}" Minimum="0" Maximum="255" Margin="4,0" />
-              </DockPanel>
-              <DockPanel>
-                <TextBlock Text="B" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Blue}" Minimum="0" Maximum="255"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.Blue}" Minimum="0" Maximum="255" Margin="4,0" />
-              </DockPanel>
-            </StackPanel>
-
-            <!-- CMYK sliders -->
-            <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsCmykMode}">
-              <DockPanel>
-                <TextBlock Text="C" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100" Margin="4,0" />
-              </DockPanel>
-              <DockPanel>
-                <TextBlock Text="M" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Magenta}" Minimum="0" Maximum="100"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.Magenta}" Minimum="0" Maximum="100" Margin="4,0" />
-              </DockPanel>
-              <DockPanel>
-                <TextBlock Text="Y" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Yellow}" Minimum="0" Maximum="100"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.Yellow}" Minimum="0" Maximum="100" Margin="4,0" />
-              </DockPanel>
-              <DockPanel>
-                <TextBlock Text="K" Width="16" VerticalAlignment="Center" />
-                <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Black}" Minimum="0" Maximum="100"
-                               Increment="1" FormatString="0" Width="94" />
-                <Slider Value="{Binding ColorPicker.Black}" Minimum="0" Maximum="100" Margin="4,0" />
-              </DockPanel>
-            </StackPanel>
-
+                                 IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
+                                 LostFocus="OnLayerNameLostFocus" KeyDown="OnLayerNameKeyDown" />
+                      </Panel>
+                      <ItemsControl ItemsSource="{Binding Cells}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="2" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:FrameCell">
+                            <Button Width="40" Height="44" Classes="cel"
+                                    Classes.current="{Binding IsCurrent}"
+                                    Classes.breakdown="{Binding IsBreakdown}"
+                                    Classes.tween="{Binding IsInbetween}"
+                                    Classes.virtualCell="{Binding IsVirtual}"
+                                    Classes.dim="{Binding OutOfRange}"
+                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectFrameCommand}"
+                                    CommandParameter="{Binding}"
+                                    Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                              <Image Source="{Binding Thumb}" Width="32" Height="18" Stretch="Uniform"
+                                     IsVisible="{Binding IsKeyed}" />
+                              <Button.ContextMenu>
+                                <ContextMenu>
+                                  <MenuItem Header="Insert frame">
+                                    <MenuItem Header="Insert keyframe" Click="OnInsertKeyframe" />
+                                    <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
+                                    <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
+                                  </MenuItem>
+                                  <Separator />
+                                  <MenuItem Header="Set start frame" Click="OnSetStartFrame" />
+                                  <MenuItem Header="Set end frame" Click="OnSetEndFrame" />
+                                  <MenuItem Header="Clear playback range" Click="OnClearPlaybackRange" />
+                                </ContextMenu>
+                              </Button.ContextMenu>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </StackPanel>
-        </controls:Docker>
-      </StackPanel>
-    </Border>
-
-    <!-- Canvas -->
-    <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushSize}" />
+        </ScrollViewer>
+      </controls:Docker>
+    </Grid>
 
   </DockPanel>
 </Window>
