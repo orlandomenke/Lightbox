@@ -16,4 +16,7 @@ public enum SelectVariant
     Polygon,
     Box,
     Ellipse,
+
+    /// <summary>Magic wand: click to select a connected color region (flood fill).</summary>
+    Wand,
 }

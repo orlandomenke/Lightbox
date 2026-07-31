@@ -26,6 +26,7 @@ public partial class MainWindow : Window
 
         // Tool-aware canvas input (fill clicks, selection shapes) + ants overlay.
         Canvas.FillClicked += _vm.FillAt;
+        Canvas.WandClicked += _vm.WandSelectAt;
         Canvas.SelectionShapeDrawn += _vm.ApplySelectionShape;
         Canvas.PolygonVertexAdded += _vm.AddPolygonVertex;
         Canvas.PolygonCompleted += _vm.CompletePolygon;
@@ -135,6 +136,22 @@ public partial class MainWindow : Window
             _vm.ActivateLayerCommand.Execute(row);
     }
 
+    /// <summary>
+    /// Ctrl+click a layer thumbnail selects the layer's visible pixels
+    /// (Shift adds, Alt subtracts); a plain click falls through to the row
+    /// and activates the layer.
+    /// </summary>
+    private void OnLayerThumbPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+        if ((sender as Control)?.DataContext is not LayerRow row) return;
+        _vm.SelectLayerAlpha(
+            row,
+            add: e.KeyModifiers.HasFlag(KeyModifiers.Shift),
+            subtract: e.KeyModifiers.HasFlag(KeyModifiers.Alt));
+        e.Handled = true;
+    }
+
     // ---- layer rename (double-click, both dockers) ---------------------------
 
     private void OnLayerNameDoubleTapped(object? sender, TappedEventArgs e)
@@ -208,6 +225,38 @@ public partial class MainWindow : Window
 
     private void OnClearPlaybackRange(object? sender, RoutedEventArgs e) => _vm.ClearPlaybackRange();
 
+    // ---- exposure editing + cel clipboard (context menu) ----------------------
+
+    private void OnExtendExposure(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.ExtendExposureAt(cell);
+    }
+
+    private void OnReduceExposure(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.ReduceExposureAt(cell);
+    }
+
+    private void OnClearCel(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.ClearCelAt(cell);
+    }
+
+    private void OnCopyCel(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.CopyCel(cell);
+    }
+
+    private void OnCutCel(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.CutCel(cell);
+    }
+
+    private void OnPasteCel(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.PasteCel(cell);
+    }
+
     // ---- character sheets -----------------------------------------------------
 
     private void OnAddReferenceSheet(object? sender, RoutedEventArgs e) => _vm.AddReferenceSheet();
@@ -275,6 +324,7 @@ public partial class MainWindow : Window
                 SelectVariant.Polygon => Rendering.CanvasControl.CanvasToolMode.SelectPolygon,
                 SelectVariant.Box => Rendering.CanvasControl.CanvasToolMode.SelectRect,
                 SelectVariant.Ellipse => Rendering.CanvasControl.CanvasToolMode.SelectEllipse,
+                SelectVariant.Wand => Rendering.CanvasControl.CanvasToolMode.SelectWand,
                 _ => Rendering.CanvasControl.CanvasToolMode.SelectFreehand,
             },
             _ => Rendering.CanvasControl.CanvasToolMode.Paint,
@@ -379,6 +429,18 @@ public partial class MainWindow : Window
                 break;
             case { Key: Key.A, KeyModifiers: KeyModifiers.Control }:
                 _vm.SelectAllCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case { Key: Key.C, KeyModifiers: KeyModifiers.Control }:
+                _vm.CopyCurrentCel();
+                e.Handled = true;
+                break;
+            case { Key: Key.X, KeyModifiers: KeyModifiers.Control }:
+                _vm.CutCurrentCel();
+                e.Handled = true;
+                break;
+            case { Key: Key.V, KeyModifiers: KeyModifiers.Control }:
+                _vm.PasteCurrentCel();
                 e.Handled = true;
                 break;
             case { Key: Key.D, KeyModifiers: KeyModifiers.Control }:

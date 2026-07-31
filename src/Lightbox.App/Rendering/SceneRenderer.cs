@@ -1,9 +1,10 @@
+using Lightbox.Core.Documents;
 using SkiaSharp;
 
 namespace Lightbox.App.Rendering;
 
-/// <summary>One compositing pass: a layer bitmap with optional tint and opacity.</summary>
-public sealed record RenderPass(SKBitmap Bitmap, SKColor? Tint, double Opacity);
+/// <summary>One compositing pass: a layer bitmap with optional tint, opacity and blend mode.</summary>
+public sealed record RenderPass(SKBitmap Bitmap, SKColor? Tint, double Opacity, SKBlendMode Blend = SKBlendMode.SrcOver);
 
 /// <summary>
 /// Pure SkiaSharp scene compositing: white paper, then passes in order
@@ -39,6 +40,7 @@ public static class SceneRenderer
             using var paint = new SKPaint
             {
                 Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255)),
+                BlendMode = pass.Blend,
             };
             if (pass.Tint is { } tint)
             {
@@ -51,4 +53,25 @@ public static class SceneRenderer
 
     public static readonly SKColor OnionPrevTint = new(0xd0, 0x40, 0x40);
     public static readonly SKColor OnionNextTint = new(0x30, 0x60, 0xc0);
+
+    /// <summary>Photoshop-style layer blend modes map 1:1 onto Skia's.</summary>
+    public static SKBlendMode ToSkia(LayerBlendMode mode) => mode switch
+    {
+        LayerBlendMode.Multiply => SKBlendMode.Multiply,
+        LayerBlendMode.Screen => SKBlendMode.Screen,
+        LayerBlendMode.Overlay => SKBlendMode.Overlay,
+        LayerBlendMode.Darken => SKBlendMode.Darken,
+        LayerBlendMode.Lighten => SKBlendMode.Lighten,
+        LayerBlendMode.ColorDodge => SKBlendMode.ColorDodge,
+        LayerBlendMode.ColorBurn => SKBlendMode.ColorBurn,
+        LayerBlendMode.HardLight => SKBlendMode.HardLight,
+        LayerBlendMode.SoftLight => SKBlendMode.SoftLight,
+        LayerBlendMode.Difference => SKBlendMode.Difference,
+        LayerBlendMode.Exclusion => SKBlendMode.Exclusion,
+        LayerBlendMode.Hue => SKBlendMode.Hue,
+        LayerBlendMode.Saturation => SKBlendMode.Saturation,
+        LayerBlendMode.Color => SKBlendMode.Color,
+        LayerBlendMode.Luminosity => SKBlendMode.Luminosity,
+        _ => SKBlendMode.SrcOver,
+    };
 }

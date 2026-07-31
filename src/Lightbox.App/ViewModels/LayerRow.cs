@@ -45,6 +45,13 @@ public sealed partial class LayerRow : ObservableObject
     [ObservableProperty]
     private bool _isRenaming;
 
+    /// <summary>Small preview of the layer's exposed drawing at the playhead (checkerboard = transparent).</summary>
+    [ObservableProperty]
+    private Avalonia.Media.Imaging.Bitmap? _thumb;
+
+    /// <summary>Staleness key: the exposed frame id the thumb was rendered from.</summary>
+    internal string? ThumbFrameId;
+
     public string KindLabel => Layer.Kind == LayerKind.Vector ? "V" : "R";
 
     internal void SyncFromModel(Layer layer, int sceneIndex)

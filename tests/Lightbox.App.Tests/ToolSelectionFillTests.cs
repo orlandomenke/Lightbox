@@ -16,13 +16,15 @@ public class ToolModelTests
         Assert.Equal(ToolId.Select, vm.ActiveTool);
         Assert.Equal(SelectVariant.Freehand, vm.ActiveSelectVariant);
 
-        // pressing S again cycles: freehand → polygon → box → ellipse → freehand
+        // pressing S again cycles: freehand → polygon → box → ellipse → wand → freehand
         vm.SelectToolCommand.Execute(ToolId.Select);
         Assert.Equal(SelectVariant.Polygon, vm.ActiveSelectVariant);
         vm.SelectToolCommand.Execute(ToolId.Select);
         Assert.Equal(SelectVariant.Box, vm.ActiveSelectVariant);
         vm.SelectToolCommand.Execute(ToolId.Select);
         Assert.Equal(SelectVariant.Ellipse, vm.ActiveSelectVariant);
+        vm.SelectToolCommand.Execute(ToolId.Select);
+        Assert.Equal(SelectVariant.Wand, vm.ActiveSelectVariant);
         vm.SelectToolCommand.Execute(ToolId.Select);
         Assert.Equal(SelectVariant.Freehand, vm.ActiveSelectVariant);
 

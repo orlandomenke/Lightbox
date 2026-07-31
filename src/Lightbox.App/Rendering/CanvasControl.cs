@@ -122,6 +122,7 @@ public sealed class CanvasControl : Control
         SelectPolygon,
         SelectRect,
         SelectEllipse,
+        SelectWand,
     }
 
     public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
@@ -135,6 +136,9 @@ public sealed class CanvasControl : Control
 
     /// <summary>Fill tool click at a document position.</summary>
     public event Action<double, double>? FillClicked;
+
+    /// <summary>Magic-wand click at a document position (Shift=add, Alt=subtract).</summary>
+    public event Action<double, double, bool, bool>? WandClicked;
 
     /// <summary>A closed freehand/rect/ellipse selection shape (doc space; Shift=add, Alt=subtract).</summary>
     public event Action<List<Core.Documents.StrokePoint>, bool, bool>? SelectionShapeDrawn;
@@ -390,6 +394,12 @@ public sealed class CanvasControl : Control
             {
                 case CanvasToolMode.Fill:
                     FillClicked?.Invoke(x, y);
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.SelectWand:
+                    WandClicked?.Invoke(x, y,
+                        e.KeyModifiers.HasFlag(KeyModifiers.Shift),
+                        e.KeyModifiers.HasFlag(KeyModifiers.Alt));
                     e.Handled = true;
                     return;
                 case CanvasToolMode.SelectPolygon:

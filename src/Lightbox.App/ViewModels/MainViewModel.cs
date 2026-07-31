@@ -88,6 +88,7 @@ public sealed partial class MainViewModel : ObservableObject
         LoadBrushState();
         SyncLayerChoices();
         SyncLayerRows();
+        RefreshThumbnails();
     }
 
     // ---- document tabs --------------------------------------------------------
@@ -300,7 +301,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (!layer.Visible) continue;
             var frame = ExposureSheet.ExposedFrame(layer, 0);
             if (frame is null) continue;
-            passes.Add(new RenderPass(_cache.Get(frame, view.Width, view.Height), null, layer.Opacity));
+            passes.Add(new RenderPass(_cache.Get(frame, view.Width, view.Height), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
         }
         using var image = SceneRenderer.Compose(view.Width, view.Height, passes);
         using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
@@ -604,6 +605,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsPolygonVariant))]
     [NotifyPropertyChangedFor(nameof(IsBoxVariant))]
     [NotifyPropertyChangedFor(nameof(IsEllipseVariant))]
+    [NotifyPropertyChangedFor(nameof(IsWandVariant))]
     private SelectVariant _activeSelectVariant = SelectVariant.Freehand;
 
     public bool IsFreehandVariant => ActiveSelectVariant == SelectVariant.Freehand;
@@ -613,6 +615,8 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsBoxVariant => ActiveSelectVariant == SelectVariant.Box;
 
     public bool IsEllipseVariant => ActiveSelectVariant == SelectVariant.Ellipse;
+
+    public bool IsWandVariant => ActiveSelectVariant == SelectVariant.Wand;
 
     public bool IsBrushTool => ActiveTool == ToolId.Brush;
 
@@ -630,6 +634,7 @@ public sealed partial class MainViewModel : ObservableObject
         SelectVariant.Polygon => "⬠",
         SelectVariant.Box => "▭",
         SelectVariant.Ellipse => "◯",
+        SelectVariant.Wand => "🪄",
         _ => "◌",
     };
 
@@ -666,6 +671,7 @@ public sealed partial class MainViewModel : ObservableObject
             SelectVariant.Freehand => SelectVariant.Polygon,
             SelectVariant.Polygon => SelectVariant.Box,
             SelectVariant.Box => SelectVariant.Ellipse,
+            SelectVariant.Ellipse => SelectVariant.Wand,
             _ => SelectVariant.Freehand,
         };
     }
@@ -716,16 +722,7 @@ public sealed partial class MainViewModel : ObservableObject
             SKBitmap sample;
             if (SmartFill)
             {
-                var passes = new List<RenderPass>();
-                foreach (var layer in scene.Layers)
-                {
-                    if (!layer.Visible) continue;
-                    var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
-                    if (frame is null) continue;
-                    passes.Add(new RenderPass(_cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity));
-                }
-                using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SkiaSharp.SKColors.Transparent);
-                owned = SKBitmap.FromImage(image);
+                owned = CompositeVisibleLayers();
                 sample = owned;
             }
             else
@@ -775,6 +772,83 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Every visible layer composited over transparency at the playhead —
+    /// "what the eye sees minus the paper". Caller owns the returned bitmap.
+    /// </summary>
+    private SKBitmap CompositeVisibleLayers()
+    {
+        var scene = Scene;
+        var passes = new List<RenderPass>();
+        foreach (var layer in scene.Layers)
+        {
+            if (!layer.Visible) continue;
+            var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
+            if (frame is null) continue;
+            passes.Add(new RenderPass(
+                _cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity,
+                SceneRenderer.ToSkia(layer.BlendMode)));
+        }
+        using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SkiaSharp.SKColors.Transparent);
+        return SKBitmap.FromImage(image);
+    }
+
+    // ---- magic wand -------------------------------------------------------------
+
+    [ObservableProperty]
+    private double _wandTolerance = 32;
+
+    /// <summary>Openings up to this many pixels read as closed for the wand.</summary>
+    [ObservableProperty]
+    private double _wandGapPx;
+
+    /// <summary>Sample the composited visible layers instead of only the active one.</summary>
+    [ObservableProperty]
+    private bool _wandSampleAllLayers = true;
+
+    /// <summary>Magic-wand click: select the connected color region at a document position.</summary>
+    public void WandSelectAt(double x, double y, bool add, bool subtract)
+    {
+        if (ActiveTool != ToolId.Select || IsPlaying) return;
+        int w = Scene.Width, h = Scene.Height;
+        SKBitmap? owned = null;
+        try
+        {
+            SKBitmap sample;
+            if (WandSampleAllLayers)
+            {
+                owned = CompositeVisibleLayers();
+                sample = owned;
+            }
+            else
+            {
+                var frame = ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex);
+                if (frame is null)
+                {
+                    AiStatus = "The active layer has nothing drawn to select here.";
+                    return;
+                }
+                sample = _cache.Get(frame, w, h);
+            }
+
+            var result = FloodFill.Fill(
+                sample, (int)Math.Round(x), (int)Math.Round(y),
+                new FloodFill.Options(WandTolerance, WandGapPx));
+            if (result is null)
+            {
+                AiStatus = "Nothing selectable at that spot.";
+                return;
+            }
+            var contours = new List<List<StrokePoint>> { result.Outer };
+            contours.AddRange(result.Holes);
+            ApplySelectionMask(MaskFromContours(contours, w, h), add, subtract);
+        }
+        finally
+        {
+            owned?.Dispose();
+        }
+    }
+
     // ---- selection --------------------------------------------------------------
 
     private List<List<StrokePoint>> _selectionContours = [];
@@ -810,7 +884,13 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (contour.Count < 3) return;
         int w = Scene.Width, h = Scene.Height;
-        var shape = MaskFromContours([contour], w, h);
+        ApplySelectionMask(MaskFromContours([contour], w, h), add, subtract);
+    }
+
+    /// <summary>Combine any shape mask into the selection with the standard modifiers.</summary>
+    private void ApplySelectionMask(bool[] shape, bool add, bool subtract)
+    {
+        int w = Scene.Width, h = Scene.Height;
         bool[] mask;
         if (!HasSelection || (!add && !subtract))
         {
@@ -826,6 +906,40 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
         SetSelectionFromMask(mask, w, h);
+    }
+
+    /// <summary>
+    /// Ctrl+click on a layer thumbnail: select the layer's visible pixels
+    /// (the exposed drawing at the playhead). Shift adds, Alt subtracts.
+    /// </summary>
+    public void SelectLayerAlpha(LayerRow row, bool add, bool subtract)
+    {
+        var frame = ExposureSheet.ExposedFrame(row.Layer, CurrentFrameIndex);
+        if (frame is null)
+        {
+            AiStatus = $"Layer “{row.Layer.Name}” has nothing drawn to select here.";
+            return;
+        }
+        int w = Scene.Width, h = Scene.Height;
+        var bmp = _cache.Get(frame, w, h);
+        var pixels = bmp.Pixels;
+        var shape = new bool[w * h];
+        var any = false;
+        for (var i = 0; i < shape.Length; i++)
+        {
+            // Low threshold keeps soft brush edges inside the selection.
+            if (pixels[i].Alpha > 25)
+            {
+                shape[i] = true;
+                any = true;
+            }
+        }
+        if (!any)
+        {
+            AiStatus = $"Layer “{row.Layer.Name}” has nothing drawn to select here.";
+            return;
+        }
+        ApplySelectionMask(shape, add, subtract);
     }
 
     public void AddPolygonVertex(double x, double y)
@@ -1028,6 +1142,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         foreach (var row in LayerRows) row.IsActive = row.SceneIndex == value;
         OnPropertyChanged(nameof(FrameCells));
+        NotifyActiveLayerCompositing();
         PublishSnapshot();
     }
 
@@ -1060,6 +1175,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentFrameIndexChanged(int value)
     {
         RefreshCellHighlights();
+        RefreshLayerThumbs();
         PublishSnapshot();
     }
 
@@ -1317,6 +1433,140 @@ public sealed partial class MainViewModel : ObservableObject
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
     }
 
+    // ---- exposure editing + cel clipboard --------------------------------------
+
+    private Layer? LayerOfCell(FrameCell cell) =>
+        cell.LayerIndex >= 0 && cell.LayerIndex < Scene.Layers.Count ? Scene.Layers[cell.LayerIndex] : null;
+
+    public void ExtendExposureAt(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return;
+        _editor.ExtendExposure(layer.Id, cell.Index);
+    }
+
+    public void ReduceExposureAt(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return;
+        _editor.ReduceExposure(layer.Id, cell.Index);
+    }
+
+    public void ClearCelAt(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return;
+        var frame = ExposureSheet.FrameAtExactIndex(layer, cell.Index);
+        if (frame is null)
+        {
+            AiStatus = "That cel is a hold — there is no drawing to clear.";
+            return;
+        }
+        _editor.ClearCel(layer.Id, cell.Index);
+        _cache.Invalidate(frame.Id);
+        _dirtyThumbIds.Add(frame.Id);
+        RefreshThumbnails();
+    }
+
+    /// <summary>App-internal cel clipboard (a deep-cloned frame + its source layer kind).</summary>
+    private (Frame Frame, LayerKind Kind)? _celClipboard;
+
+    public bool HasCelClipboard => _celClipboard is not null;
+
+    /// <summary>Copy the drawing EXPOSED at the cell (holds copy the drawing they show).</summary>
+    public void CopyCel(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return;
+        var frame = ExposureSheet.ExposedFrame(layer, cell.Index);
+        if (frame is null)
+        {
+            AiStatus = "Nothing to copy — the cel is empty.";
+            return;
+        }
+        _celClipboard = (DocumentEditor.CloneFrame(frame)!, layer.Kind);
+        OnPropertyChanged(nameof(HasCelClipboard));
+        AiStatus = "Cel copied.";
+    }
+
+    public void CutCel(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return;
+        if (ExposureSheet.FrameAtExactIndex(layer, cell.Index) is null)
+        {
+            AiStatus = "Nothing to cut — the cel is a hold.";
+            return;
+        }
+        CopyCel(cell);
+        ClearCelAt(cell);
+    }
+
+    public void PasteCel(FrameCell cell)
+    {
+        if (_celClipboard is not { } clip)
+        {
+            AiStatus = "The cel clipboard is empty.";
+            return;
+        }
+        if (LayerOfCell(cell) is not { } layer) return;
+
+        var frame = DocumentEditor.CloneFrame(clip.Frame)!; // fresh id per paste
+        if (layer.Kind != clip.Kind)
+        {
+            // Strokes carry over between kinds; baseline pixels cannot become vector.
+            if (layer.Kind == LayerKind.Vector && frame is PaintedFrame p)
+            {
+                if (!string.IsNullOrEmpty(p.PngBase64))
+                {
+                    AiStatus = "Can't paste onto a vector layer: the copied cel carries baseline pixels.";
+                    return;
+                }
+                frame = new VectorFrame { Role = p.Role, Strokes = p.Strokes };
+            }
+            else if (layer.Kind == LayerKind.Painted && frame is VectorFrame v)
+            {
+                frame = new PaintedFrame { Role = v.Role, Strokes = v.Strokes };
+            }
+        }
+        _editor.SetFrameAt(layer.Id, cell.Index, frame);
+        ActiveLayerIndex = cell.LayerIndex;
+        CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
+    }
+
+    /// <summary>Ctrl+C/X/V target: the active layer's cel at the playhead.</summary>
+    private FrameCell? CurrentCell()
+    {
+        var row = LayerRows.FirstOrDefault(r => r.SceneIndex == ActiveLayerIndex);
+        return row?.Cells.FirstOrDefault(c => c.Index == CurrentFrameIndex);
+    }
+
+    public void CopyCurrentCel()
+    {
+        if (CurrentCell() is { } cell) CopyCel(cell);
+    }
+
+    public void CutCurrentCel()
+    {
+        if (CurrentCell() is { } cell) CutCel(cell);
+    }
+
+    public void PasteCurrentCel()
+    {
+        if (CurrentCell() is { } cell) PasteCel(cell);
+    }
+
+    // ---- layer reordering -------------------------------------------------------
+
+    /// <summary>Move a layer toward the viewer (+1) or away (−1), keeping it active.</summary>
+    internal void MoveLayer(LayerRow row, int delta)
+    {
+        var id = row.Layer.Id;
+        _editor.MoveLayer(id, delta);
+        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == id);
+    }
+
+    [RelayCommand]
+    private void MoveLayerUp(LayerRow row) => MoveLayer(row, +1);
+
+    [RelayCommand]
+    private void MoveLayerDown(LayerRow row) => MoveLayer(row, -1);
+
     private void RefreshRangeHighlights()
     {
         var rangeSet = PlaybackStartFrame >= 0 || PlaybackEndFrame >= 0;
@@ -1426,6 +1676,48 @@ public sealed partial class MainViewModel : ObservableObject
         layer.OnionEnabled = enabled;
         MarkDocumentEdited();
         PublishSnapshot();
+    }
+
+    // ---- active layer compositing (opacity + blend mode) ----------------------
+
+    public IReadOnlyList<LayerBlendMode> BlendModeChoices { get; } = Enum.GetValues<LayerBlendMode>();
+
+    /// <summary>
+    /// Active layer's opacity, 0–100 for the docker slider. Applied live while
+    /// dragging, so deliberately not an undo step (an undo snapshot per slider
+    /// tick would flood the history).
+    /// </summary>
+    public double ActiveLayerOpacity
+    {
+        get => Math.Round(ActiveLayer.Opacity * 100);
+        set
+        {
+            var clamped = Math.Clamp(value / 100.0, 0, 1);
+            if (Math.Abs(ActiveLayer.Opacity - clamped) < 0.0005) return;
+            ActiveLayer.Opacity = clamped;
+            MarkDocumentEdited();
+            OnPropertyChanged();
+            PublishSnapshot();
+        }
+    }
+
+    /// <summary>Active layer's blend mode — a deliberate compositing choice, one undo step.</summary>
+    public LayerBlendMode ActiveLayerBlendMode
+    {
+        get => ActiveLayer.BlendMode;
+        set
+        {
+            if (ActiveLayer.BlendMode == value) return;
+            var layer = ActiveLayer;
+            _editor.Perform(_ => layer.BlendMode = value);
+            OnPropertyChanged();
+        }
+    }
+
+    private void NotifyActiveLayerCompositing()
+    {
+        OnPropertyChanged(nameof(ActiveLayerOpacity));
+        OnPropertyChanged(nameof(ActiveLayerBlendMode));
     }
 
     private void AddLayer(LayerKind kind)
@@ -1640,7 +1932,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (!layer.Visible) continue;
             var frame = ExposureSheet.ExposedFrame(layer, frameIndex);
             if (frame is null) continue;
-            passes.Add(new RenderPass(_cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity));
+            passes.Add(new RenderPass(_cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
         }
         using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
         using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
@@ -1714,6 +2006,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(TimelineExtent));
         OnPropertyChanged(nameof(MaxScrubFrame));
         OnPropertyChanged(nameof(Fps));
+        NotifyActiveLayerCompositing();
         PublishSnapshot();
         RefreshThumbnails();
     }
@@ -1800,8 +2093,37 @@ public sealed partial class MainViewModel : ObservableObject
                 cell.ThumbFrameId = frame.Id;
             }
         }
+        RefreshLayerThumbs();
         _dirtyThumbIds.Clear();
         _allThumbsDirty = false;
+    }
+
+    /// <summary>
+    /// Layer-docker thumbnails show the exposed drawing at the playhead
+    /// (holds resolve to the drawing they hold) over a checkerboard.
+    /// Also called on playhead moves, where only rows whose exposed frame
+    /// actually changed re-render.
+    /// </summary>
+    private void RefreshLayerThumbs()
+    {
+        foreach (var row in LayerRows)
+        {
+            var frame = ExposureSheet.ExposedFrame(row.Layer, CurrentFrameIndex);
+            if (frame is null)
+            {
+                row.Thumb = null;
+                row.ThumbFrameId = null;
+                continue;
+            }
+            var stale = _allThumbsDirty
+                        || row.ThumbFrameId != frame.Id
+                        || _dirtyThumbIds.Contains(frame.Id);
+            if (!stale && row.Thumb is not null) continue;
+
+            var bmp = _cache.Get(frame, Scene.Width, Scene.Height);
+            row.Thumb = ThumbnailRenderer.RenderChecker(bmp, 44, 26);
+            row.ThumbFrameId = frame.Id;
+        }
     }
 
     private void RefreshCellHighlights()
@@ -1850,7 +2172,7 @@ public sealed partial class MainViewModel : ObservableObject
                 bmp = _liveComposite;
             }
 
-            passes.Add(new RenderPass(bmp, null, layer.Opacity));
+            passes.Add(new RenderPass(bmp, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
         }
 
         var info = new SKImageInfo(scene.Width, scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);

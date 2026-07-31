@@ -115,6 +115,13 @@
                            FormatString="0.00" Width="110" VerticalAlignment="Center"
                            ToolTip.Tip="Brush hardness (type an exact value, 0–1)" />
           </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Opacity" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="110" VerticalAlignment="Center"
+                           ToolTip.Tip="Brush transparency (0–1)" />
+          </StackPanel>
           <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
                     ToolTip.Tip="Smooth strokes when you finish them" />
         </StackPanel>
@@ -211,6 +218,13 @@
                            FormatString="0.00" Width="110" VerticalAlignment="Center"
                            ToolTip.Tip="Eraser hardness (type an exact value, 0–1)" />
           </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Opacity" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="110" VerticalAlignment="Center"
+                           ToolTip.Tip="Eraser strength (0–1)" />
+          </StackPanel>
           <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
                     ToolTip.Tip="Smooth strokes when you finish them" />
         </StackPanel>
@@ -260,6 +274,26 @@
             <RadioButton GroupName="selvar" Content="◯" IsChecked="{Binding IsEllipseVariant, Mode=OneWay}"
                          Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Ellipse}"
                          ToolTip.Tip="Circle/ellipse selection" />
+            <RadioButton GroupName="selvar" Content="🪄" IsChecked="{Binding IsWandVariant, Mode=OneWay}"
+                         Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Wand}"
+                         ToolTip.Tip="Magic wand — click to select a connected color region" />
+          </StackPanel>
+          <!-- Wand-only options -->
+          <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsWandVariant}" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <TextBlock Text="Tolerance" VerticalAlignment="Center" />
+              <NumericUpDown Value="{Binding WandTolerance}" Minimum="0" Maximum="255" Increment="4"
+                             FormatString="0" Width="100" VerticalAlignment="Center"
+                             ToolTip.Tip="How different a pixel may be and still join the selection" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <TextBlock Text="Gap px" VerticalAlignment="Center" />
+              <NumericUpDown Value="{Binding WandGapPx}" Minimum="0" Maximum="32" Increment="1"
+                             FormatString="0" Width="94" VerticalAlignment="Center"
+                             ToolTip.Tip="Openings up to this many pixels still count as closed" />
+            </StackPanel>
+            <CheckBox Content="Sample all layers" IsChecked="{Binding WandSampleAllLayers}" VerticalAlignment="Center"
+                      ToolTip.Tip="Select from what you see (all visible layers) instead of only the active layer" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Feather" VerticalAlignment="Center" />
@@ -402,6 +436,8 @@
                               CommandParameter="{x:Static vm:SelectVariant.Box}" HorizontalAlignment="Stretch" />
                       <Button Content="◯ Circle" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
                               CommandParameter="{x:Static vm:SelectVariant.Ellipse}" HorizontalAlignment="Stretch" />
+                      <Button Content="🪄 Magic wand" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static vm:SelectVariant.Wand}" HorizontalAlignment="Stretch" />
                     </StackPanel>
                   </Flyout>
                 </ToggleButton.ContextFlyout>
@@ -439,11 +475,11 @@
                 IsVisible="{Binding SidebarVisible}">
           <Grid Margin="4">
             <Grid.RowDefinitions>
-              <RowDefinition Height="*" MinHeight="90" />
+              <RowDefinition Height="1.2*" MinHeight="170" />
               <RowDefinition Height="Auto" />
-              <RowDefinition Height="1.4*" MinHeight="160" />
+              <RowDefinition Height="1.3*" MinHeight="160" />
               <RowDefinition Height="Auto" />
-              <RowDefinition Height="0.8*" MinHeight="90" />
+              <RowDefinition Height="0.7*" MinHeight="80" />
             </Grid.RowDefinitions>
 
             <!-- Layer docker (its ✕ collapses the sidebar to its side; ⇄ switches sides) -->
@@ -456,11 +492,25 @@
               </controls:Docker.TitleBarExtra>
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
-                  <StackPanel Orientation="Horizontal" Spacing="6">
-                    <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
-                            ToolTip.Tip="Add a new layer of the selected kind" />
-                    <ComboBox ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
-                              Width="110" ToolTip.Tip="Kind of layer the + button creates" />
+                  <StackPanel Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
+                              ToolTip.Tip="Add a new layer of the selected kind" />
+                      <ComboBox ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
+                                Width="110" ToolTip.Tip="Kind of layer the + button creates" />
+                    </StackPanel>
+                    <!-- Compositing controls for the ACTIVE layer (Photoshop-style panel top) -->
+                    <DockPanel>
+                      <ComboBox DockPanel.Dock="Left" ItemsSource="{Binding BlendModeChoices}"
+                                SelectedItem="{Binding ActiveLayerBlendMode}" Width="104" FontSize="12"
+                                ToolTip.Tip="Blend mode of the active layer" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ActiveLayerOpacity}"
+                                     Minimum="0" Maximum="100" Increment="5" FormatString="0"
+                                     Width="86" FontSize="12"
+                                     ToolTip.Tip="Opacity of the active layer (%)" />
+                      <Slider Value="{Binding ActiveLayerOpacity}" Minimum="0" Maximum="100" Margin="6,0"
+                              VerticalAlignment="Center" ToolTip.Tip="Opacity of the active layer" />
+                    </DockPanel>
                   </StackPanel>
                 </Border>
               </controls:Docker.TopBar>
@@ -481,6 +531,20 @@
                         <DockPanel>
                           <ToggleButton DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
                                         Width="34" ToolTip.Tip="Layer visibility" />
+                          <Border DockPanel.Dock="Left" Margin="4,0,0,0" BorderBrush="#555" BorderThickness="1"
+                                  CornerRadius="2" Width="46" Height="28" VerticalAlignment="Center"
+                                  Background="#111" PointerPressed="OnLayerThumbPressed"
+                                  ToolTip.Tip="Layer content — Ctrl+click to select its visible pixels (Shift adds, Alt subtracts)">
+                            <Image Source="{Binding Thumb}" Stretch="Uniform" />
+                          </Border>
+                          <StackPanel DockPanel.Dock="Right" Orientation="Vertical" Spacing="0" VerticalAlignment="Center">
+                            <Button Content="▲" FontSize="8" Padding="4,0" Background="Transparent"
+                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveLayerUpCommand}"
+                                    CommandParameter="{Binding}" ToolTip.Tip="Move layer up" />
+                            <Button Content="▼" FontSize="8" Padding="4,0" Background="Transparent"
+                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveLayerDownCommand}"
+                                    CommandParameter="{Binding}" ToolTip.Tip="Move layer down" />
+                          </StackPanel>
                           <TextBlock DockPanel.Dock="Right" Text="{Binding KindLabel}" Width="16"
                                      VerticalAlignment="Center" Opacity="0.5" FontSize="11"
                                      ToolTip.Tip="R = raster, V = vector" />
@@ -812,6 +876,14 @@
                                     <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
                                     <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
                                   </MenuItem>
+                                  <Separator />
+                                  <MenuItem Header="Extend exposure (+1 hold)" Click="OnExtendExposure" />
+                                  <MenuItem Header="Reduce exposure (−1 hold)" Click="OnReduceExposure" />
+                                  <MenuItem Header="Clear cel" Click="OnClearCel" />
+                                  <Separator />
+                                  <MenuItem Header="Copy cel" Click="OnCopyCel" />
+                                  <MenuItem Header="Cut cel" Click="OnCutCel" />
+                                  <MenuItem Header="Paste cel" Click="OnPasteCel" />
                                   <Separator />
                                   <MenuItem Header="Set start frame" Click="OnSetStartFrame" />
                                   <MenuItem Header="Set end frame" Click="OnSetEndFrame" />
