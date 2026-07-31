@@ -2,69 +2,82 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Lightbox.App.ViewModels"
         xmlns:render="using:Lightbox.App.Rendering"
+        xmlns:controls="using:Lightbox.App.Controls"
         x:Class="Lightbox.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Lightbox"
         Width="1280" Height="800"
         WindowStartupLocation="CenterScreen">
 
+  <Window.Styles>
+    <Style Selector="Border.layerRow">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="3" />
+    </Style>
+    <Style Selector="Border.layerRow.active">
+      <Setter Property="Background" Value="#33507a" />
+    </Style>
+    <Style Selector="Button.cel">
+      <Setter Property="Background" Value="#2a2a2a" />
+    </Style>
+    <Style Selector="Button.cel.current">
+      <Setter Property="Background" Value="#4a6ea9" />
+    </Style>
+  </Window.Styles>
+
   <DockPanel>
 
-    <!-- Toolbar -->
+    <!-- Menu bar -->
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_File">
+        <MenuItem Header="_Open…" Click="OnOpenClicked" />
+        <MenuItem Header="_Save…" Click="OnSaveClicked" />
+        <Separator />
+        <MenuItem Header="_Export PNGs…" Click="OnExportClicked" />
+      </MenuItem>
+      <MenuItem Header="_View">
+        <MenuItem Header="Sidebar" ToggleType="CheckBox" IsChecked="{Binding SidebarVisible}" />
+      </MenuItem>
+    </Menu>
+
+    <!-- Dynamic tool options bar: contents depend on the selected tool -->
     <Border DockPanel.Dock="Top" Padding="8,6" Background="#1f1f1f">
       <StackPanel Orientation="Horizontal" Spacing="14">
-        <TextBlock Text="Lightbox" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
-
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ToggleButton Content="Brush" IsChecked="{Binding !IsEraser}" IsEnabled="{Binding IsEraser}" />
           <ToggleButton Content="Eraser" IsChecked="{Binding IsEraser}" />
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <TextBlock Text="Color" VerticalAlignment="Center" />
-          <TextBox Text="{Binding ColorHex}" Width="80" ToolTip.Tip="Hex color, e.g. #1a1a1a" />
+        <!-- Brush options -->
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding !IsEraser}">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Color" VerticalAlignment="Center" />
+            <TextBox Text="{Binding ColorHex}" Width="80" ToolTip.Tip="Hex color, e.g. #1a1a1a" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Size" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="60" Width="110" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Hardness" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+          </StackPanel>
+          <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
+                    ToolTip.Tip="Smooth strokes when you finish them" />
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <TextBlock Text="Size" VerticalAlignment="Center" />
-          <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="60" Width="110" VerticalAlignment="Center" />
-        </StackPanel>
-
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <TextBlock Text="Hardness" VerticalAlignment="Center" />
-          <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
-        </StackPanel>
-
-        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-          <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
-          <NumericUpDown Value="{Binding OnionDepth}" Minimum="1" Maximum="3" Increment="1"
-                         FormatString="0" Width="100" VerticalAlignment="Center"
-                         ToolTip.Tip="Onion skin depth (frames each side)" />
-        </StackPanel>
-
-        <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
-                  ToolTip.Tip="Smooth strokes when you finish them" />
-
-        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-          <TextBlock Text="fps" VerticalAlignment="Center" />
-          <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
-                         FormatString="0" Width="100" VerticalAlignment="Center" />
-        </StackPanel>
-
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <NumericUpDown Value="{Binding TweenCount}" Minimum="1" Maximum="9" Increment="1"
-                         FormatString="0" Width="110" VerticalAlignment="Center"
-                         ToolTip.Tip="Number of inbetween frames to generate" />
-          <ComboBox ItemsSource="{Binding EasingChoices}" SelectedItem="{Binding TweenEasing}" Width="110" />
-          <Button Content="＋ Inbetween" Command="{Binding InsertInbetweensCommand}"
-                  ToolTip.Tip="Insert interpolated frames between this key and the next" />
-        </StackPanel>
-
-        <StackPanel Orientation="Horizontal" Spacing="6">
-          <Button Content="Open…" Click="OnOpenClicked" />
-          <Button Content="Save…" Click="OnSaveClicked" />
-          <Button Content="Export PNGs…" Click="OnExportClicked"
-                  ToolTip.Tip="Render every frame to a numbered PNG sequence" />
+        <!-- Eraser options -->
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsEraser}">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Size" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="60" Width="110" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Hardness" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+          </StackPanel>
+          <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
+                    ToolTip.Tip="Smooth strokes when you finish them" />
         </StackPanel>
       </StackPanel>
     </Border>
@@ -77,7 +90,7 @@
                 Command="{Binding AiInbetweenCommand}"
                 IsEnabled="{Binding CanUseAi}"
                 ToolTip.Tip="Ask Claude to draw the inbetweens between this key and the next" />
-        <TextBox Text="{Binding AiPrompt}" Width="320" Watermark="Describe what Claude should draw…"
+        <TextBox Text="{Binding AiPrompt}" Width="320" PlaceholderText="Describe what Claude should draw…"
                  IsEnabled="{Binding CanUseAi}" />
         <Button Content="✦ AI Draw"
                 Command="{Binding AiDrawCommand}"
@@ -90,63 +103,158 @@
       </StackPanel>
     </Border>
 
-    <!-- Timeline -->
-    <Border DockPanel.Dock="Bottom" Padding="8,6" Background="#1f1f1f">
-      <DockPanel>
-        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="6">
-          <Button Content="▶ / ⏸" Command="{Binding TogglePlaybackCommand}" ToolTip.Tip="Play / pause (Space)" />
-          <Button Content="＋ Frame" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
-          <Button Content="⧉ Dup" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
-          <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
-          <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
-          <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
-          <TextBlock Text="{Binding FrameLabel}" VerticalAlignment="Center" Margin="8,0" />
-          <ComboBox ItemsSource="{Binding LayerChoices}" SelectedIndex="{Binding ActiveLayerIndex}"
-                    Width="110" VerticalAlignment="Center" ToolTip.Tip="Active layer">
-            <ComboBox.ItemTemplate>
-              <DataTemplate>
-                <TextBlock Text="{Binding Name}" />
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
-          <Button Content="＋P" Command="{Binding AddPaintedLayerCommand}" ToolTip.Tip="Add a painted (raster) layer" />
-          <Button Content="＋V" Command="{Binding AddVectorLayerCommand}" ToolTip.Tip="Add a vector layer" />
-          <Button Content="👁" Command="{Binding ToggleActiveLayerVisibleCommand}" ToolTip.Tip="Toggle active layer visibility" />
-        </StackPanel>
+    <!-- Timeline docker -->
+    <controls:Docker DockPanel.Dock="Bottom" Title="Timeline" Margin="4">
+      <controls:Docker.TopBar>
+        <Border Classes="dockerBar">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Content="＋" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
+            <Button Content="⧉" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
+            <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
+            <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
+            <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
+            <TextBlock Text="{Binding FrameLabel}" VerticalAlignment="Center" Margin="8,0" />
+            <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding OnionDepth}" Minimum="1" Maximum="3" Increment="1"
+                           FormatString="0" Width="100" VerticalAlignment="Center"
+                           ToolTip.Tip="Onion skin depth (frames each side)" />
+            <NumericUpDown Value="{Binding TweenCount}" Minimum="1" Maximum="9" Increment="1"
+                           FormatString="0" Width="110" VerticalAlignment="Center"
+                           ToolTip.Tip="Number of inbetween frames to generate" />
+            <ComboBox ItemsSource="{Binding EasingChoices}" SelectedItem="{Binding TweenEasing}" Width="110" />
+            <Button Content="＋ Inbetween" Command="{Binding InsertInbetweensCommand}"
+                    ToolTip.Tip="Insert interpolated frames between this key and the next" />
+          </StackPanel>
+        </Border>
+      </controls:Docker.TopBar>
 
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-          <ItemsControl ItemsSource="{Binding FrameCells}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Orientation="Horizontal" Spacing="2" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:FrameCell">
-                <Button Width="40" Height="50"
-                        Classes.current="{Binding IsCurrent}"
-                        Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SelectFrameCommand}"
-                        CommandParameter="{Binding}"
-                        Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-                  <Button.Styles>
-                    <Style Selector="Button">
-                      <Setter Property="Background" Value="#2a2a2a" />
-                    </Style>
-                    <Style Selector="Button.current">
-                      <Setter Property="Background" Value="#4a6ea9" />
-                    </Style>
-                  </Button.Styles>
-                  <StackPanel>
-                    <Image Source="{Binding Thumb}" Width="32" Height="18" Stretch="Uniform"
-                           IsVisible="{Binding IsKeyed}" />
-                    <TextBlock Text="{Binding Display}" HorizontalAlignment="Center" FontSize="11" />
-                    <TextBlock Text="—" HorizontalAlignment="Center" FontSize="10" IsVisible="{Binding !IsKeyed}" />
-                  </StackPanel>
-                </Button>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </ScrollViewer>
+      <controls:Docker.BottomBar>
+        <Border Classes="dockerBar">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button Content="▶ / ⏸" Command="{Binding TogglePlaybackCommand}" ToolTip.Tip="Play / pause (Space)" />
+            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+              <TextBlock Text="fps" VerticalAlignment="Center" />
+              <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
+                             FormatString="0" Width="100" VerticalAlignment="Center" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+              <TextBlock Text="Speed %" VerticalAlignment="Center" />
+              <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
+                             FormatString="0" Width="110" VerticalAlignment="Center"
+                             ToolTip.Tip="Playback speed as a percentage of real time" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </controls:Docker.BottomBar>
+
+      <!-- One row per layer: onion toggle, name, then the layer's cels -->
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" MaxHeight="200">
+        <ItemsControl ItemsSource="{Binding LayerRows}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Vertical" Spacing="2" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LayerRow">
+              <Border Classes="layerRow" Classes.active="{Binding IsActive}" Padding="2">
+                <StackPanel Orientation="Horizontal" Spacing="2">
+                  <ToggleButton Content="◉" IsChecked="{Binding OnionEnabled}" Width="32"
+                                ToolTip.Tip="Onion skinning for this layer" />
+                  <Button Content="{Binding Name}" Width="110" Height="50"
+                          HorizontalContentAlignment="Left"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateLayerCommand}"
+                          CommandParameter="{Binding}"
+                          ToolTip.Tip="Select this layer" />
+                  <ItemsControl ItemsSource="{Binding Cells}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="2" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:FrameCell">
+                        <Button Width="40" Height="50" Classes="cel"
+                                Classes.current="{Binding IsCurrent}"
+                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectFrameCommand}"
+                                CommandParameter="{Binding}"
+                                Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                          <StackPanel>
+                            <Image Source="{Binding Thumb}" Width="32" Height="18" Stretch="Uniform"
+                                   IsVisible="{Binding IsKeyed}" />
+                            <TextBlock Text="{Binding Display}" HorizontalAlignment="Center" FontSize="11" />
+                            <TextBlock Text="—" HorizontalAlignment="Center" FontSize="10" IsVisible="{Binding !IsKeyed}" />
+                          </StackPanel>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </controls:Docker>
+
+    <!-- Closable sidebar of dockers -->
+    <Border DockPanel.Dock="Right" Width="250" Background="#1c1c1c"
+            IsVisible="{Binding SidebarVisible}">
+      <DockPanel>
+        <Border DockPanel.Dock="Top" Padding="6,2">
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Content="✕" FontSize="11" Padding="6,2"
+                    Command="{Binding ToggleSidebarCommand}"
+                    ToolTip.Tip="Close sidebar (reopen via View menu)" />
+            <TextBlock Text="Dockers" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
+          </DockPanel>
+        </Border>
+
+        <StackPanel Spacing="4" Margin="4">
+          <!-- Layer docker -->
+          <controls:Docker Title="Layers">
+            <controls:Docker.TopBar>
+              <Border Classes="dockerBar">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
+                          ToolTip.Tip="Add a new layer of the selected kind" />
+                  <ComboBox ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
+                            Width="110" ToolTip.Tip="Kind of layer the + button creates" />
+                </StackPanel>
+              </Border>
+            </controls:Docker.TopBar>
+
+            <!-- Topmost layer first: visibility, then the renamable name -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
+              <ItemsControl ItemsSource="{Binding LayerRows}" Margin="4">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="Vertical" Spacing="2" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:LayerRow">
+                    <Border Classes="layerRow" Classes.active="{Binding IsActive}" Padding="2"
+                            PointerPressed="OnLayerRowPressed">
+                      <DockPanel>
+                        <ToggleButton DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
+                                      Width="34" ToolTip.Tip="Layer visibility" />
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding KindLabel}" Width="16"
+                                   VerticalAlignment="Center" Opacity="0.5" FontSize="11"
+                                   ToolTip.Tip="R = raster, V = vector" />
+                        <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 Margin="4,0" BorderThickness="0" Background="Transparent"
+                                 VerticalAlignment="Center"
+                                 GotFocus="OnLayerRowFocused"
+                                 ToolTip.Tip="Click to rename" />
+                      </DockPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </controls:Docker>
+        </StackPanel>
       </DockPanel>
     </Border>
 

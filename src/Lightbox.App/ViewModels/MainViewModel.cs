@@ -19,6 +19,9 @@ public sealed partial class FrameCell(int index) : ObservableObject
 {
     public int Index { get; } = index;
 
+    /// <summary>Index of the owning layer in Scene.Layers (0 = bottom).</summary>
+    public int LayerIndex { get; set; }
+
     public string Display => (Index + 1).ToString();
 
     [ObservableProperty]
@@ -60,7 +63,7 @@ public sealed partial class MainViewModel : ObservableObject
         _clock.Tick += OnPlaybackTick;
         _autosave = new AutosaveService(() => Doc);
         SyncLayerChoices();
-        RebuildFrameCells();
+        SyncLayerRows();
     }
 
     private static IAiArtist? ResolveArtist()
@@ -113,7 +116,40 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _activeLayerIndex;
 
+    [ObservableProperty]
+    private bool _sidebarVisible = true;
+
     public ObservableCollection<Layer> LayerChoices { get; } = [];
+
+    /// <summary>Kind used by the layer docker's "+" button.</summary>
+    public sealed record LayerKindChoice(string Label, LayerKind Kind)
+    {
+        public override string ToString() => Label;
+    }
+
+    public IReadOnlyList<LayerKindChoice> NewLayerKindChoices { get; } =
+        [new("Raster", LayerKind.Painted), new("Vector", LayerKind.Vector)];
+
+    [ObservableProperty]
+    private LayerKindChoice _newLayerKind = new("Raster", LayerKind.Painted);
+
+    [ObservableProperty]
+    private int _playbackSpeedPercent = 100;
+
+    partial void OnPlaybackSpeedPercentChanged(int value)
+    {
+        var clamped = Math.Clamp(value, 10, 400);
+        if (clamped != value)
+        {
+            PlaybackSpeedPercent = clamped;
+            return;
+        }
+        if (IsPlaying)
+        {
+            _clock.Stop();
+            _clock.Start(Scene.Fps, clamped);
+        }
+    }
 
     public int Fps
     {
@@ -128,14 +164,19 @@ public sealed partial class MainViewModel : ObservableObject
             if (IsPlaying)
             {
                 _clock.Stop();
-                _clock.Start(fps);
+                _clock.Start(fps, PlaybackSpeedPercent);
             }
         }
     }
 
     partial void OnOnionDepthChanged(int value) => PublishSnapshot();
 
-    partial void OnActiveLayerIndexChanged(int value) => PublishSnapshot();
+    partial void OnActiveLayerIndexChanged(int value)
+    {
+        foreach (var row in LayerRows) row.IsActive = row.SceneIndex == value;
+        OnPropertyChanged(nameof(FrameCells));
+        PublishSnapshot();
+    }
 
     [ObservableProperty]
     private int _tweenCount = 3;
@@ -146,7 +187,12 @@ public sealed partial class MainViewModel : ObservableObject
     public IReadOnlyList<Easing> EasingChoices { get; } =
         [Easing.Linear, Easing.EaseIn, Easing.EaseOut, Easing.EaseInOut];
 
-    public ObservableCollection<FrameCell> FrameCells { get; } = [];
+    /// <summary>Layer rows for the layer docker and the timeline, topmost layer first.</summary>
+    public ObservableCollection<LayerRow> LayerRows { get; } = [];
+
+    /// <summary>The active layer's timeline cells (topmost-first rows carry the rest).</summary>
+    public ObservableCollection<FrameCell> FrameCells =>
+        LayerRows[LayerRows.Count - 1 - Math.Clamp(ActiveLayerIndex, 0, LayerRows.Count - 1)].Cells;
 
     public string FrameLabel => $"{CurrentFrameIndex + 1} / {Scene.FrameCount}";
 
@@ -277,7 +323,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _strokeBuilder.Cancel();
             IsPlaying = true;
-            _clock.Start(Scene.Fps);
+            _clock.Start(Scene.Fps, PlaybackSpeedPercent);
         }
         PublishSnapshot();
     }
@@ -330,6 +376,49 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void AddVectorLayer() => AddLayer(LayerKind.Vector);
 
+    /// <summary>The layer docker's "+" button: adds a layer of the dropdown's kind.</summary>
+    [RelayCommand]
+    private void AddLayerOfSelectedKind() => AddLayer(NewLayerKind.Kind);
+
+    [RelayCommand]
+    private void ToggleSidebar() => SidebarVisible = !SidebarVisible;
+
+    [RelayCommand]
+    private void ActivateLayer(LayerRow row) => ActiveLayerIndex = row.SceneIndex;
+
+    /// <summary>Rename as one undoable step (called by the row on commit).</summary>
+    internal void CommitLayerRename(LayerRow row, string name)
+    {
+        var layer = row.Layer;
+        var trimmed = name.Trim();
+        if (trimmed.Length == 0)
+        {
+            // Snap the row back to the document name instead of storing a blank.
+            row.SyncFromModel(layer, row.SceneIndex);
+            return;
+        }
+        if (layer.Name == trimmed) return;
+        _editor.Perform(_ => layer.Name = trimmed);
+    }
+
+    internal void SetLayerVisible(Layer layer, bool visible)
+    {
+        if (layer.Visible == visible) return;
+        _editor.Perform(_ => layer.Visible = visible);
+    }
+
+    /// <summary>
+    /// Per-layer onion-skin participation. A display preference, so it is
+    /// persisted (autosave) but deliberately not an undo step.
+    /// </summary>
+    internal void SetLayerOnionEnabled(Layer layer, bool enabled)
+    {
+        if (layer.OnionEnabled == enabled) return;
+        layer.OnionEnabled = enabled;
+        _autosave.MarkDirty();
+        PublishSnapshot();
+    }
+
     private void AddLayer(LayerKind kind)
     {
         _editor.Perform(doc =>
@@ -352,8 +441,14 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.Perform(_ => ActiveLayer.Visible = !ActiveLayer.Visible);
     }
 
+    /// <summary>Clicking a cel selects both the frame and the layer it belongs to.</summary>
     [RelayCommand]
-    private void SelectFrame(FrameCell cell) => CurrentFrameIndex = cell.Index;
+    private void SelectFrame(FrameCell cell)
+    {
+        if (cell.LayerIndex >= 0 && cell.LayerIndex < Scene.Layers.Count)
+            ActiveLayerIndex = cell.LayerIndex;
+        CurrentFrameIndex = cell.Index;
+    }
 
     /// <summary>
     /// Deterministic inbetweens between the key at/before the playhead and
@@ -597,7 +692,7 @@ public sealed partial class MainViewModel : ObservableObject
         _autosave.MarkDirty();
         SyncLayerChoices();
         ClampCurrentFrame();
-        RebuildFrameCells();
+        SyncLayerRows();
         OnPropertyChanged(nameof(FrameLabel));
         OnPropertyChanged(nameof(Fps));
         PublishSnapshot();
@@ -619,15 +714,35 @@ public sealed partial class MainViewModel : ObservableObject
         else PublishSnapshot();
     }
 
-    private void RebuildFrameCells()
+    /// <summary>
+    /// Mirror Scene.Layers into LayerRows (topmost layer first) and keep each
+    /// row's cell strip in step with the timeline.
+    /// </summary>
+    private void SyncLayerRows()
     {
-        while (FrameCells.Count > Scene.FrameCount) FrameCells.RemoveAt(FrameCells.Count - 1);
-        while (FrameCells.Count < Scene.FrameCount) FrameCells.Add(new FrameCell(FrameCells.Count));
-        foreach (var cell in FrameCells)
+        var layers = Scene.Layers;
+        while (LayerRows.Count > layers.Count) LayerRows.RemoveAt(LayerRows.Count - 1);
+        while (LayerRows.Count < layers.Count) LayerRows.Add(new LayerRow(this));
+
+        var active = Math.Clamp(ActiveLayerIndex, 0, layers.Count - 1);
+        for (var i = 0; i < LayerRows.Count; i++)
         {
-            cell.IsKeyed = ExposureSheet.FrameAtExactIndex(ActiveLayer, cell.Index) is not null;
-            cell.IsCurrent = cell.Index == CurrentFrameIndex;
+            var row = LayerRows[i];
+            var sceneIndex = layers.Count - 1 - i;
+            var layer = layers[sceneIndex];
+            row.SyncFromModel(layer, sceneIndex);
+            row.IsActive = sceneIndex == active;
+
+            while (row.Cells.Count > Scene.FrameCount) row.Cells.RemoveAt(row.Cells.Count - 1);
+            while (row.Cells.Count < Scene.FrameCount) row.Cells.Add(new FrameCell(row.Cells.Count));
+            foreach (var cell in row.Cells)
+            {
+                cell.LayerIndex = sceneIndex;
+                cell.IsKeyed = ExposureSheet.FrameAtExactIndex(layer, cell.Index) is not null;
+                cell.IsCurrent = cell.Index == CurrentFrameIndex;
+            }
         }
+        OnPropertyChanged(nameof(FrameCells));
     }
 
     // ---- thumbnails ----------------------------------------------------------
@@ -641,23 +756,26 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private void RefreshThumbnails()
     {
-        foreach (var cell in FrameCells)
+        foreach (var row in LayerRows)
         {
-            var frame = ExposureSheet.FrameAtExactIndex(ActiveLayer, cell.Index);
-            if (frame is null)
+            foreach (var cell in row.Cells)
             {
-                cell.Thumb = null;
-                cell.ThumbFrameId = null;
-                continue;
-            }
-            var stale = _allThumbsDirty
-                        || cell.ThumbFrameId != frame.Id
-                        || _dirtyThumbIds.Contains(frame.Id);
-            if (!stale && cell.Thumb is not null) continue;
+                var frame = ExposureSheet.FrameAtExactIndex(row.Layer, cell.Index);
+                if (frame is null)
+                {
+                    cell.Thumb = null;
+                    cell.ThumbFrameId = null;
+                    continue;
+                }
+                var stale = _allThumbsDirty
+                            || cell.ThumbFrameId != frame.Id
+                            || _dirtyThumbIds.Contains(frame.Id);
+                if (!stale && cell.Thumb is not null) continue;
 
-            var bmp = _cache.Get(frame, Scene.Width, Scene.Height);
-            cell.Thumb = ThumbnailRenderer.Render(bmp);
-            cell.ThumbFrameId = frame.Id;
+                var bmp = _cache.Get(frame, Scene.Width, Scene.Height);
+                cell.Thumb = ThumbnailRenderer.Render(bmp);
+                cell.ThumbFrameId = frame.Id;
+            }
         }
         _dirtyThumbIds.Clear();
         _allThumbsDirty = false;
@@ -665,7 +783,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void RefreshCellHighlights()
     {
-        foreach (var cell in FrameCells) cell.IsCurrent = cell.Index == CurrentFrameIndex;
+        foreach (var row in LayerRows)
+        {
+            foreach (var cell in row.Cells) cell.IsCurrent = cell.Index == CurrentFrameIndex;
+        }
     }
 
     /// <summary>Composite the scene for the current playhead and hand it to the view.</summary>
@@ -678,7 +799,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             foreach (var layer in scene.Layers)
             {
-                if (!layer.Visible) continue;
+                if (!layer.Visible || !layer.OnionEnabled) continue;
                 for (var d = Math.Max(1, OnionDepth); d >= 1; d--)
                 {
                     var prev = ExposureSheet.FrameAtExactIndex(layer, CurrentFrameIndex - d);

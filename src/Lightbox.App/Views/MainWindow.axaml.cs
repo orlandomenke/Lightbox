@@ -36,8 +36,24 @@ public partial class MainWindow : Window
         };
     }
 
+    /// <summary>Clicking anywhere on a layer-docker row makes that layer active.</summary>
+    private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is LayerRow row)
+            _vm.ActivateLayerCommand.Execute(row);
+    }
+
+    /// <summary>Focusing a layer's name box (to rename) also selects that layer.</summary>
+    private void OnLayerRowFocused(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is LayerRow row)
+            _vm.ActivateLayerCommand.Execute(row);
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        // Don't hijack keys while the user is typing (layer rename, color hex, AI prompt).
+        if (e.Source is TextBox) return;
         switch (e)
         {
             case { Key: Key.Space }:

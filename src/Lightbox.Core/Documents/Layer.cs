@@ -25,6 +25,9 @@ public sealed class Layer
 
     public bool Visible { get; set; } = true;
 
+    /// <summary>Whether this layer participates in onion-skin ghosting.</summary>
+    public bool OnionEnabled { get; set; } = true;
+
     public double Opacity { get; set; } = 1;
 
     /// <summary>One entry per timeline frame; a null Frame is a hold.</summary>
