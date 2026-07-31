@@ -55,6 +55,40 @@ public sealed class CanvasControl : Control
     /// <summary>Raised whenever zoom/rotation/mirror/pan change (for status UI).</summary>
     public event Action? ViewChanged;
 
+    /// <summary>Raised (on the UI thread) when an input handler fails, so the error is visible.</summary>
+    public event Action<string>? CanvasError;
+
+    // ---- diagnostics ----------------------------------------------------------
+    // Drawing must survive anything; failures are logged once per context to
+    // %TEMP%/lightbox-canvas.log instead of killing the input or render loop.
+
+    private static readonly object DiagLock = new();
+    private static readonly HashSet<string> DiagLogged = [];
+
+    internal static void LogDiag(string context, Exception ex)
+    {
+        try
+        {
+            lock (DiagLock)
+            {
+                if (!DiagLogged.Add(context)) return;
+                File.AppendAllText(
+                    Path.Combine(Path.GetTempPath(), "lightbox-canvas.log"),
+                    $"{DateTime.Now:O} [{context}] {ex}{Environment.NewLine}");
+            }
+        }
+        catch
+        {
+            // diagnostics must never break drawing
+        }
+    }
+
+    private void ReportInputError(string context, Exception ex)
+    {
+        LogDiag(context, ex);
+        CanvasError?.Invoke($"Canvas {context} error: {ex.Message} — details in %TEMP%\\lightbox-canvas.log");
+    }
+
     public double ZoomPercent => _zoom * 100;
 
     public bool IsMirrored => _mirrored;
@@ -107,7 +141,15 @@ public sealed class CanvasControl : Control
             var radius = (float)Math.Max(1.0, BrushCursorSize / 2 * FitScale() * _zoom);
             cursor = new BrushCursor((float)p.X, (float)p.Y, radius);
         }
-        context.Custom(new DrawOp(new Rect(Bounds.Size), snapshot, ToSkMatrix(ViewMatrix()), cursor));
+        var view = new ViewState(
+            snapshot.DocWidth,
+            snapshot.DocHeight,
+            (float)(FitScale() * _zoom),
+            (float)_rotationDeg,
+            _mirrored,
+            (float)(Bounds.Width / 2 + _pan.X),
+            (float)(Bounds.Height / 2 + _pan.Y));
+        context.Custom(new DrawOp(new Rect(Bounds.Size), snapshot, view, cursor));
     }
 
     // ---- view <-> document transform ---------------------------------------
@@ -131,15 +173,16 @@ public sealed class CanvasControl : Control
                * Matrix.CreateTranslation(Bounds.Width / 2 + _pan.X, Bounds.Height / 2 + _pan.Y);
     }
 
-    private static SKMatrix ToSkMatrix(Matrix m) => new(
-        (float)m.M11, (float)m.M21, (float)m.M31,
-        (float)m.M12, (float)m.M22, (float)m.M32,
-        0, 0, 1);
-
-    /// <summary>Map a view-space point to document space (exposed for tests).</summary>
+    /// <summary>
+    /// Map a view-space point to document space (exposed for tests). Never
+    /// throws: a degenerate matrix (zero-sized layout) falls back to the raw
+    /// point, and non-finite results are pinned to the origin.
+    /// </summary>
     public (double X, double Y) ViewToDoc(Point p)
     {
-        var doc = p.Transform(ViewMatrix().Invert());
+        if (!ViewMatrix().TryInvert(out var inverse)) return (p.X, p.Y);
+        var doc = p.Transform(inverse);
+        if (!double.IsFinite(doc.X) || !double.IsFinite(doc.Y)) return (0, 0);
         return (doc.X, doc.Y);
     }
 
@@ -162,6 +205,7 @@ public sealed class CanvasControl : Control
     /// <summary>Zoom by a factor keeping the given view point fixed.</summary>
     public void ZoomAt(Point anchor, double factor)
     {
+        if (!double.IsFinite(factor) || factor <= 0) return;
         var (x, y) = ViewToDoc(anchor);
         _zoom = Math.Clamp(_zoom * factor, MinZoom, MaxZoom);
         ReanchorAt(anchor, new Point(x, y));
@@ -203,7 +247,8 @@ public sealed class CanvasControl : Control
     private void ReanchorAt(Point viewPoint, Point docPoint)
     {
         var mapped = docPoint.Transform(ViewMatrix());
-        _pan += viewPoint - mapped;
+        var delta = viewPoint - mapped;
+        if (double.IsFinite(delta.X) && double.IsFinite(delta.Y)) _pan += delta;
         ViewUpdated();
     }
 
@@ -212,23 +257,37 @@ public sealed class CanvasControl : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        var pp = e.GetCurrentPoint(this);
-
-        if (pp.Properties.IsMiddleButtonPressed)
+        try
         {
-            _panning = true;
-            _panLast = pp.Position;
-            e.Pointer.Capture(this);
-            e.Handled = true;
-            return;
-        }
+            var pp = e.GetCurrentPoint(this);
+            var kind = pp.Properties.PointerUpdateKind;
 
-        if (!pp.Properties.IsLeftButtonPressed) return;
-        e.Pointer.Capture(this);
-        _painting = true;
-        var (x, y) = ViewToDoc(pp.Position);
-        PaintStarted?.Invoke(x, y, PressureOf(pp));
-        e.Handled = true;
+            // Edge-triggered: only THIS press being the middle button starts a
+            // pan (a stale "middle is down" flag must never eat left clicks).
+            if (kind == PointerUpdateKind.MiddleButtonPressed)
+            {
+                if (_painting) return;
+                _panning = true;
+                _panLast = pp.Position;
+                e.Pointer.Capture(this);
+                e.Handled = true;
+                return;
+            }
+
+            if (_panning) return;
+            if (kind != PointerUpdateKind.LeftButtonPressed && !pp.Properties.IsLeftButtonPressed) return;
+            e.Pointer.Capture(this);
+            _painting = true;
+            var (x, y) = ViewToDoc(pp.Position);
+            PaintStarted?.Invoke(x, y, PressureOf(pp));
+            e.Handled = true;
+        }
+        catch (Exception ex)
+        {
+            _painting = false;
+            _panning = false;
+            ReportInputError("press", ex);
+        }
     }
 
     protected override void OnPointerEntered(PointerEventArgs e)
@@ -248,36 +307,40 @@ public sealed class CanvasControl : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        _hoverPoint = e.GetPosition(this);
-
-        if (_panning)
+        try
         {
-            var pos = e.GetPosition(this);
-            _pan += pos - _panLast;
-            _panLast = pos;
-            ViewUpdated();
-            e.Handled = true;
-            return;
-        }
-
-        // While painting the snapshot publish repaints us anyway; hovering
-        // needs its own invalidate to move the brush cursor.
-        if (!_painting)
-        {
+            _hoverPoint = e.GetPosition(this);
+            // The brush cursor must follow the pointer no matter what state
+            // we're in — repaints coalesce, so this is cheap.
             InvalidateVisual();
-            return;
+
+            if (_panning)
+            {
+                var pos = e.GetPosition(this);
+                _pan += pos - _panLast;
+                _panLast = pos;
+                ViewUpdated();
+                e.Handled = true;
+                return;
+            }
+
+            if (!_painting) return;
+            // Coalesced high-frequency samples, not just the latest position —
+            // delivered as one batch per event.
+            var points = e.GetIntermediatePoints(this);
+            var samples = new List<ViewModels.MainViewModel.PointerSample>(points.Count);
+            foreach (var pp in points)
+            {
+                var (x, y) = ViewToDoc(pp.Position);
+                samples.Add(new ViewModels.MainViewModel.PointerSample(x, y, PressureOf(pp)));
+            }
+            if (samples.Count > 0) PaintMoved?.Invoke(samples);
+            e.Handled = true;
         }
-        // Coalesced high-frequency samples, not just the latest position —
-        // delivered as one batch per event.
-        var points = e.GetIntermediatePoints(this);
-        var samples = new List<ViewModels.MainViewModel.PointerSample>(points.Count);
-        foreach (var pp in points)
+        catch (Exception ex)
         {
-            var (x, y) = ViewToDoc(pp.Position);
-            samples.Add(new ViewModels.MainViewModel.PointerSample(x, y, PressureOf(pp)));
+            ReportInputError("move", ex);
         }
-        if (samples.Count > 0) PaintMoved?.Invoke(samples);
-        e.Handled = true;
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -309,16 +372,26 @@ public sealed class CanvasControl : Control
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
-        var pos = e.GetPosition(this);
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        try
         {
-            RotateAt(pos, e.Delta.Y * 10);
+            var pos = e.GetPosition(this);
+            // Windows converts Shift+wheel into a horizontal delta — accept both axes.
+            var notch = e.Delta.Y != 0 ? e.Delta.Y : -e.Delta.X;
+            if (notch == 0) return;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                RotateAt(pos, notch * 10);
+            }
+            else
+            {
+                ZoomAt(pos, Math.Pow(1.15, notch));
+            }
+            e.Handled = true;
         }
-        else
+        catch (Exception ex)
         {
-            ZoomAt(pos, Math.Pow(1.15, e.Delta.Y));
+            ReportInputError("wheel", ex);
         }
-        e.Handled = true;
     }
 
     // ---- render-thread blit -------------------------------------------------
@@ -326,7 +399,14 @@ public sealed class CanvasControl : Control
     /// <summary>Brush cursor in view space (radius already view-scaled).</summary>
     private readonly record struct BrushCursor(float X, float Y, float Radius);
 
-    private sealed class DrawOp(Rect bounds, RenderSnapshot snapshot, SKMatrix view, BrushCursor? cursor) : ICustomDrawOperation
+    /// <summary>
+    /// Decomposed view transform for the render thread — primitive canvas ops
+    /// only (translate/rotate/scale), no matrix API edge cases.
+    /// </summary>
+    private readonly record struct ViewState(
+        float DocW, float DocH, float Scale, float RotationDeg, bool Mirrored, float CenterX, float CenterY);
+
+    private sealed class DrawOp(Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -340,6 +420,20 @@ public sealed class CanvasControl : Control
 
         public void Render(ImmediateDrawingContext context)
         {
+            // The compositor dies with the first unhandled exception here and
+            // the whole window freezes — never let that happen.
+            try
+            {
+                RenderCore(context);
+            }
+            catch (Exception ex)
+            {
+                LogDiag("render", ex);
+            }
+        }
+
+        private void RenderCore(ImmediateDrawingContext context)
+        {
             var feature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
             if (feature is null) return;
             using var lease = feature.Lease();
@@ -350,12 +444,15 @@ public sealed class CanvasControl : Control
             canvas.Clear(new SKColor(0x2b, 0x2b, 0x2b));
 
             canvas.Save();
-            canvas.Concat(in view);
+            canvas.Translate(view.CenterX, view.CenterY);
+            canvas.RotateDegrees(view.RotationDeg);
+            canvas.Scale(view.Mirrored ? -view.Scale : view.Scale, view.Scale);
+            canvas.Translate(-view.DocW / 2f, -view.DocH / 2f);
             using (var paint = new SKPaint { IsAntialias = true })
             {
                 canvas.DrawImage(
                     snapshot.Image,
-                    new SKRect(0, 0, snapshot.DocWidth, snapshot.DocHeight),
+                    new SKRect(0, 0, view.DocW, view.DocH),
                     new SKSamplingOptions(SKFilterMode.Linear),
                     paint);
             }

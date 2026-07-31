@@ -37,6 +37,9 @@ public partial class MainWindow : Window
         };
         ApplyDockLayout();
 
+        // If canvas input ever fails, say so in the status bar instead of dying silently.
+        Canvas.CanvasError += message => _vm.AiStatus = message;
+
         Canvas.ViewChanged += () =>
         {
             ZoomLabel.Content = $"{Canvas.ZoomPercent:0}%";
