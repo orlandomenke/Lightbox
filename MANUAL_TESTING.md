@@ -76,3 +76,20 @@ rendering, and input feel that a headless environment cannot verify.
 - [ ] With a key: draw two keyframes, `✦ AI Inbetween` → progress bar runs, frames appear between the keys, status reports the count.
 - [ ] `✦ AI Draw` with a prompt ("a small house") paints labeled strokes onto the current frame; Ctrl+Z removes them in one step.
 - [ ] Cancel (✕) stops a long request; app stays responsive throughout.
+
+## MCP (Claude Desktop, no API key)
+
+- [ ] With Lightbox running and the config entry added (see README), Claude Desktop shows "lightbox" tools after a full restart.
+- [ ] `get_scene` returns your canvas/layers; `render_frame` shows Claude the actual drawing.
+- [ ] The inbetweener prompt from the README makes Claude insert frames that appear in the timeline immediately; Ctrl+Z in Lightbox removes them in one step.
+- [ ] With Lightbox closed, tools fail with "Start Lightbox first" (not a hang).
+
+## Ollama (offline)
+
+- [ ] With `LIGHTBOX_OLLAMA_MODEL` set and Ollama running, the AI bar enables without any Anthropic key.
+- [ ] ✦ AI Inbetween produces frames (quality depends on the model); errors mention "is Ollama running?" when it isn't, and `ollama pull` when the model is missing.
+
+## Windows bundle (no admin)
+
+- [ ] The Actions artifact unzips and `Lightbox.App.exe` starts on a machine with no .NET installed and no admin rights.
+- [ ] `mcp\Lightbox.Mcp.exe` works as the Claude Desktop MCP command from the same bundle.

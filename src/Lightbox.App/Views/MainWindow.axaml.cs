@@ -11,6 +11,8 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm = new();
 
+    private Services.IpcServer? _ipc;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -22,7 +24,16 @@ public partial class MainWindow : Window
         Canvas.PaintEnded += _vm.EndStroke;
 
         KeyDown += OnKeyDown;
-        Loaded += (_, _) => _vm.PublishSnapshot();
+        Loaded += (_, _) =>
+        {
+            _vm.PublishSnapshot();
+            // MCP bridge endpoint (Lightbox.Mcp connects here).
+            _ipc ??= new Services.IpcServer(new Services.IpcDocumentApi(_vm));
+        };
+        Closed += async (_, _) =>
+        {
+            if (_ipc is not null) await _ipc.DisposeAsync();
+        };
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

@@ -22,6 +22,47 @@ Built with **C# / .NET 8**, **Avalonia** (Windows · macOS · Linux), and **Skia
 | `src/Lightbox.App` | The Avalonia desktop app: canvas, brush controls, timeline, onion skin, playback. |
 | `tests/*` | xunit suites for every layer, including pixel-level brush tests and headless UI tests. |
 
+## Run on Windows — no admin rights needed
+
+Every push builds a self-contained Windows bundle in CI:
+
+1. Repo → **Actions** tab → newest green `build` run → **Artifacts** → download `Lightbox-win-x64` (you must be signed in to GitHub).
+2. Unzip anywhere in your user profile, e.g. `%LOCALAPPDATA%\Lightbox`.
+3. Run `Lightbox.App.exe`. Nothing is installed, no .NET required, no admin. If SmartScreen objects (unsigned exe), click **More info → Run anyway** — that also needs no admin.
+
+Prefer building yourself? Install the .NET SDK per-user (no admin) with the official script — `dotnet-install.ps1 -Channel 10.0 -InstallDir $env:LOCALAPPDATA\dotnet` — then `dotnet run --project src/Lightbox.App` from the clone.
+
+## Use Claude without an API key — the MCP server
+
+If you have the **Claude Desktop app** (Pro is enough), your subscription can drive Lightbox directly — no API key. The bundle ships an MCP server (`mcp\Lightbox.Mcp.exe`) that exposes Lightbox to Claude as tools: `get_scene`, `get_frame_strokes`, `render_frame` (Claude *sees* your drawing), `insert_inbetweens`, and `draw_strokes`. Everything Claude does arrives through the same validation and undo path as your own edits — one Ctrl+Z removes it.
+
+Setup:
+
+1. Start Lightbox (it quietly opens a local, per-user pipe for the bridge; nothing on the network).
+2. In Claude Desktop: **Settings → Developer → Edit Config**, add (escaped backslashes, absolute path):
+
+```json
+{
+  "mcpServers": {
+    "lightbox": {
+      "command": "C:\\Users\\you\\AppData\\Local\\Lightbox\\mcp\\Lightbox.Mcp.exe",
+      "args": []
+    }
+  }
+}
+```
+
+3. Fully quit Claude Desktop (from the tray) and reopen — servers load at startup.
+4. Draw two keyframes in Lightbox, then ask Claude something like:
+
+> You are a professional animation inbetweener connected to my drawing app. Call `get_scene`, then `render_frame` on both keyframes to see them, then `get_frame_strokes` for both. Draw 3 inbetweens and insert them with `insert_inbetweens` (aIndex = the first key). Follow arcs, preserve stroke labels, then `render_frame` your middle inbetween to check your work.
+
+Troubleshooting: if the server never appears, some MSIX installs of Claude Desktop read the config from `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json` instead of `%APPDATA%\Claude\` — put the same file in both. Tool errors like "Start Lightbox first" mean exactly that.
+
+## Fully offline AI — Ollama
+
+With [Ollama](https://ollama.com) installed (per-user, no admin) you can point the in-app AI buttons at a local model: `ollama pull qwen3`, then set `LIGHTBOX_OLLAMA_MODEL=qwen3` (and optionally `LIGHTBOX_OLLAMA_URL`, default `http://localhost:11434`) or add `"ollamaModel": "qwen3"` to the settings file. Expect noticeably weaker inbetweens than Claude — this path is for offline pipeline testing; the MCP path is where quality lives. An `ANTHROPIC_API_KEY`, if present, always wins.
+
 ## Building and running
 
 Requires the .NET SDK (8 or later; a recent SDK is needed for Avalonia 12's source generators). On Linux, SkiaSharp needs `libfontconfig1`.

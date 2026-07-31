@@ -65,7 +65,10 @@ public sealed partial class MainViewModel : ObservableObject
     private static IAiArtist? ResolveArtist()
     {
         var key = ApiKeyProvider.GetApiKey();
-        return key is null ? null : new AnthropicArtist(key);
+        if (key is not null) return new AnthropicArtist(key);
+        if (ApiKeyProvider.GetOllamaConfig() is { } ollama)
+            return new OllamaArtist(ollama.Url, ollama.Model);
+        return null;
     }
 
     private readonly AutosaveService _autosave;
@@ -350,7 +353,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string AiUnavailableHint => IsAiAvailable
         ? ""
-        : "Set the ANTHROPIC_API_KEY environment variable (or add \"anthropicApiKey\" to the Lightbox settings file) to enable AI features.";
+        : "Enable AI features by setting ANTHROPIC_API_KEY (Claude API), or LIGHTBOX_OLLAMA_MODEL for a local model via Ollama, or the equivalent settings-file keys. No key at all? Use Claude Desktop with the Lightbox MCP server — see the README.";
 
     [RelayCommand]
     private void CancelAi() => _aiCts?.Cancel();
@@ -447,6 +450,62 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     // ---- document I/O -------------------------------------------------------
+
+    // ---- external producers (IPC/MCP) ---------------------------------------
+
+    /// <summary>The layer external tools target when they don't name one.</summary>
+    public Layer ActiveLayerForIpc => ActiveLayer;
+
+    /// <summary>Composite one timeline frame to PNG (no onion skin, no live stroke).</summary>
+    public string RenderFramePng(int frameIndex)
+    {
+        var scene = Scene;
+        var passes = new List<RenderPass>();
+        foreach (var layer in scene.Layers)
+        {
+            if (!layer.Visible) continue;
+            var frame = ExposureSheet.ExposedFrame(layer, frameIndex);
+            if (frame is null) continue;
+            passes.Add(new RenderPass(_cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity));
+        }
+        using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes);
+        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
+            ?? throw new InvalidOperationException("PNG encode failed.");
+        return Convert.ToBase64String(data.AsSpan());
+    }
+
+    /// <summary>
+    /// Insert externally produced inbetween frames (already validated, sorted
+    /// by t) after key <paramref name="aIndex"/>. One undo step. Returns the
+    /// number of frames inserted.
+    /// </summary>
+    public int InsertExternalInbetweens(string layerId, int aIndex, List<List<Stroke>> strokeFrames)
+    {
+        var layer = Scene.Layers.First(l => l.Id == layerId);
+        var frames = strokeFrames.Select(s => NewFrameFor(layer, s)).ToList();
+        _editor.InsertInbetweens(layerId, aIndex, frames);
+        CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
+        return frames.Count;
+    }
+
+    /// <summary>
+    /// Append externally produced strokes to the key exposed at
+    /// <paramref name="frameIndex"/>. One undo step. Returns strokes added
+    /// (0 when the layer has no key there).
+    /// </summary>
+    public int AppendExternalStrokes(string layerId, int frameIndex, List<Stroke> strokes)
+    {
+        var layer = Scene.Layers.First(l => l.Id == layerId);
+        var keyIndex = ExposureSheet.KeyIndexAtOrBefore(layer, frameIndex);
+        if (keyIndex < 0) return 0;
+        var frame = layer.Cels[keyIndex].Frame!;
+        _editor.Perform(_ => StrokesOf(frame).AddRange(strokes));
+        _cache.Invalidate(frame.Id);
+        _dirtyThumbIds.Add(frame.Id);
+        PublishSnapshot();
+        RefreshThumbnails();
+        return strokes.Count;
+    }
 
     public void ReplaceDocument(Doc doc)
     {
