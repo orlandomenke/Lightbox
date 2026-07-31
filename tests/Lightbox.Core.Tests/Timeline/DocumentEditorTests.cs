@@ -88,6 +88,36 @@ public class DocumentEditorTests
     }
 
     [Fact]
+    public void UndoStack_TrimsOldestBeyondLimit_KeepsNewestHistory()
+    {
+        var ed = NewEditor();
+
+        // 70 distinct edits — beyond the 64-step undo cap.
+        for (var i = 0; i < 70; i++)
+        {
+            var name = $"edit-{i}";
+            ed.Perform(doc => doc.Scene.Layers[0].Name = name);
+        }
+
+        // Unwind everything the editor kept.
+        var undone = 0;
+        while (ed.CanUndo)
+        {
+            ed.Undo();
+            undone++;
+        }
+
+        Assert.Equal(64, undone);
+        // The oldest snapshots were trimmed, so we land on edit-5's state
+        // (70 edits - 64 undos), not the pristine document.
+        Assert.Equal("edit-5", ed.Doc.Scene.Layers[0].Name);
+
+        // The trimmed history still redoes back to the newest state.
+        while (ed.CanRedo) ed.Redo();
+        Assert.Equal("edit-69", ed.Doc.Scene.Layers[0].Name);
+    }
+
+    [Fact]
     public void InsertInbetweens_ReplacesHoldCelsBetweenKeys()
     {
         var ed = NewEditor();
