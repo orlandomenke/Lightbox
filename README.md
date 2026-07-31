@@ -47,6 +47,20 @@ Get-ChildItem $env:LOCALAPPDATA\Lightbox -Recurse | Unblock-File
 
 If it still blocks with an "administrator" message instead of SmartScreen, that's AppLocker/WDAC app-control policy — build from source instead (locally built binaries carry no download tag; see below).
 
+**Automate it** — two helper scripts live in `scripts/` (copy them next to your Builds folder, or run them from the clone):
+
+```powershell
+# One command per new build: newest Lightbox-win-x64-*.zip from Downloads →
+# unblocked + tar-extracted into a folder named after the zip.
+powershell -ExecutionPolicy Bypass -File scripts\get-build.ps1 -Dest C:\path\to\Builds
+
+# Or fully hands-off: watch the Builds folder and auto-unblock anything
+# copied or moved into it. Start it at logon via a shortcut in shell:startup:
+powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File scripts\watch-builds.ps1 -Folder C:\path\to\Builds
+```
+
+There is also a per-user Windows switch that stops download tags being written at all (`SaveZoneInformation=1` under `HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments`) — no admin needed, but it disables that safety net for *everything* you download, and corporate group policy often overrides it. The scripts above are the safer scope.
+
 Prefer building yourself? Install the .NET SDK per-user (no admin) with the official script — `dotnet-install.ps1 -Channel 10.0 -InstallDir $env:LOCALAPPDATA\dotnet` — then `dotnet run --project src/Lightbox.App` from the clone.
 
 ## Use Claude without an API key — the MCP server
