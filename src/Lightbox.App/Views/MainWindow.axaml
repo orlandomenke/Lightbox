@@ -50,6 +50,25 @@
     <Style Selector="Border.docTab.active">
       <Setter Property="Background" Value="#33507a" />
     </Style>
+    <!-- Toolbar buttons: icon-only tiles by default; the toolbar's "labels"
+         class (set from code-behind at a width threshold) reveals the names. -->
+    <Style Selector="ToggleButton.tool">
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Margin" Value="1" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border#Toolbar.labels ToggleButton.tool">
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="TextBlock.toolname">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Border#Toolbar.labels TextBlock.toolname">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
   </Window.Styles>
 
   <DockPanel>
@@ -72,13 +91,9 @@
     <!-- Dynamic tool options bar: contents depend on the selected tool -->
     <Border DockPanel.Dock="Top" Padding="8,6" Background="#1f1f1f">
       <StackPanel Orientation="Horizontal" Spacing="14">
-        <StackPanel Orientation="Horizontal" Spacing="6">
-          <ToggleButton Content="Brush" IsChecked="{Binding !IsEraser}" IsEnabled="{Binding IsEraser}" />
-          <ToggleButton Content="Eraser" IsChecked="{Binding IsEraser}" />
-        </StackPanel>
 
         <!-- Brush options -->
-        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding !IsEraser}">
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsBrushTool}">
           <ComboBox ItemsSource="{Binding BrushPresetChoices}" SelectedItem="{Binding SelectedBrushPreset}"
                     Width="130" VerticalAlignment="Center"
                     ToolTip.Tip="Brush preset (B returns to the last configured brush)" />
@@ -104,8 +119,9 @@
                     ToolTip.Tip="Smooth strokes when you finish them" />
         </StackPanel>
 
-        <!-- Full brush parameters (both tools) -->
-        <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="All brush parameters">
+        <!-- Full brush parameters (brush + eraser) -->
+        <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="All brush parameters"
+                IsVisible="{Binding IsPaintTool}">
           <Button.Flyout>
             <Flyout Placement="Bottom">
               <StackPanel Width="300" Spacing="6">
@@ -180,7 +196,7 @@
         </Button>
 
         <!-- Eraser options -->
-        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsEraser}">
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsEraserTool}">
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Size" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="60" Width="110" VerticalAlignment="Center" />
@@ -197,6 +213,75 @@
           </StackPanel>
           <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
                     ToolTip.Tip="Smooth strokes when you finish them" />
+        </StackPanel>
+
+        <!-- Fill options -->
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsFillTool}">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Color" VerticalAlignment="Center" />
+            <TextBox Text="{Binding ColorHex}" Width="80" ToolTip.Tip="Fill color (hex)" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Tolerance" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding FillTolerance}" Minimum="0" Maximum="255" Increment="4"
+                           FormatString="0" Width="100" VerticalAlignment="Center"
+                           ToolTip.Tip="How different a pixel may be and still count as the same area" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Gap px" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding FillGapPx}" Minimum="0" Maximum="32" Increment="1"
+                           FormatString="0" Width="94" VerticalAlignment="Center"
+                           ToolTip.Tip="Openings up to this many pixels still count as closed" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Grow px" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding FillGrowPx}" Minimum="-16" Maximum="16" Increment="1"
+                           FormatString="0" Width="94" VerticalAlignment="Center"
+                           ToolTip.Tip="Overfill (+) under the line work, or underfill (−) to keep a margin" />
+          </StackPanel>
+          <CheckBox Content="Smart fill" IsChecked="{Binding SmartFill}" VerticalAlignment="Center"
+                    ToolTip.Tip="Sample every visible layer (fill what looks empty) instead of only the active layer" />
+          <CheckBox Content="Below line work" IsChecked="{Binding FillBelowLines}" VerticalAlignment="Center"
+                    ToolTip.Tip="Tuck the fill under the lines (fills about half the line width so no white shows); off = fill on top, preserving lines" />
+        </StackPanel>
+
+        <!-- Selection options -->
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsSelectTool}">
+          <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <RadioButton GroupName="selvar" Content="◌" IsChecked="{Binding IsFreehandVariant, Mode=OneWay}"
+                         Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Freehand}"
+                         ToolTip.Tip="Freehand selection" />
+            <RadioButton GroupName="selvar" Content="⬠" IsChecked="{Binding IsPolygonVariant, Mode=OneWay}"
+                         Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Polygon}"
+                         ToolTip.Tip="Polygon selection (click vertices, double-click to close, Esc cancels)" />
+            <RadioButton GroupName="selvar" Content="▭" IsChecked="{Binding IsBoxVariant, Mode=OneWay}"
+                         Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Box}"
+                         ToolTip.Tip="Box selection" />
+            <RadioButton GroupName="selvar" Content="◯" IsChecked="{Binding IsEllipseVariant, Mode=OneWay}"
+                         Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Ellipse}"
+                         ToolTip.Tip="Circle/ellipse selection" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Feather" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding SelectionFeather}" Minimum="0" Maximum="100" Increment="1"
+                           FormatString="0" Width="94" VerticalAlignment="Center"
+                           ToolTip.Tip="Soften the selection edge by this many pixels" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <NumericUpDown Value="{Binding SelectionAdjustPx}" Minimum="1" Maximum="64" Increment="1"
+                           FormatString="0" Width="94" VerticalAlignment="Center"
+                           ToolTip.Tip="Pixels for Grow/Shrink" />
+            <Button Content="Grow" Command="{Binding GrowSelectionCommand}"
+                    ToolTip.Tip="Enlarge the selection" />
+            <Button Content="Shrink" Command="{Binding ShrinkSelectionCommand}"
+                    ToolTip.Tip="Shrink the selection" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <Button Content="All" Command="{Binding SelectAllCommand}" ToolTip.Tip="Select the whole canvas (Ctrl+A)" />
+            <Button Content="None" Command="{Binding DeselectCommand}" ToolTip.Tip="Deselect (Ctrl+D)" />
+            <Button Content="Invert" Command="{Binding InvertSelectionCommand}" ToolTip.Tip="Invert the selection (Ctrl+Shift+I)" />
+          </StackPanel>
+          <TextBlock Text="Shift adds · Alt subtracts" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
         </StackPanel>
       </StackPanel>
     </Border>
@@ -264,13 +349,71 @@
 
       <Grid x:Name="WorkArea" Grid.Row="0">
         <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="76" MinWidth="40" MaxWidth="220" />
+          <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="*" MinWidth="240" />
           <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="300" MinWidth="240" />
         </Grid.ColumnDefinitions>
 
+        <!-- Toolbar: two icon columns; widen for one column, wider still for names -->
+        <Border x:Name="Toolbar" Grid.Column="0" Background="#1c1c1c" SizeChanged="OnToolbarSizeChanged">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <WrapPanel x:Name="ToolButtons" Margin="3">
+              <ToggleButton Classes="tool" IsChecked="{Binding IsBrushTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Brush}"
+                            ToolTip.Tip="Brush (B)">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="🖌" FontSize="15" />
+                  <TextBlock Text="Brush" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsEraserTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Eraser}"
+                            ToolTip.Tip="Eraser (E)">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="⌫" FontSize="15" />
+                  <TextBlock Text="Eraser" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsFillTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Fill}"
+                            ToolTip.Tip="Fill (F)">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="🪣" FontSize="15" />
+                  <TextBlock Text="Fill" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton x:Name="SelectToolButton" Classes="tool" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Select}"
+                            ToolTip.Tip="Select (S — press again to switch variant; hold for the list)">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="{Binding SelectVariantGlyph}" FontSize="15" />
+                  <TextBlock Text="Select" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+                <ToggleButton.ContextFlyout>
+                  <Flyout Placement="RightEdgeAlignedTop">
+                    <StackPanel Spacing="2">
+                      <Button Content="◌ Freehand" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static vm:SelectVariant.Freehand}" HorizontalAlignment="Stretch" />
+                      <Button Content="⬠ Polygon" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static vm:SelectVariant.Polygon}" HorizontalAlignment="Stretch" />
+                      <Button Content="▭ Box" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static vm:SelectVariant.Box}" HorizontalAlignment="Stretch" />
+                      <Button Content="◯ Circle" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static vm:SelectVariant.Ellipse}" HorizontalAlignment="Stretch" />
+                    </StackPanel>
+                  </Flyout>
+                </ToggleButton.ContextFlyout>
+              </ToggleButton>
+            </WrapPanel>
+          </ScrollViewer>
+        </Border>
+
+        <GridSplitter Grid.Column="1" Width="5" ResizeDirection="Columns" />
+
         <!-- Canvas + view-tool overlay (zoom/rotate/mirror/pan are view-only) -->
-        <Panel x:Name="CanvasHost" Grid.Column="0">
+        <Panel x:Name="CanvasHost" Grid.Column="2">
           <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushSize}" />
           <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
                   Background="#cc1f1f1f" CornerRadius="4" Padding="3">
@@ -288,11 +431,11 @@
           </Border>
         </Panel>
 
-        <GridSplitter Grid.Column="1" Width="5" ResizeDirection="Columns"
+        <GridSplitter Grid.Column="3" Width="5" ResizeDirection="Columns"
                       IsVisible="{Binding SidebarVisible}" />
 
         <!-- Closable sidebar of dockers (dock side is switched from code-behind) -->
-        <Border x:Name="Sidebar" Grid.Column="2" Background="#1c1c1c"
+        <Border x:Name="Sidebar" Grid.Column="4" Background="#1c1c1c"
                 IsVisible="{Binding SidebarVisible}">
           <Grid Margin="4">
             <Grid.RowDefinitions>

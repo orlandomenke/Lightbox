@@ -24,6 +24,19 @@ public partial class MainWindow : Window
         Canvas.PaintMoved += _vm.MoveStrokeBatch;
         Canvas.PaintEnded += _vm.EndStroke;
 
+        // Tool-aware canvas input (fill clicks, selection shapes) + ants overlay.
+        Canvas.FillClicked += _vm.FillAt;
+        Canvas.SelectionShapeDrawn += _vm.ApplySelectionShape;
+        Canvas.PolygonVertexAdded += _vm.AddPolygonVertex;
+        Canvas.PolygonCompleted += _vm.CompletePolygon;
+        _vm.SelectionChanged += () => Canvas.SetSelectionOverlay(_vm.SelectionContours, _vm.PolygonInProgress);
+        SyncCanvasToolMode();
+
+        // The toggle button eats pointer events, so hook the hold-to-open
+        // variant flyout with tunneling handlers.
+        SelectToolButton.AddHandler(PointerPressedEvent, OnSelectToolPressed, RoutingStrategies.Tunnel);
+        SelectToolButton.AddHandler(PointerReleasedEvent, OnSelectToolReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
+
         // Dock geometry (side, collapse, min sizes) is a view concern the VM
         // only expresses as booleans.
         _vm.PropertyChanged += (_, args) =>
@@ -33,6 +46,11 @@ public partial class MainWindow : Window
                 or nameof(MainViewModel.ShowTimeline))
             {
                 ApplyDockLayout();
+            }
+            if (args.PropertyName is nameof(MainViewModel.ActiveTool)
+                or nameof(MainViewModel.ActiveSelectVariant))
+            {
+                SyncCanvasToolMode();
             }
         };
         ApplyDockLayout();
@@ -65,7 +83,7 @@ public partial class MainWindow : Window
 
     private GridLength _timelineHeight = new(280, GridUnitType.Pixel);
     private GridLength _sidebarWidth = new(300, GridUnitType.Pixel);
-    private int _sidebarColumn = 2;
+    private int _sidebarColumn = 4;
 
     /// <summary>
     /// Keep the grid in step with the VM's docker booleans: collapse rows and
@@ -87,11 +105,13 @@ public partial class MainWindow : Window
             rows[2].Height = GridLength.Auto;
         }
 
+        // Work-area columns: 0 toolbar, 1 splitter, 2 + 4 canvas/sidebar
+        // (whichever side the sidebar is on), 3 the splitter between them.
         var cols = WorkArea.ColumnDefinitions;
         if (cols[_sidebarColumn].Width.IsAbsolute && cols[_sidebarColumn].Width.Value > 20)
             _sidebarWidth = cols[_sidebarColumn].Width;
-        _sidebarColumn = _vm.SidebarOnRight ? 2 : 0;
-        var canvasColumn = _vm.SidebarOnRight ? 0 : 2;
+        _sidebarColumn = _vm.SidebarOnRight ? 4 : 2;
+        var canvasColumn = _vm.SidebarOnRight ? 2 : 4;
         Grid.SetColumn(Sidebar, _sidebarColumn);
         Grid.SetColumn(CanvasHost, canvasColumn);
         cols[canvasColumn].Width = new GridLength(1, GridUnitType.Star);
@@ -242,6 +262,65 @@ public partial class MainWindow : Window
         _vm.ImportBrushFiles(payloads);
     }
 
+    // ---- toolbar ---------------------------------------------------------------
+
+    /// <summary>Map the VM's tool + selection variant onto the canvas input mode.</summary>
+    private void SyncCanvasToolMode()
+    {
+        Canvas.ToolMode = _vm.ActiveTool switch
+        {
+            ToolId.Fill => Rendering.CanvasControl.CanvasToolMode.Fill,
+            ToolId.Select => _vm.ActiveSelectVariant switch
+            {
+                SelectVariant.Polygon => Rendering.CanvasControl.CanvasToolMode.SelectPolygon,
+                SelectVariant.Box => Rendering.CanvasControl.CanvasToolMode.SelectRect,
+                SelectVariant.Ellipse => Rendering.CanvasControl.CanvasToolMode.SelectEllipse,
+                _ => Rendering.CanvasControl.CanvasToolMode.SelectFreehand,
+            },
+            _ => Rendering.CanvasControl.CanvasToolMode.Paint,
+        };
+    }
+
+    /// <summary>
+    /// Toolbar width decides its shape: two icon columns when narrow, one
+    /// full-width column when widened, icon + tool name when wider still.
+    /// </summary>
+    private void OnToolbarSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        var width = e.NewSize.Width;
+        ToolButtons.ItemWidth = width < 96 ? 34 : Math.Max(40, width - 14);
+        Toolbar.Classes.Set("labels", width >= 150);
+    }
+
+    // Press-and-hold a tool button to list its variants (like Photoshop/Krita).
+    private Avalonia.Threading.DispatcherTimer? _holdTimer;
+    private bool _variantFlyoutOpened;
+
+    private void OnSelectToolPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _variantFlyoutOpened = false;
+        if (!e.GetCurrentPoint(SelectToolButton).Properties.IsLeftButtonPressed) return;
+        _holdTimer?.Stop();
+        _holdTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        _holdTimer.Tick += (_, _) =>
+        {
+            _holdTimer?.Stop();
+            _variantFlyoutOpened = true;
+            SelectToolButton.ContextFlyout?.ShowAt(SelectToolButton);
+        };
+        _holdTimer.Start();
+    }
+
+    private void OnSelectToolReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        _holdTimer?.Stop();
+        // The hold already opened the variant list — don't also register a click.
+        if (_variantFlyoutOpened) e.Handled = true;
+    }
+
+    private void OnVariantChosen(object? sender, RoutedEventArgs e) =>
+        SelectToolButton.ContextFlyout?.Hide();
+
     // ---- canvas view tools (view-only: never touch the document) -------------
 
     private void OnZoomIn(object? sender, RoutedEventArgs e) => Canvas.ZoomIn();
@@ -283,12 +362,35 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
             case { Key: Key.B, KeyModifiers: KeyModifiers.None }:
-                _vm.IsEraser = false; // back to the last-configured brush
+                _vm.ActiveTool = ToolId.Brush; // back to the last-configured brush
                 e.Handled = true;
                 break;
             case { Key: Key.E, KeyModifiers: KeyModifiers.None }:
-                _vm.IsEraser = true;
+                _vm.ActiveTool = ToolId.Eraser;
                 e.Handled = true;
+                break;
+            case { Key: Key.F, KeyModifiers: KeyModifiers.None }:
+                _vm.ActiveTool = ToolId.Fill;
+                e.Handled = true;
+                break;
+            case { Key: Key.S, KeyModifiers: KeyModifiers.None }:
+                _vm.SelectToolCommand.Execute(ToolId.Select); // again = next variant
+                e.Handled = true;
+                break;
+            case { Key: Key.A, KeyModifiers: KeyModifiers.Control }:
+                _vm.SelectAllCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case { Key: Key.D, KeyModifiers: KeyModifiers.Control }:
+                _vm.DeselectCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case { Key: Key.I, KeyModifiers: KeyModifiers.Control | KeyModifiers.Shift }:
+                _vm.InvertSelectionCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case { Key: Key.Escape }:
+                _vm.CancelPolygon();
                 break;
             case { Key: Key.M, KeyModifiers: KeyModifiers.None }:
                 Canvas.ToggleMirror();

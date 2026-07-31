@@ -19,6 +19,16 @@ public sealed class Stroke
 
     public List<StrokePoint> Points { get; set; } = [];
 
+    /// <summary>Inner contours of a <see cref="ToolKind.Fill"/> stroke (even-odd holes); null otherwise.</summary>
+    public List<List<StrokePoint>>? Holes { get; set; }
+
+    /// <summary>
+    /// Key into <see cref="Doc.ClipRegions"/>: the selection that was active
+    /// when this stroke was painted, applied on every re-render so the
+    /// document stays self-contained.
+    /// </summary>
+    public string? ClipId { get; set; }
+
     /// <summary>
     /// Optional semantic name ("head-outline", "left-arm"). When two
     /// keyframes label a stroke identically, the inbetweener matches them
@@ -33,6 +43,8 @@ public sealed class Stroke
         Color = Color,
         Brush = Brush.Clone(),
         Points = [.. Points],
+        Holes = Holes?.Select(h => new List<StrokePoint>(h)).ToList(),
+        ClipId = ClipId,
         Label = Label,
     };
 }

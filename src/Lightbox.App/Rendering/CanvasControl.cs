@@ -5,6 +5,7 @@ using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
+using Lightbox.Raster;
 using SkiaSharp;
 
 namespace Lightbox.App.Rendering;
@@ -111,6 +112,74 @@ public sealed class CanvasControl : Control
 
     public event Action? PaintEnded;
 
+    // ---- tool-aware input ------------------------------------------------------
+
+    public enum CanvasToolMode
+    {
+        Paint,
+        Fill,
+        SelectFreehand,
+        SelectPolygon,
+        SelectRect,
+        SelectEllipse,
+    }
+
+    public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
+        AvaloniaProperty.Register<CanvasControl, CanvasToolMode>(nameof(ToolMode));
+
+    public CanvasToolMode ToolMode
+    {
+        get => GetValue(ToolModeProperty);
+        set => SetValue(ToolModeProperty, value);
+    }
+
+    /// <summary>Fill tool click at a document position.</summary>
+    public event Action<double, double>? FillClicked;
+
+    /// <summary>A closed freehand/rect/ellipse selection shape (doc space; Shift=add, Alt=subtract).</summary>
+    public event Action<List<Core.Documents.StrokePoint>, bool, bool>? SelectionShapeDrawn;
+
+    public event Action<double, double>? PolygonVertexAdded;
+
+    public event Action<bool, bool>? PolygonCompleted;
+
+    // Selection overlay state (marching ants) — pushed by the window.
+    private IReadOnlyList<List<Core.Documents.StrokePoint>> _selectionContours = [];
+    private IReadOnlyList<Core.Documents.StrokePoint> _polygonInProgress = [];
+    private float _antsPhase;
+    private bool _antsAnimating;
+
+    public void SetSelectionOverlay(
+        IReadOnlyList<List<Core.Documents.StrokePoint>> contours,
+        IReadOnlyList<Core.Documents.StrokePoint> polygonInProgress)
+    {
+        _selectionContours = contours;
+        _polygonInProgress = polygonInProgress;
+        InvalidateVisual();
+        StartAntsIfNeeded();
+    }
+
+    private void StartAntsIfNeeded()
+    {
+        if (_antsAnimating || (_selectionContours.Count == 0 && _polygonInProgress.Count == 0)) return;
+        if (TopLevel.GetTopLevel(this) is not { } top) return;
+        _antsAnimating = true;
+        top.RequestAnimationFrame(OnAntsFrame);
+    }
+
+    private void OnAntsFrame(TimeSpan _)
+    {
+        _antsAnimating = false;
+        if (_selectionContours.Count == 0 && _polygonInProgress.Count == 0) return;
+        _antsPhase = (_antsPhase + 0.35f) % 8f;
+        InvalidateVisual();
+        StartAntsIfNeeded();
+    }
+
+    // in-progress drag shape (doc space)
+    private readonly List<Core.Documents.StrokePoint> _dragShape = [];
+    private (double X, double Y)? _dragAnchor;
+
     private bool _painting;
     private bool _panning;
     private Point _panLast;
@@ -168,7 +237,27 @@ public sealed class CanvasControl : Control
             _mirrored,
             (float)(Bounds.Width / 2 + _pan.X),
             (float)(Bounds.Height / 2 + _pan.Y));
-        context.Custom(new DrawOp(new Rect(Bounds.Size), snapshot, view, cursor));
+
+        // Selection overlay paths (doc space; the op transforms them with the view).
+        SKPath? ants = null;
+        if (_selectionContours.Count > 0 || _dragShape.Count >= 3)
+        {
+            var contours = new List<IReadOnlyList<Core.Documents.StrokePoint>>(_selectionContours);
+            if (_dragShape.Count >= 3) contours.Add(_dragShape.ToList());
+            ants = BrushEngine.PathFromContours(contours);
+        }
+        SKPath? openPath = null;
+        if (_polygonInProgress.Count >= 2)
+        {
+            openPath = new SKPath();
+            openPath.MoveTo((float)_polygonInProgress[0].X, (float)_polygonInProgress[0].Y);
+            for (var i = 1; i < _polygonInProgress.Count; i++)
+            {
+                openPath.LineTo((float)_polygonInProgress[i].X, (float)_polygonInProgress[i].Y);
+            }
+        }
+
+        context.Custom(new DrawOp(new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase));
     }
 
     // ---- view <-> document transform ---------------------------------------
@@ -295,9 +384,44 @@ public sealed class CanvasControl : Control
 
             if (_panning) return;
             if (kind != PointerUpdateKind.LeftButtonPressed && !pp.Properties.IsLeftButtonPressed) return;
+
+            var (x, y) = ViewToDoc(pp.Position);
+            switch (ToolMode)
+            {
+                case CanvasToolMode.Fill:
+                    FillClicked?.Invoke(x, y);
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.SelectPolygon:
+                    if (e.ClickCount >= 2)
+                    {
+                        PolygonCompleted?.Invoke(
+                            e.KeyModifiers.HasFlag(KeyModifiers.Shift),
+                            e.KeyModifiers.HasFlag(KeyModifiers.Alt));
+                    }
+                    else
+                    {
+                        PolygonVertexAdded?.Invoke(x, y);
+                    }
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.SelectFreehand:
+                    e.Pointer.Capture(this);
+                    _dragShape.Clear();
+                    _dragShape.Add(new Core.Documents.StrokePoint(x, y, 1));
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.SelectRect:
+                case CanvasToolMode.SelectEllipse:
+                    e.Pointer.Capture(this);
+                    _dragAnchor = (x, y);
+                    _dragShape.Clear();
+                    e.Handled = true;
+                    return;
+            }
+
             e.Pointer.Capture(this);
             _painting = true;
-            var (x, y) = ViewToDoc(pp.Position);
             PaintStarted?.Invoke(x, y, PressureOf(pp));
             e.Handled = true;
         }
@@ -343,6 +467,23 @@ public sealed class CanvasControl : Control
                 return;
             }
 
+            // selection shape in progress?
+            if (_dragShape.Count > 0 && ToolMode == CanvasToolMode.SelectFreehand)
+            {
+                var (dx, dy) = ViewToDoc(e.GetPosition(this));
+                _dragShape.Add(new Core.Documents.StrokePoint(dx, dy, 1));
+                e.Handled = true;
+                return;
+            }
+            if (_dragAnchor is { } anchor && ToolMode is CanvasToolMode.SelectRect or CanvasToolMode.SelectEllipse)
+            {
+                var (dx, dy) = ViewToDoc(e.GetPosition(this));
+                _dragShape.Clear();
+                _dragShape.AddRange(ShapeBetween(anchor, (dx, dy), ToolMode == CanvasToolMode.SelectEllipse));
+                e.Handled = true;
+                return;
+            }
+
             if (!_painting) return;
             // Coalesced high-frequency samples, not just the latest position —
             // delivered as one batch per event.
@@ -372,11 +513,51 @@ public sealed class CanvasControl : Control
             e.Handled = true;
             return;
         }
+        if (_dragShape.Count > 0 || _dragAnchor is not null)
+        {
+            var shape = _dragShape.ToList();
+            _dragShape.Clear();
+            _dragAnchor = null;
+            e.Pointer.Capture(null);
+            if (shape.Count >= 3)
+            {
+                SelectionShapeDrawn?.Invoke(
+                    shape,
+                    e.KeyModifiers.HasFlag(KeyModifiers.Shift),
+                    e.KeyModifiers.HasFlag(KeyModifiers.Alt));
+            }
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
         if (!_painting) return;
         _painting = false;
         e.Pointer.Capture(null);
         PaintEnded?.Invoke();
         e.Handled = true;
+    }
+
+    /// <summary>Rectangle corners or a 48-segment ellipse between two drag points.</summary>
+    private static IEnumerable<Core.Documents.StrokePoint> ShapeBetween(
+        (double X, double Y) a, (double X, double Y) b, bool ellipse)
+    {
+        if (!ellipse)
+        {
+            yield return new(a.X, a.Y, 1);
+            yield return new(b.X, a.Y, 1);
+            yield return new(b.X, b.Y, 1);
+            yield return new(a.X, b.Y, 1);
+            yield break;
+        }
+        var cx = (a.X + b.X) / 2;
+        var cy = (a.Y + b.Y) / 2;
+        var rx = Math.Abs(b.X - a.X) / 2;
+        var ry = Math.Abs(b.Y - a.Y) / 2;
+        for (var i = 0; i < 48; i++)
+        {
+            var t = i / 48.0 * Math.PI * 2;
+            yield return new(cx + rx * Math.Cos(t), cy + ry * Math.Sin(t), 1);
+        }
     }
 
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
@@ -425,7 +606,9 @@ public sealed class CanvasControl : Control
     private readonly record struct ViewState(
         float DocW, float DocH, float Scale, float RotationDeg, bool Mirrored, float CenterX, float CenterY);
 
-    private sealed class DrawOp(Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor) : ICustomDrawOperation
+    private sealed class DrawOp(
+        Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor,
+        SKPath? ants, SKPath? antsOpen, float antsPhase) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -435,6 +618,8 @@ public sealed class CanvasControl : Control
 
         public void Dispose()
         {
+            ants?.Dispose();
+            antsOpen?.Dispose();
         }
 
         public void Render(ImmediateDrawingContext context)
@@ -475,10 +660,45 @@ public sealed class CanvasControl : Control
                     new SKSamplingOptions(SKFilterMode.Linear),
                     paint);
             }
+            DrawAnts(canvas);
             canvas.Restore();
 
             if (cursor is { } c) DrawBrushCursor(canvas, c);
             canvas.Restore();
+        }
+
+        /// <summary>Marching ants for the selection + in-progress shapes (drawn in doc space).</summary>
+        private void DrawAnts(SKCanvas canvas)
+        {
+            if (ants is null && antsOpen is null) return;
+            var scale = Math.Max(0.01f, view.Scale);
+            var dash = 4f / scale;
+            using var black = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.4f / scale,
+                Color = new SKColor(0, 0, 0, 230),
+                PathEffect = SKPathEffect.CreateDash([dash, dash], (antsPhase + 4f) / scale),
+            };
+            using var white = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.4f / scale,
+                Color = new SKColor(255, 255, 255, 230),
+                PathEffect = SKPathEffect.CreateDash([dash, dash], antsPhase / scale),
+            };
+            if (ants is not null)
+            {
+                canvas.DrawPath(ants, black);
+                canvas.DrawPath(ants, white);
+            }
+            if (antsOpen is not null)
+            {
+                canvas.DrawPath(antsOpen, black);
+                canvas.DrawPath(antsOpen, white);
+            }
         }
 
         /// <summary>

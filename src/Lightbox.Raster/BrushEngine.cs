@@ -37,17 +37,106 @@ public static class BrushEngine
     {
         if (stroke.Points.Count == 0) return;
 
+        if (stroke.Tool == ToolKind.Fill)
+        {
+            StampFill(target, stroke, info);
+            return;
+        }
+
         switch (stroke.Brush.Kind)
         {
             case BrushKind.Smudge when targetPixels is not null && stroke.Tool != ToolKind.Eraser:
-                StampSmudge(target, targetPixels, stroke);
+                WithHardClip(target, stroke, () => StampSmudge(target, targetPixels, stroke));
                 return;
             case BrushKind.Blur when targetPixels is not null && stroke.Tool != ToolKind.Eraser:
-                StampBlur(target, targetPixels, stroke, info);
+                WithHardClip(target, stroke, () => StampBlur(target, targetPixels, stroke, info));
                 return;
         }
 
         StampPaint(target, stroke, info);
+    }
+
+    /// <summary>An even-odd path from closed contours (fill regions, selections).</summary>
+    public static SKPath PathFromContours(IEnumerable<IReadOnlyList<StrokePoint>> contours)
+    {
+        var path = new SKPath { FillType = SKPathFillType.EvenOdd };
+        foreach (var contour in contours)
+        {
+            if (contour.Count < 3) continue;
+            path.MoveTo((float)contour[0].X, (float)contour[0].Y);
+            for (var i = 1; i < contour.Count; i++)
+            {
+                path.LineTo((float)contour[i].X, (float)contour[i].Y);
+            }
+            path.Close();
+        }
+        return path;
+    }
+
+    /// <summary>A filled region stroke: outer contour + holes, even-odd, at stroke opacity.</summary>
+    private static void StampFill(SKCanvas target, Stroke stroke, SKImageInfo info)
+    {
+        if (stroke.Points.Count < 3) return;
+        using var scratch = SKSurface.Create(info);
+        if (scratch is null) throw new InvalidOperationException("Could not create scratch surface.");
+        var canvas = scratch.Canvas;
+        canvas.Clear(SKColors.Transparent);
+
+        var contours = new List<IReadOnlyList<StrokePoint>> { stroke.Points };
+        if (stroke.Holes is not null) contours.AddRange(stroke.Holes);
+        using (var path = PathFromContours(contours))
+        using (var paint = new SKPaint { IsAntialias = true, Color = ParseColor(stroke.Color) })
+        {
+            canvas.DrawPath(path, paint);
+        }
+        ApplyClip(canvas, stroke, info);
+
+        using var snapshot = scratch.Snapshot();
+        using var composite = new SKPaint
+        {
+            Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(stroke.Brush.Opacity, 0, 1) * 255)),
+            BlendMode = SKBlendMode.SrcOver,
+        };
+        target.DrawImage(snapshot, 0, 0, composite);
+    }
+
+    /// <summary>Apply the stroke's recorded selection (if any) to the scratch surface.</summary>
+    private static void ApplyClip(SKCanvas scratchCanvas, Stroke stroke, SKImageInfo info)
+    {
+        if (stroke.ClipId is null || ClipRegionRegistry.Resolve(stroke.ClipId) is not { } region) return;
+        using var mask = SKSurface.Create(info);
+        if (mask is null) return;
+        mask.Canvas.Clear(SKColors.Transparent);
+        using (var path = PathFromContours(region.Contours))
+        using (var paint = new SKPaint { IsAntialias = true, Color = SKColors.White })
+        {
+            if (region.Feather > 0)
+            {
+                var sigma = (float)(region.Feather / 2);
+                paint.ImageFilter = SKImageFilter.CreateBlur(sigma, sigma);
+            }
+            mask.Canvas.DrawPath(path, paint);
+        }
+        using var maskImage = mask.Snapshot();
+        using var clipPaint = new SKPaint { BlendMode = SKBlendMode.DstIn };
+        scratchCanvas.DrawImage(maskImage, 0, 0, clipPaint);
+    }
+
+    /// <summary>Smudge/blur mutate the target directly — clip them with a hard path clip.</summary>
+    private static void WithHardClip(SKCanvas target, Stroke stroke, Action stamp)
+    {
+        if (stroke.ClipId is null || ClipRegionRegistry.Resolve(stroke.ClipId) is not { } region)
+        {
+            stamp();
+            return;
+        }
+        target.Save();
+        using (var path = PathFromContours(region.Contours))
+        {
+            target.ClipPath(path, antialias: true);
+        }
+        stamp();
+        target.Restore();
     }
 
     // ---- paint (the default pipeline) ----------------------------------------
@@ -69,6 +158,7 @@ public static class BrushEngine
 
         if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, info);
         if (brush.Granulation > 0) ApplyGranulation(canvas, brush, info);
+        ApplyClip(canvas, stroke, info);
 
         using var snapshot = scratch.Snapshot();
         using var paint = new SKPaint

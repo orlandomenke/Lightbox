@@ -1,0 +1,19 @@
+namespace Lightbox.App.ViewModels;
+
+/// <summary>The tools in the toolbar.</summary>
+public enum ToolId
+{
+    Brush,
+    Eraser,
+    Fill,
+    Select,
+}
+
+/// <summary>Variants of the selection tool (press-and-hold or repeat S to switch).</summary>
+public enum SelectVariant
+{
+    Freehand,
+    Polygon,
+    Box,
+    Ellipse,
+}

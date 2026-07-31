@@ -20,4 +20,20 @@ public sealed class Doc
     /// with no external resources.
     /// </summary>
     public Dictionary<string, string> BrushTips { get; set; } = [];
+
+    /// <summary>
+    /// Selections that strokes were painted under (id → region). Referenced by
+    /// <see cref="Stroke.ClipId"/> so clipped strokes re-render identically
+    /// from the document alone.
+    /// </summary>
+    public Dictionary<string, ClipRegion> ClipRegions { get; set; } = [];
+}
+
+/// <summary>A recorded selection: closed contours (even-odd) plus edge feather.</summary>
+public sealed class ClipRegion
+{
+    public List<List<StrokePoint>> Contours { get; set; } = [];
+
+    /// <summary>Gaussian edge softness in pixels (0 = hard edge).</summary>
+    public double Feather { get; set; }
 }

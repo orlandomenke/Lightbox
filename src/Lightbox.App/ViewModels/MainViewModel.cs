@@ -587,13 +587,364 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _colorHex = "#1a1a1a";
 
-    [ObservableProperty]
-    private bool _isEraser;
+    // ---- active tool ----------------------------------------------------------
 
-    partial void OnIsEraserChanged(bool value)
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEraser))]
+    [NotifyPropertyChangedFor(nameof(IsBrushTool))]
+    [NotifyPropertyChangedFor(nameof(IsEraserTool))]
+    [NotifyPropertyChangedFor(nameof(IsFillTool))]
+    [NotifyPropertyChangedFor(nameof(IsSelectTool))]
+    [NotifyPropertyChangedFor(nameof(IsPaintTool))]
+    private ToolId _activeTool = ToolId.Brush;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectVariantGlyph))]
+    [NotifyPropertyChangedFor(nameof(IsFreehandVariant))]
+    [NotifyPropertyChangedFor(nameof(IsPolygonVariant))]
+    [NotifyPropertyChangedFor(nameof(IsBoxVariant))]
+    [NotifyPropertyChangedFor(nameof(IsEllipseVariant))]
+    private SelectVariant _activeSelectVariant = SelectVariant.Freehand;
+
+    public bool IsFreehandVariant => ActiveSelectVariant == SelectVariant.Freehand;
+
+    public bool IsPolygonVariant => ActiveSelectVariant == SelectVariant.Polygon;
+
+    public bool IsBoxVariant => ActiveSelectVariant == SelectVariant.Box;
+
+    public bool IsEllipseVariant => ActiveSelectVariant == SelectVariant.Ellipse;
+
+    public bool IsBrushTool => ActiveTool == ToolId.Brush;
+
+    public bool IsEraserTool => ActiveTool == ToolId.Eraser;
+
+    public bool IsFillTool => ActiveTool == ToolId.Fill;
+
+    public bool IsSelectTool => ActiveTool == ToolId.Select;
+
+    /// <summary>Brush or eraser — the tools whose strokes the brush-parameter flyout edits.</summary>
+    public bool IsPaintTool => ActiveTool is ToolId.Brush or ToolId.Eraser;
+
+    public string SelectVariantGlyph => ActiveSelectVariant switch
     {
-        // The bound sliders now edit the other tool's configuration.
+        SelectVariant.Polygon => "⬠",
+        SelectVariant.Box => "▭",
+        SelectVariant.Ellipse => "◯",
+        _ => "◌",
+    };
+
+    /// <summary>Compat view of the tool (old XAML/tests): eraser vs everything else painting as brush.</summary>
+    public bool IsEraser
+    {
+        get => ActiveTool == ToolId.Eraser;
+        set => ActiveTool = value ? ToolId.Eraser : ToolId.Brush;
+    }
+
+    partial void OnActiveToolChanged(ToolId value)
+    {
+        // The bound sliders edit the active tool's brush configuration.
         NotifyBrushProperties();
+        CancelPolygonInProgress();
+    }
+
+    [RelayCommand]
+    private void SelectTool(ToolId tool)
+    {
+        if (tool == ToolId.Select && ActiveTool == ToolId.Select)
+        {
+            CycleSelectVariant();
+            return;
+        }
+        ActiveTool = tool;
+    }
+
+    /// <summary>Pressing the selection shortcut repeatedly cycles its variants.</summary>
+    public void CycleSelectVariant()
+    {
+        ActiveSelectVariant = ActiveSelectVariant switch
+        {
+            SelectVariant.Freehand => SelectVariant.Polygon,
+            SelectVariant.Polygon => SelectVariant.Box,
+            SelectVariant.Box => SelectVariant.Ellipse,
+            _ => SelectVariant.Freehand,
+        };
+    }
+
+    [RelayCommand]
+    private void SelectVariantOf(SelectVariant variant)
+    {
+        ActiveSelectVariant = variant;
+        ActiveTool = ToolId.Select;
+    }
+
+    // ---- fill tool -------------------------------------------------------------
+
+    [ObservableProperty]
+    private double _fillTolerance = 32;
+
+    /// <summary>Openings up to this many pixels still count as closed ("connected").</summary>
+    [ObservableProperty]
+    private double _fillGapPx = 4;
+
+    /// <summary>Overfill (+) or underfill (−) the region by pixels.</summary>
+    [ObservableProperty]
+    private double _fillGrowPx = 2;
+
+    /// <summary>Sample every visible layer (fill what LOOKS empty) instead of only the active one.</summary>
+    [ObservableProperty]
+    private bool _smartFill = true;
+
+    /// <summary>Insert the fill under the line work (tucks beneath the line); off = fill on top, preserving lines.</summary>
+    [ObservableProperty]
+    private bool _fillBelowLines = true;
+
+    /// <summary>Fill tool click: flood at a document position, record a fill stroke.</summary>
+    public void FillAt(double x, double y)
+    {
+        if (ActiveTool != ToolId.Fill || IsPlaying) return;
+        if (PaintTarget() is not { } target) return;
+        if (!ActiveLayer.Visible)
+        {
+            AiStatus = $"Layer “{ActiveLayer.Name}” is hidden — enable its visibility to fill on it.";
+            return;
+        }
+
+        var scene = Scene;
+        SKBitmap? owned = null;
+        try
+        {
+            SKBitmap sample;
+            if (SmartFill)
+            {
+                var passes = new List<RenderPass>();
+                foreach (var layer in scene.Layers)
+                {
+                    if (!layer.Visible) continue;
+                    var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
+                    if (frame is null) continue;
+                    passes.Add(new RenderPass(_cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity));
+                }
+                using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SkiaSharp.SKColors.Transparent);
+                owned = SKBitmap.FromImage(image);
+                sample = owned;
+            }
+            else
+            {
+                sample = _cache.Get(target, scene.Width, scene.Height);
+            }
+
+            var result = FloodFill.Fill(
+                sample,
+                (int)Math.Round(x),
+                (int)Math.Round(y),
+                new FloodFill.Options(FillTolerance, FillGapPx, FillGrowPx),
+                SelectionMask(scene.Width, scene.Height));
+            if (result is null)
+            {
+                AiStatus = "Nothing fillable at that spot.";
+                return;
+            }
+
+            var stroke = new Stroke
+            {
+                Tool = ToolKind.Fill,
+                Color = ColorHex,
+                Brush = new BrushSettings { Opacity = 1 },
+                Points = result.Outer,
+                Holes = result.Holes.Count > 0 ? result.Holes : null,
+                Label = "fill",
+            };
+            var clip = PrepareClipForSelection();
+            if (clip is not null) stroke.ClipId = clip.Value.Id;
+            var below = FillBelowLines;
+            _editor.Perform(doc =>
+            {
+                if (clip is { } c) doc.ClipRegions.TryAdd(c.Id, c.Region);
+                var list = StrokesOf(target);
+                if (below) list.Insert(0, stroke);
+                else list.Add(stroke);
+            });
+            _cache.Invalidate(target.Id);
+            _dirtyThumbIds.Add(target.Id);
+            PublishSnapshot();
+            RefreshThumbnails();
+        }
+        finally
+        {
+            owned?.Dispose();
+        }
+    }
+
+    // ---- selection --------------------------------------------------------------
+
+    private List<List<StrokePoint>> _selectionContours = [];
+
+    /// <summary>Current selection outlines (document space) for the canvas overlay.</summary>
+    public IReadOnlyList<List<StrokePoint>> SelectionContours => _selectionContours;
+
+    public bool HasSelection => _selectionContours.Count > 0;
+
+    /// <summary>Raised when the selection outline (or polygon-in-progress) changes.</summary>
+    public event Action? SelectionChanged;
+
+    [ObservableProperty]
+    private double _selectionFeather;
+
+    /// <summary>Pixels for the Grow/Shrink selection buttons.</summary>
+    [ObservableProperty]
+    private double _selectionAdjustPx = 2;
+
+    private readonly List<StrokePoint> _polygonPoints = [];
+
+    public IReadOnlyList<StrokePoint> PolygonInProgress => _polygonPoints;
+
+    private void NotifySelection()
+    {
+        OnPropertyChanged(nameof(HasSelection));
+        SelectionChanged?.Invoke();
+        PublishSnapshot();
+    }
+
+    /// <summary>Combine a closed shape into the selection (Shift adds, Alt subtracts).</summary>
+    public void ApplySelectionShape(List<StrokePoint> contour, bool add, bool subtract)
+    {
+        if (contour.Count < 3) return;
+        int w = Scene.Width, h = Scene.Height;
+        var shape = MaskFromContours([contour], w, h);
+        bool[] mask;
+        if (!HasSelection || (!add && !subtract))
+        {
+            mask = subtract ? new bool[w * h] : shape;
+        }
+        else
+        {
+            mask = MaskFromContours(_selectionContours, w, h);
+            for (var i = 0; i < mask.Length; i++)
+            {
+                if (add) mask[i] |= shape[i];
+                else if (subtract) mask[i] &= !shape[i];
+            }
+        }
+        SetSelectionFromMask(mask, w, h);
+    }
+
+    public void AddPolygonVertex(double x, double y)
+    {
+        _polygonPoints.Add(new StrokePoint(x, y, 1));
+        SelectionChanged?.Invoke();
+    }
+
+    public void CompletePolygon(bool add, bool subtract)
+    {
+        var contour = new List<StrokePoint>(_polygonPoints);
+        _polygonPoints.Clear();
+        SelectionChanged?.Invoke();
+        ApplySelectionShape(contour, add, subtract);
+    }
+
+    public void CancelPolygon() => CancelPolygonInProgress();
+
+    private void CancelPolygonInProgress()
+    {
+        if (_polygonPoints.Count == 0) return;
+        _polygonPoints.Clear();
+        SelectionChanged?.Invoke();
+    }
+
+    [RelayCommand]
+    private void SelectAll()
+    {
+        _selectionContours =
+        [
+            [new(0, 0, 1), new(Scene.Width, 0, 1), new(Scene.Width, Scene.Height, 1), new(0, Scene.Height, 1)],
+        ];
+        NotifySelection();
+    }
+
+    [RelayCommand]
+    private void Deselect()
+    {
+        if (!HasSelection && _polygonPoints.Count == 0) return;
+        _selectionContours = [];
+        _polygonPoints.Clear();
+        NotifySelection();
+    }
+
+    [RelayCommand]
+    private void InvertSelection()
+    {
+        int w = Scene.Width, h = Scene.Height;
+        var mask = HasSelection ? MaskFromContours(_selectionContours, w, h) : new bool[w * h];
+        for (var i = 0; i < mask.Length; i++) mask[i] = !mask[i];
+        SetSelectionFromMask(mask, w, h);
+    }
+
+    [RelayCommand]
+    private void GrowSelection() => AdjustSelection(Math.Abs(SelectionAdjustPx));
+
+    [RelayCommand]
+    private void ShrinkSelection() => AdjustSelection(-Math.Abs(SelectionAdjustPx));
+
+    private void AdjustSelection(double px)
+    {
+        if (!HasSelection || Math.Abs(px) < 0.5) return;
+        int w = Scene.Width, h = Scene.Height;
+        var mask = MaskFromContours(_selectionContours, w, h);
+        var r = (int)Math.Round(Math.Abs(px));
+        mask = px > 0 ? FloodFill.Dilate(mask, w, h, r) : FloodFill.Erode(mask, w, h, r);
+        SetSelectionFromMask(mask, w, h);
+    }
+
+    private void SetSelectionFromMask(bool[] mask, int w, int h)
+    {
+        _selectionContours = FloodFill.TraceAllContours(mask, w, h);
+        NotifySelection();
+    }
+
+    /// <summary>Rasterize contours (even-odd) to a boolean mask.</summary>
+    private static bool[] MaskFromContours(IReadOnlyList<List<StrokePoint>> contours, int w, int h)
+    {
+        var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var surface = SKSurface.Create(info)
+            ?? throw new InvalidOperationException("Could not create mask surface.");
+        surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
+        using (var path = BrushEngine.PathFromContours(contours))
+        using (var paint = new SKPaint { Color = SkiaSharp.SKColors.White, IsAntialias = false })
+        {
+            surface.Canvas.DrawPath(path, paint);
+        }
+        using var image = surface.Snapshot();
+        using var bmp = SKBitmap.FromImage(image);
+        var pixels = bmp.Pixels;
+        var mask = new bool[w * h];
+        for (var i = 0; i < mask.Length; i++) mask[i] = pixels[i].Alpha > 127;
+        return mask;
+    }
+
+    /// <summary>The selection as a flood-fill constraint (null when nothing is selected).</summary>
+    private bool[]? SelectionMask(int w, int h) =>
+        HasSelection ? MaskFromContours(_selectionContours, w, h) : null;
+
+    /// <summary>
+    /// Freeze the active selection as a document clip region (content-hashed,
+    /// deduped) so strokes painted under it re-render identically forever.
+    /// </summary>
+    private (string Id, ClipRegion Region)? PrepareClipForSelection()
+    {
+        if (!HasSelection) return null;
+        var region = new ClipRegion
+        {
+            Contours = _selectionContours.Select(c => new List<StrokePoint>(c)).ToList(),
+            Feather = SelectionFeather,
+        };
+        var payload = System.Text.Json.JsonSerializer.Serialize(region);
+        var hash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(payload)))[..12];
+        var id = $"clip_{hash.ToLowerInvariant()}";
+        // The renderer resolves clips by id, so it must know this one before
+        // the stroke's first re-render — not only after a document reload.
+        ClipRegionRegistry.Register(id, region);
+        return (id, region);
     }
 
     [ObservableProperty]
@@ -735,6 +1086,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void BeginStroke(double x, double y, double pressure)
     {
+        if (ActiveTool is not (ToolId.Brush or ToolId.Eraser)) return;
         if (IsPlaying || PaintTarget() is not { } target) return;
         if (!ActiveLayer.Visible)
         {
@@ -823,7 +1175,14 @@ public sealed partial class MainViewModel : ObservableObject
             stroke.Points = GeometryOps.Smooth(stroke.Points, 1);
         }
 
-        _editor.Perform(_ => StrokesOf(target).Add(stroke));
+        // A stroke painted under a selection carries it forever (provenance).
+        var clip = PrepareClipForSelection();
+        if (clip is not null) stroke.ClipId = clip.Value.Id;
+        _editor.Perform(doc =>
+        {
+            if (clip is { } c) doc.ClipRegions.TryAdd(c.Id, c.Region);
+            StrokesOf(target).Add(stroke);
+        });
         _cache.Invalidate(target.Id);
         _dirtyThumbIds.Add(target.Id);
         PublishSnapshot();
@@ -1346,6 +1705,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         MarkDocumentEdited();
         BrushTipRegistry.Register(Doc.BrushTips);
+        ClipRegionRegistry.Register(Doc.ClipRegions);
         OnPropertyChanged(nameof(ReferenceSheetsView));
         SyncLayerChoices();
         ClampCurrentFrame();
