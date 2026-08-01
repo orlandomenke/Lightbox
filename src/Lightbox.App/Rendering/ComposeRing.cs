@@ -69,22 +69,25 @@ public sealed class ComposeRing : IDisposable
     /// Paint and hand out an immutable image. <paramref name="dirty"/> is the
     /// document region that changed since the previous publish (null = the
     /// whole canvas); <paramref name="paint"/> receives the clip to honour.
-    /// <paramref name="regionScale"/> maps those document coordinates onto the
-    /// surface, which is smaller than the document when the canvas cannot show
-    /// full detail — it must match the scale <paramref name="paint"/> composes
-    /// at, or the copy-forward would move the wrong pixels.
+    /// <paramref name="regionScale"/> and <paramref name="transform"/> map
+    /// those document coordinates onto the surface — smaller than the document
+    /// when the canvas cannot show full detail, and somewhere else again under
+    /// a camera. They must match what <paramref name="paint"/> composes with,
+    /// or the copy-forward would move the wrong pixels; both go through
+    /// <see cref="CameraTransform.DeviceBounds"/> so they cannot drift.
     /// </summary>
     public SKImage Publish(
         SKImageInfo info,
         SKRectI? dirty,
         Action<SKSurface, SKRectI?> paint,
-        double regionScale = 1.0)
+        double regionScale = 1.0,
+        SKMatrix? transform = null)
     {
         if (!_info.Equals(info)) Reset(info);
 
         // A full-canvas publish repaints its own buffer and invalidates the
         // rest, so catching anything up first would only be thrown away.
-        if (dirty is not null) CatchUpIdleBuffers(regionScale);
+        if (dirty is not null) CatchUpIdleBuffers(regionScale, transform);
 
         var buffer = PickBuffer();
 
@@ -128,7 +131,7 @@ public sealed class ComposeRing : IDisposable
     /// comes free. Because this runs before the buffer for this publish is
     /// chosen, that catch-up lands here rather than in the paint below.
     /// </summary>
-    private void CatchUpIdleBuffers(double scale)
+    private void CatchUpIdleBuffers(double scale, SKMatrix? transform)
     {
         if (_current?.Surface is not { } source) return;
 
@@ -157,7 +160,7 @@ public sealed class ComposeRing : IDisposable
             foreach (var other in _buffers)
             {
                 if (!Behind(other)) continue;
-                CopyForward(other.Surface!, fresh, other.NeedsFull ? null : other.Stale, scale);
+                CopyForward(other.Surface!, fresh, other.NeedsFull ? null : other.Stale, scale, transform);
                 other.Stale = null;
                 other.NeedsFull = false;
             }
@@ -182,7 +185,7 @@ public sealed class ComposeRing : IDisposable
     /// transparent where the document is, and blending would leave the old
     /// contents showing through.
     /// </summary>
-    private static void CopyForward(SKSurface target, SKImage fresh, SKRectI? region, double scale)
+    private static void CopyForward(SKSurface target, SKImage fresh, SKRectI? region, double scale, SKMatrix? transform)
     {
         var canvas = target.Canvas;
         canvas.Save();
@@ -191,11 +194,7 @@ public sealed class ComposeRing : IDisposable
         {
             // The same mapping ComposeInto applies to its clip, so a rect that
             // was repainted there is the rect that gets copied here.
-            canvas.ClipRect(SKRect.Create(
-                (float)Math.Floor(r.Left * scale),
-                (float)Math.Floor(r.Top * scale),
-                (float)Math.Ceiling(r.Width * scale) + 1,
-                (float)Math.Ceiling(r.Height * scale) + 1));
+            canvas.ClipRect(CameraTransform.DeviceBounds(r, scale, transform));
         }
         using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
         canvas.DrawImage(fresh, 0, 0, paint);

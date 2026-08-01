@@ -55,27 +55,32 @@ public static class SceneRenderer
     /// (null = the whole canvas); everything outside it keeps the surface's
     /// previous contents, so a live stroke only repaints what it touched.
     /// </summary>
+    /// <param name="transform">
+    /// A camera's document-to-device matrix, or null for the plain
+    /// uniform-scale path. Null is not "identity": it takes the branch that
+    /// existed before cameras did, so a document without one composites
+    /// exactly as it always has rather than paying for a matrix concat.
+    /// </param>
     public static void ComposeInto(
         SKSurface surface,
         IReadOnlyList<RenderPass> passes,
         SKColor? background = null,
         SKRectI? clip = null,
-        double scale = 1.0)
+        double scale = 1.0,
+        SKMatrix? transform = null)
     {
         var canvas = surface.Canvas;
         canvas.Save();
         // The clip arrives in document coordinates; the surface may be smaller
-        // than the document when the canvas cannot display full detail.
+        // than the document when the canvas cannot display full detail, and
+        // under a camera it is somewhere else entirely.
         if (clip is { } r)
         {
-            canvas.ClipRect(SKRect.Create(
-                (float)Math.Floor(r.Left * scale),
-                (float)Math.Floor(r.Top * scale),
-                (float)Math.Ceiling(r.Width * scale) + 1,
-                (float)Math.Ceiling(r.Height * scale) + 1));
+            canvas.ClipRect(CameraTransform.DeviceBounds(r, scale, transform));
         }
         canvas.Clear(background ?? SKColors.White);
-        if (scale != 1.0) canvas.Scale((float)scale);
+        if (transform is { } m) canvas.Concat(m);
+        else if (scale != 1.0) canvas.Scale((float)scale);
 
         foreach (var pass in passes)
         {
