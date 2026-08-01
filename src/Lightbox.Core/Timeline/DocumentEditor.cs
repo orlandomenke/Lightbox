@@ -243,6 +243,68 @@ public sealed class DocumentEditor
     }
 
     /// <summary>
+    /// Move (or, with <paramref name="copy"/>, duplicate) the drawing keyed at
+    /// <paramref name="fromIndex"/> to <paramref name="toIndex"/> on the same
+    /// layer — the drag-a-cel operation. Whatever the target cel held is
+    /// replaced; dropping past the end extends the timeline.
+    /// </summary>
+    public void MoveCel(string layerId, int fromIndex, int toIndex, bool copy = false)
+    {
+        var layer = FindLayer(layerId);
+        if (layer is null || fromIndex == toIndex || fromIndex < 0 || toIndex < 0) return;
+        if (fromIndex >= layer.Cels.Count || layer.Cels[fromIndex].Frame is null) return;
+        Perform(doc =>
+        {
+            var scene = doc.Scene;
+            if (toIndex >= scene.FrameCount) scene.FrameCount = toIndex + 1;
+            foreach (var l in scene.Layers) PadCels(l, scene.FrameCount);
+            var target = scene.Layers.First(l => l.Id == layerId);
+            var frame = target.Cels[fromIndex].Frame!;
+            target.Cels[toIndex].Frame = copy ? CloneFrame(frame) : frame;
+            if (!copy) target.Cels[fromIndex].Frame = null;
+        });
+    }
+
+    /// <summary>Clear every drawing in [from, to] on a layer (cels become holds). One undo step.</summary>
+    public void ClearCels(string layerId, int from, int to)
+    {
+        var layer = FindLayer(layerId);
+        if (layer is null) return;
+        (from, to) = (Math.Min(from, to), Math.Max(from, to));
+        if (!Enumerable.Range(from, to - from + 1).Any(i => i < layer.Cels.Count && layer.Cels[i].Frame is not null)) return;
+        Perform(doc =>
+        {
+            var target = doc.Scene.Layers.First(l => l.Id == layerId);
+            for (var i = Math.Max(0, from); i <= to && i < target.Cels.Count; i++)
+            {
+                target.Cels[i].Frame = null;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Write a sequence of cels starting at <paramref name="start"/> — the
+    /// paste-a-range operation. A null entry makes that cel a hold, exactly as
+    /// it was copied. Extends the timeline as needed. One undo step.
+    /// </summary>
+    public void SetFrameRange(string layerId, int start, IReadOnlyList<Frame?> frames)
+    {
+        if (start < 0 || frames.Count == 0 || FindLayer(layerId) is null) return;
+        Perform(doc =>
+        {
+            var scene = doc.Scene;
+            var end = start + frames.Count - 1;
+            if (end >= scene.FrameCount) scene.FrameCount = end + 1;
+            foreach (var l in scene.Layers) PadCels(l, scene.FrameCount);
+            var target = scene.Layers.First(l => l.Id == layerId);
+            for (var k = 0; k < frames.Count; k++)
+            {
+                target.Cels[start + k].Frame = frames[k];
+            }
+        });
+    }
+
+    /// <summary>
     /// Move a layer within the stack. <paramref name="delta"/> is in
     /// Scene.Layers order: +1 moves it up toward the viewer.
     /// </summary>

@@ -40,10 +40,14 @@ public sealed class TimelineRuler : Control
     public static readonly StyledProperty<int> RangeEndProperty =
         AvaloniaProperty.Register<TimelineRuler, int>(nameof(RangeEnd), -1);
 
+    /// <summary>Colored frame tags to draw on the ruler (rebound as a fresh list on change).</summary>
+    public static readonly StyledProperty<IReadOnlyList<Lightbox.Core.Documents.FrameMarker>?> MarkersProperty =
+        AvaloniaProperty.Register<TimelineRuler, IReadOnlyList<Lightbox.Core.Documents.FrameMarker>?>(nameof(Markers));
+
     static TimelineRuler()
     {
         AffectsMeasure<TimelineRuler>(ExtentProperty, CellWidthProperty, LeadingInsetProperty);
-        AffectsRender<TimelineRuler>(MaxFrameProperty, CurrentFrameProperty, RangeStartProperty, RangeEndProperty);
+        AffectsRender<TimelineRuler>(MaxFrameProperty, CurrentFrameProperty, RangeStartProperty, RangeEndProperty, MarkersProperty);
     }
 
     public int Extent { get => GetValue(ExtentProperty); set => SetValue(ExtentProperty, value); }
@@ -59,6 +63,12 @@ public sealed class TimelineRuler : Control
     public int RangeStart { get => GetValue(RangeStartProperty); set => SetValue(RangeStartProperty, value); }
 
     public int RangeEnd { get => GetValue(RangeEndProperty); set => SetValue(RangeEndProperty, value); }
+
+    public IReadOnlyList<Lightbox.Core.Documents.FrameMarker>? Markers
+    {
+        get => GetValue(MarkersProperty);
+        set => SetValue(MarkersProperty, value);
+    }
 
     private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.Parse("#181818"));
     private static readonly IBrush PlayheadBrush = new SolidColorBrush(Color.Parse("#4a6ea9"));
@@ -106,6 +116,29 @@ public sealed class TimelineRuler : Control
             context.FillRectangle(RangeStartBrush, new Rect(LeadingInset + RangeStart * CellWidth - 1, 0, 2, h));
         if (RangeEnd >= 0)
             context.FillRectangle(RangeEndBrush, new Rect(LeadingInset + (RangeEnd + 1) * CellWidth - 3, 0, 2, h));
+
+        // Colored frame tags: a flag strip along the top edge plus the label
+        // (drawn over the frame number — markers are rare and deliberate).
+        if (Markers is { Count: > 0 } markers)
+        {
+            foreach (var marker in markers)
+            {
+                if (marker.Frame < 0 || marker.Frame >= Extent) continue;
+                var x = LeadingInset + marker.Frame * CellWidth;
+                IBrush brush;
+                try { brush = new SolidColorBrush(Color.Parse(marker.Color)); }
+                catch { brush = new SolidColorBrush(Color.Parse("#e0a030")); }
+                context.FillRectangle(brush, new Rect(x, 0, CellWidth - 2, 3));
+                context.FillRectangle(brush, new Rect(x, 0, 3, h)); // little flagpole
+                if (!string.IsNullOrWhiteSpace(marker.Label))
+                {
+                    var label = new FormattedText(
+                        marker.Label, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                        typeface, 9, brush);
+                    context.DrawText(label, new Point(x + 5, h - label.Height - 1));
+                }
+            }
+        }
     }
 
     // ---- scrubbing -----------------------------------------------------------

@@ -47,6 +47,10 @@ public sealed partial class FrameCell(int index) : ObservableObject
     [ObservableProperty]
     private bool _outOfRange;
 
+    /// <summary>Part of the Shift+click cel range selection.</summary>
+    [ObservableProperty]
+    private bool _isSelected;
+
     [ObservableProperty]
     private Avalonia.Media.Imaging.Bitmap? _thumb;
 
@@ -456,6 +460,15 @@ public sealed partial class MainViewModel : ObservableObject
         set => SetBrush(s => s.RotationJitter = Math.Clamp(value, 0, 1));
     }
 
+    // ---- pen pressure (per brush, per setting — Krita-style) --------------------
+
+    /// <summary>Master pen-pressure switch of the current brush.</summary>
+    public bool BrushPressureEnabled
+    {
+        get => GetBrush(s => s.PressureEnabled ? 1.0 : 0.0) > 0;
+        set => SetBrush(s => s.PressureEnabled = value);
+    }
+
     public double BrushPressureSizeGamma
     {
         get => GetBrush(s => s.PressureSizeGamma);
@@ -468,11 +481,51 @@ public sealed partial class MainViewModel : ObservableObject
         set => SetBrush(s => s.PressureFlowGamma = Math.Clamp(value, 0, 4));
     }
 
+    public double BrushPressureHardnessGamma
+    {
+        get => GetBrush(s => s.PressureHardnessGamma);
+        set => SetBrush(s => s.PressureHardnessGamma = Math.Clamp(value, 0, 4));
+    }
+
+    // Per-setting on/off view of the curves (checkbox semantics: off = curve 0).
+
+    public bool BrushPressureAffectsSize
+    {
+        get => BrushPressureSizeGamma > 0;
+        set
+        {
+            BrushPressureSizeGamma = value ? 1 : 0;
+            NotifyBrushProperties();
+        }
+    }
+
+    public bool BrushPressureAffectsFlow
+    {
+        get => BrushPressureFlowGamma > 0;
+        set
+        {
+            BrushPressureFlowGamma = value ? 1 : 0;
+            NotifyBrushProperties();
+        }
+    }
+
+    public bool BrushPressureAffectsHardness
+    {
+        get => BrushPressureHardnessGamma > 0;
+        set
+        {
+            BrushPressureHardnessGamma = value ? 1 : 0;
+            NotifyBrushProperties();
+        }
+    }
+
     private static readonly string[] BrushPropertyNames =
     [
         nameof(BrushSize), nameof(BrushHardness), nameof(BrushOpacity), nameof(BrushFlow),
         nameof(BrushSpacing), nameof(BrushWetEdge), nameof(BrushGranulation), nameof(BrushScatter),
-        nameof(BrushRotationJitter), nameof(BrushPressureSizeGamma), nameof(BrushPressureFlowGamma),
+        nameof(BrushRotationJitter), nameof(BrushPressureEnabled),
+        nameof(BrushPressureSizeGamma), nameof(BrushPressureFlowGamma), nameof(BrushPressureHardnessGamma),
+        nameof(BrushPressureAffectsSize), nameof(BrushPressureAffectsFlow), nameof(BrushPressureAffectsHardness),
     ];
 
     private void NotifyBrushProperties()
@@ -1450,53 +1503,73 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.ReduceExposure(layer.Id, cell.Index);
     }
 
+    /// <summary>Clear the drawing(s) at the cell — or the whole selected range when the cell is inside it.</summary>
     public void ClearCelAt(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
-        var frame = ExposureSheet.FrameAtExactIndex(layer, cell.Index);
-        if (frame is null)
+        var (start, end) = OpRangeFor(cell);
+        if (start == end && ExposureSheet.FrameAtExactIndex(layer, cell.Index) is null)
         {
             AiStatus = "That cel is a hold — there is no drawing to clear.";
             return;
         }
-        _editor.ClearCel(layer.Id, cell.Index);
-        _cache.Invalidate(frame.Id);
-        _dirtyThumbIds.Add(frame.Id);
+        _editor.ClearCels(layer.Id, start, end);
         RefreshThumbnails();
     }
 
-    /// <summary>App-internal cel clipboard (a deep-cloned frame + its source layer kind).</summary>
-    private (Frame Frame, LayerKind Kind)? _celClipboard;
+    /// <summary>App-internal cel clipboard: a cel sequence (null = hold) + its source layer kind.</summary>
+    private (List<Frame?> Frames, LayerKind Kind)? _celClipboard;
 
     public bool HasCelClipboard => _celClipboard is not null;
 
-    /// <summary>Copy the drawing EXPOSED at the cell (holds copy the drawing they show).</summary>
+    /// <summary>
+    /// Copy the cell — or the whole Shift+click range when the cell is inside
+    /// it. A single hold cel copies the drawing it shows; ranges copy cels
+    /// verbatim, holds included, so timing survives the round trip.
+    /// </summary>
     public void CopyCel(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
-        var frame = ExposureSheet.ExposedFrame(layer, cell.Index);
-        if (frame is null)
+        var (start, end) = OpRangeFor(cell);
+        List<Frame?> frames;
+        if (start == end)
         {
-            AiStatus = "Nothing to copy — the cel is empty.";
-            return;
+            var exposed = ExposureSheet.ExposedFrame(layer, cell.Index);
+            if (exposed is null)
+            {
+                AiStatus = "Nothing to copy — the cel is empty.";
+                return;
+            }
+            frames = [DocumentEditor.CloneFrame(exposed)];
         }
-        _celClipboard = (DocumentEditor.CloneFrame(frame)!, layer.Kind);
+        else
+        {
+            frames = [];
+            for (var i = start; i <= end; i++)
+            {
+                frames.Add(DocumentEditor.CloneFrame(ExposureSheet.FrameAtExactIndex(layer, i)));
+            }
+        }
+        _celClipboard = (frames, layer.Kind);
         OnPropertyChanged(nameof(HasCelClipboard));
-        AiStatus = "Cel copied.";
+        AiStatus = frames.Count == 1 ? "Cel copied." : $"{frames.Count} cels copied.";
     }
 
     public void CutCel(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
-        if (ExposureSheet.FrameAtExactIndex(layer, cell.Index) is null)
+        var (start, end) = OpRangeFor(cell);
+        if (start == end && ExposureSheet.FrameAtExactIndex(layer, cell.Index) is null)
         {
             AiStatus = "Nothing to cut — the cel is a hold.";
             return;
         }
         CopyCel(cell);
-        ClearCelAt(cell);
+        _editor.ClearCels(layer.Id, start, end);
+        RefreshThumbnails();
     }
 
+    /// <summary>Paste the copied cel(s) starting at the cell (holds paste as holds).</summary>
     public void PasteCel(FrameCell cell)
     {
         if (_celClipboard is not { } clip)
@@ -1506,25 +1579,30 @@ public sealed partial class MainViewModel : ObservableObject
         }
         if (LayerOfCell(cell) is not { } layer) return;
 
-        var frame = DocumentEditor.CloneFrame(clip.Frame)!; // fresh id per paste
-        if (layer.Kind != clip.Kind)
+        var frames = new List<Frame?>(clip.Frames.Count);
+        foreach (var source in clip.Frames)
         {
-            // Strokes carry over between kinds; baseline pixels cannot become vector.
-            if (layer.Kind == LayerKind.Vector && frame is PaintedFrame p)
+            var frame = DocumentEditor.CloneFrame(source); // fresh id per paste
+            if (frame is not null && layer.Kind != clip.Kind)
             {
-                if (!string.IsNullOrEmpty(p.PngBase64))
+                // Strokes carry over between kinds; baseline pixels cannot become vector.
+                if (layer.Kind == LayerKind.Vector && frame is PaintedFrame p)
                 {
-                    AiStatus = "Can't paste onto a vector layer: the copied cel carries baseline pixels.";
-                    return;
+                    if (!string.IsNullOrEmpty(p.PngBase64))
+                    {
+                        AiStatus = "Can't paste onto a vector layer: the copied cel carries baseline pixels.";
+                        return;
+                    }
+                    frame = new VectorFrame { Role = p.Role, Strokes = p.Strokes };
                 }
-                frame = new VectorFrame { Role = p.Role, Strokes = p.Strokes };
+                else if (layer.Kind == LayerKind.Painted && frame is VectorFrame v)
+                {
+                    frame = new PaintedFrame { Role = v.Role, Strokes = v.Strokes };
+                }
             }
-            else if (layer.Kind == LayerKind.Painted && frame is VectorFrame v)
-            {
-                frame = new PaintedFrame { Role = v.Role, Strokes = v.Strokes };
-            }
+            frames.Add(frame);
         }
-        _editor.SetFrameAt(layer.Id, cell.Index, frame);
+        _editor.SetFrameRange(layer.Id, cell.Index, frames);
         ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
     }
@@ -1750,6 +1828,88 @@ public sealed partial class MainViewModel : ObservableObject
         if (cell.LayerIndex >= 0 && cell.LayerIndex < Scene.Layers.Count)
             ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = cell.Index;
+        _celAnchor = (cell.LayerIndex, cell.Index);
+        ClearCelRange();
+    }
+
+    // ---- multi-cel range selection ------------------------------------------------
+
+    private (int Layer, int Index) _celAnchor;
+    private (int Layer, int Start, int End)? _celRange;
+
+    /// <summary>The selected cel range on one layer row (Shift+click), if any.</summary>
+    public (int Layer, int Start, int End)? CelRange => _celRange;
+
+    /// <summary>Shift+click: select the contiguous range from the last clicked cel to this one.</summary>
+    public void RangeSelectTo(FrameCell cell)
+    {
+        if (cell.IsVirtual) return;
+        var anchor = _celAnchor.Layer == cell.LayerIndex ? _celAnchor : (cell.LayerIndex, cell.Index);
+        _celRange = (cell.LayerIndex, Math.Min(anchor.Index, cell.Index), Math.Max(anchor.Index, cell.Index));
+        RefreshCelSelectionHighlights();
+    }
+
+    public void ClearCelRange()
+    {
+        if (_celRange is null) return;
+        _celRange = null;
+        RefreshCelSelectionHighlights();
+    }
+
+    private void RefreshCelSelectionHighlights()
+    {
+        foreach (var row in LayerRows)
+        {
+            foreach (var c in row.Cells)
+            {
+                c.IsSelected = _celRange is { } r
+                    && c.LayerIndex == r.Layer && c.Index >= r.Start && c.Index <= r.End;
+            }
+        }
+    }
+
+    /// <summary>The range the operation on this cell should cover: the selection when the cell is inside it, else just the cell.</summary>
+    private (int Start, int End) OpRangeFor(FrameCell cell) =>
+        _celRange is { } r && r.Layer == cell.LayerIndex && cell.Index >= r.Start && cell.Index <= r.End
+            ? (r.Start, r.End)
+            : (cell.Index, cell.Index);
+
+    /// <summary>Drop of a dragged cel: move (or Ctrl-copy) the drawing along its row.</summary>
+    public void MoveCel(FrameCell from, FrameCell to, bool copy)
+    {
+        if (from.LayerIndex != to.LayerIndex)
+        {
+            AiStatus = "Cels move along their own layer row.";
+            return;
+        }
+        if (LayerOfCell(from) is not { } layer) return;
+        _editor.MoveCel(layer.Id, from.Index, to.Index, copy);
+        ActiveLayerIndex = from.LayerIndex;
+        CurrentFrameIndex = Math.Min(to.Index, Scene.FrameCount - 1);
+    }
+
+    // ---- frame markers --------------------------------------------------------------
+
+    /// <summary>Ruler tags, refreshed as a new list so the ruler re-renders.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<FrameMarker> _markersView = [];
+
+    public FrameMarker? MarkerAt(int frame) => Scene.Markers.FirstOrDefault(m => m.Frame == frame);
+
+    public void SetMarkerAt(int frame, string label, string color)
+    {
+        _editor.Perform(doc =>
+        {
+            doc.Scene.Markers.RemoveAll(m => m.Frame == frame);
+            doc.Scene.Markers.Add(new FrameMarker { Frame = frame, Label = label.Trim(), Color = color });
+            doc.Scene.Markers.Sort((a, b) => a.Frame.CompareTo(b.Frame));
+        });
+    }
+
+    public void RemoveMarkerAt(int frame)
+    {
+        if (MarkerAt(frame) is null) return;
+        _editor.Perform(doc => doc.Scene.Markers.RemoveAll(m => m.Frame == frame));
     }
 
     /// <summary>
@@ -2007,6 +2167,8 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(MaxScrubFrame));
         OnPropertyChanged(nameof(Fps));
         NotifyActiveLayerCompositing();
+        MarkersView = Scene.Markers.ToList();
+        RefreshCelSelectionHighlights();
         PublishSnapshot();
         RefreshThumbnails();
     }

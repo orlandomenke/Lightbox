@@ -1,7 +1,9 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Serialization;
@@ -37,6 +39,12 @@ public partial class MainWindow : Window
         // variant flyout with tunneling handlers.
         SelectToolButton.AddHandler(PointerPressedEvent, OnSelectToolPressed, RoutingStrategies.Tunnel);
         SelectToolButton.AddHandler(PointerReleasedEvent, OnSelectToolReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
+
+        // Timeline cel interactions that need modifiers or drag (buttons eat
+        // plain pointer events): Shift+click range select, drag-a-cel drop.
+        AddHandler(PointerPressedEvent, OnTimelinePointerPressed, RoutingStrategies.Tunnel);
+        AddHandler(DragDrop.DragOverEvent, OnCelDragOver);
+        AddHandler(DragDrop.DropEvent, OnCelDrop);
 
         // Dock geometry (side, collapse, min sizes) is a view concern the VM
         // only expresses as booleans.
@@ -257,6 +265,165 @@ public partial class MainWindow : Window
         if (CellOf(sender) is { } cell) _vm.PasteCel(cell);
     }
 
+    // ---- multi-cel range selection (Shift+click) --------------------------------
+
+    private static FrameCell? CellUnder(object? source) =>
+        (source as Control)?.FindAncestorOfType<Button>(includeSelf: true)?.DataContext as FrameCell;
+
+    private void OnTimelinePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (CellUnder(e.Source) is not { } cell) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            _vm.RangeSelectTo(cell);
+            e.Handled = true; // don't also fire the cell's click (which clears the range)
+            return;
+        }
+        // Remember the press so a later move can turn it into a cel drag.
+        if (cell.IsKeyed && !cell.IsVirtual)
+        {
+            _celDragCandidate = cell;
+            _celDragPress = e;
+            _celDragStart = e.GetPosition(this);
+        }
+    }
+
+    // ---- drag a cel along its row ------------------------------------------------
+
+    private static readonly DataFormat<FrameCell> CelDragFormat =
+        DataFormat.CreateInProcessFormat<FrameCell>("lightbox-cel");
+
+    private FrameCell? _celDragCandidate;
+    private PointerPressedEventArgs? _celDragPress;
+    private Avalonia.Point _celDragStart;
+    private bool _celDragging;
+
+    private async void OnCellPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_celDragging || _celDragCandidate is not { } cell || _celDragPress is not { } press) return;
+        if (sender is not Button button || !ReferenceEquals(button.DataContext, cell)) return;
+        var point = e.GetCurrentPoint(this);
+        if (!point.Properties.IsLeftButtonPressed)
+        {
+            _celDragCandidate = null;
+            _celDragPress = null;
+            return;
+        }
+        var delta = point.Position - _celDragStart;
+        if (Math.Abs(delta.X) < 6 && Math.Abs(delta.Y) < 6) return;
+
+        _celDragging = true;
+        try
+        {
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(CelDragFormat, cell));
+            await DragDrop.DoDragDropAsync(press, transfer, DragDropEffects.Move | DragDropEffects.Copy);
+        }
+        finally
+        {
+            _celDragging = false;
+            _celDragCandidate = null;
+            _celDragPress = null;
+        }
+    }
+
+    private static FrameCell? DraggedCelOf(DragEventArgs e) =>
+        e.DataTransfer is { } transfer ? transfer.TryGetValue(CelDragFormat) : null;
+
+    private void OnCelDragOver(object? sender, DragEventArgs e)
+    {
+        if (DraggedCelOf(e) is not { } source || CellUnder(e.Source) is not { } target
+            || target.LayerIndex != source.LayerIndex)
+        {
+            e.DragEffects = DragDropEffects.None;
+            return;
+        }
+        e.DragEffects = e.KeyModifiers.HasFlag(KeyModifiers.Control)
+            ? DragDropEffects.Copy
+            : DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private void OnCelDrop(object? sender, DragEventArgs e)
+    {
+        if (DraggedCelOf(e) is not { } source || CellUnder(e.Source) is not { } target) return;
+        _vm.MoveCel(source, target, copy: e.KeyModifiers.HasFlag(KeyModifiers.Control));
+        e.Handled = true;
+    }
+
+    // ---- frame markers -------------------------------------------------------------
+
+    private async void OnEditMarker(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is not { } cell) return;
+        var existing = _vm.MarkerAt(cell.Index);
+
+        var dialog = new Window
+        {
+            Title = $"Marker on frame {cell.Index + 1}",
+            Width = 340,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        var labelBox = new TextBox { Text = existing?.Label ?? "", PlaceholderText = "Label (e.g. “walk starts”)" };
+        var chosenColor = existing?.Color ?? "#e0a030";
+        var swatches = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 6 };
+        foreach (var hex in new[] { "#e0a030", "#e05555", "#4caf50", "#4a6ea9", "#b05ac9", "#20b2aa" })
+        {
+            // Plain buttons with a white ring on the chosen one — a checked
+            // ToggleButton's theme background would hide the swatch color.
+            var swatch = new Button
+            {
+                Width = 30,
+                Height = 24,
+                Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse(hex)),
+                BorderThickness = new Avalonia.Thickness(2),
+                BorderBrush = hex == chosenColor ? Avalonia.Media.Brushes.White : Avalonia.Media.Brushes.Transparent,
+            };
+            swatch.Click += (_, _) =>
+            {
+                chosenColor = hex;
+                foreach (var other in swatches.Children.OfType<Button>())
+                {
+                    other.BorderBrush = Avalonia.Media.Brushes.Transparent;
+                }
+                swatch.BorderBrush = Avalonia.Media.Brushes.White;
+            };
+            swatches.Children.Add(swatch);
+        }
+        var ok = new Button { Content = "Save marker", MinWidth = 110, IsDefault = true };
+        var cancel = new Button { Content = "Cancel", MinWidth = 80, IsCancel = true };
+        var save = false;
+        ok.Click += (_, _) => { save = true; dialog.Close(); };
+        cancel.Click += (_, _) => dialog.Close();
+        dialog.Content = new StackPanel
+        {
+            Margin = new Avalonia.Thickness(14),
+            Spacing = 10,
+            Children =
+            {
+                labelBox,
+                swatches,
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    Spacing = 8,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    Children = { ok, cancel },
+                },
+            },
+        };
+        await dialog.ShowDialog(this);
+        if (save) _vm.SetMarkerAt(cell.Index, labelBox.Text ?? "", chosenColor);
+    }
+
+    private void OnRemoveMarker(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.RemoveMarkerAt(cell.Index);
+    }
+
     // ---- character sheets -----------------------------------------------------
 
     private void OnAddReferenceSheet(object? sender, RoutedEventArgs e) => _vm.AddReferenceSheet();
@@ -453,6 +620,15 @@ public partial class MainWindow : Window
                 break;
             case { Key: Key.Escape }:
                 _vm.CancelPolygon();
+                break;
+            // Flipping: hop between key drawings without leaving the pen.
+            case { Key: Key.D1 or Key.NumPad1, KeyModifiers: KeyModifiers.None }:
+                _vm.PreviousKeyframeCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case { Key: Key.D2 or Key.NumPad2, KeyModifiers: KeyModifiers.None }:
+                _vm.NextKeyframeCommand.Execute(null);
+                e.Handled = true;
                 break;
             case { Key: Key.M, KeyModifiers: KeyModifiers.None }:
                 Canvas.ToggleMirror();

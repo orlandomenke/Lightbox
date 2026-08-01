@@ -1,5 +1,15 @@
 namespace Lightbox.Core.Documents;
 
+/// <summary>A colored tag on the timeline ruler ("walk starts", "blink", …).</summary>
+public sealed class FrameMarker
+{
+    public int Frame { get; set; }
+
+    public string Label { get; set; } = "";
+
+    public string Color { get; set; } = "#e0a030";
+}
+
 public sealed class Scene
 {
     public string Id { get; set; } = Ids.NewId("scene");
@@ -24,4 +34,7 @@ public sealed class Scene
     public int Ppi { get; set; } = 72;
 
     public List<Layer> Layers { get; set; } = [];
+
+    /// <summary>Colored tags on the timeline ruler, at most one per frame.</summary>
+    public List<FrameMarker> Markers { get; set; } = [];
 }

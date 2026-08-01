@@ -58,11 +58,21 @@ public sealed class BrushSettings
     /// <summary>0..1: position-seeded dab offset, as a fraction of dab size.</summary>
     public double Scatter { get; set; }
 
-    /// <summary>Pressure→size response curve exponent (1 = linear).</summary>
+    /// <summary>
+    /// Master pen-pressure switch for this brush. Off = the tablet's pressure
+    /// is ignored entirely (every dab acts as full pressure), regardless of
+    /// the per-setting response curves below.
+    /// </summary>
+    public bool PressureEnabled { get; set; } = true;
+
+    /// <summary>Pressure→size response curve exponent (1 = linear, 0 = size ignores pressure).</summary>
     public double PressureSizeGamma { get; set; } = 1;
 
-    /// <summary>Pressure→flow response exponent; 0 = pressure does not affect flow (the default).</summary>
+    /// <summary>Pressure→flow (transparency) response exponent; 0 = pressure does not affect flow (the default).</summary>
     public double PressureFlowGamma { get; set; }
+
+    /// <summary>Pressure→hardness response exponent; 0 = off. Light pressure = softer dab edge.</summary>
+    public double PressureHardnessGamma { get; set; }
 
     public BrushSettings Clone() => new()
     {
@@ -78,7 +88,9 @@ public sealed class BrushSettings
         TipRotationDeg = TipRotationDeg,
         RotationJitter = RotationJitter,
         Scatter = Scatter,
+        PressureEnabled = PressureEnabled,
         PressureSizeGamma = PressureSizeGamma,
         PressureFlowGamma = PressureFlowGamma,
+        PressureHardnessGamma = PressureHardnessGamma,
     };
 }

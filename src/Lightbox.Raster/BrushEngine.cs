@@ -209,7 +209,7 @@ public static class BrushEngine
         }
 
         using var round = new SKPaint { IsAntialias = true };
-        var hardness = (float)Math.Clamp(brush.Hardness, 0, 1);
+        var hardness = HardnessAt(brush, pressure);
         if (hardness >= 0.999f)
         {
             round.Color = dabColor;
@@ -385,6 +385,7 @@ public static class BrushEngine
 
     private static double RadiusAt(BrushSettings brush, double pressure)
     {
+        if (!brush.PressureEnabled) pressure = 1;
         var gamma = brush.PressureSizeGamma <= 0 ? 0.0 : brush.PressureSizeGamma;
         var factor = gamma <= 0 ? 1.0 : Math.Pow(pressure, gamma);
         return brush.Size * factor / 2;
@@ -392,9 +393,21 @@ public static class BrushEngine
 
     private static double DabAlpha(BrushSettings brush, double pressure)
     {
+        if (!brush.PressureEnabled) pressure = 1;
         var flow = Math.Clamp(brush.Flow, 0, 1);
         if (brush.PressureFlowGamma > 0) flow *= Math.Pow(pressure, brush.PressureFlowGamma);
         return Math.Clamp(flow, 0, 1);
+    }
+
+    /// <summary>Dab-edge hardness after the pressure response (light pressure = softer edge).</summary>
+    private static float HardnessAt(BrushSettings brush, double pressure)
+    {
+        var hardness = Math.Clamp(brush.Hardness, 0, 1);
+        if (brush.PressureEnabled && brush.PressureHardnessGamma > 0)
+        {
+            hardness *= Math.Pow(pressure, brush.PressureHardnessGamma);
+        }
+        return (float)Math.Clamp(hardness, 0, 1);
     }
 
     /// <summary>Deterministic 0..1 hash of a dab position (never an RNG).</summary>

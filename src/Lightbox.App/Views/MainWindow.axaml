@@ -40,6 +40,9 @@
     <Style Selector="Button.cel.current">
       <Setter Property="Background" Value="#4a6ea9" />
     </Style>
+    <Style Selector="Button.cel.sel">
+      <Setter Property="Background" Value="#3f5a86" />
+    </Style>
     <Style Selector="GridSplitter">
       <Setter Property="Background" Value="#141414" />
     </Style>
@@ -175,20 +178,45 @@
                                  Increment="0.05" FormatString="0.00" Width="94" />
                   <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                 </DockPanel>
-                <DockPanel>
-                  <TextBlock Text="Press→size" Width="90" VerticalAlignment="Center" FontSize="12"
-                             ToolTip.Tip="Pressure→size response (0 = off, 1 = linear)" />
-                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4"
-                                 Increment="0.1" FormatString="0.0" Width="94" />
-                  <Slider Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4" Margin="4,0" />
-                </DockPanel>
-                <DockPanel>
-                  <TextBlock Text="Press→flow" Width="90" VerticalAlignment="Center" FontSize="12"
-                             ToolTip.Tip="Pressure→flow response (0 = off, 1 = linear)" />
-                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4"
-                                 Increment="0.1" FormatString="0.0" Width="94" />
-                  <Slider Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4" Margin="4,0" />
-                </DockPanel>
+                <Separator />
+                <TextBlock Text="Pen pressure" FontWeight="SemiBold" FontSize="12" />
+                <CheckBox Content="Use pen pressure" IsChecked="{Binding BrushPressureEnabled}"
+                          ToolTip.Tip="Master switch for this brush — off ignores the tablet's pressure entirely" />
+                <StackPanel Spacing="6" IsEnabled="{Binding BrushPressureEnabled}">
+                  <DockPanel>
+                    <CheckBox Content="Size" Width="110" FontSize="12"
+                              IsChecked="{Binding BrushPressureAffectsSize}"
+                              ToolTip.Tip="Pressure controls line thickness" />
+                    <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4"
+                                   Increment="0.1" FormatString="0.0" Width="94"
+                                   IsEnabled="{Binding BrushPressureAffectsSize}"
+                                   ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
+                    <Slider Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4" Margin="4,0"
+                            IsEnabled="{Binding BrushPressureAffectsSize}" />
+                  </DockPanel>
+                  <DockPanel>
+                    <CheckBox Content="Transparency" Width="110" FontSize="12"
+                              IsChecked="{Binding BrushPressureAffectsFlow}"
+                              ToolTip.Tip="Pressure controls paint amount (flow) — light pressure paints lighter" />
+                    <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4"
+                                   Increment="0.1" FormatString="0.0" Width="94"
+                                   IsEnabled="{Binding BrushPressureAffectsFlow}"
+                                   ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
+                    <Slider Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4" Margin="4,0"
+                            IsEnabled="{Binding BrushPressureAffectsFlow}" />
+                  </DockPanel>
+                  <DockPanel>
+                    <CheckBox Content="Hardness" Width="110" FontSize="12"
+                              IsChecked="{Binding BrushPressureAffectsHardness}"
+                              ToolTip.Tip="Light pressure gives a softer dab edge" />
+                    <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureHardnessGamma}" Minimum="0" Maximum="4"
+                                   Increment="0.1" FormatString="0.0" Width="94"
+                                   IsEnabled="{Binding BrushPressureAffectsHardness}"
+                                   ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
+                    <Slider Value="{Binding BrushPressureHardnessGamma}" Minimum="0" Maximum="4" Margin="4,0"
+                            IsEnabled="{Binding BrushPressureAffectsHardness}" />
+                  </DockPanel>
+                </StackPanel>
                 <Separator />
                 <DockPanel>
                   <Button DockPanel.Dock="Right" Content="Save preset" Click="OnSavePresetClicked" />
@@ -822,7 +850,8 @@
                                     MaxFrame="{Binding MaxScrubFrame}"
                                     CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}"
                                     RangeStart="{Binding PlaybackStartFrame}"
-                                    RangeEnd="{Binding PlaybackEndFrame}" />
+                                    RangeEnd="{Binding PlaybackEndFrame}"
+                                    Markers="{Binding MarkersView}" />
             <ItemsControl ItemsSource="{Binding LayerRows}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -864,6 +893,9 @@
                                     Classes.tween="{Binding IsInbetween}"
                                     Classes.virtualCell="{Binding IsVirtual}"
                                     Classes.dim="{Binding OutOfRange}"
+                                    Classes.sel="{Binding IsSelected}"
+                                    DragDrop.AllowDrop="True"
+                                    PointerMoved="OnCellPointerMoved"
                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectFrameCommand}"
                                     CommandParameter="{Binding}"
                                     Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
@@ -884,6 +916,9 @@
                                   <MenuItem Header="Copy cel" Click="OnCopyCel" />
                                   <MenuItem Header="Cut cel" Click="OnCutCel" />
                                   <MenuItem Header="Paste cel" Click="OnPasteCel" />
+                                  <Separator />
+                                  <MenuItem Header="Add/edit marker…" Click="OnEditMarker" />
+                                  <MenuItem Header="Remove marker" Click="OnRemoveMarker" />
                                   <Separator />
                                   <MenuItem Header="Set start frame" Click="OnSetStartFrame" />
                                   <MenuItem Header="Set end frame" Click="OnSetEndFrame" />
