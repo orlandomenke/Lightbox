@@ -24,10 +24,10 @@ public static class SequenceExporter
             var passes = new List<RenderPass>();
             foreach (var layer in scene.Layers)
             {
-                if (!layer.Visible) continue;
+                if (!scene.IsLayerVisible(layer)) continue;
                 var frame = ExposureSheet.ExposedFrame(layer, i);
                 if (frame is null) continue;
-                passes.Add(new RenderPass(cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity));
+                passes.Add(new RenderPass(cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
             }
 
             using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));

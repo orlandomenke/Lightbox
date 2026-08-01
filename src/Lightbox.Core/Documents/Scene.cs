@@ -37,4 +37,15 @@ public sealed class Scene
 
     /// <summary>Colored tags on the timeline ruler, at most one per frame.</summary>
     public List<FrameMarker> Markers { get; set; } = [];
+
+    /// <summary>Layer folders (see <see cref="LayerGroup"/>).</summary>
+    public List<LayerGroup> LayerGroups { get; set; } = [];
+
+    /// <summary>A layer's folder, or null.</summary>
+    public LayerGroup? GroupOf(Layer layer) =>
+        layer.GroupId is null ? null : LayerGroups.FirstOrDefault(g => g.Id == layer.GroupId);
+
+    /// <summary>Layer visibility including its folder's (what compositing must use).</summary>
+    public bool IsLayerVisible(Layer layer) =>
+        layer.Visible && GroupOf(layer) is not { Visible: false };
 }

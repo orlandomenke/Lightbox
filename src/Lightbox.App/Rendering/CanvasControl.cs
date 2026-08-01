@@ -50,6 +50,14 @@ public sealed class CanvasControl : Control
     // The smoothed brush anchor while a live-smoothing stroke is active (doc space).
     private (double X, double Y)? _lazyAnchor;
 
+    // Shift+drag brush sizing (paint modes only — Shift modifies selections elsewhere).
+    private bool _resizingBrush;
+    private Avalonia.Point _resizeStart;
+    private double _resizeStartSize;
+
+    /// <summary>Shift+drag on the canvas asks for a new brush size (document pixels).</summary>
+    public event Action<double>? BrushResizeRequested;
+
     /// <summary>Update (or clear) the pulled-string anchor — where paint actually lands.</summary>
     public void SetLazyAnchor(double? x, double? y)
     {
@@ -118,6 +126,9 @@ public sealed class CanvasControl : Control
     {
         // The brush cursor drawn by the render op replaces the OS cursor.
         Cursor = new Cursor(StandardCursorType.None);
+        // Take keyboard focus on click so arrow-key nudging isn't swallowed
+        // by whatever control (menu, slider) held focus before.
+        Focusable = true;
     }
 
     /// <summary>Begin a stroke at a document-space position (pressure 0..1).</summary>
@@ -143,6 +154,7 @@ public sealed class CanvasControl : Control
         SelectRect,
         SelectEllipse,
         SelectWand,
+        Pick,
     }
 
     public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
@@ -159,6 +171,9 @@ public sealed class CanvasControl : Control
 
     /// <summary>Magic-wand click at a document position (Shift=add, Alt=subtract).</summary>
     public event Action<double, double, bool, bool>? WandClicked;
+
+    /// <summary>Eyedropper click at a document position.</summary>
+    public event Action<double, double>? PickClicked;
 
     /// <summary>A closed freehand/rect/ellipse selection shape (doc space; Shift=add, Alt=subtract).</summary>
     public event Action<List<Core.Documents.StrokePoint>, bool, bool>? SelectionShapeDrawn;
@@ -398,6 +413,7 @@ public sealed class CanvasControl : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        Focus();
         try
         {
             var pp = e.GetCurrentPoint(this);
@@ -419,6 +435,18 @@ public sealed class CanvasControl : Control
             if (kind != PointerUpdateKind.LeftButtonPressed && !pp.Properties.IsLeftButtonPressed) return;
 
             var (x, y) = ViewToDoc(pp.Position);
+
+            if (ToolMode == CanvasToolMode.Paint && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                // Shift+drag resizes the brush around the anchored cursor.
+                _resizingBrush = true;
+                _resizeStart = pp.Position;
+                _resizeStartSize = BrushCursorSize;
+                e.Pointer.Capture(this);
+                e.Handled = true;
+                return;
+            }
+
             switch (ToolMode)
             {
                 case CanvasToolMode.Fill:
@@ -429,6 +457,10 @@ public sealed class CanvasControl : Control
                     WandClicked?.Invoke(x, y,
                         e.KeyModifiers.HasFlag(KeyModifiers.Shift),
                         e.KeyModifiers.HasFlag(KeyModifiers.Alt));
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.Pick:
+                    PickClicked?.Invoke(x, y);
                     e.Handled = true;
                     return;
                 case CanvasToolMode.SelectPolygon:
@@ -491,6 +523,19 @@ public sealed class CanvasControl : Control
         base.OnPointerMoved(e);
         try
         {
+            if (_resizingBrush)
+            {
+                // Horizontal drag = size, converted to document pixels; the
+                // cursor stays anchored so the growing ring reads clearly.
+                _hoverPoint = _resizeStart;
+                var deltaView = e.GetPosition(this).X - _resizeStart.X;
+                var deltaDoc = deltaView / Math.Max(0.01, FitScale() * _zoom);
+                BrushResizeRequested?.Invoke(Math.Clamp(_resizeStartSize + deltaDoc, 1, 500));
+                InvalidateVisual();
+                e.Handled = true;
+                return;
+            }
+
             _hoverPoint = e.GetPosition(this);
             // The brush cursor must follow the pointer no matter what state
             // we're in — repaints coalesce, so this is cheap.
@@ -545,6 +590,13 @@ public sealed class CanvasControl : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_resizingBrush)
+        {
+            _resizingBrush = false;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
         if (_panning)
         {
             _panning = false;

@@ -7,6 +7,9 @@ public enum ToolId
     Eraser,
     Fill,
     Select,
+
+    /// <summary>Eyedropper: click the canvas to pick the color under the cursor.</summary>
+    Picker,
 }
 
 /// <summary>Variants of the selection tool (press-and-hold or repeat S to switch).</summary>

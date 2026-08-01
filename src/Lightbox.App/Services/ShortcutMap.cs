@@ -3,8 +3,17 @@ using Avalonia.Input;
 
 namespace Lightbox.App.Services;
 
+/// <summary>Where a shortcut is active: everywhere, or only while the pointer is over that area.</summary>
+public enum ShortcutContext
+{
+    Global,
+    Canvas,
+    Timeline,
+    LayersDocker,
+}
+
 /// <summary>One rebindable command: what it's called, where it lives, what triggers it.</summary>
-public sealed class ShortcutDefinition(string id, string name, string category, KeyGesture? @default)
+public sealed class ShortcutDefinition(string id, string name, string category, KeyGesture? @default, ShortcutContext context = ShortcutContext.Global)
 {
     public string Id { get; } = id;
 
@@ -12,6 +21,9 @@ public sealed class ShortcutDefinition(string id, string name, string category, 
 
     /// <summary>Grouping in the editor: Tools, Canvas, Timeline, Dockers.</summary>
     public string Category { get; } = category;
+
+    /// <summary>Where this binding fires — the same key can mean different things per area.</summary>
+    public ShortcutContext Context { get; } = context;
 
     public KeyGesture? Default { get; } = @default;
 
@@ -58,29 +70,61 @@ public sealed class ShortcutMap
             new("canvas.resetView", "Reset view", "Canvas", G(Key.D0)),
 
             new("timeline.playPause", "Play / pause", "Timeline", G(Key.Space)),
-            new("timeline.prevFrame", "Previous frame", "Timeline", G(Key.Left)),
-            new("timeline.nextFrame", "Next frame", "Timeline", G(Key.Right)),
+            new("timeline.prevFrame", "Previous frame (scrub)", "Timeline", G(Key.Left), ShortcutContext.Timeline),
+            new("timeline.nextFrame", "Next frame (scrub)", "Timeline", G(Key.Right), ShortcutContext.Timeline),
             new("timeline.prevKey", "Flip to previous key", "Timeline", G(Key.D1)),
             new("timeline.nextKey", "Flip to next key", "Timeline", G(Key.D2)),
             new("timeline.copyCel", "Copy cel", "Timeline", G(Key.C, KeyModifiers.Control)),
             new("timeline.cutCel", "Cut cel", "Timeline", G(Key.X, KeyModifiers.Control)),
             new("timeline.pasteCel", "Paste cel", "Timeline", G(Key.V, KeyModifiers.Control)),
 
-            new("docker.deleteLayer", "Delete layer (pointer in Layers docker)", "Dockers", G(Key.Delete)),
-            new("docker.clearLayer", "Blank layer content (pointer in Layers docker)", "Dockers", G(Key.Back)),
+            new("docker.deleteLayer", "Delete layer", "Dockers", G(Key.Delete), ShortcutContext.LayersDocker),
+            new("docker.clearLayer", "Blank layer content", "Dockers", G(Key.Back), ShortcutContext.LayersDocker),
+
+            // Context twins: the same key does area-appropriate things.
+            new("canvas.pickColor", "Color picker tool (canvas)", "Tools", G(Key.I), ShortcutContext.Canvas),
+            new("timeline.insertKey", "Insert keyframe at playhead (timeline)", "Timeline", G(Key.I), ShortcutContext.Timeline),
+            new("canvas.nudgeLeft", "Nudge selection left", "Canvas", G(Key.Left), ShortcutContext.Canvas),
+            new("canvas.nudgeRight", "Nudge selection right", "Canvas", G(Key.Right), ShortcutContext.Canvas),
+            new("canvas.nudgeUp", "Nudge selection up", "Canvas", G(Key.Up), ShortcutContext.Canvas),
+            new("canvas.nudgeDown", "Nudge selection down", "Canvas", G(Key.Down), ShortcutContext.Canvas),
+            new("docker.layerAbove", "Select the layer above", "Dockers", G(Key.Up), ShortcutContext.LayersDocker),
+            new("docker.layerBelow", "Select the layer below", "Dockers", G(Key.Down), ShortcutContext.LayersDocker),
         ];
     }
 
-    /// <summary>The command a key event triggers, or null.</summary>
-    public string? IdFor(KeyEventArgs e) =>
-        _definitions.FirstOrDefault(d => d.Current is { } g && g.Key == e.Key && g.KeyModifiers == e.KeyModifiers)?.Id;
+    /// <summary>
+    /// The command a key event triggers in the given context, or null. A
+    /// context-specific binding beats a global one for the same keys.
+    /// </summary>
+    public string? IdFor(KeyEventArgs e, ShortcutContext context = ShortcutContext.Global)
+    {
+        ShortcutDefinition? global = null;
+        foreach (var d in _definitions)
+        {
+            if (d.Current is not { } g || g.Key != e.Key || g.KeyModifiers != e.KeyModifiers) continue;
+            if (d.Context == context) return d.Id;
+            if (d.Context == ShortcutContext.Global) global ??= d;
+        }
+        return global?.Id;
+    }
 
     public ShortcutDefinition? Find(string id) => _definitions.FirstOrDefault(d => d.Id == id);
 
-    /// <summary>The OTHER command already bound to this gesture, if any.</summary>
-    public ShortcutDefinition? ConflictWith(string id, KeyGesture gesture) =>
-        _definitions.FirstOrDefault(d =>
-            d.Id != id && d.Current is { } g && g.Key == gesture.Key && g.KeyModifiers == gesture.KeyModifiers);
+    /// <summary>
+    /// The OTHER command already bound to this gesture whose context overlaps
+    /// (same area, or either is global) — bindings in disjoint areas coexist.
+    /// </summary>
+    public ShortcutDefinition? ConflictWith(string id, KeyGesture gesture)
+    {
+        if (Find(id) is not { } self) return null;
+        return _definitions.FirstOrDefault(d =>
+            d.Id != id
+            && d.Current is { } g && g.Key == gesture.Key && g.KeyModifiers == gesture.KeyModifiers
+            && (d.Context == self.Context
+                || d.Context == ShortcutContext.Global
+                || self.Context == ShortcutContext.Global));
+    }
 
     /// <summary>Bind a gesture (stealing it from a conflicting command must be the CALLER's explicit choice).</summary>
     public void Assign(string id, KeyGesture? gesture, bool unbindConflicts = false)

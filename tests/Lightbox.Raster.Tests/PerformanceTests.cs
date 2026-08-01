@@ -92,6 +92,19 @@ public class PerformanceTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void LivePreview_LargeBrushSegment_StaysInteractive()
+    {
+        // A 180 px effect brush: the bounded scratch is big, but one event
+        // must still be far under a frame budget.
+        using var layer = new SKBitmap(W, H, SKColorType.Rgba8888, SKAlphaType.Premul);
+        layer.Erase(SKColors.Transparent);
+        var brush = Watercolor;
+        brush.Size = 180;
+        var median = MedianMs(30, () => FrameRasterizer.AppendDraft(layer, Segment(brush, 400, 270)));
+        Assert.True(median < 25.0, $"large-brush segment took {median:0.00} ms (budget 25 ms)");
+    }
+
+    [Fact]
     public void FloodFill_FullCanvasRegion_MeetsBudget()
     {
         using var bmp = new SKBitmap(W, H, SKColorType.Rgba8888, SKAlphaType.Premul);

@@ -35,10 +35,14 @@ public partial class MainWindow : Window
         _vm.SelectionChanged += () => Canvas.SetSelectionOverlay(_vm.SelectionContours, _vm.PolygonInProgress);
         _vm.LazyBrushMoved += (x, y) => Canvas.SetLazyAnchor(x, y);
         _vm.LazyBrushCleared += () => Canvas.SetLazyAnchor(null, null);
+        Canvas.BrushResizeRequested += size => _vm.BrushSize = size;
         SyncCanvasToolMode();
 
         LayersDocker.PointerEntered += (_, _) => _pointerInLayersDocker = true;
         LayersDocker.PointerExited += (_, _) => _pointerInLayersDocker = false;
+        TimelineDocker.PointerEntered += (_, _) => _pointerInTimeline = true;
+        TimelineDocker.PointerExited += (_, _) => _pointerInTimeline = false;
+        Canvas.PickClicked += _vm.PickColorAt;
 
         // The toggle button eats pointer events, so hook the hold-to-open
         // variant flyout with tunneling handlers.
@@ -180,15 +184,24 @@ public partial class MainWindow : Window
         }
     }
 
-    // Delete/Backspace act on the active layer only while the pointer is
-    // inside the Layers docker — that's the "in the docker" context.
+    // Shortcut contexts follow the pointer: the same key can mean different
+    // things over the canvas, the timeline, or the Layers docker.
     private bool _pointerInLayersDocker;
+    private bool _pointerInTimeline;
+
+    private Services.ShortcutContext CurrentShortcutContext() =>
+        _pointerInLayersDocker ? Services.ShortcutContext.LayersDocker
+        : _pointerInTimeline ? Services.ShortcutContext.Timeline
+        : Services.ShortcutContext.Canvas;
 
     /// <summary>Clicking anywhere on a layer-docker row makes that layer active.</summary>
     private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is LayerRow row)
-            _vm.ActivateLayerCommand.Execute(row);
+        if ((sender as Control)?.DataContext is not LayerRow row) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        // Pull keyboard focus off menus/sliders so the arrow-key layer walk
+        // (and Delete/Backspace) reaches the window's shortcut handler.
+        (sender as Control)?.Focus();
     }
 
     /// <summary>
@@ -229,6 +242,128 @@ public partial class MainWindow : Window
     {
         // The LostFocus binding has already committed the text by now.
         if ((sender as Control)?.DataContext is LayerRow row) row.IsRenaming = false;
+    }
+
+    // ---- layer folder rename / collapse ---------------------------------------
+
+    private void OnGroupCollapseClicked(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is GroupRow row) row.Collapsed = !row.Collapsed;
+    }
+
+    private void OnGroupNameDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is not GroupRow row) return;
+        row.IsRenaming = true;
+        if ((sender as Control)?.Parent is Panel panel)
+        {
+            var box = panel.Children.OfType<TextBox>().FirstOrDefault();
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                box?.Focus();
+                box?.SelectAll();
+            });
+        }
+        e.Handled = true;
+    }
+
+    private void OnGroupNameLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is GroupRow row) row.IsRenaming = false;
+    }
+
+    private void OnGroupNameKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox box || box.DataContext is not GroupRow row) return;
+        switch (e.Key)
+        {
+            case Key.Enter:
+                row.Name = box.Text ?? "";
+                row.IsRenaming = false;
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                box.Text = row.Name;
+                row.IsRenaming = false;
+                e.Handled = true;
+                break;
+        }
+    }
+
+    // ---- layer docker context menus (menu items inherit the row's DataContext) ----
+
+    private static LayerRow? LayerRowOf(object? sender) =>
+        (sender as Control)?.DataContext as LayerRow;
+
+    private static GroupRow? GroupRowOf(object? sender) =>
+        (sender as Control)?.DataContext as GroupRow;
+
+    private void OnLayerMenuRename(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) row.IsRenaming = true;
+    }
+
+    private void OnLayerMenuMoveUp(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.MoveLayerUpCommand.Execute(row);
+    }
+
+    private void OnLayerMenuMoveDown(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.MoveLayerDownCommand.Execute(row);
+    }
+
+    private void OnLayerMenuNewFolder(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is not { } row) return;
+        _vm.ActivateLayerCommand.Execute(row);
+        _vm.CreateLayerFolderCommand.Execute(null);
+    }
+
+    private void OnLayerMenuRemoveFromFolder(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.RemoveLayerFromGroupCommand.Execute(row);
+    }
+
+    private void OnLayerMenuSelectAlpha(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.SelectLayerAlpha(row, add: false, subtract: false);
+    }
+
+    private void OnLayerMenuBlank(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.ClearLayerContent(row.Layer);
+    }
+
+    private void OnLayerMenuDelete(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.DeleteLayer(row.Layer);
+    }
+
+    private void OnGroupMenuRename(object? sender, RoutedEventArgs e)
+    {
+        if (GroupRowOf(sender) is { } row) row.IsRenaming = true;
+    }
+
+    private void OnGroupColorClicked(object? sender, RoutedEventArgs e)
+    {
+        if (GroupRowOf(sender) is { } row && (sender as Control)?.Tag is string hex)
+            row.Color = hex;
+    }
+
+    private void OnGroupMenuCollapse(object? sender, RoutedEventArgs e)
+    {
+        if (GroupRowOf(sender) is { } row) row.Collapsed = !row.Collapsed;
+    }
+
+    private void OnGroupMenuAddActive(object? sender, RoutedEventArgs e)
+    {
+        if (GroupRowOf(sender) is { } row) _vm.AddActiveLayerToGroupCommand.Execute(row);
+    }
+
+    private void OnGroupMenuDissolve(object? sender, RoutedEventArgs e)
+    {
+        if (GroupRowOf(sender) is { } row) _vm.DissolveGroupCommand.Execute(row);
     }
 
     private void OnLayerNameKeyDown(object? sender, KeyEventArgs e)
@@ -533,6 +668,7 @@ public partial class MainWindow : Window
         Canvas.ToolMode = _vm.ActiveTool switch
         {
             ToolId.Fill => Rendering.CanvasControl.CanvasToolMode.Fill,
+            ToolId.Picker => Rendering.CanvasControl.CanvasToolMode.Pick,
             ToolId.Select => _vm.ActiveSelectVariant switch
             {
                 SelectVariant.Polygon => Rendering.CanvasControl.CanvasToolMode.SelectPolygon,
@@ -616,8 +752,14 @@ public partial class MainWindow : Window
     {
         // Don't hijack keys while the user is typing (layer rename, color hex, AI prompt).
         if (e.Source is TextBox) return;
-        switch (_shortcuts.IdFor(e))
+        switch (_shortcuts.IdFor(e, CurrentShortcutContext()))
         {
+            case "canvas.pickColor":
+                _vm.ActiveTool = ToolId.Picker;
+                break;
+            case "timeline.insertKey":
+                _vm.InsertKeyframeAtPlayhead();
+                break;
             case "timeline.playPause":
                 _vm.TogglePlaybackCommand.Execute(null);
                 break;
@@ -666,10 +808,10 @@ public partial class MainWindow : Window
             case "select.cancel":
                 _vm.CancelPolygon();
                 return; // leave Escape unhandled so open flyouts still close
-            case "docker.deleteLayer" when _pointerInLayersDocker:
+            case "docker.deleteLayer":
                 _vm.DeleteActiveLayerCommand.Execute(null);
                 break;
-            case "docker.clearLayer" when _pointerInLayersDocker:
+            case "docker.clearLayer":
                 _vm.ClearActiveLayerCommand.Execute(null);
                 break;
             // Flipping: hop between key drawings without leaving the pen.
@@ -678,6 +820,25 @@ public partial class MainWindow : Window
                 break;
             case "timeline.nextKey":
                 _vm.NextKeyframeCommand.Execute(null);
+                break;
+            case "canvas.nudgeLeft":
+                _vm.NudgeSelection(-1, 0);
+                break;
+            case "canvas.nudgeRight":
+                _vm.NudgeSelection(1, 0);
+                break;
+            case "canvas.nudgeUp":
+                _vm.NudgeSelection(0, -1);
+                break;
+            case "canvas.nudgeDown":
+                _vm.NudgeSelection(0, 1);
+                break;
+            // Layer walking: rows show topmost first, so "above" is a higher scene index.
+            case "docker.layerAbove":
+                _vm.ActiveLayerIndex = Math.Min(_vm.Doc.Scene.Layers.Count - 1, _vm.ActiveLayerIndex + 1);
+                break;
+            case "docker.layerBelow":
+                _vm.ActiveLayerIndex = Math.Max(0, _vm.ActiveLayerIndex - 1);
                 break;
             case "canvas.mirror":
                 Canvas.ToggleMirror();

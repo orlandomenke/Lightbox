@@ -677,6 +677,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsEraserTool))]
     [NotifyPropertyChangedFor(nameof(IsFillTool))]
     [NotifyPropertyChangedFor(nameof(IsSelectTool))]
+    [NotifyPropertyChangedFor(nameof(IsPickerTool))]
     [NotifyPropertyChangedFor(nameof(IsPaintTool))]
     private ToolId _activeTool = ToolId.Brush;
 
@@ -707,8 +708,29 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool IsSelectTool => ActiveTool == ToolId.Select;
 
+    public bool IsPickerTool => ActiveTool == ToolId.Picker;
+
     /// <summary>Brush or eraser — the tools whose strokes the brush-parameter flyout edits.</summary>
     public bool IsPaintTool => ActiveTool is ToolId.Brush or ToolId.Eraser;
+
+    /// <summary>Eyedropper click: the color under the cursor (what the eye sees, incl. paper).</summary>
+    public void PickColorAt(double x, double y)
+    {
+        int px = (int)Math.Round(x), py = (int)Math.Round(y);
+        if (px < 0 || py < 0 || px >= Scene.Width || py >= Scene.Height) return;
+        using var composite = CompositeVisibleLayers();
+        var color = composite.GetPixel(px, py);
+        if (color.Alpha == 0)
+        {
+            ColorHex = Scene.TransparentBackground ? "#ffffff" : Scene.BackgroundColor;
+            return;
+        }
+        ColorHex = $"#{color.Red:x2}{color.Green:x2}{color.Blue:x2}";
+    }
+
+    /// <summary>Timeline-context shortcut: key the active layer's cel at the playhead.</summary>
+    public void InsertKeyframeAtPlayhead() =>
+        _editor.SetKeyAt(ActiveLayer.Id, CurrentFrameIndex, FrameRole.Key);
 
     public string SelectVariantGlyph => ActiveSelectVariant switch
     {
@@ -791,7 +813,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (ActiveTool != ToolId.Fill || IsPlaying) return;
         if (PaintTarget() is not { } target) return;
-        if (!ActiveLayer.Visible)
+        if (!Scene.IsLayerVisible(ActiveLayer))
         {
             AiStatus = $"Layer “{ActiveLayer.Name}” is hidden — enable its visibility to fill on it.";
             return;
@@ -885,7 +907,7 @@ public sealed partial class MainViewModel : ObservableObject
         var passes = new List<RenderPass>();
         foreach (var layer in scene.Layers)
         {
-            if (!layer.Visible) continue;
+            if (!scene.IsLayerVisible(layer)) continue;
             var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
             if (frame is null) continue;
             passes.Add(new RenderPass(
@@ -1084,6 +1106,21 @@ public sealed partial class MainViewModel : ObservableObject
         if (!HasSelection && _polygonPoints.Count == 0) return;
         _selectionContours = [];
         _polygonPoints.Clear();
+        NotifySelection();
+    }
+
+    /// <summary>Arrow keys over the canvas: shift the selection outline by whole pixels.</summary>
+    public void NudgeSelection(int dx, int dy)
+    {
+        if (!HasSelection || (dx == 0 && dy == 0)) return;
+        foreach (var contour in _selectionContours)
+        {
+            for (var i = 0; i < contour.Count; i++)
+            {
+                var p = contour[i];
+                contour[i] = p with { X = p.X + dx, Y = p.Y + dy };
+            }
+        }
         NotifySelection();
     }
 
@@ -1403,7 +1440,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (ActiveTool is not (ToolId.Brush or ToolId.Eraser)) return;
         if (IsPlaying || PaintTarget() is not { } target) return;
-        if (!ActiveLayer.Visible)
+        if (!Scene.IsLayerVisible(ActiveLayer))
         {
             AiStatus = $"Layer “{ActiveLayer.Name}” is hidden — enable its visibility to draw on it.";
             return;
@@ -1820,6 +1857,133 @@ public sealed partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private void MoveLayerDown(LayerRow row) => MoveLayer(row, -1);
+
+    // ---- layer folders ----------------------------------------------------------
+
+    /// <summary>The docker's item list: folder headers followed by their (uncollapsed) member rows.</summary>
+    public ObservableCollection<object> LayerPanelItems { get; } = [];
+
+    private void RebuildLayerPanel()
+    {
+        LayerPanelItems.Clear();
+        var emitted = new HashSet<string>();
+        foreach (var row in LayerRows) // topmost first
+        {
+            var group = Scene.GroupOf(row.Layer);
+            if (group is null)
+            {
+                LayerPanelItems.Add(row);
+                continue;
+            }
+            if (emitted.Add(group.Id)) LayerPanelItems.Add(new GroupRow(this, group));
+            if (!group.Collapsed) LayerPanelItems.Add(row);
+        }
+    }
+
+    /// <summary>New folder containing the active layer.</summary>
+    [RelayCommand]
+    private void CreateLayerFolder()
+    {
+        var layer = ActiveLayer;
+        _editor.Perform(doc =>
+        {
+            var group = new LayerGroup { Name = $"Folder {doc.Scene.LayerGroups.Count + 1}" };
+            doc.Scene.LayerGroups.Add(group);
+            layer.GroupId = group.Id;
+        });
+    }
+
+    /// <summary>Put the active layer into this folder (moved adjacent so the folder stays one block).</summary>
+    [RelayCommand]
+    private void AddActiveLayerToGroup(GroupRow header)
+    {
+        var layer = ActiveLayer;
+        if (layer.GroupId == header.Group.Id) return;
+        _editor.Perform(doc =>
+        {
+            var layers = doc.Scene.Layers;
+            layers.Remove(layer);
+            var top = -1;
+            for (var i = 0; i < layers.Count; i++)
+            {
+                if (layers[i].GroupId == header.Group.Id) top = i;
+            }
+            if (top < 0)
+            {
+                layers.Add(layer); // empty folder: just append
+            }
+            else
+            {
+                layers.Insert(top + 1, layer); // top of the folder's block
+            }
+            layer.GroupId = header.Group.Id;
+        });
+        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == layer.Id);
+    }
+
+    /// <summary>Take a layer out of its folder (placed just above the folder's block).</summary>
+    [RelayCommand]
+    private void RemoveLayerFromGroup(LayerRow row)
+    {
+        var layer = row.Layer;
+        if (layer.GroupId is null) return;
+        var groupId = layer.GroupId;
+        _editor.Perform(doc =>
+        {
+            var layers = doc.Scene.Layers;
+            layers.Remove(layer);
+            var top = -1;
+            for (var i = 0; i < layers.Count; i++)
+            {
+                if (layers[i].GroupId == groupId) top = i;
+            }
+            layers.Insert(top < 0 ? layers.Count : top + 1, layer);
+            layer.GroupId = null;
+        });
+        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == layer.Id);
+    }
+
+    /// <summary>Dissolve the folder: its layers stay, ungrouped.</summary>
+    [RelayCommand]
+    private void DissolveGroup(GroupRow header)
+    {
+        _editor.Perform(doc =>
+        {
+            foreach (var layer in doc.Scene.Layers)
+            {
+                if (layer.GroupId == header.Group.Id) layer.GroupId = null;
+            }
+            doc.Scene.LayerGroups.RemoveAll(g => g.Id == header.Group.Id);
+        });
+    }
+
+    internal void CommitGroupRename(LayerGroup group, string name)
+    {
+        var trimmed = name.Trim();
+        if (trimmed.Length == 0 || group.Name == trimmed) return;
+        _editor.Perform(_ => group.Name = trimmed);
+    }
+
+    internal void SetGroupVisible(LayerGroup group, bool visible)
+    {
+        if (group.Visible == visible) return;
+        _editor.Perform(_ => group.Visible = visible);
+    }
+
+    internal void SetGroupColor(LayerGroup group, string color)
+    {
+        if (group.Color == color) return;
+        _editor.Perform(_ => group.Color = color);
+    }
+
+    /// <summary>Collapse is a view preference: persisted, but not an undo step.</summary>
+    internal void SetGroupCollapsed(LayerGroup group, bool collapsed)
+    {
+        if (group.Collapsed == collapsed) return;
+        group.Collapsed = collapsed;
+        MarkDocumentEdited();
+        RebuildLayerPanel();
+    }
 
     private void RefreshRangeHighlights()
     {
@@ -2307,7 +2471,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (_artist is null || AiBusy || string.IsNullOrWhiteSpace(AiPrompt)) return;
         var target = PaintTarget();
         if (target is null) return;
-        if (!ActiveLayer.Visible)
+        if (!Scene.IsLayerVisible(ActiveLayer))
         {
             AiStatus = $"Layer “{ActiveLayer.Name}” is hidden — enable its visibility to draw on it.";
             return;
@@ -2368,7 +2532,7 @@ public sealed partial class MainViewModel : ObservableObject
         var passes = new List<RenderPass>();
         foreach (var layer in scene.Layers)
         {
-            if (!layer.Visible) continue;
+            if (!scene.IsLayerVisible(layer)) continue;
             var frame = ExposureSheet.ExposedFrame(layer, frameIndex);
             if (frame is null) continue;
             passes.Add(new RenderPass(_cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
@@ -2498,6 +2662,7 @@ public sealed partial class MainViewModel : ObservableObject
                 cell.IsCurrent = cell.Index == CurrentFrameIndex;
             }
         }
+        RebuildLayerPanel();
         OnPropertyChanged(nameof(FrameCells));
         RefreshRangeHighlights();
     }
@@ -2585,7 +2750,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             foreach (var layer in scene.Layers)
             {
-                if (!layer.Visible || !layer.OnionEnabled) continue;
+                if (!scene.IsLayerVisible(layer) || !layer.OnionEnabled) continue;
                 for (var d = Math.Max(1, OnionDepth); d >= 1; d--)
                 {
                     var prev = ExposureSheet.FrameAtExactIndex(layer, CurrentFrameIndex - d);
@@ -2600,7 +2765,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         foreach (var layer in scene.Layers)
         {
-            if (!layer.Visible) continue;
+            if (!scene.IsLayerVisible(layer)) continue;
             var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
             if (frame is null) continue;
 

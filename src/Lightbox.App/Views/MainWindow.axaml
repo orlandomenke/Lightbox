@@ -21,6 +21,16 @@
     <Style Selector="Border.layerRow.hiddenLayer">
       <Setter Property="Opacity" Value="0.35" />
     </Style>
+    <Style Selector="Border.groupRow">
+      <Setter Property="Background" Value="#26313e" />
+      <Setter Property="CornerRadius" Value="3" />
+    </Style>
+    <Style Selector="Border.groupRow.hiddenLayer">
+      <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <Style Selector="Border.layerRow.grouped">
+      <Setter Property="Margin" Value="14,0,0,0" />
+    </Style>
     <Style Selector="Button.cel">
       <Setter Property="Background" Value="#2a2a2a" />
     </Style>
@@ -110,8 +120,8 @@
                   ToolTip.Tip="Current color — pick colors in the Color docker" />
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Size" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="60" Width="110" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="60" Increment="1"
+            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Width="110" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="500" Increment="1"
                            FormatString="0.#" Width="100" VerticalAlignment="Center"
                            ToolTip.Tip="Brush size (type an exact value)" />
           </StackPanel>
@@ -280,8 +290,8 @@
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsEraserTool}">
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Size" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="60" Width="110" VerticalAlignment="Center" />
-            <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="60" Increment="1"
+            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Width="110" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="500" Increment="1"
                            FormatString="0.#" Width="100" VerticalAlignment="Center"
                            ToolTip.Tip="Eraser size (type an exact value)" />
           </StackPanel>
@@ -504,6 +514,14 @@
                   <TextBlock Text="Fill" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsPickerTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Picker}"
+                            ToolTip.Tip="Color picker (I on the canvas) — click to pick the color under the cursor">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="💧" FontSize="15" />
+                  <TextBlock Text="Picker" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
               <ToggleButton x:Name="SelectToolButton" Classes="tool" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Select}"
                             ToolTip.Tip="Select (S — press again to switch variant; hold for the list)">
@@ -584,6 +602,8 @@
                               ToolTip.Tip="Add a new layer of the selected kind" />
                       <Button Content="🗑" Command="{Binding DeleteActiveLayerCommand}"
                               ToolTip.Tip="Delete the active layer (Delete inside this docker; Backspace blanks its content)" />
+                      <Button Content="📁" Command="{Binding CreateLayerFolderCommand}"
+                              ToolTip.Tip="New folder containing the active layer" />
                       <ComboBox ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
                                 Width="110" ToolTip.Tip="Kind of layer the + button creates" />
                     </StackPanel>
@@ -605,17 +625,88 @@
 
               <!-- Topmost layer first: visibility, then the name (double-click to rename) -->
               <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding LayerRows}" Margin="4">
+                <ItemsControl ItemsSource="{Binding LayerPanelItems}" Margin="4">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                       <StackPanel Orientation="Vertical" Spacing="2" />
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemTemplate>
+                  <ItemsControl.DataTemplates>
+                    <DataTemplate x:DataType="vm:GroupRow">
+                      <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}" Padding="2"
+                              BorderBrush="{Binding ColorBrush}" BorderThickness="4,0,0,0" CornerRadius="3">
+                        <Border.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Rename" Click="OnGroupMenuRename" />
+                            <MenuItem Header="Folder color">
+                              <MenuItem Header="Blue" Tag="#4a6ea9" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#4a6ea9" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                              <MenuItem Header="Green" Tag="#4a9a5e" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#4a9a5e" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                              <MenuItem Header="Orange" Tag="#e0a030" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#e0a030" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                              <MenuItem Header="Red" Tag="#c25050" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#c25050" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                              <MenuItem Header="Purple" Tag="#8a5ac2" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#8a5ac2" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                              <MenuItem Header="Gray" Tag="#6a7280" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#6a7280" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                            </MenuItem>
+                            <MenuItem Header="Collapse / expand" Click="OnGroupMenuCollapse" />
+                            <Separator />
+                            <MenuItem Header="Add active layer to folder" Click="OnGroupMenuAddActive" />
+                            <MenuItem Header="Dissolve folder (keep layers)" Click="OnGroupMenuDissolve" />
+                          </ContextMenu>
+                        </Border.ContextMenu>
+                        <DockPanel>
+                          <Button DockPanel.Dock="Left" Content="{Binding CollapseGlyph}" FontSize="11" Width="24"
+                                  Padding="2" Background="Transparent" Click="OnGroupCollapseClicked"
+                                  ToolTip.Tip="Collapse / expand the folder" />
+                          <ToggleButton DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
+                                        Width="34" ToolTip.Tip="Folder visibility (gates every layer inside)" />
+                          <Button DockPanel.Dock="Right" Content="✕" FontSize="10" Padding="4,0" Background="Transparent"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DissolveGroupCommand}"
+                                  CommandParameter="{Binding}" ToolTip.Tip="Dissolve the folder (layers stay)" />
+                          <Button DockPanel.Dock="Right" Content="＋" FontSize="10" Padding="4,0" Background="Transparent"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).AddActiveLayerToGroupCommand}"
+                                  CommandParameter="{Binding}" ToolTip.Tip="Put the active layer in this folder" />
+                          <Panel Margin="4,0" MinHeight="26">
+                            <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}" FontWeight="SemiBold"
+                                       Background="Transparent" VerticalAlignment="Center"
+                                       DoubleTapped="OnGroupNameDoubleTapped" ToolTip.Tip="Double-click to rename" />
+                            <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
+                                     LostFocus="OnGroupNameLostFocus" KeyDown="OnGroupNameKeyDown" />
+                          </Panel>
+                        </DockPanel>
+                      </Border>
+                    </DataTemplate>
                     <DataTemplate x:DataType="vm:LayerRow">
-                      <Border Classes="layerRow" Classes.active="{Binding IsActive}"
-                              Classes.hiddenLayer="{Binding !Visible}" Padding="2"
+                      <Border Classes="layerRow" Classes.active="{Binding IsActive}" Classes.grouped="{Binding IsGrouped}"
+                              Classes.hiddenLayer="{Binding !Visible}" Padding="2" Focusable="True"
                               PointerPressed="OnLayerRowPressed">
+                        <Border.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Rename" Click="OnLayerMenuRename" />
+                            <Separator />
+                            <MenuItem Header="Move up" Click="OnLayerMenuMoveUp" />
+                            <MenuItem Header="Move down" Click="OnLayerMenuMoveDown" />
+                            <Separator />
+                            <MenuItem Header="New folder from layer" Click="OnLayerMenuNewFolder" />
+                            <MenuItem Header="Remove from folder" IsVisible="{Binding IsGrouped}"
+                                      Click="OnLayerMenuRemoveFromFolder" />
+                            <Separator />
+                            <MenuItem Header="Select layer contents" Click="OnLayerMenuSelectAlpha" />
+                            <MenuItem Header="Blank layer content" Click="OnLayerMenuBlank" />
+                            <MenuItem Header="Delete layer" Click="OnLayerMenuDelete" />
+                          </ContextMenu>
+                        </Border.ContextMenu>
                         <DockPanel>
                           <ToggleButton DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
                                         Width="34" ToolTip.Tip="Layer visibility" />
@@ -625,6 +716,10 @@
                                   ToolTip.Tip="Layer content — Ctrl+click to select its visible pixels (Shift adds, Alt subtracts)">
                             <Image Source="{Binding Thumb}" Stretch="Uniform" />
                           </Border>
+                          <Button DockPanel.Dock="Right" Content="⏏" FontSize="9" Padding="3,0" Background="Transparent"
+                                  IsVisible="{Binding IsGrouped}"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).RemoveLayerFromGroupCommand}"
+                                  CommandParameter="{Binding}" ToolTip.Tip="Take this layer out of its folder" />
                           <StackPanel DockPanel.Dock="Right" Orientation="Vertical" Spacing="0" VerticalAlignment="Center">
                             <Button Content="▲" FontSize="8" Padding="4,0" Background="Transparent"
                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveLayerUpCommand}"
@@ -648,7 +743,7 @@
                         </DockPanel>
                       </Border>
                     </DataTemplate>
-                  </ItemsControl.ItemTemplate>
+                  </ItemsControl.DataTemplates>
                 </ItemsControl>
               </ScrollViewer>
             </controls:Docker>
@@ -848,7 +943,7 @@
                     IsVisible="{Binding ShowTimeline}" />
 
       <!-- Timeline docker (its ✕ collapses it downward; reopen via View menu; hidden on reference tabs) -->
-      <controls:Docker Grid.Row="2" Title="Timeline" Margin="4,0,4,4"
+      <controls:Docker x:Name="TimelineDocker" Grid.Row="2" Title="Timeline" Margin="4,0,4,4"
                        IsVisible="{Binding ShowTimeline}"
                        CloseCommand="{Binding ToggleTimelineCommand}">
         <controls:Docker.TopBar>

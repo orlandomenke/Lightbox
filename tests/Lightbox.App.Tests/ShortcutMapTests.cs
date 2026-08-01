@@ -16,10 +16,13 @@ public class ShortcutMapTests
         Assert.Contains(map.Definitions, d => d.Id == "timeline.playPause" && d.Category == "Timeline");
         Assert.Contains(map.Definitions, d => d.Id == "docker.deleteLayer" && d.Category == "Dockers");
 
-        // no two defaults may collide
-        var bound = map.Definitions.Where(d => d.Current is not null)
-            .Select(d => d.Current!.ToString()).ToList();
-        Assert.Equal(bound.Count, bound.Distinct().Count());
+        // no two defaults may collide within overlapping contexts (the same
+        // gesture in disjoint areas — canvas I vs timeline I — is fine)
+        foreach (var def in map.Definitions)
+        {
+            if (def.Current is null) continue;
+            Assert.Null(map.ConflictWith(def.Id, def.Current));
+        }
     }
 
     [Fact]
