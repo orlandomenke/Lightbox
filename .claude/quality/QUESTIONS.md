@@ -93,6 +93,65 @@ Selecting a range of cels and re-exposing on 2s has two possible meanings:
 
 ---
 
+## Q6 · What a sampled smudge re-reads on reload
+
+**Blocks:** Smudge (all layers) and Blur (all layers) — everything else
+about them is plumbing.
+
+A layer's rendered bitmap is currently a function of that layer alone, which
+is what makes the frame cache simple and per-layer. A brush that samples the
+whole composite breaks that: the result depends on the layers underneath.
+
+- **(a)** Live. A sampled stroke re-samples whatever is beneath it at render
+  time, so editing a lower layer updates the smudge above it. The cache key
+  gains the backdrop's identity and invalidation cascades up the stack.
+  *(recommended: it is what "sample all layers" means, it keeps the stroke
+  record the single source of truth, and a reload always agrees with what is
+  on screen)*
+- **(b)** Baked. The sampled pixels are captured into the stroke when it is
+  committed, so the mark never changes afterwards. Simple caching, but the
+  document now carries pixel data that the record cannot regenerate — which
+  cuts against "the stroke record is the document".
+
+**Recommend (a).** It costs cache work; (b) costs an invariant.
+
+---
+
+## Q7 · How much of the Photoshop brush panel to take
+
+**Blocks:** the brush-settings expansion (see `docs/design/brush-family.md`).
+
+Tier 1 is five per-dab modulations — size jitter, angle/roundness jitter,
+direction-following angle, dual brush, flow jitter. All are seeded from dab
+position, so determinism is unaffected.
+
+- **(a)** Tier 1 only, then reassess. *(recommended: it is the set that
+  changes how a mark reads, and it is what `.abr` files most often carry
+  that we currently drop)*
+- **(b)** Tier 1 + Texture and Colour Dynamics from tier 2.
+- **(c)** Something narrower — name the two or three you actually want.
+
+**Recommend (a).**
+
+---
+
+## Q8 · Whether to rename the brush pages to match Photoshop
+
+**Blocks:** nothing — but doing it later means moving controls twice.
+
+Photoshop groups brush controls by dynamic (Shape Dynamics, Scattering,
+Texture, Dual Brush, Transfer) rather than by parameter. Our Effects page
+groups by parameter.
+
+- **(a)** Adopt Photoshop's section names inside the Effects page.
+  *(recommended: it is the point of aligning — an imported preset should be
+  recognisable)*
+- **(b)** Keep our own grouping and just add the new controls.
+
+**Recommend (a).**
+
+---
+
 ## Answered
 
 _(nothing yet — answers move here with the date and the commit that

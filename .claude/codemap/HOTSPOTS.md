@@ -37,8 +37,8 @@ file with no tests is the top of this list for a reason.
 - `src/Lightbox.App/Views/MainWindow.axaml` — heat 0.54, 21 commits (5 fixes), 0 dependents
 - `src/Lightbox.App/Rendering/CanvasControl.cs` — heat 0.45, 15 commits (4 fixes), 3 dependents
 - `src/Lightbox.Core/Documents/Frame.cs` — heat 0.28, 2 commits (0 fixes), 44 dependents
+- `src/Lightbox.Raster/BrushEngine.cs` — heat 0.23, 9 commits (1 fixes), 6 dependents
 - `src/Lightbox.Core/Documents/Stroke.cs` — heat 0.22, 2 commits (0 fixes), 34 dependents
-- `src/Lightbox.Raster/BrushEngine.cs` — heat 0.22, 8 commits (1 fixes), 6 dependents
 - `src/Lightbox.Core/Documents/BrushSettings.cs` — heat 0.21, 4 commits (1 fixes), 19 dependents
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` — heat 0.19, 6 commits (2 fixes), 3 dependents
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` — heat 0.18, 7 commits (1 fixes), 5 dependents
