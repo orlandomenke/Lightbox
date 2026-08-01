@@ -62,16 +62,22 @@ public class DocumentTabTests
         vm.EndStroke(); // tab 1 has one stroke + one undo step
 
         vm.NewDocument(new NewDocumentSettings("B", 400, 300, 12, 72, "#ffffff", false));
-        var strokesB = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
-        Assert.Empty(strokesB.Strokes); // fresh document, not the painted one
+        // The paint layer, not layer 0 — a document with a paper colour puts
+        // its locked Background layer at the bottom of the stack.
+        Assert.Empty(PaintStrokes(vm)); // fresh document, not the painted one
 
         vm.ActiveTab = vm.Tabs[0];
-        var strokesA = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
-        Assert.Single(strokesA.Strokes);
+        Assert.Single(PaintStrokes(vm));
 
         // Undo history survived the round trip away and back.
         vm.UndoCommand.Execute(null);
-        Assert.Empty(((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes);
+        Assert.Empty(PaintStrokes(vm));
+    }
+
+    private static List<Stroke> PaintStrokes(MainViewModel vm)
+    {
+        var layer = vm.Doc.Scene.Layers.First(l => !l.IsBackground);
+        return ((PaintedFrame)layer.Cels[0].Frame!).Strokes;
     }
 
     [AvaloniaFact]

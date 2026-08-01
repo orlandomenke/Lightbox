@@ -1255,6 +1255,7 @@ public sealed class CanvasControl : Control
             canvas.RotateDegrees(view.RotationDeg);
             canvas.Scale(view.Mirrored ? -view.Scale : view.Scale, view.Scale);
             canvas.Translate(-view.DocW / 2f, -view.DocH / 2f);
+            DrawTransparencyCheckerboard(canvas, view);
             using (var paint = new SKPaint { IsAntialias = true })
             {
                 canvas.DrawImage(
@@ -1409,6 +1410,42 @@ public sealed class CanvasControl : Control
         /// dark/light double ring keeps it visible on any background. New brush
         /// shapes plug in here.
         /// </summary>
+        /// <summary>
+        /// The transparency checkerboard, behind the page. Drawn here rather
+        /// than composited into the document, because it is a way of *seeing*
+        /// the artwork, not part of it — the same reason zoom and rotation
+        /// live on this side. It sits under everything, so it shows through
+        /// wherever the composite has alpha, with or without a background
+        /// layer.
+        ///
+        /// The squares are a fixed size on screen, so they stay legible as
+        /// checkerboard at any zoom instead of turning into a grey haze when
+        /// you zoom out or into giant tiles when you zoom in.
+        /// </summary>
+        private static void DrawTransparencyCheckerboard(SKCanvas canvas, ViewState view)
+        {
+            const float squareOnScreen = 8f;
+            var square = squareOnScreen / Math.Max(0.01f, view.Scale);
+            using var light = new SKPaint { Color = new SKColor(0x9a, 0x9a, 0x9a) };
+            using var dark = new SKPaint { Color = new SKColor(0x77, 0x77, 0x77) };
+
+            canvas.Save();
+            canvas.ClipRect(new SKRect(0, 0, view.DocW, view.DocH));
+            canvas.DrawRect(new SKRect(0, 0, view.DocW, view.DocH), light);
+            var columns = (int)Math.Ceiling(view.DocW / square);
+            var rows = (int)Math.Ceiling(view.DocH / square);
+            for (var row = 0; row < rows; row++)
+            {
+                for (var col = row % 2; col < columns; col += 2)
+                {
+                    canvas.DrawRect(
+                        new SKRect(col * square, row * square, (col + 1) * square, (row + 1) * square),
+                        dark);
+                }
+            }
+            canvas.Restore();
+        }
+
         private static void DrawBrushCursor(SKCanvas canvas, BrushCursor c)
         {
             using var dark = new SKPaint

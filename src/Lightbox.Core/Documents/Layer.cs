@@ -91,6 +91,15 @@ public sealed class Layer
     /// </summary>
     public bool AlphaLocked { get; set; }
 
+    /// <summary>
+    /// This layer is the document's paper. It holds the background colour as
+    /// real, editable content rather than as a scene property, so unlocking
+    /// it and painting on it works like any other layer — and erasing it
+    /// genuinely reveals transparency instead of a colour the renderer keeps
+    /// putting back.
+    /// </summary>
+    public bool IsBackground { get; set; }
+
     /// <summary>Whether this layer participates in onion-skin ghosting.</summary>
     public bool OnionEnabled { get; set; } = true;
 

@@ -264,12 +264,19 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Create a document from the File → New dialog in a new tab.</summary>
     public void NewDocument(NewDocumentSettings settings)
     {
-        var doc = DocumentFactory.CreateDoc(settings.Width, settings.Height, settings.Fps);
+        var doc = DocumentFactory.CreateDoc(
+            settings.Width, settings.Height, settings.Fps,
+            settings.TransparentBackground ? null : settings.BackgroundColor);
         doc.Scene.Name = settings.Name;
         doc.Scene.Ppi = settings.Ppi;
         doc.Scene.BackgroundColor = settings.BackgroundColor;
         doc.Scene.TransparentBackground = settings.TransparentBackground;
-        AddTab(new DocumentTab(new DocumentEditor(doc), settings.Name));
+        AddTab(new DocumentTab(new DocumentEditor(doc), settings.Name)
+        {
+            // Land on something paintable. The paper is layer 0 and locked, so
+            // selecting it would make the very first stroke bounce.
+            SavedLayerIndex = doc.Scene.Layers.FindIndex(l => !l.IsBackground) is var i && i >= 0 ? i : 0,
+        });
     }
 
     /// <summary>Open a loaded document in a new tab.</summary>

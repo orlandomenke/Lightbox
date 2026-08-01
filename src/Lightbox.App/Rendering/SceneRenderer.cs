@@ -38,9 +38,14 @@ public static class SceneRenderer
         return surface.Snapshot();
     }
 
-    /// <summary>The scene's paper color (or full transparency) as an SKColor.</summary>
+    /// <summary>
+    /// What to clear the composite to. A document with a Background layer
+    /// clears to transparent and lets that layer supply the paper, so erasing
+    /// it reveals real transparency. Documents saved before background layers
+    /// existed still clear to their scene colour, or they would open blank.
+    /// </summary>
     public static SKColor BackgroundOf(Lightbox.Core.Documents.Scene scene) =>
-        scene.TransparentBackground
+        scene.TransparentBackground || scene.Layers.Exists(l => l.IsBackground)
             ? SKColors.Transparent
             : Lightbox.Raster.BrushEngine.ParseColor(scene.BackgroundColor);
 

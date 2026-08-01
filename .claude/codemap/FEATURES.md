@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-382 tests, derived from the suite itself. Each line is a
+389 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -53,6 +53,17 @@ regression even when every test still compiles.
 - Ai Inbetween Without Second Key Asks For One — `:110`
 - Ai Draw Appends Strokes Undoable — `:120`
 - Ai Draw Empty Prompt Does Nothing — `:143`
+
+## BackgroundLayerTests
+`tests/Lightbox.App.Tests/BackgroundLayerTests.cs`
+
+- ANew Paper Document Gets ALocked Background Layer Below The Paint Layer — `:32`
+- The Paper Colour Comes Out In The Composite — `:48`
+- ATransparent Document Has No Background Layer And Stays Transparent — `:60`
+- The Background Layer Refuses Edits Until Unlocked — `:71`
+- Erasing The Unlocked Background Reveals Real Transparency — `:93`
+- ADocument Saved Before Background Layers Existed Still Opens On Its Paper — `:114`
+- The Paper Is AStroke Record Not Baked Pixels — `:130`
 
 ## BrushCursorTests
 `tests/Lightbox.App.Tests/BrushCursorTests.cs`
@@ -145,14 +156,14 @@ regression even when every test still compiles.
 ## BackgroundColorTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Scene Background Round Trips And Tints The Snapshot — `:129`
-- Transparent Background Renders Transparent Pixels — `:147`
+- Scene Background Round Trips And Tints The Snapshot — `:135`
+- Transparent Background Renders Transparent Pixels — `:153`
 
 ## ColorWheelFidelityTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Wheel Value Is Not Rewritten While Dragging — `:163`
-- Slider Channels Are Not Rewritten While Editing — `:182`
+- Wheel Value Is Not Rewritten While Dragging — `:169`
+- Slider Channels Are Not Rewritten While Editing — `:188`
 
 ## DocumentTabTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
@@ -161,9 +172,9 @@ regression even when every test still compiles.
 - New Document Adds Tab With Settings And Activates It — `:23`
 - Painting Marks The Tab Dirty Save Clears It — `:40`
 - Switching Tabs Keeps Each Document And Its Undo History — `:58`
-- Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:78`
-- Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:94`
-- Open Document Tab Uses File Name And Keeps Existing Tabs — `:113`
+- Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:84`
+- Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:100`
+- Open Document Tab Uses File Name And Keeps Existing Tabs — `:119`
 
 ## ContextShortcutTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
