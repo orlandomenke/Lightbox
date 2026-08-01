@@ -231,6 +231,49 @@ public static class BrushEngine
     /// wet edge and granulation wait for the commit, and a feathered
     /// selection clips hard. Cost tracks the segment, not the canvas.
     /// </summary>
+    /// <summary>
+    /// Live-preview building blocks for the whole-stroke scratch model: dabs
+    /// accumulate in a stroke-local scratch WITHOUT stroke opacity, and the
+    /// scratch is composed over the pristine layer once per event, bounded to
+    /// the new segment — identical semantics to the exact render, so what the
+    /// artist sees while drawing is what commits.
+    /// </summary>
+    public static void StampDraftDabs(SKCanvas scratchCanvas, Stroke tail) => StampDabs(scratchCanvas, tail);
+
+    /// <summary>Pixels a live segment can reach (dab size + scatter margin); null when off-canvas.</summary>
+    public static SKRectI? DraftSegmentBounds(Stroke tail, SKImageInfo info) =>
+        SegmentBounds(tail, info, DabReach(tail.Brush));
+
+    /// <summary>
+    /// Rebuild one region of the live composite: reset it to the committed
+    /// layer, then lay the whole-stroke scratch over it with the stroke's
+    /// opacity (eraser = DstOut) and clip — opacity applied once, like the
+    /// exact render, so self-crossings don't darken.
+    /// </summary>
+    public static void ComposeDraftRegion(SKCanvas composite, SKBitmap layerBase, SKBitmap scratch, SKRectI rect, Stroke stroke)
+    {
+        var region = SKRect.Create(rect.Left, rect.Top, rect.Width, rect.Height);
+        composite.Save();
+        composite.ClipRect(region);
+        using (var reset = new SKPaint { BlendMode = SKBlendMode.Src })
+        {
+            composite.DrawBitmap(layerBase, region, region, reset);
+        }
+        using var paint = new SKPaint
+        {
+            Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(stroke.Brush.Opacity, 0, 1) * 255)),
+            BlendMode = stroke.Tool == ToolKind.Eraser ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+        };
+        var clip = stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId);
+        if (clip is not null)
+        {
+            using var path = PathFromContours(clip.Contours);
+            composite.ClipPath(path, antialias: true);
+        }
+        composite.DrawBitmap(scratch, region, region, paint);
+        composite.Restore();
+    }
+
     private static void StampPaintDraft(SKCanvas target, Stroke stroke, SKImageInfo info)
     {
         var brush = stroke.Brush;

@@ -115,3 +115,54 @@ public class AntiAliasTests
         Assert.False(((PaintedFrame)restored.Scene.Layers[0].Cels[0].Frame!).Strokes[0].Brush.AntiAlias);
     }
 }
+
+public class ScratchPreviewTests
+{
+    [Fact]
+    public void ScratchPreview_MatchesExactRender_WhereTheStrokeCrossesItself()
+    {
+        var info = new SKImageInfo(200, 200, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var baseBmp = new SKBitmap(info);
+        baseBmp.Erase(SKColors.White);
+
+        var brush = new BrushSettings { Size = 20, Hardness = 1, Opacity = 0.5, Flow = 1 };
+        var points = new List<StrokePoint> { new(40, 40, 1), new(160, 160, 1), new(160, 40, 1), new(40, 160, 1) };
+        var stroke = new Stroke { Color = "#000000", Brush = brush, Points = points };
+
+        // Live preview, fed as two tails like two pointer events.
+        using var composite = baseBmp.Copy();
+        using var compCanvas = new SKCanvas(composite);
+        using var scratch = new SKBitmap(info);
+        using var scratchCanvas = new SKCanvas(scratch);
+        scratchCanvas.Clear(SKColors.Transparent);
+        var tails = new[]
+        {
+            new Stroke { Color = stroke.Color, Brush = brush, Points = points.Take(2).ToList() },
+            new Stroke { Color = stroke.Color, Brush = brush, Points = points.Skip(1).ToList() },
+        };
+        foreach (var tail in tails)
+        {
+            BrushEngine.StampDraftDabs(scratchCanvas, tail);
+            var rect = BrushEngine.DraftSegmentBounds(tail, info);
+            Assert.NotNull(rect);
+            BrushEngine.ComposeDraftRegion(compCanvas, baseBmp, scratch, rect!.Value, stroke);
+        }
+        compCanvas.Flush();
+
+        // The exact commit render of the same stroke.
+        using var exact = baseBmp.Copy();
+        using var exactCanvas = new SKCanvas(exact);
+        BrushEngine.StampStroke(exactCanvas, stroke, info);
+        exactCanvas.Flush();
+
+        // At the self-crossing the old per-segment preview double-applied the
+        // 50% opacity (visibly darker); the scratch model must match commit.
+        var crossing = composite.GetPixel(100, 100);
+        var committed = exact.GetPixel(100, 100);
+        Assert.InRange(Math.Abs(crossing.Red - committed.Red), 0, 8);
+        Assert.InRange(Math.Abs(crossing.Alpha - committed.Alpha), 0, 8);
+
+        // Sanity: 50% black over white is mid-grey, not near-black build-up.
+        Assert.InRange((int)crossing.Red, 100, 155);
+    }
+}

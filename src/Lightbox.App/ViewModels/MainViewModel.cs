@@ -1443,6 +1443,14 @@ public sealed partial class MainViewModel : ObservableObject
     // NEW segment of the stroke gets stamped into per pointer event — this is
     // what keeps painting O(stroke length) instead of O(length²).
     private SKBitmap? _liveComposite;
+    private SKCanvas? _liveCompositeCanvas;
+    // The committed layer as it was at stroke start. This is the CACHED
+    // bitmap itself (never written during a stroke), so no extra copy.
+    private SKBitmap? _liveBase;
+    // Whole-stroke dab accumulator without stroke opacity — pooled across
+    // strokes to avoid a large allocation on every pen-down.
+    private SKBitmap? _liveScratch;
+    private SKCanvas? _liveScratchCanvas;
     private int _liveStampedCount;
     private bool _snapshotQueued;
 
@@ -1465,8 +1473,19 @@ public sealed partial class MainViewModel : ObservableObject
         // the region; the document copy is added at commit).
         if (PrepareClipForSelection() is { } liveClip) _strokeBuilder.Current!.ClipId = liveClip.Id;
 
+        _liveCompositeCanvas?.Dispose();
         _liveComposite?.Dispose();
-        _liveComposite = _cache.Get(target, Scene.Width, Scene.Height).Copy();
+        _liveBase = _cache.Get(target, Scene.Width, Scene.Height);
+        _liveComposite = _liveBase.Copy();
+        _liveCompositeCanvas = new SKCanvas(_liveComposite);
+        if (_liveScratch is null || _liveScratch.Width != Scene.Width || _liveScratch.Height != Scene.Height)
+        {
+            _liveScratchCanvas?.Dispose();
+            _liveScratch?.Dispose();
+            _liveScratch = new SKBitmap(new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+            _liveScratchCanvas = new SKCanvas(_liveScratch);
+        }
+        _liveScratchCanvas!.Clear(SkiaSharp.SKColors.Transparent);
         _liveStampedCount = 0;
         FlushLivePreview();
         PublishSnapshot();
@@ -1510,7 +1529,24 @@ public sealed partial class MainViewModel : ObservableObject
             ClipId = live.ClipId,
             Points = points.Skip(from).ToList(),
         };
-        FrameRasterizer.AppendDraft(_liveComposite, tail);
+        if (live.Brush.Kind == BrushKind.Blur)
+        {
+            // Blur samples the canvas itself; it keeps the direct draft path.
+            FrameRasterizer.AppendDraft(_liveComposite, tail);
+        }
+        else if (_liveScratchCanvas is not null && _liveScratch is not null && _liveBase is not null
+                 && _liveCompositeCanvas is not null)
+        {
+            // Dabs accumulate in the whole-stroke scratch (no opacity), then
+            // base + scratch@opacity rebuilds just the new segment's region —
+            // preview now matches the committed stroke on self-crossings.
+            BrushEngine.StampDraftDabs(_liveScratchCanvas, tail);
+            var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            if (BrushEngine.DraftSegmentBounds(tail, info) is { } rect)
+            {
+                BrushEngine.ComposeDraftRegion(_liveCompositeCanvas, _liveBase, _liveScratch, rect, live);
+            }
+        }
         _liveStampedCount = points.Count;
     }
 
@@ -1535,8 +1571,11 @@ public sealed partial class MainViewModel : ObservableObject
     public void EndStroke()
     {
         var stroke = _strokeBuilder.End();
+        _liveCompositeCanvas?.Dispose();
+        _liveCompositeCanvas = null;
         _liveComposite?.Dispose();
         _liveComposite = null;
+        _liveBase = null; // cache-owned, never disposed here; scratch stays pooled
         _liveStampedCount = 0;
         if (stroke is null) return;
         var target = PaintTarget();
