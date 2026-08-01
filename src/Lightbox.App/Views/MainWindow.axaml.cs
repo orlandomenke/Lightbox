@@ -37,6 +37,20 @@ public partial class MainWindow : Window
         _vm.LazyBrushCleared += () => Canvas.SetLazyAnchor(null, null);
         Canvas.BrushResizeRequested += size => _vm.BrushSize = size;
         Canvas.InputDiagnostic += text => _vm.PenDiagnostic = text;
+
+        // Transform session: the VM owns the frames, the canvas owns the gizmo.
+        _vm.TransformBegun += (minX, minY, maxX, maxY) =>
+        {
+            Canvas.BeginTransformGizmo(minX, minY, maxX, maxY);
+            Canvas.ToolMode = Rendering.CanvasControl.CanvasToolMode.Transform;
+        };
+        _vm.TransformEnded += () =>
+        {
+            Canvas.EndTransformGizmo();
+            TransformPerspectiveToggle.IsChecked = false; // gizmo resets per session
+            SyncCanvasToolMode();
+        };
+        Canvas.TransformMenuRequested += ShowTransformMenu;
         SyncCanvasToolMode();
 
         LayersDocker.PointerEntered += (_, _) => _pointerInLayersDocker = true;
@@ -753,8 +767,29 @@ public partial class MainWindow : Window
     {
         // Don't hijack keys while the user is typing (layer rename, color hex, AI prompt).
         if (e.Source is TextBox) return;
+
+        // An active transform session owns Enter/Escape outright.
+        if (_vm.TransformActive)
+        {
+            if (e.Key == Key.Enter)
+            {
+                CommitTransformFromGizmo();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Escape)
+            {
+                _vm.CancelTransform();
+                e.Handled = true;
+                return;
+            }
+        }
+
         switch (_shortcuts.IdFor(e, CurrentShortcutContext()))
         {
+            case "canvas.transform":
+                if (!_vm.TransformActive) _vm.BeginTransform();
+                break;
             case "canvas.pickColor":
                 _vm.ActiveTool = ToolId.Picker;
                 break;
@@ -855,6 +890,76 @@ public partial class MainWindow : Window
 
     private async void OnConfigureClicked(object? sender, RoutedEventArgs e) =>
         await new ConfigureWindow(_shortcuts).ShowDialog(this);
+
+    // ---- transform session (window side) --------------------------------------
+
+    /// <summary>Read the gizmo and commit through the matching VM path.</summary>
+    private void CommitTransformFromGizmo()
+    {
+        if (Canvas.TransformIsIdentity)
+        {
+            _vm.CancelTransform(); // nothing changed — don't record an undo step
+            return;
+        }
+        if (Canvas.TransformIsPerspectiveResult)
+        {
+            var (src, dst) = Canvas.TransformQuadResult;
+            _vm.CommitTransformPerspective(src, dst);
+        }
+        else
+        {
+            var (px, py, sx, sy, angle, dx, dy) = Canvas.TransformAffineResult;
+            _vm.CommitTransformAffine(px, py, sx, sy, angle, dx, dy);
+        }
+    }
+
+    private void OnTransformPerspectiveToggled(object? sender, RoutedEventArgs e) =>
+        Canvas.TransformPerspective = TransformPerspectiveToggle.IsChecked == true;
+
+    private void OnTransformMirrorH(object? sender, RoutedEventArgs e) =>
+        Canvas.MirrorTransformGizmo(horizontal: true);
+
+    private void OnTransformMirrorV(object? sender, RoutedEventArgs e) =>
+        Canvas.MirrorTransformGizmo(horizontal: false);
+
+    private void OnTransformReset(object? sender, RoutedEventArgs e) => Canvas.ResetTransformGizmo();
+
+    private void OnTransformApply(object? sender, RoutedEventArgs e) => CommitTransformFromGizmo();
+
+    private void OnTransformCancel(object? sender, RoutedEventArgs e) => _vm.CancelTransform();
+
+    /// <summary>Right-click on the canvas during a transform: the options menu.</summary>
+    private void ShowTransformMenu(Avalonia.Point viewPos)
+    {
+        MenuItem Item(string header, Action action)
+        {
+            var item = new MenuItem { Header = header };
+            item.Click += (_, _) => action();
+            return item;
+        }
+
+        var menu = new ContextMenu
+        {
+            ItemsSource = new Control[]
+            {
+                Item("Apply transform (Enter)", CommitTransformFromGizmo),
+                Item("Cancel (Esc)", _vm.CancelTransform),
+                new Separator(),
+                Item("Mirror horizontally", () => Canvas.MirrorTransformGizmo(horizontal: true)),
+                Item("Mirror vertically", () => Canvas.MirrorTransformGizmo(horizontal: false)),
+                new Separator(),
+                Item(Canvas.TransformPerspective ? "Box mode (affine)" : "Perspective mode (free corners)",
+                    () =>
+                    {
+                        Canvas.TransformPerspective = !Canvas.TransformPerspective;
+                        TransformPerspectiveToggle.IsChecked = Canvas.TransformPerspective;
+                    }),
+                Item("Reset transform", Canvas.ResetTransformGizmo),
+            },
+            Placement = PlacementMode.Pointer,
+        };
+        menu.Open(Canvas);
+    }
 
     private static readonly FilePickerFileType LightboxFileType = new("Lightbox document")
     {

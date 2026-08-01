@@ -1891,6 +1891,226 @@ public sealed partial class MainViewModel : ObservableObject
         if (CurrentCell() is { } cell) PasteCel(cell);
     }
 
+    // ---- transform tool (Ctrl+T) ------------------------------------------------
+
+    [ObservableProperty]
+    private TransformScope _transformScope = TransformScope.ActiveCel;
+
+    public IReadOnlyList<TransformScope> TransformScopeChoices { get; } = Enum.GetValues<TransformScope>();
+
+    /// <summary>Pixel solver for raster baselines (strokes never resample).</summary>
+    [ObservableProperty]
+    private TransformSampling _transformSampling = TransformSampling.Bilinear;
+
+    public IReadOnlyList<TransformSampling> TransformSamplingChoices { get; } = Enum.GetValues<TransformSampling>();
+
+    [ObservableProperty]
+    private bool _transformActive;
+
+    private readonly List<Frame> _transformFrames = [];
+    private Func<Stroke, bool>? _transformFilter;
+
+    /// <summary>Session started/restarted: bounds of the transformable content (doc space).</summary>
+    public event Action<double, double, double, double>? TransformBegun;
+
+    public event Action? TransformEnded;
+
+    /// <summary>Start (or restart) a transform session over the current scope.</summary>
+    public bool BeginTransform()
+    {
+        var frames = CollectTransformFrames();
+        Func<Stroke, bool>? filter = null;
+        if (HasSelection)
+        {
+            int w = Scene.Width, h = Scene.Height;
+            var mask = MaskFromContours(_selectionContours, w, h);
+            filter = s => TransformOps.MajorityInside(s, mask, w, h);
+        }
+        var bounds = TransformOps.Bounds(frames, filter);
+        if (frames.Count == 0 || bounds is null)
+        {
+            AiStatus = "Nothing to transform in this scope.";
+            if (TransformActive) CancelTransform();
+            return false;
+        }
+        _transformFrames.Clear();
+        _transformFrames.AddRange(frames);
+        _transformFilter = filter;
+        TransformActive = true;
+        var b = bounds.Value;
+        TransformBegun?.Invoke(b.MinX, b.MinY, b.MaxX, b.MaxY);
+        return true;
+    }
+
+    partial void OnTransformScopeChanged(TransformScope value)
+    {
+        // Changing scope mid-session re-collects under the new scope.
+        if (TransformActive) BeginTransform();
+    }
+
+    /// <summary>Distinct drawings in scope (holds share Frame instances — dedupe by id).</summary>
+    private List<Frame> CollectTransformFrames()
+    {
+        var frames = new List<Frame>();
+        var seen = new HashSet<string>();
+        void Add(Frame? f)
+        {
+            if (f is not null && seen.Add(f.Id)) frames.Add(f);
+        }
+        switch (TransformScope)
+        {
+            case TransformScope.ActiveCel:
+                Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex));
+                break;
+            case TransformScope.AllLayersAtFrame:
+                foreach (var layer in Scene.Layers)
+                {
+                    if (Scene.IsLayerVisible(layer)) Add(ExposureSheet.ExposedFrame(layer, CurrentFrameIndex));
+                }
+                break;
+            case TransformScope.CelRange:
+                if (_celRange is { } r && r.Layer >= 0 && r.Layer < Scene.Layers.Count)
+                {
+                    var layer = Scene.Layers[r.Layer];
+                    for (var i = r.Start; i <= r.End; i++) Add(ExposureSheet.ExposedFrame(layer, i));
+                }
+                else
+                {
+                    Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex)); // no range marked
+                }
+                break;
+            case TransformScope.EntireAnimation:
+                foreach (var layer in Scene.Layers)
+                {
+                    foreach (var cel in layer.Cels) Add(cel.Frame);
+                }
+                break;
+        }
+        return frames;
+    }
+
+    public void CancelTransform()
+    {
+        if (!TransformActive) return;
+        EndTransformSession();
+    }
+
+    private void EndTransformSession()
+    {
+        TransformActive = false;
+        _transformFrames.Clear();
+        _transformFilter = null;
+        TransformEnded?.Invoke();
+    }
+
+    /// <summary>Commit a move/scale/rotate/mirror (mirror = negative scale) around a pivot.</summary>
+    public void CommitTransformAffine(
+        double pivotX, double pivotY,
+        double scaleX, double scaleY,
+        double angleRadians,
+        double offsetX, double offsetY)
+    {
+        if (!TransformActive) return;
+        var map = TransformOps.Affine(pivotX, pivotY, scaleX, scaleY, angleRadians, offsetX, offsetY);
+        var sizeScale = Math.Sqrt(Math.Abs(scaleX * scaleY));
+        var m = SKMatrix.CreateTranslation((float)-pivotX, (float)-pivotY);
+        m = m.PostConcat(SKMatrix.CreateScale((float)scaleX, (float)scaleY));
+        m = m.PostConcat(SKMatrix.CreateRotation((float)angleRadians));
+        m = m.PostConcat(SKMatrix.CreateTranslation((float)(pivotX + offsetX), (float)(pivotY + offsetY)));
+        CommitTransformCore(map, sizeScale, m);
+    }
+
+    /// <summary>Commit a four-corner perspective transform.</summary>
+    public void CommitTransformPerspective(double[] srcQuad, double[] dstQuad)
+    {
+        if (!TransformActive) return;
+        double[] h;
+        try
+        {
+            h = TransformOps.PerspectiveCoefficients(srcQuad, dstQuad);
+        }
+        catch (InvalidOperationException)
+        {
+            AiStatus = "That corner arrangement collapses the drawing — adjust the corners and try again.";
+            return;
+        }
+        var map = TransformOps.Perspective(srcQuad, dstQuad);
+        var m = new SKMatrix(
+            (float)h[0], (float)h[1], (float)h[2],
+            (float)h[3], (float)h[4], (float)h[5],
+            (float)h[6], (float)h[7], 1f);
+        CommitTransformCore(map, 1, m);
+    }
+
+    private void CommitTransformCore(TransformOps.PointMap map, double sizeScale, SKMatrix baselineMatrix)
+    {
+        var frames = _transformFrames.ToList();
+        var filter = _transformFilter;
+        // Invalidate before the edit so the Changed refresh re-renders from
+        // the transformed record.
+        foreach (var frame in frames) _cache.Invalidate(frame.Id);
+        _editor.Perform(_ =>
+        {
+            foreach (var frame in frames)
+            {
+                TransformOps.TransformFrame(frame, map, sizeScale, filter);
+                // Raster baselines resample once per commit; a region-limited
+                // transform moves strokes only (baseline pixels stay put).
+                if (filter is null && frame is PaintedFrame { PngBase64.Length: > 0 } painted)
+                {
+                    ResampleBaseline(painted, baselineMatrix);
+                }
+            }
+        });
+        // The selection outline rides along so a follow-up transform lines up.
+        if (HasSelection)
+        {
+            foreach (var contour in _selectionContours)
+            {
+                for (var i = 0; i < contour.Count; i++)
+                {
+                    var pt = contour[i];
+                    var (x, y) = map(pt.X, pt.Y);
+                    contour[i] = pt with { X = x, Y = y };
+                }
+            }
+            NotifySelection();
+        }
+        EndTransformSession();
+        AiStatus = $"Transformed {frames.Count} drawing{(frames.Count == 1 ? "" : "s")}.";
+    }
+
+    private SKSamplingOptions SamplingFor(TransformSampling mode) => mode switch
+    {
+        TransformSampling.Nearest => new SKSamplingOptions(SKFilterMode.Nearest),
+        TransformSampling.Bicubic => new SKSamplingOptions(SKCubicResampler.Mitchell),
+        _ => new SKSamplingOptions(SKFilterMode.Linear),
+    };
+
+    private void ResampleBaseline(PaintedFrame frame, SKMatrix matrix)
+    {
+        try
+        {
+            var bytes = Convert.FromBase64String(frame.PngBase64);
+            using var src = SKBitmap.Decode(bytes);
+            if (src is null) return;
+            var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using var surface = SKSurface.Create(info);
+            if (surface is null) return;
+            surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
+            surface.Canvas.SetMatrix(matrix);
+            using var image = SKImage.FromBitmap(src);
+            surface.Canvas.DrawImage(image, 0, 0, SamplingFor(TransformSampling));
+            using var snap = surface.Snapshot();
+            using var data = snap.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            frame.PngBase64 = Convert.ToBase64String(data.ToArray());
+        }
+        catch (FormatException)
+        {
+            // Corrupt baseline: leave it untouched rather than destroy pixels.
+        }
+    }
+
     // ---- layer reordering -------------------------------------------------------
 
     /// <summary>Move a layer toward the viewer (+1) or away (−1), keeping it active.</summary>

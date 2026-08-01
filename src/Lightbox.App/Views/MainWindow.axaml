@@ -112,6 +112,30 @@
     <Border DockPanel.Dock="Top" Padding="8,6" Background="#1f1f1f">
       <StackPanel Orientation="Horizontal" Spacing="14">
 
+        <!-- Transform session (Ctrl+T): shown above whatever tool was active -->
+        <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding TransformActive}">
+          <TextBlock Text="Transform" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <ComboBox ItemsSource="{Binding TransformScopeChoices}" SelectedItem="{Binding TransformScope}"
+                    Width="150" VerticalAlignment="Center"
+                    ToolTip.Tip="What the transform applies to: this cel, all layers at this frame, the selected cel range, or the whole animation" />
+          <ComboBox ItemsSource="{Binding TransformSamplingChoices}" SelectedItem="{Binding TransformSampling}"
+                    Width="98" VerticalAlignment="Center"
+                    ToolTip.Tip="Pixel solver for raster baselines: Bilinear (smooth), Nearest (pixel art), Bicubic (highest quality). Strokes are geometry and never resample." />
+          <ToggleButton x:Name="TransformPerspectiveToggle" Content="Perspective" FontSize="12"
+                        Click="OnTransformPerspectiveToggled"
+                        ToolTip.Tip="Drag the four corners freely instead of the affine box" />
+          <Button Content="⇋" FontSize="13" Click="OnTransformMirrorH"
+                  ToolTip.Tip="Mirror horizontally in place (around the pivot)" />
+          <Button Content="⇵" FontSize="13" Click="OnTransformMirrorV"
+                  ToolTip.Tip="Mirror vertically in place (around the pivot)" />
+          <Button Content="Reset" FontSize="12" Click="OnTransformReset"
+                  ToolTip.Tip="Back to the untransformed drawing (session stays open)" />
+          <Button Content="Apply" FontSize="12" FontWeight="SemiBold" Click="OnTransformApply"
+                  ToolTip.Tip="Commit the transform (Enter)" />
+          <Button Content="Cancel" FontSize="12" Click="OnTransformCancel"
+                  ToolTip.Tip="Discard the transform (Esc)" />
+        </StackPanel>
+
         <!-- Brush options -->
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsBrushTool}">
           <ComboBox ItemsSource="{Binding BrushPresetChoices}" SelectedItem="{Binding SelectedBrushPreset}"

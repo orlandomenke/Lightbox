@@ -600,16 +600,26 @@ public static class BrushEngine
 
     /// <summary>
     /// Dab centers and pressures along the stroke, spaced by
-    /// <c>Brush.Spacing × dab size</c> of arc length (floor 0.5 px).
+    /// <c>Brush.Spacing × the CURRENT dab diameter</c> of arc length
+    /// (floor 0.5 px). Spacing must follow the pressure-scaled size:
+    /// light pen pressure shrinks dabs, so the step shrinks with them —
+    /// otherwise a light stroke degenerates into a dotted trail of stamps.
+    /// Positions and pressures are interpolated between input points, so
+    /// fast strokes with sparse events still produce continuous lines.
     /// </summary>
     public static IEnumerable<(SKPoint Pos, double Pressure)> DabPositions(Stroke stroke)
     {
         var pts = stroke.Points;
+        var brush = stroke.Brush;
         var first = pts[0];
-        yield return (new SKPoint((float)first.X, (float)first.Y), Math.Max(first.Pressure, MinPressure));
+        var firstPressure = Math.Max(first.Pressure, MinPressure);
+        yield return (new SKPoint((float)first.X, (float)first.Y), firstPressure);
         if (pts.Count == 1) yield break;
 
-        var step = Math.Max(stroke.Brush.Size * stroke.Brush.Spacing, MinStepPx);
+        double StepAt(double pressure) =>
+            Math.Max(RadiusAt(brush, pressure) * 2 * brush.Spacing, MinStepPx);
+
+        var step = StepAt(firstPressure);
         double acc = 0;
         var prev = first;
         for (var i = 1; i < pts.Count; i++)
@@ -620,10 +630,12 @@ public static class BrushEngine
             {
                 var t = (step - acc) / d;
                 var np = GeometryOps.LerpPoint(prev, cur, t);
-                yield return (new SKPoint((float)np.X, (float)np.Y), Math.Max(np.Pressure, MinPressure));
+                var pressure = Math.Max(np.Pressure, MinPressure);
+                yield return (new SKPoint((float)np.X, (float)np.Y), pressure);
                 d -= step - acc;
                 acc = 0;
                 prev = np;
+                step = StepAt(pressure);
             }
             acc += d;
             prev = cur;

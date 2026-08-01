@@ -109,12 +109,32 @@ public class BrushEngineTests
     {
         var s = Line(0, 0, 100, 0);
         s.Brush.Size = 10;
-        s.Brush.Spacing = 0.5; // 5px steps over a 100px path
+        s.Brush.Spacing = 0.5;
+        s.Points = [new(0, 0, 1), new(100, 0, 1)]; // full pressure: 5px steps
         var dabs = BrushEngine.DabPositions(s).ToList();
         Assert.Equal(21, dabs.Count); // origin + 20 steps
         Assert.Equal(0.0, dabs[0].Pos.X, 3);
         Assert.Equal(5.0, dabs[1].Pos.X, 3);
         Assert.Equal(100.0, dabs[^1].Pos.X, 3);
+    }
+
+    [Fact]
+    public void DabPositions_SpacingShrinksWithPressure()
+    {
+        // Light pressure halves the dab, so the step halves with it — the
+        // fix for pen strokes degenerating into dotted stamp trails.
+        var s = Line(0, 0, 100, 0);
+        s.Brush.Size = 10;
+        s.Brush.Spacing = 0.5;
+        s.Points = [new(0, 0, 0.5), new(100, 0, 0.5)];
+        var dabs = BrushEngine.DabPositions(s).ToList();
+        Assert.Equal(41, dabs.Count); // origin + 40 steps of 2.5px
+        Assert.Equal(2.5, dabs[1].Pos.X, 3);
+
+        // With the per-brush pressure master switch off, size (and therefore
+        // spacing) ignores pressure entirely.
+        s.Brush.PressureEnabled = false;
+        Assert.Equal(21, BrushEngine.DabPositions(s).Count());
     }
 
     [Fact]

@@ -66,6 +66,7 @@ public sealed class ShortcutMap
 
             new("canvas.undo", "Undo", "Canvas", G(Key.Z, KeyModifiers.Control)),
             new("canvas.redo", "Redo", "Canvas", G(Key.Y, KeyModifiers.Control)),
+            new("canvas.transform", "Transform (move/scale/rotate/perspective)", "Tools", G(Key.T, KeyModifiers.Control)),
             new("canvas.mirror", "Mirror view", "Canvas", G(Key.M)),
             new("canvas.resetView", "Reset view", "Canvas", G(Key.D0)),
 

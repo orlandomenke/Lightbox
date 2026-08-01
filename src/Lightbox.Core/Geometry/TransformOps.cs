@@ -42,6 +42,23 @@ public static class TransformOps
     /// </summary>
     public static PointMap Perspective(double[] src, double[] dst)
     {
+        var h = PerspectiveCoefficients(src, dst);
+        return (x, y) =>
+        {
+            var w = h[6] * x + h[7] * y + 1;
+            if (Math.Abs(w) < 1e-12) w = 1e-12;
+            return ((h[0] * x + h[1] * y + h[2]) / w,
+                    (h[3] * x + h[4] * y + h[5]) / w);
+        };
+    }
+
+    /// <summary>
+    /// The eight homography coefficients (a..h) for the same mapping —
+    /// exposed so callers can hand the matrix to a pixel rasterizer
+    /// (row-major 3×3 with the ninth element fixed at 1).
+    /// </summary>
+    public static double[] PerspectiveCoefficients(double[] src, double[] dst)
+    {
         if (src.Length != 8 || dst.Length != 8)
             throw new ArgumentException("Quads must contain four x,y pairs.");
         // Build A·h = b for h = (a,b,c,d,e,f,g,h) with x' = (a x + b y + c)/(g x + h y + 1).
@@ -60,14 +77,7 @@ public static class TransformOps
             a[r, 6] = -x * v; a[r, 7] = -y * v;
             b[r] = v;
         }
-        var h = SolveLinear(a, b);
-        return (x, y) =>
-        {
-            var w = h[6] * x + h[7] * y + 1;
-            if (Math.Abs(w) < 1e-12) w = 1e-12;
-            return ((h[0] * x + h[1] * y + h[2]) / w,
-                    (h[3] * x + h[4] * y + h[5]) / w);
-        };
+        return SolveLinear(a, b);
     }
 
     /// <summary>
@@ -132,7 +142,11 @@ public static class TransformOps
         return inside * 2 >= stroke.Points.Count;
     }
 
-    /// <summary>Tight bounds of all (filtered) strokes across frames; null when empty.</summary>
+    /// <summary>
+    /// Bounds of all (filtered) strokes across frames, padded by each
+    /// stroke's brush radius so the box wraps the painted pixels, not just
+    /// the centerlines; null when empty.
+    /// </summary>
     public static (double MinX, double MinY, double MaxX, double MaxY)? Bounds(
         IEnumerable<Frame> frames, Func<Stroke, bool>? filter = null)
     {
@@ -144,13 +158,14 @@ public static class TransformOps
             foreach (var stroke in StrokesOf(frame))
             {
                 if (filter is not null && !filter(stroke)) continue;
+                var reach = stroke.Brush.Size / 2;
                 foreach (var p in stroke.Points)
                 {
                     any = true;
-                    if (p.X < minX) minX = p.X;
-                    if (p.Y < minY) minY = p.Y;
-                    if (p.X > maxX) maxX = p.X;
-                    if (p.Y > maxY) maxY = p.Y;
+                    if (p.X - reach < minX) minX = p.X - reach;
+                    if (p.Y - reach < minY) minY = p.Y - reach;
+                    if (p.X + reach > maxX) maxX = p.X + reach;
+                    if (p.Y + reach > maxY) maxY = p.Y + reach;
                 }
             }
         }

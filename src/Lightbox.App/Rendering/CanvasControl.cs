@@ -155,6 +155,7 @@ public sealed class CanvasControl : Control
         SelectEllipse,
         SelectWand,
         Pick,
+        Transform,
     }
 
     public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
@@ -174,6 +175,325 @@ public sealed class CanvasControl : Control
 
     /// <summary>Eyedropper click at a document position.</summary>
     public event Action<double, double>? PickClicked;
+
+    // ---- transform gizmo (Ctrl+T session) --------------------------------------
+    // The gizmo owns the interactive state (pivot, scale, angle, offset or a
+    // free quad in perspective mode); the VM owns the document side. The
+    // window mediates begin/commit/cancel.
+
+    private bool _txActive;
+    private double _txMinX, _txMinY, _txMaxX, _txMaxY;
+    private double _txPivotX, _txPivotY;               // draggable, doc space
+    private double _txScaleX = 1, _txScaleY = 1, _txAngle, _txDx, _txDy;
+    private bool _txPerspective;
+    private readonly double[] _txQuad = new double[8]; // dst corners in perspective mode
+
+    private enum TxDrag { None, Move, ScaleCorner, ScaleEdge, Rotate, Pivot, Quad }
+
+    private TxDrag _txDrag;
+    private int _txHandle;
+    private (double X, double Y) _txDragStart;
+    private (double ScaleX, double ScaleY, double Angle, double Dx, double Dy) _txStart;
+
+    /// <summary>Right-click during a transform: show the options menu at this view position.</summary>
+    public event Action<Point>? TransformMenuRequested;
+
+    /// <summary>The gizmo changed (for live numeric readouts).</summary>
+    public event Action? TransformGizmoChanged;
+
+    public bool TransformSessionActive => _txActive;
+
+    /// <summary>Four-corner free drag instead of the affine box.</summary>
+    public bool TransformPerspective
+    {
+        get => _txPerspective;
+        set
+        {
+            if (_txPerspective == value) return;
+            if (value) SeedQuadFromCorners();
+            _txPerspective = value;
+            InvalidateVisual();
+        }
+    }
+
+    public void BeginTransformGizmo(double minX, double minY, double maxX, double maxY)
+    {
+        _txActive = true;
+        _txMinX = minX; _txMinY = minY; _txMaxX = maxX; _txMaxY = maxY;
+        _txPivotX = (minX + maxX) / 2;
+        _txPivotY = (minY + maxY) / 2;
+        _txScaleX = 1; _txScaleY = 1; _txAngle = 0; _txDx = 0; _txDy = 0;
+        _txPerspective = false;
+        _txDrag = TxDrag.None;
+        SeedQuadFromCorners();
+        InvalidateVisual();
+    }
+
+    public void EndTransformGizmo()
+    {
+        _txActive = false;
+        _txDrag = TxDrag.None;
+        InvalidateVisual();
+    }
+
+    /// <summary>Flip in place around the (draggable) pivot — no translation.</summary>
+    public void MirrorTransformGizmo(bool horizontal)
+    {
+        if (!_txActive) return;
+        if (_txPerspective)
+        {
+            for (var i = 0; i < 4; i++)
+            {
+                if (horizontal) _txQuad[i * 2] = 2 * _txPivotX - _txQuad[i * 2];
+                else _txQuad[i * 2 + 1] = 2 * _txPivotY - _txQuad[i * 2 + 1];
+            }
+        }
+        else if (horizontal)
+        {
+            _txScaleX = -_txScaleX;
+        }
+        else
+        {
+            _txScaleY = -_txScaleY;
+        }
+        TransformGizmoChanged?.Invoke();
+        InvalidateVisual();
+    }
+
+    /// <summary>Back to identity (bounds, pivot and mode stay).</summary>
+    public void ResetTransformGizmo()
+    {
+        _txScaleX = 1; _txScaleY = 1; _txAngle = 0; _txDx = 0; _txDy = 0;
+        SeedQuadFromCorners();
+        TransformGizmoChanged?.Invoke();
+        InvalidateVisual();
+    }
+
+    public bool TransformIsPerspectiveResult => _txPerspective;
+
+    public (double PivotX, double PivotY, double ScaleX, double ScaleY, double Angle, double Dx, double Dy) TransformAffineResult =>
+        (_txPivotX, _txPivotY, _txScaleX, _txScaleY, _txAngle, _txDx, _txDy);
+
+    public (double[] Src, double[] Dst) TransformQuadResult =>
+        ([_txMinX, _txMinY, _txMaxX, _txMinY, _txMaxX, _txMaxY, _txMinX, _txMaxY], (double[])_txQuad.Clone());
+
+    /// <summary>True when the gizmo is still identity (nothing to commit).</summary>
+    public bool TransformIsIdentity =>
+        !_txPerspective
+        && Math.Abs(_txScaleX - 1) < 1e-9 && Math.Abs(_txScaleY - 1) < 1e-9
+        && Math.Abs(_txAngle) < 1e-9 && Math.Abs(_txDx) < 1e-9 && Math.Abs(_txDy) < 1e-9;
+
+    private (double X, double Y) TxMap(double x, double y)
+    {
+        var cos = Math.Cos(_txAngle);
+        var sin = Math.Sin(_txAngle);
+        var dx = (x - _txPivotX) * _txScaleX;
+        var dy = (y - _txPivotY) * _txScaleY;
+        return (_txPivotX + dx * cos - dy * sin + _txDx,
+                _txPivotY + dx * sin + dy * cos + _txDy);
+    }
+
+    /// <summary>Current corner positions (affine-mapped bounds, or the free quad).</summary>
+    private (double X, double Y)[] TxCorners()
+    {
+        if (_txPerspective)
+        {
+            return
+            [
+                (_txQuad[0], _txQuad[1]), (_txQuad[2], _txQuad[3]),
+                (_txQuad[4], _txQuad[5]), (_txQuad[6], _txQuad[7]),
+            ];
+        }
+        return
+        [
+            TxMap(_txMinX, _txMinY), TxMap(_txMaxX, _txMinY),
+            TxMap(_txMaxX, _txMaxY), TxMap(_txMinX, _txMaxY),
+        ];
+    }
+
+    private void SeedQuadFromCorners()
+    {
+        var corners = TxCorners();
+        for (var i = 0; i < 4; i++)
+        {
+            _txQuad[i * 2] = corners[i].X;
+            _txQuad[i * 2 + 1] = corners[i].Y;
+        }
+    }
+
+    /// <summary>Where the pivot sits after the current transform (it rides the offset).</summary>
+    private (double X, double Y) TxPivotNow() => (_txPivotX + _txDx, _txPivotY + _txDy);
+
+    private static double TxDist(double x0, double y0, double x1, double y1)
+    {
+        var dx = x1 - x0;
+        var dy = y1 - y0;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    private static bool TxPointInQuad(double x, double y, (double X, double Y)[] q)
+    {
+        // Winding test — works for the rotated box and any convex-ish quad.
+        var inside = false;
+        for (int i = 0, j = 3; i < 4; j = i++)
+        {
+            if (q[i].Y > y != q[j].Y > y
+                && x < (q[j].X - q[i].X) * (y - q[i].Y) / (q[j].Y - q[i].Y) + q[i].X)
+            {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    /// <summary>What a press at a document point grabs, Krita-style: pivot,
+    /// corner/edge handles, inside = move, outside = rotate.</summary>
+    private (TxDrag Kind, int Handle) TxHitTest(double x, double y)
+    {
+        var tol = 10.0 / Math.Max(0.01, FitScale() * _zoom);
+        var pivot = TxPivotNow();
+        if (TxDist(x, y, pivot.X, pivot.Y) <= tol * 1.2) return (TxDrag.Pivot, 0);
+
+        var corners = TxCorners();
+        for (var i = 0; i < 4; i++)
+        {
+            if (TxDist(x, y, corners[i].X, corners[i].Y) <= tol)
+            {
+                return (_txPerspective ? TxDrag.Quad : TxDrag.ScaleCorner, i);
+            }
+        }
+        if (!_txPerspective)
+        {
+            for (var i = 0; i < 4; i++)
+            {
+                var a = corners[i];
+                var b = corners[(i + 1) % 4];
+                if (TxDist(x, y, (a.X + b.X) / 2, (a.Y + b.Y) / 2) <= tol)
+                {
+                    return (TxDrag.ScaleEdge, i);
+                }
+            }
+        }
+        return TxPointInQuad(x, y, corners) ? (TxDrag.Move, 0) : (TxDrag.Rotate, 0);
+    }
+
+    /// <summary>Cursor position relative to the pivot, un-rotated into the box's local frame.</summary>
+    private (double X, double Y) TxLocal(double x, double y)
+    {
+        var pivot = TxPivotNow();
+        var dx = x - pivot.X;
+        var dy = y - pivot.Y;
+        var cos = Math.Cos(-_txAngle);
+        var sin = Math.Sin(-_txAngle);
+        return (dx * cos - dy * sin, dx * sin + dy * cos);
+    }
+
+    private void TxDragTo(double x, double y, bool uniform)
+    {
+        switch (_txDrag)
+        {
+            case TxDrag.Move:
+                if (_txPerspective)
+                {
+                    // Quad mode: shift every corner from its press-time position.
+                    var ddx = x - _txDragStart.X;
+                    var ddy = y - _txDragStart.Y;
+                    for (var i = 0; i < 4; i++)
+                    {
+                        _txQuad[i * 2] = _txStartQuad[i * 2] + ddx;
+                        _txQuad[i * 2 + 1] = _txStartQuad[i * 2 + 1] + ddy;
+                    }
+                }
+                else
+                {
+                    _txDx = _txStart.Dx + (x - _txDragStart.X);
+                    _txDy = _txStart.Dy + (y - _txDragStart.Y);
+                }
+                break;
+            case TxDrag.Pivot:
+                if (_txPerspective)
+                {
+                    _txPivotX = x;
+                    _txPivotY = y;
+                }
+                else
+                {
+                    // Re-anchor without letting the drawing jump: the new
+                    // source pivot is the drop point pulled back through the
+                    // current map; the offset re-derives so A(p) is unchanged.
+                    var local = TxLocal(x, y);
+                    var sx = Math.Abs(_txScaleX) < 1e-6 ? 1e-6 * Math.Sign(_txScaleX == 0 ? 1 : _txScaleX) : _txScaleX;
+                    var sy = Math.Abs(_txScaleY) < 1e-6 ? 1e-6 * Math.Sign(_txScaleY == 0 ? 1 : _txScaleY) : _txScaleY;
+                    var srcX = _txPivotX + local.X / sx;
+                    var srcY = _txPivotY + local.Y / sy;
+                    _txPivotX = srcX;
+                    _txPivotY = srcY;
+                    _txDx = x - srcX;
+                    _txDy = y - srcY;
+                }
+                break;
+            case TxDrag.ScaleCorner:
+            case TxDrag.ScaleEdge:
+            {
+                var q0 = TxLocalAtStart();
+                var q = TxLocal(x, y);
+                if (_txDrag == TxDrag.ScaleCorner && uniform)
+                {
+                    var d0 = Math.Max(1e-6, Math.Sqrt(q0.X * q0.X + q0.Y * q0.Y));
+                    var f = Math.Sqrt(q.X * q.X + q.Y * q.Y) / d0;
+                    _txScaleX = _txStart.ScaleX * f;
+                    _txScaleY = _txStart.ScaleY * f;
+                }
+                else
+                {
+                    var scaleX = Math.Abs(q0.X) < 1e-6 ? _txStart.ScaleX : _txStart.ScaleX * (q.X / q0.X);
+                    var scaleY = Math.Abs(q0.Y) < 1e-6 ? _txStart.ScaleY : _txStart.ScaleY * (q.Y / q0.Y);
+                    if (_txDrag == TxDrag.ScaleCorner)
+                    {
+                        _txScaleX = scaleX;
+                        _txScaleY = scaleY;
+                    }
+                    else if (_txHandle % 2 == 0)
+                    {
+                        _txScaleY = scaleY; // top/bottom edges scale vertically
+                    }
+                    else
+                    {
+                        _txScaleX = scaleX; // left/right edges scale horizontally
+                    }
+                }
+                break;
+            }
+            case TxDrag.Rotate:
+            {
+                var pivot = TxPivotNow();
+                var a0 = Math.Atan2(_txDragStart.Y - pivot.Y, _txDragStart.X - pivot.X);
+                var a1 = Math.Atan2(y - pivot.Y, x - pivot.X);
+                _txAngle = _txStart.Angle + (a1 - a0);
+                break;
+            }
+            case TxDrag.Quad:
+                _txQuad[_txHandle * 2] = x;
+                _txQuad[_txHandle * 2 + 1] = y;
+                break;
+        }
+        TransformGizmoChanged?.Invoke();
+        InvalidateVisual();
+    }
+
+    private readonly double[] _txStartQuad = new double[8];
+
+    private (double X, double Y) TxLocalAtStart()
+    {
+        // Local coordinates of the press point under the transform state
+        // captured at press time (scale hasn't been applied to it yet).
+        var pivot = (_txPivotX + _txStart.Dx, _txPivotY + _txStart.Dy);
+        var dx = _txDragStart.X - pivot.Item1;
+        var dy = _txDragStart.Y - pivot.Item2;
+        var cos = Math.Cos(-_txStart.Angle);
+        var sin = Math.Sin(-_txStart.Angle);
+        return (dx * cos - dy * sin, dx * sin + dy * cos);
+    }
 
     /// <summary>A closed freehand/rect/ellipse selection shape (doc space; Shift=add, Alt=subtract).</summary>
     public event Action<List<Core.Documents.StrokePoint>, bool, bool>? SelectionShapeDrawn;
@@ -305,7 +625,22 @@ public sealed class CanvasControl : Control
                 (float)LazyRadius, (float)Math.Max(0.75, BrushCursorSize / 2));
         }
 
-        context.Custom(new DrawOp(new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy));
+        TxGizmoData? txGizmo = null;
+        if (_txActive)
+        {
+            var c = TxCorners();
+            var pivot = TxPivotNow();
+            txGizmo = new TxGizmoData(
+                new SKPoint((float)c[0].X, (float)c[0].Y),
+                new SKPoint((float)c[1].X, (float)c[1].Y),
+                new SKPoint((float)c[2].X, (float)c[2].Y),
+                new SKPoint((float)c[3].X, (float)c[3].Y),
+                new SKPoint((float)pivot.X, (float)pivot.Y),
+                _txPerspective);
+        }
+
+        context.Custom(new DrawOp(
+            new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo));
     }
 
     // ---- view <-> document transform ---------------------------------------
@@ -344,10 +679,12 @@ public sealed class CanvasControl : Control
 
     private static double PressureOf(PointerPoint pp)
     {
-        // Mice report 0 or 0.5 depending on backend; treat "no real pressure"
-        // as the neutral 0.5 so mouse and pen share one code path.
+        // A mouse has no pressure axis: it paints at 100% so the stroke
+        // matches the cursor gizmo exactly. Only a real pen (which reports
+        // meaningful values via Windows Ink) modulates pressure.
+        if (pp.Pointer.Type != PointerType.Pen) return 1.0;
         var raw = pp.Properties.Pressure;
-        return raw <= 0 ? 0.5 : Math.Clamp(raw, 0.0, 1.0);
+        return raw <= 0 ? 1.0 : Math.Clamp(raw, 0.0, 1.0);
     }
 
     /// <summary>
@@ -364,13 +701,11 @@ public sealed class CanvasControl : Control
         if (InputDiagnostic is null) return;
         var text = type == PointerType.Pen
             ? $"Pen detected — pressure {rawPressure:0.00}"
-            : $"{type} input — no pressure axis (constant {PressureOf0(rawPressure):0.00})";
+            : $"{type} input — no pressure axis (paints at 100%)";
         if (text == _lastDiagnostic) return;
         _lastDiagnostic = text;
         InputDiagnostic.Invoke(text);
     }
-
-    private static double PressureOf0(float raw) => raw <= 0 ? 0.5 : Math.Clamp(raw, 0f, 1f);
 
     // ---- view tools -----------------------------------------------------------
 
@@ -453,9 +788,29 @@ public sealed class CanvasControl : Control
             }
 
             if (_panning) return;
+
+            // Right-click during a transform session: the options menu.
+            if (_txActive && kind == PointerUpdateKind.RightButtonPressed)
+            {
+                TransformMenuRequested?.Invoke(pp.Position);
+                e.Handled = true;
+                return;
+            }
+
             if (kind != PointerUpdateKind.LeftButtonPressed && !pp.Properties.IsLeftButtonPressed) return;
 
             var (x, y) = ViewToDoc(pp.Position);
+
+            if (_txActive && ToolMode == CanvasToolMode.Transform)
+            {
+                (_txDrag, _txHandle) = TxHitTest(x, y);
+                _txDragStart = (x, y);
+                _txStart = (_txScaleX, _txScaleY, _txAngle, _txDx, _txDy);
+                Array.Copy(_txQuad, _txStartQuad, 8);
+                e.Pointer.Capture(this);
+                e.Handled = true;
+                return;
+            }
 
             if (ToolMode == CanvasToolMode.Paint && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
             {
@@ -563,6 +918,14 @@ public sealed class CanvasControl : Control
             // we're in — repaints coalesce, so this is cheap.
             InvalidateVisual();
 
+            if (_txActive && _txDrag != TxDrag.None)
+            {
+                var (tx, ty) = ViewToDoc(e.GetPosition(this));
+                TxDragTo(tx, ty, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                e.Handled = true;
+                return;
+            }
+
             if (_panning)
             {
                 var pos = e.GetPosition(this);
@@ -616,6 +979,13 @@ public sealed class CanvasControl : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_txActive && _txDrag != TxDrag.None)
+        {
+            _txDrag = TxDrag.None;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
         if (_resizingBrush)
         {
             _resizingBrush = false;
@@ -720,6 +1090,10 @@ public sealed class CanvasControl : Control
     private readonly record struct LazyGizmo(
         float AnchorX, float AnchorY, float CursorX, float CursorY, float Radius, float BrushRadius);
 
+    /// <summary>Transform gizmo, all in document space: the transformed quad, pivot, and mode.</summary>
+    private readonly record struct TxGizmoData(
+        SKPoint C0, SKPoint C1, SKPoint C2, SKPoint C3, SKPoint Pivot, bool Perspective);
+
     /// <summary>
     /// Decomposed view transform for the render thread — primitive canvas ops
     /// only (translate/rotate/scale), no matrix API edge cases.
@@ -729,7 +1103,8 @@ public sealed class CanvasControl : Control
 
     private sealed class DrawOp(
         Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor,
-        SKPath? ants, SKPath? antsOpen, float antsPhase, LazyGizmo? lazy = null) : ICustomDrawOperation
+        SKPath? ants, SKPath? antsOpen, float antsPhase, LazyGizmo? lazy = null,
+        TxGizmoData? txGizmo = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -783,10 +1158,81 @@ public sealed class CanvasControl : Control
             }
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
+            DrawTransformGizmo(canvas);
             canvas.Restore();
 
             if (cursor is { } c) DrawBrushCursor(canvas, c);
             canvas.Restore();
+        }
+
+        /// <summary>
+        /// The Ctrl+T gizmo: the transformed quad with corner (and, in affine
+        /// mode, edge) handles, plus the draggable pivot — cyan so it never
+        /// reads as a selection or a brush cursor.
+        /// </summary>
+        private void DrawTransformGizmo(SKCanvas canvas)
+        {
+            if (txGizmo is not { } g) return;
+            var scale = Math.Max(0.01f, view.Scale);
+            var line = new SKColor(0x40, 0xc4, 0xd4, 235);
+
+            using var outline = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.4f / scale,
+                Color = line,
+                PathEffect = SKPathEffect.CreateDash([6f / scale, 4f / scale], 0),
+            };
+            using var quad = new SKPath();
+            quad.MoveTo(g.C0);
+            quad.LineTo(g.C1);
+            quad.LineTo(g.C2);
+            quad.LineTo(g.C3);
+            quad.Close();
+            canvas.DrawPath(quad, outline);
+
+            using var handleFill = new SKPaint { IsAntialias = true, Color = line };
+            using var handleRim = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1f / scale,
+                Color = new SKColor(10, 30, 34, 235),
+            };
+            var half = 4.5f / scale;
+            SKPoint[] corners = [g.C0, g.C1, g.C2, g.C3];
+            foreach (var c in corners)
+            {
+                var r = new SKRect(c.X - half, c.Y - half, c.X + half, c.Y + half);
+                canvas.DrawRect(r, handleFill);
+                canvas.DrawRect(r, handleRim);
+            }
+            if (!g.Perspective)
+            {
+                for (var i = 0; i < 4; i++)
+                {
+                    var a = corners[i];
+                    var b = corners[(i + 1) % 4];
+                    var mx = (a.X + b.X) / 2;
+                    var my = (a.Y + b.Y) / 2;
+                    canvas.DrawCircle(mx, my, half * 0.9f, handleFill);
+                    canvas.DrawCircle(mx, my, half * 0.9f, handleRim);
+                }
+            }
+
+            // Pivot: ring + crosshair, clearly grabbable.
+            using var pivotPaint = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.6f / scale,
+                Color = new SKColor(0xe0, 0xa0, 0x30, 240),
+            };
+            var pr = 7f / scale;
+            canvas.DrawCircle(g.Pivot, pr, pivotPaint);
+            canvas.DrawLine(g.Pivot.X - pr * 1.6f, g.Pivot.Y, g.Pivot.X + pr * 1.6f, g.Pivot.Y, pivotPaint);
+            canvas.DrawLine(g.Pivot.X, g.Pivot.Y - pr * 1.6f, g.Pivot.X, g.Pivot.Y + pr * 1.6f, pivotPaint);
         }
 
         /// <summary>

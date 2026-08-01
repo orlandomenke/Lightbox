@@ -166,3 +166,68 @@ public class ScratchPreviewTests
         Assert.InRange((int)crossing.Red, 100, 155);
     }
 }
+
+public class FluidLineTests
+{
+    /// <summary>
+    /// Light pen pressure shrinks dabs; spacing must shrink with them or the
+    /// stroke degenerates into a dotted trail (the "stamps and circles" bug).
+    /// Every centerline pixel of a light-pressure stroke must be inked.
+    /// </summary>
+    [Theory]
+    [InlineData(0.15)]
+    [InlineData(0.4)]
+    [InlineData(1.0)]
+    public void LightPressureStrokes_HaveNoGapsAlongTheCenterline(double pressure)
+    {
+        var info = new SKImageInfo(400, 100, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var bmp = new SKBitmap(info);
+        bmp.Erase(SKColors.White);
+        using var canvas = new SKCanvas(bmp);
+
+        var stroke = new Stroke
+        {
+            Color = "#000000",
+            Brush = new BrushSettings { Size = 40, Hardness = 1, Opacity = 1, Flow = 1, Spacing = 0.15 },
+            // Sparse input points, like fast pen events.
+            Points =
+            [
+                new(30, 50, pressure), new(120, 50, pressure),
+                new(230, 50, pressure), new(370, 50, pressure),
+            ],
+        };
+        BrushEngine.StampStroke(canvas, stroke, info);
+        canvas.Flush();
+
+        for (var x = 32; x <= 368; x++)
+        {
+            var px = bmp.GetPixel(x, 50);
+            Assert.True(px.Red < 128, $"Gap at x={x} (pressure {pressure}): centerline pixel is not inked.");
+        }
+    }
+
+    /// <summary>Pressure ramps mid-segment must interpolate, not jump: the stroke stays connected.</summary>
+    [Fact]
+    public void PressureRamp_KeepsTheStrokeConnected()
+    {
+        var info = new SKImageInfo(400, 100, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var bmp = new SKBitmap(info);
+        bmp.Erase(SKColors.White);
+        using var canvas = new SKCanvas(bmp);
+
+        var stroke = new Stroke
+        {
+            Color = "#000000",
+            Brush = new BrushSettings { Size = 60, Hardness = 1, Opacity = 1, Flow = 1, Spacing = 0.12 },
+            Points = [new(30, 50, 1.0), new(370, 50, 0.08)], // heavy -> feather-light in one segment
+        };
+        BrushEngine.StampStroke(canvas, stroke, info);
+        canvas.Flush();
+
+        for (var x = 32; x <= 366; x++)
+        {
+            var px = bmp.GetPixel(x, 50);
+            Assert.True(px.Red < 128, $"Gap at x={x}: taper broke the line apart.");
+        }
+    }
+}
