@@ -139,19 +139,34 @@ public sealed class ComposeRing : IDisposable
         }
         if (!behind) return;
 
-        // Cheap while nothing draws into the source: Skia hands back the
-        // existing pixels and only duplicates them if the surface is painted
-        // while a snapshot lives, which is why this is disposed before
-        // PickBuffer can choose the source.
-        using var fresh = source.Snapshot();
+        // Reuse the snapshot already handed out rather than asking for a new
+        // one. SkiaSharp returns the SAME SKImage object when the surface has
+        // not been drawn to since — and by construction it has not, because
+        // nothing repaints a buffer whose image is still live. Taking one here
+        // and disposing it would therefore tear down the image the canvas is
+        // currently rendering, behind its own retirement queue: a
+        // use-after-dispose on a live native image, which a review agent
+        // reproduced as a segfault.
+        var fresh = _current!.LastImage;
+        var ours = fresh is null || fresh.Handle == IntPtr.Zero;
+        if (ours) fresh = source.Snapshot();
         if (fresh is null) return;
 
-        foreach (var other in _buffers)
+        try
         {
-            if (!Behind(other)) continue;
-            CopyForward(other.Surface!, fresh, other.NeedsFull ? null : other.Stale, scale);
-            other.Stale = null;
-            other.NeedsFull = false;
+            foreach (var other in _buffers)
+            {
+                if (!Behind(other)) continue;
+                CopyForward(other.Surface!, fresh, other.NeedsFull ? null : other.Stale, scale);
+                other.Stale = null;
+                other.NeedsFull = false;
+            }
+        }
+        finally
+        {
+            // Only the one we made: an outstanding snapshot on a surface makes
+            // the next paint into it duplicate the whole buffer.
+            if (ours) fresh.Dispose();
         }
 
         bool Behind(Buffer b) =>

@@ -136,6 +136,36 @@ public class ComposeRingTests
         }
     }
 
+    /// <summary>
+    /// The catch-up must never dispose the image the canvas is still showing.
+    ///
+    /// SkiaSharp returns the <em>same</em> <see cref="SKImage"/> object from
+    /// <c>Snapshot()</c> when the surface has not been drawn to since — which
+    /// is exactly the state of the buffer a catch-up copies from. Taking a
+    /// snapshot there and disposing it with a <c>using</c> therefore tears
+    /// down the object <c>CanvasControl</c> is holding to render, behind the
+    /// back of its own retirement queue: a use-after-dispose on a live native
+    /// image, not merely a stale pixel.
+    /// </summary>
+    [Fact]
+    public void CatchingUpDoesNotDisposeTheImageTheCanvasIsStillShowing()
+    {
+        using var ring = new ComposeRing();
+        SKImage Publish(SKRectI? dirty) =>
+            ring.Publish(Info, dirty, (s, _) => s.Canvas.Clear(SKColors.White));
+
+        for (var i = 0; i < 3; i++) Publish(null).Dispose();
+
+        // The frame on screen: the consumer keeps it alive deliberately.
+        var onScreen = Publish(new SKRectI(0, 0, 64, 64));
+        // The next pointer event publishes again, and its catch-up runs.
+        using var next = Publish(new SKRectI(1, 1, 4, 4));
+
+        Assert.NotEqual(IntPtr.Zero, onScreen.Handle);
+        using (var pixels = onScreen.PeekPixels()) Assert.NotNull(pixels);
+        onScreen.Dispose();
+    }
+
     [Theory]
     [InlineData(1.0)]
     [InlineData(0.4)]
