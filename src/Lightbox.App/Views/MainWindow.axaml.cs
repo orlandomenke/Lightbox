@@ -102,7 +102,8 @@ public partial class MainWindow : Window
             if (args.PropertyName is nameof(MainViewModel.ColorDockerVisible)
                 or nameof(MainViewModel.SheetsDockerVisible)
                 or nameof(MainViewModel.PaletteDockerVisible)
-                or nameof(MainViewModel.GradientDockerVisible))
+                or nameof(MainViewModel.GradientDockerVisible)
+                or nameof(MainViewModel.HasProject))
             {
                 ApplySidebarLayout();
             }
@@ -202,6 +203,7 @@ public partial class MainWindow : Window
     /// back. Pixel rows keep their size, the stack is allowed to grow past the
     /// sidebar, and the surrounding ScrollViewer takes the overflow.
     /// </summary>
+    private GridLength _projectRowHeight = new(200, GridUnitType.Pixel);
     private GridLength _colorRowHeight = new(300, GridUnitType.Pixel);
     private GridLength _sheetsRowHeight = new(150, GridUnitType.Pixel);
     private GridLength _paletteRowHeight = new(220, GridUnitType.Pixel);
@@ -210,10 +212,13 @@ public partial class MainWindow : Window
     private void ApplySidebarLayout()
     {
         var rows = SidebarGrid.RowDefinitions;
-        ApplyDockerRow(rows[2], _vm.ColorDockerVisible, 140, ref _colorRowHeight);
-        ApplyDockerRow(rows[4], _vm.SheetsDockerVisible, 80, ref _sheetsRowHeight);
-        ApplyDockerRow(rows[6], _vm.PaletteDockerVisible, 110, ref _paletteRowHeight);
-        ApplyDockerRow(rows[8], _vm.GradientDockerVisible, 120, ref _gradientRowHeight);
+        // Row 0 is the project docker, which sizes itself and is absent unless
+        // a project exists; rows shift by two from there.
+        ApplyDockerRow(rows[0], _vm.HasProject, 150, ref _projectRowHeight);
+        ApplyDockerRow(rows[4], _vm.ColorDockerVisible, 140, ref _colorRowHeight);
+        ApplyDockerRow(rows[6], _vm.SheetsDockerVisible, 80, ref _sheetsRowHeight);
+        ApplyDockerRow(rows[8], _vm.PaletteDockerVisible, 110, ref _paletteRowHeight);
+        ApplyDockerRow(rows[10], _vm.GradientDockerVisible, 120, ref _gradientRowHeight);
     }
 
     /// <param name="minHeight">
@@ -1143,7 +1148,9 @@ public partial class MainWindow : Window
         return result;
     }
 
-    private async void OnSaveClicked(object? sender, RoutedEventArgs e)
+    private async void OnSaveClicked(object? sender, RoutedEventArgs e) => await SaveDocumentAsAsync();
+
+    private async Task SaveDocumentAsAsync()
     {
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
@@ -1158,6 +1165,66 @@ public partial class MainWindow : Window
             await writer.WriteAsync(_vm.SerializeDocument());
         }
         _vm.NotifySaved(file.TryGetLocalPath() ?? file.Name);
+    }
+
+    // ---- projects --------------------------------------------------------------
+
+    /// <summary>Ctrl+S: save without a picker when the tab already knows where it lives.</summary>
+    private async void OnSaveInPlaceClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.CanSaveInPlace)
+        {
+            _vm.Save();
+            return;
+        }
+        // Nowhere to put it yet, so Save falls through to Save as… rather than
+        // silently doing nothing.
+        await SaveDocumentAsAsync();
+    }
+
+    private async void OnNewProjectClicked(object? sender, RoutedEventArgs e)
+    {
+        var folder = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Choose where the project folder goes",
+            AllowMultiple = false,
+        });
+        if (folder.Count == 0 || folder[0].TryGetLocalPath() is not { } parent) return;
+
+        var name = _vm.ActiveTab?.Title is { Length: > 0 } t && !t.StartsWith("Untitled") ? t : "Project";
+        var root = Path.Combine(parent, name + Lightbox.Core.Projects.ProjectIo.Extension);
+        _vm.NewProject(root, name);
+    }
+
+    private async void OnOpenProjectClicked(object? sender, RoutedEventArgs e)
+    {
+        var folder = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Open a .lbproj folder",
+            AllowMultiple = false,
+        });
+        if (folder.Count == 0 || folder[0].TryGetLocalPath() is not { } root) return;
+        _vm.OpenProject(root);
+    }
+
+    /// <summary>Double-click a project row to open that animation as a tab.</summary>
+    private void OnProjectRowActivated(object? sender, Avalonia.Input.TappedEventArgs e) =>
+        _vm.ProjectDocker.OpenSelected();
+
+    private async void OnExportDocumentClicked(object? sender, RoutedEventArgs e)
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export a standalone document",
+            SuggestedFileName = $"{_vm.ActiveTab?.Title ?? "untitled"}.lightbox.json",
+            FileTypeChoices = [LightboxFileType],
+        });
+        if (file is null) return;
+        await using var stream = await file.OpenWriteAsync();
+        await using var writer = new StreamWriter(stream);
+        // Flattened: every shared palette and gradient it uses travels with it,
+        // so the file re-renders with the project gone.
+        await writer.WriteAsync(_vm.ExportStandaloneDocument());
     }
 
     private async void OnExportClicked(object? sender, RoutedEventArgs e)

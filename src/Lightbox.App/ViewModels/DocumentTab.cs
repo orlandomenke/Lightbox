@@ -65,6 +65,14 @@ public sealed partial class DocumentTab : ObservableObject
 
     public string? FilePath { get; set; }
 
+    /// <summary>
+    /// The project slot this tab came from, or null for a standalone document.
+    /// Alongside <see cref="FilePath"/> rather than instead of it: a project
+    /// animation is saved by the project, a loose file by its own path, and
+    /// Save has to know which it is looking at.
+    /// </summary>
+    public Lightbox.Core.Projects.DocumentRef? Source { get; set; }
+
     /// <summary>Playhead/layer selection remembered while another tab is active.</summary>
     internal int SavedFrameIndex;
 

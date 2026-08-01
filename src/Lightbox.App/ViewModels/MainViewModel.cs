@@ -8,6 +8,7 @@ using Lightbox.App.Services;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Geometry;
 using Lightbox.Core.Inbetween;
+using Lightbox.Core.Projects;
 using Lightbox.Core.Serialization;
 using Lightbox.Core.Timeline;
 using Lightbox.Raster;
@@ -205,6 +206,7 @@ public sealed partial class MainViewModel : ObservableObject
             OnSwatchRecoloured, PerformPaletteEdit, PaintWithSwatch, () => ColorHex);
         PaletteDocker.SwatchEditRunEnded += CommitSwatchEdit;
         GradientDocker = new GradientDockerViewModel(OnGradientEdited, PerformGradientEdit);
+        ProjectDocker = new ProjectViewModel(NewAnimationDoc, OpenProjectDocument, OnProjectChanged);
         PaletteRegistry.Reset(Doc.Palettes, Doc.Gradients);
         PaletteDocker.Load(Doc);
         GradientDocker.Load(Doc);
@@ -304,6 +306,128 @@ public sealed partial class MainViewModel : ObservableObject
         });
     }
 
+    // ---- project commands ---------------------------------------------------
+
+    /// <summary>
+    /// Start a project at <paramref name="root"/>, adopting the document that
+    /// is already open as its first animation.
+    ///
+    /// Adopting rather than starting empty is the point: the artist has been
+    /// drawing, and the container should form around that work instead of
+    /// asking them to recreate it somewhere else.
+    /// </summary>
+    public void NewProject(string root, string name)
+    {
+        var project = ProjectIo.Create(name, root);
+        var character = ProjectIo.AddCharacter(project, name);
+
+        if (SaveTargetTab is { } tab)
+        {
+            var reference = ProjectIo.AddAnimation(project, character, tab.Title, tab.Doc);
+            tab.Source = reference;
+            // The document's palettes and gradients become the project's:
+            // shared is the whole reason the container exists.
+            project.Palettes.AddRange(tab.Doc.Palettes);
+            foreach (var (id, gradient) in tab.Doc.Gradients) project.Gradients[id] = gradient;
+        }
+
+        ProjectDocker.Adopt(project);
+        SaveProject(everything: true);
+        AiStatus = $"Created project “{name}”.";
+    }
+
+    public void OpenProject(string root)
+    {
+        try
+        {
+            var project = ProjectIo.Load(root);
+            ProjectDocker.Adopt(project);
+            // Open the first animation so the project is not an empty shell —
+            // and so the registries have something to resolve against.
+            if (project.Characters.SelectMany(c => c.Animations).FirstOrDefault() is { } first
+                && ProjectIo.LoadDocument(project, first) is { } doc)
+            {
+                OpenProjectDocument(first, doc);
+            }
+            OnProjectChanged();
+            AiStatus = $"Opened project “{project.Name}”.";
+        }
+        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+        {
+            AiStatus = $"Could not open that project: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Write the project, and only the animations that changed.
+    /// </summary>
+    /// <param name="everything">
+    /// Write every loaded document regardless. True for the first save of a
+    /// new project, where nothing has been "changed" since it was created but
+    /// none of it is on disk yet.
+    /// </param>
+    public void SaveProject(bool everything = false)
+    {
+        if (ProjectDocker.Project is not { } project) return;
+        try
+        {
+            ProjectIo.Save(project, everything ? null : ProjectDocker.Dirty);
+            ProjectDocker.MarkAllSaved();
+            foreach (var tab in Tabs)
+            {
+                if (tab.Source is not null) tab.IsDirty = false;
+            }
+            AiStatus = $"Saved “{project.Name}”.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AiStatus = $"Could not save the project: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Can the current tab be saved without asking where? True for a project
+    /// animation and for a loose document that already has a path.
+    /// </summary>
+    public bool CanSaveInPlace =>
+        ProjectDocker.HasProject && SaveTargetTab?.Source is not null
+        || SaveTargetTab?.FilePath is { Length: > 0 };
+
+    /// <summary>
+    /// Save without a picker. Missing entirely until now — every save opened a
+    /// dialog even when the tab already knew where it came from.
+    /// </summary>
+    public void Save()
+    {
+        if (ProjectDocker.HasProject && SaveTargetTab?.Source is not null)
+        {
+            SaveProject();
+            return;
+        }
+        if (SaveTargetTab is not { FilePath: { Length: > 0 } path } tab) return;
+        try
+        {
+            DocJson.Save(tab.Doc, path);
+            tab.IsDirty = false;
+            AiStatus = $"Saved {System.IO.Path.GetFileName(path)}.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AiStatus = $"Could not save: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// A standalone copy of the active document, with every project resource
+    /// it references inlined — what "Export document…" writes.
+    /// </summary>
+    public string ExportStandaloneDocument()
+    {
+        var doc = SaveTargetTab?.Doc ?? Doc;
+        if (ProjectDocker.Project is { } project) doc = ProjectIo.Flatten(doc, project);
+        return DocJson.Serialize(doc);
+    }
+
     /// <summary>Open a loaded document in a new tab.</summary>
     public void OpenDocumentTab(Doc doc, string? filePath)
     {
@@ -359,6 +483,10 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _autosave.MarkDirty();
         if (_switchingTabs || ActiveTab is not { } tab) return;
+        // Here rather than in OnDocumentChanged: stroke commits take that
+        // method's scoped-edit early return, and a stroke is exactly the edit
+        // an incremental save must not miss.
+        if ((tab.Owner ?? tab).Source is { } source) ProjectDocker.MarkDirty(source);
         if (tab.Kind == DocumentTabKind.Reference)
         {
             // Undo/redo replaces the wrapper doc's layer list; keep the owning
@@ -591,6 +719,77 @@ public sealed partial class MainViewModel : ObservableObject
         _composeRing.InvalidateAll();
         PublishSnapshot();
         RefreshThumbnails();
+    }
+
+    // ---- projects -----------------------------------------------------------
+
+    /// <summary>
+    /// The project docker's state. Holds no project until one is created or
+    /// opened — the app is document-first and shows no project UI until then.
+    /// </summary>
+    public ProjectViewModel ProjectDocker { get; }
+
+    /// <summary>Whether any project UI should exist at all.</summary>
+    public bool HasProject => ProjectDocker.HasProject;
+
+    private void OnProjectChanged()
+    {
+        OnPropertyChanged(nameof(HasProject));
+        RegisterResources();
+        MarkDocumentEdited();
+    }
+
+    /// <summary>A blank document for a new animation, matching the active scene's shape.</summary>
+    private Doc NewAnimationDoc()
+    {
+        var scene = Scene;
+        return DocumentFactory.CreateDoc(
+            scene.Width, scene.Height, scene.Fps,
+            scene.TransparentBackground ? null : scene.BackgroundColor);
+    }
+
+    /// <summary>Open a project animation as a tab, or focus the tab it is already in.</summary>
+    private void OpenProjectDocument(DocumentRef reference, Doc doc)
+    {
+        if (Tabs.FirstOrDefault(t => t.Source?.Id == reference.Id) is { } already)
+        {
+            ActiveTab = already;
+            return;
+        }
+        AddTab(new DocumentTab(new DocumentEditor(doc), reference.Name)
+        {
+            Source = reference,
+            SavedLayerIndex = FirstPaintableLayer(doc),
+        });
+    }
+
+    /// <summary>
+    /// Point the engine's registries at the project's shared resources AND the
+    /// active document's.
+    ///
+    /// This is the whole of Pillar 1's sharing, and it needs no engine change:
+    /// the brush engine already resolves swatches, gradients, tips and clips by
+    /// id at render time. Widening the scope is all it takes for two animations
+    /// under one character to paint from one palette.
+    /// </summary>
+    /// <summary>
+    /// Re-scope the registries after the project's shared resources changed
+    /// outside a document edit — importing a palette, or a test adding one.
+    /// </summary>
+    public void RefreshProjectResources() => RegisterResources();
+
+    private void RegisterResources()
+    {
+        var palettes = Doc.Palettes.AsEnumerable();
+        var gradients = new Dictionary<string, Gradient>(Doc.Gradients);
+        if (ProjectDocker.Project is { } project)
+        {
+            // Document first, project second, so a document's own copy of a
+            // swatch id loses to the project's — the shared one is the live one.
+            palettes = palettes.Concat(project.Palettes);
+            foreach (var (id, gradient) in project.Gradients) gradients[id] = gradient;
+        }
+        PaletteRegistry.Reset(palettes, gradients);
     }
 
     // ---- gradients ----------------------------------------------------------
@@ -4210,7 +4409,7 @@ public sealed partial class MainViewModel : ObservableObject
         _composeRing.InvalidateAll();
         BrushTipRegistry.Register(Doc.BrushTips);
         ClipRegionRegistry.Register(Doc.ClipRegions);
-        PaletteRegistry.Reset(Doc.Palettes, Doc.Gradients);
+        RegisterResources();
         PaletteDocker.Load(Doc);
         GradientDocker.Load(Doc);
         RefreshDocumentStats();

@@ -11,9 +11,9 @@ file with no tests is the top of this list for a reason.
 | --- | --- | --- | --- | --- | --- | --- |
 | `src/Lightbox.App/Views/MainWindow.axaml.cs` | 0.58 | 0.58 | 30 | 7 | 1 | 0 |
 | `src/Lightbox.App/Views/MainWindow.axaml` | 0.52 | 0.52 | 32 | 5 | 0 | 0 |
-| `src/Lightbox.App/ViewModels/MainViewModel.cs` | 0.23 | 0.91 | 38 | 7 | 41 | 36 |
-| `src/Lightbox.App/Rendering/CanvasControl.cs` | 0.12 | 0.46 | 22 | 5 | 5 | 4 |
-| `src/Lightbox.Raster/BrushEngine.cs` | 0.09 | 0.36 | 18 | 3 | 13 | 9 |
+| `src/Lightbox.App/ViewModels/MainViewModel.cs` | 0.23 | 0.91 | 38 | 7 | 42 | 37 |
+| `src/Lightbox.App/Rendering/CanvasControl.cs` | 0.11 | 0.46 | 22 | 5 | 5 | 4 |
+| `src/Lightbox.Raster/BrushEngine.cs` | 0.09 | 0.36 | 18 | 3 | 14 | 10 |
 | `src/Lightbox.App/App.axaml` | 0.08 | 0.08 | 5 | 1 | 0 | 0 |
 | `src/Lightbox.App/Services/BrushPresets.cs` | 0.08 | 0.11 | 6 | 1 | 3 | 0 |
 | `src/Lightbox.App/ViewModels/LayerRow.cs` | 0.08 | 0.10 | 5 | 1 | 4 | 1 |
@@ -21,32 +21,32 @@ file with no tests is the top of this list for a reason.
 | `src/Lightbox.Core/Geometry/GeometryOps.cs` | 0.07 | 0.09 | 2 | 1 | 8 | 1 |
 | `src/Lightbox.Raster/Media/PigmentModel.cs` | 0.07 | 0.09 | 3 | 1 | 4 | 1 |
 | `src/Lightbox.Raster/Media/MediumSimulator.cs` | 0.07 | 0.07 | 2 | 1 | 0 | 0 |
-| `src/Lightbox.Core/Documents/Frame.cs` | 0.07 | 0.27 | 2 | 0 | 63 | 42 |
-| `src/Lightbox.Core/Documents/Stroke.cs` | 0.07 | 0.26 | 4 | 0 | 58 | 36 |
+| `src/Lightbox.Core/Documents/Frame.cs` | 0.07 | 0.27 | 2 | 0 | 64 | 43 |
+| `src/Lightbox.Core/Documents/Stroke.cs` | 0.07 | 0.26 | 4 | 0 | 59 | 37 |
 | `src/Lightbox.App/Views/ConfigureWindow.axaml` | 0.06 | 0.06 | 2 | 1 | 0 | 0 |
 | `src/Lightbox.App/Services/IpcDocumentApi.cs` | 0.06 | 0.08 | 3 | 1 | 2 | 1 |
-| `src/Lightbox.Core/Documents/BrushSettings.cs` | 0.06 | 0.24 | 7 | 1 | 33 | 24 |
+| `src/Lightbox.Core/Documents/BrushSettings.cs` | 0.06 | 0.24 | 7 | 1 | 34 | 25 |
 | `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` | 0.05 | 0.07 | 2 | 1 | 2 | 1 |
-| `src/Lightbox.Core/Documents/Scene.cs` | 0.05 | 0.22 | 8 | 2 | 16 | 5 |
+| `src/Lightbox.Core/Documents/Scene.cs` | 0.05 | 0.21 | 8 | 2 | 16 | 5 |
 | `src/Lightbox.App/Views/NewDocumentDialog.axaml` | 0.05 | 0.05 | 1 | 1 | 0 | 0 |
 
 ## Most active regardless of coverage
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` — heat 0.91, 38 commits (7 fixes), 41 dependents
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` — heat 0.91, 38 commits (7 fixes), 42 dependents
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` — heat 0.58, 30 commits (7 fixes), 1 dependents
 - `src/Lightbox.App/Views/MainWindow.axaml` — heat 0.52, 32 commits (5 fixes), 0 dependents
 - `src/Lightbox.App/Rendering/CanvasControl.cs` — heat 0.46, 22 commits (5 fixes), 5 dependents
-- `src/Lightbox.Raster/BrushEngine.cs` — heat 0.36, 18 commits (3 fixes), 13 dependents
-- `src/Lightbox.Core/Documents/Frame.cs` — heat 0.27, 2 commits (0 fixes), 63 dependents
-- `src/Lightbox.Core/Documents/Stroke.cs` — heat 0.26, 4 commits (0 fixes), 58 dependents
-- `src/Lightbox.Core/Documents/BrushSettings.cs` — heat 0.24, 7 commits (1 fixes), 33 dependents
-- `src/Lightbox.Core/Documents/Scene.cs` — heat 0.22, 8 commits (2 fixes), 16 dependents
+- `src/Lightbox.Raster/BrushEngine.cs` — heat 0.36, 18 commits (3 fixes), 14 dependents
+- `src/Lightbox.Core/Documents/Frame.cs` — heat 0.27, 2 commits (0 fixes), 64 dependents
+- `src/Lightbox.Core/Documents/Stroke.cs` — heat 0.26, 4 commits (0 fixes), 59 dependents
+- `src/Lightbox.Core/Documents/BrushSettings.cs` — heat 0.24, 7 commits (1 fixes), 34 dependents
+- `src/Lightbox.Core/Documents/Scene.cs` — heat 0.21, 8 commits (2 fixes), 16 dependents
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` — heat 0.20, 10 commits (2 fixes), 7 dependents
 
 ## Substantial files with no test reference
 
-- `src/Lightbox.App/Views/MainWindow.axaml` (1697 ln)
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (1191 ln)
+- `src/Lightbox.App/Views/MainWindow.axaml` (1769 ln)
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (1258 ln)
 - `src/Lightbox.Raster/Media/MediumSimulator.cs` (298 ln)
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (211 ln)
 - `src/Lightbox.App/Controls/TimelineRuler.cs` (181 ln)

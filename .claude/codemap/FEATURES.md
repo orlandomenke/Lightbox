@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-633 tests, derived from the suite itself. Each line is a
+646 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -482,6 +482,23 @@ regression even when every test still compiles.
 - Imported Gpl Becomes APalette On The Document — `:251`
 - Exported Gpl Reads Back As The Same Palette — `:275`
 - An Unparseable Hex Is Rejected Rather Than Painting Black — `:299`
+
+## ProjectDockerTests
+`tests/Lightbox.App.Tests/ProjectDockerTests.cs`
+
+- The App Opens With No Project — `:31`
+- With No Project ADocument Saves And Loads Exactly As Before — `:44`
+- New Project Adopts The Document Already Open — `:60`
+- The Docker Lists Characters With Their Animations Under Them — `:82`
+- Adding An Animation Opens It As ATab Bound To Its Slot — `:96`
+- Opening An Animation Twice Focuses The Tab Rather Than Duplicating It — `:110`
+- File New Still Makes AStandalone Document With AProject Open — `:127`
+- Two Animations Under One Character Paint From One Palette — `:144`
+- Save Writes The Project Without APicker — `:182`
+- Without AProject Or APath There Is Nothing To Save In Place — `:199`
+- AProject Reopens With Its Characters And Animations — `:207`
+- Removing An Animation Leaves Its File On Disk — `:228`
+- Renaming ARow Writes Through — `:246`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`

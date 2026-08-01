@@ -114,8 +114,9 @@ a folder of files. Its animations share one palette, one brush set, one set of
 references, one export configuration. This is also where the project-type and
 workspace split lands — see "Project architecture" below.
 
+- [x] Project type recorded, absent by default `evidence: ProjectType, AProjectWithNoTypeWritesNoTypeKey, ADeclaredTypeSurvives`
 - [?] Project types at creation (Illustration / Animation / Game Art / Storyboard / Comic / Asset Library / Empty)
-- [?] Project as a container above the document
+- [x] Project as a container above the document `evidence: ProjectManifest, ProjectIo, Project, ProjectTests, AProjectRoundTripsThroughTheFolder`
 - [x] Character workspace — animations, assets, references, palette in one place `evidence: ReferenceSheet, ReferenceSheetModelTests, ReferenceTabTests`
 - [?] Character library
 - [?] Character variants that inherit animations (Default / Winter Armor / Damaged)
@@ -123,8 +124,12 @@ workspace split lands — see "Project architecture" below.
 - [?] Project conversion (Illustration → Animation → Game) with no artwork recreated
 - [?] Workspace layouts, decoupled from project type
 - [x] Dockable panels `evidence: Docker, Sidebar, SidebarTests`
+- [x] Project browser — characters and their animations `evidence: ProjectViewModel, ProjectRow, TheDockerListsCharactersWithTheirAnimationsUnderThem`
+- [x] Shared palette across a character's animations `evidence: TwoAnimationsUnderOneCharacterPaintFromOnePalette, RefreshProjectResources`
+- [x] Standalone export from inside a project `evidence: ProjectFlattenTests, AFlattenedDocumentRendersIdenticallyWithTheProjectGone`
+- [x] Open an existing loose document without a project `evidence: TheAppOpensWithNoProject, WithNoProjectADocumentSavesAndLoadsExactlyAsBefore`
 - [?] Per-workspace panel sets (Illustration / Animation / Game)
-- [?] Auto save - configurable in time if a file is already present. 
+- [?] Auto save - configurable in time if a file is already present.
 
 ## Pillar 2 — Persistent, customizable onion skinning
 
@@ -351,8 +356,8 @@ Three consequences worth stating before anyone builds against the design:
    colour, file format and selection are common today, which is exactly what
    the design assumes. No restructuring is needed there — only above it.
 
-- [?] `Project` container above `Doc` (scenes, characters, assets)
-- [?] Project type recorded on the document, absent by default
+- [x] `Project` container above `Doc` (scenes, characters, assets) `evidence: ProjectManifest, Character, DocumentRef, ProjectTests`
+- [x] Project type recorded on the document, absent by default `evidence: ProjectType, AProjectWithNoTypeWritesNoTypeKey`
 - [?] Named workspaces, persisted
 - [?] Storyboard organization (scenes → shots)
 - [?] Comic organization (pages → panels)

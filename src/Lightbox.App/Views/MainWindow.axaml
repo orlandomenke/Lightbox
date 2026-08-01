@@ -11,6 +11,13 @@
         WindowStartupLocation="CenterScreen">
 
   <Window.Styles>
+    <!-- Project tree: a character reads as a heading, its animations indent under it. -->
+    <Style Selector="DockPanel.characterRow > TextBlock">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="DockPanel.animationRow">
+      <Setter Property="Margin" Value="16,0,0,0" />
+    </Style>
     <Style Selector="Border.layerRow">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="CornerRadius" Value="3" />
@@ -103,8 +110,14 @@
       <MenuItem Header="_File">
         <MenuItem Header="_New…" Click="OnNewClicked" />
         <MenuItem Header="_Open…" Click="OnOpenClicked" />
-        <MenuItem Header="_Save…" Click="OnSaveClicked" />
+        <MenuItem Header="_Save" Click="OnSaveInPlaceClicked" InputGesture="Ctrl+S" />
+        <MenuItem Header="Save _as…" Click="OnSaveClicked" />
         <Separator />
+        <MenuItem Header="New _project…" Click="OnNewProjectClicked" />
+        <MenuItem Header="Open p_roject…" Click="OnOpenProjectClicked" />
+        <Separator />
+        <MenuItem Header="Export _document…" Click="OnExportDocumentClicked"
+                  ToolTip.Tip="A standalone .lightbox.json with every shared palette and gradient it uses inlined" />
         <MenuItem Header="_Export PNGs…" Click="OnExportClicked" />
       </MenuItem>
       <MenuItem Header="_Edit">
@@ -934,6 +947,11 @@
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <Grid x:Name="SidebarGrid" Margin="4">
               <Grid.RowDefinitions>
+                <!-- Project docker. Auto when there is no project, so a
+                     document-first session pays nothing for a container it
+                     never created. -->
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="260" MinHeight="120" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="300" MinHeight="140" />
@@ -945,8 +963,62 @@
                 <RowDefinition Height="240" MinHeight="120" />
               </Grid.RowDefinitions>
 
+            <!-- Project docker: characters and the animations under them. Absent
+                 unless a project exists — the app is document-first, and a
+                 session that never creates one shows no project UI at all. -->
+            <controls:Docker Grid.Row="0" Title="{Binding ProjectDocker.ProjectName}"
+                             MinHeight="150" IsVisible="{Binding HasProject}">
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <Button Classes="text" Content="＋ Character"
+                            Command="{Binding ProjectDocker.AddCharacterCommand}"
+                            ToolTip.Tip="A character owns animations, a palette and references" />
+                    <Button Classes="text" Content="＋ Animation"
+                            Command="{Binding ProjectDocker.AddAnimationCommand}"
+                            ToolTip.Tip="New animation under the selected character, opened as a tab" />
+                    <Button Classes="icon" Content="－"
+                            Command="{Binding ProjectDocker.RemoveSelectedCommand}"
+                            IsEnabled="{Binding ProjectDocker.HasSelection}"
+                            ToolTip.Tip="Remove from the project (the file stays on disk)" />
+                  </StackPanel>
+                </Border>
+              </controls:Docker.TopBar>
+              <controls:Docker.BottomBar>
+                <Border Classes="dockerBar"
+                        IsVisible="{Binding ProjectDocker.Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                  <TextBlock Text="{Binding ProjectDocker.Status}" FontSize="10" Opacity="0.6" TextWrapping="Wrap" />
+                </Border>
+              </controls:Docker.BottomBar>
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ListBox ItemsSource="{Binding ProjectDocker.Rows}"
+                         SelectedItem="{Binding ProjectDocker.Selected}"
+                         Background="Transparent" BorderThickness="0" Margin="2"
+                         DoubleTapped="OnProjectRowActivated">
+                  <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                      <Setter Property="Padding" Value="2,0" />
+                      <Setter Property="MinHeight" Value="22" />
+                    </Style>
+                  </ListBox.Styles>
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ProjectRow">
+                      <DockPanel Classes.characterRow="{Binding IsCharacter}"
+                                 Classes.animationRow="{Binding !IsCharacter}" MinHeight="22">
+                        <TextBlock DockPanel.Dock="Left" Text="🗀" FontSize="11" VerticalAlignment="Center"
+                                   IsVisible="{Binding IsCharacter}" Margin="0,0,4,0" />
+                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="11" />
+                      </DockPanel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </ScrollViewer>
+            </controls:Docker>
+
+            <GridSplitter Grid.Row="1" Height="5" ResizeDirection="Rows" IsVisible="{Binding HasProject}" />
+
             <!-- Layer docker (its ✕ collapses the sidebar to its side; ⇄ switches sides) -->
-            <controls:Docker x:Name="LayersDocker" Grid.Row="0" Title="Layers"
+            <controls:Docker x:Name="LayersDocker" Grid.Row="2" Title="Layers"
                              CloseCommand="{Binding ToggleSidebarCommand}">
               <controls:Docker.TitleBarExtra>
                 <Button Content="⇄" FontSize="11" Padding="6,2"
@@ -1117,10 +1189,10 @@
               </ScrollViewer>
             </controls:Docker>
 
-            <GridSplitter Grid.Row="1" Height="5" ResizeDirection="Rows" IsVisible="{Binding ColorDockerVisible}" />
+            <GridSplitter Grid.Row="3" Height="5" ResizeDirection="Rows" IsVisible="{Binding ColorDockerVisible}" />
 
             <!-- Color docker: one color, several representations -->
-            <controls:Docker Grid.Row="2" Title="Color" IsVisible="{Binding ColorDockerVisible}"
+            <controls:Docker Grid.Row="4" Title="Color" IsVisible="{Binding ColorDockerVisible}"
                              CloseCommand="{Binding ToggleColorDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -1253,10 +1325,10 @@
               </ScrollViewer>
             </controls:Docker>
 
-            <GridSplitter Grid.Row="3" Height="5" ResizeDirection="Rows" IsVisible="{Binding SheetsDockerVisible}" />
+            <GridSplitter Grid.Row="5" Height="5" ResizeDirection="Rows" IsVisible="{Binding SheetsDockerVisible}" />
 
             <!-- Character sheet docker: reference views of the subject, outside the timeline -->
-            <controls:Docker Grid.Row="4" Title="Character sheets" IsVisible="{Binding SheetsDockerVisible}"
+            <controls:Docker Grid.Row="6" Title="Character sheets" IsVisible="{Binding SheetsDockerVisible}"
                              CloseCommand="{Binding ToggleSheetsDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -1310,9 +1382,9 @@
             <!-- Palette docker: named colours the art references rather than
                  copies, so recolouring a swatch recolours every frame and
                  every layer that used it. -->
-            <GridSplitter Grid.Row="5" Height="5" ResizeDirection="Rows" IsVisible="{Binding PaletteDockerVisible}" />
+            <GridSplitter Grid.Row="7" Height="5" ResizeDirection="Rows" IsVisible="{Binding PaletteDockerVisible}" />
 
-            <controls:Docker Grid.Row="6" Title="Palette"
+            <controls:Docker Grid.Row="8" Title="Palette"
                              IsVisible="{Binding PaletteDockerVisible}"
                              CloseCommand="{Binding TogglePaletteDockerCommand}">
               <controls:Docker.TopBar>
@@ -1404,9 +1476,9 @@
             <!-- Gradient docker: the ramp definitions the gradient tool paints.
                  Like a palette swatch, editing one changes the art already
                  painted with it. -->
-            <GridSplitter Grid.Row="7" Height="5" ResizeDirection="Rows" IsVisible="{Binding GradientDockerVisible}" />
+            <GridSplitter Grid.Row="9" Height="5" ResizeDirection="Rows" IsVisible="{Binding GradientDockerVisible}" />
 
-            <controls:Docker Grid.Row="8" Title="Gradient"
+            <controls:Docker Grid.Row="10" Title="Gradient"
                              IsVisible="{Binding GradientDockerVisible}"
                              CloseCommand="{Binding ToggleGradientDockerCommand}">
               <controls:Docker.TopBar>
@@ -1503,11 +1575,11 @@
         </Border>
       </Grid>
 
-      <GridSplitter Grid.Row="1" Height="5" ResizeDirection="Rows"
+      <GridSplitter Grid.Row="3" Height="5" ResizeDirection="Rows"
                     IsVisible="{Binding ShowTimeline}" />
 
       <!-- Timeline docker (its ✕ collapses it downward; reopen via View menu; hidden on reference tabs) -->
-      <controls:Docker x:Name="TimelineDocker" Grid.Row="2" Title="Timeline" Margin="4,0,4,4"
+      <controls:Docker x:Name="TimelineDocker" Grid.Row="4" Title="Timeline" Margin="4,0,4,4"
                        IsVisible="{Binding ShowTimeline}"
                        CloseCommand="{Binding ToggleTimelineCommand}">
         <controls:Docker.TopBar>
