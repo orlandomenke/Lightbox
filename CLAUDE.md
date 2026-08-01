@@ -70,9 +70,17 @@ session start when it is stale.
 | What is risky to change? | read `.claude/codemap/HOTSPOTS.md` |
 | What behaviour is promised today? | read `.claude/codemap/FEATURES.md` |
 | What are we building, and how far along? | read `.claude/quality/ROADMAP.md` |
+| What is known broken? | `python3 scripts/bugs.py next` |
+| What is broken in the area I am editing? | `python3 scripts/bugs.py mine <domain>` |
 | What should I pick up next? | `python3 scripts/roadmap.py next` |
 
 Rebuild by hand with `python3 scripts/codemap.py build` after large changes.
+
+`BUGS.md` is the same idea pointed at defects: every entry names the
+regression test that closes it, `bugs.py sync` derives the checkbox from
+whether that test exists, and deleting the test reopens the bug. An agent
+about to edit an area runs `bugs.py mine <domain>` and fixes the open P1/P2
+bugs it finds there alongside its own work.
 
 `ROADMAP.md` holds the six pillars that give the app its identity, plus the
 drawing floor beneath them. **Its checkboxes are derived from the code**, not

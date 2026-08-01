@@ -19,8 +19,14 @@ the codebase to orient yourself — that is what the index is for.
 ```bash
 python3 scripts/codemap.py stale || python3 scripts/codemap.py build
 python3 scripts/roadmap.py check
+python3 scripts/bugs.py check
+python3 scripts/bugs.py next           # what is known broken, worst first
 python3 scripts/roadmap.py next        # candidates, nearest-first
 ```
+
+`BUGS.md` comes before `ROADMAP.md` for the same reason a broken promise
+outranks a new feature: the roadmap is what we intend, the ledger is what is
+already wrong.
 
 Read `.claude/quality/LOOP.md` for what previous rounds already tried, so you
 do not re-litigate settled decisions or re-report known gaps.
@@ -57,11 +63,13 @@ it reads the diff you are about to ship, which does not exist yet.
 Rank candidates by **risk removed ÷ cost**. Prefer, in order:
 
 1. A broken promise (something that used to work and does not).
-2. An unguarded hotspot — top of `HOTSPOTS.md` with no test reference.
-3. A confirmed performance regression.
-4. A gap the user has actually felt (check the recent conversation and
+2. An open **P1** in `BUGS.md` — by definition it blocks work or damages art
+   every session, which nothing on the roadmap does.
+3. An unguarded hotspot — top of `HOTSPOTS.md` with no test reference.
+4. A confirmed performance regression.
+5. A gap the user has actually felt (check the recent conversation and
    `QUESTIONS.md`) over one only the metrics feel.
-5. Simplification that deletes code without deleting behaviour.
+6. Simplification that deletes code without deleting behaviour.
 
 Take a batch that fits one verification cycle — roughly what you can build
 and fully verify before reporting. Two solid improvements beat six unverified
@@ -74,6 +82,24 @@ Make the change. Delegate test writing to **test-smith** when the gap is
 "this is untested"; keep implementation on the main thread where you hold the
 context.
 
+**Sweep the domain you are already in.** Before finishing a change, run
+
+```bash
+python3 scripts/bugs.py mine <domain>
+```
+
+for the area the diff touches. Fix its open **P1 and P2** bugs too, each with
+its own regression test, in the same commit — you are already holding the
+context that makes them cheap, and a known-broken thing left alone in code you
+just edited is a choice, not an oversight.
+
+**Mention P3 and P4 without touching them.** The bound is what makes the sweep
+safe: a request to change one thing must not come back as a diff touching six.
+Anything needing a product decision goes to `QUESTIONS.md` and is left alone.
+
+Close what you fixed with `python3 scripts/bugs.py sync` — the mark is derived
+from the test, so this is reporting the result rather than asserting it.
+
 ### 4 · Verify — the gates
 
 Run in this order, cheapest first:
@@ -84,6 +110,7 @@ dotnet test
 dotnet test --filter "Category=Performance" --logger "console;verbosity=detailed"
 python3 scripts/codemap.py build     # refresh FEATURES.md
 python3 scripts/roadmap.py sync      # tick what this round actually landed
+python3 scripts/bugs.py sync         # close what its regression test now proves
 ```
 
 Then, in parallel:
@@ -149,6 +176,7 @@ Did: <changes, with the test that proves each>
 Rejected: <candidates considered and dropped, with the reason>
 Gates: build ✓ tests ✓ (<n> passing) perf ✓ leaks ✓ inventory ✓ roadmap ✓
 Sharpened: <what in the loop itself changed so this class of defect is caught next time, or none>
+Bugs: <ids closed this round, ids newly recorded, or none>
 Roadmap: <items that changed mark this round, or none>
 Questions raised: <ids, or none>
 Next: <the strongest remaining candidate>

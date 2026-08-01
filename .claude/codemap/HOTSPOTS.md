@@ -9,14 +9,14 @@ file with no tests is the top of this list for a reason.
 
 | File | Risk | Heat | Commits | Fixes | Dependents | Test files |
 | --- | --- | --- | --- | --- | --- | --- |
-| `src/Lightbox.App/Views/MainWindow.axaml.cs` | 0.57 | 0.57 | 28 | 7 | 1 | 0 |
-| `src/Lightbox.App/Views/MainWindow.axaml` | 0.51 | 0.51 | 30 | 5 | 0 | 0 |
+| `src/Lightbox.App/Views/MainWindow.axaml.cs` | 0.58 | 0.58 | 29 | 7 | 1 | 0 |
+| `src/Lightbox.App/Views/MainWindow.axaml` | 0.52 | 0.52 | 31 | 5 | 0 | 0 |
 | `src/Lightbox.App/ViewModels/MainViewModel.cs` | 0.23 | 0.92 | 37 | 7 | 40 | 35 |
 | `src/Lightbox.App/Rendering/CanvasControl.cs` | 0.12 | 0.47 | 22 | 5 | 5 | 4 |
 | `src/Lightbox.Raster/BrushEngine.cs` | 0.09 | 0.37 | 18 | 3 | 13 | 9 |
+| `src/Lightbox.App/App.axaml` | 0.09 | 0.09 | 5 | 1 | 0 | 0 |
 | `src/Lightbox.App/Services/BrushPresets.cs` | 0.08 | 0.11 | 6 | 1 | 3 | 0 |
 | `src/Lightbox.App/ViewModels/LayerRow.cs` | 0.08 | 0.11 | 5 | 1 | 4 | 1 |
-| `src/Lightbox.App/App.axaml` | 0.08 | 0.08 | 4 | 1 | 0 | 0 |
 | `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` | 0.07 | 0.07 | 2 | 1 | 2 | 0 |
 | `src/Lightbox.Core/Geometry/GeometryOps.cs` | 0.07 | 0.10 | 2 | 1 | 8 | 1 |
 | `src/Lightbox.Raster/Media/PigmentModel.cs` | 0.07 | 0.10 | 3 | 1 | 4 | 1 |
@@ -33,8 +33,8 @@ file with no tests is the top of this list for a reason.
 ## Most active regardless of coverage
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` — heat 0.92, 37 commits (7 fixes), 40 dependents
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` — heat 0.57, 28 commits (7 fixes), 1 dependents
-- `src/Lightbox.App/Views/MainWindow.axaml` — heat 0.51, 30 commits (5 fixes), 0 dependents
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` — heat 0.58, 29 commits (7 fixes), 1 dependents
+- `src/Lightbox.App/Views/MainWindow.axaml` — heat 0.52, 31 commits (5 fixes), 0 dependents
 - `src/Lightbox.App/Rendering/CanvasControl.cs` — heat 0.47, 22 commits (5 fixes), 5 dependents
 - `src/Lightbox.Raster/BrushEngine.cs` — heat 0.37, 18 commits (3 fixes), 13 dependents
 - `src/Lightbox.Core/Documents/Stroke.cs` — heat 0.27, 4 commits (0 fixes), 55 dependents
