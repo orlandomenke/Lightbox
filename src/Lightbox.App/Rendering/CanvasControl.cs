@@ -66,8 +66,16 @@ public sealed class CanvasControl : Control
     }
 
     private RenderSnapshot? _snapshot;
-    private readonly Queue<SKImage> _retired = new();
-    private const int RetiredKeep = 8;
+    private readonly Queue<RenderSnapshot> _retired = new();
+
+    /// <summary>Snapshots kept past the current one, even after they've been rendered.</summary>
+    private const int RetiredKeep = 1;
+
+    /// <summary>Backstop when render completions never report back (headless).</summary>
+    private const int RetiredHardCap = 4;
+
+    /// <summary>Highest snapshot sequence the render thread has finished drawing.</summary>
+    private long _lastRenderedSeq;
 
     /// <summary>Pointer position in view space while it hovers the canvas.</summary>
     private Point? _hoverPoint;
@@ -549,13 +557,24 @@ public sealed class CanvasControl : Control
             Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss.fff} UpdateSnapshot");
         var old = _snapshot;
         _snapshot = snapshot;
-        if (old is not null)
+        if (old is not null) _retired.Enqueue(old);
+        // Free images the render thread is provably done with: renders are
+        // sequential, so once a newer snapshot has been drawn, no earlier one
+        // can still be in flight. Holding them longer is not just memory —
+        // the compositor's back-buffer would have to copy-on-write around
+        // them on every publish (~375 ms at 4K).
+        var rendered = Interlocked.Read(ref _lastRenderedSeq);
+        while (_retired.Count > RetiredKeep
+               && _retired.Peek() is { } stale
+               && stale.Seq < rendered)
         {
-            _retired.Enqueue(old.Image);
-            while (_retired.Count > RetiredKeep)
-            {
-                _retired.Dequeue().Dispose();
-            }
+            _retired.Dequeue().Image.Dispose();
+        }
+        // Hard cap: if rendering never reports back (headless, hidden window),
+        // don't accumulate full-canvas images forever.
+        while (_retired.Count > RetiredHardCap)
+        {
+            _retired.Dequeue().Image.Dispose();
         }
         InvalidateVisual();
         // InvalidateVisual alone is not enough: when input goes quiet right
@@ -640,7 +659,8 @@ public sealed class CanvasControl : Control
         }
 
         context.Custom(new DrawOp(
-            new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo));
+            new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
+            NoteRendered));
     }
 
     // ---- view <-> document transform ---------------------------------------
@@ -1101,10 +1121,22 @@ public sealed class CanvasControl : Control
     private readonly record struct ViewState(
         float DocW, float DocH, float Scale, float RotationDeg, bool Mirrored, float CenterX, float CenterY);
 
+    /// <summary>Called from the render thread once a snapshot has been drawn.</summary>
+    private void NoteRendered(long seq)
+    {
+        long current;
+        do
+        {
+            current = Interlocked.Read(ref _lastRenderedSeq);
+            if (seq <= current) return;
+        }
+        while (Interlocked.CompareExchange(ref _lastRenderedSeq, seq, current) != current);
+    }
+
     private sealed class DrawOp(
         Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor,
         SKPath? ants, SKPath? antsOpen, float antsPhase, LazyGizmo? lazy = null,
-        TxGizmoData? txGizmo = null) : ICustomDrawOperation
+        TxGizmoData? txGizmo = null, Action<long>? onRendered = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -1125,6 +1157,7 @@ public sealed class CanvasControl : Control
             try
             {
                 RenderCore(context);
+                onRendered?.Invoke(snapshot.Seq);
             }
             catch (Exception ex)
             {

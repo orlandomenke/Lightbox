@@ -64,9 +64,16 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly StrokeBuilder _strokeBuilder = new();
     private readonly PlaybackClock _clock = new();
 
+    /// <summary>Measured repaint cost, shown as headroom in the info strip.</summary>
+    public PerformanceMonitor Performance { get; } = new();
+
     private DocumentEditor _editor;
-    private SKSurface? _composeSurface;
-    private SKImageInfo _composeInfo;
+    private readonly ComposeRing _composeRing = new();
+    private long _publishSeq;
+
+    /// <summary>Document region changed since the last publish (null = everything).</summary>
+    private SKRectI? _pendingDirty;
+    private bool _dirtyIsWholeCanvas = true;
 
     /// <summary>Fired with a fresh snapshot whenever the canvas must repaint.</summary>
     public event Action<RenderSnapshot>? SnapshotChanged;
@@ -93,6 +100,7 @@ public sealed partial class MainViewModel : ObservableObject
         SyncLayerChoices();
         SyncLayerRows();
         RefreshThumbnails();
+        RefreshDocumentStats();
     }
 
     // ---- document tabs --------------------------------------------------------
@@ -872,21 +880,29 @@ public sealed partial class MainViewModel : ObservableObject
 
             var frameId = target.Id;
             var addedClip = false;
-            _editor.PerformDelta(
-                apply: doc =>
-                {
-                    if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
-                    var list = StrokeListIn(doc, frameId);
-                    if (list is null) return;
-                    if (below) list.Insert(0, stroke);
-                    else list.Add(stroke);
-                },
-                revert: doc =>
-                {
-                    RemoveStrokeById(doc, frameId, stroke.Id);
-                    if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
-                },
-                affectedFrameId: frameId);
+            _committingScopedEdit = true;
+            try
+            {
+                _editor.PerformDelta(
+                    apply: doc =>
+                    {
+                        if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
+                        var list = StrokeListIn(doc, frameId);
+                        if (list is null) return;
+                        if (below) list.Insert(0, stroke);
+                        else list.Add(stroke);
+                    },
+                    revert: doc =>
+                    {
+                        RemoveStrokeById(doc, frameId, stroke.Id);
+                        if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
+                    },
+                    affectedFrameId: frameId);
+            }
+            finally
+            {
+                _committingScopedEdit = false;
+            }
             _dirtyThumbIds.Add(target.Id);
             PublishSnapshot();
             RefreshThumbnails();
@@ -1442,15 +1458,20 @@ public sealed partial class MainViewModel : ObservableObject
     // Live-preview state: a persistent copy of the target frame that only the
     // NEW segment of the stroke gets stamped into per pointer event — this is
     // what keeps painting O(stroke length) instead of O(length²).
-    private SKBitmap? _liveComposite;
-    private SKCanvas? _liveCompositeCanvas;
-    // The committed layer as it was at stroke start. This is the CACHED
-    // bitmap itself (never written during a stroke), so no extra copy.
-    private SKBitmap? _liveBase;
-    // Whole-stroke dab accumulator without stroke opacity — pooled across
-    // strokes to avoid a large allocation on every pen-down.
+    // Whole-stroke dab accumulator, WITHOUT the stroke's opacity — the
+    // compositor lays it over the layer and applies opacity once, so a
+    // self-crossing stroke looks the same live as committed. Pooled across
+    // strokes: at 4K this bitmap is 33 MB, far too big to allocate per stroke.
     private SKBitmap? _liveScratch;
     private SKCanvas? _liveScratchCanvas;
+
+    // Region of the scratch actually touched by the current stroke, so
+    // pen-up can clear just that much instead of the whole canvas.
+    private SKRectI? _liveScratchUsed;
+
+    // Blur brushes read the canvas underneath them, so they cannot be
+    // composited from a separate scratch — they keep the copy-based path.
+    private SKBitmap? _liveComposite;
     private int _liveStampedCount;
     private bool _snapshotQueued;
 
@@ -1473,22 +1494,46 @@ public sealed partial class MainViewModel : ObservableObject
         // the region; the document copy is added at commit).
         if (PrepareClipForSelection() is { } liveClip) _strokeBuilder.Current!.ClipId = liveClip.Id;
 
-        _liveCompositeCanvas?.Dispose();
         _liveComposite?.Dispose();
-        _liveBase = _cache.Get(target, Scene.Width, Scene.Height);
-        _liveComposite = _liveBase.Copy();
-        _liveCompositeCanvas = new SKCanvas(_liveComposite);
-        if (_liveScratch is null || _liveScratch.Width != Scene.Width || _liveScratch.Height != Scene.Height)
+        _liveComposite = null;
+        if (CurrentToolSettings.Kind == BrushKind.Blur)
         {
-            _liveScratchCanvas?.Dispose();
-            _liveScratch?.Dispose();
-            _liveScratch = new SKBitmap(new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
-            _liveScratchCanvas = new SKCanvas(_liveScratch);
+            // Blur samples the pixels it sits on, so it needs a real copy of
+            // the layer to draw into.
+            _liveComposite = _cache.Get(target, Scene.Width, Scene.Height).Copy();
         }
-        _liveScratchCanvas!.Clear(SkiaSharp.SKColors.Transparent);
+        else
+        {
+            if (_liveScratch is null || _liveScratch.Width != Scene.Width || _liveScratch.Height != Scene.Height)
+            {
+                _liveScratchCanvas?.Dispose();
+                _liveScratch?.Dispose();
+                _liveScratch = new SKBitmap(
+                    new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+                _liveScratchCanvas = new SKCanvas(_liveScratch);
+                _liveScratchUsed = null;
+            }
+            ClearLiveScratch();
+        }
         _liveStampedCount = 0;
         FlushLivePreview();
         PublishSnapshot();
+    }
+
+    /// <summary>Wipe only the region the previous stroke actually touched.</summary>
+    private void ClearLiveScratch()
+    {
+        if (_liveScratchCanvas is null) return;
+        if (_liveScratchUsed is not { } used)
+        {
+            _liveScratchCanvas.Clear(SkiaSharp.SKColors.Transparent);
+            return;
+        }
+        _liveScratchCanvas.Save();
+        _liveScratchCanvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
+        _liveScratchCanvas.Clear(SkiaSharp.SKColors.Transparent);
+        _liveScratchCanvas.Restore();
+        _liveScratchUsed = null;
     }
 
     /// <summary>All coalesced samples of one pointer event → one stamp + one (coalesced) repaint.</summary>
@@ -1516,7 +1561,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private void FlushLivePreview()
     {
-        if (_liveComposite is null || _strokeBuilder.Current is not { } live) return;
+        if (_strokeBuilder.Current is not { } live) return;
         var points = live.Points;
         if (_liveStampedCount >= points.Count) return;
 
@@ -1529,25 +1574,34 @@ public sealed partial class MainViewModel : ObservableObject
             ClipId = live.ClipId,
             Points = points.Skip(from).ToList(),
         };
-        if (live.Brush.Kind == BrushKind.Blur)
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var segment = BrushEngine.DraftSegmentBounds(tail, info);
+
+        if (_liveComposite is not null)
         {
-            // Blur samples the canvas itself; it keeps the direct draft path.
-            FrameRasterizer.AppendDraft(_liveComposite, tail);
+            FrameRasterizer.AppendDraft(_liveComposite, tail); // blur path
         }
-        else if (_liveScratchCanvas is not null && _liveScratch is not null && _liveBase is not null
-                 && _liveCompositeCanvas is not null)
+        else if (_liveScratchCanvas is not null)
         {
-            // Dabs accumulate in the whole-stroke scratch (no opacity), then
-            // base + scratch@opacity rebuilds just the new segment's region —
-            // preview now matches the committed stroke on self-crossings.
+            // Dabs only — no opacity, no layer copy. The compositor lays the
+            // scratch over the layer and applies the stroke's opacity once,
+            // so self-crossings look identical live and committed.
             BrushEngine.StampDraftDabs(_liveScratchCanvas, tail);
-            var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-            if (BrushEngine.DraftSegmentBounds(tail, info) is { } rect)
+            if (segment is { } used)
             {
-                BrushEngine.ComposeDraftRegion(_liveCompositeCanvas, _liveBase, _liveScratch, rect, live);
+                _liveScratchUsed = _liveScratchUsed is { } prior ? UnionRect(prior, used) : used;
             }
         }
+        // Only the segment's neighbourhood changed on screen.
+        if (segment is { } rect) MarkDirtyRegion(rect);
+        else InvalidateWholeCanvas();
         _liveStampedCount = points.Count;
+    }
+
+    private static SKRectI UnionRect(SKRectI a, SKRectI b)
+    {
+        a.Union(b);
+        return a;
     }
 
     /// <summary>
@@ -1571,11 +1625,8 @@ public sealed partial class MainViewModel : ObservableObject
     public void EndStroke()
     {
         var stroke = _strokeBuilder.End();
-        _liveCompositeCanvas?.Dispose();
-        _liveCompositeCanvas = null;
         _liveComposite?.Dispose();
         _liveComposite = null;
-        _liveBase = null; // cache-owned, never disposed here; scratch stays pooled
         _liveStampedCount = 0;
         if (stroke is null) return;
         var target = PaintTarget();
@@ -1603,19 +1654,32 @@ public sealed partial class MainViewModel : ObservableObject
         // snapshot-undo in between replaces the doc instance tree.
         var frameId = target.Id;
         var addedClip = false;
-        _editor.PerformDelta(
-            apply: doc =>
-            {
-                if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
-                StrokeListIn(doc, frameId)?.Add(stroke);
-            },
-            revert: doc =>
-            {
-                RemoveStrokeById(doc, frameId, stroke.Id);
-                if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
-            },
-            affectedFrameId: frameId);
+        _committingScopedEdit = true;
+        try
+        {
+            _editor.PerformDelta(
+                apply: doc =>
+                {
+                    if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
+                    StrokeListIn(doc, frameId)?.Add(stroke);
+                },
+                revert: doc =>
+                {
+                    RemoveStrokeById(doc, frameId, stroke.Id);
+                    if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
+                },
+                affectedFrameId: frameId);
+        }
+        finally
+        {
+            _committingScopedEdit = false;
+        }
         _dirtyThumbIds.Add(target.Id);
+        // Only the stroke's own neighbourhood changed: the layer gained the
+        // committed pixels and the live scratch stopped contributing there.
+        var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) MarkDirtyRegion(touched);
+        else InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
     }
@@ -2291,15 +2355,22 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Undo()
-    {
-        ApplyEditScope(_editor.UndoScoped());
-    }
+    private void Undo() => ApplyEditScope(WhileApplyingScope(_editor.UndoScoped));
 
     [RelayCommand]
-    private void Redo()
+    private void Redo() => ApplyEditScope(WhileApplyingScope(_editor.RedoScoped));
+
+    private DocumentEditor.EditScope WhileApplyingScope(Func<DocumentEditor.EditScope> step)
     {
-        ApplyEditScope(_editor.RedoScoped());
+        _applyingEditScope = true;
+        try
+        {
+            return step();
+        }
+        finally
+        {
+            _applyingEditScope = false;
+        }
     }
 
     /// <summary>
@@ -2307,6 +2378,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// stroke delta, everything for a structural snapshot. Full invalidation
     /// re-rendered every visible frame and every thumbnail — the undo lag.
     /// </summary>
+    /// <summary>
+    /// Undo/redo lands in two steps: the editor raises Changed while the
+    /// cached bitmaps still hold the OLD pixels, and only afterwards do we
+    /// learn which frame to drop. Publishing in between would show stale
+    /// pixels and pay for a repaint twice, so the resync waits for this.
+    /// </summary>
+    private bool _applyingEditScope;
+
     private void ApplyEditScope(DocumentEditor.EditScope scope)
     {
         if (!scope.Any) return;
@@ -2320,8 +2399,8 @@ public sealed partial class MainViewModel : ObservableObject
             _cache.Clear();
             _allThumbsDirty = true;
         }
-        ClampCurrentFrame();
-        RefreshLayerThumbs();
+        ClampCurrentFrame(publishIfUnchanged: false);
+        PublishSnapshot();
         RefreshThumbnails();
     }
 
@@ -2865,14 +2944,31 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void OnPlaybackTick() => StepPlayback();
 
+    /// <summary>
+    /// Set while committing an edit whose visible effect the caller already
+    /// knows and will publish itself (a stroke or fill). Without this, every
+    /// pen lift also ran the full document resync — a whole-canvas repaint
+    /// and a thumbnail sweep on top of the bounded ones that were enough.
+    /// </summary>
+    private bool _committingScopedEdit;
+
     private void OnDocumentChanged()
     {
+        if (_committingScopedEdit)
+        {
+            MarkDocumentEdited();
+            RefreshDocumentStats(); // memory grows as frames get cached
+            return;
+        }
         MarkDocumentEdited();
+        InvalidateWholeCanvas(); // a document-wide change can move any pixel
+        _composeRing.InvalidateAll();
         BrushTipRegistry.Register(Doc.BrushTips);
         ClipRegionRegistry.Register(Doc.ClipRegions);
+        RefreshDocumentStats();
         OnPropertyChanged(nameof(ReferenceSheetsView));
         SyncLayerChoices();
-        ClampCurrentFrame();
+        ClampCurrentFrame(publishIfUnchanged: !_applyingEditScope);
         SyncLayerRows();
         OnPropertyChanged(nameof(FrameLabel));
         OnPropertyChanged(nameof(TimelineExtent));
@@ -2881,6 +2977,9 @@ public sealed partial class MainViewModel : ObservableObject
         NotifyActiveLayerCompositing();
         MarkersView = Scene.Markers.ToList();
         RefreshCelSelectionHighlights();
+        // Undo/redo publishes from ApplyEditScope instead, once the stale
+        // frame bitmaps have been dropped.
+        if (_applyingEditScope) return;
         PublishSnapshot();
         RefreshThumbnails();
     }
@@ -2893,11 +2992,16 @@ public sealed partial class MainViewModel : ObservableObject
         if (ActiveLayerIndex >= LayerChoices.Count) ActiveLayerIndex = LayerChoices.Count - 1;
     }
 
-    private void ClampCurrentFrame()
+    /// <summary>
+    /// Keep the playhead inside the timeline. Moving it repaints through the
+    /// property setter; <paramref name="publishIfUnchanged"/> covers callers
+    /// that rely on this to repaint even when nothing moved.
+    /// </summary>
+    private void ClampCurrentFrame(bool publishIfUnchanged = true)
     {
         var max = Math.Max(0, Scene.FrameCount - 1);
         if (CurrentFrameIndex > max) CurrentFrameIndex = max;
-        else PublishSnapshot();
+        else if (publishIfUnchanged) PublishSnapshot();
     }
 
     /// <summary>
@@ -3040,25 +3144,113 @@ public sealed partial class MainViewModel : ObservableObject
 
             var bmp = _cache.Get(frame, scene.Width, scene.Height);
 
-            // Live stroke preview: the active layer shows the incrementally
-            // stamped live bitmap instead of the cached committed frame.
-            if (_liveComposite is not null && _strokeBuilder.IsActive && layer.Id == ActiveLayer.Id)
+            // Live stroke: the dabs live in their own scratch and composite
+            // over the layer here. The layer bitmap is never copied for a
+            // preview — a full-canvas copy costs ~1 s at 4K.
+            StrokeOverlay? overlay = null;
+            if (_liveScratch is not null && _strokeBuilder.IsActive
+                && _strokeBuilder.Current is { } live && layer.Id == ActiveLayer.Id)
             {
-                bmp = _liveComposite;
+                overlay = new StrokeOverlay(_liveScratch, live.Brush.Opacity, live.Tool == ToolKind.Eraser);
             }
 
-            passes.Add(new RenderPass(bmp, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+            passes.Add(new RenderPass(
+                bmp, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode), overlay));
         }
 
         var info = new SKImageInfo(scene.Width, scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        if (_composeSurface is null || !_composeInfo.Equals(info))
+        var dirty = _dirtyIsWholeCanvas ? null : _pendingDirty;
+        _pendingDirty = null;
+        _dirtyIsWholeCanvas = false;
+        var seq = ++_publishSeq;
+        var background = SceneRenderer.BackgroundOf(scene);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        SKRectI? usedClip = null;
+        var image = _composeRing.Publish(info, dirty, (surface, clip) =>
         {
-            _composeSurface?.Dispose();
-            _composeSurface = SKSurface.Create(info)
-                ?? throw new InvalidOperationException("Could not create compose surface.");
-            _composeInfo = info;
+            usedClip = clip;
+            SceneRenderer.ComposeInto(surface, passes, background, clip);
+        });
+        sw.Stop();
+        if (Environment.GetEnvironmentVariable("LIGHTBOX_PERFTRACE") is not null)
+        {
+            Console.Error.WriteLine($"[publish] dirty={dirty} clip={usedClip} passes={passes.Count} {sw.Elapsed.TotalMilliseconds:0.0}ms");
         }
-        SceneRenderer.ComposeInto(_composeSurface, passes, SceneRenderer.BackgroundOf(scene));
-        SnapshotChanged?.Invoke(new RenderSnapshot(_composeSurface.Snapshot(), scene.Width, scene.Height));
+        Performance.RecordPublish(sw.Elapsed.TotalMilliseconds);
+        if (SnapshotChanged is { } handler)
+        {
+            handler(new RenderSnapshot(image, scene.Width, scene.Height, seq));
+        }
+        else
+        {
+            // No canvas attached (headless or IPC-only): nobody would ever
+            // free this image, and a live snapshot makes the next repaint
+            // duplicate the whole buffer.
+            image.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Limit the next publish to a document region. Only safe when nothing
+    /// outside the region can change; every other edit path must leave the
+    /// default (whole-canvas) invalidation alone, or stale pixels linger.
+    /// </summary>
+    private void MarkDirtyRegion(SKRectI region)
+    {
+        if (_dirtyIsWholeCanvas) return;
+        if (_pendingDirty is { } existing)
+        {
+            existing.Union(region);
+            _pendingDirty = existing;
+        }
+        else
+        {
+            _pendingDirty = region;
+        }
+    }
+
+    /// <summary>The next publish repaints everything (the safe default).</summary>
+    private void InvalidateWholeCanvas()
+    {
+        _dirtyIsWholeCanvas = true;
+        _pendingDirty = null;
+    }
+
+    // ---- info strip ------------------------------------------------------------
+
+    /// <summary>"3840 × 2160 px · 72 ppi" for the info strip.</summary>
+    [ObservableProperty]
+    private string _documentSizeLabel = "";
+
+    /// <summary>"4 layers · 24 drawings" for the info strip.</summary>
+    [ObservableProperty]
+    private string _documentContentLabel = "";
+
+    /// <summary>Approximate image memory this document is holding.</summary>
+    [ObservableProperty]
+    private string _memoryLabel = "";
+
+    private void RefreshDocumentStats()
+    {
+        var scene = Scene;
+        var drawings = new HashSet<string>();
+        foreach (var layer in scene.Layers)
+        {
+            foreach (var cel in layer.Cels)
+            {
+                if (cel.Frame is { } frame) drawings.Add(frame.Id);
+            }
+        }
+
+        DocumentSizeLabel = $"{scene.Width} × {scene.Height} px · {scene.Ppi} ppi";
+        DocumentContentLabel =
+            $"{scene.Layers.Count} layer{(scene.Layers.Count == 1 ? "" : "s")} · " +
+            $"{drawings.Count} drawing{(drawings.Count == 1 ? "" : "s")}";
+
+        var bytes = _cache.CachedBytes + _composeRing.AllocatedBytes;
+        MemoryLabel = bytes >= 1024L * 1024 * 1024
+            ? $"{bytes / (1024.0 * 1024 * 1024):0.0} GB images"
+            : $"{bytes / (1024.0 * 1024):0} MB images";
+        Performance.DescribeDocument(scene.Width, scene.Height, scene.Layers.Count, drawings.Count, bytes);
     }
 }

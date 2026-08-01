@@ -56,6 +56,10 @@
     <Style Selector="GridSplitter">
       <Setter Property="Background" Value="#141414" />
     </Style>
+    <!-- Headroom meter: amber once the document is costing the machine real time -->
+    <Style Selector="ProgressBar.strained /template/ Border#PART_Indicator">
+      <Setter Property="Background" Value="#e0a030" />
+    </Style>
     <Style Selector="Border.docTab">
       <Setter Property="Background" Value="#242424" />
       <Setter Property="CornerRadius" Value="4,4,0,0" />
@@ -466,6 +470,35 @@
         <ProgressBar IsIndeterminate="True" Width="90" IsVisible="{Binding AiBusy}" VerticalAlignment="Center" />
         <TextBlock Text="{Binding AiStatus}" VerticalAlignment="Center" Opacity="0.85" TextTrimming="CharacterEllipsis" />
       </StackPanel>
+    </Border>
+
+    <!-- Info strip: what the document is, and how much room the machine has left -->
+    <Border DockPanel.Dock="Bottom" Background="#191919" BorderBrush="#2c2c2c" BorderThickness="0,1,0,0"
+            Padding="10,4">
+      <DockPanel LastChildFill="False">
+        <TextBlock DockPanel.Dock="Left" Text="{Binding DocumentSizeLabel}" FontSize="11" Opacity="0.85"
+                   VerticalAlignment="Center" ToolTip.Tip="Canvas size and resolution of the open document" />
+        <TextBlock DockPanel.Dock="Left" Text="·" FontSize="11" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
+        <TextBlock DockPanel.Dock="Left" Text="{Binding DocumentContentLabel}" FontSize="11" Opacity="0.85"
+                   VerticalAlignment="Center" ToolTip.Tip="Layers and distinct drawings in this document" />
+        <TextBlock DockPanel.Dock="Left" Text="·" FontSize="11" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
+        <TextBlock DockPanel.Dock="Left" Text="{Binding MemoryLabel}" FontSize="11" Opacity="0.6"
+                   VerticalAlignment="Center" ToolTip.Tip="Image memory held for cached frames and the canvas buffers" />
+
+        <!-- Performance headroom, measured from real repaint times -->
+        <TextBlock DockPanel.Dock="Right" Text="{Binding Performance.HealthLabel}" FontSize="11"
+                   VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.85" />
+        <ProgressBar DockPanel.Dock="Right" Width="90" Height="8" Minimum="0" Maximum="100"
+                     Value="{Binding Performance.HeadroomPercent}" VerticalAlignment="Center"
+                     Classes.strained="{Binding Performance.NeedsAttention}"
+                     ToolTip.Tip="How much of a 60 fps frame is left after repainting the canvas" />
+        <TextBlock DockPanel.Dock="Right" Text="Headroom" FontSize="11" Opacity="0.6" Margin="0,0,6,0"
+                   VerticalAlignment="Center" />
+        <TextBlock DockPanel.Dock="Right" Text="{Binding Performance.Advice}" FontSize="11"
+                   Foreground="#e0a030" VerticalAlignment="Center" Margin="0,0,14,0"
+                   TextTrimming="CharacterEllipsis" MaxWidth="520"
+                   IsVisible="{Binding Performance.NeedsAttention}" />
+      </DockPanel>
     </Border>
 
     <!-- Open documents: click to switch, ✕ to close, • marks unsaved changes -->

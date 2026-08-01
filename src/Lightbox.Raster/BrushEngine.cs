@@ -205,7 +205,23 @@ public static class BrushEngine
     }
 
     /// <summary>Everything a dab can reach beyond its center: radius, scatter offset, soft edge.</summary>
-    private static float DabReach(BrushSettings brush) => (float)(brush.Size * 2 + 4);
+    /// <summary>
+    /// How far from the stroke's centreline a dab can put ink. This bounds
+    /// every scratch surface and every repaint region, so it must never be
+    /// short (clipped ink would change the render) and should not be
+    /// generous either — the region's area drives the cost of painting on a
+    /// large canvas.
+    ///
+    /// Worst case: the dab radius (half the size at full pressure), the
+    /// scatter offset (up to Scatter × size), and — when a bitmap tip is
+    /// rotated — its half-diagonal, which for a tip scaled to fit the dab is
+    /// at most √2 × radius. A couple of pixels cover antialiasing.
+    /// </summary>
+    private static float DabReach(BrushSettings brush)
+    {
+        var radiusFactor = brush.TipId is null ? 0.5 : 0.75; // 0.5 × √2, rounded up
+        return (float)(brush.Size * (radiusFactor + Math.Max(0, brush.Scatter)) + 4);
+    }
 
     /// <summary>The stroke's points inflated by the dab reach, clamped to the canvas; null when off-canvas.</summary>
     private static SKRectI? SegmentBounds(Stroke stroke, SKImageInfo info, float margin)
@@ -243,6 +259,26 @@ public static class BrushEngine
     /// <summary>Pixels a live segment can reach (dab size + scatter margin); null when off-canvas.</summary>
     public static SKRectI? DraftSegmentBounds(Stroke tail, SKImageInfo info) =>
         SegmentBounds(tail, info, DabReach(tail.Brush));
+
+    /// <summary>
+    /// Every pixel the FINAL render of a stroke can touch — the same margin
+    /// the exact stamping path uses, widened for blur and for the feather of
+    /// its clip region. Callers use it to repaint only what changed.
+    /// </summary>
+    public static SKRectI? CommitBounds(Stroke stroke, SKImageInfo info)
+    {
+        var margin = DabReach(stroke.Brush);
+        if (stroke.Brush.Kind == BrushKind.Blur)
+        {
+            margin += (float)(Math.Max(0.5, stroke.Brush.Size * 0.25) * 4);
+        }
+        if (stroke.ClipId is not null
+            && ClipRegionRegistry.Resolve(stroke.ClipId) is { Feather: > 0 } region)
+        {
+            margin += (float)(region.Feather * 2);
+        }
+        return SegmentBounds(stroke, info, margin);
+    }
 
     /// <summary>
     /// Rebuild one region of the live composite: reset it to the committed

@@ -3,8 +3,23 @@ using SkiaSharp;
 
 namespace Lightbox.App.Rendering;
 
+/// <summary>
+/// The in-progress stroke drawn on top of its layer. Kept separate from the
+/// layer bitmap so a live preview never has to copy the layer (a full-canvas
+/// copy costs ~1 s at 4K): the dabs accumulate in their own scratch and are
+/// composited over the layer here, with the stroke's opacity applied once.
+/// An eraser stroke removes only THIS layer's pixels, so the pair is
+/// composited in isolation.
+/// </summary>
+public sealed record StrokeOverlay(SKBitmap Scratch, double Opacity, bool Erases);
+
 /// <summary>One compositing pass: a layer bitmap with optional tint, opacity and blend mode.</summary>
-public sealed record RenderPass(SKBitmap Bitmap, SKColor? Tint, double Opacity, SKBlendMode Blend = SKBlendMode.SrcOver);
+public sealed record RenderPass(
+    SKBitmap Bitmap,
+    SKColor? Tint,
+    double Opacity,
+    SKBlendMode Blend = SKBlendMode.SrcOver,
+    StrokeOverlay? Overlay = null);
 
 /// <summary>
 /// Pure SkiaSharp scene compositing: white paper, then passes in order
@@ -29,26 +44,97 @@ public static class SceneRenderer
             ? SKColors.Transparent
             : Lightbox.Raster.BrushEngine.ParseColor(scene.BackgroundColor);
 
-    /// <summary>Composite into an existing (reusable) surface — the hot path during painting.</summary>
-    public static void ComposeInto(SKSurface surface, IReadOnlyList<RenderPass> passes, SKColor? background = null)
+    /// <summary>
+    /// Composite into an existing (reusable) surface — the hot path during
+    /// painting. <paramref name="clip"/> limits the work to a document region
+    /// (null = the whole canvas); everything outside it keeps the surface's
+    /// previous contents, so a live stroke only repaints what it touched.
+    /// </summary>
+    public static void ComposeInto(
+        SKSurface surface,
+        IReadOnlyList<RenderPass> passes,
+        SKColor? background = null,
+        SKRectI? clip = null)
     {
         var canvas = surface.Canvas;
+        canvas.Save();
+        if (clip is { } r)
+        {
+            canvas.ClipRect(SKRect.Create(r.Left, r.Top, r.Width, r.Height));
+        }
         canvas.Clear(background ?? SKColors.White);
 
         foreach (var pass in passes)
         {
+            var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
             using var paint = new SKPaint
             {
-                Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255)),
+                Color = SKColors.White.WithAlpha(alpha),
                 BlendMode = pass.Blend,
             };
             if (pass.Tint is { } tint)
             {
                 paint.ColorFilter = SKColorFilter.CreateBlendMode(tint, SKBlendMode.SrcIn);
             }
-            canvas.DrawBitmap(pass.Bitmap, 0, 0, paint);
+
+            if (pass.Overlay is not { } overlay)
+            {
+                DrawLayer(canvas, pass.Bitmap, paint);
+                continue;
+            }
+
+            using var strokePaint = new SKPaint
+            {
+                Color = SKColors.White.WithAlpha(
+                    (byte)Math.Round(Math.Clamp(overlay.Opacity, 0, 1) * 255)),
+                BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+            };
+
+            // Isolation is only needed when the stroke must combine with its
+            // own layer before that layer meets the ones below — an eraser
+            // (which would otherwise cut through everything) or a layer that
+            // is transparent or blended. Skipping the offscreen layer in the
+            // ordinary case roughly halves the cost of a live repaint.
+            var needsIsolation = overlay.Erases || alpha != 255 || pass.Blend != SKBlendMode.SrcOver;
+            if (!needsIsolation)
+            {
+                DrawLayer(canvas, pass.Bitmap, paint);
+                DrawLayer(canvas, overlay.Scratch, strokePaint);
+                continue;
+            }
+
+            // SaveLayer allocates the current clip only, so a bounded live
+            // region stays affordable even on a huge canvas.
+            canvas.SaveLayer(paint);
+            DrawLayer(canvas, pass.Bitmap, null);
+            DrawLayer(canvas, overlay.Scratch, strokePaint);
+            canvas.Restore();
         }
+        canvas.Restore();
         canvas.Flush();
+    }
+
+    /// <summary>
+    /// Blit a layer bitmap at the origin. Going through a zero-copy image
+    /// view rather than <c>DrawBitmap</c> matters enormously under a clip:
+    /// drawing a 4K bitmap into a small dirty region costs ~5.5 ms the
+    /// direct way and ~0.5 ms this way, because Skia stops re-wrapping the
+    /// mutable bitmap on every call. The view is a live window onto the same
+    /// pixels and never outlives this call.
+    /// </summary>
+    private static void DrawLayer(SKCanvas canvas, SKBitmap bitmap, SKPaint? paint)
+    {
+        using var pixels = bitmap.PeekPixels();
+        if (pixels is not null)
+        {
+            using var view = SKImage.FromPixels(pixels);
+            if (view is not null)
+            {
+                canvas.DrawImage(view, 0, 0, paint);
+                return;
+            }
+        }
+        canvas.DrawBitmap(bitmap, 0, 0, paint);
     }
 
     public static readonly SKColor OnionPrevTint = new(0xd0, 0x40, 0x40);
