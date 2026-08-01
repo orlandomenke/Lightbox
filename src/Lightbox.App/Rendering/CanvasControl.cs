@@ -199,6 +199,23 @@ public sealed class CanvasControl : Control
         CanvasError?.Invoke($"Canvas {context} error: {ex.Message} — details in %TEMP%\\lightbox-canvas.log");
     }
 
+    /// <summary>
+    /// The camera frame's corners in document coordinates, or null for no
+    /// camera — in which case nothing camera-related is drawn at all. Set from
+    /// the view model whenever the playhead or the camera changes.
+    /// </summary>
+    public SKPoint[]? CameraFrame
+    {
+        get => _cameraFrame;
+        set
+        {
+            _cameraFrame = value;
+            InvalidateVisual();
+        }
+    }
+
+    private SKPoint[]? _cameraFrame;
+
     public double ZoomPercent => _zoom * 100;
 
     public bool IsMirrored => _mirrored;
@@ -738,7 +755,7 @@ public sealed class CanvasControl : Control
 
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
-            NoteRendered, ReportFrameTime));
+            NoteRendered, ReportFrameTime, CameraFrame));
     }
 
     // ---- view <-> document transform ---------------------------------------
@@ -1251,7 +1268,7 @@ public sealed class CanvasControl : Control
         Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor,
         SKPath? ants, SKPath? antsOpen, float antsPhase, LazyGizmo? lazy = null,
         TxGizmoData? txGizmo = null, Action<long>? onRendered = null,
-        Action<double>? onFrameTime = null) : ICustomDrawOperation
+        Action<double>? onFrameTime = null, SKPoint[]? cameraFrame = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -1310,6 +1327,7 @@ public sealed class CanvasControl : Control
                     new SKSamplingOptions(SKFilterMode.Linear),
                     paint);
             }
+            DrawCameraFrame(canvas);
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);
@@ -1317,6 +1335,52 @@ public sealed class CanvasControl : Control
 
             if (cursor is { } c) DrawBrushCursor(canvas, c);
             canvas.Restore();
+        }
+
+        /// <summary>
+        /// The shot's framing, drawn over the world: the frame outlined, and
+        /// everything outside it dimmed so the artist can see at a glance what
+        /// the camera keeps. View-only chrome, exactly like the transform
+        /// gizmo — it never reaches a pixel of the document.
+        ///
+        /// Absent unless the document has a camera. A sprite document shows no
+        /// camera UI at all, which is what "optional" has to mean.
+        /// </summary>
+        private void DrawCameraFrame(SKCanvas canvas)
+        {
+            if (cameraFrame is not { Length: 4 } corners) return;
+            var scale = Math.Max(0.01f, view.Scale);
+
+            using var frame = new SKPath();
+            frame.MoveTo(corners[0]);
+            frame.LineTo(corners[1]);
+            frame.LineTo(corners[2]);
+            frame.LineTo(corners[3]);
+            frame.Close();
+
+            // Dim the world outside the frame: the document rect minus the
+            // frame, even-odd. Generous bounds so the dimming still reads when
+            // the camera is zoomed out past the artwork.
+            var bounds = frame.Bounds;
+            bounds.Union(new SKRect(0, 0, view.DocW, view.DocH));
+            bounds.Inflate(bounds.Width + view.DocW, bounds.Height + view.DocH);
+
+            using (var outside = new SKPath { FillType = SKPathFillType.EvenOdd })
+            using (var dim = new SKPaint { Color = new SKColor(0, 0, 0, 110), IsAntialias = true })
+            {
+                outside.AddRect(bounds);
+                outside.AddPath(frame);
+                canvas.DrawPath(outside, dim);
+            }
+
+            using var edge = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.6f / scale,
+                Color = new SKColor(0xff, 0xd0, 0x40, 240),
+            };
+            canvas.DrawPath(frame, edge);
         }
 
         /// <summary>

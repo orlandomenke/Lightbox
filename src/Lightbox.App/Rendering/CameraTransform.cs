@@ -37,6 +37,25 @@ public static class CameraTransform
     }
 
     /// <summary>
+    /// The camera frame's four corners back in document coordinates, clockwise
+    /// from the top left. This is what the canvas overlay draws: the artist
+    /// works in the world, and the frame shows what the shot will keep.
+    /// Returns an empty array if the matrix is degenerate.
+    /// </summary>
+    public static SKPoint[] FrameCorners(CameraFraming framing, int outputWidth, int outputHeight)
+    {
+        var m = Matrix(framing, outputWidth, outputHeight, 1.0);
+        if (!m.TryInvert(out var toDoc)) return [];
+        return toDoc.MapPoints(
+        [
+            new SKPoint(0, 0),
+            new SKPoint(outputWidth, 0),
+            new SKPoint(outputWidth, outputHeight),
+            new SKPoint(0, outputHeight),
+        ]);
+    }
+
+    /// <summary>
     /// The device rectangle a document rectangle occupies.
     ///
     /// Without a camera this is the uniform-scale mapping the compositor has

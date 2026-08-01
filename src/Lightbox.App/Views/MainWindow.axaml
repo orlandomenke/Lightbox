@@ -1311,6 +1311,36 @@
               <ComboBox ItemsSource="{Binding EasingChoices}" SelectedItem="{Binding TweenEasing}" Width="110" />
               <Button Content="＋ Inbetween" Command="{Binding InsertInbetweensCommand}"
                       ToolTip.Tip="Insert interpolated frames between this key and the next" />
+
+              <!-- Camera. One button until there is one, then the whole row:
+                   a document that never adds a camera shows no camera UI. -->
+              <Button Content="🎥 Add camera" Command="{Binding AddCameraCommand}"
+                      IsVisible="{Binding !HasCamera}"
+                      ToolTip.Tip="Add a shot camera — keyframed pan, zoom and roll, exported through the framing" />
+              <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding HasCamera}">
+                <TextBlock Text="Camera" VerticalAlignment="Center" Margin="6,0,0,0" />
+                <Button Content="🔑" Command="{Binding SetCameraKeyCommand}"
+                        ToolTip.Tip="Key the current framing at the playhead" />
+                <Button Content="✕key" Command="{Binding ClearCameraKeyCommand}"
+                        ToolTip.Tip="Remove the camera key at the playhead" />
+                <NumericUpDown Value="{Binding CameraZoom}" Minimum="0.05" Maximum="64" Increment="0.1"
+                               FormatString="0.00" Width="110" VerticalAlignment="Center"
+                               ToolTip.Tip="Zoom at the playhead (keys as you edit)" />
+                <NumericUpDown Value="{Binding CameraRotationDeg}" Minimum="-720" Maximum="720" Increment="1"
+                               FormatString="0.#" Width="100" VerticalAlignment="Center"
+                               ToolTip.Tip="Roll at the playhead, degrees" />
+                <NumericUpDown Value="{Binding CameraOutputWidth}" Minimum="1" Maximum="16384" Increment="1"
+                               FormatString="0" Width="100" VerticalAlignment="Center"
+                               ToolTip.Tip="Output width" />
+                <NumericUpDown Value="{Binding CameraOutputHeight}" Minimum="1" Maximum="16384" Increment="1"
+                               FormatString="0" Width="100" VerticalAlignment="Center"
+                               ToolTip.Tip="Output height" />
+                <CheckBox Content="Through camera" IsChecked="{Binding ViewThroughCamera}"
+                          VerticalAlignment="Center"
+                          ToolTip.Tip="Show the canvas as the camera frames it (view only — you still draw in the world)" />
+                <Button Content="🗑" Command="{Binding RemoveCameraCommand}"
+                        ToolTip.Tip="Remove the camera and all its keys" />
+              </StackPanel>
             </StackPanel>
           </Border>
         </controls:Docker.TopBar>

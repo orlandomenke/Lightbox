@@ -58,6 +58,12 @@ public partial class MainWindow : Window
         Canvas.TransformMenuRequested += ShowTransformMenu;
         SyncCanvasToolMode();
 
+        // The camera frame is view-only chrome, so it crosses to the canvas the
+        // same way the gizmos do. Null when there is no camera, which is what
+        // keeps a sprite document free of camera UI.
+        _vm.CameraChanged += () => Canvas.CameraFrame = _vm.CameraFrameCorners;
+        Canvas.CameraFrame = _vm.CameraFrameCorners;
+
         LayersDocker.PointerEntered += (_, _) => _pointerInLayersDocker = true;
         LayersDocker.PointerExited += (_, _) => _pointerInLayersDocker = false;
         TimelineDocker.PointerEntered += (_, _) => _pointerInTimeline = true;

@@ -1911,6 +1911,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         RefreshCellHighlights();
         RefreshLayerThumbs();
+        RefreshCamera();
         PublishSnapshot();
     }
 
@@ -3786,9 +3787,15 @@ public sealed partial class MainViewModel : ObservableObject
         // renderer full detail makes it rescale 8.3 M pixels on every frame —
         // ~29 ms, which is the whole stutter budget before anything is drawn.
         var renderScale = ComposeScale;
+        // Looking through the camera reframes the canvas, so the surface is
+        // the camera's output rather than the document. Without one — the
+        // ordinary case and every asset document — nothing here changes.
+        var cameraView = CameraViewTransform(renderScale);
+        var viewWidth = cameraView is null ? scene.Width : scene.Camera!.OutputWidth;
+        var viewHeight = cameraView is null ? scene.Height : scene.Camera!.OutputHeight;
         var info = new SKImageInfo(
-            Math.Max(1, (int)Math.Ceiling(scene.Width * renderScale)),
-            Math.Max(1, (int)Math.Ceiling(scene.Height * renderScale)),
+            Math.Max(1, (int)Math.Ceiling(viewWidth * renderScale)),
+            Math.Max(1, (int)Math.Ceiling(viewHeight * renderScale)),
             SKColorType.Rgba8888,
             SKAlphaType.Premul);
         var dirty = _dirtyIsWholeCanvas ? null : _pendingDirty;
@@ -3801,8 +3808,8 @@ public sealed partial class MainViewModel : ObservableObject
         var image = _composeRing.Publish(info, dirty, (surface, clip) =>
         {
             usedClip = clip;
-            SceneRenderer.ComposeInto(surface, passes, background, clip, renderScale);
-        }, renderScale);
+            SceneRenderer.ComposeInto(surface, passes, background, clip, renderScale, cameraView);
+        }, renderScale, cameraView);
         sw.Stop();
         if (Environment.GetEnvironmentVariable("LIGHTBOX_PERFTRACE") is not null)
         {
@@ -3812,7 +3819,7 @@ public sealed partial class MainViewModel : ObservableObject
         LastPublishClip = usedClip;
         if (SnapshotChanged is { } handler)
         {
-            handler(new RenderSnapshot(image, scene.Width, scene.Height, seq));
+            handler(new RenderSnapshot(image, viewWidth, viewHeight, seq));
         }
         else
         {
@@ -3847,6 +3854,202 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _dirtyIsWholeCanvas = true;
         _pendingDirty = null;
+    }
+
+    // ---- camera ---------------------------------------------------------------
+
+    /// <summary>
+    /// Whether this document has a camera at all. Everything camera-related in
+    /// the UI hangs off this: a document without one shows no overlay, no
+    /// controls and no ruler keys. Optional means absent, not disabled.
+    /// </summary>
+    public bool HasCamera => Scene.Camera is not null;
+
+    /// <summary>
+    /// The camera frame's corners in document coordinates, or null. The canvas
+    /// draws this as view-only chrome — it never reaches a pixel.
+    /// </summary>
+    public SKPoint[]? CameraFrameCorners { get; private set; }
+
+    /// <summary>Fired when the camera appears, disappears, or reframes.</summary>
+    public event Action? CameraChanged;
+
+    /// <summary>The framing at the playhead — what the overlay and the fields show.</summary>
+    private CameraFraming FramingNow() =>
+        CameraOps.At(Scene.Camera, CurrentFrameIndex, Scene.Width, Scene.Height);
+
+    /// <summary>
+    /// Give the scene a camera, framed on the whole canvas at 1:1 so the first
+    /// thing the artist sees is what they already had. Output defaults to the
+    /// canvas size for the same reason — a camera should start by changing
+    /// nothing.
+    /// </summary>
+    [RelayCommand]
+    private void AddCamera()
+    {
+        if (Scene.Camera is not null) return;
+        Scene.Camera = new Camera { OutputWidth = Scene.Width, OutputHeight = Scene.Height };
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>
+    /// Take the camera away entirely, keys and all, returning the document to
+    /// the state it saves in when it never had one.
+    /// </summary>
+    [RelayCommand]
+    private void RemoveCamera()
+    {
+        if (Scene.Camera is null) return;
+        Scene.Camera = null;
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>Key the current framing at the playhead.</summary>
+    [RelayCommand]
+    private void SetCameraKey()
+    {
+        if (Scene.Camera is not { } camera) return;
+        CameraOps.SetKey(camera, CurrentFrameIndex, FramingNow());
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>Remove the key at the playhead, if there is one.</summary>
+    [RelayCommand]
+    private void ClearCameraKey()
+    {
+        if (Scene.Camera is not { } camera) return;
+        if (!CameraOps.ClearKey(camera, CurrentFrameIndex)) return;
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>True when the playhead sits on an authored camera key.</summary>
+    public bool IsOnCameraKey => CameraOps.KeyAt(Scene.Camera, CurrentFrameIndex) is not null;
+
+    /// <summary>Frames carrying a camera key, for the timeline ruler.</summary>
+    public IReadOnlyList<int> CameraKeyFrames =>
+        CameraOps.Ordered(Scene.Camera).Select(k => k.Frame).ToList();
+
+    public int CameraOutputWidth
+    {
+        get => Scene.Camera?.OutputWidth ?? Scene.Width;
+        set => SetCameraOutput(Math.Clamp(value, 1, 16384), CameraOutputHeight);
+    }
+
+    public int CameraOutputHeight
+    {
+        get => Scene.Camera?.OutputHeight ?? Scene.Height;
+        set => SetCameraOutput(CameraOutputWidth, Math.Clamp(value, 1, 16384));
+    }
+
+    private void SetCameraOutput(int width, int height)
+    {
+        if (Scene.Camera is not { } camera) return;
+        if (camera.OutputWidth == width && camera.OutputHeight == height) return;
+        camera.OutputWidth = width;
+        camera.OutputHeight = height;
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>
+    /// The framing at the playhead, editable. Writing any of these moves the
+    /// live framing; it only becomes part of the shot once keyed, which is the
+    /// same bargain as a transform gizmo before it is committed.
+    /// </summary>
+    public double CameraX
+    {
+        get => FramingNow().X;
+        set => SetFraming(FramingNow() with { X = value });
+    }
+
+    public double CameraY
+    {
+        get => FramingNow().Y;
+        set => SetFraming(FramingNow() with { Y = value });
+    }
+
+    public double CameraZoom
+    {
+        get => FramingNow().Zoom;
+        set => SetFraming(FramingNow() with { Zoom = Math.Clamp(value, 0.05, 64) });
+    }
+
+    public double CameraRotationDeg
+    {
+        get => FramingNow().RotationDeg;
+        set => SetFraming(FramingNow() with { RotationDeg = value });
+    }
+
+    /// <summary>
+    /// Editing a framing field writes it straight to the key at the playhead,
+    /// creating one if there is none. A framing you cannot see keyed is a
+    /// framing you will lose by scrubbing away from it.
+    /// </summary>
+    private void SetFraming(CameraFraming framing)
+    {
+        if (Scene.Camera is not { } camera) return;
+        CameraOps.SetKey(camera, CurrentFrameIndex, framing);
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>
+    /// Show the canvas through the camera rather than the world. Off by
+    /// default: the artist draws in the world, and this is for checking the
+    /// shot.
+    /// </summary>
+    [ObservableProperty]
+    private bool _viewThroughCamera;
+
+    partial void OnViewThroughCameraChanged(bool value)
+    {
+        InvalidateWholeCanvas();
+        _composeRing.InvalidateAll();
+        RefreshCamera();
+        PublishSnapshot();
+    }
+
+    /// <summary>The matrix a publish composites through, or null for the world.</summary>
+    private SKMatrix? CameraViewTransform(double renderScale) =>
+        ViewThroughCamera && Scene.Camera is { } camera
+            ? CameraTransform.Matrix(
+                FramingNow(), camera.OutputWidth, camera.OutputHeight, renderScale)
+            : null;
+
+    private void RefreshCamera()
+    {
+        // No camera, or looking through it — in which case the frame IS the
+        // viewport and an overlay would just outline the window.
+        CameraFrameCorners = Scene.Camera is { } camera && !ViewThroughCamera
+            ? CameraTransform.FrameCorners(FramingNow(), camera.OutputWidth, camera.OutputHeight)
+            : null;
+        CameraChanged?.Invoke();
+    }
+
+    private void NotifyCameraSurface()
+    {
+        OnPropertyChanged(nameof(HasCamera));
+        OnPropertyChanged(nameof(IsOnCameraKey));
+        OnPropertyChanged(nameof(CameraKeyFrames));
+        OnPropertyChanged(nameof(CameraOutputWidth));
+        OnPropertyChanged(nameof(CameraOutputHeight));
+        OnPropertyChanged(nameof(CameraX));
+        OnPropertyChanged(nameof(CameraY));
+        OnPropertyChanged(nameof(CameraZoom));
+        OnPropertyChanged(nameof(CameraRotationDeg));
+        InvalidateWholeCanvas();
+        _composeRing.InvalidateAll();
+        PublishSnapshot();
     }
 
     // ---- performance preferences -----------------------------------------------
