@@ -10,6 +10,9 @@ public enum ToolId
 
     /// <summary>Eyedropper: click the canvas to pick the color under the cursor.</summary>
     Picker,
+
+    /// <summary>Drag to lay down the gradient selected in the gradient docker.</summary>
+    Gradient,
 }
 
 /// <summary>

@@ -69,6 +69,11 @@ public partial class MainWindow : Window
         TimelineDocker.PointerEntered += (_, _) => _pointerInTimeline = true;
         TimelineDocker.PointerExited += (_, _) => _pointerInTimeline = false;
         Canvas.PickClicked += _vm.PickColorAt;
+        Canvas.GradientDragStarted += _vm.BeginGradient;
+        Canvas.GradientDragMoved += _vm.MoveGradient;
+        Canvas.GradientDragEnded += _vm.EndGradient;
+        Canvas.GradientDragCancelled += _vm.CancelGradient;
+        _vm.GradientAxisChanged += Canvas.SetGradientAxis;
 
         // The toggle button eats pointer events, so hook the hold-to-open
         // variant flyout with tunneling handlers.
@@ -730,6 +735,7 @@ public partial class MainWindow : Window
         {
             ToolId.Fill => Rendering.CanvasControl.CanvasToolMode.Fill,
             ToolId.Picker => Rendering.CanvasControl.CanvasToolMode.Pick,
+            ToolId.Gradient => Rendering.CanvasControl.CanvasToolMode.Gradient,
             ToolId.Select => _vm.ActiveSelectVariant switch
             {
                 SelectVariant.Polygon => Rendering.CanvasControl.CanvasToolMode.SelectPolygon,
@@ -911,6 +917,9 @@ public partial class MainWindow : Window
             case "tool.fill":
                 _vm.ActiveTool = ToolId.Fill;
                 break;
+            case "tool.gradient":
+                _vm.ActiveTool = ToolId.Gradient;
+                break;
             case "tool.select":
                 _vm.SelectToolCommand.Execute(ToolId.Select); // again = next variant
                 break;
@@ -934,6 +943,7 @@ public partial class MainWindow : Window
                 break;
             case "select.cancel":
                 _vm.CancelPolygon();
+                _vm.CancelGradient();
                 return; // leave Escape unhandled so open flyouts still close
             case "docker.deleteLayer":
                 _vm.DeleteActiveLayerCommand.Execute(null);

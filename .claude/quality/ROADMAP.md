@@ -68,8 +68,10 @@ item that a painting app is simply expected to have lives here.
 
 - [x] Color picker with history `evidence: ColorPickerViewModel, ColorSwatch`
 - [x] Advanced color wheel `evidence: ColorWheelFidelityTests, ColorSpace, ColorOps`
-- [?] Palette management
-- [?] Gradient editor
+- [x] Palette management `evidence: PaletteDockerViewModel, GimpPalette, PaletteTests, PaletteDockerTests`
+- [x] Live palettes — recolour a swatch, the art follows `evidence: PaletteRegistry, StrokeColor, LivePaletteTests, RecolouringASwatchRepaintsTheArtThatUsedIt`
+- [x] Gradient editor `evidence: GradientDockerViewModel, GradientOps, GradientTests, GradientToolTests`
+- [x] Gradient tool `evidence: GradientDragStarted, BeginGradient, EndGradient, TheRampRunsAlongTheDrag, TheRampIsVisibleWhileDragging_AndSurvivesThePenLift`
 - [?] Pattern fills
 
 ### Guides and shapes

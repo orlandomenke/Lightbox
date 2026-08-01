@@ -31,7 +31,7 @@ public sealed partial class SwatchRow : ObservableObject
         get => Model.Color;
         set
         {
-            var hex = Normalize(value);
+            var hex = HexColor.Normalize(value);
             if (hex is null || hex == Model.Color) return;
             var before = Model.Color;
             Model.Color = hex;
@@ -76,20 +76,6 @@ public sealed partial class SwatchRow : ObservableObject
         OnPropertyChanged(nameof(Color));
         OnPropertyChanged(nameof(Fill));
         OnPropertyChanged(nameof(Label));
-    }
-
-    /// <summary>"#rgb", "rgb", "#rrggbb" or "rrggbb" to "#rrggbb"; anything else is rejected.</summary>
-    private static string? Normalize(string? text)
-    {
-        if (text is null) return null;
-        var s = text.Trim().TrimStart('#');
-        if (s.Length == 3) s = $"{s[0]}{s[0]}{s[1]}{s[1]}{s[2]}{s[2]}";
-        if (s.Length != 6) return null;
-        foreach (var c in s)
-        {
-            if (!Uri.IsHexDigit(c)) return null;
-        }
-        return $"#{s.ToLowerInvariant()}";
     }
 }
 

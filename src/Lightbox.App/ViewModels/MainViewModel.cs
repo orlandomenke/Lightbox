@@ -201,8 +201,10 @@ public sealed partial class MainViewModel : ObservableObject
         PaletteDocker = new PaletteDockerViewModel(
             OnSwatchRecoloured, PerformPaletteEdit, PaintWithSwatch, () => ColorHex);
         PaletteDocker.SwatchEditRunEnded += CommitSwatchEdit;
+        GradientDocker = new GradientDockerViewModel(OnGradientEdited, PerformGradientEdit);
         PaletteRegistry.Reset(Doc.Palettes, Doc.Gradients);
         PaletteDocker.Load(Doc);
+        GradientDocker.Load(Doc);
         LoadBrushState();
         SyncLayerChoices();
         SyncLayerRows();
@@ -569,6 +571,48 @@ public sealed partial class MainViewModel : ObservableObject
         }
         InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
+        PublishSnapshot();
+        RefreshThumbnails();
+    }
+
+    // ---- gradients ----------------------------------------------------------
+
+    /// <summary>The gradient docker's state.</summary>
+    public GradientDockerViewModel GradientDocker { get; }
+
+    /// <summary>Opacity the gradient tool lays its ramp down at, 0–1.</summary>
+    [ObservableProperty]
+    private double _gradientOpacity = 1.0;
+
+    private void PerformGradientEdit(Action<Doc> mutate)
+    {
+        CommitSwatchEdit();
+        _editor.Perform(mutate);
+    }
+
+    /// <summary>
+    /// A gradient definition changed. Same scoping as a swatch edit: only
+    /// frames holding a stroke that paints this gradient are dropped.
+    /// </summary>
+    private void OnGradientEdited(string gradientId)
+    {
+        // The registry holds the same Gradient object the docker just edited,
+        // so nothing needs re-registering — only the cached pixels are stale.
+        foreach (var layer in Scene.Layers)
+        {
+            foreach (var cel in layer.Cels)
+            {
+                if (cel.Frame is not { } frame) continue;
+                if (!StrokesOf(frame).Any(s => s.GradientId == gradientId)) continue;
+                _cache.Invalidate(frame.Id);
+                _dirtyThumbIds.Add(frame.Id);
+            }
+        }
+        // A gradient being dragged right now redefines its own preview.
+        if (_liveGradient is not null) RenderGradientPreview();
+        InvalidateWholeCanvas();
+        _composeRing.InvalidateAll();
+        MarkDocumentEdited();
         PublishSnapshot();
         RefreshThumbnails();
     }
@@ -1220,6 +1264,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsFillTool))]
     [NotifyPropertyChangedFor(nameof(IsSelectTool))]
     [NotifyPropertyChangedFor(nameof(IsPickerTool))]
+    [NotifyPropertyChangedFor(nameof(IsGradientTool))]
     [NotifyPropertyChangedFor(nameof(IsPaintTool))]
     private ToolId _activeTool = ToolId.Brush;
 
@@ -1251,6 +1296,8 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsSelectTool => ActiveTool == ToolId.Select;
 
     public bool IsPickerTool => ActiveTool == ToolId.Picker;
+
+    public bool IsGradientTool => ActiveTool == ToolId.Gradient;
 
     /// <summary>Brush or eraser — the tools whose strokes the brush-parameter flyout edits.</summary>
     public bool IsPaintTool => ActiveTool is ToolId.Brush or ToolId.Eraser;
@@ -1947,6 +1994,13 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void TogglePaletteDocker() => PaletteDockerVisible = !PaletteDockerVisible;
 
+    /// <summary>Off by default, for the same reason the palette docker is.</summary>
+    [ObservableProperty]
+    private bool _gradientDockerVisible;
+
+    [RelayCommand]
+    private void ToggleGradientDocker() => GradientDockerVisible = !GradientDockerVisible;
+
     [RelayCommand]
     private void ToggleColorDocker() => ColorDockerVisible = !ColorDockerVisible;
 
@@ -2178,21 +2232,28 @@ public sealed partial class MainViewModel : ObservableObject
         }
         else
         {
-            if (_liveScratch is null || _liveScratch.Width != Scene.Width || _liveScratch.Height != Scene.Height)
-            {
-                _liveScratchCanvas?.Dispose();
-                _liveScratch?.Dispose();
-                _liveScratch = new SKBitmap(
-                    new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
-                _liveScratchCanvas = new SKCanvas(_liveScratch);
-                _liveScratchUsed = null;
-            }
+            EnsureLiveScratch();
             ClearLiveScratch();
         }
         ResetLivePostProcess();
         _liveStampedCount = 0;
         FlushLivePreview();
         PublishSnapshot();
+    }
+
+    /// <summary>A document-sized scratch bitmap for the live preview overlay.</summary>
+    private void EnsureLiveScratch()
+    {
+        if (_liveScratch is not null && _liveScratch.Width == Scene.Width && _liveScratch.Height == Scene.Height)
+        {
+            return;
+        }
+        _liveScratchCanvas?.Dispose();
+        _liveScratch?.Dispose();
+        _liveScratch = new SKBitmap(
+            new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        _liveScratchCanvas = new SKCanvas(_liveScratch);
+        _liveScratchUsed = null;
     }
 
     /// <summary>Wipe only the region the previous stroke actually touched.</summary>
@@ -2209,6 +2270,150 @@ public sealed partial class MainViewModel : ObservableObject
         _liveScratchCanvas.Clear(SkiaSharp.SKColors.Transparent);
         _liveScratchCanvas.Restore();
         _liveScratchUsed = null;
+    }
+
+    // ---- gradient tool ------------------------------------------------------
+
+    /// <summary>
+    /// The gradient being dragged. Two points — the axis — and no incremental
+    /// state, so it stays out of the brush's stamped-so-far machinery: a
+    /// gradient is not built up along the drag, it is redefined by it.
+    /// </summary>
+    private Stroke? _liveGradient;
+
+    /// <summary>The axis the canvas overlay draws while dragging (document coordinates).</summary>
+    public event Action<(double X, double Y)?, (double X, double Y)?>? GradientAxisChanged;
+
+    internal Stroke? LiveGradient => _liveGradient;
+
+    public void BeginGradient(double x, double y)
+    {
+        if (ActiveTool != ToolId.Gradient || IsPlaying) return;
+        if (PaintTarget() is null || !CanEdit(ActiveLayer, "fill on it")) return;
+        if (GradientDocker.SelectedGradient is not { } gradient)
+        {
+            AiStatus = "No gradient selected — add one in the Gradient docker first.";
+            return;
+        }
+        CommitSwatchEdit();
+
+        _liveGradient = new Stroke
+        {
+            Tool = ToolKind.Gradient,
+            GradientId = gradient.Id,
+            Color = ColorHex,
+            Brush = new BrushSettings { Opacity = GradientOpacity, AntiAlias = AntiAliasing },
+            Points = [new StrokePoint(x, y, 1), new StrokePoint(x, y, 1)],
+            // Stamped onto the stroke like a brush stroke's, so unlocking the
+            // layer later cannot repaint what is already down.
+            AlphaLocked = ActiveLayer.AlphaLocked,
+            Label = "gradient",
+        };
+        if (PrepareClipForSelection() is { } clip) _liveGradient.ClipId = clip.Id;
+
+        EnsureLiveScratch();
+        RenderGradientPreview();
+        PublishSnapshot();
+    }
+
+    public void MoveGradient(double x, double y)
+    {
+        if (_liveGradient is not { } stroke) return;
+        stroke.Points[1] = new StrokePoint(x, y, 1);
+        RenderGradientPreview();
+        RequestSnapshot();
+    }
+
+    public void EndGradient(double x, double y)
+    {
+        if (_liveGradient is not { } stroke) return;
+        stroke.Points[1] = new StrokePoint(x, y, 1);
+        CancelGradient(); // clears the preview; the record gets the stroke below
+
+        if (PaintTarget() is not { } target) return;
+        var dx = stroke.Points[1].X - stroke.Points[0].X;
+        var dy = stroke.Points[1].Y - stroke.Points[0].Y;
+        // A click with no drag has no axis. Committing it would paint a
+        // degenerate shader over the whole layer, which is never the intent.
+        if (dx * dx + dy * dy < 1.0)
+        {
+            AiStatus = "Drag to set the gradient's direction and length.";
+            return;
+        }
+
+        var clip = PrepareClipForSelection();
+        if (clip is not null) stroke.ClipId = clip.Value.Id;
+
+        FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
+
+        var frameId = target.Id;
+        var addedClip = false;
+        _committingScopedEdit = true;
+        try
+        {
+            _editor.PerformDelta(
+                apply: doc =>
+                {
+                    if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
+                    StrokeListIn(doc, frameId)?.Add(stroke);
+                },
+                revert: doc =>
+                {
+                    RemoveStrokeById(doc, frameId, stroke.Id);
+                    if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
+                },
+                affectedFrameId: frameId);
+        }
+        finally
+        {
+            _committingScopedEdit = false;
+        }
+        _dirtyThumbIds.Add(target.Id);
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+        RefreshThumbnails();
+        AiStatus = $"Laid down “{GradientDocker.SelectedGradient?.Name}”.";
+    }
+
+    /// <summary>Abandon the drag — Escape, or capture lost.</summary>
+    public void CancelGradient()
+    {
+        if (_liveGradient is null) return;
+        _liveGradient = null;
+        ClearLiveScratch();
+        GradientAxisChanged?.Invoke(null, null);
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+    }
+
+    /// <summary>
+    /// Re-render the whole preview rather than an increment. A gradient is
+    /// full-canvas by nature — one shader-filled rect, which Skia does in a
+    /// single native pass — and every pointer move redefines the axis, so
+    /// there is nothing from the previous frame worth keeping.
+    /// </summary>
+    private void RenderGradientPreview()
+    {
+        if (_liveGradient is not { } stroke || _liveScratchCanvas is null) return;
+        ClearLiveScratch();
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        // Opacity and the alpha lock stay on the overlay so they are not baked
+        // in twice; the scratch holds the unmodulated ramp.
+        var preview = new Stroke
+        {
+            Tool = ToolKind.Gradient,
+            GradientId = stroke.GradientId,
+            Color = stroke.Color,
+            ClipId = stroke.ClipId,
+            Brush = new BrushSettings { Opacity = 1, AntiAlias = stroke.Brush.AntiAlias },
+            Points = [.. stroke.Points],
+        };
+        BrushEngine.StampStroke(_liveScratchCanvas, preview, info);
+        _liveScratchCanvas.Flush();
+        _liveScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
+        GradientAxisChanged?.Invoke(
+            (stroke.Points[0].X, stroke.Points[0].Y), (stroke.Points[1].X, stroke.Points[1].Y));
+        InvalidateWholeCanvas();
     }
 
     /// <summary>All coalesced samples of one pointer event → one stamp + one (coalesced) repaint.</summary>
@@ -3899,6 +4104,7 @@ public sealed partial class MainViewModel : ObservableObject
         ClipRegionRegistry.Register(Doc.ClipRegions);
         PaletteRegistry.Reset(Doc.Palettes, Doc.Gradients);
         PaletteDocker.Load(Doc);
+        GradientDocker.Load(Doc);
         RefreshDocumentStats();
         OnPropertyChanged(nameof(ReferenceSheetsView));
         SyncLayerChoices();
@@ -4090,7 +4296,19 @@ public sealed partial class MainViewModel : ObservableObject
             // over the layer here. The layer bitmap is never copied for a
             // preview — a full-canvas copy costs ~1 s at 4K.
             StrokeOverlay? overlay = null;
-            if (_liveScratch is not null && _strokeBuilder.IsActive
+            if (_liveScratch is not null && _liveGradient is { } drag && layer.Id == ActiveLayer.Id)
+            {
+                // The gradient tool's drag preview. Opacity and the alpha lock
+                // ride on the overlay, exactly as they do for a brush stroke,
+                // so the preview and the commit agree.
+                overlay = new StrokeOverlay(
+                    _liveScratch,
+                    drag.Brush.Opacity,
+                    false,
+                    drag.AlphaLocked,
+                    drag.ClipId is null ? null : ClipRegionRegistry.Resolve(drag.ClipId));
+            }
+            else if (_liveScratch is not null && _strokeBuilder.IsActive
                 && _strokeBuilder.Current is { } live && layer.Id == ActiveLayer.Id)
             {
                 // Prefer the fully rendered stroke when a pass has completed —

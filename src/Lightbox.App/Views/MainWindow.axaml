@@ -117,6 +117,7 @@
         <MenuItem Header="Timeline" ToggleType="CheckBox" IsChecked="{Binding TimelineVisible, Mode=TwoWay}" />
         <MenuItem Header="Color" ToggleType="CheckBox" IsChecked="{Binding ColorDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Palette" ToggleType="CheckBox" IsChecked="{Binding PaletteDockerVisible, Mode=TwoWay}" />
+        <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Character sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
       </MenuItem>
     </Menu>
@@ -856,6 +857,14 @@
                   <TextBlock Text="Picker" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsGradientTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Gradient}"
+                            ToolTip.Tip="Gradient (G) — drag to set the ramp's direction and length">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="▤" FontSize="15" />
+                  <TextBlock Text="Gradient" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
               <ToggleButton x:Name="SelectToolButton" Classes="tool" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Select}"
                             ToolTip.Tip="Select (S — press again to switch variant; hold for the list)">
@@ -918,9 +927,11 @@
               <RowDefinition Height="1.3*" MinHeight="160" />
               <RowDefinition Height="Auto" />
               <RowDefinition Height="0.7*" MinHeight="80" />
-              <!-- Palette docker. Auto rather than starred so a hidden docker
-                   costs nothing: it is off by default, and a star row would
-                   reserve its share of the sidebar whether shown or not. -->
+              <!-- Palette and gradient dockers. Auto rather than starred so a
+                   hidden docker costs nothing: both are off by default, and a
+                   star row would reserve its share of the sidebar whether
+                   shown or not. -->
+              <RowDefinition Height="Auto" />
               <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
@@ -1373,6 +1384,102 @@
                     <DataTemplate x:DataType="vm:SwatchRow">
                       <Border Width="26" Height="26" CornerRadius="3" BorderBrush="#666" BorderThickness="1"
                               Background="{Binding Fill}" ToolTip.Tip="{Binding Label}" />
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </ScrollViewer>
+            </controls:Docker>
+
+            <!-- Gradient docker: the ramp definitions the gradient tool paints.
+                 Like a palette swatch, editing one changes the art already
+                 painted with it. -->
+            <controls:Docker Grid.Row="6" Title="Gradient" MaxHeight="340" Margin="0,5,0,0"
+                             IsVisible="{Binding GradientDockerVisible}"
+                             CloseCommand="{Binding ToggleGradientDockerCommand}">
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <StackPanel Spacing="4">
+                    <DockPanel>
+                      <Button DockPanel.Dock="Right" Content="✕" FontSize="10" Padding="6,2"
+                              Command="{Binding GradientDocker.RemoveGradientCommand}"
+                              IsEnabled="{Binding GradientDocker.HasGradient}"
+                              ToolTip.Tip="Delete this gradient" />
+                      <Button DockPanel.Dock="Right" Content="＋" FontSize="10" Padding="6,2"
+                              Command="{Binding GradientDocker.AddGradientCommand}"
+                              ToolTip.Tip="New gradient" />
+                      <ComboBox ItemsSource="{Binding GradientDocker.Gradients}"
+                                SelectedItem="{Binding GradientDocker.SelectedGradient}"
+                                HorizontalAlignment="Stretch" ToolTip.Tip="Gradient">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate x:DataType="docs:Gradient">
+                            <TextBlock Text="{Binding Name}" />
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                    </DockPanel>
+                    <!-- The strip is sampled through GradientOps, so it shows
+                         the linear-light ramp the canvas will actually paint. -->
+                    <Border Height="22" CornerRadius="3" BorderBrush="#666" BorderThickness="1"
+                            Background="{Binding GradientDocker.Preview}"
+                            IsVisible="{Binding GradientDocker.HasGradient}"
+                            ToolTip.Tip="Preview of the ramp" />
+                    <StackPanel Orientation="Horizontal" Spacing="4"
+                                IsVisible="{Binding GradientDocker.HasGradient}">
+                      <ComboBox ItemsSource="{Binding GradientDocker.KindChoices}"
+                                SelectedItem="{Binding GradientDocker.Kind}" Width="92" FontSize="11"
+                                ToolTip.Tip="Linear runs along the drag; radial takes the drag as its radius" />
+                      <ComboBox ItemsSource="{Binding GradientDocker.SpreadChoices}"
+                                SelectedItem="{Binding GradientDocker.Spread}" Width="92" FontSize="11"
+                                ToolTip.Tip="What happens beyond the ends of the ramp" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </controls:Docker.TopBar>
+
+              <controls:Docker.BottomBar>
+                <Border Classes="dockerBar">
+                  <StackPanel Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <Button Content="＋ Stop" FontSize="11" Padding="6,2"
+                              Command="{Binding GradientDocker.AddStopCommand}"
+                              IsEnabled="{Binding GradientDocker.HasGradient}"
+                              ToolTip.Tip="Insert a stop after the selected one" />
+                      <Button Content="－" FontSize="11" Padding="8,2"
+                              Command="{Binding GradientDocker.RemoveStopCommand}"
+                              IsEnabled="{Binding GradientDocker.HasStop}"
+                              ToolTip.Tip="Remove the selected stop (two are always kept)" />
+                    </StackPanel>
+                    <DockPanel ToolTip.Tip="Opacity the gradient tool lays the ramp down at">
+                      <TextBlock DockPanel.Dock="Left" Text="Opacity" FontSize="11" Width="52"
+                                 VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Width="76" FontSize="11"
+                                     Value="{Binding GradientOpacity}" Minimum="0" Maximum="1"
+                                     Increment="0.05" FormatString="0.00" />
+                      <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Margin="4,0" />
+                    </DockPanel>
+                  </StackPanel>
+                </Border>
+              </controls:Docker.BottomBar>
+
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ListBox ItemsSource="{Binding GradientDocker.Stops}"
+                         SelectedItem="{Binding GradientDocker.SelectedStop}"
+                         Background="Transparent" BorderThickness="0" Margin="2">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GradientStopRow">
+                      <DockPanel>
+                        <Border DockPanel.Dock="Left" Width="20" Height="20" CornerRadius="3"
+                                BorderBrush="#666" BorderThickness="1" Background="{Binding Fill}"
+                                Margin="0,0,4,0" />
+                        <TextBox DockPanel.Dock="Right" Width="76" FontSize="11"
+                                 Text="{Binding Color, Mode=TwoWay}" ToolTip.Tip="Stop colour" />
+                        <NumericUpDown DockPanel.Dock="Right" Width="82" FontSize="11" Margin="0,0,4,0"
+                                       Value="{Binding Alpha}" Minimum="0" Maximum="100"
+                                       Increment="5" FormatString="0" ToolTip.Tip="Opacity %" />
+                        <NumericUpDown Width="82" FontSize="11" Margin="0,0,4,0"
+                                       Value="{Binding Position}" Minimum="0" Maximum="100"
+                                       Increment="1" FormatString="0" ToolTip.Tip="Position along the ramp, %" />
+                      </DockPanel>
                     </DataTemplate>
                   </ListBox.ItemTemplate>
                 </ListBox>

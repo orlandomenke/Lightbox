@@ -271,6 +271,7 @@ public sealed class CanvasControl : Control
         SelectWand,
         Pick,
         Transform,
+        Gradient,
     }
 
     public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
@@ -291,10 +292,42 @@ public sealed class CanvasControl : Control
     /// <summary>Eyedropper click at a document position.</summary>
     public event Action<double, double>? PickClicked;
 
+    /// <summary>Gradient tool: the drag that defines the ramp's axis.</summary>
+    public event Action<double, double>? GradientDragStarted;
+
+    public event Action<double, double>? GradientDragMoved;
+
+    public event Action<double, double>? GradientDragEnded;
+
+    /// <summary>Capture was lost mid-drag: abandon the ramp rather than commit it.</summary>
+    public event Action? GradientDragCancelled;
+
+    /// <summary>The axis being dragged, in document coordinates, or null when idle.</summary>
+    private (double X, double Y)? _gradientFrom, _gradientTo;
+
+    /// <summary>
+    /// Show the axis while the VM renders the ramp. View-only chrome, like the
+    /// transform gizmo: it is drawn over the composite and never reaches the
+    /// document.
+    /// </summary>
+    public void SetGradientAxis((double X, double Y)? from, (double X, double Y)? to)
+    {
+        _gradientFrom = from;
+        _gradientTo = to;
+        InvalidateVisual();
+    }
+
+    private (SKPoint From, SKPoint To)? GradientAxisPoints() =>
+        _gradientFrom is { } a && _gradientTo is { } b
+            ? (new SKPoint((float)a.X, (float)a.Y), new SKPoint((float)b.X, (float)b.Y))
+            : null;
+
     // ---- transform gizmo (Ctrl+T session) --------------------------------------
     // The gizmo owns the interactive state (pivot, scale, angle, offset or a
     // free quad in perspective mode); the VM owns the document side. The
     // window mediates begin/commit/cancel.
+
+    private bool _gradientDragging;
 
     private bool _txActive;
     private double _txMinX, _txMinY, _txMaxX, _txMaxY;
@@ -791,7 +824,7 @@ public sealed class CanvasControl : Control
 
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
-            NoteRendered, ReportFrameTime, CameraFrame));
+            NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints()));
     }
 
     // ---- view <-> document transform ---------------------------------------
@@ -1034,6 +1067,12 @@ public sealed class CanvasControl : Control
                     _dragShape.Clear();
                     e.Handled = true;
                     return;
+                case CanvasToolMode.Gradient:
+                    e.Pointer.Capture(this);
+                    _gradientDragging = true;
+                    GradientDragStarted?.Invoke(x, y);
+                    e.Handled = true;
+                    return;
             }
 
             e.Pointer.Capture(this);
@@ -1119,6 +1158,13 @@ public sealed class CanvasControl : Control
                 e.Handled = true;
                 return;
             }
+            if (_gradientDragging)
+            {
+                var (gx, gy) = ViewToDoc(e.GetPosition(this));
+                GradientDragMoved?.Invoke(gx, gy);
+                e.Handled = true;
+                return;
+            }
             if (_dragAnchor is { } anchor && ToolMode is CanvasToolMode.SelectRect or CanvasToolMode.SelectEllipse)
             {
                 var (dx, dy) = ViewToDoc(e.GetPosition(this));
@@ -1176,6 +1222,15 @@ public sealed class CanvasControl : Control
             e.Handled = true;
             return;
         }
+        if (_gradientDragging)
+        {
+            _gradientDragging = false;
+            e.Pointer.Capture(null);
+            var (gx, gy) = ViewToDoc(e.GetPosition(this));
+            GradientDragEnded?.Invoke(gx, gy);
+            e.Handled = true;
+            return;
+        }
         if (_dragShape.Count > 0 || _dragAnchor is not null)
         {
             var shape = _dragShape.ToList();
@@ -1228,6 +1283,14 @@ public sealed class CanvasControl : Control
     {
         base.OnPointerCaptureLost(e);
         _panning = false;
+        if (_gradientDragging)
+        {
+            // Abandon rather than commit: losing capture is not a decision the
+            // artist made, and a half-dragged ramp is not what they wanted.
+            _gradientDragging = false;
+            GradientDragCancelled?.Invoke();
+            return;
+        }
         if (!_painting) return;
         _painting = false;
         ReportCursorPressure(1, penDown: false); // back to showing the maximum on hover
@@ -1324,7 +1387,8 @@ public sealed class CanvasControl : Control
         Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor,
         SKPath? ants, SKPath? antsOpen, float antsPhase, LazyGizmo? lazy = null,
         TxGizmoData? txGizmo = null, Action<long>? onRendered = null,
-        Action<double>? onFrameTime = null, SKPoint[]? cameraFrame = null) : ICustomDrawOperation
+        Action<double>? onFrameTime = null, SKPoint[]? cameraFrame = null,
+        (SKPoint From, SKPoint To)? gradientAxis = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -1384,6 +1448,7 @@ public sealed class CanvasControl : Control
                     paint);
             }
             DrawCameraFrame(canvas);
+            DrawGradientAxis(canvas);
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);
@@ -1437,6 +1502,42 @@ public sealed class CanvasControl : Control
                 Color = new SKColor(0xff, 0xd0, 0x40, 240),
             };
             canvas.DrawPath(frame, edge);
+        }
+
+        /// <summary>
+        /// The gradient tool's axis while dragging: start, end and the line
+        /// between them. The ramp itself is rendered by the view model into
+        /// the live preview — this is only the handle, so the artist can see
+        /// where the ends are on a ramp whose own edges are soft.
+        /// </summary>
+        private void DrawGradientAxis(SKCanvas canvas)
+        {
+            if (gradientAxis is not { } axis) return;
+            var (from, to) = axis;
+            var scale = Math.Max(0.01f, view.Scale);
+
+            // Drawn twice: a dark casing under a light line, so it reads on
+            // top of whatever the gradient itself is painting.
+            using (var casing = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 3.2f / scale,
+                Color = new SKColor(0, 0, 0, 150),
+            })
+            {
+                canvas.DrawLine(from, to, casing);
+            }
+            using var line = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.2f / scale,
+                Color = new SKColor(0xff, 0xff, 0xff, 235),
+            };
+            canvas.DrawLine(from, to, line);
+            canvas.DrawCircle(from, 4f / scale, line);
+            canvas.DrawCircle(to, 4f / scale, line);
         }
 
         /// <summary>

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-564 tests, derived from the suite itself. Each line is a
+595 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -264,6 +264,26 @@ regression even when every test still compiles.
 - Invalidating One Frame Leaves The Others Alone — `:115`
 - Cached Bytes Tracks What Is Actually Held — `:129`
 
+## GradientToolTests
+`tests/Lightbox.App.Tests/GradientToolTests.cs`
+
+- ANew Document Has No Gradients And The Docker Is Hidden — `:42`
+- ANew Gradient Is Black To White And Undoable — `:51`
+- Dragging Lays Down AGradient Stroke With The Drag As Its Axis — `:64`
+- The Ramp Runs Along The Drag — `:78`
+- AClick With No Drag Paints Nothing — `:93`
+- Escape During The Drag Abandons It — `:104`
+- Editing AStop Repaints The Gradient Already Laid Down — `:118`
+- Switching To Radial Changes The Shape Of What Is Painted — `:136`
+- Adding AStop Inserts It Between The Selected One And The Next — `:157`
+- The Last Two Stops Cannot Be Removed — `:171`
+- AGradient Stroke Survives AReload — `:182`
+- Undoing Removes The Gradient Stroke — `:205`
+- The Tool Refuses When No Gradient Is Selected — `:216`
+- ALocked Layer Refuses AGradient — `:225`
+- The Ramp Is Visible While Dragging And Survives The Pen Lift — `:234`
+- Opacity Is Recorded On The Stroke Not Read At Render Time — `:265`
+
 ## IpcTests
 `tests/Lightbox.App.Tests/IpcTests.cs`
 
@@ -431,6 +451,25 @@ regression even when every test still compiles.
 - Alt Held Erases With The Current Brush Without Switching Tools — `:17`
 - Without Alt The Same Call Paints — `:32`
 - The Eraser Tool Still Erases Even Without Alt — `:42`
+
+## PaletteDockerTests
+`tests/Lightbox.App.Tests/PaletteDockerTests.cs`
+
+- ANew Document Has No Palettes And The Docker Is Hidden — `:29`
+- Adding ASwatch Takes The Current Colour And Is Undoable — `:38`
+- Selecting ASwatch Paints With It — `:52`
+- Choosing AColour Any Other Way Breaks The Swatch Link — `:75`
+- Recolouring ASwatch Repaints The Art That Used It — `:95`
+- Edit Mode Routes The Picker Into The Selected Swatch — `:116`
+- ARun Of Colour Edits Is One Undo Step — `:131`
+- Undoing AStructural Edit Does Not Swallow An Uncommitted Recolour — `:152`
+- ASwatch Survives Undo With Its Identity — `:170`
+- Removing ASwatch Leaves The Art In The Colour It Was Drawn In — `:193`
+- Switching Documents Switches Palettes — `:215`
+- Palettes Round Trip Through The Document With Their Links — `:233`
+- Imported Gpl Becomes APalette On The Document — `:251`
+- Exported Gpl Reads Back As The Same Palette — `:275`
+- An Unparseable Hex Is Rejected Rather Than Painting Black — `:299`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`

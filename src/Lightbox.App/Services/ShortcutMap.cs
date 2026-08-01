@@ -58,6 +58,7 @@ public sealed class ShortcutMap
             new("tool.brush", "Brush", "Tools", G(Key.B)),
             new("tool.eraser", "Eraser", "Tools", G(Key.E)),
             new("tool.fill", "Fill", "Tools", G(Key.F)),
+            new("tool.gradient", "Gradient", "Tools", G(Key.G)),
             new("tool.select", "Select / next variant", "Tools", G(Key.S)),
             new("select.all", "Select all", "Tools", G(Key.A, KeyModifiers.Control)),
             new("select.none", "Deselect", "Tools", G(Key.D, KeyModifiers.Control)),
