@@ -69,8 +69,17 @@ session start when it is stale.
 | What is the shape of the codebase? | read `.claude/codemap/INDEX.md` |
 | What is risky to change? | read `.claude/codemap/HOTSPOTS.md` |
 | What behaviour is promised today? | read `.claude/codemap/FEATURES.md` |
+| What are we building, and how far along? | read `.claude/quality/ROADMAP.md` |
+| What should I pick up next? | `python3 scripts/roadmap.py next` |
 
 Rebuild by hand with `python3 scripts/codemap.py build` after large changes.
+
+`ROADMAP.md` holds the six pillars that give the app its identity, plus the
+drawing floor beneath them. **Its checkboxes are derived from the code**, not
+asserted: each item names the types and tests that would exist if it were
+built, and `python3 scripts/roadmap.py sync` resolves them. Landing a feature
+means adding its evidence anchors in the same commit — a green box with no
+anchor is the one thing the file cannot represent.
 
 ## Invariants — breaking these is a defect even if tests pass
 

@@ -4,7 +4,7 @@ export const meta = {
   whenToUse:
     'A broad "harden/audit/improve this project" request where the work should be found rather than specified. Costs a dozen or more agents per round; use /improve for a single round on the main thread.',
   phases: [
-    { title: 'Assess', detail: 'feature-guard, perf-warden and hotspot scouts in parallel' },
+    { title: 'Assess', detail: 'feature-guard, perf-warden, leak-hunter and hotspot scouts in parallel' },
     { title: 'Verify', detail: 'one adversary per finding, refuting by default' },
     { title: 'Fix', detail: 'confirmed findings become tests and fixes' },
     { title: 'Report', detail: 'synthesis, questions for the user, loop journal' },
@@ -62,7 +62,9 @@ const OUTCOME = {
 const ORIENT = `Read .claude/quality/CHARTER.md, .claude/codemap/HOTSPOTS.md and
 .claude/quality/LOOP.md first. Use \`python3 scripts/codemap.py find <term>\` and
 \`python3 scripts/codemap.py file <path>\` instead of grepping the repository —
-the index already holds every symbol, its line, its dependents and its tests.`
+the index already holds every symbol, its line, its dependents and its tests.
+\`python3 scripts/roadmap.py next\` says what is closest to done; its marks are
+derived from the code, so it is a status report rather than a wish list.`
 
 const LENSES = [
   {
@@ -80,6 +82,17 @@ Only report what you verified by running or reading. Do not pad the list.`,
 Run the performance budgets and compare against the charter's table. Report
 regressions with the specific cost that caused them, and opportunities only
 where the win is real. Do not raise a budget.`,
+  },
+  {
+    key: 'leaks',
+    agent: 'leak-hunter',
+    prompt: `${ORIENT}
+Review the working diff — \`git diff\`, or \`git show HEAD\` if the tree is
+clean — for the performance leak shapes in your brief. Cheap and static: you
+are the pass that runs every round, because the measured budgets only cover
+paths that already have one, and every real stall here was in a path that did
+not. Report CLEAR if the diff is clean; a false alarm every round is worse
+than a miss.`,
   },
   {
     key: 'hotspots',

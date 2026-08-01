@@ -18,10 +18,17 @@ the codebase to orient yourself — that is what the index is for.
 
 ```bash
 python3 scripts/codemap.py stale || python3 scripts/codemap.py build
+python3 scripts/roadmap.py check
+python3 scripts/roadmap.py next        # candidates, nearest-first
 ```
 
 Read `.claude/quality/LOOP.md` for what previous rounds already tried, so you
 do not re-litigate settled decisions or re-report known gaps.
+
+`ROADMAP.md` is where the work comes from when nothing is broken. Its marks
+are derived from the code, so `next` is a real answer to "what is closest to
+done", not a wish list. `[?]` items are unspecified rather than unstarted —
+they need a definition before they need an implementation.
 
 If the user gave a request this session, run **story-analyst** on it first.
 Build what needs no decision; everything else becomes a question.
@@ -39,7 +46,8 @@ and return little, which is the entire point: their context is not yours.
 
 Skip any agent whose question is already answered. Three agents that all
 report "nothing found" is a wasted round; pick the ones the recent diff makes
-relevant.
+relevant. **leak-hunter** is not in this list because it belongs in verify —
+it reads the diff you are about to ship, which does not exist yet.
 
 ### 2 · Decide
 
@@ -72,13 +80,24 @@ dotnet build Lightbox.sln
 dotnet test
 dotnet test --filter "Category=Performance" --logger "console;verbosity=detailed"
 python3 scripts/codemap.py build     # refresh FEATURES.md
+python3 scripts/roadmap.py sync      # tick what this round actually landed
 ```
 
-Then send every claim you intend to report to **adversary**, one claim per
-agent, in parallel. A claim it refutes is not a finding and not a fix — go
-back to step 3 or drop it.
+Then, in parallel:
 
-Gates G1–G6 in the charter are pass/fail. A round that fails one is narrowed
+- **leak-hunter** on the round's diff. This is gate **G7** and it is not
+  optional, because G4 only covers paths that already have a budget and every
+  real stall in this project was in a path that did not. A leak it names is
+  fixed, or accepted in the commit message with a measurement — never
+  ignored.
+- **adversary** on every claim you intend to report, one claim per agent. A
+  claim it refutes is not a finding and not a fix — go back to step 3 or drop
+  it.
+
+If leak-hunter reports a changed hot path with no budget, add one before
+moving on. That line is how the *next* leak gets in.
+
+Gates G1–G8 in the charter are pass/fail. A round that fails one is narrowed
 or reverted; it is never reported as "mostly done".
 
 ### 5 · Reflect
@@ -90,7 +109,8 @@ Append to `.claude/quality/LOOP.md`:
 Found: <what the assessment turned up>
 Did: <changes, with the test that proves each>
 Rejected: <candidates considered and dropped, with the reason>
-Gates: build ✓ tests ✓ (<n> passing) perf ✓ inventory ✓
+Gates: build ✓ tests ✓ (<n> passing) perf ✓ leaks ✓ inventory ✓ roadmap ✓
+Roadmap: <items that changed mark this round, or none>
 Questions raised: <ids, or none>
 Next: <the strongest remaining candidate>
 ```

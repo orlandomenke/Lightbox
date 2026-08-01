@@ -14,6 +14,16 @@ reviewer can disagree with it. The `/improve` loop treats section 1 as gates
 | G4 | Performance budgets hold | the `Category=Performance` tests pass unweakened; a budget may only be raised with a measurement and a reason |
 | G5 | Determinism intact | no new randomness in a render path; settings that affect pixels are stored per stroke |
 | G6 | Claims are verified, not asserted | anything reported as fixed has a test that fails without the fix, or an explicit note that it could not be tested and why |
+| G7 | No new performance leak in the diff | **leak-hunter** reviews the round's diff against the known-wrong shapes and returns CLEAR, or the finding is fixed or explicitly accepted with a measurement |
+| G8 | The roadmap matches the code | `python3 scripts/roadmap.py check` passes — a landed feature has its evidence anchors in the same commit |
+
+**Why G7 exists as a separate gate from G4.** Budgets only cover paths that
+have a budget test. Every serious stall found in this project so far was in a
+path that had none: a full-canvas rescale per frame, an `O(area × radius)`
+erode, per-pixel Perlin, per-pixel Kubelka–Munk, an idle compositing buffer
+accumulating a union of every dirty region. G4 asks "did the measured things
+get slower"; G7 asks "does this diff contain a shape we already know is
+wrong". They fail on different days.
 
 A round that cannot satisfy a gate is reverted or narrowed, never merged with
 the gate marked "expected to fail".

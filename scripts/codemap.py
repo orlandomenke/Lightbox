@@ -58,6 +58,13 @@ MEMBER_DECL = re.compile(
     r"(?P<sig>[\w<>\[\],\?\.\(\) ]+?)\s*(?P<tail>[\{=;\(])",
 )
 
+# CommunityToolkit.Mvvm source generators. The attribute sits on its own line
+# above the declaration, and the member it produces exists nowhere in source —
+# so without these the index cannot see most of the view model's public API.
+GENERATOR_ATTR = re.compile(r"^\s*\[(?P<attr>ObservableProperty|RelayCommand)\b")
+BACKING_FIELD = re.compile(r"^\s*private\s+[\w<>\[\],\?\.]+\s+_(?P<field>\w+)\s*[;=]")
+COMMAND_METHOD = re.compile(r"^\s*private\s+(?:async\s+)?[\w<>\[\],\?\.]+\s+(?P<name>\w+)\s*\(")
+
 AXAML_NAME = re.compile(r'x:Name="(?P<name>\w+)"')
 AXAML_HANDLER = re.compile(r'(?:Click|Tapped|Changed|Pressed|Released|Entered|Exited|Drop|DragOver)="(?P<name>\w+)"')
 USING_INTERNAL = re.compile(r"^\s*using\s+(Lightbox\.[\w\.]+)\s*;", re.MULTILINE)
@@ -121,6 +128,24 @@ def collect_files() -> list[Path]:
     return sorted(found)
 
 
+def Generated(attribute: str, line: str) -> str | None:
+    """The public name a CommunityToolkit attribute produces, if any.
+
+    `[ObservableProperty] private int _fooBar;` becomes `FooBar`;
+    `[RelayCommand] private void DoThing()` becomes `DoThingCommand`.
+    """
+    if attribute == "ObservableProperty":
+        if (m := BACKING_FIELD.match(line)) is None:
+            return None
+        field = m.group("field")
+        return field[:1].upper() + field[1:]
+    if attribute == "RelayCommand":
+        if (m := COMMAND_METHOD.match(line)) is None:
+            return None
+        return m.group("name") + "Command"
+    return None
+
+
 def parse_source(path: Path, text: str, info: FileInfo) -> None:
     lines = text.splitlines()
     info.loc = len(lines)
@@ -128,10 +153,15 @@ def parse_source(path: Path, text: str, info: FileInfo) -> None:
 
     brace_depth = 0
     current_type = ""
+    pending_generator = ""
     for number, line in enumerate(lines, start=1):
         stripped = line.strip()
         if stripped.startswith("//") or stripped.startswith("///"):
             brace_depth += line.count("{") - line.count("}")
+            continue
+
+        if (attr := GENERATOR_ATTR.match(line)) is not None:
+            pending_generator = attr.group("attr")
             continue
 
         type_match = TYPE_DECL.match(line)
@@ -145,6 +175,18 @@ def parse_source(path: Path, text: str, info: FileInfo) -> None:
                 }
             )
         elif current_type:
+            # A generated member: the attribute was on the line above and the
+            # member it produces exists nowhere in source. Record it under the
+            # name callers actually use.
+            if pending_generator and (generated := Generated(pending_generator, line)) is not None:
+                info.members.append(
+                    {"name": generated, "type": current_type, "line": number,
+                     "sig": f"[{pending_generator}] {line.strip()[:80]}"}
+                )
+                pending_generator = ""
+                brace_depth += line.count("{") - line.count("}")
+                continue
+
             member = MEMBER_DECL.match(line)
             if member:
                 sig = " ".join(member.group("sig").split())
