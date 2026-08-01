@@ -74,15 +74,27 @@ shared runner does not produce false alarms.
 | Pointer event on an alpha-locked layer, 4K | 20 ms | ~2.6 ms (~1.8 ms unmasked — the live mask's SaveLayer costs ~0.8 ms) |
 | Whole wet-media stroke + commit, 4K, 90 px, 20 events | 12000 ms | ~2250 ms over 20 live passes |
 
-**The wet-media number is honest, not comfortable.** Each live pass
-re-renders the whole stroke through `BrushEngine.StampStroke`, so it is
-O(stroke length) and lands around 110 ms per pass at that size — the medium
-preview settles roughly nine times a second and a longer stroke settles
-slower. It runs at background priority so the pen never waits, but the obvious
-next win is sitting there: the dabs are already stamped in `_liveScratch`, and
-the pass re-stamps every one of them purely because `StampPaint` needs them in
-its own scratch before it can apply the effects. Letting the engine accept a
-pre-stamped scratch would take the dab cost out of every pass.
+**The wet-media pass no longer grows with the stroke.** It used to re-render
+through `BrushEngine.StampStroke`, re-stamping every dab each time;
+`PostProcessDabs` reuses the dabs the preview already has and runs only the
+effects. Measured at 2400×1200 with a 90 px watercolour brush:
+
+| stroke | `StampStroke` | `PostProcessDabs` |
+| --- | --- | --- |
+| 6 segments | 134.8 ms | 129.4 ms |
+| 60 segments | 109.7 ms | **52.4 ms** |
+
+The win is what it was meant to be — flat instead of climbing — and it arrives
+where it matters, on the long strokes where a lagging preview is most
+annoying. On short ones it is a wash.
+
+Two things that measurement corrected, both worth keeping written down. The
+dabs were **not** the dominant cost at ordinary sizes: at 20 segments they
+were 32 ms of a 76 ms pass, and the medium simulation was the rest — an
+earlier note here asserted otherwise on no evidence. And a *shorter* stroke
+can cost *more*: `MediumSimulator` caps the lattice by the longest side, so a
+long thin stroke gets coarser cells and fewer of them. The remaining lever is
+the simulation itself, not the stamping.
 
 Raising a budget requires a measurement in the commit message explaining what
 got slower and why that is acceptable.
