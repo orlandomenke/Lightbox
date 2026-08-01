@@ -42,30 +42,44 @@ public sealed class DocumentEditor
     /// the hot path for stroke commits, where serializing the whole document
     /// per pen lift caused a visible pause. <paramref name="apply"/> must be
     /// re-runnable (redo) and <paramref name="revert"/> must exactly undo it.
+    /// <paramref name="affectedFrameId"/> lets undo/redo invalidate only that
+    /// frame instead of every cached bitmap and thumbnail.
     /// </summary>
-    public void PerformDelta(Action<Doc> apply, Action<Doc> revert)
+    public void PerformDelta(Action<Doc> apply, Action<Doc> revert, string? affectedFrameId = null)
     {
-        PushStep(new DeltaStep(apply, revert));
+        PushStep(new DeltaStep(apply, revert, affectedFrameId));
         apply(Doc);
         Changed?.Invoke();
     }
 
-    public void Undo()
+    /// <summary>What an undo/redo touched: nothing, one frame, or the whole document.</summary>
+    public readonly record struct EditScope(bool Any, string? FrameId)
     {
-        if (_undo.Count == 0) return;
+        public bool DocumentWide => Any && FrameId is null;
+    }
+
+    public void Undo() => UndoScoped();
+
+    public void Redo() => RedoScoped();
+
+    public EditScope UndoScoped()
+    {
+        if (_undo.Count == 0) return new EditScope(false, null);
         var step = _undo.Pop();
         Doc = step.Rollback(Doc);
         _redo.Push(step);
         Changed?.Invoke();
+        return new EditScope(true, step.FrameId);
     }
 
-    public void Redo()
+    public EditScope RedoScoped()
     {
-        if (_redo.Count == 0) return;
+        if (_redo.Count == 0) return new EditScope(false, null);
         var step = _redo.Pop();
         Doc = step.Apply(Doc);
         _undo.Push(step);
         Changed?.Invoke();
+        return new EditScope(true, step.FrameId);
     }
 
     private void PushStep(IEditStep step)
@@ -84,6 +98,9 @@ public sealed class DocumentEditor
     /// <summary>One entry on the undo/redo stacks.</summary>
     private interface IEditStep
     {
+        /// <summary>The single frame this step touches, or null for document-wide.</summary>
+        string? FrameId { get; }
+
         /// <summary>Take the document back to before this step; returns the doc to use.</summary>
         Doc Rollback(Doc doc);
 
@@ -95,6 +112,8 @@ public sealed class DocumentEditor
     private sealed class SnapshotStep(Doc other) : IEditStep
     {
         private Doc _other = other;
+
+        public string? FrameId => null; // whole-document
 
         public Doc Rollback(Doc doc) => Swap(doc);
 
@@ -109,8 +128,10 @@ public sealed class DocumentEditor
     }
 
     /// <summary>Targeted mutation with an exact inverse — no document clone.</summary>
-    private sealed class DeltaStep(Action<Doc> apply, Action<Doc> revert) : IEditStep
+    private sealed class DeltaStep(Action<Doc> apply, Action<Doc> revert, string? frameId) : IEditStep
     {
+        public string? FrameId => frameId;
+
         public Doc Rollback(Doc doc)
         {
             revert(doc);

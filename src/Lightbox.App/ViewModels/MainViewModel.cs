@@ -863,7 +863,8 @@ public sealed partial class MainViewModel : ObservableObject
                 {
                     RemoveStrokeById(doc, frameId, stroke.Id);
                     if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
-                });
+                },
+                affectedFrameId: frameId);
             _dirtyThumbIds.Add(target.Id);
             PublishSnapshot();
             RefreshThumbnails();
@@ -1265,6 +1266,18 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _sidebarVisible = true;
 
+    [ObservableProperty]
+    private bool _colorDockerVisible = true;
+
+    [ObservableProperty]
+    private bool _sheetsDockerVisible = true;
+
+    [RelayCommand]
+    private void ToggleColorDocker() => ColorDockerVisible = !ColorDockerVisible;
+
+    [RelayCommand]
+    private void ToggleSheetsDocker() => SheetsDockerVisible = !SheetsDockerVisible;
+
     /// <summary>Which side the docker sidebar collapses to / sits on.</summary>
     [ObservableProperty]
     private bool _sidebarOnRight = true;
@@ -1514,7 +1527,8 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 RemoveStrokeById(doc, frameId, stroke.Id);
                 if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
-            });
+            },
+            affectedFrameId: frameId);
         _dirtyThumbIds.Add(target.Id);
         PublishSnapshot();
         RefreshThumbnails();
@@ -1846,20 +1860,35 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Undo()
     {
-        _editor.Undo();
-        _cache.Clear();
-        _allThumbsDirty = true;
-        ClampCurrentFrame();
-        RefreshThumbnails();
+        ApplyEditScope(_editor.UndoScoped());
     }
 
     [RelayCommand]
     private void Redo()
     {
-        _editor.Redo();
-        _cache.Clear();
-        _allThumbsDirty = true;
+        ApplyEditScope(_editor.RedoScoped());
+    }
+
+    /// <summary>
+    /// Invalidate only what an undo/redo actually touched: one frame for a
+    /// stroke delta, everything for a structural snapshot. Full invalidation
+    /// re-rendered every visible frame and every thumbnail — the undo lag.
+    /// </summary>
+    private void ApplyEditScope(DocumentEditor.EditScope scope)
+    {
+        if (!scope.Any) return;
+        if (scope.FrameId is { } frameId)
+        {
+            _cache.Invalidate(frameId);
+            _dirtyThumbIds.Add(frameId);
+        }
+        else
+        {
+            _cache.Clear();
+            _allThumbsDirty = true;
+        }
         ClampCurrentFrame();
+        RefreshLayerThumbs();
         RefreshThumbnails();
     }
 
@@ -1958,6 +1987,69 @@ public sealed partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(ActiveLayerOpacity));
         OnPropertyChanged(nameof(ActiveLayerBlendMode));
+    }
+
+    /// <summary>Delete the active layer; an empty document always regrows one blank layer.</summary>
+    [RelayCommand]
+    private void DeleteActiveLayer() => DeleteLayer(ActiveLayer);
+
+    public void DeleteLayer(Layer layer)
+    {
+        var removedIndex = Scene.Layers.FindIndex(l => l.Id == layer.Id);
+        if (removedIndex < 0) return;
+        _editor.Perform(doc =>
+        {
+            var scene = doc.Scene;
+            var index = scene.Layers.FindIndex(l => l.Id == layer.Id);
+            if (index < 0) return;
+            scene.Layers.RemoveAt(index);
+            if (scene.Layers.Count == 0)
+            {
+                var fresh = new Layer
+                {
+                    Name = "Paint 1",
+                    Cels = [new Cel { Frame = new PaintedFrame() }],
+                };
+                while (fresh.Cels.Count < scene.FrameCount) fresh.Cels.Add(new Cel());
+                scene.Layers.Add(fresh);
+            }
+        });
+        ActiveLayerIndex = Math.Clamp(removedIndex, 0, Scene.Layers.Count - 1);
+    }
+
+    /// <summary>Blank the active layer: every drawing on it loses its content, the timing stays.</summary>
+    [RelayCommand]
+    private void ClearActiveLayer() => ClearLayerContent(ActiveLayer);
+
+    public void ClearLayerContent(Layer layer)
+    {
+        // Mark before the edit so the thumbnail refresh inside Changed sees them.
+        foreach (var cel in layer.Cels)
+        {
+            if (cel.Frame is { } frame)
+            {
+                _cache.Invalidate(frame.Id);
+                _dirtyThumbIds.Add(frame.Id);
+            }
+        }
+        _editor.Perform(doc =>
+        {
+            var target = doc.Scene.Layers.FirstOrDefault(l => l.Id == layer.Id);
+            if (target is null) return;
+            foreach (var cel in target.Cels)
+            {
+                switch (cel.Frame)
+                {
+                    case PaintedFrame painted:
+                        painted.Strokes.Clear();
+                        painted.PngBase64 = "";
+                        break;
+                    case VectorFrame vector:
+                        vector.Strokes.Clear();
+                        break;
+                }
+            }
+        });
     }
 
     private void AddLayer(LayerKind kind)

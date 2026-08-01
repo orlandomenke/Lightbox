@@ -122,7 +122,20 @@ public class AlphaSelectAndWandTests
 {
     private static MainViewModel DrawnVm()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        // Pin the working brush: the store is shared across tests and a
+        // persisted effect preset (granulation speckle) makes wand/alpha
+        // tracing flaky.
+        var vm = new MainViewModel(null)
+        {
+            SmoothStrokes = false,
+            BrushSize = 16,
+            BrushHardness = 1,
+            BrushOpacity = 1,
+            BrushFlow = 1,
+            BrushWetEdge = 0,
+            BrushGranulation = 0,
+            BrushScatter = 0,
+        };
         vm.BeginStroke(200, 200, 1);
         vm.MoveStroke(300, 200, 1);
         vm.EndStroke();

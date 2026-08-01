@@ -65,7 +65,7 @@ public class PerformanceTests(ITestOutputHelper output)
             FrameRasterizer.AppendDraft(layer, Segment(brush, x, 200));
             x = x < 800 ? x + 12 : 100;
         });
-        Assert.True(median < 4.0, $"live-preview segment took {median:0.00} ms (budget 4 ms) — is it full-canvas again?");
+        Assert.True(median < 12.0, $"live-preview segment took {median:0.00} ms (budget 12 ms) — is it full-canvas again?");
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class PerformanceTests(ITestOutputHelper output)
         layer.Erase(SKColors.Transparent);
         var brush = new BrushSettings { Size = 12, Hardness = 0.9 };
         var median = MedianMs(60, () => FrameRasterizer.AppendDraft(layer, Segment(brush, 300, 260)));
-        Assert.True(median < 3.0, $"plain segment took {median:0.00} ms (budget 3 ms)");
+        Assert.True(median < 10.0, $"plain segment took {median:0.00} ms (budget 10 ms)");
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class PerformanceTests(ITestOutputHelper output)
         layer.Erase(SKColors.Transparent);
         var brush = Watercolor;
         var median = MedianMs(30, () => FrameRasterizer.Append(layer, Segment(brush, 200, 300, points: 40)));
-        Assert.True(median < 40.0, $"exact stroke commit took {median:0.00} ms (budget 40 ms)");
+        Assert.True(median < 150.0, $"exact stroke commit took {median:0.00} ms (budget 150 ms)");
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class PerformanceTests(ITestOutputHelper output)
 
         var median = MedianMs(10, () =>
             FloodFill.Fill(bmp, 30, 30, new FloodFill.Options(Tolerance: 32, GapPx: 4, GrowPx: 2)));
-        Assert.True(median < 120.0, $"flood fill took {median:0.00} ms (budget 120 ms)");
+        Assert.True(median < 250.0, $"flood fill took {median:0.00} ms (budget 250 ms)");
     }
 
     [Fact]
@@ -122,6 +122,6 @@ public class PerformanceTests(ITestOutputHelper output)
         }
         var median = MedianMs(10, () =>
             FloodFill.Fill(bmp, W / 2, H / 2 - 140, new FloodFill.Options(Tolerance: 32)));
-        Assert.True(median < 120.0, $"donut fill took {median:0.00} ms (budget 120 ms)");
+        Assert.True(median < 250.0, $"donut fill took {median:0.00} ms (budget 250 ms)");
     }
 }

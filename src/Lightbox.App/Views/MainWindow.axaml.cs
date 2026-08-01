@@ -37,6 +37,9 @@ public partial class MainWindow : Window
         _vm.LazyBrushCleared += () => Canvas.SetLazyAnchor(null, null);
         SyncCanvasToolMode();
 
+        LayersDocker.PointerEntered += (_, _) => _pointerInLayersDocker = true;
+        LayersDocker.PointerExited += (_, _) => _pointerInLayersDocker = false;
+
         // The toggle button eats pointer events, so hook the hold-to-open
         // variant flyout with tunneling handlers.
         SelectToolButton.AddHandler(PointerPressedEvent, OnSelectToolPressed, RoutingStrategies.Tunnel);
@@ -58,6 +61,11 @@ public partial class MainWindow : Window
             {
                 ApplyDockLayout();
             }
+            if (args.PropertyName is nameof(MainViewModel.ColorDockerVisible)
+                or nameof(MainViewModel.SheetsDockerVisible))
+            {
+                ApplySidebarLayout();
+            }
             if (args.PropertyName is nameof(MainViewModel.ActiveTool)
                 or nameof(MainViewModel.ActiveSelectVariant))
             {
@@ -77,6 +85,7 @@ public partial class MainWindow : Window
                 : Avalonia.Media.Brushes.Transparent;
         };
 
+        _shortcuts.Load();
         KeyDown += OnKeyDown;
         Loaded += (_, _) =>
         {
@@ -115,6 +124,9 @@ public partial class MainWindow : Window
             rows[2].MinHeight = 0;
             rows[2].Height = GridLength.Auto;
         }
+        // The splitter turns the canvas row absolute while dragging; it must
+        // go back to star or a reopened timeline lands outside the window.
+        rows[0].Height = new GridLength(1, GridUnitType.Star);
 
         // Work-area columns: 0 toolbar, 1 splitter, 2 + 4 canvas/sidebar
         // (whichever side the sidebar is on), 3 the splitter between them.
@@ -138,6 +150,39 @@ public partial class MainWindow : Window
             cols[_sidebarColumn].Width = GridLength.Auto;
         }
     }
+
+    /// <summary>
+    /// Collapse/restore the sidebar rows of the closable Color and Character
+    /// sheets dockers, remembering their dragged sizes.
+    /// </summary>
+    private GridLength _colorRowHeight = new(1.3, GridUnitType.Star);
+    private GridLength _sheetsRowHeight = new(0.7, GridUnitType.Star);
+
+    private void ApplySidebarLayout()
+    {
+        var rows = SidebarGrid.RowDefinitions;
+        ApplyDockerRow(rows[2], _vm.ColorDockerVisible, 160, ref _colorRowHeight);
+        ApplyDockerRow(rows[4], _vm.SheetsDockerVisible, 80, ref _sheetsRowHeight);
+    }
+
+    private static void ApplyDockerRow(RowDefinition row, bool visible, double minHeight, ref GridLength saved)
+    {
+        if (visible)
+        {
+            row.MinHeight = minHeight;
+            row.Height = saved;
+        }
+        else
+        {
+            if (!row.Height.IsAuto) saved = row.Height;
+            row.MinHeight = 0;
+            row.Height = GridLength.Auto;
+        }
+    }
+
+    // Delete/Backspace act on the active layer only while the pointer is
+    // inside the Layers docker — that's the "in the docker" context.
+    private bool _pointerInLayersDocker;
 
     /// <summary>Clicking anywhere on a layer-docker row makes that layer active.</summary>
     private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)
@@ -540,6 +585,17 @@ public partial class MainWindow : Window
     private void OnVariantChosen(object? sender, RoutedEventArgs e) =>
         SelectToolButton.ContextFlyout?.Hide();
 
+    /// <summary>Brush-parameter flyout: categories on the left, one page visible at a time.</summary>
+    private void OnBrushCategoryChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (BrushPageGeneral is null) return; // template not built yet
+        var index = BrushCategoryList.SelectedIndex;
+        BrushPageGeneral.IsVisible = index == 0;
+        BrushPageEffects.IsVisible = index == 1;
+        BrushPagePressure.IsVisible = index == 2;
+        BrushPagePresets.IsVisible = index == 3;
+    }
+
     // ---- canvas view tools (view-only: never touch the document) -------------
 
     private void OnZoomIn(object? sender, RoutedEventArgs e) => Canvas.ZoomIn();
@@ -554,94 +610,89 @@ public partial class MainWindow : Window
 
     private void OnResetView(object? sender, RoutedEventArgs e) => Canvas.ResetView();
 
+    private readonly Services.ShortcutMap _shortcuts = new();
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         // Don't hijack keys while the user is typing (layer rename, color hex, AI prompt).
         if (e.Source is TextBox) return;
-        switch (e)
+        switch (_shortcuts.IdFor(e))
         {
-            case { Key: Key.Space }:
+            case "timeline.playPause":
                 _vm.TogglePlaybackCommand.Execute(null);
-                e.Handled = true;
                 break;
-            case { Key: Key.Z, KeyModifiers: KeyModifiers.Control }:
+            case "canvas.undo":
                 _vm.UndoCommand.Execute(null);
-                e.Handled = true;
                 break;
-            case { Key: Key.Y, KeyModifiers: KeyModifiers.Control }:
+            case "canvas.redo":
                 _vm.RedoCommand.Execute(null);
-                e.Handled = true;
                 break;
-            case { Key: Key.Left }:
+            case "timeline.prevFrame":
                 _vm.CurrentFrameIndex = Math.Max(0, _vm.CurrentFrameIndex - 1);
-                e.Handled = true;
                 break;
-            case { Key: Key.Right }:
+            case "timeline.nextFrame":
                 _vm.CurrentFrameIndex = Math.Min(_vm.Doc.Scene.FrameCount - 1, _vm.CurrentFrameIndex + 1);
-                e.Handled = true;
                 break;
-            case { Key: Key.B, KeyModifiers: KeyModifiers.None }:
+            case "tool.brush":
                 _vm.ActiveTool = ToolId.Brush; // back to the last-configured brush
-                e.Handled = true;
                 break;
-            case { Key: Key.E, KeyModifiers: KeyModifiers.None }:
+            case "tool.eraser":
                 _vm.ActiveTool = ToolId.Eraser;
-                e.Handled = true;
                 break;
-            case { Key: Key.F, KeyModifiers: KeyModifiers.None }:
+            case "tool.fill":
                 _vm.ActiveTool = ToolId.Fill;
-                e.Handled = true;
                 break;
-            case { Key: Key.S, KeyModifiers: KeyModifiers.None }:
+            case "tool.select":
                 _vm.SelectToolCommand.Execute(ToolId.Select); // again = next variant
-                e.Handled = true;
                 break;
-            case { Key: Key.A, KeyModifiers: KeyModifiers.Control }:
+            case "select.all":
                 _vm.SelectAllCommand.Execute(null);
-                e.Handled = true;
                 break;
-            case { Key: Key.C, KeyModifiers: KeyModifiers.Control }:
+            case "timeline.copyCel":
                 _vm.CopyCurrentCel();
-                e.Handled = true;
                 break;
-            case { Key: Key.X, KeyModifiers: KeyModifiers.Control }:
+            case "timeline.cutCel":
                 _vm.CutCurrentCel();
-                e.Handled = true;
                 break;
-            case { Key: Key.V, KeyModifiers: KeyModifiers.Control }:
+            case "timeline.pasteCel":
                 _vm.PasteCurrentCel();
-                e.Handled = true;
                 break;
-            case { Key: Key.D, KeyModifiers: KeyModifiers.Control }:
+            case "select.none":
                 _vm.DeselectCommand.Execute(null);
-                e.Handled = true;
                 break;
-            case { Key: Key.I, KeyModifiers: KeyModifiers.Control | KeyModifiers.Shift }:
+            case "select.invert":
                 _vm.InvertSelectionCommand.Execute(null);
-                e.Handled = true;
                 break;
-            case { Key: Key.Escape }:
+            case "select.cancel":
                 _vm.CancelPolygon();
+                return; // leave Escape unhandled so open flyouts still close
+            case "docker.deleteLayer" when _pointerInLayersDocker:
+                _vm.DeleteActiveLayerCommand.Execute(null);
+                break;
+            case "docker.clearLayer" when _pointerInLayersDocker:
+                _vm.ClearActiveLayerCommand.Execute(null);
                 break;
             // Flipping: hop between key drawings without leaving the pen.
-            case { Key: Key.D1 or Key.NumPad1, KeyModifiers: KeyModifiers.None }:
+            case "timeline.prevKey":
                 _vm.PreviousKeyframeCommand.Execute(null);
-                e.Handled = true;
                 break;
-            case { Key: Key.D2 or Key.NumPad2, KeyModifiers: KeyModifiers.None }:
+            case "timeline.nextKey":
                 _vm.NextKeyframeCommand.Execute(null);
-                e.Handled = true;
                 break;
-            case { Key: Key.M, KeyModifiers: KeyModifiers.None }:
+            case "canvas.mirror":
                 Canvas.ToggleMirror();
-                e.Handled = true;
                 break;
-            case { Key: Key.D0 or Key.NumPad0, KeyModifiers: KeyModifiers.None }:
+            case "canvas.resetView":
                 Canvas.ResetView();
-                e.Handled = true;
                 break;
+            default:
+                return; // unbound or context-gated: not ours
         }
+        e.Handled = true;
     }
+
+    private async void OnConfigureClicked(object? sender, RoutedEventArgs e) =>
+        await new ConfigureWindow(_shortcuts).ShowDialog(this);
 
     private static readonly FilePickerFileType LightboxFileType = new("Lightbox document")
     {

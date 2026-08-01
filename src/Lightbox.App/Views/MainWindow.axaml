@@ -85,9 +85,14 @@
         <Separator />
         <MenuItem Header="_Export PNGs…" Click="OnExportClicked" />
       </MenuItem>
+      <MenuItem Header="_Edit">
+        <MenuItem Header="_Configure…" Click="OnConfigureClicked" />
+      </MenuItem>
       <MenuItem Header="_View">
         <MenuItem Header="Sidebar" ToggleType="CheckBox" IsChecked="{Binding SidebarVisible}" />
         <MenuItem Header="Timeline" ToggleType="CheckBox" IsChecked="{Binding TimelineVisible}" />
+        <MenuItem Header="Color" ToggleType="CheckBox" IsChecked="{Binding ColorDockerVisible}" />
+        <MenuItem Header="Character sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible}" />
       </MenuItem>
     </Menu>
 
@@ -100,10 +105,9 @@
           <ComboBox ItemsSource="{Binding BrushPresetChoices}" SelectedItem="{Binding SelectedBrushPreset}"
                     Width="130" VerticalAlignment="Center"
                     ToolTip.Tip="Brush preset (B returns to the last configured brush)" />
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Color" VerticalAlignment="Center" />
-            <TextBox Text="{Binding ColorHex}" Width="80" ToolTip.Tip="Hex color, e.g. #1a1a1a" />
-          </StackPanel>
+          <Border Width="24" Height="24" CornerRadius="3" BorderBrush="#555" BorderThickness="1"
+                  VerticalAlignment="Center" Background="{Binding ColorPicker.SwatchBrush}"
+                  ToolTip.Tip="Current color — pick colors in the Color docker" />
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Size" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="60" Width="110" VerticalAlignment="Center" />
@@ -150,100 +154,124 @@
                 IsVisible="{Binding IsPaintTool}">
           <Button.Flyout>
             <Flyout Placement="Bottom">
-              <StackPanel Width="300" Spacing="6">
-                <TextBlock Text="Brush parameters" FontWeight="SemiBold" FontSize="12" />
-                <CheckBox Content="Anti-aliasing (global)" IsChecked="{Binding AntiAliasing}"
-                          ToolTip.Tip="Smooth edges on everything that paints (brush, eraser, fill). Recorded per stroke, so existing art never changes." />
-                <DockPanel>
-                  <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="12" />
-                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1"
-                                 Increment="0.05" FormatString="0.00" Width="94" />
-                  <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Margin="4,0" />
-                </DockPanel>
-                <DockPanel>
-                  <TextBlock Text="Flow" Width="90" VerticalAlignment="Center" FontSize="12" />
-                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1"
-                                 Increment="0.05" FormatString="0.00" Width="94" />
-                  <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Margin="4,0" />
-                </DockPanel>
-                <DockPanel>
-                  <TextBlock Text="Spacing" Width="90" VerticalAlignment="Center" FontSize="12" />
-                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2"
-                                 Increment="0.02" FormatString="0.00" Width="94" />
-                  <Slider Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2" Margin="4,0" />
-                </DockPanel>
-                <DockPanel>
-                  <TextBlock Text="Wet edge" Width="90" VerticalAlignment="Center" FontSize="12" />
-                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
-                                 Increment="0.05" FormatString="0.00" Width="94" />
-                  <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="4,0" />
-                </DockPanel>
-                <DockPanel>
-                  <TextBlock Text="Granulation" Width="90" VerticalAlignment="Center" FontSize="12" />
-                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
-                                 Increment="0.05" FormatString="0.00" Width="94" />
-                  <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="4,0" />
-                </DockPanel>
-                <DockPanel>
-                  <TextBlock Text="Scatter" Width="90" VerticalAlignment="Center" FontSize="12" />
-                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
-                                 Increment="0.05" FormatString="0.00" Width="94" />
-                  <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="4,0" />
-                </DockPanel>
-                <DockPanel>
-                  <TextBlock Text="Rot. jitter" Width="90" VerticalAlignment="Center" FontSize="12" />
-                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
-                                 Increment="0.05" FormatString="0.00" Width="94" />
-                  <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
-                </DockPanel>
-                <Separator />
-                <TextBlock Text="Pen pressure" FontWeight="SemiBold" FontSize="12" />
-                <CheckBox Content="Use pen pressure" IsChecked="{Binding BrushPressureEnabled}"
-                          ToolTip.Tip="Master switch for this brush — off ignores the tablet's pressure entirely" />
-                <StackPanel Spacing="6" IsEnabled="{Binding BrushPressureEnabled}">
-                  <DockPanel>
-                    <CheckBox Content="Size" Width="110" FontSize="12"
-                              IsChecked="{Binding BrushPressureAffectsSize}"
-                              ToolTip.Tip="Pressure controls line thickness" />
-                    <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4"
-                                   Increment="0.1" FormatString="0.0" Width="94"
-                                   IsEnabled="{Binding BrushPressureAffectsSize}"
-                                   ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
-                    <Slider Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4" Margin="4,0"
-                            IsEnabled="{Binding BrushPressureAffectsSize}" />
-                  </DockPanel>
-                  <DockPanel>
-                    <CheckBox Content="Transparency" Width="110" FontSize="12"
-                              IsChecked="{Binding BrushPressureAffectsFlow}"
-                              ToolTip.Tip="Pressure controls paint amount (flow) — light pressure paints lighter" />
-                    <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4"
-                                   Increment="0.1" FormatString="0.0" Width="94"
-                                   IsEnabled="{Binding BrushPressureAffectsFlow}"
-                                   ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
-                    <Slider Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4" Margin="4,0"
-                            IsEnabled="{Binding BrushPressureAffectsFlow}" />
-                  </DockPanel>
-                  <DockPanel>
-                    <CheckBox Content="Hardness" Width="110" FontSize="12"
-                              IsChecked="{Binding BrushPressureAffectsHardness}"
-                              ToolTip.Tip="Light pressure gives a softer dab edge" />
-                    <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureHardnessGamma}" Minimum="0" Maximum="4"
-                                   Increment="0.1" FormatString="0.0" Width="94"
-                                   IsEnabled="{Binding BrushPressureAffectsHardness}"
-                                   ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
-                    <Slider Value="{Binding BrushPressureHardnessGamma}" Minimum="0" Maximum="4" Margin="4,0"
-                            IsEnabled="{Binding BrushPressureAffectsHardness}" />
-                  </DockPanel>
-                </StackPanel>
-                <Separator />
-                <DockPanel>
-                  <Button DockPanel.Dock="Right" Content="Save preset" Click="OnSavePresetClicked" />
-                  <TextBox x:Name="PresetNameBox" PlaceholderText="New preset name" Margin="0,0,6,0" />
-                </DockPanel>
-                <Button Content="Import brushes… (.abr .gbr .gih .kpp)" Click="OnImportBrushesClicked"
-                        HorizontalAlignment="Stretch"
-                        ToolTip.Tip="Photoshop and Krita/GIMP brushes: tip shapes and basic settings import; engine-specific features do not map 1:1" />
-              </StackPanel>
+              <Grid Width="470" Height="430" ColumnDefinitions="120,8,*">
+                <ListBox x:Name="BrushCategoryList" Grid.Column="0" SelectedIndex="0"
+                         SelectionChanged="OnBrushCategoryChanged" Background="#1c1c1c">
+                  <ListBoxItem Content="General" />
+                  <ListBoxItem Content="Effects" />
+                  <ListBoxItem Content="Pen pressure" />
+                  <ListBoxItem Content="Presets" />
+                </ListBox>
+                <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                  <Panel>
+
+                    <StackPanel x:Name="BrushPageGeneral" Spacing="6">
+                      <TextBlock Text="General" FontWeight="SemiBold" FontSize="12" />
+                      <CheckBox Content="Anti-aliasing (global)" IsChecked="{Binding AntiAliasing}"
+                                ToolTip.Tip="Smooth edges on everything that paints (brush, eraser, fill). Recorded per stroke, so existing art never changes." />
+                      <DockPanel>
+                        <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1"
+                                       Increment="0.05" FormatString="0.00" Width="94" />
+                        <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Margin="4,0" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Flow" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1"
+                                       Increment="0.05" FormatString="0.00" Width="94" />
+                        <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Margin="4,0" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Spacing" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2"
+                                       Increment="0.02" FormatString="0.00" Width="94" />
+                        <Slider Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2" Margin="4,0" />
+                      </DockPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="BrushPageEffects" Spacing="6" IsVisible="False">
+                      <TextBlock Text="Effects" FontWeight="SemiBold" FontSize="12" />
+                      <DockPanel>
+                        <TextBlock Text="Wet edge" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
+                                       Increment="0.05" FormatString="0.00" Width="94" />
+                        <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="4,0" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Granulation" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
+                                       Increment="0.05" FormatString="0.00" Width="94" />
+                        <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="4,0" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Scatter" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
+                                       Increment="0.05" FormatString="0.00" Width="94" />
+                        <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="4,0" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Rot. jitter" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
+                                       Increment="0.05" FormatString="0.00" Width="94" />
+                        <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                      </DockPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="BrushPagePressure" Spacing="6" IsVisible="False">
+                      <TextBlock Text="Pen pressure" FontWeight="SemiBold" FontSize="12" />
+                      <CheckBox Content="Use pen pressure" IsChecked="{Binding BrushPressureEnabled}"
+                                ToolTip.Tip="Master switch for this brush — off ignores the tablet's pressure entirely" />
+                      <StackPanel Spacing="6" IsEnabled="{Binding BrushPressureEnabled}">
+                        <DockPanel>
+                          <CheckBox Content="Size" Width="110" FontSize="12"
+                                    IsChecked="{Binding BrushPressureAffectsSize}"
+                                    ToolTip.Tip="Pressure controls line thickness" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4"
+                                         Increment="0.1" FormatString="0.0" Width="94"
+                                         IsEnabled="{Binding BrushPressureAffectsSize}"
+                                         ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
+                          <Slider Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4" Margin="4,0"
+                                  IsEnabled="{Binding BrushPressureAffectsSize}" />
+                        </DockPanel>
+                        <DockPanel>
+                          <CheckBox Content="Transparency" Width="110" FontSize="12"
+                                    IsChecked="{Binding BrushPressureAffectsFlow}"
+                                    ToolTip.Tip="Pressure controls paint amount (flow) — light pressure paints lighter" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4"
+                                         Increment="0.1" FormatString="0.0" Width="94"
+                                         IsEnabled="{Binding BrushPressureAffectsFlow}"
+                                         ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
+                          <Slider Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4" Margin="4,0"
+                                  IsEnabled="{Binding BrushPressureAffectsFlow}" />
+                        </DockPanel>
+                        <DockPanel>
+                          <CheckBox Content="Hardness" Width="110" FontSize="12"
+                                    IsChecked="{Binding BrushPressureAffectsHardness}"
+                                    ToolTip.Tip="Light pressure gives a softer dab edge" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureHardnessGamma}" Minimum="0" Maximum="4"
+                                         Increment="0.1" FormatString="0.0" Width="94"
+                                         IsEnabled="{Binding BrushPressureAffectsHardness}"
+                                         ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
+                          <Slider Value="{Binding BrushPressureHardnessGamma}" Minimum="0" Maximum="4" Margin="4,0"
+                                  IsEnabled="{Binding BrushPressureAffectsHardness}" />
+                        </DockPanel>
+                      </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="BrushPagePresets" Spacing="6" IsVisible="False">
+                      <TextBlock Text="Presets" FontWeight="SemiBold" FontSize="12" />
+                      <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Save preset" Click="OnSavePresetClicked" />
+                        <TextBox x:Name="PresetNameBox" PlaceholderText="New preset name" Margin="0,0,6,0" />
+                      </DockPanel>
+                      <Button Content="Import brushes… (.abr .gbr .gih .kpp)" Click="OnImportBrushesClicked"
+                              HorizontalAlignment="Stretch"
+                              ToolTip.Tip="Photoshop and Krita/GIMP brushes: tip shapes and basic settings import; engine-specific features do not map 1:1" />
+                    </StackPanel>
+
+                  </Panel>
+                </ScrollViewer>
+              </Grid>
             </Flyout>
           </Button.Flyout>
         </Button>
@@ -293,10 +321,6 @@
 
         <!-- Fill options -->
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsFillTool}">
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Color" VerticalAlignment="Center" />
-            <TextBox Text="{Binding ColorHex}" Width="80" ToolTip.Tip="Fill color (hex)" />
-          </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Tolerance" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding FillTolerance}" Minimum="0" Maximum="255" Increment="4"
@@ -535,7 +559,7 @@
         <!-- Closable sidebar of dockers (dock side is switched from code-behind) -->
         <Border x:Name="Sidebar" Grid.Column="4" Background="#1c1c1c"
                 IsVisible="{Binding SidebarVisible}">
-          <Grid Margin="4">
+          <Grid x:Name="SidebarGrid" Margin="4">
             <Grid.RowDefinitions>
               <RowDefinition Height="1.2*" MinHeight="170" />
               <RowDefinition Height="Auto" />
@@ -545,7 +569,7 @@
             </Grid.RowDefinitions>
 
             <!-- Layer docker (its ✕ collapses the sidebar to its side; ⇄ switches sides) -->
-            <controls:Docker Grid.Row="0" Title="Layers"
+            <controls:Docker x:Name="LayersDocker" Grid.Row="0" Title="Layers"
                              CloseCommand="{Binding ToggleSidebarCommand}">
               <controls:Docker.TitleBarExtra>
                 <Button Content="⇄" FontSize="11" Padding="6,2"
@@ -558,6 +582,8 @@
                     <StackPanel Orientation="Horizontal" Spacing="6">
                       <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
                               ToolTip.Tip="Add a new layer of the selected kind" />
+                      <Button Content="🗑" Command="{Binding DeleteActiveLayerCommand}"
+                              ToolTip.Tip="Delete the active layer (Delete inside this docker; Backspace blanks its content)" />
                       <ComboBox ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
                                 Width="110" ToolTip.Tip="Kind of layer the + button creates" />
                     </StackPanel>
@@ -627,10 +653,11 @@
               </ScrollViewer>
             </controls:Docker>
 
-            <GridSplitter Grid.Row="1" Height="5" ResizeDirection="Rows" />
+            <GridSplitter Grid.Row="1" Height="5" ResizeDirection="Rows" IsVisible="{Binding ColorDockerVisible}" />
 
             <!-- Color docker: one color, several representations -->
-            <controls:Docker Grid.Row="2" Title="Color">
+            <controls:Docker Grid.Row="2" Title="Color" IsVisible="{Binding ColorDockerVisible}"
+                             CloseCommand="{Binding ToggleColorDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
                   <ComboBox ItemsSource="{Binding ColorPicker.ModeChoices}" SelectedItem="{Binding ColorPicker.Mode}"
@@ -760,10 +787,11 @@
               </ScrollViewer>
             </controls:Docker>
 
-            <GridSplitter Grid.Row="3" Height="5" ResizeDirection="Rows" />
+            <GridSplitter Grid.Row="3" Height="5" ResizeDirection="Rows" IsVisible="{Binding SheetsDockerVisible}" />
 
             <!-- Character sheet docker: reference views of the subject, outside the timeline -->
-            <controls:Docker Grid.Row="4" Title="Character sheets">
+            <controls:Docker Grid.Row="4" Title="Character sheets" IsVisible="{Binding SheetsDockerVisible}"
+                             CloseCommand="{Binding ToggleSheetsDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
                   <Button Content="＋ Sheet" Click="OnAddReferenceSheet"
