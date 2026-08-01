@@ -41,6 +41,17 @@ public sealed class Scene
     /// <summary>Layer folders (see <see cref="LayerGroup"/>).</summary>
     public List<LayerGroup> LayerGroups { get; set; } = [];
 
+    /// <summary>
+    /// The shot camera, or null — and null is the default and the common case.
+    ///
+    /// The app serves two output targets. A game's character animation has no
+    /// camera at all: the canvas is the sprite. A film shot has one. Absent
+    /// rather than present-and-disabled is the difference between a sprite
+    /// document that saves exactly as it always did and one that carries a
+    /// camera key in every diff forever.
+    /// </summary>
+    public Camera? Camera { get; set; }
+
     /// <summary>A layer's folder, or null.</summary>
     public LayerGroup? GroupOf(Layer layer) =>
         layer.GroupId is null ? null : LayerGroups.FirstOrDefault(g => g.Id == layer.GroupId);
