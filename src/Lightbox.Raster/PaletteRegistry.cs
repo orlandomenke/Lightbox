@@ -52,6 +52,20 @@ public static class PaletteRegistry
 
     public static void Register(string id, Gradient gradient) => Gradients[id] = gradient;
 
+    /// <summary>
+    /// Point the registry at exactly one document's palettes and gradients,
+    /// dropping everything else. <see cref="Register(IEnumerable{Palette})"/>
+    /// only ever adds, so a deleted swatch would keep resolving and an undo
+    /// that replaced the document would leave the old <see cref="Swatch"/>
+    /// objects behind — live, and no longer the ones the artist is editing.
+    /// </summary>
+    public static void Reset(IEnumerable<Palette> palettes, IReadOnlyDictionary<string, Gradient> gradients)
+    {
+        Clear();
+        Register(palettes);
+        Register(gradients);
+    }
+
     public static Swatch? ResolveSwatch(string id) => Swatches.GetValueOrDefault(id);
 
     public static Gradient? ResolveGradient(string id) => Gradients.GetValueOrDefault(id);

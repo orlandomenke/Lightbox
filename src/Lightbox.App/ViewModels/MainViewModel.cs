@@ -198,6 +198,11 @@ public sealed partial class MainViewModel : ObservableObject
         ColorPicker = new ColorPickerViewModel();
         ColorPicker.SetHex(ColorHex);
         ColorPicker.HexCommitted += hex => ColorHex = hex;
+        PaletteDocker = new PaletteDockerViewModel(
+            OnSwatchRecoloured, PerformPaletteEdit, PaintWithSwatch, () => ColorHex);
+        PaletteDocker.SwatchEditRunEnded += CommitSwatchEdit;
+        PaletteRegistry.Reset(Doc.Palettes, Doc.Gradients);
+        PaletteDocker.Load(Doc);
         LoadBrushState();
         SyncLayerChoices();
         SyncLayerRows();
@@ -445,7 +450,128 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The color docker's state, kept in sync with <see cref="ColorHex"/>.</summary>
     public ColorPickerViewModel ColorPicker { get; }
 
-    partial void OnColorHexChanged(string value) => ColorPicker.SetHex(value);
+    partial void OnColorHexChanged(string value)
+    {
+        ColorPicker.SetHex(value);
+        if (_settingColorFromSwatch) return;
+
+        // In swatch-edit mode the picker drives the selected swatch, which is
+        // what makes dragging the wheel recolour the drawing live.
+        if (PaletteDocker.ApplyPickerColor(value)) return;
+
+        // Otherwise the artist has chosen a colour by some other means — the
+        // wheel, the hex box, the eyedropper — and the link to the swatch has
+        // to go. Keeping it would mean painting in one colour while recording
+        // a reference to another, and the stroke would jump the moment anyone
+        // touched the palette.
+        ActiveSwatchId = null;
+    }
+
+    // ---- live palettes ------------------------------------------------------
+
+    /// <summary>The palette docker's state.</summary>
+    public PaletteDockerViewModel PaletteDocker { get; }
+
+    /// <summary>
+    /// The swatch the next stroke should reference, or null to record a
+    /// literal colour. Set by selecting a swatch; cleared by choosing a colour
+    /// any other way (see <see cref="OnColorHexChanged"/>).
+    /// </summary>
+    public string? ActiveSwatchId { get; private set; }
+
+    private bool _settingColorFromSwatch;
+
+    /// <summary>The swatch and the colour it held when the current edit run began.</summary>
+    private (string Id, string Before)? _pendingSwatchEdit;
+
+    private void PaintWithSwatch(string swatchId)
+    {
+        if (PaletteRegistry.ResolveSwatch(swatchId) is not { } swatch) return;
+        _settingColorFromSwatch = true;
+        try
+        {
+            ColorHex = swatch.Color;
+        }
+        finally
+        {
+            _settingColorFromSwatch = false;
+        }
+        ActiveSwatchId = swatchId;
+    }
+
+    /// <summary>A structural palette edit — one undo step, then a full resync.</summary>
+    private void PerformPaletteEdit(Action<Doc> mutate)
+    {
+        CommitSwatchEdit();
+        _editor.Perform(mutate);
+    }
+
+    private void OnSwatchRecoloured(SwatchRow row, string before)
+    {
+        // A run is one swatch at a time; touching a different one closes the
+        // previous run off so each lands as its own undo step.
+        if (_pendingSwatchEdit is { } pending && pending.Id != row.Id) CommitSwatchEdit();
+        _pendingSwatchEdit ??= (row.Id, before);
+
+        if (row.Id == ActiveSwatchId) PaintWithSwatch(row.Id);
+        RepaintForSwatch(row.Id);
+        MarkDocumentEdited();
+    }
+
+    /// <summary>
+    /// Close off a run of colour edits as a single undo step. Dragging the
+    /// colour wheel fires an edit per pointer event; one step each would bury
+    /// the drawing history under sixty entries of the same swatch.
+    /// </summary>
+    internal void CommitSwatchEdit()
+    {
+        if (_pendingSwatchEdit is not { } pending) return;
+        _pendingSwatchEdit = null;
+        if (PaletteRegistry.ResolveSwatch(pending.Id)?.Color is not { } after) return;
+        if (after == pending.Before) return;
+
+        var (id, before) = (pending.Id, pending.Before);
+        // Looked up by id inside the closure rather than captured: a snapshot
+        // undo replaces Doc wholesale, so the Swatch object this ran against
+        // will not be the one a later redo has to write to.
+        _editor.PerformDelta(d => SetSwatchColor(d, id, after), d => SetSwatchColor(d, id, before));
+    }
+
+    private static void SetSwatchColor(Doc doc, string swatchId, string color)
+    {
+        foreach (var palette in doc.Palettes)
+        {
+            foreach (var swatch in palette.Swatches)
+            {
+                if (swatch.Id == swatchId) swatch.Color = color;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Repaint what a swatch edit actually changed. Only frames holding a
+    /// stroke that references the swatch are dropped from the cache — walking
+    /// the stroke record is far cheaper than re-rendering frames whose pixels
+    /// cannot have moved, and a palette used on one layer must not cost a
+    /// whole-document re-render on every pointer event of a wheel drag.
+    /// </summary>
+    private void RepaintForSwatch(string swatchId)
+    {
+        foreach (var layer in Scene.Layers)
+        {
+            foreach (var cel in layer.Cels)
+            {
+                if (cel.Frame is not { } frame) continue;
+                if (!StrokesOf(frame).Any(s => s.SwatchId == swatchId)) continue;
+                _cache.Invalidate(frame.Id);
+                _dirtyThumbIds.Add(frame.Id);
+            }
+        }
+        InvalidateWholeCanvas();
+        _composeRing.InvalidateAll();
+        PublishSnapshot();
+        RefreshThumbnails();
+    }
 
     private static IAiArtist? ResolveArtist()
     {
@@ -1268,6 +1394,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Tool = ToolKind.Fill,
             Color = ColorHex,
+            SwatchId = ActiveSwatchId,
             Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
             Points = [.. _selectionContours[0]],
             Holes = _selectionContours.Count > 1
@@ -1341,6 +1468,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 Tool = ToolKind.Fill,
                 Color = ColorHex,
+                SwatchId = ActiveSwatchId,
                 Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
                 Points = result.Outer,
                 Holes = result.Holes.Count > 0 ? result.Holes : null,
@@ -1808,6 +1936,17 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _sheetsDockerVisible = true;
 
+    /// <summary>
+    /// Off by default. A palette is something an artist sets up deliberately;
+    /// a document with none has an empty docker taking sidebar height it could
+    /// give to the layers.
+    /// </summary>
+    [ObservableProperty]
+    private bool _paletteDockerVisible;
+
+    [RelayCommand]
+    private void TogglePaletteDocker() => PaletteDockerVisible = !PaletteDockerVisible;
+
     [RelayCommand]
     private void ToggleColorDocker() => ColorDockerVisible = !ColorDockerVisible;
 
@@ -2010,12 +2149,16 @@ public sealed partial class MainViewModel : ObservableObject
         if (ActiveTool is not (ToolId.Brush or ToolId.Eraser)) return;
         if (IsPlaying || PaintTarget() is not { } target) return;
         if (!CanEdit(ActiveLayer, "draw on it")) return;
+        // Drawing ends any run of palette edits, so the recolour lands on the
+        // undo stack before the stroke does rather than after it.
+        CommitSwatchEdit();
         _stabilizer.Begin(x, y);
         _strokeBuilder.Begin(
             IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
             ColorHex,
             CurrentToolSettings.Clone(),
-            x, y, pressure);
+            x, y, pressure,
+            ActiveSwatchId);
         // Live preview clips to the selection too (the registry already knows
         // the region; the document copy is added at commit).
         if (PrepareClipForSelection() is { } liveClip) _strokeBuilder.Current!.ClipId = liveClip.Id;
@@ -2102,6 +2245,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Tool = live.Tool,
             Color = live.Color,
+            SwatchId = live.SwatchId,
             Brush = live.Brush,
             ClipId = live.ClipId,
             AlphaLocked = live.AlphaLocked,
@@ -2184,6 +2328,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Tool = live.Tool,
             Color = live.Color,
+            SwatchId = live.SwatchId,
             Brush = live.Brush,
             Points = [.. live.Points],
         };
@@ -3081,10 +3226,20 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Undo() => ApplyEditScope(WhileApplyingScope(_editor.UndoScoped));
+    private void Undo()
+    {
+        // An uncommitted palette edit is not on the stack yet; undoing before
+        // it lands would step over it and then have it reappear.
+        CommitSwatchEdit();
+        ApplyEditScope(WhileApplyingScope(_editor.UndoScoped));
+    }
 
     [RelayCommand]
-    private void Redo() => ApplyEditScope(WhileApplyingScope(_editor.RedoScoped));
+    private void Redo()
+    {
+        CommitSwatchEdit();
+        ApplyEditScope(WhileApplyingScope(_editor.RedoScoped));
+    }
 
     private DocumentEditor.EditScope WhileApplyingScope(Func<DocumentEditor.EditScope> step)
     {
@@ -3742,6 +3897,8 @@ public sealed partial class MainViewModel : ObservableObject
         _composeRing.InvalidateAll();
         BrushTipRegistry.Register(Doc.BrushTips);
         ClipRegionRegistry.Register(Doc.ClipRegions);
+        PaletteRegistry.Reset(Doc.Palettes, Doc.Gradients);
+        PaletteDocker.Load(Doc);
         RefreshDocumentStats();
         OnPropertyChanged(nameof(ReferenceSheetsView));
         SyncLayerChoices();

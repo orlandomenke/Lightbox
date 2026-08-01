@@ -120,7 +120,7 @@ public static class GimpPalette
     }
 
     /// <summary>#rrggbb (or #rgb) to bytes; anything unparseable reads as black.</summary>
-    internal static (byte R, byte G, byte B) Rgb(string hex)
+    public static (byte R, byte G, byte B) Rgb(string hex)
     {
         var s = hex.TrimStart('#');
         if (s.Length == 3)

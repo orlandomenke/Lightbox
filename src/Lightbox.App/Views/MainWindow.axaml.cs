@@ -689,6 +689,38 @@ public partial class MainWindow : Window
         _vm.ImportBrushFiles(payloads);
     }
 
+    // ---- palette ---------------------------------------------------------------
+
+    private static readonly FilePickerFileType GplFileType = new("GIMP palette")
+    {
+        Patterns = ["*.gpl"],
+    };
+
+    private async void OnImportPaletteClicked(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import palette",
+            AllowMultiple = false,
+            FileTypeFilter = [GplFileType],
+        });
+        if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path) return;
+        _vm.PaletteDocker.ImportGpl(path);
+    }
+
+    private async void OnExportPaletteClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.PaletteDocker.SelectedPalette is not { } palette) return;
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export palette",
+            SuggestedFileName = $"{palette.Name}.gpl",
+            FileTypeChoices = [GplFileType],
+        });
+        if (file?.TryGetLocalPath() is not { } path) return;
+        _vm.PaletteDocker.ExportGpl(path);
+    }
+
     // ---- toolbar ---------------------------------------------------------------
 
     /// <summary>Map the VM's tool + selection variant onto the canvas input mode.</summary>
