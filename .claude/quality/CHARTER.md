@@ -58,9 +58,18 @@ shared runner does not produce false alarms.
 | Flood fill, 960×540 | 250 ms | — |
 | Frame cache ceiling | 512 MB (cache only) | 601 MB total, incl. ~90 MB of compose buffers |
 | Presenting a frame, 4K zoomed to fit | 20 ms | ~11 ms at display resolution (~29 ms before) |
+| Textured (paper) commit, 4K, 500 px | 1200 ms | ~225 ms (3002 ms with per-pixel SetPixel) |
+| GC pause during a 4K stroke | — | 0 ms, 0 collections, 0.3 MB over 60 events |
 
 Raising a budget requires a measurement in the commit message explaining what
 got slower and why that is acceptable.
+
+**The garbage collector is not in the drawing path.** Measured on a 4K canvas
+with a 500 px brush over 60 pointer events: zero collections in any generation,
+zero total pause, 0.3 MB allocated. Every stall found so far has been
+algorithmic or an API-usage mistake, and three of the four were inside Skia's
+native code. Before proposing a native rewrite, re-run that measurement — it is
+the only evidence that would change the answer.
 
 ## 4. Definition of done for a user-visible change
 

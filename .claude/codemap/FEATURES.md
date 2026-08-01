@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-444 tests, derived from the suite itself. Each line is a
+445 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -818,13 +818,14 @@ regression even when every test still compiles.
 ## SmudgeFirstDabTests
 `tests/Lightbox.Raster.Tests/TexturedBrushTests.cs`
 
-- ASingle Tap On ABoundary Softens It Rather Than Doing Nothing — `:162`
-- ATap On Flat Colour Changes Nothing — `:182`
-- Smudge Never Deposits The Brush Colour — `:196`
+- ASingle Tap On ABoundary Softens It Rather Than Doing Nothing — `:193`
+- ATap On Flat Colour Changes Nothing — `:213`
+- Smudge Never Deposits The Brush Colour — `:227`
 
 ## TexturedBrushTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/TexturedBrushTests.cs`
 
 - Wet Edge Darkens The Outline Not The Interior — `:47`
 - Granulation Is Deterministic And Anchored To The Document — `:81`
-- Textured Stroke Commit Does Not Stall The Pen — `:100`
+- Paper Texture Commit Does Not Stall The Pen — `:100`
+- Textured Stroke Commit Does Not Stall The Pen — `:131`

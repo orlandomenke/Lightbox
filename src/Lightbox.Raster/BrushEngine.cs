@@ -653,16 +653,23 @@ public static class BrushEngine
 
         var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using var mask = new SKBitmap(info);
-        for (var y = 0; y < h; y++)
+
+        // Filled as bytes and installed once. SetPixel per pixel bounds-checks
+        // and repacks an SKColor each time, which over a stroke-sized region
+        // is millions of calls for what is a two-instruction write.
+        var rgba = new byte[w * h * 4];
+        for (var i = 0; i < height.Length; i++)
         {
-            for (var x = 0; x < w; x++)
-            {
-                // A' = 1 - depth * (1 - height): the tooth keeps paint, the
-                // valleys let it through, and depth decides how deep the bite.
-                var keep = 1f - depth * (1f - height[y * w + x]);
-                mask.SetPixel(x, y, SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(keep, 0, 1) * 255)));
-            }
+            // A' = 1 - depth * (1 - height): the tooth keeps paint, the
+            // valleys let it through, and depth decides how deep the bite.
+            var keep = 1f - depth * (1f - height[i]);
+            var o = i * 4;
+            rgba[o] = 255;
+            rgba[o + 1] = 255;
+            rgba[o + 2] = 255;
+            rgba[o + 3] = (byte)Math.Round(Math.Clamp(keep, 0, 1) * 255);
         }
+        System.Runtime.InteropServices.Marshal.Copy(rgba, 0, mask.GetPixels(), rgba.Length);
 
         using var image = SKImage.FromBitmap(mask);
         using var paint = new SKPaint { BlendMode = SKBlendMode.DstIn };

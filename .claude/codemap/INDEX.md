@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `698e389` · 143 files · 27882 lines · 444 tests.
+Generated from `d8a885b` · 143 files · 27966 lines · 445 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -103,7 +103,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SmudgeMode:8, BrushKind:25, BrushSettings:44
 - `src/Lightbox.Core/Geometry/TransformOps.cs` (219 ln) · 1 test files
   - TransformOps:12
-- `src/Lightbox.Core/Documents/MediumSettings.cs` (191 ln) · 5 test files
+- `src/Lightbox.Core/Documents/MediumSettings.cs` (191 ln) · 6 test files
   - MediumKind:10, PaperKind:29, MediumSettings:54
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (130 ln) · 1 test files
   - GeometryOps:5
@@ -166,7 +166,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Raster
 
-- `src/Lightbox.Raster/BrushEngine.cs` (953 ln) · 7 test files
+- `src/Lightbox.Raster/BrushEngine.cs` (960 ln) · 7 test files
   - BrushEngine:25
 - `src/Lightbox.Raster/Media/FluidLattice.cs` (820 ln) · 1 test files
   - FluidLattice:59
@@ -176,7 +176,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PaperField:26, Tile:81
 - `src/Lightbox.Raster/Media/PigmentModel.cs` (356 ln) · 1 test files
   - Pigment:31
-- `src/Lightbox.Raster/Media/MediumSimulator.cs` (252 ln) · **no tests**
+- `src/Lightbox.Raster/Media/MediumSimulator.cs` (298 ln) · **no tests**
   - MediumSimulator:22
 - `src/Lightbox.Raster/FrameRasterizer.cs` (74 ln) · 7 test files
   - FrameRasterizer:10

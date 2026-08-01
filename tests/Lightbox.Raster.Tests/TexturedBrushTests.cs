@@ -97,6 +97,37 @@ public class TexturedBrushTests
 
     [Fact]
     [Trait("Category", "Performance")]
+    public void PaperTextureCommit_DoesNotStallThePen()
+    {
+        // Texture built its mask with SetPixel per pixel, which over a
+        // stroke-sized region is millions of bounds-checked calls that repack
+        // an SKColor each time: it cost 3.0 s on this stroke. Filling a byte
+        // buffer and installing it once is 225 ms.
+        var info = new SKImageInfo(3840, 2160, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var surface = SKSurface.Create(info)!;
+        var stroke = Stroke(500, wet: 0, gran: 0);
+        stroke.Brush.TextureSurface = PaperKind.Rough;
+        stroke.Brush.TextureScale = 12;
+        stroke.Brush.TextureDepth = 0.7;
+
+        BrushEngine.StampStroke(surface.Canvas, stroke, info); // warm
+        var times = new List<double>();
+        var sw = new Stopwatch();
+        for (var i = 0; i < 5; i++)
+        {
+            sw.Restart();
+            BrushEngine.StampStroke(surface.Canvas, stroke, info);
+            sw.Stop();
+            times.Add(sw.Elapsed.TotalMilliseconds);
+        }
+        times.Sort();
+        var median = times[times.Count / 2];
+        Assert.True(median < 1200,
+            $"textured commit on a 4K canvas took {median:0} ms — the per-pixel path is back");
+    }
+
+    [Fact]
+    [Trait("Category", "Performance")]
     public void TexturedStrokeCommit_DoesNotStallThePen()
     {
         var info = new SKImageInfo(3840, 2160, SKColorType.Rgba8888, SKAlphaType.Premul);

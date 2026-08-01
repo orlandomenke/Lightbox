@@ -22,6 +22,42 @@ namespace Lightbox.Raster.Media;
 public static class MediumSimulator
 {
     /// <summary>
+    /// Read-only RGBA8888 view over a bitmap. SKBitmap.GetPixel bounds-checks
+    /// and builds an SKColor per call, which is fine occasionally and ruinous
+    /// in a per-pixel loop — this pass used to make millions of them.
+    /// </summary>
+    private readonly ref struct Pixels
+    {
+        private readonly ReadOnlySpan<byte> _bytes;
+        private readonly int _rowBytes;
+        public readonly int Width;
+        public readonly int Height;
+
+        private Pixels(ReadOnlySpan<byte> bytes, int rowBytes, int width, int height)
+        {
+            _bytes = bytes;
+            _rowBytes = rowBytes;
+            Width = width;
+            Height = height;
+        }
+
+        public bool IsEmpty => _bytes.IsEmpty;
+
+        public static Pixels Of(SKPixmap? pixmap) =>
+            pixmap is null || pixmap.ColorType != SKColorType.Rgba8888
+                ? default
+                : new Pixels(pixmap.GetPixelSpan(), pixmap.RowBytes, pixmap.Width, pixmap.Height);
+
+        public byte AlphaAt(int x, int y) => _bytes[y * _rowBytes + x * 4 + 3];
+
+        public SKColor At(int x, int y)
+        {
+            var i = y * _rowBytes + x * 4;
+            return new SKColor(_bytes[i], _bytes[i + 1], _bytes[i + 2], _bytes[i + 3]);
+        }
+    }
+
+    /// <summary>
     /// Below this the lattice is not worth building — a stroke that covers a
     /// handful of pixels has nowhere to flow.
     /// </summary>
@@ -105,11 +141,14 @@ public static class MediumSimulator
         }
 
         var coverage = new float[w * h];
+        using var pixmap = small.PeekPixels();
+        var view = Pixels.Of(pixmap);
+        if (view.IsEmpty) return null;
         for (var y = 0; y < h; y++)
         {
             for (var x = 0; x < w; x++)
             {
-                coverage[y * w + x] = small.GetPixel(x, y).Alpha / 255f;
+                coverage[y * w + x] = view.AlphaAt(x, y) / 255f;
             }
         }
         return coverage;
@@ -157,6 +196,9 @@ public static class MediumSimulator
     {
         var rewet = (float)Math.Clamp(medium.Rewetting, 0, 1);
         var pressureMix = (float)Math.Clamp(medium.PressureMix, 0, 1);
+        using var underPixmap = existing.PeekPixels();
+        var under = Pixels.Of(underPixmap);
+        if (under.IsEmpty) return;
 
         for (var y = 0; y < h; y++)
         {
@@ -165,18 +207,18 @@ public static class MediumSimulator
                 var c = coverage[y * w + x];
                 if (c <= 0.01f) continue;
 
-                var sx = Math.Clamp(rect.Left + x * step, 0, existing.Width - 1);
-                var sy = Math.Clamp(rect.Top + y * step, 0, existing.Height - 1);
-                var under = existing.GetPixel(sx, sy);
-                if (under.Alpha == 0) continue;
+                var sx = Math.Clamp(rect.Left + x * step, 0, under.Width - 1);
+                var sy = Math.Clamp(rect.Top + y * step, 0, under.Height - 1);
+                var alpha = under.AlphaAt(sx, sy);
+                if (alpha == 0) continue;
 
                 // Pressure decides how much the brush engages what is there:
                 // at PressureMix 1 a light touch barely disturbs it.
                 var engage = 1f - pressureMix * (1f - c);
-                var lifted = rewet * engage * (under.Alpha / 255f);
+                var lifted = rewet * engage * (alpha / 255f);
                 if (lifted <= 0.002f) continue;
 
-                var (r, g, b) = Linear(under);
+                var (r, g, b) = Linear(under.At(sx, sy));
                 lattice.Seed(x, y, lifted * 0.5f, lifted, r, g, b);
             }
         }
@@ -194,42 +236,46 @@ public static class MediumSimulator
         var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using var small = new SKBitmap(info);
         var hiding = Math.Clamp(medium.Hiding, 0, 1);
-        var pigment = Pigment.FromColor(strokeColor, hiding);
 
-        for (var y = 0; y < h; y++)
+        // Build the result in a plain byte buffer and install it in one go.
+        // SetPixel per pixel bounds-checks and repacks an SKColor each time;
+        // at a 320-cell lattice that was ~100k calls per stroke.
+        var rgba = new byte[w * h * 4];
+        using (var underPixmap = existing?.PeekPixels())
         {
-            for (var x = 0; x < w; x++)
+            var under = Pixels.Of(underPixmap);
+            var canMix = medium.PhysicalMixing && !under.IsEmpty;
+
+            for (var y = 0; y < h; y++)
             {
-                var i = (y * w + x) * 4;
-                var a = Math.Clamp(deposit[i + 3], 0f, 1f);
-                if (a <= 0.002f)
+                for (var x = 0; x < w; x++)
                 {
-                    small.SetPixel(x, y, SKColors.Transparent);
-                    continue;
+                    var i = (y * w + x) * 4;
+                    var a = Math.Clamp(deposit[i + 3], 0f, 1f);
+                    if (a <= 0.002f) continue; // buffer starts transparent
+
+                    // Deposit is premultiplied linear; recover the pigment colour.
+                    var settled = new SKColor(
+                        Srgb(deposit[i] / a), Srgb(deposit[i + 1] / a), Srgb(deposit[i + 2] / a),
+                        (byte)Math.Round(a * 255));
+
+                    if (canMix)
+                    {
+                        // Layer the settled pigment over what is beneath it the
+                        // way pigment layers, not the way film layers.
+                        var sx = Math.Clamp(rect.Left + x * step, 0, under.Width - 1);
+                        var sy = Math.Clamp(rect.Top + y * step, 0, under.Height - 1);
+                        settled = Pigment.FromColor(settled, hiding).Over(under.At(sx, sy), a);
+                    }
+
+                    rgba[i] = settled.Red;
+                    rgba[i + 1] = settled.Green;
+                    rgba[i + 2] = settled.Blue;
+                    rgba[i + 3] = (byte)Math.Round(a * 255);
                 }
-
-                // Deposit is premultiplied linear; recover the pigment colour.
-                var cr = deposit[i] / a;
-                var cg = deposit[i + 1] / a;
-                var cb = deposit[i + 2] / a;
-                var settled = new SKColor(Srgb(cr), Srgb(cg), Srgb(cb), (byte)Math.Round(a * 255));
-
-                if (!medium.PhysicalMixing || existing is null)
-                {
-                    small.SetPixel(x, y, settled);
-                    continue;
-                }
-
-                // Layer the settled pigment over what is beneath it the way
-                // pigment layers, not the way film layers.
-                var sx = Math.Clamp(rect.Left + x * step, 0, existing.Width - 1);
-                var sy = Math.Clamp(rect.Top + y * step, 0, existing.Height - 1);
-                var mixed = Pigment
-                    .FromColor(settled, hiding)
-                    .Over(existing.GetPixel(sx, sy), a);
-                small.SetPixel(x, y, mixed.WithAlpha((byte)Math.Round(a * 255)));
             }
         }
+        System.Runtime.InteropServices.Marshal.Copy(rgba, 0, small.GetPixels(), rgba.Length);
 
         var canvas = scratch.Canvas;
         canvas.Save();
