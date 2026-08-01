@@ -125,8 +125,24 @@
                            FormatString="0.00" Width="110" VerticalAlignment="Center"
                            ToolTip.Tip="Brush transparency (0–1)" />
           </StackPanel>
-          <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
-                    ToolTip.Tip="Smooth strokes when you finish them" />
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Stabilizer" VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding SmoothingChoices}" SelectedItem="{Binding SmoothingMode}"
+                      Width="140" VerticalAlignment="Center"
+                      ToolTip.Tip="Input smoothing: Laplacian = light touch-up, MovingAverage = steady, Ema = low lag, PulledString = lazy mouse, SavitzkyGolay = keeps corners" />
+            <NumericUpDown Value="{Binding SmoothingWindow}" Minimum="3" Maximum="25" Increment="2"
+                           FormatString="0" Width="90" VerticalAlignment="Center"
+                           IsVisible="{Binding IsWindowSmoothing}"
+                           ToolTip.Tip="Window size — higher smooths more" />
+            <NumericUpDown Value="{Binding SmoothingStrength}" Minimum="0" Maximum="0.95" Increment="0.05"
+                           FormatString="0.00" Width="100" VerticalAlignment="Center"
+                           IsVisible="{Binding IsEmaSmoothing}"
+                           ToolTip.Tip="Strength — higher smooths more (slightly laggier)" />
+            <NumericUpDown Value="{Binding LazyRadius}" Minimum="4" Maximum="200" Increment="2"
+                           FormatString="0" Width="94" VerticalAlignment="Center"
+                           IsVisible="{Binding IsPulledStringSmoothing}"
+                           ToolTip.Tip="String length in pixels — the brush trails the cursor by this much" />
+          </StackPanel>
         </StackPanel>
 
         <!-- Full brush parameters (brush + eraser) -->
@@ -136,6 +152,8 @@
             <Flyout Placement="Bottom">
               <StackPanel Width="300" Spacing="6">
                 <TextBlock Text="Brush parameters" FontWeight="SemiBold" FontSize="12" />
+                <CheckBox Content="Anti-aliasing (global)" IsChecked="{Binding AntiAliasing}"
+                          ToolTip.Tip="Smooth edges on everything that paints (brush, eraser, fill). Recorded per stroke, so existing art never changes." />
                 <DockPanel>
                   <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="12" />
                   <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1"
@@ -253,8 +271,24 @@
                            FormatString="0.00" Width="110" VerticalAlignment="Center"
                            ToolTip.Tip="Eraser strength (0–1)" />
           </StackPanel>
-          <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
-                    ToolTip.Tip="Smooth strokes when you finish them" />
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Stabilizer" VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding SmoothingChoices}" SelectedItem="{Binding SmoothingMode}"
+                      Width="140" VerticalAlignment="Center"
+                      ToolTip.Tip="Input smoothing: Laplacian = light touch-up, MovingAverage = steady, Ema = low lag, PulledString = lazy mouse, SavitzkyGolay = keeps corners" />
+            <NumericUpDown Value="{Binding SmoothingWindow}" Minimum="3" Maximum="25" Increment="2"
+                           FormatString="0" Width="90" VerticalAlignment="Center"
+                           IsVisible="{Binding IsWindowSmoothing}"
+                           ToolTip.Tip="Window size — higher smooths more" />
+            <NumericUpDown Value="{Binding SmoothingStrength}" Minimum="0" Maximum="0.95" Increment="0.05"
+                           FormatString="0.00" Width="100" VerticalAlignment="Center"
+                           IsVisible="{Binding IsEmaSmoothing}"
+                           ToolTip.Tip="Strength — higher smooths more (slightly laggier)" />
+            <NumericUpDown Value="{Binding LazyRadius}" Minimum="4" Maximum="200" Increment="2"
+                           FormatString="0" Width="94" VerticalAlignment="Center"
+                           IsVisible="{Binding IsPulledStringSmoothing}"
+                           ToolTip.Tip="String length in pixels — the brush trails the cursor by this much" />
+          </StackPanel>
         </StackPanel>
 
         <!-- Fill options -->
@@ -478,7 +512,7 @@
 
         <!-- Canvas + view-tool overlay (zoom/rotate/mirror/pan are view-only) -->
         <Panel x:Name="CanvasHost" Grid.Column="2">
-          <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushSize}" />
+          <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushSize}" LazyRadius="{Binding LazyRadiusForCursor}" />
           <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
                   Background="#cc1f1f1f" CornerRadius="4" Padding="3">
             <StackPanel Orientation="Horizontal" Spacing="2">

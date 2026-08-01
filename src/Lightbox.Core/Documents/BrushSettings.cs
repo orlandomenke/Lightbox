@@ -25,6 +25,13 @@ public sealed class BrushSettings
     /// <summary>Dab diameter in document pixels at pressure 1.</summary>
     public double Size { get; set; } = 6;
 
+    /// <summary>
+    /// Anti-alias the stroke's edges (the app's global AA toggle is stamped
+    /// into each stroke at paint time, so re-renders stay bit-identical no
+    /// matter how the toggle changes later).
+    /// </summary>
+    public bool AntiAlias { get; set; } = true;
+
     /// <summary>0 = fully soft (gaussian-ish falloff), 1 = hard round.</summary>
     public double Hardness { get; set; } = 0.8;
 
@@ -77,6 +84,7 @@ public sealed class BrushSettings
     public BrushSettings Clone() => new()
     {
         Size = Size,
+        AntiAlias = AntiAlias,
         Hardness = Hardness,
         Opacity = Opacity,
         Flow = Flow,

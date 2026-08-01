@@ -110,6 +110,12 @@ public static class PresetStore
         public string? LastBrushPresetId { get; set; }
         public BrushSettings? LastBrush { get; set; }
         public BrushSettings? LastEraser { get; set; }
+
+        // Stabilizer (input smoothing) — an app preference, not per-document.
+        public string? SmoothingMode { get; set; }
+        public int? SmoothingWindow { get; set; }
+        public double? SmoothingStrength { get; set; }
+        public double? LazyRadius { get; set; }
     }
 
     private static readonly JsonSerializerOptions Json = new()

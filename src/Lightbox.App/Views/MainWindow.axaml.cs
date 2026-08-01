@@ -33,6 +33,8 @@ public partial class MainWindow : Window
         Canvas.PolygonVertexAdded += _vm.AddPolygonVertex;
         Canvas.PolygonCompleted += _vm.CompletePolygon;
         _vm.SelectionChanged += () => Canvas.SetSelectionOverlay(_vm.SelectionContours, _vm.PolygonInProgress);
+        _vm.LazyBrushMoved += (x, y) => Canvas.SetLazyAnchor(x, y);
+        _vm.LazyBrushCleared += () => Canvas.SetLazyAnchor(null, null);
         SyncCanvasToolMode();
 
         // The toggle button eats pointer events, so hook the hold-to-open

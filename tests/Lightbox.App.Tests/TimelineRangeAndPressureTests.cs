@@ -133,13 +133,19 @@ public class PressureVmTests
     [AvaloniaFact]
     public void PerSettingCheckboxes_MapToTheResponseCurves()
     {
-        var vm = new MainViewModel(null);
+        // The brush store is shared across tests — pin a known state first.
+        var vm = new MainViewModel(null)
+        {
+            BrushPressureSizeGamma = 1,
+            BrushPressureFlowGamma = 0,
+            BrushPressureHardnessGamma = 0,
+        };
 
-        Assert.True(vm.BrushPressureAffectsSize);    // default: size responds
+        Assert.True(vm.BrushPressureAffectsSize);
         vm.BrushPressureAffectsSize = false;
         Assert.Equal(0, vm.BrushPressureSizeGamma);
 
-        Assert.False(vm.BrushPressureAffectsFlow);   // default: flow does not
+        Assert.False(vm.BrushPressureAffectsFlow);
         vm.BrushPressureAffectsFlow = true;
         Assert.Equal(1, vm.BrushPressureFlowGamma);
 

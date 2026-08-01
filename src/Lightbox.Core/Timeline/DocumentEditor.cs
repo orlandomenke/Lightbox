@@ -13,8 +13,8 @@ namespace Lightbox.Core.Timeline;
 /// </summary>
 public sealed class DocumentEditor
 {
-    private readonly Stack<Doc> _undo = new();
-    private readonly Stack<Doc> _redo = new();
+    private readonly Stack<IEditStep> _undo = new();
+    private readonly Stack<IEditStep> _redo = new();
     private const int MaxUndo = 64;
 
     public Doc Doc { get; private set; }
@@ -29,33 +29,48 @@ public sealed class DocumentEditor
     public bool CanUndo => _undo.Count > 0;
     public bool CanRedo => _redo.Count > 0;
 
-    /// <summary>Run a mutation as one undoable step.</summary>
+    /// <summary>Run a mutation as one undoable step (whole-document snapshot).</summary>
     public void Perform(Action<Doc> mutate)
     {
-        PushUndo();
+        PushStep(new SnapshotStep(DocJson.Clone(Doc)));
         mutate(Doc);
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Run a mutation as one undoable step WITHOUT snapshotting the document —
+    /// the hot path for stroke commits, where serializing the whole document
+    /// per pen lift caused a visible pause. <paramref name="apply"/> must be
+    /// re-runnable (redo) and <paramref name="revert"/> must exactly undo it.
+    /// </summary>
+    public void PerformDelta(Action<Doc> apply, Action<Doc> revert)
+    {
+        PushStep(new DeltaStep(apply, revert));
+        apply(Doc);
         Changed?.Invoke();
     }
 
     public void Undo()
     {
         if (_undo.Count == 0) return;
-        _redo.Push(Doc);
-        Doc = _undo.Pop();
+        var step = _undo.Pop();
+        Doc = step.Rollback(Doc);
+        _redo.Push(step);
         Changed?.Invoke();
     }
 
     public void Redo()
     {
         if (_redo.Count == 0) return;
-        _undo.Push(Doc);
-        Doc = _redo.Pop();
+        var step = _redo.Pop();
+        Doc = step.Apply(Doc);
+        _undo.Push(step);
         Changed?.Invoke();
     }
 
-    private void PushUndo()
+    private void PushStep(IEditStep step)
     {
-        _undo.Push(DocJson.Clone(Doc));
+        _undo.Push(step);
         if (_undo.Count > MaxUndo)
         {
             // Stack has no trim; rebuild without the oldest entry.
@@ -64,6 +79,49 @@ public sealed class DocumentEditor
             for (var i = items.Length - 2; i >= 0; i--) _undo.Push(items[i]);
         }
         _redo.Clear();
+    }
+
+    /// <summary>One entry on the undo/redo stacks.</summary>
+    private interface IEditStep
+    {
+        /// <summary>Take the document back to before this step; returns the doc to use.</summary>
+        Doc Rollback(Doc doc);
+
+        /// <summary>Re-apply this step; returns the doc to use.</summary>
+        Doc Apply(Doc doc);
+    }
+
+    /// <summary>Classic whole-document snapshot: rollback/apply swap the doc instance.</summary>
+    private sealed class SnapshotStep(Doc other) : IEditStep
+    {
+        private Doc _other = other;
+
+        public Doc Rollback(Doc doc) => Swap(doc);
+
+        public Doc Apply(Doc doc) => Swap(doc);
+
+        private Doc Swap(Doc doc)
+        {
+            var restored = _other;
+            _other = doc;
+            return restored;
+        }
+    }
+
+    /// <summary>Targeted mutation with an exact inverse — no document clone.</summary>
+    private sealed class DeltaStep(Action<Doc> apply, Action<Doc> revert) : IEditStep
+    {
+        public Doc Rollback(Doc doc)
+        {
+            revert(doc);
+            return doc;
+        }
+
+        public Doc Apply(Doc doc)
+        {
+            apply(doc);
+            return doc;
+        }
     }
 
     // ---- Timeline operations ----------------------------------------------

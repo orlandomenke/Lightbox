@@ -32,8 +32,15 @@ public static class BrushEngine
     /// SrcOver; eraser strokes composite DstOut (they remove layer content).
     /// <paramref name="targetPixels"/> gives effect brushes (smudge/blur)
     /// read access to the canvas; without it they degrade to paint.
+    ///
+    /// <paramref name="draft"/> is the LIVE-PREVIEW path: it stamps into a
+    /// scratch surface bounded to the new dabs (not the whole canvas) and
+    /// skips the stroke-global effects (wet edge, granulation, feathered
+    /// clips), so per-pointer-event cost is proportional to the segment, not
+    /// the document. The committed stroke is always re-rendered exactly
+    /// through the non-draft path — draft never touches the record.
     /// </summary>
-    public static void StampStroke(SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels = null)
+    public static void StampStroke(SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels = null, bool draft = false)
     {
         if (stroke.Points.Count == 0) return;
 
@@ -49,11 +56,13 @@ public static class BrushEngine
                 WithHardClip(target, stroke, () => StampSmudge(target, targetPixels, stroke));
                 return;
             case BrushKind.Blur when targetPixels is not null && stroke.Tool != ToolKind.Eraser:
-                WithHardClip(target, stroke, () => StampBlur(target, targetPixels, stroke, info));
+                if (draft) WithHardClip(target, stroke, () => StampBlurDraft(target, targetPixels, stroke, info));
+                else WithHardClip(target, stroke, () => StampBlur(target, targetPixels, stroke, info));
                 return;
         }
 
-        StampPaint(target, stroke, info);
+        if (draft) StampPaintDraft(target, stroke, info);
+        else StampPaint(target, stroke, info);
     }
 
     /// <summary>An even-odd path from closed contours (fill regions, selections).</summary>
@@ -85,7 +94,7 @@ public static class BrushEngine
         var contours = new List<IReadOnlyList<StrokePoint>> { stroke.Points };
         if (stroke.Holes is not null) contours.AddRange(stroke.Holes);
         using (var path = PathFromContours(contours))
-        using (var paint = new SKPaint { IsAntialias = true, Color = ParseColor(stroke.Color) })
+        using (var paint = new SKPaint { IsAntialias = stroke.Brush.AntiAlias, Color = ParseColor(stroke.Color) })
         {
             canvas.DrawPath(path, paint);
         }
@@ -100,13 +109,22 @@ public static class BrushEngine
         target.DrawImage(snapshot, 0, 0, composite);
     }
 
-    /// <summary>Apply the stroke's recorded selection (if any) to the scratch surface.</summary>
-    private static void ApplyClip(SKCanvas scratchCanvas, Stroke stroke, SKImageInfo info)
+    /// <summary>Apply the stroke's recorded selection (if any) to a full-canvas scratch.</summary>
+    private static void ApplyClip(SKCanvas scratchCanvas, Stroke stroke, SKImageInfo info) =>
+        ApplyClip(scratchCanvas, stroke, info, new SKRectI(0, 0, info.Width, info.Height));
+
+    /// <summary>
+    /// Apply the stroke's recorded selection (if any) to a scratch that covers
+    /// only <paramref name="rect"/> of the document (the scratch canvas must
+    /// be translated to doc coordinates).
+    /// </summary>
+    private static void ApplyClip(SKCanvas scratchCanvas, Stroke stroke, SKImageInfo local, SKRectI rect)
     {
         if (stroke.ClipId is null || ClipRegionRegistry.Resolve(stroke.ClipId) is not { } region) return;
-        using var mask = SKSurface.Create(info);
+        using var mask = SKSurface.Create(local);
         if (mask is null) return;
         mask.Canvas.Clear(SKColors.Transparent);
+        mask.Canvas.Translate(-rect.Left, -rect.Top);
         using (var path = PathFromContours(region.Contours))
         using (var paint = new SKPaint { IsAntialias = true, Color = SKColors.White })
         {
@@ -119,7 +137,7 @@ public static class BrushEngine
         }
         using var maskImage = mask.Snapshot();
         using var clipPaint = new SKPaint { BlendMode = SKBlendMode.DstIn };
-        scratchCanvas.DrawImage(maskImage, 0, 0, clipPaint);
+        scratchCanvas.DrawImage(maskImage, rect.Left, rect.Top, clipPaint);
     }
 
     /// <summary>Smudge/blur mutate the target directly — clip them with a hard path clip.</summary>
@@ -143,22 +161,28 @@ public static class BrushEngine
 
     private static void StampPaint(SKCanvas target, Stroke stroke, SKImageInfo info)
     {
-        using var scratch = SKSurface.Create(info);
+        // The scratch covers only what the stroke can reach — dabs, effects
+        // and feathered clips all happen inside it. This is what keeps a
+        // stroke commit independent of the canvas size (a full-canvas
+        // granulation pass alone used to cost most of a second).
+        var brush = stroke.Brush;
+        var margin = DabReach(brush);
+        var region = stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId);
+        if (region is { Feather: > 0 }) margin += (float)(region.Feather * 2);
+        if (SegmentBounds(stroke, info, margin) is not { } rect) return;
+
+        var local = new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var scratch = SKSurface.Create(local);
         if (scratch is null) throw new InvalidOperationException("Could not create scratch surface.");
         var canvas = scratch.Canvas;
         canvas.Clear(SKColors.Transparent);
+        canvas.Translate(-rect.Left, -rect.Top); // scratch canvas works in DOC coordinates
 
-        var brush = stroke.Brush;
-        var color = ParseColor(stroke.Color);
-        var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
-        foreach (var (pos, pressure) in DabPositions(stroke))
-        {
-            StampDab(canvas, pos, pressure, brush, color, tip);
-        }
+        StampDabs(canvas, stroke);
 
-        if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, info);
-        if (brush.Granulation > 0) ApplyGranulation(canvas, brush, info);
-        ApplyClip(canvas, stroke, info);
+        if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, rect);
+        if (brush.Granulation > 0) ApplyGranulation(canvas, brush, rect);
+        ApplyClip(canvas, stroke, local, rect);
 
         using var snapshot = scratch.Snapshot();
         using var paint = new SKPaint
@@ -166,7 +190,75 @@ public static class BrushEngine
             Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(brush.Opacity, 0, 1) * 255)),
             BlendMode = stroke.Tool == ToolKind.Eraser ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
         };
-        target.DrawImage(snapshot, 0, 0, paint);
+        target.DrawImage(snapshot, rect.Left, rect.Top, paint);
+    }
+
+    private static void StampDabs(SKCanvas canvas, Stroke stroke)
+    {
+        var brush = stroke.Brush;
+        var color = ParseColor(stroke.Color);
+        var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
+        foreach (var (pos, pressure) in DabPositions(stroke))
+        {
+            StampDab(canvas, pos, pressure, brush, color, tip);
+        }
+    }
+
+    /// <summary>Everything a dab can reach beyond its center: radius, scatter offset, soft edge.</summary>
+    private static float DabReach(BrushSettings brush) => (float)(brush.Size * 2 + 4);
+
+    /// <summary>The stroke's points inflated by the dab reach, clamped to the canvas; null when off-canvas.</summary>
+    private static SKRectI? SegmentBounds(Stroke stroke, SKImageInfo info, float margin)
+    {
+        float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+        foreach (var p in stroke.Points)
+        {
+            minX = Math.Min(minX, (float)p.X);
+            maxX = Math.Max(maxX, (float)p.X);
+            minY = Math.Min(minY, (float)p.Y);
+            maxY = Math.Max(maxY, (float)p.Y);
+        }
+        var left = (int)Math.Floor(Math.Clamp(minX - margin, 0, info.Width));
+        var top = (int)Math.Floor(Math.Clamp(minY - margin, 0, info.Height));
+        var right = (int)Math.Ceiling(Math.Clamp(maxX + margin, 0, info.Width));
+        var bottom = (int)Math.Ceiling(Math.Clamp(maxY + margin, 0, info.Height));
+        if (right <= left || bottom <= top) return null;
+        return new SKRectI(left, top, right, bottom);
+    }
+
+    /// <summary>
+    /// Live-preview paint: the scratch surface covers only the new segment,
+    /// wet edge and granulation wait for the commit, and a feathered
+    /// selection clips hard. Cost tracks the segment, not the canvas.
+    /// </summary>
+    private static void StampPaintDraft(SKCanvas target, Stroke stroke, SKImageInfo info)
+    {
+        var brush = stroke.Brush;
+        if (SegmentBounds(stroke, info, DabReach(brush)) is not { } rect) return;
+
+        var boundsInfo = new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var scratch = SKSurface.Create(boundsInfo);
+        if (scratch is null) return;
+        var canvas = scratch.Canvas;
+        canvas.Clear(SKColors.Transparent);
+        canvas.Translate(-rect.Left, -rect.Top);
+        StampDabs(canvas, stroke);
+
+        using var snapshot = scratch.Snapshot();
+        using var paint = new SKPaint
+        {
+            Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(brush.Opacity, 0, 1) * 255)),
+            BlendMode = stroke.Tool == ToolKind.Eraser ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+        };
+        var region = stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId);
+        if (region is not null)
+        {
+            target.Save();
+            using var path = PathFromContours(region.Contours);
+            target.ClipPath(path, antialias: true);
+        }
+        target.DrawImage(snapshot, rect.Left, rect.Top, paint);
+        if (region is not null) target.Restore();
     }
 
     private static void StampDab(SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color, SKBitmap? tip)
@@ -200,7 +292,7 @@ public static class BrushEngine
             canvas.Scale(scale);
             using var paint = new SKPaint
             {
-                IsAntialias = true,
+                IsAntialias = brush.AntiAlias,
                 ColorFilter = SKColorFilter.CreateBlendMode(dabColor, SKBlendMode.SrcIn),
             };
             canvas.DrawBitmap(tip, -tip.Width / 2f, -tip.Height / 2f, paint);
@@ -208,7 +300,7 @@ public static class BrushEngine
             return;
         }
 
-        using var round = new SKPaint { IsAntialias = true };
+        using var round = new SKPaint { IsAntialias = brush.AntiAlias };
         var hardness = HardnessAt(brush, pressure);
         if (hardness >= 0.999f)
         {
@@ -226,12 +318,17 @@ public static class BrushEngine
         canvas.DrawCircle(pos, radius, round);
     }
 
-    /// <summary>Darkened rim where paint pools at the stroke's edge (watercolor look).</summary>
-    private static void ApplyWetEdge(SKSurface scratch, SKCanvas canvas, BrushSettings brush, SKImageInfo info)
+    /// <summary>
+    /// Darkened rim where paint pools at the stroke's edge (watercolor look).
+    /// Operates on a stroke-bounded scratch: the rim surface matches the
+    /// scratch's local size, and the result composites back at the scratch's
+    /// document offset.
+    /// </summary>
+    private static void ApplyWetEdge(SKSurface scratch, SKCanvas canvas, BrushSettings brush, SKImageInfo local, SKRectI rect)
     {
         using var img = scratch.Snapshot();
         var erode = Math.Max(1f, (float)(brush.Size * 0.12));
-        using var rim = SKSurface.Create(info);
+        using var rim = SKSurface.Create(local);
         if (rim is null) return;
         rim.Canvas.DrawImage(img, 0, 0);
         using (var erodePaint = new SKPaint
@@ -250,11 +347,15 @@ public static class BrushEngine
                 SKBlendMode.SrcIn),
             BlendMode = SKBlendMode.SrcATop, // only darken where the stroke has paint
         };
-        canvas.DrawImage(rimImg, 0, 0, darken);
+        canvas.DrawImage(rimImg, rect.Left, rect.Top, darken);
     }
 
-    /// <summary>Paper-grain noise multiplied into the stroke's alpha (fixed seed → deterministic).</summary>
-    private static void ApplyGranulation(SKCanvas canvas, BrushSettings brush, SKImageInfo info)
+    /// <summary>
+    /// Paper-grain noise multiplied into the stroke's alpha (fixed seed →
+    /// deterministic). Drawn in document coordinates, so the grain field is
+    /// anchored to the canvas regardless of the scratch's bounds.
+    /// </summary>
+    private static void ApplyGranulation(SKCanvas canvas, BrushSettings brush, SKRectI rect)
     {
         var g = (float)Math.Clamp(brush.Granulation, 0, 1);
         using var noise = SKShader.CreatePerlinNoiseFractalNoise(0.09f, 0.09f, 3, 7f);
@@ -273,7 +374,7 @@ public static class BrushEngine
             ColorFilter = SKColorFilter.CreateColorMatrix(matrix),
             BlendMode = SKBlendMode.DstIn,
         };
-        canvas.DrawRect(SKRect.Create(info.Width, info.Height), paint);
+        canvas.DrawRect(new SKRect(rect.Left, rect.Top, rect.Right, rect.Bottom), paint);
     }
 
     // ---- smudge ---------------------------------------------------------------
@@ -306,7 +407,7 @@ public static class BrushEngine
 
             if (carried.Alpha > 0)
             {
-                using var paint = new SKPaint { IsAntialias = true };
+                using var paint = new SKPaint { IsAntialias = brush.AntiAlias };
                 var dabColor = carried.WithAlpha((byte)Math.Round(carried.Alpha * strength));
                 var hardness = (float)Math.Clamp(brush.Hardness, 0, 1);
                 if (hardness >= 0.999f)
@@ -377,6 +478,38 @@ public static class BrushEngine
                 target.ClipPath(clip, antialias: true);
             }
             target.DrawImage(snapshot, 0, 0, blurPaint);
+            target.Restore();
+        }
+    }
+
+    /// <summary>
+    /// Live-preview blur: identical per-dab work, but the pre-stroke snapshot
+    /// copies only the segment's reachable region instead of the full canvas.
+    /// </summary>
+    private static void StampBlurDraft(SKCanvas target, SKBitmap pixels, Stroke stroke, SKImageInfo info)
+    {
+        var brush = stroke.Brush;
+        var sigma = (float)(Math.Clamp(brush.Flow, 0, 1) * Math.Max(1, brush.Size) / 4);
+        if (sigma <= 0) return;
+        if (SegmentBounds(stroke, info, DabReach(brush) + sigma * 4) is not { } rect) return;
+
+        using var subset = new SKBitmap();
+        if (!pixels.ExtractSubset(subset, rect)) return;
+        using var snapshot = SKImage.FromBitmap(subset); // copies only the subset
+        if (snapshot is null) return;
+        using var blurPaint = new SKPaint { ImageFilter = SKImageFilter.CreateBlur(sigma, sigma) };
+
+        foreach (var (pos, pressure) in DabPositions(stroke))
+        {
+            var radius = (float)RadiusAt(brush, pressure);
+            if (radius <= 0) continue;
+            target.Save();
+            using (var clip = new SKPath())
+            {
+                clip.AddCircle(pos.X, pos.Y, radius);
+                target.ClipPath(clip, antialias: true);
+            }
+            target.DrawImage(snapshot, rect.Left, rect.Top, blurPaint);
             target.Restore();
         }
     }

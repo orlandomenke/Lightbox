@@ -34,6 +34,20 @@ public static class FrameRasterizer
     }
 
     /// <summary>
+    /// Live-preview stamp: work is bounded to the new segment and the
+    /// stroke-global effects wait for the commit — this is what keeps effect
+    /// brushes responsive while drawing. The committed frame is always
+    /// re-rendered exactly via <see cref="Append"/>/<see cref="Rasterize"/>.
+    /// </summary>
+    public static void AppendDraft(SKBitmap layer, Stroke stroke)
+    {
+        var info = new SKImageInfo(layer.Width, layer.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var canvas = new SKCanvas(layer);
+        BrushEngine.StampStroke(canvas, stroke, info, layer, draft: true);
+        canvas.Flush();
+    }
+
+    /// <summary>
     /// Materialize a painted frame's pixels: baseline PNG (if any) with the
     /// stroke record stamped on top, in order. Strokes are never baked into
     /// the baseline, so this is repeatable and always current.

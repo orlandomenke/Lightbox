@@ -378,11 +378,31 @@ public sealed partial class MainViewModel : ObservableObject
         if (value is null || _applyingPreset) return;
         _applyingPreset = true;
         IsEraser = value.Tool == ToolKind.Eraser;
+        var antiAlias = AntiAliasing; // global — a preset never overrides it
         _brushWork = value.Settings.Clone();
+        _brushWork.AntiAlias = antiAlias;
         EnsurePresetTip(value);
         NotifyBrushProperties();
         _applyingPreset = false;
         PersistBrushState();
+    }
+
+    /// <summary>
+    /// Global anti-aliasing for everything that paints (brush, eraser, fill).
+    /// The value is stamped into each stroke at paint time, so existing art
+    /// re-renders bit-identically no matter how the toggle changes later.
+    /// </summary>
+    public bool AntiAliasing
+    {
+        get => _brushWork.AntiAlias;
+        set
+        {
+            if (_brushWork.AntiAlias == value) return;
+            _brushWork.AntiAlias = value;
+            _eraserWork.AntiAlias = value;
+            OnPropertyChanged();
+            if (!_applyingPreset) PersistBrushState();
+        }
     }
 
     /// <summary>A preset's custom tip must live in the document so it re-renders standalone.</summary>
@@ -616,6 +636,10 @@ public sealed partial class MainViewModel : ObservableObject
             LastBrushPresetId = SelectedBrushPreset?.Id,
             LastBrush = _brushWork.Clone(),
             LastEraser = _eraserWork.Clone(),
+            SmoothingMode = _stabilizer.Mode.ToString(),
+            SmoothingWindow = _stabilizer.Window,
+            SmoothingStrength = _stabilizer.Strength,
+            LazyRadius = _stabilizer.LazyRadius,
         }, BrushStorePath);
     }
 
@@ -631,6 +655,10 @@ public sealed partial class MainViewModel : ObservableObject
         if (state.LastBrush is not null) _brushWork = state.LastBrush.Clone();
         else _brushWork = new BrushSettings { Size = 6, Hardness = 0.8 };
         if (state.LastEraser is not null) _eraserWork = state.LastEraser.Clone();
+        if (Enum.TryParse<SmoothingMode>(state.SmoothingMode, out var mode)) _stabilizer.Mode = mode;
+        if (state.SmoothingWindow is { } window) _stabilizer.Window = Math.Clamp(window | 1, 3, 25);
+        if (state.SmoothingStrength is { } strength) _stabilizer.Strength = Math.Clamp(strength, 0, 0.95);
+        if (state.LazyRadius is { } radius) _stabilizer.LazyRadius = Math.Clamp(radius, 4, 200);
         // Restore the selection WITHOUT re-applying the preset (the working
         // settings above already carry the user's last tweaks on top of it).
         _applyingPreset = true;
@@ -702,6 +730,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         // The bound sliders edit the active tool's brush configuration.
         NotifyBrushProperties();
+        OnPropertyChanged(nameof(LazyRadiusForCursor));
         CancelPolygonInProgress();
     }
 
@@ -799,7 +828,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 Tool = ToolKind.Fill,
                 Color = ColorHex,
-                Brush = new BrushSettings { Opacity = 1 },
+                Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
                 Points = result.Outer,
                 Holes = result.Holes.Count > 0 ? result.Holes : null,
                 Label = "fill",
@@ -807,14 +836,34 @@ public sealed partial class MainViewModel : ObservableObject
             var clip = PrepareClipForSelection();
             if (clip is not null) stroke.ClipId = clip.Value.Id;
             var below = FillBelowLines;
-            _editor.Perform(doc =>
+
+            // Fill-above stamps incrementally onto the cached frame; fill-below
+            // changes stroke order, so only that path pays a frame re-render.
+            if (below)
             {
-                if (clip is { } c) doc.ClipRegions.TryAdd(c.Id, c.Region);
-                var list = StrokesOf(target);
-                if (below) list.Insert(0, stroke);
-                else list.Add(stroke);
-            });
-            _cache.Invalidate(target.Id);
+                _cache.Invalidate(target.Id);
+            }
+            else
+            {
+                FrameRasterizer.Append(_cache.Get(target, scene.Width, scene.Height), stroke);
+            }
+
+            var frameId = target.Id;
+            var addedClip = false;
+            _editor.PerformDelta(
+                apply: doc =>
+                {
+                    if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
+                    var list = StrokeListIn(doc, frameId);
+                    if (list is null) return;
+                    if (below) list.Insert(0, stroke);
+                    else list.Add(stroke);
+                },
+                revert: doc =>
+                {
+                    RemoveStrokeById(doc, frameId, stroke.Id);
+                    if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
+                });
             _dirtyThumbIds.Add(target.Id);
             PublishSnapshot();
             RefreshThumbnails();
@@ -1120,8 +1169,92 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _onionDepth = 1;
 
-    [ObservableProperty]
-    private bool _smoothStrokes = true;
+    // ---- stroke stabilizer (input smoothing) -----------------------------------
+
+    private readonly StrokeStabilizer _stabilizer = new();
+
+    public IReadOnlyList<SmoothingMode> SmoothingChoices { get; } = Enum.GetValues<SmoothingMode>();
+
+    public SmoothingMode SmoothingMode
+    {
+        get => _stabilizer.Mode;
+        set
+        {
+            if (_stabilizer.Mode == value) return;
+            _stabilizer.Mode = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SmoothStrokes));
+            OnPropertyChanged(nameof(IsWindowSmoothing));
+            OnPropertyChanged(nameof(IsEmaSmoothing));
+            OnPropertyChanged(nameof(IsPulledStringSmoothing));
+            OnPropertyChanged(nameof(LazyRadiusForCursor));
+            PersistBrushState();
+        }
+    }
+
+    /// <summary>Compat view (old XAML/tests): on = the classic light smoothing.</summary>
+    public bool SmoothStrokes
+    {
+        get => SmoothingMode != SmoothingMode.Off;
+        set => SmoothingMode = value ? SmoothingMode.Laplacian : SmoothingMode.Off;
+    }
+
+    public bool IsWindowSmoothing =>
+        SmoothingMode is SmoothingMode.MovingAverage or SmoothingMode.SavitzkyGolay;
+
+    public bool IsEmaSmoothing => SmoothingMode == SmoothingMode.Ema;
+
+    public bool IsPulledStringSmoothing => SmoothingMode == SmoothingMode.PulledString;
+
+    public double SmoothingWindow
+    {
+        get => _stabilizer.Window;
+        set
+        {
+            var window = Math.Clamp((int)Math.Round(value) | 1, 3, 25);
+            if (_stabilizer.Window == window) return;
+            _stabilizer.Window = window;
+            OnPropertyChanged();
+            PersistBrushState();
+        }
+    }
+
+    public double SmoothingStrength
+    {
+        get => _stabilizer.Strength;
+        set
+        {
+            var strength = Math.Clamp(value, 0, 0.95);
+            if (Math.Abs(_stabilizer.Strength - strength) < 0.001) return;
+            _stabilizer.Strength = strength;
+            OnPropertyChanged();
+            PersistBrushState();
+        }
+    }
+
+    public double LazyRadius
+    {
+        get => _stabilizer.LazyRadius;
+        set
+        {
+            var radius = Math.Clamp(value, 4, 200);
+            if (Math.Abs(_stabilizer.LazyRadius - radius) < 0.5) return;
+            _stabilizer.LazyRadius = radius;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LazyRadiusForCursor));
+            PersistBrushState();
+        }
+    }
+
+    /// <summary>Pulled-string dead-zone radius for the canvas gizmo (0 = hidden).</summary>
+    public double LazyRadiusForCursor =>
+        SmoothingMode == SmoothingMode.PulledString && IsPaintTool ? LazyRadius : 0;
+
+    /// <summary>Raised while painting with a live smoothing mode: the smoothed brush anchor moved.</summary>
+    public event Action<double, double>? LazyBrushMoved;
+
+    /// <summary>Raised when the stroke ends and the gizmo anchor should clear.</summary>
+    public event Action? LazyBrushCleared;
 
     [ObservableProperty]
     private bool _isPlaying;
@@ -1262,11 +1395,15 @@ public sealed partial class MainViewModel : ObservableObject
             AiStatus = $"Layer “{ActiveLayer.Name}” is hidden — enable its visibility to draw on it.";
             return;
         }
+        _stabilizer.Begin(x, y);
         _strokeBuilder.Begin(
             IsEraser ? ToolKind.Eraser : ToolKind.Brush,
             ColorHex,
             CurrentToolSettings.Clone(),
             x, y, pressure);
+        // Live preview clips to the selection too (the registry already knows
+        // the region; the document copy is added at commit).
+        if (PrepareClipForSelection() is { } liveClip) _strokeBuilder.Current!.ClipId = liveClip.Id;
 
         _liveComposite?.Dispose();
         _liveComposite = _cache.Get(target, Scene.Width, Scene.Height).Copy();
@@ -1279,7 +1416,12 @@ public sealed partial class MainViewModel : ObservableObject
     public void MoveStrokeBatch(IReadOnlyList<PointerSample> samples)
     {
         if (!_strokeBuilder.IsActive) return;
-        foreach (var s in samples) _strokeBuilder.Add(s.X, s.Y, s.Pressure);
+        foreach (var s in samples)
+        {
+            var (x, y) = _stabilizer.FilterLive(s.X, s.Y);
+            _strokeBuilder.Add(x, y, s.Pressure);
+        }
+        if (_stabilizer.BrushPosition is { } anchor) LazyBrushMoved?.Invoke(anchor.X, anchor.Y);
         FlushLivePreview();
         RequestSnapshot();
     }
@@ -1305,9 +1447,10 @@ public sealed partial class MainViewModel : ObservableObject
             Tool = live.Tool,
             Color = live.Color,
             Brush = live.Brush,
+            ClipId = live.ClipId,
             Points = points.Skip(from).ToList(),
         };
-        FrameRasterizer.Append(_liveComposite, tail);
+        FrameRasterizer.AppendDraft(_liveComposite, tail);
         _liveStampedCount = points.Count;
     }
 
@@ -1339,20 +1482,39 @@ public sealed partial class MainViewModel : ObservableObject
         var target = PaintTarget();
         if (target is null) return;
 
-        if (SmoothStrokes && stroke.Points.Count >= 3)
-        {
-            stroke.Points = GeometryOps.Smooth(stroke.Points, 1);
-        }
+        _stabilizer.End();
+        LazyBrushCleared?.Invoke();
+        stroke.Points = _stabilizer.PostProcess(stroke.Points);
 
         // A stroke painted under a selection carries it forever (provenance).
         var clip = PrepareClipForSelection();
         if (clip is not null) stroke.ClipId = clip.Value.Id;
-        _editor.Perform(doc =>
-        {
-            if (clip is { } c) doc.ClipRegions.TryAdd(c.Id, c.Region);
-            StrokesOf(target).Add(stroke);
-        });
-        _cache.Invalidate(target.Id);
+
+        // Commit the pixels incrementally: stamp the EXACT stroke onto the
+        // cached frame bitmap instead of invalidating it — invalidation would
+        // replay every stroke in the frame, which is why lifting the pen used
+        // to pause on drawings with many strokes. Appending the exact stroke
+        // to the previously exact bitmap is the same sequence Materialize
+        // would run, so the pixels stay bit-identical.
+        var cached = _cache.Get(target, Scene.Width, Scene.Height); // pre-stroke state (record not yet updated)
+        FrameRasterizer.Append(cached, stroke);
+
+        // Undo without snapshotting the whole document (the other pen-lift
+        // pause). The frame is resolved by id at apply/revert time: a
+        // snapshot-undo in between replaces the doc instance tree.
+        var frameId = target.Id;
+        var addedClip = false;
+        _editor.PerformDelta(
+            apply: doc =>
+            {
+                if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
+                StrokeListIn(doc, frameId)?.Add(stroke);
+            },
+            revert: doc =>
+            {
+                RemoveStrokeById(doc, frameId, stroke.Id);
+                if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
+            });
         _dirtyThumbIds.Add(target.Id);
         PublishSnapshot();
         RefreshThumbnails();
@@ -1941,6 +2103,31 @@ public sealed partial class MainViewModel : ObservableObject
         VectorFrame v => v.Strokes,
         _ => [],
     };
+
+    /// <summary>
+    /// Resolve a frame's stroke list by id inside a given document instance —
+    /// delta undo steps must not capture object references, because a
+    /// snapshot-undo in between replaces the whole instance tree.
+    /// </summary>
+    /// <summary>Remove a stroke by id — reference equality dies when a snapshot-undo swaps in a cloned tree.</summary>
+    private static void RemoveStrokeById(Doc doc, string frameId, string strokeId)
+    {
+        var list = StrokeListIn(doc, frameId);
+        var index = list?.FindLastIndex(s => s.Id == strokeId) ?? -1;
+        if (index >= 0) list!.RemoveAt(index);
+    }
+
+    private static List<Stroke>? StrokeListIn(Doc doc, string frameId)
+    {
+        foreach (var layer in doc.Scene.Layers)
+        {
+            foreach (var cel in layer.Cels)
+            {
+                if (cel.Frame is { } frame && frame.Id == frameId) return StrokesOf(frame);
+            }
+        }
+        return null;
+    }
 
     /// <summary>A new frame of the layer's own kind carrying the given strokes.</summary>
     private static Frame NewFrameFor(Layer layer, List<Stroke> strokes, FrameRole role = FrameRole.Key) => layer.Kind switch

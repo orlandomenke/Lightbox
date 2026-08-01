@@ -37,6 +37,26 @@ public sealed class CanvasControl : Control
         set => SetValue(BrushCursorSizeProperty, value);
     }
 
+    /// <summary>Pulled-string dead-zone radius in document pixels (0 = gizmo hidden).</summary>
+    public static readonly StyledProperty<double> LazyRadiusProperty =
+        AvaloniaProperty.Register<CanvasControl, double>(nameof(LazyRadius));
+
+    public double LazyRadius
+    {
+        get => GetValue(LazyRadiusProperty);
+        set => SetValue(LazyRadiusProperty, value);
+    }
+
+    // The smoothed brush anchor while a live-smoothing stroke is active (doc space).
+    private (double X, double Y)? _lazyAnchor;
+
+    /// <summary>Update (or clear) the pulled-string anchor — where paint actually lands.</summary>
+    public void SetLazyAnchor(double? x, double? y)
+    {
+        _lazyAnchor = x is { } ax && y is { } ay ? (ax, ay) : null;
+        InvalidateVisual();
+    }
+
     private RenderSnapshot? _snapshot;
     private readonly Queue<SKImage> _retired = new();
     private const int RetiredKeep = 8;
@@ -261,7 +281,16 @@ public sealed class CanvasControl : Control
             }
         }
 
-        context.Custom(new DrawOp(new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase));
+        LazyGizmo? lazy = null;
+        if (LazyRadius > 0 && _hoverPoint is { } lp)
+        {
+            var (cx, cy) = ViewToDoc(lp);
+            var (ax, ay) = _lazyAnchor ?? (cx, cy);
+            lazy = new LazyGizmo((float)ax, (float)ay, (float)cx, (float)cy,
+                (float)LazyRadius, (float)Math.Max(0.75, BrushCursorSize / 2));
+        }
+
+        context.Custom(new DrawOp(new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy));
     }
 
     // ---- view <-> document transform ---------------------------------------
@@ -609,6 +638,10 @@ public sealed class CanvasControl : Control
     /// <summary>Brush cursor in view space (radius already view-scaled).</summary>
     private readonly record struct BrushCursor(float X, float Y, float Radius);
 
+    /// <summary>Pulled-string gizmo, all in document space: dead zone around the cursor, string, anchor.</summary>
+    private readonly record struct LazyGizmo(
+        float AnchorX, float AnchorY, float CursorX, float CursorY, float Radius, float BrushRadius);
+
     /// <summary>
     /// Decomposed view transform for the render thread — primitive canvas ops
     /// only (translate/rotate/scale), no matrix API edge cases.
@@ -618,7 +651,7 @@ public sealed class CanvasControl : Control
 
     private sealed class DrawOp(
         Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor,
-        SKPath? ants, SKPath? antsOpen, float antsPhase) : ICustomDrawOperation
+        SKPath? ants, SKPath? antsOpen, float antsPhase, LazyGizmo? lazy = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -671,10 +704,39 @@ public sealed class CanvasControl : Control
                     paint);
             }
             DrawAnts(canvas);
+            DrawLazyGizmo(canvas);
             canvas.Restore();
 
             if (cursor is { } c) DrawBrushCursor(canvas, c);
             canvas.Restore();
+        }
+
+        /// <summary>
+        /// The pulled-string ("lazy mouse") gizmo: an amber dead-zone ring
+        /// around the cursor, the string, and a blue ring where paint lands —
+        /// distinct from the white/black brush cursor.
+        /// </summary>
+        private void DrawLazyGizmo(SKCanvas canvas)
+        {
+            if (lazy is not { } g) return;
+            var scale = Math.Max(0.01f, view.Scale);
+            using var rope = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.2f / scale,
+                Color = new SKColor(0xe0, 0xa0, 0x30, 170),
+            };
+            canvas.DrawCircle(g.CursorX, g.CursorY, g.Radius, rope);
+            canvas.DrawLine(g.CursorX, g.CursorY, g.AnchorX, g.AnchorY, rope);
+            using var anchor = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.6f / scale,
+                Color = new SKColor(0x4a, 0x9d, 0xe0, 220),
+            };
+            canvas.DrawCircle(g.AnchorX, g.AnchorY, g.BrushRadius, anchor);
         }
 
         /// <summary>Marching ants for the selection + in-progress shapes (drawn in doc space).</summary>
