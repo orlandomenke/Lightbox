@@ -76,11 +76,11 @@ public class PickerToolTests
         var vm = new MainViewModel(null);
         vm.AddFrameCommand.Execute(null);
         vm.ClearCelAt(vm.LayerRows[0].Cells.First(c => c.Index == 1)); // make cel 1 a hold
-        Assert.Null(vm.Doc.Scene.Layers[0].Cels[1].Frame);
+        Assert.Null(vm.PaintLayer().Cels[1].Frame);
 
         vm.CurrentFrameIndex = 1;
         vm.InsertKeyframeAtPlayhead();
-        Assert.NotNull(vm.Doc.Scene.Layers[0].Cels[1].Frame);
+        Assert.NotNull(vm.PaintLayer().Cels[1].Frame);
     }
 }
 
@@ -110,9 +110,14 @@ public class NudgeSelectionTests
 
 public class LayerFolderTests
 {
+    /// <summary>
+    /// Two ordinary drawing layers and no paper. Folder grouping is about
+    /// contiguity and indices; a locked Background at index 0 would shift
+    /// every number here without changing what is being tested.
+    /// </summary>
     private static MainViewModel VmWithTwoLayers()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.BareVm();
         vm.AddPaintedLayerCommand.Execute(null); // layer 1 active (top)
         return vm;
     }

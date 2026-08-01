@@ -15,9 +15,11 @@ public class LayerRowTests
         var vm = new MainViewModel(null);
         vm.AddVectorLayerCommand.Execute(null);
 
-        Assert.Equal(2, vm.LayerRows.Count);
-        Assert.Same(vm.Doc.Scene.Layers[1], vm.LayerRows[0].Layer);
-        Assert.Same(vm.Doc.Scene.Layers[0], vm.LayerRows[1].Layer);
+        // Paper, the layer the document opened on, and the new vector layer.
+        Assert.Equal(3, vm.LayerRows.Count);
+        Assert.Same(vm.PaintLayer(), vm.LayerRows[0].Layer);
+        Assert.Same(vm.Doc.Scene.Layers[1], vm.LayerRows[1].Layer);
+        Assert.Same(vm.Doc.Scene.Layers[0], vm.LayerRows[2].Layer);
         Assert.Equal("V", vm.LayerRows[0].KindLabel);
         Assert.True(vm.LayerRows[0].IsActive); // new layer becomes active
 
@@ -29,13 +31,13 @@ public class LayerRowTests
     public void RenameThroughRow_WritesToDocument_AndIsUndoable()
     {
         var vm = new MainViewModel(null);
-        var original = vm.Doc.Scene.Layers[0].Name;
+        var original = vm.PaintLayer().Name;
 
         vm.LayerRows[0].Name = "Roughs";
-        Assert.Equal("Roughs", vm.Doc.Scene.Layers[0].Name);
+        Assert.Equal("Roughs", vm.PaintLayer().Name);
 
         vm.UndoCommand.Execute(null);
-        Assert.Equal(original, vm.Doc.Scene.Layers[0].Name);
+        Assert.Equal(original, vm.PaintLayer().Name);
         // The row re-synced to the restored document.
         Assert.Equal(original, vm.LayerRows[0].Name);
     }
@@ -44,14 +46,14 @@ public class LayerRowTests
     public void RenameToBlank_SnapsBack_WithoutAnUndoStep()
     {
         var vm = new MainViewModel(null);
-        var original = vm.Doc.Scene.Layers[0].Name;
+        var original = vm.PaintLayer().Name;
 
         vm.LayerRows[0].Name = "   ";
 
-        Assert.Equal(original, vm.Doc.Scene.Layers[0].Name);
+        Assert.Equal(original, vm.PaintLayer().Name);
         Assert.Equal(original, vm.LayerRows[0].Name);
         vm.UndoCommand.Execute(null); // nothing to undo — name still intact
-        Assert.Equal(original, vm.Doc.Scene.Layers[0].Name);
+        Assert.Equal(original, vm.PaintLayer().Name);
     }
 
     [AvaloniaFact]
@@ -59,17 +61,19 @@ public class LayerRowTests
     {
         var vm = new MainViewModel(null);
         vm.LayerRows[0].Visible = false;
-        Assert.False(vm.Doc.Scene.Layers[0].Visible);
+        Assert.False(vm.PaintLayer().Visible);
 
         vm.UndoCommand.Execute(null);
-        Assert.True(vm.Doc.Scene.Layers[0].Visible);
+        Assert.True(vm.PaintLayer().Visible);
         Assert.True(vm.LayerRows[0].Visible);
     }
 
     [AvaloniaFact]
     public void SelectFrame_OnAnotherLayersCell_SelectsThatLayerAndFrame()
     {
-        var vm = new MainViewModel(null);
+        // Bare: this is about row/layer addressing, so paper would only shift
+        // every index without changing what is being checked.
+        var vm = VmLayers.BareVm();
         vm.AddVectorLayerCommand.Execute(null); // active layer = 1
         vm.AddFrameCommand.Execute(null);       // playhead = 1
 
@@ -107,7 +111,9 @@ public class PerLayerOnionTests
     [AvaloniaFact]
     public void DisablingLayerOnion_RemovesItsGhosts_FromTheSnapshot()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false, OnionSkin = true };
+        var vm = VmLayers.BareVm();
+        vm.SmoothStrokes = false;
+        vm.OnionSkin = true;
 
         // Key 1 carries a stroke; key 2 is empty; playhead on 2 → key 1 ghosts.
         vm.BeginStroke(100, 100, 1);
@@ -122,8 +128,10 @@ public class PerLayerOnionTests
         Assert.NotEqual(SKColors.White, PixelAt(last!, 100, 100)); // ghost visible
 
         vm.LayerRows[0].OnionEnabled = false; // publishes a fresh snapshot
-        Assert.False(vm.Doc.Scene.Layers[0].OnionEnabled);
-        Assert.Equal(SKColors.White, PixelAt(last!, 100, 100)); // ghost gone
+        Assert.False(vm.PaintLayer().OnionEnabled);
+        // Nothing left at that pixel: the document is transparent, so "ghost
+        // gone" means empty rather than paper-coloured.
+        Assert.Equal(0, PixelAt(last!, 100, 100).Alpha);
     }
 }
 

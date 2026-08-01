@@ -99,7 +99,7 @@ public class IpcTests
         Assert.True(resp.Ok);
         Assert.Equal(1, resp.Payload!.Value.GetProperty("inserted").GetInt32());
         Assert.Equal(3, vm.Doc.Scene.FrameCount);
-        var tween = Assert.IsType<PaintedFrame>(vm.Doc.Scene.Layers[0].Cels[1].Frame);
+        var tween = Assert.IsType<PaintedFrame>(vm.PaintLayer().Cels[1].Frame);
         Assert.Equal("line", tween.Strokes[0].Label);
 
         vm.UndoCommand.Execute(null);
@@ -125,7 +125,7 @@ public class IpcTests
             },
         }));
         Assert.True(resp.Ok);
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         Assert.Equal(2, frame.Strokes.Count);
         Assert.Equal("#ff0000", frame.Strokes[1].Color);
     }

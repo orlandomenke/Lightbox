@@ -108,7 +108,7 @@ public class SmoothingVmTests
         vm.MoveStroke(200, 100, 1); // pulls the string
         vm.EndStroke();
 
-        var stroke = ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0];
+        var stroke = (vm.PaintedCel()).Strokes[0];
         Assert.True(stroke.Points.Max(p => p.X) <= 171, "the brush trails the cursor by the radius");
     }
 
@@ -136,7 +136,7 @@ public class DeltaCommitTests
         vm.BeginStroke(10, 10, 1);
         vm.MoveStroke(60, 10, 1);
         vm.EndStroke();
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         Assert.Single(frame.Strokes);
 
         vm.UndoCommand.Execute(null);
@@ -156,7 +156,7 @@ public class DeltaCommitTests
         vm.BeginStroke(30, 30, 1);
         vm.EndStroke();                       // delta step
 
-        PaintedFrame Frame0() => (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        PaintedFrame Frame0() => vm.PaintedCel();
         Assert.Equal(2, Frame0().Strokes.Count);
         Assert.Equal(2, vm.Doc.Scene.FrameCount);
 
@@ -165,12 +165,12 @@ public class DeltaCommitTests
         vm.UndoCommand.Execute(null);         // undo add-frame (snapshot swap)
         Assert.Equal(1, vm.Doc.Scene.FrameCount);
         vm.UndoCommand.Execute(null);         // undo first stroke
-        Assert.Empty(((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes);
+        Assert.Empty((vm.PaintedCel()).Strokes);
 
         vm.RedoCommand.Execute(null);
         vm.RedoCommand.Execute(null);
         vm.RedoCommand.Execute(null);
-        Assert.Equal(2, ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Count);
+        Assert.Equal(2, (vm.PaintedCel()).Strokes.Count);
         Assert.Equal(2, vm.Doc.Scene.FrameCount);
     }
 
@@ -187,7 +187,7 @@ public class DeltaCommitTests
 
         vm.UndoCommand.Execute(null);
         Assert.Empty(vm.Doc.ClipRegions);
-        Assert.Empty(((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes);
+        Assert.Empty((vm.PaintedCel()).Strokes);
     }
 
     [AvaloniaFact]
@@ -199,7 +199,7 @@ public class DeltaCommitTests
         vm.ActiveTool = ToolId.Fill;
         vm.FillAt(400, 400);
 
-        var strokes = ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes;
+        var strokes = (vm.PaintedCel()).Strokes;
         Assert.All(strokes, s => Assert.False(s.Brush.AntiAlias));
 
         vm.AntiAliasing = true;

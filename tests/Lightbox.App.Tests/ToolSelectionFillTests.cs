@@ -57,7 +57,7 @@ public class ToolModelTests
         vm.BeginStroke(10, 10, 1);
         vm.MoveStroke(50, 50, 1);
         vm.EndStroke();
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         Assert.Empty(frame.Strokes);
     }
 }
@@ -65,7 +65,7 @@ public class ToolModelTests
 public class FillToolTests
 {
     private static PaintedFrame FrameOf(MainViewModel vm) =>
-        (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        vm.PaintedCel();
 
     private static void DrawLine(MainViewModel vm)
     {
@@ -159,7 +159,7 @@ public class SelectionTests
         vm.MoveStroke(150, 150, 1);
         vm.EndStroke();
 
-        var strokes = ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes;
+        var strokes = (vm.PaintedCel()).Strokes;
         Assert.Equal(2, strokes.Count);
         Assert.NotNull(strokes[0].ClipId);
         Assert.Equal(strokes[0].ClipId, strokes[1].ClipId); // same selection → same region
@@ -254,7 +254,7 @@ public class SelectionTests
         vm.MoveStroke(150, 50, 1);
         vm.EndStroke();
 
-        var strokes = ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes;
+        var strokes = (vm.PaintedCel()).Strokes;
         using var bmp = Lightbox.Raster.FrameRasterizer.Rasterize(
             strokes, vm.Doc.Scene.Width, vm.Doc.Scene.Height);
         Assert.Equal(0, bmp.GetPixel(100, 50).Alpha); // clipped away entirely

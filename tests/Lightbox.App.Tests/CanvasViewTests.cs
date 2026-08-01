@@ -110,7 +110,7 @@ public class CanvasViewTests
         vm.BeginStroke(x, y, 1);
         vm.EndStroke();
 
-        var frame = (Lightbox.Core.Documents.PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = (Lightbox.Core.Documents.PaintedFrame)vm.PaintLayer().Cels[0].Frame!;
         var p = Assert.Single(frame.Strokes).Points[0];
         // View center still maps to doc center — the document never saw the transform.
         Assert.Equal(50, p.X, 6);

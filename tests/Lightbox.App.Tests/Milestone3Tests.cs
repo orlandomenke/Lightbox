@@ -14,21 +14,22 @@ public class LayerTests
         var vm = new MainViewModel(null);
         vm.AddVectorLayerCommand.Execute(null);
 
-        Assert.Equal(2, vm.Doc.Scene.Layers.Count);
-        Assert.Equal(1, vm.ActiveLayerIndex);
-        Assert.Equal(2, vm.LayerChoices.Count);
+        // Paper, the paint layer it opened on, and the new vector layer.
+        Assert.Equal(3, vm.Doc.Scene.Layers.Count);
+        Assert.Equal(2, vm.ActiveLayerIndex);
+        Assert.Equal(3, vm.LayerChoices.Count);
 
         vm.BeginStroke(5, 5, 0.5);
         vm.MoveStroke(20, 20, 0.5);
         vm.EndStroke();
 
-        var vecLayer = vm.Doc.Scene.Layers[1];
+        var vecLayer = vm.PaintLayer();
         Assert.Equal(LayerKind.Vector, vecLayer.Kind);
         var frame = Assert.IsType<VectorFrame>(vecLayer.Cels[0].Frame);
         Assert.Single(frame.Strokes);
 
         // The original painted layer was untouched.
-        var painted = Assert.IsType<PaintedFrame>(vm.Doc.Scene.Layers[0].Cels[0].Frame);
+        var painted = Assert.IsType<PaintedFrame>(vm.Doc.Scene.Layers[1].Cels[0].Frame);
         Assert.Empty(painted.Strokes);
     }
 
@@ -49,8 +50,7 @@ public class LayerTests
         vm.TweenCount = 1;
         vm.InsertInbetweensCommand.Execute(null);
 
-        var layer = vm.Doc.Scene.Layers[1];
-        Assert.IsType<VectorFrame>(layer.Cels[1].Frame);
+        Assert.IsType<VectorFrame>(vm.PaintLayer().Cels[1].Frame);
     }
 
     [AvaloniaFact]
@@ -60,11 +60,12 @@ public class LayerTests
         vm.AddFrameCommand.Execute(null);
         vm.AddPaintedLayerCommand.Execute(null);
 
-        Assert.Equal(2, vm.Doc.Scene.Layers[1].Cels.Count);
+        Assert.Equal(2, vm.PaintLayer().Cels.Count);
 
         vm.UndoCommand.Execute(null);
-        Assert.Single(vm.Doc.Scene.Layers);
-        Assert.Single(vm.LayerChoices);
+        // Back to paper plus the layer the document opened on.
+        Assert.Equal(2, vm.Doc.Scene.Layers.Count);
+        Assert.Equal(2, vm.LayerChoices.Count);
     }
 }
 
@@ -79,7 +80,7 @@ public class SmoothingTests
         vm.MoveStroke(20, 0, 0.5);
         vm.EndStroke();
 
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         var pts = frame.Strokes[0].Points;
         Assert.Equal(new StrokePoint(0, 0, 0.5), pts[0]);
         Assert.Equal(20, pts[^1].X);
@@ -95,7 +96,7 @@ public class SmoothingTests
         vm.MoveStroke(20, 0, 0.5);
         vm.EndStroke();
 
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         Assert.Equal(50, frame.Strokes[0].Points[1].Y);
     }
 }
@@ -110,7 +111,7 @@ public class ThumbnailTests
         vm.MoveStroke(100, 100, 0.5);
         vm.EndStroke();
         vm.AddFrameCommand.Execute(null);
-        vm.Doc.Scene.Layers[0].Cels[1].Frame = null; // make it a hold
+        vm.PaintLayer().Cels[1].Frame = null; // make it a hold
         vm.UndoCommand.Execute(null); // force full refresh path
         vm.RedoCommand.Execute(null);
 
@@ -128,7 +129,7 @@ public class ExportTests
         vm.MoveStroke(200, 200, 0.9);
         vm.EndStroke();
         vm.AddFrameCommand.Execute(null);
-        vm.Doc.Scene.Layers[0].Cels[1].Frame = null; // hold
+        vm.PaintLayer().Cels[1].Frame = null; // hold
 
         var dir = Path.Combine(Path.GetTempPath(), $"lightbox-export-{Guid.NewGuid():N}");
         try

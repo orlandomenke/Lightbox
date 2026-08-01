@@ -9,9 +9,15 @@ public class CelRangeSelectionTests
     private static FrameCell Cell(MainViewModel vm, int sceneLayer, int index) =>
         vm.LayerRows.First(r => r.SceneIndex == sceneLayer).Cells.First(c => c.Index == index);
 
+    /// <summary>
+    /// Bare — one drawing layer, no paper. These tests address cells by scene
+    /// layer index, and a locked Background at 0 would shift every one of them
+    /// without changing what is being checked.
+    /// </summary>
     private static MainViewModel VmWithKeys(int keyed)
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = VmLayers.BareVm();
+        vm.SmoothStrokes = false;
         for (var i = 1; i < keyed; i++) vm.InsertFrameAt(Cell(vm, 0, i), FrameRole.Key);
         return vm;
     }
@@ -37,10 +43,11 @@ public class CelRangeSelectionTests
     [AvaloniaFact]
     public void CopyRange_PreservesHolds_AndPasteReplaysThem()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = VmLayers.BareVm();
+        vm.SmoothStrokes = false;
         // key at 0 (default), hold at 1, key at 2
         vm.InsertFrameAt(Cell(vm, 0, 2), FrameRole.Key);
-        var layer = vm.Doc.Scene.Layers[0];
+        var layer = vm.PaintLayer();
         Assert.Null(layer.Cels[1].Frame); // sanity: 1 is a hold
 
         vm.SelectFrameCommand.Execute(Cell(vm, 0, 0));
@@ -49,7 +56,7 @@ public class CelRangeSelectionTests
 
         vm.PasteCel(Cell(vm, 0, 5));
 
-        layer = vm.Doc.Scene.Layers[0];
+        layer = vm.PaintLayer();
         Assert.Equal(8, vm.Doc.Scene.FrameCount);
         Assert.NotNull(layer.Cels[5].Frame);
         Assert.Null(layer.Cels[6].Frame);      // the hold pasted as a hold
@@ -66,7 +73,7 @@ public class CelRangeSelectionTests
 
         vm.CutCel(Cell(vm, 0, 2));
 
-        var layer = vm.Doc.Scene.Layers[0];
+        var layer = vm.PaintLayer();
         Assert.NotNull(layer.Cels[0].Frame);
         Assert.Null(layer.Cels[1].Frame);
         Assert.Null(layer.Cels[2].Frame);
@@ -74,7 +81,7 @@ public class CelRangeSelectionTests
         Assert.True(vm.HasCelClipboard);
 
         vm.UndoCommand.Execute(null); // the clear is one step
-        Assert.NotNull(vm.Doc.Scene.Layers[0].Cels[2].Frame);
+        Assert.NotNull(vm.PaintLayer().Cels[2].Frame);
     }
 
     [AvaloniaFact]
@@ -82,13 +89,13 @@ public class CelRangeSelectionTests
     {
         var vm = VmWithKeys(2);
         vm.AddPaintedLayerCommand.Execute(null);
-        var before = vm.Doc.Scene.Layers[0].Cels[0].Frame;
+        var before = vm.PaintLayer().Cels[0].Frame;
 
         var from = Cell(vm, 0, 0);
         var to = Cell(vm, 1, 3);
         vm.MoveCel(from, to, copy: false);
 
-        Assert.Same(before, vm.Doc.Scene.Layers[0].Cels[0].Frame); // unchanged
+        Assert.Same(before, vm.PaintLayer().Cels[0].Frame); // unchanged
         Assert.Contains("own layer row", vm.AiStatus);
     }
 
@@ -126,7 +133,7 @@ public class PressureVmTests
         vm.MoveStroke(60, 10, 0.4);
         vm.EndStroke();
 
-        var stroke = ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0];
+        var stroke = (vm.PaintedCel()).Strokes[0];
         Assert.False(stroke.Brush.PressureEnabled); // provenance: replay ignores pressure too
     }
 

@@ -15,7 +15,7 @@ public class LayerLockTests
     private static (MainViewModel Vm, Layer Layer) Locked()
     {
         var vm = new MainViewModel(null) { SmoothStrokes = false };
-        var layer = vm.Doc.Scene.Layers[0];
+        var layer = vm.PaintLayer();
         // Paint something first, so "nothing changed" is a real observation
         // rather than the trivial case of an empty layer.
         vm.BeginStroke(10, 10, 1);
@@ -107,7 +107,7 @@ public class LayerLockTests
     public void ALockedFolderLocksItsMembers_AndSaysSo()
     {
         var vm = new MainViewModel(null) { SmoothStrokes = false };
-        var layer = vm.Doc.Scene.Layers[0];
+        var layer = vm.PaintLayer();
         var group = new LayerGroup { Name = "Backgrounds" };
         vm.Doc.Scene.LayerGroups.Add(group);
         layer.GroupId = group.Id;
@@ -128,12 +128,12 @@ public class LayerLockTests
     public void LockingIsUndoable()
     {
         var vm = new MainViewModel(null);
-        var layer = vm.Doc.Scene.Layers[0];
+        var layer = vm.PaintLayer();
         vm.SetLayerLocked(layer, true);
         Assert.True(layer.Locked);
 
         vm.UndoCommand.Execute(null);
-        Assert.False(vm.Doc.Scene.Layers[0].Locked);
+        Assert.False(vm.PaintLayer().Locked);
     }
 
     [AvaloniaFact]
@@ -142,7 +142,7 @@ public class LayerLockTests
         // Invariant 4: flipping the layer's alpha lock afterwards must not
         // repaint work already committed.
         var vm = new MainViewModel(null) { SmoothStrokes = false };
-        var layer = vm.Doc.Scene.Layers[0];
+        var layer = vm.PaintLayer();
         layer.AlphaLocked = true;
 
         vm.BeginStroke(10, 10, 1);

@@ -31,7 +31,7 @@ public class CanvasInputTests
     }
 
     private static List<Lightbox.Core.Documents.Stroke> Strokes(MainViewModel vm) =>
-        ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes;
+        (vm.PaintedCel()).Strokes;
 
     [AvaloniaFact]
     public void MouseDrag_PaintsAStroke()

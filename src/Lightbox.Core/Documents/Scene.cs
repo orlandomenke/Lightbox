@@ -24,8 +24,17 @@ public sealed class Scene
 
     public int FrameCount { get; set; } = 1;
 
+    /// <summary>
+    /// The paper a document opens on unless told otherwise. Shared with
+    /// <see cref="DocumentFactory"/> and the New-Document dialog so the scene's
+    /// declared paper colour and the layer that actually provides it cannot
+    /// drift apart — they did, and the app opened on a transparent canvas
+    /// while claiming to be white.
+    /// </summary>
+    public const string DefaultBackgroundColor = "#ffffff";
+
     /// <summary>Paper color composited behind all layers.</summary>
-    public string BackgroundColor { get; set; } = "#ffffff";
+    public string BackgroundColor { get; set; } = DefaultBackgroundColor;
 
     /// <summary>Render with no paper at all (transparent PNG exports).</summary>
     public bool TransparentBackground { get; set; }

@@ -188,10 +188,13 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(IAiArtist? artist)
     {
         _artist = artist;
-        var first = new DocumentTab(new DocumentEditor(DocumentFactory.CreateDoc()), "Untitled-1") { IsActive = true };
+        var first = new DocumentTab(new DocumentEditor(StartupDoc()), "Untitled-1") { IsActive = true };
         Tabs.Add(first);
         _activeTab = first;
         _editor = first.Editor;
+        // Land on something paintable: layer 0 is the locked paper, so leaving
+        // the index at 0 would make the very first stroke bounce.
+        _activeLayerIndex = FirstPaintableLayer(first.Editor.Doc);
         _editor.Changed += OnDocumentChanged;
         _clock.Tick += OnPlaybackTick;
         _autosave = new AutosaveService(() => SaveTargetTab?.Doc ?? Doc);
@@ -268,6 +271,21 @@ public sealed partial class MainViewModel : ObservableObject
         OnDocumentChanged();
     }
 
+    /// <summary>
+    /// The document the app opens on. It used to come from
+    /// <c>CreateDoc()</c> with no paper colour, which produced a document
+    /// whose scene declared white paper while no layer supplied it: the canvas
+    /// and the layer thumbnail both showed the transparency checkerboard, and
+    /// there was nothing called Background to lock. It is now made the same
+    /// way File → New makes one, from the scene's own default.
+    /// </summary>
+    private static Doc StartupDoc() =>
+        DocumentFactory.CreateDoc(paperColor: Scene.DefaultBackgroundColor);
+
+    /// <summary>Index of the first layer an artist can actually draw on.</summary>
+    private static int FirstPaintableLayer(Doc doc) =>
+        doc.Scene.Layers.FindIndex(l => !l.IsBackground) is var i && i >= 0 ? i : 0;
+
     /// <summary>Create a document from the File → New dialog in a new tab.</summary>
     public void NewDocument(NewDocumentSettings settings)
     {
@@ -282,7 +300,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             // Land on something paintable. The paper is layer 0 and locked, so
             // selecting it would make the very first stroke bounce.
-            SavedLayerIndex = doc.Scene.Layers.FindIndex(l => !l.IsBackground) is var i && i >= 0 ? i : 0,
+            SavedLayerIndex = FirstPaintableLayer(doc),
         });
     }
 
@@ -713,6 +731,11 @@ public sealed partial class MainViewModel : ObservableObject
     {
         set(CurrentToolSettings);
         OnPropertyChanged(name);
+        // The on-canvas ring is computed from the settings, not stored, so it
+        // has to be told. Size is the obvious one, but the minimum diameter
+        // and the pressure-size curve move it too, which is why this is
+        // unconditional rather than a special case on BrushSize.
+        OnPropertyChanged(nameof(BrushCursorDiameter));
         if (!_applyingPreset) PersistBrushState();
     }
 
@@ -1397,6 +1420,30 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _fillBelowLines = true;
 
+    /// <summary>
+    /// Where a "below line work" fill belongs in the stroke list.
+    ///
+    /// Index 0 was the obvious answer and the wrong one: it put the fill under
+    /// EVERYTHING, so a second fill disappeared beneath the first, and a fill
+    /// made after erasing was wiped by the eraser it had been slipped behind.
+    /// Both read to the artist as "the fill did nothing".
+    ///
+    /// The rule that holds instead: go under the line work, but no further
+    /// back than the last stroke that would swallow you. Only a brush stroke
+    /// is line work to tuck beneath; a fill, a gradient or an eraser already
+    /// on the layer is content this fill must sit on top of — an eraser
+    /// especially, because it removed what was there when it ran, and putting
+    /// later content underneath makes it delete something that never existed.
+    /// </summary>
+    internal static int UnderLineWorkIndex(IReadOnlyList<Stroke> strokes)
+    {
+        for (var i = strokes.Count - 1; i >= 0; i--)
+        {
+            if (strokes[i].Tool != ToolKind.Brush) return i + 1;
+        }
+        return 0;
+    }
+
     /// <summary>Fill tool click: flood at a document position, record a fill stroke.</summary>
     /// <summary>
     /// A colour was dragged from the swatch onto the canvas. Fills there,
@@ -1547,7 +1594,7 @@ public sealed partial class MainViewModel : ObservableObject
                         if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
                         var list = StrokeListIn(doc, frameId);
                         if (list is null) return;
-                        if (below) list.Insert(0, stroke);
+                        if (below) list.Insert(UnderLineWorkIndex(list), stroke);
                         else list.Add(stroke);
                     },
                     revert: doc =>
@@ -3654,7 +3701,10 @@ public sealed partial class MainViewModel : ObservableObject
             var index = scene.Layers.FindIndex(l => l.Id == layer.Id);
             if (index < 0) return;
             scene.Layers.RemoveAt(index);
-            if (scene.Layers.Count == 0)
+            // Regrow when nothing PAINTABLE is left, not merely when nothing is
+            // left: a document down to its locked paper has layers and still
+            // nowhere to draw.
+            if (!scene.Layers.Any(l => !l.IsBackground))
             {
                 var fresh = new Layer
                 {
@@ -3665,7 +3715,9 @@ public sealed partial class MainViewModel : ObservableObject
                 scene.Layers.Add(fresh);
             }
         });
-        ActiveLayerIndex = Math.Clamp(removedIndex, 0, Scene.Layers.Count - 1);
+        var next = Math.Clamp(removedIndex, 0, Scene.Layers.Count - 1);
+        // Never land on the paper: it is locked, so the next stroke would bounce.
+        ActiveLayerIndex = Scene.Layers[next].IsBackground ? FirstPaintableLayer(Doc) : next;
     }
 
     /// <summary>Blank the active layer: every drawing on it loses its content, the timing stays.</summary>

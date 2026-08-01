@@ -17,7 +17,7 @@ public class HiddenLayerTests
         vm.MoveStroke(50, 50, 0.5);
         vm.EndStroke();
 
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         Assert.Empty(frame.Strokes);
         Assert.Contains("hidden", vm.AiStatus);
 
@@ -58,7 +58,7 @@ public class BrushPresetTests
         vm.MoveStroke(40, 40, 0.5);
         vm.EndStroke();
 
-        var stroke = ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0];
+        var stroke = (vm.PaintedCel()).Strokes[0];
         Assert.Equal(watercolor.Settings.WetEdge, stroke.Brush.WetEdge);
         Assert.Equal(watercolor.Settings.Granulation, stroke.Brush.Granulation);
         Assert.Equal(watercolor.Settings.Flow, stroke.Brush.Flow);
@@ -94,7 +94,7 @@ public class BrushPresetTests
             vm.MoveStroke(40, 40, 0.7);
             vm.EndStroke();
 
-            var brush = ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes[^1].Brush;
+            var brush = (vm.PaintedCel()).Strokes[^1].Brush;
             Assert.NotEqual(MediumKind.None, brush.Medium.Kind);
             seen.Add((brush.Medium.Kind, brush.Medium.Wetness, brush.Medium.Viscosity, brush.Medium.Hiding));
         }

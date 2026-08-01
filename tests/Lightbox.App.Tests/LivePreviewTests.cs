@@ -20,7 +20,7 @@ public class LivePreviewTests
         vm.MoveStrokeBatch([new MainViewModel.PointerSample(40, 0, 0.8)]);
         vm.EndStroke();
 
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         var stroke = Assert.Single(frame.Strokes);
         Assert.Equal(5, stroke.Points.Count);
         Assert.Equal(new StrokePoint(40, 0, 0.8), stroke.Points[^1]);
@@ -40,7 +40,7 @@ public class LivePreviewTests
         }
         vm.EndStroke();
 
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         using var direct = Lightbox.Raster.FrameRasterizer.Rasterize(
             frame.Strokes, vm.Doc.Scene.Width, vm.Doc.Scene.Height);
         using var materialized = Lightbox.Raster.FrameRasterizer.Materialize(
@@ -58,7 +58,7 @@ public class LivePreviewTests
         var vm = new MainViewModel(null);
         vm.EndStroke(); // no crash, no mutation
         vm.MoveStrokeBatch([new MainViewModel.PointerSample(1, 1, 0.5)]);
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         Assert.Empty(frame.Strokes);
     }
 }

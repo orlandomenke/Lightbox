@@ -82,7 +82,7 @@ public class AiIntegrationTests
 
         // Frames inserted sorted by t.
         Assert.Equal(4, vm.Doc.Scene.FrameCount);
-        var layer = vm.Doc.Scene.Layers[0];
+        var layer = vm.PaintLayer();
         var f1 = Assert.IsType<PaintedFrame>(layer.Cels[1].Frame);
         var f2 = Assert.IsType<PaintedFrame>(layer.Cels[2].Frame);
         Assert.Equal(15, f1.Strokes[0].Points[0].X); // t=0.25 first
@@ -131,11 +131,11 @@ public class AiIntegrationTests
         await vm.AiDrawCommand.ExecuteAsync(null);
 
         Assert.Equal("a bouncing ball", artist.LastDrawRequest!.Prompt);
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         Assert.Equal(2, frame.Strokes.Count);
 
         vm.UndoCommand.Execute(null);
-        frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        frame = vm.PaintedCel();
         Assert.Empty(frame.Strokes);
     }
 

@@ -19,7 +19,7 @@ public class MainViewModelTests
         vm.MoveStroke(90, 20, 0.7);
         vm.EndStroke();
 
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         var stroke = Assert.Single(frame.Strokes);
         Assert.Equal(3, stroke.Points.Count);
         Assert.Equal(new StrokePoint(10, 10, 0.5), stroke.Points[0]);
@@ -31,7 +31,7 @@ public class MainViewModelTests
         var vm = NewVm();
         vm.AddFrameCommand.Execute(null); // frame 2 keyed
         // Make frame 2 a hold.
-        var layer = vm.Doc.Scene.Layers[0];
+        var layer = vm.PaintLayer();
         layer.Cels[1].Frame = null;
         vm.CurrentFrameIndex = 1;
 
@@ -67,7 +67,7 @@ public class MainViewModelTests
         vm.MoveStroke(30, 30, 0.5);
         vm.EndStroke();
 
-        PaintedFrame Frame() => (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        PaintedFrame Frame() => vm.PaintedCel();
         Assert.Single(Frame().Strokes);
 
         vm.UndoCommand.Execute(null);
@@ -98,7 +98,7 @@ public class MainViewModelTests
         vm.InsertInbetweensCommand.Execute(null);
 
         Assert.Equal(5, vm.Doc.Scene.FrameCount);
-        var layer = vm.Doc.Scene.Layers[0];
+        var layer = vm.PaintLayer();
         for (var i = 1; i <= 3; i++)
         {
             var tween = Assert.IsType<PaintedFrame>(layer.Cels[i].Frame);
@@ -162,7 +162,7 @@ public class MainViewModelTests
         vm.TogglePlaybackCommand.Execute(null);
         vm.BeginStroke(1, 1, 0.5);
         vm.EndStroke();
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         Assert.Empty(frame.Strokes);
     }
 }

@@ -132,7 +132,7 @@ public class BackgroundLayerTests
         // Invariant 1: the record is the document. A baked PNG baseline would
         // be pixels the record cannot regenerate.
         var vm = WithPaper("#336699");
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!; // the paper itself
 
         Assert.True(string.IsNullOrEmpty(frame.PngBase64));
         var fill = Assert.Single(frame.Strokes);

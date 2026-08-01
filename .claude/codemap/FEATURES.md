@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-595 tests, derived from the suite itself. Each line is a
+603 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -177,29 +177,29 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
 
 - Rows Show Topmost Layer First And Track Cells — `:13`
-- Rename Through Row Writes To Document And Is Undoable — `:29`
-- Rename To Blank Snaps Back Without An Undo Step — `:44`
-- Visibility Toggle Through Row Is Undoable — `:58`
-- Select Frame On Another Layers Cell Selects That Layer And Frame — `:70`
-- Add Layer Button Follows Kind Dropdown — `:85`
+- Rename Through Row Writes To Document And Is Undoable — `:31`
+- Rename To Blank Snaps Back Without An Undo Step — `:46`
+- Visibility Toggle Through Row Is Undoable — `:60`
+- Select Frame On Another Layers Cell Selects That Layer And Frame — `:72`
+- Add Layer Button Follows Kind Dropdown — `:89`
 
 ## PerLayerOnionTests
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
 
-- Disabling Layer Onion Removes Its Ghosts From The Snapshot — `:108`
+- Disabling Layer Onion Removes Its Ghosts From The Snapshot — `:112`
 
 ## PlaybackSpeedTests
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
 
-- Speed Percent Clamps To Sane Range — `:133`
-- Clock Interval Scales With Fps And Speed — `:143`
+- Speed Percent Clamps To Sane Range — `:141`
+- Clock Interval Scales With Fps And Speed — `:151`
 
 ## SidebarTests
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
 
-- Toggle Sidebar Flips Visibility — `:154`
-- Switch Sidebar Side Flips Side — `:165`
-- Toggle Timeline Flips Visibility — `:176`
+- Toggle Sidebar Flips Visibility — `:162`
+- Switch Sidebar Side Flips Side — `:173`
+- Toggle Timeline Flips Visibility — `:184`
 
 ## BackgroundColorTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
@@ -224,6 +224,18 @@ regression even when every test still compiles.
 - Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:100`
 - Open Document Tab Uses File Name And Keeps Existing Tabs — `:119`
 
+## FillAndBackgroundBugTests
+`tests/Lightbox.App.Tests/FillAndBackgroundBugTests.cs`
+
+- ASecond Fill In ADifferent Colour Replaces The First — `:39`
+- AFill Still Tucks Under The Line Work — `:54`
+- AFill After Erasing Is Not Swallowed By The Eraser — `:74`
+- Erasing Produces Transparency Not Paper — `:103`
+- The Startup Document Opens On Paper — `:121`
+- The Startup Document Lands On APaintable Layer — `:143`
+- ATransparent Document Has No Background Layer — `:151`
+- The Brush Ring Follows The Size Slider — `:163`
+
 ## ContextShortcutTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
@@ -234,12 +246,12 @@ regression even when every test still compiles.
 ## LayerFolderTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Create Folder Groups The Active Layer And Shows AHeader Row — `:121`
-- Folder Visibility Gates Its Members In Compositing And Painting — `:136`
-- Collapse Hides Member Rows From The Docker Panel Only — `:155`
-- Add And Remove Keep The Folder Contiguous — `:168`
-- Folder Color Is Undoable And Serializes — `:185`
-- Dissolve Ungroups Everything And Folders Serialize — `:203`
+- Create Folder Groups The Active Layer And Shows AHeader Row — `:126`
+- Folder Visibility Gates Its Members In Compositing And Painting — `:141`
+- Collapse Hides Member Rows From The Docker Panel Only — `:160`
+- Add And Remove Keep The Folder Contiguous — `:173`
+- Folder Color Is Undoable And Serializes — `:190`
+- Dissolve Ungroups Everything And Folders Serialize — `:208`
 
 ## NudgeSelectionTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
@@ -327,10 +339,10 @@ regression even when every test still compiles.
 ## CelClipboardTests
 `tests/Lightbox.App.Tests/LayerCompositingTests.cs`
 
-- Copy Paste Deep Clones With Fresh Ids And Extends The Timeline — `:240`
-- Cut Copies Then Clears So The Cel Becomes AHold — `:259`
-- Paste Across Kinds Converts Strokes But Refuses Baseline Pixels Onto Vector — `:272`
-- Exposure Editing From Cells Extends And Clears — `:293`
+- Copy Paste Deep Clones With Fresh Ids And Extends The Timeline — `:243`
+- Cut Copies Then Clears So The Cel Becomes AHold — `:262`
+- Paste Across Kinds Converts Strokes But Refuses Baseline Pixels Onto Vector — `:275`
+- Exposure Editing From Cells Extends And Clears — `:297`
 
 ## LayerPanelTests
 `tests/Lightbox.App.Tests/LayerCompositingTests.cs`
@@ -345,8 +357,8 @@ regression even when every test still compiles.
 
 - Delete Layer Removes It And Keeps AValid Active Index — `:10`
 - Deleting The Last Layer Regrows ABlank One — `:24`
-- Clear Layer Blanks Every Drawing But Keeps The Timing — `:45`
-- Docker Visibility Toggles Round Trip — `:70`
+- Clear Layer Blanks Every Drawing But Keeps The Timing — `:48`
+- Docker Visibility Toggles Round Trip — `:73`
 
 ## LayerLockTests
 `tests/Lightbox.App.Tests/LayerLockTests.cs`
@@ -413,30 +425,30 @@ regression even when every test still compiles.
 ## ExportTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
 
-- Export Png Sequence Writes One File Per Frame Resolving Holds — `:124`
+- Export Png Sequence Writes One File Per Frame Resolving Holds — `:125`
 
 ## FpsTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
 
-- Fps Clamps And Persists To Scene — `:159`
+- Fps Clamps And Persists To Scene — `:160`
 
 ## LayerTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
 
 - Add Vector Layer Becomes Active Painting Creates Vector Strokes — `:12`
-- Inbetweens On Vector Layer Produce Vector Frames — `:36`
+- Inbetweens On Vector Layer Produce Vector Frames — `:37`
 - New Layer Is Padded To Frame Count And Undoable — `:57`
 
 ## SmoothingTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
 
-- Smoothing On Reduces Spikes Preserves Endpoints — `:74`
-- Smoothing Off Keeps Raw Points — `:90`
+- Smoothing On Reduces Spikes Preserves Endpoints — `:75`
+- Smoothing Off Keeps Raw Points — `:91`
 
 ## ThumbnailTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
 
-- Keyed Cells Get Thumbnails Holds Do Not — `:106`
+- Keyed Cells Get Thumbnails Holds Do Not — `:107`
 
 ## DropColorFillTests
 `tests/Lightbox.App.Tests/ModifiersAndDropFillTests.cs`
@@ -571,17 +583,17 @@ regression even when every test still compiles.
 ## CelRangeSelectionTests
 `tests/Lightbox.App.Tests/TimelineRangeAndPressureTests.cs`
 
-- Shift Click Selects ARange And Plain Click Clears It — `:20`
-- Copy Range Preserves Holds And Paste Replays Them — `:38`
-- Cut Range Clears Every Cel In The Range In One Undo Step — `:61`
-- Move Cel Refuses Cross Layer Drops — `:81`
-- Markers Add Edit Remove Are Undoable And Feed The Ruler — `:96`
+- Shift Click Selects ARange And Plain Click Clears It — `:26`
+- Copy Range Preserves Holds And Paste Replays Them — `:44`
+- Cut Range Clears Every Cel In The Range In One Undo Step — `:68`
+- Move Cel Refuses Cross Layer Drops — `:88`
+- Markers Add Edit Remove Are Undoable And Feed The Ruler — `:103`
 
 ## PressureVmTests
 `tests/Lightbox.App.Tests/TimelineRangeAndPressureTests.cs`
 
-- Master Switch Writes Into The Stroke Record — `:120`
-- Per Setting Checkboxes Map To The Response Curves — `:134`
+- Master Switch Writes Into The Stroke Record — `:127`
+- Per Setting Checkboxes Map To The Response Curves — `:141`
 
 ## FillToolTests
 `tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`
@@ -611,14 +623,14 @@ regression even when every test still compiles.
 ## TransformToolTests
 `tests/Lightbox.App.Tests/TransformToolTests.cs`
 
-- Begin Transform Reports The Stroke Bounds And Commit Moves The Points — `:34`
-- Mirror Commit Flips Around The Pivot Without Moving — `:60`
-- Perspective Commit Maps The Corners Exactly — `:74`
-- Degenerate Perspective Is Refused And The Session Survives — `:94`
-- Cel Range Scope Transforms Each Distinct Drawing Once — `:107`
-- Entire Animation Scope Moves Every Layer — `:127`
-- Selection Region Limits The Transform To Strokes Inside It — `:146`
-- Empty Scope Refuses To Start — `:166`
+- Begin Transform Reports The Stroke Bounds And Commit Moves The Points — `:37`
+- Mirror Commit Flips Around The Pivot Without Moving — `:63`
+- Perspective Commit Maps The Corners Exactly — `:77`
+- Degenerate Perspective Is Refused And The Session Survives — `:97`
+- Cel Range Scope Transforms Each Distinct Drawing Once — `:110`
+- Entire Animation Scope Moves Every Layer — `:130`
+- Selection Region Limits The Transform To Strokes Inside It — `:149`
+- Empty Scope Refuses To Start — `:169`
 
 ## CameraTests
 `tests/Lightbox.Core.Tests/CameraTests.cs`

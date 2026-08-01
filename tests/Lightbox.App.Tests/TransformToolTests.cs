@@ -7,20 +7,23 @@ namespace Lightbox.App.Tests;
 
 public class TransformToolTests
 {
+    /// <summary>
+    /// Bare — one drawing layer, no paper. Transform scopes are addressed by
+    /// layer and row index, and "every layer" assertions would otherwise have
+    /// to reason about the locked paper, which is not what they are checking.
+    /// </summary>
     private static MainViewModel PaintedVm()
     {
-        var vm = new MainViewModel(null)
-        {
-            SmoothStrokes = false,
-            ColorHex = "#000000",
-            BrushSize = 16,
-            BrushHardness = 1,
-            BrushOpacity = 1,
-            BrushFlow = 1,
-            BrushWetEdge = 0,
-            BrushGranulation = 0,
-            BrushScatter = 0,
-        };
+        var vm = VmLayers.BareVm();
+        vm.SmoothStrokes = false;
+        vm.ColorHex = "#000000";
+        vm.BrushSize = 16;
+        vm.BrushHardness = 1;
+        vm.BrushOpacity = 1;
+        vm.BrushFlow = 1;
+        vm.BrushWetEdge = 0;
+        vm.BrushGranulation = 0;
+        vm.BrushScatter = 0;
         vm.BeginStroke(200, 200, 1);
         vm.MoveStroke(300, 200, 1);
         vm.EndStroke();

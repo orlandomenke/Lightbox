@@ -87,14 +87,14 @@ public class LayerPanelTests
     {
         var vm = new MainViewModel(null);
         vm.AddPaintedLayerCommand.Execute(null); // adds on top and activates it
-        var topId = vm.Doc.Scene.Layers[1].Id;
-        Assert.Equal(1, vm.ActiveLayerIndex);
+        var topId = vm.Doc.Scene.Layers[2].Id;
+        Assert.Equal(2, vm.ActiveLayerIndex);
 
         var row = vm.LayerRows.First(r => r.Layer.Id == topId);
         vm.MoveLayerDownCommand.Execute(row);
 
-        Assert.Equal(topId, vm.Doc.Scene.Layers[0].Id); // now at the bottom
-        Assert.Equal(0, vm.ActiveLayerIndex);           // still the active layer
+        Assert.Equal(topId, vm.Doc.Scene.Layers[1].Id); // swapped with the layer below
+        Assert.Equal(1, vm.ActiveLayerIndex);           // still the active layer
     }
 
     [AvaloniaFact]
@@ -107,13 +107,13 @@ public class LayerPanelTests
         vm.BeginStroke(100, 100, 1);
         vm.MoveStroke(300, 300, 1);
         vm.EndStroke();
-        var frame0 = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame0 = vm.PaintedCel();
         Assert.Equal(frame0.Id, row.ThumbFrameId);
 
         // a second, keyed frame: moving the playhead re-renders the thumb for it
         vm.AddFrameCommand.Execute(null);
         vm.CurrentFrameIndex = 1;
-        var frame1 = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[1].Frame!;
+        var frame1 = vm.PaintedCel(1);
         Assert.Equal(frame1.Id, vm.LayerRows[0].ThumbFrameId);
     }
 }
@@ -183,7 +183,7 @@ public class AlphaSelectAndWandTests
         vm.ActiveTool = ToolId.Brush;
         vm.BeginStroke(250, 200, 1);
         vm.EndStroke();
-        var strokes = ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes;
+        var strokes = (vm.PaintedCel()).Strokes;
         Assert.NotNull(strokes[^1].ClipId);
     }
 
@@ -221,7 +221,7 @@ public class AlphaSelectAndWandTests
         vm.ActiveTool = ToolId.Fill;
         vm.FillAt(250, 200);
 
-        var strokes = ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes;
+        var strokes = (vm.PaintedCel()).Strokes;
         var fill = strokes.First(s => s.Tool == ToolKind.Fill);
         Assert.NotNull(fill.ClipId);
         Assert.All(fill.Points, p => Assert.InRange(p.X, 140, 360)); // bounded by the selection
@@ -230,11 +230,14 @@ public class AlphaSelectAndWandTests
 
 public class CelClipboardTests
 {
-    private static PaintedFrame Frame0(MainViewModel vm, int layer = 0) =>
-        (PaintedFrame)vm.Doc.Scene.Layers[layer].Cels[0].Frame!;
+    /// <summary>Cel 0 of a scene layer; -1 (the default) means the layer being drawn on.</summary>
+    private static PaintedFrame Frame0(MainViewModel vm, int layer = -1) =>
+        (PaintedFrame)vm.Doc.Scene.Layers[layer < 0 ? vm.ActiveLayerIndex : layer].Cels[0].Frame!;
 
+    /// <summary>A timeline cell; sceneLayer -1 (the default) means the layer being drawn on.</summary>
     private static FrameCell Cell(MainViewModel vm, int sceneLayer, int index) =>
-        vm.LayerRows.First(r => r.SceneIndex == sceneLayer).Cells.First(c => c.Index == index);
+        vm.LayerRows.First(r => r.SceneIndex == (sceneLayer < 0 ? vm.ActiveLayerIndex : sceneLayer))
+            .Cells.First(c => c.Index == index);
 
     [AvaloniaFact]
     public void CopyPaste_DeepClonesWithFreshIds_AndExtendsTheTimeline()
@@ -244,12 +247,12 @@ public class CelClipboardTests
         vm.EndStroke();
         var srcId = Frame0(vm).Id;
 
-        vm.CopyCel(Cell(vm, 0, 0));
-        vm.PasteCel(Cell(vm, 0, 4)); // paste into the virtual tail
+        vm.CopyCel(Cell(vm, -1, 0));
+        vm.PasteCel(Cell(vm, -1, 4)); // paste into the virtual tail
 
         var scene = vm.Doc.Scene;
         Assert.Equal(5, scene.FrameCount);
-        var pasted = (PaintedFrame)scene.Layers[0].Cels[4].Frame!;
+        var pasted = (PaintedFrame)vm.PaintLayer().Cels[4].Frame!;
         Assert.NotEqual(srcId, pasted.Id);
         Assert.Single(pasted.Strokes);
         Assert.NotSame(Frame0(vm).Strokes[0], pasted.Strokes[0]);
@@ -262,16 +265,17 @@ public class CelClipboardTests
         vm.BeginStroke(50, 50, 1);
         vm.EndStroke();
 
-        vm.CutCel(Cell(vm, 0, 0));
+        vm.CutCel(Cell(vm, -1, 0));
 
         Assert.True(vm.HasCelClipboard);
-        Assert.Null(vm.Doc.Scene.Layers[0].Cels[0].Frame);
+        Assert.Null(vm.PaintLayer().Cels[0].Frame);
     }
 
     [AvaloniaFact]
     public void PasteAcrossKinds_ConvertsStrokes_ButRefusesBaselinePixelsOntoVector()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = VmLayers.BareVm();
+        vm.SmoothStrokes = false;
         vm.BeginStroke(50, 50, 1);
         vm.EndStroke();
         vm.AddVectorLayerCommand.Execute(null); // scene layer 1
@@ -296,14 +300,14 @@ public class CelClipboardTests
         vm.BeginStroke(50, 50, 1);
         vm.EndStroke();
 
-        vm.ExtendExposureAt(Cell(vm, 0, 0));
+        vm.ExtendExposureAt(Cell(vm, -1, 0));
         Assert.Equal(2, vm.Doc.Scene.FrameCount);
-        Assert.Null(vm.Doc.Scene.Layers[0].Cels[1].Frame); // the new hold
+        Assert.Null(vm.PaintLayer().Cels[1].Frame); // the new hold
 
-        vm.ClearCelAt(Cell(vm, 0, 0));
-        Assert.Null(vm.Doc.Scene.Layers[0].Cels[0].Frame);
+        vm.ClearCelAt(Cell(vm, -1, 0));
+        Assert.Null(vm.PaintLayer().Cels[0].Frame);
 
         vm.UndoCommand.Execute(null); // clear-cel is one undo step
-        Assert.NotNull(vm.Doc.Scene.Layers[0].Cels[0].Frame);
+        Assert.NotNull(vm.PaintLayer().Cels[0].Frame);
     }
 }

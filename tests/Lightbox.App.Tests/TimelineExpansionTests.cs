@@ -73,7 +73,7 @@ public class PlaybackTransportTests
     public void KeyframeNavigation_SkipsHolds()
     {
         var vm = VmWithFrames(5);
-        var layer = vm.Doc.Scene.Layers[0];
+        var layer = vm.PaintLayer();
         layer.Cels[1].Frame = null; // holds at 1 and 3
         layer.Cels[3].Frame = null;
 
@@ -118,16 +118,16 @@ public class FrameInsertionTests
         var vm = new MainViewModel(null);
         vm.AddVectorLayerCommand.Execute(null);
 
-        var virtualCell = vm.LayerRows[1].Cells[4]; // bottom layer, beyond frame 1
+        var virtualCell = vm.LayerRows[1].Cells[4]; // the layer under the new one, beyond frame 1
         Assert.True(virtualCell.IsVirtual);
         vm.InsertFrameAt(virtualCell, FrameRole.Key);
 
         Assert.Equal(5, vm.Doc.Scene.FrameCount);
         Assert.All(vm.Doc.Scene.Layers, l => Assert.Equal(5, l.Cels.Count));
-        Assert.NotNull(vm.Doc.Scene.Layers[0].Cels[4].Frame);
-        Assert.Null(vm.Doc.Scene.Layers[1].Cels[4].Frame); // other layer holds
+        Assert.NotNull(vm.PaintLayer().Cels[4].Frame);
+        Assert.Null(vm.Doc.Scene.Layers[2].Cels[4].Frame); // the other layer holds
         Assert.Equal(4, vm.CurrentFrameIndex);
-        Assert.Equal(0, vm.ActiveLayerIndex); // the cell's layer became active
+        Assert.Equal(1, vm.ActiveLayerIndex); // the cell's layer became active
     }
 
     [AvaloniaFact]
@@ -158,7 +158,7 @@ public class FrameInsertionTests
 
         vm.InsertFrameAt(vm.FrameCells[0], FrameRole.Breakdown);
 
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = vm.PaintedCel();
         Assert.Equal(FrameRole.Breakdown, frame.Role);
         Assert.Single(frame.Strokes); // artwork untouched
     }
@@ -178,7 +178,7 @@ public class FrameInsertionTests
         vm.TweenCount = 2;
         vm.InsertInbetweensCommand.Execute(null);
 
-        var layer = vm.Doc.Scene.Layers[0];
+        var layer = vm.PaintLayer();
         Assert.Equal(FrameRole.Inbetween, layer.Cels[1].Frame!.Role);
         Assert.Equal(FrameRole.Inbetween, layer.Cels[2].Frame!.Role);
         Assert.Equal(FrameRole.Key, layer.Cels[0].Frame!.Role);
@@ -194,7 +194,8 @@ public class FrameRoleSerializationTests
         vm.InsertFrameAt(vm.FrameCells[1], FrameRole.Breakdown);
 
         var restored = DocJson.Deserialize(DocJson.Serialize(vm.Doc));
-        Assert.Equal(FrameRole.Breakdown, restored.Scene.Layers[0].Cels[1].Frame!.Role);
-        Assert.Equal(FrameRole.Key, restored.Scene.Layers[0].Cels[0].Frame!.Role);
+        var drawn = restored.Scene.Layers[vm.ActiveLayerIndex];
+        Assert.Equal(FrameRole.Breakdown, drawn.Cels[1].Frame!.Role);
+        Assert.Equal(FrameRole.Key, drawn.Cels[0].Frame!.Role);
     }
 }
