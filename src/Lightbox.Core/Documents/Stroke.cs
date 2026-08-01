@@ -30,6 +30,16 @@ public sealed class Stroke
     public string? ClipId { get; set; }
 
     /// <summary>
+    /// Painted on an alpha-locked layer: this stroke may only touch pixels
+    /// that already had content beneath it. Recorded here rather than read
+    /// from the layer at render time, so flipping the layer's alpha lock
+    /// never repaints work already done (invariant 4). The mask itself is not
+    /// stored — the rasterizer stamps strokes in order, so the content before
+    /// this stroke is exactly what it has already drawn.
+    /// </summary>
+    public bool AlphaLocked { get; set; }
+
+    /// <summary>
     /// Optional semantic name ("head-outline", "left-arm"). When two
     /// keyframes label a stroke identically, the inbetweener matches them
     /// directly, and an LLM can use labels to track anatomy across frames.
@@ -45,6 +55,7 @@ public sealed class Stroke
         Points = [.. Points],
         Holes = Holes?.Select(h => new List<StrokePoint>(h)).ToList(),
         ClipId = ClipId,
+        AlphaLocked = AlphaLocked,
         Label = Label,
     };
 }

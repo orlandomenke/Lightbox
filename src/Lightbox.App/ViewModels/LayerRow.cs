@@ -20,6 +20,7 @@ public sealed partial class GroupRow : ObservableObject
         _syncing = true;
         Name = group.Name;
         Visible = group.Visible;
+        Locked = group.Locked;
         Collapsed = group.Collapsed;
         Color = group.Color;
         _syncing = false;
@@ -32,6 +33,10 @@ public sealed partial class GroupRow : ObservableObject
 
     [ObservableProperty]
     private bool _visible = true;
+
+    /// <summary>Locking a folder locks every layer inside it.</summary>
+    [ObservableProperty]
+    private bool _locked;
 
     [ObservableProperty]
     private bool _collapsed;
@@ -57,6 +62,11 @@ public sealed partial class GroupRow : ObservableObject
     {
         OnPropertyChanged(nameof(ColorBrush));
         if (!_syncing) _owner.SetGroupColor(Group, value);
+    }
+
+    partial void OnLockedChanged(bool value)
+    {
+        if (!_syncing) _owner.SetGroupLocked(Group, value);
     }
 
     partial void OnVisibleChanged(bool value)
@@ -102,6 +112,16 @@ public sealed partial class LayerRow : ObservableObject
     [ObservableProperty]
     private bool _visible = true;
 
+    /// <summary>Refuses pixel and geometry edits; still renders and exports.</summary>
+    [ObservableProperty]
+    private bool _locked;
+
+    /// <summary>Paint only where the layer already has content.</summary>
+    [ObservableProperty]
+    private bool _alphaLocked;
+
+    private bool _lockedByFolder;
+
     [ObservableProperty]
     private bool _onionEnabled = true;
 
@@ -131,7 +151,10 @@ public sealed partial class LayerRow : ObservableObject
         _syncing = true;
         Name = layer.Name;
         Visible = layer.Visible;
+        Locked = layer.Locked;
+        AlphaLocked = layer.AlphaLocked;
         OnionEnabled = layer.OnionEnabled;
+        _lockedByFolder = _owner.IsLayerLockedByFolder(layer);
         _syncing = false;
         OnPropertyChanged(nameof(KindLabel));
         OnPropertyChanged(nameof(IsGrouped));
@@ -146,6 +169,23 @@ public sealed partial class LayerRow : ObservableObject
     {
         if (!_syncing) _owner.SetLayerVisible(Layer, value);
     }
+
+    partial void OnLockedChanged(bool value)
+    {
+        if (!_syncing) _owner.SetLayerLocked(Layer, value);
+        OnPropertyChanged(nameof(EditsBlocked));
+    }
+
+    partial void OnAlphaLockedChanged(bool value)
+    {
+        if (!_syncing) _owner.SetLayerAlphaLocked(Layer, value);
+    }
+
+    /// <summary>
+    /// Whether this row refuses edits, folder included. Drives the dimmed row
+    /// so a layer locked by its folder does not look editable.
+    /// </summary>
+    public bool EditsBlocked => Locked || _lockedByFolder;
 
     partial void OnOnionEnabledChanged(bool value)
     {

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-368 tests, derived from the suite itself. Each line is a
+382 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -254,6 +254,19 @@ regression even when every test still compiles.
 - Deleting The Last Layer Regrows ABlank One — `:24`
 - Clear Layer Blanks Every Drawing But Keeps The Timing — `:45`
 - Docker Visibility Toggles Round Trip — `:70`
+
+## LayerLockTests
+`tests/Lightbox.App.Tests/LayerLockTests.cs`
+
+- Painting Is Refused With AReason That Names The Layer — `:32`
+- Fill Is Refused — `:47`
+- Transform Is Refused — `:58`
+- Deleting The Layer Is Refused — `:66`
+- External Writers Are Refused — `:76`
+- Visibility Opacity And Blend Mode Stay Available — `:91`
+- ALocked Folder Locks Its Members And Says So — `:107`
+- Locking Is Undoable — `:128`
+- Alpha Lock Is Recorded On The Stroke Not Read Back From The Layer — `:140`
 
 ## LivePreviewPixelTests
 `tests/Lightbox.App.Tests/LivePreviewPixelTests.cs`
@@ -562,6 +575,15 @@ regression even when every test still compiles.
 - Frame At Exact Index Ignores Holds — `:42`
 - Next Key Index Finds Strictly After — `:53`
 - Key Index At Or Before Works — `:62`
+
+## AlphaLockTests
+`tests/Lightbox.Raster.Tests/AlphaLockTests.cs`
+
+- Paint Only Lands Where The Layer Already Had Content — `:51`
+- The Silhouette Is Unchanged — `:63`
+- Without The Lock The Same Stroke Spills Outside — `:77`
+- The Flag Survives AClone And ARound Trip — `:85`
+- Re Rendering The Whole Frame Reproduces The Mask Without Storing It — `:98`
 
 ## BrushEngineV2Tests
 `tests/Lightbox.Raster.Tests/BrushEngineV2Tests.cs`

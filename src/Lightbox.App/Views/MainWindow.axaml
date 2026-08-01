@@ -21,6 +21,14 @@
     <Style Selector="Border.layerRow.hiddenLayer">
       <Setter Property="Opacity" Value="0.35" />
     </Style>
+    <Style Selector="Border.layerRow.lockedLayer">
+      <Setter Property="BorderBrush" Value="#8a6a3a" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.groupRow.lockedLayer">
+      <Setter Property="BorderBrush" Value="#8a6a3a" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
     <Style Selector="Border.groupRow">
       <Setter Property="Background" Value="#26313e" />
       <Setter Property="CornerRadius" Value="3" />
@@ -825,7 +833,8 @@
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.DataTemplates>
                     <DataTemplate x:DataType="vm:GroupRow">
-                      <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}" Padding="2"
+                      <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}"
+                              Classes.lockedLayer="{Binding Locked}" Padding="2"
                               BorderBrush="{Binding ColorBrush}" BorderThickness="4,0,0,0" CornerRadius="3">
                         <Border.ContextMenu>
                           <ContextMenu>
@@ -862,6 +871,9 @@
                                   ToolTip.Tip="Collapse / expand the folder" />
                           <ToggleButton DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
                                         Width="34" ToolTip.Tip="Folder visibility (gates every layer inside)" />
+                          <ToggleButton DockPanel.Dock="Left" Content="🔒" IsChecked="{Binding Locked}"
+                                        Width="30" FontSize="11"
+                                        ToolTip.Tip="Lock the folder — every layer inside refuses edits, but still renders" />
                           <Button DockPanel.Dock="Right" Content="✕" FontSize="10" Padding="4,0" Background="Transparent"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DissolveGroupCommand}"
                                   CommandParameter="{Binding}" ToolTip.Tip="Dissolve the folder (layers stay)" />
@@ -881,7 +893,8 @@
                     </DataTemplate>
                     <DataTemplate x:DataType="vm:LayerRow">
                       <Border Classes="layerRow" Classes.active="{Binding IsActive}" Classes.grouped="{Binding IsGrouped}"
-                              Classes.hiddenLayer="{Binding !Visible}" Padding="2" Focusable="True"
+                              Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}"
+                              Padding="2" Focusable="True"
                               PointerPressed="OnLayerRowPressed">
                         <Border.ContextMenu>
                           <ContextMenu>
@@ -902,6 +915,12 @@
                         <DockPanel>
                           <ToggleButton DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
                                         Width="34" ToolTip.Tip="Layer visibility" />
+                          <ToggleButton DockPanel.Dock="Left" Content="🔒" IsChecked="{Binding Locked}"
+                                        Width="30" FontSize="11"
+                                        ToolTip.Tip="Lock the layer — refuses paint, fill, transform, delete and cel edits. It still renders and still exports." />
+                          <ToggleButton DockPanel.Dock="Left" Content="▣" IsChecked="{Binding AlphaLocked}"
+                                        Width="30" FontSize="11"
+                                        ToolTip.Tip="Lock transparency — paint only lands where the layer already has content, so the silhouette cannot change" />
                           <Border DockPanel.Dock="Left" Margin="4,0,0,0" BorderBrush="#555" BorderThickness="1"
                                   CornerRadius="2" Width="46" Height="28" VerticalAlignment="Center"
                                   Background="#111" PointerPressed="OnLayerThumbPressed"

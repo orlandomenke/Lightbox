@@ -103,6 +103,36 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshDocumentStats();
     }
 
+    /// <summary>
+    /// Gate for anything that changes pixels or geometry. Hidden and locked
+    /// are both refusals, with different reasons, and a locked folder reports
+    /// itself rather than blaming the layer inside it. Every mutating path
+    /// goes through here — the old hand-written visibility checks covered
+    /// paint, fill and AI draw, which is how transform, cel edits and the
+    /// external writers ended up unguarded.
+    /// </summary>
+    private bool CanEdit(Layer? layer, string verb)
+    {
+        if (layer is null) return false;
+        if (!Scene.IsLayerVisible(layer))
+        {
+            AiStatus = $"Layer \u201c{layer.Name}\u201d is hidden \u2014 enable its visibility to {verb}.";
+            return false;
+        }
+        if (!Scene.IsLayerEditable(layer))
+        {
+            AiStatus = Scene.GroupOf(layer) is { Locked: true } folder
+                ? $"Folder \u201c{folder.Name}\u201d is locked \u2014 unlock it to {verb}."
+                : $"Layer \u201c{layer.Name}\u201d is locked \u2014 unlock it to {verb}.";
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>True when the active layer refuses edits — drives the blocked cursor.</summary>
+    public bool ActiveLayerBlocked =>
+        ActiveLayer is { } layer && (!Scene.IsLayerVisible(layer) || !Scene.IsLayerEditable(layer));
+
     /// <summary>Frame times measured on the render thread.</summary>
     public void RecordFrameTime(double milliseconds) => Performance.RecordFrame(milliseconds);
 
@@ -1044,11 +1074,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (ActiveTool != ToolId.Fill || IsPlaying) return;
         if (PaintTarget() is not { } target) return;
-        if (!Scene.IsLayerVisible(ActiveLayer))
-        {
-            AiStatus = $"Layer “{ActiveLayer.Name}” is hidden — enable its visibility to fill on it.";
-            return;
-        }
+        if (!CanEdit(ActiveLayer, "fill on it")) return;
 
         var scene = Scene;
         SKBitmap? owned = null;
@@ -1702,11 +1728,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (ActiveTool is not (ToolId.Brush or ToolId.Eraser)) return;
         if (IsPlaying || PaintTarget() is not { } target) return;
-        if (!Scene.IsLayerVisible(ActiveLayer))
-        {
-            AiStatus = $"Layer “{ActiveLayer.Name}” is hidden — enable its visibility to draw on it.";
-            return;
-        }
+        if (!CanEdit(ActiveLayer, "draw on it")) return;
         _stabilizer.Begin(x, y);
         _strokeBuilder.Begin(
             IsEraser ? ToolKind.Eraser : ToolKind.Brush,
@@ -1716,6 +1738,9 @@ public sealed partial class MainViewModel : ObservableObject
         // Live preview clips to the selection too (the registry already knows
         // the region; the document copy is added at commit).
         if (PrepareClipForSelection() is { } liveClip) _strokeBuilder.Current!.ClipId = liveClip.Id;
+        // Stamped onto the stroke, not read from the layer at render time, so
+        // unlocking the layer later cannot repaint what is already down.
+        _strokeBuilder.Current!.AlphaLocked = ActiveLayer.AlphaLocked;
 
         _liveComposite?.Dispose();
         _liveComposite = null;
@@ -1797,6 +1822,7 @@ public sealed partial class MainViewModel : ObservableObject
             Color = live.Color,
             Brush = live.Brush,
             ClipId = live.ClipId,
+            AlphaLocked = live.AlphaLocked,
             Points = points.Skip(from).ToList(),
         };
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
@@ -2058,6 +2084,7 @@ public sealed partial class MainViewModel : ObservableObject
     public void ClearCelAt(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
+        if (!CanEdit(layer, "clear a cel on it")) return;
         var (start, end) = OpRangeFor(cell);
         if (start == end && ExposureSheet.FrameAtExactIndex(layer, cell.Index) is null)
         {
@@ -2109,6 +2136,7 @@ public sealed partial class MainViewModel : ObservableObject
     public void CutCel(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
+        if (!CanEdit(layer, "cut a cel from it")) return;
         var (start, end) = OpRangeFor(cell);
         if (start == end && ExposureSheet.FrameAtExactIndex(layer, cell.Index) is null)
         {
@@ -2129,6 +2157,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
         if (LayerOfCell(cell) is not { } layer) return;
+        if (!CanEdit(layer, "paste onto it")) return;
 
         var frames = new List<Frame?>(clip.Frames.Count);
         foreach (var source in clip.Frames)
@@ -2207,6 +2236,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Start (or restart) a transform session over the current scope.</summary>
     public bool BeginTransform()
     {
+        if (!CanEdit(ActiveLayer, "transform it")) return false;
         var frames = CollectTransformFrames();
         Func<Stroke, bool>? filter = null;
         if (HasSelection)
@@ -2673,6 +2703,58 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Undoable, like visibility — locking is a document decision an artist
+    /// can change their mind about, not a view preference.
+    /// </summary>
+    internal void SetLayerLocked(Layer layer, bool locked)
+    {
+        if (layer.Locked == locked) return;
+        _editor.Perform(_ => layer.Locked = locked);
+        NotifyLayerGating();
+    }
+
+    internal void SetLayerAlphaLocked(Layer layer, bool locked)
+    {
+        if (layer.AlphaLocked == locked) return;
+        _editor.Perform(_ => layer.AlphaLocked = locked);
+        NotifyLayerGating();
+    }
+
+    /// <summary>Locking a folder locks every layer inside it.</summary>
+    internal void SetGroupLocked(LayerGroup group, bool locked)
+    {
+        if (group.Locked == locked) return;
+        _editor.Perform(_ => group.Locked = locked);
+        SyncLayerRows();
+        NotifyLayerGating();
+    }
+
+    /// <summary>Lock or unlock the active layer (keyboard and menu path).</summary>
+    [RelayCommand]
+    private void ToggleActiveLayerLocked()
+    {
+        if (ActiveLayer is { } layer) SetLayerLocked(layer, !layer.Locked);
+    }
+
+    [RelayCommand]
+    private void ToggleActiveLayerAlphaLocked()
+    {
+        if (ActiveLayer is { } layer) SetLayerAlphaLocked(layer, !layer.AlphaLocked);
+    }
+
+    private void NotifyLayerGating()
+    {
+        OnPropertyChanged(nameof(ActiveLayerBlocked));
+        OnPropertyChanged(nameof(ActiveLayerAlphaLocked));
+    }
+
+    /// <summary>A row needs this to dim itself without reaching into the scene.</summary>
+    internal bool IsLayerLockedByFolder(Layer layer) => Scene.GroupOf(layer) is { Locked: true };
+
+    /// <summary>Shown in the tool options so the restriction is never invisible.</summary>
+    public bool ActiveLayerAlphaLocked => ActiveLayer is { AlphaLocked: true };
+
+    /// <summary>
     /// Per-layer onion-skin participation. A display preference, so it is
     /// persisted (autosave) but deliberately not an undo step.
     /// </summary>
@@ -2732,6 +2814,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void DeleteLayer(Layer layer)
     {
+        if (!CanEdit(layer, "delete it")) return;
         var removedIndex = Scene.Layers.FindIndex(l => l.Id == layer.Id);
         if (removedIndex < 0) return;
         _editor.Perform(doc =>
@@ -3044,11 +3127,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (_artist is null || AiBusy || string.IsNullOrWhiteSpace(AiPrompt)) return;
         var target = PaintTarget();
         if (target is null) return;
-        if (!Scene.IsLayerVisible(ActiveLayer))
-        {
-            AiStatus = $"Layer “{ActiveLayer.Name}” is hidden — enable its visibility to draw on it.";
-            return;
-        }
+        if (!CanEdit(ActiveLayer, "draw on it")) return;
 
         var request = new DrawRequest(
             new SceneInfo(Scene.Width, Scene.Height, Scene.Fps),
@@ -3124,6 +3203,7 @@ public sealed partial class MainViewModel : ObservableObject
     public int InsertExternalInbetweens(string layerId, int aIndex, List<List<Stroke>> strokeFrames)
     {
         var layer = Scene.Layers.First(l => l.Id == layerId);
+        if (!CanEdit(layer, "insert inbetweens on it")) return 0;
         var frames = strokeFrames.Select(s => NewFrameFor(layer, s, FrameRole.Inbetween)).ToList();
         _editor.InsertInbetweens(layerId, aIndex, frames);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
@@ -3138,6 +3218,7 @@ public sealed partial class MainViewModel : ObservableObject
     public int AppendExternalStrokes(string layerId, int frameIndex, List<Stroke> strokes)
     {
         var layer = Scene.Layers.First(l => l.Id == layerId);
+        if (!CanEdit(layer, "draw on it")) return 0;
         var keyIndex = ExposureSheet.KeyIndexAtOrBefore(layer, frameIndex);
         if (keyIndex < 0) return 0;
         var frame = layer.Cels[keyIndex].Frame!;

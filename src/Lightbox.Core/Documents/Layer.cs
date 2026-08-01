@@ -54,6 +54,9 @@ public sealed class LayerGroup
 
     public bool Visible { get; set; } = true;
 
+    /// <summary>Locking a folder locks every layer inside it.</summary>
+    public bool Locked { get; set; }
+
     /// <summary>Header accent color in the docker (hex, e.g. "#4a6ea9").</summary>
     public string Color { get; set; } = "#4a6ea9";
 
@@ -70,6 +73,23 @@ public sealed class Layer
     public LayerKind Kind { get; set; } = LayerKind.Painted;
 
     public bool Visible { get; set; } = true;
+
+    /// <summary>
+    /// Blocks everything that changes pixels or geometry — paint, fill,
+    /// transform, delete, blank, cel edits, and external writes. Visibility,
+    /// opacity, blend mode and reordering stay available, so a locked layer
+    /// is still useful as reference. A locked layer still renders and still
+    /// exports: locking is about editing, not about hiding.
+    /// </summary>
+    public bool Locked { get; set; }
+
+    /// <summary>
+    /// Restrict painting to pixels that already have content, so colour can
+    /// be changed without altering the silhouette. Recorded per stroke at
+    /// paint time (see <see cref="Stroke.AlphaLocked"/>) rather than consulted
+    /// at render time, or toggling it would repaint existing art.
+    /// </summary>
+    public bool AlphaLocked { get; set; }
 
     /// <summary>Whether this layer participates in onion-skin ghosting.</summary>
     public bool OnionEnabled { get; set; } = true;

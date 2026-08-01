@@ -61,8 +61,30 @@ public static class BrushEngine
                 return;
         }
 
-        if (draft) StampPaintDraft(target, stroke, info);
-        else StampPaint(target, stroke, info);
+        if (draft) StampPaintDraft(target, stroke, info, targetPixels);
+        else StampPaint(target, stroke, info, targetPixels);
+    }
+
+    /// <summary>
+    /// Restrict a stroke to pixels the layer already had. The mask is the
+    /// target's own alpha as it stands right now, which is exactly right:
+    /// strokes are stamped in record order, so "now" is the content before
+    /// this stroke. That means nothing has to be stored with the stroke
+    /// beyond the flag, and a reload reconstructs the same mask for free.
+    /// </summary>
+    private static void ApplyAlphaLock(SKCanvas scratchCanvas, Stroke stroke, SKBitmap? targetPixels, SKRectI rect)
+    {
+        if (!stroke.AlphaLocked || targetPixels is null) return;
+        using var pixels = targetPixels.PeekPixels();
+        if (pixels is null) return;
+        using var existing = SKImage.FromPixels(pixels);
+        if (existing is null) return;
+
+        // Keep only where the layer already has paint. The scratch canvas is
+        // translated into document coordinates, so the source image lines up
+        // at the origin.
+        using var keep = new SKPaint { BlendMode = SKBlendMode.DstIn };
+        scratchCanvas.DrawImage(existing, 0, 0, keep);
     }
 
     /// <summary>An even-odd path from closed contours (fill regions, selections).</summary>
@@ -159,7 +181,7 @@ public static class BrushEngine
 
     // ---- paint (the default pipeline) ----------------------------------------
 
-    private static void StampPaint(SKCanvas target, Stroke stroke, SKImageInfo info)
+    private static void StampPaint(SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels)
     {
         // The scratch covers only what the stroke can reach — dabs, effects
         // and feathered clips all happen inside it. This is what keeps a
@@ -183,6 +205,7 @@ public static class BrushEngine
         if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, rect);
         if (brush.Granulation > 0) ApplyGranulation(canvas, brush, rect);
         ApplyClip(canvas, stroke, local, rect);
+        ApplyAlphaLock(canvas, stroke, targetPixels, rect);
 
         using var snapshot = scratch.Snapshot();
         using var paint = new SKPaint
@@ -310,7 +333,7 @@ public static class BrushEngine
         composite.Restore();
     }
 
-    private static void StampPaintDraft(SKCanvas target, Stroke stroke, SKImageInfo info)
+    private static void StampPaintDraft(SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels = null)
     {
         var brush = stroke.Brush;
         if (SegmentBounds(stroke, info, DabReach(brush)) is not { } rect) return;
@@ -322,6 +345,7 @@ public static class BrushEngine
         canvas.Clear(SKColors.Transparent);
         canvas.Translate(-rect.Left, -rect.Top);
         StampDabs(canvas, stroke);
+        ApplyAlphaLock(canvas, stroke, targetPixels, rect);
 
         using var snapshot = scratch.Snapshot();
         using var paint = new SKPaint

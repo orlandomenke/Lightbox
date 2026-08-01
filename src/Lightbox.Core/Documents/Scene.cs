@@ -48,4 +48,13 @@ public sealed class Scene
     /// <summary>Layer visibility including its folder's (what compositing must use).</summary>
     public bool IsLayerVisible(Layer layer) =>
         layer.Visible && GroupOf(layer) is not { Visible: false };
+
+    /// <summary>
+    /// Whether a layer accepts edits: not locked itself, and not inside a
+    /// locked folder. Every path that changes pixels or geometry must ask
+    /// this — the hidden-layer precedent only guarded three of them, which is
+    /// how transform, cel edits and the external writers went unguarded.
+    /// </summary>
+    public bool IsLayerEditable(Layer layer) =>
+        !layer.Locked && GroupOf(layer) is not { Locked: true };
 }
