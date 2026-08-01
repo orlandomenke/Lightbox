@@ -52,6 +52,20 @@ public sealed class Scene
     /// </summary>
     public Camera? Camera { get; set; }
 
+    /// <summary>
+    /// The sprite's origin in document coordinates, or null — and null is the
+    /// default, exactly like <see cref="Camera"/>.
+    ///
+    /// This is what a game engine positions the character by: feet centre for
+    /// a walk cycle, and the point every exported offset is measured from. It
+    /// is also what makes trimming safe — offsets are relative to the pivot,
+    /// so tightening the bounds can never shift the character.
+    ///
+    /// A shot document carries no pivot and a sprite document carries no
+    /// camera. Neither pays for the other.
+    /// </summary>
+    public Pivot? Pivot { get; set; }
+
     /// <summary>A layer's folder, or null.</summary>
     public LayerGroup? GroupOf(Layer layer) =>
         layer.GroupId is null ? null : LayerGroups.FirstOrDefault(g => g.Id == layer.GroupId);

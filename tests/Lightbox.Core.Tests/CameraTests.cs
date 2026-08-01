@@ -185,6 +185,43 @@ public class CameraTests
         Assert.Equal(before, DocJson.Serialize(doc));
     }
 
+    // ---- the pivot is optional the same way ------------------------------------
+
+    [Fact]
+    public void ANewSceneHasNoPivot_AndTheFileHasNoPivotKey()
+    {
+        var doc = DocumentFactory.CreateDoc(100, 100, 12);
+        Assert.Null(doc.Scene.Pivot);
+        Assert.DoesNotContain("pivot", DocJson.Serialize(doc), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void APivotRoundTrips_AndDefaultsToFeetCentre()
+    {
+        var doc = DocumentFactory.CreateDoc(200, 120, 12);
+        // Where a standing character is anchored: the bottom of the canvas,
+        // horizontally centred.
+        doc.Scene.Pivot = Pivot.BottomCentre(200, 120);
+
+        var reloaded = DocJson.Deserialize(DocJson.Serialize(doc));
+        var pivot = Assert.IsType<Pivot>(reloaded.Scene.Pivot);
+        Assert.Equal(100, pivot.X);
+        Assert.Equal(120, pivot.Y);
+    }
+
+    [Fact]
+    public void AShotDocumentCarriesNoPivotAndASpriteDocumentNoCamera()
+    {
+        // The two output targets, and neither pays for the other.
+        var shot = DocumentFactory.CreateDoc(1000, 600, 24);
+        shot.Scene.Camera = TwoKeys();
+        Assert.DoesNotContain("pivot", DocJson.Serialize(shot), StringComparison.OrdinalIgnoreCase);
+
+        var sprite = DocumentFactory.CreateDoc(64, 64, 12);
+        sprite.Scene.Pivot = Pivot.BottomCentre(64, 64);
+        Assert.DoesNotContain("camera", DocJson.Serialize(sprite), StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void ACameraRoundTripsThroughSaveAndLoad()
     {
