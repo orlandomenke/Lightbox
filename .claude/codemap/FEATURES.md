@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-451 tests, derived from the suite itself. Each line is a
+450 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -43,11 +43,6 @@ regression even when every test still compiles.
 - Model Not Found Suggests Pull — `:100`
 - Empty Or Unusable Frames Is Retryable Error — `:115`
 - Draw Parses Strokes — `:127`
-
-## AdversarySnapshotTests
-`tests/Lightbox.App.Tests/AdversarySnapshotTests.cs`
-
-- Snapshot Identity And Cow — `:8`
 
 ## AiIntegrationTests
 `tests/Lightbox.App.Tests/AiIntegrationTests.cs`

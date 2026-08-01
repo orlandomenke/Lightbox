@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `0faf8ee` · 145 files · 28436 lines · 451 tests.
+Generated from `177bddd` · 144 files · 28371 lines · 450 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
