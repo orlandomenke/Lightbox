@@ -18,6 +18,22 @@ Two first-class purposes, not one with a hobby attached:
 3. **AI assistance** serving both — inbetweening, reference generation, and
    an MCP surface so an agent can work the document directly.
 
+### Two output targets, and neither is the default
+
+Animation here lands in one of two places, and a feature that serves one must
+not tax the other:
+
+- **Assets** — sprite sheets and character cycles for a game. The canvas *is*
+  the output. There is no camera, frame bounds must stay consistent, and every
+  frame is a deliverable.
+- **Shots** — sequences for a film or show. The canvas is a world, a camera
+  frames part of it, and the deliverable is what the camera saw.
+
+The consequence is that shot-level machinery — camera, multiplane, parallax —
+is **opt-in and absent until asked for**. A document that never adds a camera
+must serialize, render and export exactly as it does today, and must never
+show camera UI or pay for one. "Optional" here means absent, not disabled.
+
 Most scope questions answer themselves once asked against these. Some worked
 examples, so the reasoning is reusable:
 
