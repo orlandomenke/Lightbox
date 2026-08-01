@@ -103,6 +103,28 @@ public sealed class CanvasControl : Control
     /// <summary>How long the render thread took on its last frames (milliseconds).</summary>
     public event Action<double>? FrameRendered;
 
+    /// <summary>
+    /// Pressure to draw the brush ring at, and whether the pen is down.
+    /// Raised on hover and while painting so the ring can show the thickness
+    /// the stroke is actually laying down rather than the brush's maximum.
+    /// </summary>
+    public event Action<double, bool>? CursorPressureChanged;
+
+    private double _reportedCursorPressure = -1;
+    private bool _reportedPenDown;
+
+    private void ReportCursorPressure(double pressure, bool penDown)
+    {
+        if (CursorPressureChanged is null) return;
+        // Quantised: a tablet reports pressure on every event and the ring
+        // only needs to move when it would visibly change.
+        var stepped = Math.Round(Math.Clamp(pressure, 0, 1) * 50) / 50.0;
+        if (Math.Abs(stepped - _reportedCursorPressure) < 0.001 && penDown == _reportedPenDown) return;
+        _reportedCursorPressure = stepped;
+        _reportedPenDown = penDown;
+        CursorPressureChanged.Invoke(stepped, penDown);
+    }
+
     private double _reportedScale = -1;
 
     private void ReportDisplayScale()
@@ -924,6 +946,7 @@ public sealed class CanvasControl : Control
             e.Pointer.Capture(this);
             _painting = true;
             ReportInputDiagnostic(e.Pointer.Type, pp.Properties.Pressure);
+            ReportCursorPressure(PressureOf(pp), penDown: true);
             PaintStarted?.Invoke(x, y, PressureOf(pp));
             e.Handled = true;
         }
@@ -1016,6 +1039,7 @@ public sealed class CanvasControl : Control
             {
                 var (x, y) = ViewToDoc(pp.Position);
                 samples.Add(new ViewModels.MainViewModel.PointerSample(x, y, PressureOf(pp)));
+                ReportCursorPressure(PressureOf(pp), penDown: true);
             }
             if (samples.Count > 0)
             {
@@ -1074,6 +1098,7 @@ public sealed class CanvasControl : Control
         if (!_painting) return;
         _painting = false;
         e.Pointer.Capture(null);
+        ReportCursorPressure(1, penDown: false); // back to showing the maximum on hover
         PaintEnded?.Invoke();
         e.Handled = true;
     }
@@ -1107,6 +1132,7 @@ public sealed class CanvasControl : Control
         _panning = false;
         if (!_painting) return;
         _painting = false;
+        ReportCursorPressure(1, penDown: false); // back to showing the maximum on hover
         PaintEnded?.Invoke();
     }
 

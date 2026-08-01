@@ -10,73 +10,6 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
-## Q1 · Smudge with no colour of its own
-
-**Blocks:** the smudge/blur brush family (M15d).
-
-A pure smudge pushes existing pixels around and deposits no paint. At the
-very start of a stroke there is nothing picked up yet.
-
-- **(a)** First dab picks up the colour under it, then drags — the stroke
-  begins by smearing what is already there. *(recommended: matches Krita and
-  Photoshop; predictable when starting on empty canvas — nothing happens)*
-- **(b)** First dab does nothing visible until the pointer moves.
-
-**Recommend (a).**
-
----
-
-## Q2 · What a locked layer blocks
-
-**Blocks:** layer lock (M15f).
-
-- **(a)** Locking blocks every operation that changes pixels or geometry
-  (paint, fill, transform, delete, blank) but still allows visibility,
-  opacity, blend mode and reordering. *(recommended: matches Photoshop's
-  "lock all"; keeps locking useful for reference layers)*
-- **(b)** Locking freezes the layer entirely, including its position in the
-  stack.
-
-**Recommend (a).** Also assumed unless you say otherwise: locking a **group**
-locks every layer inside it, and the brush cursor shows a blocked state over
-a locked layer rather than silently doing nothing.
-
----
-
-## Q3 · The default background layer
-
-**Blocks:** default background layer + checkerboard (M15g).
-
-When a new document is created with a paper colour rather than a transparent
-background:
-
-- **(a)** Add a locked `Background` layer filled with the paper colour, which
-  can be unlocked and painted like any other layer. *(recommended: what an
-  artist expects from Photoshop; makes "flatten onto white" obvious)*
-- **(b)** Keep the paper colour as a scene property only, and add the locked
-  layer solely for transparent documents.
-
-**Recommend (a).** Follow-up assumed: the checkerboard shows wherever the
-composed image is transparent, whether or not a background layer exists.
-
----
-
-## Q4 · Cursor ring under pen pressure
-
-**Blocks:** the true-thickness cursor (M16a).
-
-Mouse input now paints at 100%, so the ring matches the stroke exactly. With
-a pen, thickness varies during the stroke.
-
-- **(a)** Ring shows maximum size while hovering, then tracks live pressure
-  while the pen is down, with a setting to turn the live tracking off.
-  *(recommended: you asked for "optionally", this is the option)*
-- **(b)** Ring always shows maximum size; thickness is discovered by drawing.
-
-**Recommend (a), defaulting the live tracking ON.**
-
----
-
 ## Q5 · What "animate on 2s" does to existing drawings
 
 **Blocks:** range exposure editing (M16c).
@@ -154,5 +87,36 @@ groups by parameter.
 
 ## Answered
 
-_(nothing yet — answers move here with the date and the commit that
-implemented them)_
+### Q1 · Smudge with no colour of its own — **(a)**, 2026-08-01
+
+The first dab picks up the colour under it and deposits it, then drags from
+there. A tap therefore softens a colour boundary slightly and does nothing at
+all on flat colour, which is what an artist expects.
+
+Was implemented as (b) — the first dab sampled but returned early, so nothing
+appeared until the pointer moved.
+
+### Q2 · What a locked layer blocks — **(a)**, 2026-08-01
+
+Locking blocks everything that changes pixels or geometry: paint, fill,
+transform, delete, blank, cel clear/cut/paste, and external writes over
+IPC/MCP. Visibility, opacity, blend mode and reordering stay available, so a
+locked layer is still useful as reference.
+
+Follow-ups taken with it: locking a group locks every layer inside it, and
+the brush cursor shows a blocked state over a locked layer rather than
+silently doing nothing. A locked layer still renders and still exports —
+locking is about editing, not visibility.
+
+### Q3 · The default background layer — **(a)**, 2026-08-01
+
+A new document with a paper colour gets a locked `Background` layer filled
+with it, which can be unlocked and painted like any other layer.
+
+Follow-up taken with it: the checkerboard shows wherever the composed image
+is transparent, whether or not a background layer exists.
+
+### Q4 · Cursor ring under pen pressure — **(a)**, 2026-08-01
+
+The ring shows maximum size while hovering and tracks live pressure while the
+pen is down. Live tracking is a setting, defaulting **on**.

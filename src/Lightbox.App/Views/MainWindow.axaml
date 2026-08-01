@@ -383,6 +383,9 @@
                     </StackPanel>
 
                     <StackPanel x:Name="BrushPagePressure" Spacing="6" IsVisible="False">
+                      <CheckBox Content="Brush ring follows pen pressure" FontSize="12"
+                                IsChecked="{Binding CursorTracksPressure}"
+                                ToolTip.Tip="On, the ring shows the thickness the stroke is laying down right now. Off, it stays at the brush's full size as a stable target. Hovering always shows the maximum." />
                       <TextBlock Text="Pen pressure" FontWeight="SemiBold" FontSize="12" />
                       <TextBlock Text="{Binding PenDiagnostic}" FontSize="11" Foreground="#7fd0ff"
                                  TextWrapping="Wrap"
@@ -743,7 +746,7 @@
 
         <!-- Canvas + view-tool overlay (zoom/rotate/mirror/pan are view-only) -->
         <Panel x:Name="CanvasHost" Grid.Column="2">
-          <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushSize}" LazyRadius="{Binding LazyRadiusForCursor}" />
+          <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}" />
           <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
                   Background="#cc1f1f1f" CornerRadius="4" Padding="3">
             <StackPanel Orientation="Horizontal" Spacing="2">

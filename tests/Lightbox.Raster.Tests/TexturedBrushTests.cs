@@ -122,3 +122,94 @@ public class TexturedBrushTests
             $"watercolour commit on a 4K canvas took {median:0} ms — the pen-lift stall is back");
     }
 }
+
+/// <summary>
+/// Smudge carries canvas colour and never its own. The first dab is the
+/// interesting case: it has nothing carried yet, so what it does decides
+/// whether the brush feels alive on contact or dead until you move.
+/// </summary>
+public class SmudgeFirstDabTests
+{
+    private static SKBitmap TwoTone(int w = 200, int h = 120)
+    {
+        var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var bmp = new SKBitmap(info);
+        using var surface = SKSurface.Create(info)!;
+        // A hard vertical boundary at x = 100: black left, white right.
+        surface.Canvas.Clear(SKColors.White);
+        using (var p = new SKPaint { Color = SKColors.Black })
+        {
+            surface.Canvas.DrawRect(new SKRect(0, 0, 100, h), p);
+        }
+        surface.Canvas.Flush();
+        using var image = surface.Snapshot();
+        image.ReadPixels(info, bmp.GetPixels(), bmp.RowBytes, 0, 0);
+        return bmp;
+    }
+
+    private static Stroke Tap(double x, double y, double size) => new()
+    {
+        Tool = ToolKind.Brush,
+        Color = "#ff0000", // must never appear: smudge carries canvas colour only
+        Points = [new StrokePoint(x, y, 1)],
+        Brush = new BrushSettings
+        {
+            Kind = BrushKind.Smudge, Size = size, Hardness = 1, Flow = 1, Spacing = 0.1,
+        },
+    };
+
+    [Fact]
+    public void ASingleTapOnABoundary_SoftensIt_RatherThanDoingNothing()
+    {
+        using var canvas = TwoTone();
+        var before = canvas.GetPixel(100, 60);
+
+        var info = new SKImageInfo(canvas.Width, canvas.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var skCanvas = new SKCanvas(canvas);
+        BrushEngine.StampStroke(skCanvas, Tap(100, 60, 40), info, canvas);
+        skCanvas.Flush();
+
+        var after = canvas.GetPixel(100, 60);
+        Assert.True(after != before,
+            "a tap straddling a hard boundary should deposit the averaged pickup, not nothing");
+        // The averaged pickup of black and white is a grey, so the black side
+        // must lighten rather than take on the brush's red.
+        Assert.Equal(after.Red, after.Green);
+        Assert.Equal(after.Green, after.Blue);
+    }
+
+    [Fact]
+    public void ATapOnFlatColour_ChangesNothing()
+    {
+        using var canvas = TwoTone();
+        var before = canvas.GetPixel(40, 60); // deep in the black field
+
+        var info = new SKImageInfo(canvas.Width, canvas.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var skCanvas = new SKCanvas(canvas);
+        BrushEngine.StampStroke(skCanvas, Tap(40, 60, 30), info, canvas);
+        skCanvas.Flush();
+
+        Assert.Equal(before, canvas.GetPixel(40, 60));
+    }
+
+    [Fact]
+    public void SmudgeNeverDepositsTheBrushColour()
+    {
+        using var canvas = TwoTone();
+        var stroke = Tap(100, 60, 40);
+        stroke.Points = [new StrokePoint(60, 60, 1), new StrokePoint(140, 60, 1)];
+
+        var info = new SKImageInfo(canvas.Width, canvas.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var skCanvas = new SKCanvas(canvas);
+        BrushEngine.StampStroke(skCanvas, stroke, info, canvas);
+        skCanvas.Flush();
+
+        for (var x = 20; x < 180; x++)
+        for (var y = 30; y < 90; y += 7)
+        {
+            var px = canvas.GetPixel(x, y);
+            Assert.True(px.Red == px.Green && px.Green == px.Blue,
+                $"smudge introduced colour at ({x},{y}): {px} — it must only ever carry what was already there");
+        }
+    }
+}

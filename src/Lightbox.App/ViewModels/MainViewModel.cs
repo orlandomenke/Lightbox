@@ -106,6 +106,47 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Frame times measured on the render thread.</summary>
     public void RecordFrameTime(double milliseconds) => Performance.RecordFrame(milliseconds);
 
+    // ---- brush cursor ----------------------------------------------------------
+
+    private double _cursorPressure = 1;
+
+    /// <summary>
+    /// Track live pen pressure in the brush ring. On means the ring shrinks
+    /// and grows with the stroke it is about to lay down; off pins it to the
+    /// brush's maximum, which some artists prefer as a stable target.
+    /// </summary>
+    [ObservableProperty]
+    private bool _cursorTracksPressure = true;
+
+    partial void OnCursorTracksPressureChanged(bool value) => OnPropertyChanged(nameof(BrushCursorDiameter));
+
+    /// <summary>
+    /// Diameter the ring should draw, in document pixels. Taken from
+    /// <see cref="BrushEngine.RadiusAt"/> — the same call the engine makes for
+    /// each dab — so the ring cannot drift away from the stroke. A mouse
+    /// reports pressure 1, so it always shows the true full thickness.
+    /// </summary>
+    public double BrushCursorDiameter
+    {
+        get
+        {
+            var pressure = CursorTracksPressure ? _cursorPressure : 1;
+            return Math.Max(1, BrushEngine.RadiusAt(CurrentToolSettings, pressure) * 2);
+        }
+    }
+
+    /// <summary>Canvas reports what the pen is doing; the ring follows it.</summary>
+    public void SetCursorPressure(double pressure, bool penDown)
+    {
+        // Hovering shows the maximum: a pen off the tablet has no pressure to
+        // report, and a ring that collapsed to nothing on hover would be
+        // useless for aiming.
+        var next = penDown ? Math.Clamp(pressure, 0, 1) : 1;
+        if (Math.Abs(next - _cursorPressure) < 0.0001) return;
+        _cursorPressure = next;
+        OnPropertyChanged(nameof(BrushCursorDiameter));
+    }
+
     /// <summary>Fired with a fresh snapshot whenever the canvas must repaint.</summary>
     public event Action<RenderSnapshot>? SnapshotChanged;
 
@@ -727,6 +768,7 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(BrushRotationJitter), nameof(BrushPressureEnabled),
         nameof(BrushPressureSizeGamma), nameof(BrushPressureFlowGamma), nameof(BrushPressureHardnessGamma),
         nameof(BrushPressureAffectsSize), nameof(BrushPressureAffectsFlow), nameof(BrushPressureAffectsHardness),
+        nameof(BrushCursorDiameter),
         nameof(BrushMedium), nameof(MediumIsSimulated), nameof(MediumHasBody),
         nameof(MediumWetness), nameof(MediumViscosity), nameof(MediumDrag), nameof(MediumFlowSteps),
         nameof(MediumAbsorbency), nameof(MediumEdgePull),

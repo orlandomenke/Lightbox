@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-332 tests, derived from the suite itself. Each line is a
+368 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -53,6 +53,15 @@ regression even when every test still compiles.
 - Ai Inbetween Without Second Key Asks For One — `:110`
 - Ai Draw Appends Strokes Undoable — `:120`
 - Ai Draw Empty Prompt Does Nothing — `:143`
+
+## BrushCursorTests
+`tests/Lightbox.App.Tests/BrushCursorTests.cs`
+
+- With AMouse The Ring Is The Full Brush Width — `:16`
+- Hovering Shows The Maximum Even After ALight Stroke — `:25`
+- The Ring Matches The Radius The Engine Will Stamp — `:39`
+- Turning Tracking Off Pins The Ring To Full Size — `:60`
+- When Pressure Is Disabled For The Brush The Ring Ignores It — `:74`
 
 ## BrushPresetTests
 `tests/Lightbox.App.Tests/BrushToolTests.cs`
@@ -628,6 +637,38 @@ regression even when every test still compiles.
 - Flood Fill Full Canvas Region Meets Budget — `:108`
 - Flood Fill Inside Region With Hole Meets Budget — `:124`
 
+## PigmentModelTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/PigmentModelTests.cs`
+
+- Over Zero Thickness Returns Backdrop Bit For Bit — `:34`
+- Over Zero Thickness Preserves Alpha — `:51`
+- Over Fully Hiding Converges To Mass Tone Whatever Is Underneath — `:60`
+- Over Fully Hiding Is Independent Of Backdrop To The Bit — `:76`
+- Over No Scattering Is Beer Lambert — `:84`
+- Over No Absorption Is Pure Scattering — `:108`
+- Over No Pigment At All Leaves The Backdrop Alone — `:128`
+- Over Denormal Thickness Does Not Produce Garbage — `:137`
+- Over Extreme Inputs Stay In Gamut — `:150`
+- Yellow Glaze Over Blue Is Greener Than Every Possible Alpha Blend — `:180`
+- Yellow Glaze Over Blue Is More Saturated Than Alpha Blending — `:224`
+- Yellow Glaze Over Blue Darkens Rather Than Averaging — `:244`
+- Yellow Glaze Over Pure Blue Goes Black And Says So Honestly — `:254`
+- Over Thicker Glaze Moves Monotonically Away From The Backdrop — `:274`
+- Coverage Rises With Hiding And With Thickness — `:288`
+- From Color Hiding Dial Closes On The Chosen Colour Monotonically — `:306`
+- From Color White With No Hiding Is Invisible — `:328`
+- Mix At The Ends Reproduces The Inputs Exactly — `:339`
+- Mix Is Continuous — `:354`
+- Mix Is Clamped And Symmetric In Its Endpoints — `:397`
+- Mix Yellow And Blue Makes Green — `:407`
+- Over Is Deterministic — `:427`
+- From Coefficients And From Color Agree When They Describe The Same Film — `:450`
+- Srgb Conversion Round Trips Every Single Level — `:460`
+- Srgb Conversion Is The Real Transfer Function Not AGamma Guess — `:467`
+- Srgb Conversion Is Monotonic — `:482`
+- Over Works In Linear Light Not On Encoded Values — `:502`
+- Over Costs Under AMicrosecond Per Pixel — `:516`
+
 ## PressureTests
 `tests/Lightbox.Raster.Tests/PressureTests.cs`
 
@@ -653,6 +694,13 @@ regression even when every test still compiles.
 
 - Encode Decode Round Trips Pixels — `:158`
 - Materialize Composites Baseline Plus Strokes — `:172`
+
+## SmudgeFirstDabTests
+`tests/Lightbox.Raster.Tests/TexturedBrushTests.cs`
+
+- ASingle Tap On ABoundary Softens It Rather Than Doing Nothing — `:162`
+- ATap On Flat Colour Changes Nothing — `:182`
+- Smudge Never Deposits The Brush Colour — `:196`
 
 ## TexturedBrushTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/TexturedBrushTests.cs`

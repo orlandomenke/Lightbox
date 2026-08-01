@@ -41,6 +41,7 @@ public partial class MainWindow : Window
         // actually visible, and how long presenting a frame took.
         Canvas.DisplayScaleChanged += scale => _vm.SetDisplayScale(scale);
         Canvas.FrameRendered += ms => _vm.RecordFrameTime(ms);
+        Canvas.CursorPressureChanged += (pressure, penDown) => _vm.SetCursorPressure(pressure, penDown);
 
         // Transform session: the VM owns the frames, the canvas owns the gizmo.
         _vm.TransformBegun += (minX, minY, maxX, maxY) =>

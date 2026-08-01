@@ -547,9 +547,12 @@ public static class BrushEngine
             var sample = SampleAverage(pixels, pos, Math.Max(1f, radius / 2));
             if (!hasColor)
             {
+                // The first dab picks up what is under it and lays it straight
+                // back down, so a tap softens a boundary and does nothing at
+                // all on flat colour. Returning early here instead would make
+                // the brush appear dead until the pointer moved.
                 carried = sample;
                 hasColor = true;
-                continue;
             }
 
             if (carried.Alpha > 0)
@@ -663,7 +666,13 @@ public static class BrushEngine
 
     // ---- shared ---------------------------------------------------------------
 
-    private static double RadiusAt(BrushSettings brush, double pressure)
+    /// <summary>
+    /// Dab radius the engine will actually use. Public because the brush
+    /// cursor has to draw the same number — a ring that disagrees with the
+    /// stroke is worse than no ring, and duplicating the curve here is how
+    /// that disagreement starts.
+    /// </summary>
+    public static double RadiusAt(BrushSettings brush, double pressure)
     {
         if (!brush.PressureEnabled) pressure = 1;
         var gamma = brush.PressureSizeGamma <= 0 ? 0.0 : brush.PressureSizeGamma;
