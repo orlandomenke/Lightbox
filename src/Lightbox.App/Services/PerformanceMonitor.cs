@@ -20,9 +20,23 @@ public sealed partial class PerformanceMonitor : ObservableObject
     private int _count;
     private int _next;
 
+    private readonly double[] _frames = new double[30];
+    private int _frameCount;
+    private int _frameNext;
+
     /// <summary>Median milliseconds of the recent canvas repaints.</summary>
     [ObservableProperty]
     private double _publishMs;
+
+    /// <summary>
+    /// Median milliseconds the render thread spends putting a frame on screen.
+    /// Measured separately because it is not the same work: compositing runs
+    /// once per edit, this runs once per displayed frame, and on a large
+    /// document it is usually the larger of the two. Reporting headroom from
+    /// compositing alone said "smooth" while the canvas ran at 34 fps.
+    /// </summary>
+    [ObservableProperty]
+    private double _frameMs;
 
     /// <summary>
     /// 100 = repaints are effectively free, 0 = each one blows well past a
@@ -51,11 +65,24 @@ public sealed partial class PerformanceMonitor : ObservableObject
         Recompute();
     }
 
+    /// <summary>One completed frame on the render thread, in milliseconds.</summary>
+    public void RecordFrame(double milliseconds)
+    {
+        _frames[_frameNext] = milliseconds;
+        _frameNext = (_frameNext + 1) % _frames.Length;
+        if (_frameCount < _frames.Length) _frameCount++;
+        Recompute();
+    }
+
+    /// <summary>Forget the timings — call when the document changes size.</summary>
     public void Reset()
     {
         _count = 0;
         _next = 0;
+        _frameCount = 0;
+        _frameNext = 0;
         PublishMs = 0;
+        FrameMs = 0;
         HeadroomPercent = 100;
         HealthLabel = "Smooth";
         Advice = "";
@@ -82,19 +109,30 @@ public sealed partial class PerformanceMonitor : ObservableObject
     private int _drawingCount = 1;
     private long _bytes;
 
+    private static double Median(double[] buffer, int count)
+    {
+        if (count == 0) return 0;
+        var window = new double[count];
+        Array.Copy(buffer, window, count);
+        Array.Sort(window);
+        return window[count / 2];
+    }
+
     private void Recompute()
     {
-        if (_count == 0) return;
-        var window = new double[_count];
-        Array.Copy(_samples, window, _count);
-        Array.Sort(window);
-        var median = window[_count / 2];
-        PublishMs = median;
+        if (_count == 0 && _frameCount == 0) return;
+        PublishMs = Median(_samples, _count);
+        FrameMs = Median(_frames, _frameCount);
 
-        // A repaint at a quarter of the frame budget still leaves plenty of
-        // room for input, stamping and the UI, so that counts as full marks;
-        // from there it falls off to zero at four frames.
-        var ratio = median / FrameBudgetMs;
+        // Whichever stage is slower is what the artist feels: compositing runs
+        // once per edit, presenting runs once per frame, and either can be the
+        // one that drops the stroke behind the pen.
+        var worst = Math.Max(PublishMs, FrameMs);
+
+        // A stage at a quarter of the frame budget still leaves plenty of room
+        // for input, stamping and the UI, so that counts as full marks; from
+        // there it falls off to zero at four frames.
+        var ratio = worst / FrameBudgetMs;
         var score = ratio <= 0.25 ? 1.0
             : ratio >= 4 ? 0.0
             : 1.0 - (ratio - 0.25) / (4 - 0.25);
@@ -113,6 +151,14 @@ public sealed partial class PerformanceMonitor : ObservableObject
     private string AdviceForDocument()
     {
         var megapixels = _width * (double)_height / 1_000_000;
+        // Presenting the canvas costs more than composing it: the document is
+        // being rescaled to the window on every frame, which no amount of
+        // editing efficiency can offset.
+        if (FrameMs > PublishMs * 2 && FrameMs > FrameBudgetMs)
+        {
+            return $"Displaying a {megapixels:0.#} MP canvas costs {FrameMs:0} ms a frame — " +
+                   "lower Canvas quality while drawing, or zoom in to work on part of it.";
+        }
         if (_layerCount > 6)
         {
             return $"{_layerCount} layers at {megapixels:0.#} MP — merging finished layers frees the most.";

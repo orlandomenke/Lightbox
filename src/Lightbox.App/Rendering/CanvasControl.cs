@@ -92,6 +92,32 @@ public sealed class CanvasControl : Control
     /// <summary>Raised whenever zoom/rotation/mirror/pan change (for status UI).</summary>
     public event Action? ViewChanged;
 
+    /// <summary>
+    /// Document pixels per screen pixel that the canvas can actually show,
+    /// so compositing need not produce more detail than is displayable.
+    /// A 4K document in a 1600 px window is presented at about 0.42 —
+    /// rescaling that every frame costs ~29 ms, and it is pure waste.
+    /// </summary>
+    public event Action<double>? DisplayScaleChanged;
+
+    /// <summary>How long the render thread took on its last frames (milliseconds).</summary>
+    public event Action<double>? FrameRendered;
+
+    private double _reportedScale = -1;
+
+    private void ReportDisplayScale()
+    {
+        var snapshot = _snapshot;
+        if (snapshot is null || Bounds.Width <= 0) return;
+        // Quantised to eighths: a continuous zoom would otherwise reallocate
+        // the compose buffers on every wheel notch.
+        var raw = Math.Clamp(FitScale() * _zoom, 0.125, 1.0);
+        var stepped = Math.Clamp(Math.Ceiling(raw * 8) / 8.0, 0.125, 1.0);
+        if (Math.Abs(stepped - _reportedScale) < 0.001) return;
+        _reportedScale = stepped;
+        DisplayScaleChanged?.Invoke(stepped);
+    }
+
     /// <summary>Raised (on the UI thread) when an input handler fails, so the error is visible.</summary>
     public event Action<string>? CanvasError;
 
@@ -557,6 +583,7 @@ public sealed class CanvasControl : Control
             Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss.fff} UpdateSnapshot");
         var old = _snapshot;
         _snapshot = snapshot;
+        if (old is null) ReportDisplayScale(); // first frame: the scale is now knowable
         if (old is not null) _retired.Enqueue(old);
         // Free images the render thread is provably done with: renders are
         // sequential, so once a newer snapshot has been drawn, no earlier one
@@ -660,7 +687,7 @@ public sealed class CanvasControl : Control
 
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
-            NoteRendered));
+            NoteRendered, ReportFrameTime));
     }
 
     // ---- view <-> document transform ---------------------------------------
@@ -732,7 +759,14 @@ public sealed class CanvasControl : Control
     private void ViewUpdated()
     {
         ViewChanged?.Invoke();
+        ReportDisplayScale();
         InvalidateVisual();
+    }
+
+    protected override void OnSizeChanged(SizeChangedEventArgs e)
+    {
+        base.OnSizeChanged(e);
+        ReportDisplayScale();
     }
 
     /// <summary>Zoom by a factor keeping the given view point fixed.</summary>
@@ -1133,10 +1167,20 @@ public sealed class CanvasControl : Control
         while (Interlocked.CompareExchange(ref _lastRenderedSeq, seq, current) != current);
     }
 
+    /// <summary>Frame times arrive from the render thread; marshal to the UI thread to publish them.</summary>
+    private void ReportFrameTime(double milliseconds)
+    {
+        if (FrameRendered is null) return;
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () => FrameRendered?.Invoke(milliseconds),
+            Avalonia.Threading.DispatcherPriority.Background);
+    }
+
     private sealed class DrawOp(
         Rect bounds, RenderSnapshot snapshot, ViewState view, BrushCursor? cursor,
         SKPath? ants, SKPath? antsOpen, float antsPhase, LazyGizmo? lazy = null,
-        TxGizmoData? txGizmo = null, Action<long>? onRendered = null) : ICustomDrawOperation
+        TxGizmoData? txGizmo = null, Action<long>? onRendered = null,
+        Action<double>? onFrameTime = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -1154,10 +1198,14 @@ public sealed class CanvasControl : Control
         {
             // The compositor dies with the first unhandled exception here and
             // the whole window freezes — never let that happen.
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
             try
             {
                 RenderCore(context);
                 onRendered?.Invoke(snapshot.Seq);
+                onFrameTime?.Invoke(
+                    (System.Diagnostics.Stopwatch.GetTimestamp() - started)
+                    * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
             }
             catch (Exception ex)
             {

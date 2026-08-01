@@ -9,14 +9,16 @@
   <Grid ColumnDefinitions="150,1,*">
 
     <!-- Categories (left) -->
-    <ListBox x:Name="CategoryList" Grid.Column="0" SelectedIndex="0" Background="#1c1c1c">
+    <ListBox x:Name="CategoryList" Grid.Column="0" SelectedIndex="0" Background="#1c1c1c"
+             SelectionChanged="OnCategoryChanged">
       <ListBoxItem Content="Shortcuts" />
+      <ListBoxItem Content="Performance" />
     </ListBox>
 
     <Border Grid.Column="1" Background="#141414" />
 
     <!-- Content (center): shortcuts page -->
-    <DockPanel Grid.Column="2" Margin="10">
+    <DockPanel x:Name="ShortcutsPage" Grid.Column="2" Margin="10">
 
       <TextBox x:Name="SearchBox" DockPanel.Dock="Top"
                PlaceholderText="Search shortcuts by name or keys…"
@@ -61,5 +63,53 @@
         </ItemsControl>
       </ScrollViewer>
     </DockPanel>
+
+    <!-- Content (center): performance page -->
+    <ScrollViewer x:Name="PerformancePage" Grid.Column="2" Margin="14" IsVisible="False"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16">
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Canvas quality while drawing" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Only changes what is drawn on screen. The document, exports and thumbnails are always full resolution. On a large canvas, presenting the image is usually costlier than editing it." />
+          <ComboBox x:Name="QualityBox" Width="260" SelectionChanged="OnQualityChanged" />
+          <TextBlock x:Name="QualityHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Undo history" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Brush strokes are stored as cheap deltas, but structural edits keep a copy of the whole document, so deep history costs memory on a long scene." />
+          <DockPanel>
+            <NumericUpDown DockPanel.Dock="Right" x:Name="UndoDepthBox" Width="120"
+                           Minimum="5" Maximum="500" Increment="8" FormatString="0"
+                           ValueChanged="OnUndoDepthChanged" />
+            <TextBlock Text="Steps kept" VerticalAlignment="Center" />
+          </DockPanel>
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Frame cache" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Rendered frames kept in memory so scrubbing and onion skin stay instant. Raising this helps long scenes; lowering it frees memory on a large canvas." />
+          <DockPanel>
+            <NumericUpDown DockPanel.Dock="Right" x:Name="CacheBudgetBox" Width="120"
+                           Minimum="64" Maximum="4096" Increment="64" FormatString="0"
+                           ValueChanged="OnCacheBudgetChanged" />
+            <TextBlock Text="Megabytes" VerticalAlignment="Center" />
+          </DockPanel>
+        </StackPanel>
+
+        <Border Background="#20262c" CornerRadius="4" Padding="10">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Measured now" FontWeight="SemiBold" FontSize="12" />
+            <TextBlock x:Name="MeasuredText" FontSize="11" Opacity="0.85" TextWrapping="Wrap" />
+            <TextBlock FontSize="11" Opacity="0.6" TextWrapping="Wrap"
+                       Text="Rendering runs on the CPU through Skia. There is no GPU switch to throw: the cost that matters is how many pixels are pushed per frame, which is what the quality setting controls." />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
   </Grid>
 </Window>

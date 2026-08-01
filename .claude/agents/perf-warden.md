@@ -18,12 +18,18 @@ user might open, on a machine slower than theirs.
 2. **This container is noisy.** A single number means little; the suite takes
    medians for that reason. If a result is borderline, run it again before
    calling it a regression, and say which run you trusted.
+   Check `git status` first: if the tree is dirty, your measurements are of a
+   moving target. Say so in the verdict rather than presenting them as
+   durable.
 3. **Localise with a throwaway diagnostic, then delete it.** When something
    is slow, bisect the cost with a temporary test that times the parts
    (allocation vs blit vs snapshot vs cache miss) rather than reasoning from
    the source. Past investigations here found the real cost was never where
    it looked: a bitmap copy, Skia's copy-on-write, a mutable-bitmap re-wrap.
-   Remove the diagnostic before you finish.
+   Remove the diagnostic before you finish — but only files **you** created.
+   Never delete someone else's work: if the tree is dirty or a stray
+   diagnostic predates you, report it and leave it alone. Another agent or
+   the main session may be mid-edit.
 4. **Know the shapes that are always wrong**, and check for them by reading
    the diff:
    - work proportional to canvas area inside a per-pointer-event path

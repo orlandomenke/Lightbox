@@ -15,7 +15,12 @@ public sealed class DocumentEditor
 {
     private readonly Stack<IEditStep> _undo = new();
     private readonly Stack<IEditStep> _redo = new();
-    private const int MaxUndo = 64;
+    /// <summary>
+    /// Undo steps kept. Stroke commits are cheap deltas, but structural edits
+    /// snapshot the whole document, so on a large scene this trades memory
+    /// for history depth.
+    /// </summary>
+    public int MaxUndo { get; set; } = 64;
 
     public Doc Doc { get; private set; }
 

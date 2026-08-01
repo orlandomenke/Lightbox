@@ -16,7 +16,7 @@ public sealed class FrameBitmapCache : IDisposable
     /// nothing at 960×540 (100 MB) and 3 GB at 4K. Small documents therefore
     /// keep a deep cache while large ones stay within a sane footprint.
     /// </summary>
-    private const long ByteBudget = 512L * 1024 * 1024;
+    public static long ByteBudget { get; set; } = 512L * 1024 * 1024;
 
     /// <summary>Always keep at least this many, so onion skin never thrashes.</summary>
     private const int MinFrames = 6;

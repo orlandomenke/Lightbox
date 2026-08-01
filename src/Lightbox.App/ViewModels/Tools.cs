@@ -12,6 +12,23 @@ public enum ToolId
     Picker,
 }
 
+/// <summary>
+/// How much detail the canvas composites while you work. The document is
+/// always stored and exported at full resolution — this only changes what is
+/// drawn on screen, which on a large canvas is the dominant cost per frame.
+/// </summary>
+public enum CanvasQuality
+{
+    /// <summary>Match the screen: full detail when zoomed in, less when zoomed out.</summary>
+    Display,
+
+    /// <summary>Always composite at document resolution. Sharpest, slowest.</summary>
+    Full,
+
+    /// <summary>Half of what the screen shows. Softer while drawing, fastest.</summary>
+    Half,
+}
+
 /// <summary>What a transform session (Ctrl+T) operates on.</summary>
 public enum TransformScope
 {

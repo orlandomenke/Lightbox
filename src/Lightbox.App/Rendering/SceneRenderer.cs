@@ -54,15 +54,23 @@ public static class SceneRenderer
         SKSurface surface,
         IReadOnlyList<RenderPass> passes,
         SKColor? background = null,
-        SKRectI? clip = null)
+        SKRectI? clip = null,
+        double scale = 1.0)
     {
         var canvas = surface.Canvas;
         canvas.Save();
+        // The clip arrives in document coordinates; the surface may be smaller
+        // than the document when the canvas cannot display full detail.
         if (clip is { } r)
         {
-            canvas.ClipRect(SKRect.Create(r.Left, r.Top, r.Width, r.Height));
+            canvas.ClipRect(SKRect.Create(
+                (float)Math.Floor(r.Left * scale),
+                (float)Math.Floor(r.Top * scale),
+                (float)Math.Ceiling(r.Width * scale) + 1,
+                (float)Math.Ceiling(r.Height * scale) + 1));
         }
         canvas.Clear(background ?? SKColors.White);
+        if (scale != 1.0) canvas.Scale((float)scale);
 
         foreach (var pass in passes)
         {
@@ -130,12 +138,20 @@ public static class SceneRenderer
             using var view = SKImage.FromPixels(pixels);
             if (view is not null)
             {
-                canvas.DrawImage(view, 0, 0, paint);
+                canvas.DrawImage(view, 0, 0, Downscale, paint);
                 return;
             }
         }
         canvas.DrawBitmap(bitmap, 0, 0, paint);
     }
+
+    /// <summary>
+    /// Sampling for the layer blit. Linear is the honest choice when the
+    /// compose surface is smaller than the document: nearest aliases thin
+    /// line art badly, and mipmaps cost an order of magnitude more to build
+    /// than the blit itself saves.
+    /// </summary>
+    private static readonly SKSamplingOptions Downscale = new(SKFilterMode.Linear);
 
     public static readonly SKColor OnionPrevTint = new(0xd0, 0x40, 0x40);
     public static readonly SKColor OnionNextTint = new(0x30, 0x60, 0xc0);

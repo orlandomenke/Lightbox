@@ -37,6 +37,10 @@ public partial class MainWindow : Window
         _vm.LazyBrushCleared += () => Canvas.SetLazyAnchor(null, null);
         Canvas.BrushResizeRequested += size => _vm.BrushSize = size;
         Canvas.InputDiagnostic += text => _vm.PenDiagnostic = text;
+        // The canvas is the only place that knows how much of the document is
+        // actually visible, and how long presenting a frame took.
+        Canvas.DisplayScaleChanged += scale => _vm.SetDisplayScale(scale);
+        Canvas.FrameRendered += ms => _vm.RecordFrameTime(ms);
 
         // Transform session: the VM owns the frames, the canvas owns the gizmo.
         _vm.TransformBegun += (minX, minY, maxX, maxY) =>
@@ -889,7 +893,7 @@ public partial class MainWindow : Window
     }
 
     private async void OnConfigureClicked(object? sender, RoutedEventArgs e) =>
-        await new ConfigureWindow(_shortcuts).ShowDialog(this);
+        await new ConfigureWindow(_shortcuts, _vm).ShowDialog(this);
 
     // ---- transform session (window side) --------------------------------------
 

@@ -40,17 +40,88 @@ public partial class ConfigureWindow : Window
     private ShortcutRow? _capturing;
     private (ShortcutRow Row, KeyGesture Gesture, ShortcutDefinition Conflict)? _pending;
 
+    private readonly ViewModels.MainViewModel? _vm;
+
     public ConfigureWindow() : this(new ShortcutMap())
     {
     }
 
-    public ConfigureWindow(ShortcutMap map)
+    public ConfigureWindow(ShortcutMap map, ViewModels.MainViewModel? vm = null)
     {
         _map = map;
+        _vm = vm;
         InitializeComponent();
         _allRows = map.Definitions.Select(d => new ShortcutRow(d)).ToList();
         RebuildGroups();
         AddHandler(KeyDownEvent, OnCaptureKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        LoadPerformancePage();
+    }
+
+    // ---- performance page -----------------------------------------------------
+
+    private bool _loadingPerformance;
+
+    private void LoadPerformancePage()
+    {
+        if (_vm is null) return;
+        _loadingPerformance = true;
+        QualityBox.ItemsSource = _vm.CanvasQualityChoices;
+        QualityBox.SelectedItem = _vm.CanvasQuality;
+        UndoDepthBox.Value = _vm.UndoDepth;
+        CacheBudgetBox.Value = _vm.FrameCacheBudgetMb;
+        _loadingPerformance = false;
+        RefreshMeasured();
+    }
+
+    private void RefreshMeasured()
+    {
+        if (_vm is null) return;
+        var perf = _vm.Performance;
+        MeasuredText.Text =
+            $"{_vm.DocumentSizeLabel} · {_vm.MemoryLabel}\n" +
+            $"Compositing an edit: {perf.PublishMs:0.0} ms · " +
+            $"Presenting a frame: {perf.FrameMs:0.0} ms · " +
+            $"Headroom {perf.HeadroomPercent}% ({perf.HealthLabel})";
+        QualityHint.Text = _vm.CanvasQuality switch
+        {
+            ViewModels.CanvasQuality.Full =>
+                "Sharpest at every zoom, and the most expensive — the whole document is rescaled for each frame.",
+            ViewModels.CanvasQuality.Half =>
+                "Softer while you work; the drawing itself is unaffected. Best on a large canvas or a slower machine.",
+            _ => "Matches the screen: full detail when zoomed in, less when zoomed out. The right default.",
+        };
+    }
+
+    private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (ShortcutsPage is null || PerformancePage is null) return;
+        var performance = CategoryList.SelectedIndex == 1;
+        ShortcutsPage.IsVisible = !performance;
+        PerformancePage.IsVisible = performance;
+        if (performance) RefreshMeasured();
+    }
+
+    private void OnQualityChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingPerformance || _vm is null) return;
+        if (QualityBox.SelectedItem is ViewModels.CanvasQuality quality)
+        {
+            _vm.CanvasQuality = quality;
+            RefreshMeasured();
+        }
+    }
+
+    private void OnUndoDepthChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_loadingPerformance || _vm is null || e.NewValue is not { } value) return;
+        _vm.UndoDepth = (int)value;
+    }
+
+    private void OnCacheBudgetChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_loadingPerformance || _vm is null || e.NewValue is not { } value) return;
+        _vm.FrameCacheBudgetMb = (int)value;
+        RefreshMeasured();
     }
 
     private void RebuildGroups()

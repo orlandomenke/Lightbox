@@ -30,7 +30,8 @@ that assert internal call order are a liability.
 **O3 · Keep painting interactive.** Pointer-to-pixels must stay far inside a
 60 Hz frame on the largest supported canvas (4K). Costs that scale with
 canvas area per event are defects; costs that scale with the region a stroke
-touched are fine.
+touched are fine. This includes the render thread: presenting a frame is a
+per-frame cost and is usually the larger of the two on a big document.
 
 **O4 · Keep memory bounded.** Caches are sized in bytes, never in item count —
 96 frames is 100 MB at 960×540 and 3 GB at 4K.
@@ -55,7 +56,8 @@ shared runner does not produce false alarms.
 | Stroke + undo, 4K | 1500 ms | ~520 ms |
 | Live effect-brush segment, 960×540 | 12 ms | — |
 | Flood fill, 960×540 | 250 ms | — |
-| Frame cache ceiling | 512 MB | 601 MB peak incl. buffers |
+| Frame cache ceiling | 512 MB (cache only) | 601 MB total, incl. ~90 MB of compose buffers |
+| Presenting a frame, 4K zoomed to fit | 20 ms | ~11 ms at display resolution (~29 ms before) |
 
 Raising a budget requires a measurement in the commit message explaining what
 got slower and why that is acceptable.

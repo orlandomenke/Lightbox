@@ -75,6 +75,37 @@ public sealed partial class MainViewModel : ObservableObject
     private SKRectI? _pendingDirty;
     private bool _dirtyIsWholeCanvas = true;
 
+    /// <summary>What the canvas says it can display: document pixels per screen pixel.</summary>
+    private double _displayScale = 1.0;
+
+    /// <summary>
+    /// Resolution to composite at, combining what the canvas can show with the
+    /// user's quality preference. Capped at 1: compositing beyond document
+    /// resolution would invent detail that is not in the record.
+    /// </summary>
+    private double ComposeScale => CanvasQuality switch
+    {
+        CanvasQuality.Full => 1.0,
+        CanvasQuality.Half => Math.Clamp(_displayScale * 0.5, 0.125, 1.0),
+        _ => Math.Clamp(_displayScale, 0.125, 1.0),
+    };
+
+    /// <summary>Called by the canvas when zoom or window size changes what it can show.</summary>
+    public void SetDisplayScale(double scale)
+    {
+        if (!double.IsFinite(scale) || scale <= 0) return;
+        if (Math.Abs(scale - _displayScale) < 0.001) return;
+        _displayScale = scale;
+        InvalidateWholeCanvas();
+        _composeRing.InvalidateAll();
+        Performance.Reset(); // old timings were taken at a different resolution
+        PublishSnapshot();
+        RefreshDocumentStats();
+    }
+
+    /// <summary>Frame times measured on the render thread.</summary>
+    public void RecordFrameTime(double milliseconds) => Performance.RecordFrame(milliseconds);
+
     /// <summary>Fired with a fresh snapshot whenever the canvas must repaint.</summary>
     public event Action<RenderSnapshot>? SnapshotChanged;
 
@@ -1496,10 +1527,12 @@ public sealed partial class MainViewModel : ObservableObject
 
         _liveComposite?.Dispose();
         _liveComposite = null;
-        if (CurrentToolSettings.Kind == BrushKind.Blur)
+        if (CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
         {
-            // Blur samples the pixels it sits on, so it needs a real copy of
-            // the layer to draw into.
+            // Blur and smudge read the pixels they sit on, so they need a real
+            // copy of the layer to work into. Without this a smudge preview
+            // stamps plain dabs of the foreground colour for the whole drag
+            // and only snaps to the real smear on pen-up.
             _liveComposite = _cache.Get(target, Scene.Width, Scene.Height).Copy();
         }
         else
@@ -3158,7 +3191,16 @@ public sealed partial class MainViewModel : ObservableObject
                 bmp, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode), overlay));
         }
 
-        var info = new SKImageInfo(scene.Width, scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        // Compose at the resolution the canvas can actually show. A 4K document
+        // in a laptop window is displayed at roughly 40%, and handing the
+        // renderer full detail makes it rescale 8.3 M pixels on every frame —
+        // ~29 ms, which is the whole stutter budget before anything is drawn.
+        var renderScale = ComposeScale;
+        var info = new SKImageInfo(
+            Math.Max(1, (int)Math.Ceiling(scene.Width * renderScale)),
+            Math.Max(1, (int)Math.Ceiling(scene.Height * renderScale)),
+            SKColorType.Rgba8888,
+            SKAlphaType.Premul);
         var dirty = _dirtyIsWholeCanvas ? null : _pendingDirty;
         _pendingDirty = null;
         _dirtyIsWholeCanvas = false;
@@ -3169,7 +3211,7 @@ public sealed partial class MainViewModel : ObservableObject
         var image = _composeRing.Publish(info, dirty, (surface, clip) =>
         {
             usedClip = clip;
-            SceneRenderer.ComposeInto(surface, passes, background, clip);
+            SceneRenderer.ComposeInto(surface, passes, background, clip, renderScale);
         });
         sw.Stop();
         if (Environment.GetEnvironmentVariable("LIGHTBOX_PERFTRACE") is not null)
@@ -3214,6 +3256,53 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _dirtyIsWholeCanvas = true;
         _pendingDirty = null;
+    }
+
+    // ---- performance preferences -----------------------------------------------
+
+    /// <summary>
+    /// How much detail to composite. Only affects what is shown while you
+    /// work — the record, exports and thumbnails are always full resolution.
+    /// </summary>
+    [ObservableProperty]
+    private CanvasQuality _canvasQuality = CanvasQuality.Display;
+
+    public IReadOnlyList<CanvasQuality> CanvasQualityChoices { get; } = Enum.GetValues<CanvasQuality>();
+
+    partial void OnCanvasQualityChanged(CanvasQuality value)
+    {
+        InvalidateWholeCanvas();
+        _composeRing.InvalidateAll();
+        Performance.Reset();
+        PublishSnapshot();
+        RefreshDocumentStats();
+    }
+
+    /// <summary>Undo steps kept. Deltas are cheap; snapshots hold a whole document each.</summary>
+    public int UndoDepth
+    {
+        get => _editor.MaxUndo;
+        set
+        {
+            var clamped = Math.Clamp(value, 5, 500);
+            if (_editor.MaxUndo == clamped) return;
+            foreach (var tab in Tabs) tab.Editor.MaxUndo = clamped;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Ceiling for cached frame bitmaps, in megabytes.</summary>
+    public int FrameCacheBudgetMb
+    {
+        get => (int)(FrameBitmapCache.ByteBudget / (1024 * 1024));
+        set
+        {
+            var clamped = Math.Clamp(value, 64, 4096);
+            if (FrameCacheBudgetMb == clamped) return;
+            FrameBitmapCache.ByteBudget = clamped * 1024L * 1024L;
+            OnPropertyChanged();
+            RefreshDocumentStats();
+        }
     }
 
     // ---- info strip ------------------------------------------------------------
