@@ -29,12 +29,14 @@ public sealed record RenderPass(
 /// </summary>
 public static class SceneRenderer
 {
-    public static SKImage Compose(int width, int height, IReadOnlyList<RenderPass> passes, SKColor? background = null)
+    public static SKImage Compose(
+        int width, int height, IReadOnlyList<RenderPass> passes,
+        SKColor? background = null, SKMatrix? transform = null)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var surface = SKSurface.Create(info)
             ?? throw new InvalidOperationException("Could not create compose surface.");
-        ComposeInto(surface, passes, background);
+        ComposeInto(surface, passes, background, clip: null, scale: 1.0, transform);
         return surface.Snapshot();
     }
 
