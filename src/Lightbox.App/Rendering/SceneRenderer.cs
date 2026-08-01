@@ -11,7 +11,25 @@ namespace Lightbox.App.Rendering;
 /// An eraser stroke removes only THIS layer's pixels, so the pair is
 /// composited in isolation.
 /// </summary>
-public sealed record StrokeOverlay(SKBitmap Scratch, double Opacity, bool Erases);
+/// <param name="AlphaLocked">
+/// Mask the stroke to pixels the layer already had. The mask is the layer
+/// bitmap itself, which does not change during a stroke — the dabs live in
+/// the scratch — so applying it here gives exactly what the commit will.
+/// </param>
+/// <param name="Clip">
+/// The selection the stroke was started under, or null. Also constant for the
+/// stroke's lifetime.
+/// </param>
+public sealed record StrokeOverlay(
+    SKBitmap Scratch,
+    double Opacity,
+    bool Erases,
+    bool AlphaLocked = false,
+    ClipRegion? Clip = null)
+{
+    /// <summary>Whether this overlay needs an isolated layer to be masked in.</summary>
+    public bool NeedsMask => AlphaLocked || Clip is not null;
+}
 
 /// <summary>One compositing pass: a layer bitmap with optional tint, opacity and blend mode.</summary>
 public sealed record RenderPass(
@@ -119,7 +137,7 @@ public static class SceneRenderer
             if (!needsIsolation)
             {
                 DrawLayer(canvas, pass.Bitmap, paint);
-                DrawLayer(canvas, overlay.Scratch, strokePaint);
+                DrawStroke(canvas, pass.Bitmap, overlay, strokePaint);
                 continue;
             }
 
@@ -127,11 +145,94 @@ public static class SceneRenderer
             // region stays affordable even on a huge canvas.
             canvas.SaveLayer(paint);
             DrawLayer(canvas, pass.Bitmap, null);
-            DrawLayer(canvas, overlay.Scratch, strokePaint);
+            DrawStroke(canvas, pass.Bitmap, overlay, strokePaint);
             canvas.Restore();
         }
         canvas.Restore();
         canvas.Flush();
+    }
+
+    /// <summary>
+    /// Draw the in-progress stroke over its layer, masked the way the commit
+    /// will mask it.
+    ///
+    /// Alpha lock and the selection clip used to be applied only when the
+    /// stroke was committed, so a locked layer showed the stroke running
+    /// across the whole canvas until the pen lifted and then snapped to the
+    /// masked shape. An artist cannot judge a mark they are not being shown —
+    /// what you draw over and how it lands has to be visible while drawing,
+    /// which is how every other painting tool behaves.
+    ///
+    /// Both masks are constant for the stroke's lifetime — the layer's own
+    /// alpha (the dabs are in the scratch, not the layer) and the selection
+    /// recorded at stroke start — so applying them at composite time costs one
+    /// bounded offscreen and produces exactly the committed result.
+    /// </summary>
+    private static void DrawStroke(SKCanvas canvas, SKBitmap layer, StrokeOverlay overlay, SKPaint strokePaint)
+    {
+        if (!overlay.NeedsMask)
+        {
+            DrawLayer(canvas, overlay.Scratch, strokePaint);
+            return;
+        }
+
+        // Isolate the stroke so the masks cut the stroke and not the layer
+        // under it. SaveLayer allocates the current clip only, so during a
+        // stroke this is a dab-sized offscreen, not a canvas-sized one.
+        canvas.SaveLayer(strokePaint);
+
+        SKPath? selection = null;
+        if (overlay.Clip is { } region)
+        {
+            selection = Lightbox.Raster.BrushEngine.PathFromContours(region.Contours);
+            // A hard selection is a clip: inside this fresh layer, "not drawn"
+            // already means "transparent", so clipping IS erasing the outside,
+            // and it is exact and free. A DstIn of the path would not be —
+            // DstIn only touches pixels the path covers, leaving everything
+            // outside it untouched, which is the opposite of a selection.
+            if (region.Feather <= 0)
+            {
+                canvas.Save();
+                canvas.ClipPath(selection, antialias: true);
+            }
+        }
+
+        DrawLayer(canvas, overlay.Scratch, null);
+
+        if (overlay.AlphaLocked)
+        {
+            using var keep = new SKPaint { BlendMode = SKBlendMode.DstIn };
+            DrawLayer(canvas, layer, keep);
+        }
+
+        if (selection is not null)
+        {
+            if (overlay.Clip!.Feather <= 0)
+            {
+                canvas.Restore();
+            }
+            else
+            {
+                // Feathered: erase OUTSIDE the selection, softly. An inverse
+                // fill drawn DstOut removes 1-coverage; a Gaussian blur is
+                // normalised and linear, so 1 - blur(1 - c) == blur(c), the
+                // same mask the commit builds by blurring the fill directly.
+                selection.FillType = SKPathFillType.InverseEvenOdd;
+                var sigma = (float)(overlay.Clip.Feather / 2);
+                using var blur = SKImageFilter.CreateBlur(sigma, sigma);
+                using var carve = new SKPaint
+                {
+                    IsAntialias = true,
+                    Color = SKColors.White,
+                    BlendMode = SKBlendMode.DstOut,
+                    ImageFilter = blur,
+                };
+                canvas.DrawPath(selection, carve);
+            }
+            selection.Dispose();
+        }
+
+        canvas.Restore();
     }
 
     /// <summary>

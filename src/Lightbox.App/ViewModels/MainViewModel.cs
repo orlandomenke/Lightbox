@@ -1959,6 +1959,42 @@ public sealed partial class MainViewModel : ObservableObject
     private int _liveStampedCount;
     private bool _snapshotQueued;
 
+    // ---- live post-processing (medium, wet edge, texture, granulation) --------
+    //
+    // These are STROKE-GLOBAL: the wet edge is derived from the whole
+    // silhouette and the fluid lattice flows across the whole wet area, so
+    // running them per segment would rim and pool each segment separately —
+    // visibly wrong, and not what commits. They have to be recomputed over the
+    // whole stroke so far, which at 45–143 ms on a 4K canvas cannot happen on
+    // every pointer event.
+    //
+    // So: raw dabs go into _liveScratch immediately (2 ms, the pen never
+    // lags), and a full render of the stroke-so-far lands in _livePostScratch
+    // as often as its own measured cost allows. The compositor shows the
+    // rendered one when it exists. The artist sees the true mark converging a
+    // fraction behind the tip rather than seeing flat dabs until pen-up, which
+    // is how wet media behave in every tool that has them.
+    private SKBitmap? _livePostScratch;
+    private SKRectI? _livePostUsed;
+    /// <summary>Cost of the last pass, milliseconds — reported by the performance panel.</summary>
+    private double _livePostCostMs;
+    private int _livePostStampedCount = -1;
+    private bool _livePostQueued;
+
+    /// <summary>How many times the live post-process has rendered. Tests only.</summary>
+    internal int LivePostPasses { get; private set; }
+
+    /// <summary>
+    /// Effects that cannot be applied per segment because they read the whole
+    /// stroke. Texture and granulation are pointwise and could be incremental,
+    /// but they are cheap enough to come along for the ride.
+    /// </summary>
+    private static bool NeedsLivePostProcess(BrushSettings brush) =>
+        brush.Medium.Kind != MediumKind.None
+        || brush.WetEdge > 0
+        || brush.TextureSurface is not null
+        || brush.Granulation > 0;
+
     public void BeginStroke(double x, double y, double pressure) =>
         BeginStroke(x, y, pressure, eraseWithCurrentBrush: false);
 
@@ -2007,6 +2043,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
             ClearLiveScratch();
         }
+        ResetLivePostProcess();
         _liveStampedCount = 0;
         FlushLivePreview();
         PublishSnapshot();
@@ -2089,6 +2126,115 @@ public sealed partial class MainViewModel : ObservableObject
         if (segment is { } rect) MarkDirtyRegion(rect);
         else InvalidateWholeCanvas();
         _liveStampedCount = points.Count;
+
+        if (_liveComposite is null && NeedsLivePostProcess(live.Brush)) RequestLivePostProcess();
+    }
+
+    /// <summary>
+    /// Ask for a re-render of the stroke so far.
+    ///
+    /// Scheduling is left to the dispatcher rather than to a wall-clock
+    /// throttle of our own. Background priority yields to pointer input and to
+    /// the Default-priority snapshot, so during a fast drag the pass runs in
+    /// whatever gaps exist and during a pause it runs immediately — which is
+    /// exactly the cadence wanted, and the dispatcher already knows how busy
+    /// the thread is. A cost-based throttle was tried first and was worse in
+    /// the way that matters: it blocked the pass that would have settled the
+    /// preview, so the mark froze part-drawn until the pen lifted.
+    ///
+    /// Only one pass is ever outstanding, and a pass with nothing new to draw
+    /// returns immediately.
+    /// </summary>
+    private void RequestLivePostProcess()
+    {
+        if (_livePostQueued) return;
+        _livePostQueued = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            RenderLivePostProcess, Avalonia.Threading.DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// The whole stroke so far, rendered exactly as it will commit — minus the
+    /// stroke opacity and the masks, which the compositor still applies once.
+    /// </summary>
+    private void RenderLivePostProcess()
+    {
+        _livePostQueued = false;
+        if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive) return;
+        if (!NeedsLivePostProcess(live.Brush)) return;
+        if (_livePostStampedCount == live.Points.Count) return; // nothing new since last pass
+
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        if (_livePostScratch is null || _livePostScratch.Width != info.Width || _livePostScratch.Height != info.Height)
+        {
+            _livePostScratch?.Dispose();
+            _livePostScratch = new SKBitmap(info);
+            _livePostUsed = null;
+        }
+
+        // The same stroke, minus the opacity the compositor applies — the
+        // masks stay on the overlay so they cannot be baked in twice.
+        var whole = new Stroke
+        {
+            Tool = live.Tool,
+            Color = live.Color,
+            Brush = live.Brush,
+            Points = [.. live.Points],
+        };
+        var bounds = BrushEngine.CommitBounds(whole, info);
+
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        using (var canvas = new SKCanvas(_livePostScratch))
+        {
+            ClearRegion(canvas, _livePostUsed);
+            // targetPixels is the committed layer: the medium re-wets what is
+            // already there, exactly as it will on commit.
+            var beneath = PaintTarget() is { } frame ? _cache.Get(frame, Scene.Width, Scene.Height) : null;
+            BrushEngine.StampStroke(canvas, whole, info, beneath);
+            canvas.Flush();
+        }
+        _livePostCostMs = (System.Diagnostics.Stopwatch.GetTimestamp() - started)
+                          * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        _livePostStampedCount = live.Points.Count;
+        _livePostUsed = bounds;
+        LivePostPasses++;
+
+        if (bounds is { } rect) MarkDirtyRegion(rect);
+        else InvalidateWholeCanvas();
+        PublishSnapshot();
+
+        // Points arrived while this pass was rendering: go round again so the
+        // preview settles on the whole stroke rather than stopping wherever
+        // the pen happened to be when the pass started.
+        if (_strokeBuilder.Current is { } now && now.Points.Count != _livePostStampedCount)
+        {
+            RequestLivePostProcess();
+        }
+    }
+
+    private static void ClearRegion(SKCanvas canvas, SKRectI? region)
+    {
+        if (region is not { } used)
+        {
+            canvas.Clear(SKColors.Transparent);
+            return;
+        }
+        canvas.Save();
+        canvas.ClipRect(SKRect.Create(used.Left, used.Top, used.Width, used.Height));
+        canvas.Clear(SKColors.Transparent);
+        canvas.Restore();
+    }
+
+    private void ResetLivePostProcess()
+    {
+        if (_livePostScratch is not null && _livePostUsed is not null)
+        {
+            using var canvas = new SKCanvas(_livePostScratch);
+            ClearRegion(canvas, _livePostUsed);
+        }
+        _livePostUsed = null;
+        _livePostCostMs = 0;
+        _livePostStampedCount = -1;
     }
 
     private static SKRectI UnionRect(SKRectI a, SKRectI b)
@@ -2121,6 +2267,7 @@ public sealed partial class MainViewModel : ObservableObject
         _liveComposite?.Dispose();
         _liveComposite = null;
         _liveStampedCount = 0;
+        ResetLivePostProcess();
         if (stroke is null) return;
         var target = PaintTarget();
         if (target is null) return;
@@ -3775,7 +3922,21 @@ public sealed partial class MainViewModel : ObservableObject
             if (_liveScratch is not null && _strokeBuilder.IsActive
                 && _strokeBuilder.Current is { } live && layer.Id == ActiveLayer.Id)
             {
-                overlay = new StrokeOverlay(_liveScratch, live.Brush.Opacity, live.Tool == ToolKind.Eraser);
+                // Prefer the fully rendered stroke when a pass has completed —
+                // medium, wet edge and texture included — and fall back to raw
+                // dabs only for the first few events of a heavy brush, before
+                // the first pass lands.
+                var source = _livePostStampedCount > 0 && _livePostScratch is not null
+                    ? _livePostScratch
+                    : _liveScratch;
+                // Everything the commit will mask the stroke with, applied
+                // now: an artist cannot judge a mark they are not being shown.
+                overlay = new StrokeOverlay(
+                    source,
+                    live.Brush.Opacity,
+                    live.Tool == ToolKind.Eraser,
+                    live.AlphaLocked,
+                    live.ClipId is null ? null : ClipRegionRegistry.Resolve(live.ClipId));
             }
 
             passes.Add(new RenderPass(

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-521 tests, derived from the suite itself. Each line is a
+531 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -338,6 +338,24 @@ regression even when every test still compiles.
 - ALocked Folder Locks Its Members And Says So — `:107`
 - Locking Is Undoable — `:128`
 - Alpha Lock Is Recorded On The Stroke Not Read Back From The Layer — `:140`
+
+## LiveMaskPixelTests
+`tests/Lightbox.App.Tests/LiveMaskPixelTests.cs`
+
+- Alpha Locked The Live Stroke Is Already Masked — `:81`
+- Alpha Locked Live And Committed Agree Everywhere — `:104`
+- Not Alpha Locked The Stroke Still Covers The Whole Canvas — `:121`
+- Selected The Live Stroke Is Already Clipped — `:135`
+- Alpha Locked And Selected Both Masks Apply Live — `:161`
+
+## LiveMediumPixelTests
+`tests/Lightbox.App.Tests/LiveMediumPixelTests.cs`
+
+- AMedium Stroke Looks The Same Live As Committed — `:121`
+- AWet Edge Is Visible Before The Pen Lifts — `:136`
+- Paper Texture Is Visible Before The Pen Lifts — `:151`
+- AMedium Stroke Is Not Just Flat Dabs — `:167`
+- APlain Brush Does Not Pay For The Post Process — `:191`
 
 ## LivePreviewPixelTests
 `tests/Lightbox.App.Tests/LivePreviewPixelTests.cs`

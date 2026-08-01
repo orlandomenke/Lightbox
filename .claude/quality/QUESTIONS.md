@@ -34,6 +34,34 @@ whole composite breaks that: the result depends on the layers underneath.
 
 ---
 
+## Q9 · Who owns brush settings
+
+**Blocks:** nothing yet. Surfaced by live-preview work, which tripped over it.
+
+Brush settings live on the view model and are persisted to one shared store
+(`MainViewModel.BrushStorePath`); every new view model loads from it. So they
+are global to the process, not to a document. Two consequences already
+visible: switching a brush to watercolour in one test hands watercolour to
+every view model constructed afterwards, and two open documents cannot have
+different brushes.
+
+- **(a)** Global, as now — one brush state for the app, persisted between
+  sessions. Matches Photoshop and Krita: the brush is a property of the tool,
+  not the file. Tests must isolate the store, which is what
+  `BrushStateIsolated` now does.
+- **(b)** Per document. Each open document remembers the brush it was last
+  painted with, saved in the file. Nicer for switching between a line-art
+  document and a painting one, and it makes a document reproduce exactly on
+  another machine — but it is not what artists expect from the tool bar.
+- **(c)** Global by default, overridable per document.
+
+**Recommend (a)** — it is the convention, and the only real cost is test
+discipline, which is now in place. Worth asking because (b) has a genuine
+pull for a character-based workflow, where a character's brush set is part of
+the character.
+
+---
+
 ## Answered
 
 ### Q5 · What "animate on 2s" does — **both, as separate commands**, 2026-08-01
