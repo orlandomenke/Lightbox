@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-538 tests, derived from the suite itself. Each line is a
+564 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -622,6 +622,20 @@ regression even when every test still compiles.
 - Centroid Averages Positions — `:72`
 - Smooth Preserves Endpoints And Count — `:80`
 
+## GradientTests
+`tests/Lightbox.Core.Tests/GradientTests.cs`
+
+- The Ends Are The Stops Themselves — `:24`
+- Interpolation Is In Linear Light Not Srgb — `:32`
+- AMulti Stop Ramp Hits Each Stop Exactly — `:43`
+- Coincident Stops Are AHard Edge — `:60`
+- Stops Out Of Order Still Ramp In Position Order — `:79`
+- Spread Decides What Happens Off The Ends — `:101`
+- Alpha Interpolates As Coverage Not As Light — `:109`
+- An Empty Gradient Is Transparent Rather Than ACrash — `:126`
+- Gradients Round Trip Through The Document — `:133`
+- ANew Document Has No Gradients — `:152`
+
 ## EraserResurrectionTests
 `tests/Lightbox.Core.Tests/Inbetween/CleanerTests.cs`
 
@@ -662,6 +676,19 @@ regression even when every test still compiles.
 - Length Mismatch Inflates Cost — `:42`
 - Unmatched Pair With Null — `:52`
 - Empty Frames Produce Only One Sided Pairs — `:60`
+
+## PaletteTests
+`tests/Lightbox.Core.Tests/PaletteTests.cs`
+
+- Swatches Get Stable Identities — `:27`
+- APalette Round Trips Through The Document — `:36`
+- ANew Document Has No Palettes — `:54`
+- Gpl Round Trips Names And Colours — `:60`
+- Gpl Writes The Header Other Tools Look For — `:75`
+- Gpl Reading Is Forgiving Of Real Files — `:90`
+- AMulti Word Swatch Name Survives — `:100`
+- Garbage Lines Are Skipped Rather Than Throwing — `:107`
+- Without AColumns Header AReasonable Grid Is Chosen — `:115`
 
 ## MediumSettingsTests
 `tests/Lightbox.Core.Tests/Serialization/MediumSettingsTests.cs`
@@ -838,6 +865,17 @@ regression even when every test still compiles.
 - Thin Wash Pins Instead Of Creeping Forever — `:375`
 - Mis Sized Buffers Are Rejected — `:410`
 - Four Hundred Square Twelve Steps Stays Within Budget — `:431`
+
+## LivePaletteTests
+`tests/Lightbox.Raster.Tests/LivePaletteTests.cs`
+
+- Recolouring ASwatch Recolours The Stroke — `:42`
+- One Swatch Drives Every Frame And Every Layer — `:56`
+- Vector And Raster Frames Resolve The Same Swatch — `:71`
+- AStroke With No Swatch Keeps Its Own Colour — `:95`
+- AMissing Swatch Falls Back To The Colour The Artist Last Saw — `:109`
+- AFill Resolves The Swatch Too — `:119`
+- Re Registering APalette Replaces Rather Than Ignores — `:142`
 
 ## MediumRenderingTests
 `tests/Lightbox.Raster.Tests/MediumRenderingTests.cs`
