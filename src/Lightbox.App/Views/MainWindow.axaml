@@ -1662,7 +1662,10 @@
                                   <Separator />
                                   <MenuItem Header="Extend exposure (+1 hold)" Click="OnExtendExposure" />
                                   <MenuItem Header="Reduce exposure (−1 hold)" Click="OnReduceExposure" />
-                                  <MenuItem Header="Clear cel" Click="OnClearCel" />
+                                  <MenuItem Header="Clear cel" Click="OnClearCel"
+                                            ToolTip.Tip="Blank the drawing, keep its slot on the timeline" />
+                                  <MenuItem Header="Delete cel" Click="OnDeleteCel"
+                                            ToolTip.Tip="Remove the cel and pull the rest of this layer's row back" />
                                   <Separator />
                                   <MenuItem Header="Copy cel" Click="OnCopyCel" />
                                   <MenuItem Header="Cut cel" Click="OnCutCel" />

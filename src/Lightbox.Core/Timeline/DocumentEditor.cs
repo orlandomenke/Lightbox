@@ -152,7 +152,15 @@ public sealed class DocumentEditor
 
     // ---- Timeline operations ----------------------------------------------
 
-    /// <summary>Insert a new keyed (empty) frame on every layer after index i.</summary>
+    /// <summary>
+    /// Insert a new keyed (empty) frame on every layer after index i — except
+    /// the paper, which <b>holds</b>.
+    ///
+    /// A blank key on a background layer shadows the paper, so adding a second
+    /// frame used to leave it transparent: an empty drawing where the artist
+    /// expects the same sheet of paper they started on. Paper is not animated;
+    /// exposing it as a hold is what a paper layer means.
+    /// </summary>
     public void AddFrameAfter(int i)
     {
         Perform(doc =>
@@ -161,7 +169,7 @@ public sealed class DocumentEditor
             foreach (var layer in doc.Scene.Layers)
             {
                 PadCels(layer, doc.Scene.FrameCount);
-                layer.Cels.Insert(at, new Cel { Frame = NewEmptyFrame(layer) });
+                layer.Cels.Insert(at, new Cel { Frame = layer.IsBackground ? null : NewEmptyFrame(layer) });
             }
             doc.Scene.FrameCount++;
         });
@@ -435,6 +443,37 @@ public sealed class DocumentEditor
             {
                 target.Cels[i].Frame = null;
             }
+        });
+    }
+
+    /// <summary>
+    /// Remove cels from one layer and pull the rest back — the exposure
+    /// sheet's ripple delete. One undo step.
+    ///
+    /// Distinct from both of its neighbours, and the distinction is the whole
+    /// feature: <see cref="ClearCels"/> blanks a cel and keeps the timing;
+    /// <see cref="DeleteFrame"/> removes a frame from <em>every</em> layer and
+    /// shortens the scene. This shortens one layer's row and pads the tail with
+    /// holds, so the timeline keeps its length while everything after the hole
+    /// moves up — which is what "delete this drawing" means to an animator.
+    /// </summary>
+    public void DeleteCels(string layerId, int from, int to)
+    {
+        var layer = FindLayer(layerId);
+        if (layer is null) return;
+        (from, to) = (Math.Max(0, Math.Min(from, to)), Math.Max(from, to));
+        if (from >= layer.Cels.Count) return;
+
+        Perform(doc =>
+        {
+            var target = doc.Scene.Layers.First(l => l.Id == layerId);
+            var last = Math.Min(to, target.Cels.Count - 1);
+            var count = last - from + 1;
+            if (count <= 0) return;
+            target.Cels.RemoveRange(from, count);
+            // Pad back to the scene's length: the other layers did not change,
+            // and a short row would desynchronise every cel after it.
+            while (target.Cels.Count < doc.Scene.FrameCount) target.Cels.Add(new Cel());
         });
     }
 

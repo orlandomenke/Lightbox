@@ -59,12 +59,26 @@ class Bug:
     missing: list[str] = field(default_factory=list)
 
     @property
+    def manual(self) -> bool:
+        """`evidence: manual` — a bug no headless test can reach.
+
+        Synthetic pen and hover input through Xvfb is unreliable here (see
+        CLAUDE.md), so a few UI bugs genuinely cannot be closed by a test. They
+        say so instead of naming an anchor that would never resolve, and they
+        never auto-close — a human ticks them by editing the mark, which is the
+        one case where a claim is the best evidence available.
+        """
+        return self.evidence == ["manual"]
+
+    @property
     def status(self) -> str:
         """A bug is fixed only when EVERY anchor resolves.
 
         Stricter than the roadmap's partial `[~]` on purpose: a half-guarded
         fix is an open bug that has stopped looking like one.
         """
+        if self.manual:
+            return self.mark  # human-owned; sync must not move it either way
         if not self.evidence:
             return " "
         return "x" if not self.missing else " "
@@ -96,6 +110,8 @@ def parse() -> tuple[list[str], list[Bug]]:
 def resolve(bugs: list[Bug]) -> None:
     index = Index()
     for bug in bugs:
+        if bug.manual:
+            continue
         for anchor in bug.evidence:
             (bug.resolved if index.has(anchor) else bug.missing).append(anchor)
 
@@ -134,6 +150,10 @@ def cmd_check() -> int:
     print(f"{len(bugs)} bugs — {len(open_bugs)} open "
           f"(P1 {counts['P1']}, P2 {counts['P2']}, P3 {counts['P3']}, P4 {counts['P4']})")
 
+    manual = [b for b in bugs if b.manual and b.status != "x"]
+    for bug in manual:
+        print(f"  MANUAL       {bug.id}  {bug.title}")
+        print("               no headless test can reach it — verify by hand and tick it")
     for bug in unverifiable:
         print(f"  UNVERIFIABLE {bug.id}  {bug.title}")
         print("               no evidence: — name the regression test that closes it")

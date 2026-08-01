@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-603 tests, derived from the suite itself. Each line is a
+611 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -557,6 +557,18 @@ regression even when every test still compiles.
 - The Sidecar Is Aseprite Shaped — `:219`
 - An Opaque Background Layer Does Not Defeat Trimming — `:247`
 - An Empty Document Still Produces ASheet — `:260`
+
+## TimelineBugTests
+`tests/Lightbox.App.Tests/TimelineBugTests.cs`
+
+- Onion Ghosts Show Over The Paper — `:38`
+- Adding AFrame Holds The Paper Rather Than Blanking It — `:70`
+- Painting With No Key At The Playhead Creates One — `:90`
+- Filling With No Key At The Playhead Creates One — `:107`
+- Keying By Drawing Is Undoable — `:128`
+- Redrawing ACleared Cel Brings The Thumbnail Back — `:149`
+- Delete Cel Ripples The Rest — `:173`
+- Delete Cel Leaves Other Layers Alone — `:205`
 
 ## FrameInsertionTests
 `tests/Lightbox.App.Tests/TimelineExpansionTests.cs`

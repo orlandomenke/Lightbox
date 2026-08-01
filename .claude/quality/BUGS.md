@@ -19,6 +19,11 @@ because it stops anyone looking.
 An entry with no `evidence:` is **refused at check time**. If you cannot name
 what would prove the fix, you have not finished describing the bug.
 
+`evidence: manual` is the one exception, for bugs no headless test can reach —
+synthetic pen and hover input through Xvfb is unreliable here. Those never
+auto-close; a human verifies and ticks the box. Reach for it rarely: it is the
+only place in this file where a claim is the best evidence available.
+
 ```bash
 python3 scripts/bugs.py check          # status, exits 1 on drift
 python3 scripts/bugs.py sync           # rewrite the marks
@@ -62,19 +67,19 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ## Open
 
-- [ ] **B1** `P1` `timeline` Onion skin invisible since the document gained a paper layer `evidence: OnionGhostsShowOverThePaper`
+- [x] **B1** `P1` `timeline` Onion skin invisible since the document gained a paper layer `evidence: OnionGhostsShowOverThePaper`
   - Repro: open the app (paper layer present), draw on frame 1, add frame 2, turn onion skin on. No ghost.
   - Cause: `MainViewModel.PublishSnapshot` queues **every** onion pass first and then composites every layer over them. The paper is opaque and at the bottom of the stack, so it paints over all the ghosts. Before the paper existed the ghosts showed through a transparent stack.
   - Fix: interleave — for each layer, its own ghosts, then the layer. That is also what makes multi-layer onion read correctly.
   - Regression I introduced with the paper layer. Cost: S
 
-- [ ] **B2** `P1` `timeline` Cannot draw on a layer whose cels are all cleared `evidence: PaintingWithNoKeyAtThePlayhead_CreatesOne`
+- [x] **B2** `P1` `timeline` Cannot draw on a layer whose cels are all cleared `evidence: PaintingWithNoKeyAtThePlayhead_CreatesOne`
   - Repro: clear every cel on a layer, pick the brush, drag on the canvas. Nothing happens and nothing is said.
   - Cause: `PaintTarget()` returns null when no cel at or before the playhead is keyed, so `BeginStroke` returns silently. Fill and gradient no-op the same way.
   - Fix: painting where there is no key should **create** one, which is what every animation tool does. Silence is the worst part — even refusing would be better than nothing.
   - Cost: S
 
-- [ ] **B3** `P1` `timeline` Thumbnail never returns after a cel is cleared and redrawn `evidence: RedrawingAClearedCel_BringsTheThumbnailBack`
+- [x] **B3** `P1` `timeline` Thumbnail never returns after a cel is cleared and redrawn `evidence: RedrawingAClearedCel_BringsTheThumbnailBack`
   - Repro: clear a cel, draw on it again. The timeline cell stays blank.
   - Cause: likely the same root as B2 — nothing is drawn, so there is nothing to show. If it survives B2, it is a missing `_dirtyThumbIds` entry in `ClearCelAt`.
   - Cost: S
@@ -92,11 +97,22 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Fix: preview through the live-scratch overlay, the same seam the gradient drag uses.
   - Cost: M
 
-- [ ] **B6** `P2` `timeline` No way to delete a cel `evidence: DeleteCel_RipplesTheRest`
+- [x] **B6** `P2` `timeline` No way to delete a cel `evidence: DeleteCel_RipplesTheRest`
   - Repro: right-click a cel. There is "Clear cel" (blank it, keep the timing) and "Cut cel", but nothing that removes it and pulls the following cels back.
   - Cause: never built. `DeleteFrame` is a different operation — it deletes across every layer.
   - Fix: a ripple delete on one layer's row, one undo step.
   - Cost: S
+
+- [x] **B9** `P1` `timeline` The paper disappears on every frame but the first `evidence: AddingAFrame_HoldsThePaperRatherThanBlankingIt`
+  - Repro: open the app, add a frame. The new frame has no paper — transparent canvas, checkerboard.
+  - Cause: `DocumentEditor.AddFrameAfter` inserts `NewEmptyFrame(layer)` on **every** layer, including the Background. A blank key on the paper layer shadows the paper.
+  - Fix: the paper holds. A background layer gets `Frame = null` on an added frame, so the exposure sheet resolves it back to the one paper drawing — which is what a paper layer means.
+  - Found while writing B1's regression test: the ghost was visible in the test only because the paper had gone missing. Cost: S
+
+- [ ] **B8** `P3` `ui` Timeline context submenu flickers under a pen `evidence: manual`
+  - Repro: right-click a timeline cel with a pen and hover "Insert frame". The submenu flickers and will not stay open. A mouse is fine.
+  - Cause: not investigated. Pen hover events arrive as a different device with its own enter/leave pattern; the submenu almost certainly closes on a spurious leave.
+  - **Recorded, not being worked on** at the user's request. Cost: ?
 
 - [ ] **B7** `P3` `transform` Transform does not affect gradients `evidence: TransformingAGradient_MovesItsAxis`
   - Repro: lay a gradient, Ctrl+T, move it. The ramp does not follow.

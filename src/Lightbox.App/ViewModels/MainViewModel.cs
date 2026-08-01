@@ -1481,7 +1481,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Fill every pixel of the current selection, as one undo step.</summary>
     private void FillWholeSelection()
     {
-        if (PaintTarget() is not { } target || _selectionContours.Count == 0) return;
+        if (_selectionContours.Count == 0) return;
+        if (PaintTargetOrKey() is not { } target) return;
         var scene = Scene;
 
         var stroke = new Stroke
@@ -1528,8 +1529,8 @@ public sealed partial class MainViewModel : ObservableObject
     private void FillAtInternal(double x, double y)
     {
         if (IsPlaying) return;
-        if (PaintTarget() is not { } target) return;
         if (!CanEdit(ActiveLayer, "fill on it")) return;
+        if (PaintTargetOrKey() is not { } target) return;
 
         var scene = Scene;
         SKBitmap? owned = null;
@@ -2166,6 +2167,45 @@ public sealed partial class MainViewModel : ObservableObject
         return i < 0 ? null : ActiveLayer.Cels[i].Frame;
     }
 
+    /// <summary>
+    /// The frame a mark is about to land on, <b>keying the cel if there is
+    /// nothing to land on</b>.
+    ///
+    /// Clearing every cel on a layer used to make it permanently undrawable:
+    /// with no key at or before the playhead, <see cref="PaintTarget"/>
+    /// returned null and every tool returned silently. Drawing where there is
+    /// no drawing is the ordinary way to start one — every animation tool
+    /// auto-keys on the first mark — and silence was the worst part of it.
+    ///
+    /// The new cel is a separate undo step from the stroke that prompted it,
+    /// so one undo takes the mark back and a second takes the cel away.
+    /// </summary>
+    private Frame? PaintTargetOrKey()
+    {
+        if (PaintTarget() is { } existing) return existing;
+        if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
+
+        var index = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
+        var layerId = layer.Id;
+        Frame fresh = layer.Kind == LayerKind.Vector ? new VectorFrame() : new PaintedFrame();
+        _editor.PerformDelta(
+            apply: doc =>
+            {
+                if (CelIn(doc, layerId, index) is { } cel) cel.Frame = fresh;
+            },
+            revert: doc =>
+            {
+                if (CelIn(doc, layerId, index) is { } cel) cel.Frame = null;
+            });
+        return PaintTarget();
+    }
+
+    private static Cel? CelIn(Doc doc, string layerId, int index)
+    {
+        var layer = doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId);
+        return layer is not null && index < layer.Cels.Count ? layer.Cels[index] : null;
+    }
+
     /// <summary>One pointer sample in document space.</summary>
     public readonly record struct PointerSample(double X, double Y, double Pressure);
 
@@ -2248,8 +2288,9 @@ public sealed partial class MainViewModel : ObservableObject
     public void BeginStroke(double x, double y, double pressure, bool eraseWithCurrentBrush)
     {
         if (ActiveTool is not (ToolId.Brush or ToolId.Eraser)) return;
-        if (IsPlaying || PaintTarget() is not { } target) return;
+        if (IsPlaying) return;
         if (!CanEdit(ActiveLayer, "draw on it")) return;
+        if (PaintTargetOrKey() is not { } target) return;
         // Drawing ends any run of palette edits, so the recolour lands on the
         // undo stack before the stroke does rather than after it.
         CommitSwatchEdit();
@@ -2336,7 +2377,7 @@ public sealed partial class MainViewModel : ObservableObject
     public void BeginGradient(double x, double y)
     {
         if (ActiveTool != ToolId.Gradient || IsPlaying) return;
-        if (PaintTarget() is null || !CanEdit(ActiveLayer, "fill on it")) return;
+        if (!CanEdit(ActiveLayer, "fill on it") || PaintTargetOrKey() is null) return;
         if (GradientDocker.SelectedGradient is not { } gradient)
         {
             AiStatus = "No gradient selected — add one in the Gradient docker first.";
@@ -2949,6 +2990,21 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Clear the drawing(s) at the cell — or the whole selected range when the cell is inside it.</summary>
+    /// <summary>
+    /// Delete the cel (or the selected range) and pull the rest of the row
+    /// back. "Clear cel" blanks a drawing and keeps its slot; this removes the
+    /// slot, which is the operation the timeline was missing entirely.
+    /// </summary>
+    public void DeleteCelAt(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return;
+        if (!CanEdit(layer, "delete a cel on it")) return;
+        var (start, end) = OpRangeFor(cell);
+        _editor.DeleteCels(layer.Id, start, end);
+        _allThumbsDirty = true;
+        RefreshThumbnails();
+    }
+
     public void ClearCelAt(FrameCell cell)
     {
         if (LayerOfCell(cell) is not { } layer) return;
@@ -4319,11 +4375,18 @@ public sealed partial class MainViewModel : ObservableObject
         var scene = Scene;
         var passes = new List<RenderPass>();
 
-        if (OnionSkin && !IsPlaying)
+        foreach (var layer in scene.Layers)
         {
-            foreach (var layer in scene.Layers)
+            if (!scene.IsLayerVisible(layer)) continue;
+
+            // Ghosts go directly beneath the layer they belong to, not beneath
+            // the whole stack. Queuing them all first was invisible while every
+            // layer was transparent; the moment a document opened on opaque
+            // paper, the paper painted over every ghost. Interleaving is also
+            // what makes multi-layer onion read correctly — a layer's ghosts
+            // sit under it, exactly as its own earlier frames would.
+            if (OnionSkin && !IsPlaying && layer.OnionEnabled)
             {
-                if (!scene.IsLayerVisible(layer) || !layer.OnionEnabled) continue;
                 for (var d = Math.Max(1, OnionDepth); d >= 1; d--)
                 {
                     var prev = ExposureSheet.FrameAtExactIndex(layer, CurrentFrameIndex - d);
@@ -4334,11 +4397,7 @@ public sealed partial class MainViewModel : ObservableObject
                         passes.Add(new RenderPass(_cache.Get(next, scene.Width, scene.Height), SceneRenderer.OnionNextTint, 0.25 / d));
                 }
             }
-        }
 
-        foreach (var layer in scene.Layers)
-        {
-            if (!scene.IsLayerVisible(layer)) continue;
             var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
             if (frame is null) continue;
 

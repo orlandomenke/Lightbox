@@ -484,6 +484,11 @@ public partial class MainWindow : Window
         if (CellOf(sender) is { } cell) _vm.ClearCelAt(cell);
     }
 
+    private void OnDeleteCel(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.DeleteCelAt(cell);
+    }
+
     private void OnCopyCel(object? sender, RoutedEventArgs e)
     {
         if (CellOf(sender) is { } cell) _vm.CopyCel(cell);
