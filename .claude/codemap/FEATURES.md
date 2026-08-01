@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-531 tests, derived from the suite itself. Each line is a
+533 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -282,8 +282,10 @@ regression even when every test still compiles.
 - Four K Whole Stroke Including Commit Has No Pen Lift Stall — `:89`
 - Four K Undo After AStroke Stays Responsive — `:109`
 - Four K The First Events Of AStroke Repaint No More Than The Middle Of One — `:142`
-- Four K Frame Cache Stays Within Its Memory Budget — `:191`
-- Headroom Reports Smooth While Painting On Four K — `:211`
+- Four K Masked Stroke Costs No More Than An Unmasked One — `:198`
+- Four K Wet Media Stroke Stays Within Its Budget — `:230`
+- Four K Frame Cache Stays Within Its Memory Budget — `:269`
+- Headroom Reports Smooth While Painting On Four K — `:289`
 
 ## AlphaSelectAndWandTests
 `tests/Lightbox.App.Tests/LayerCompositingTests.cs`

@@ -187,6 +187,84 @@ public class LargeCanvasPerformanceTests(ITestOutputHelper output)
             $"stroke start repainted {worst} px² against a {median} px² steady state");
     }
 
+    /// <summary>
+    /// Alpha lock and the selection clip are applied live, which means an
+    /// isolating SaveLayer on every publish. That is only affordable because
+    /// the layer is bounded to the dirty region — a refactor that lost the
+    /// clip would allocate a 4K offscreen per pointer event and this is what
+    /// would notice.
+    /// </summary>
+    [AvaloniaFact]
+    public void FourK_MaskedStroke_CostsNoMoreThanAnUnmaskedOne()
+    {
+        double Median(bool locked)
+        {
+            var vm = Vm4K();
+            vm.Doc.Scene.Layers.First(l => !l.IsBackground).AlphaLocked = locked;
+            vm.BeginStroke(400, 400, 1);
+            Pump();
+            var x = 400.0;
+            return MedianMs(15, () =>
+            {
+                x += 14;
+                vm.MoveStroke(x, 420 + Math.Sin(x / 30) * 50, 0.85);
+                Pump();
+            });
+        }
+
+        var plain = Median(locked: false);
+        var masked = Median(locked: true);
+        output.WriteLine($"unmasked {plain:0.00} ms | alpha-locked {masked:0.00} ms");
+
+        // The absolute budget matters more than the ratio: both must fit in a
+        // frame. A canvas-sized SaveLayer here would be tens of milliseconds.
+        Assert.True(masked < 20, $"a masked 4K pointer event took {masked:0.00} ms (budget 20)");
+    }
+
+    /// <summary>
+    /// A wet-media stroke re-renders the whole stroke so far on a background
+    /// pass, so its cost grows with stroke length. Bounded here so the growth
+    /// stays a slope rather than a wall.
+    /// </summary>
+    [AvaloniaFact]
+    public void FourK_WetMediaStroke_StaysWithinItsBudget()
+    {
+        var store = MainViewModel.BrushStorePath;
+        MainViewModel.BrushStorePath = Path.Combine(
+            Path.GetTempPath(), $"lightbox-perf-brushes-{Guid.NewGuid():N}.json");
+        try
+        {
+            var vm = Vm4K(brushSize: 90);
+            vm.BrushMedium = Lightbox.Core.Documents.MediumKind.Watercolour;
+
+            var sw = Stopwatch.StartNew();
+            vm.BeginStroke(400, 600, 0.9);
+            for (var i = 1; i <= 20; i++)
+            {
+                vm.MoveStroke(400 + i * 70, 600 + Math.Sin(i * 0.4) * 120, 0.9);
+                Pump();
+            }
+            vm.EndStroke();
+            Pump();
+            sw.Stop();
+
+            var total = sw.Elapsed.TotalMilliseconds;
+            output.WriteLine($"4K watercolour stroke, 20 events + commit: {total:0} ms " +
+                             $"({vm.LivePostPasses} live passes)");
+
+            // Generous, and deliberately so: this is the whole stroke plus its
+            // commit plus every settle pass. It is here to catch the shape
+            // going wrong — a pass per event with no coalescing, or a pass
+            // that stops being bounded — not to police drift.
+            Assert.True(total < 12000, $"4K watercolour stroke took {total:0} ms (budget 12000)");
+            Assert.True(vm.LivePostPasses > 0, "the live medium never rendered at all");
+        }
+        finally
+        {
+            MainViewModel.BrushStorePath = store;
+        }
+    }
+
     [AvaloniaFact]
     public void FourK_FrameCache_StaysWithinItsMemoryBudget()
     {

@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `a7d4f77` · 158 files · 31911 lines · 531 tests.
+Generated from `ace1d7c` · 158 files · 31989 lines · 533 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the

@@ -71,6 +71,18 @@ shared runner does not produce false alarms.
 | Textured (paper) commit, 4K, 500 px | 1200 ms | ~225 ms (3002 ms with per-pixel SetPixel) |
 | GC pause during a 4K stroke | — | 0 ms, 0 collections, 0.3 MB over 60 events |
 | First event of a stroke, 4K, after a stroke crossing the canvas | ≤ 2× the steady-state repaint | 41 k px² / ~2 ms (6.0 M px² / 129 ms before the compose-ring catch-up) |
+| Pointer event on an alpha-locked layer, 4K | 20 ms | ~2.6 ms (~1.8 ms unmasked — the live mask's SaveLayer costs ~0.8 ms) |
+| Whole wet-media stroke + commit, 4K, 90 px, 20 events | 12000 ms | ~2250 ms over 20 live passes |
+
+**The wet-media number is honest, not comfortable.** Each live pass
+re-renders the whole stroke through `BrushEngine.StampStroke`, so it is
+O(stroke length) and lands around 110 ms per pass at that size — the medium
+preview settles roughly nine times a second and a longer stroke settles
+slower. It runs at background priority so the pen never waits, but the obvious
+next win is sitting there: the dabs are already stamped in `_liveScratch`, and
+the pass re-stamps every one of them purely because `StampPaint` needs them in
+its own scratch before it can apply the effects. Letting the engine accept a
+pre-stamped scratch would take the dab cost out of every pass.
 
 Raising a budget requires a measurement in the commit message explaining what
 got slower and why that is acceptable.
