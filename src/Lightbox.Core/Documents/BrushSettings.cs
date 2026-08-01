@@ -81,6 +81,13 @@ public sealed class BrushSettings
     /// <summary>Pressure→hardness response exponent; 0 = off. Light pressure = softer dab edge.</summary>
     public double PressureHardnessGamma { get; set; }
 
+    /// <summary>
+    /// Physical medium to simulate after the dabs are laid down. Defaults to
+    /// <see cref="MediumKind.None"/>, so a brush that never sets it renders
+    /// exactly as it did before media existed.
+    /// </summary>
+    public MediumSettings Medium { get; set; } = new();
+
     public BrushSettings Clone() => new()
     {
         Size = Size,
@@ -100,5 +107,6 @@ public sealed class BrushSettings
         PressureSizeGamma = PressureSizeGamma,
         PressureFlowGamma = PressureFlowGamma,
         PressureHardnessGamma = PressureHardnessGamma,
+        Medium = Medium.Clone(),
     };
 }

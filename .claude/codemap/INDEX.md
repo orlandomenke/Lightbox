@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `53bcb1e` · 126 files · 21283 lines · 328 tests.
+Generated from `1ae5468` · 127 files · 21449 lines · 328 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -101,9 +101,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
 - `src/Lightbox.Core/Geometry/TransformOps.cs` (219 ln) · 1 test files
   - TransformOps:12
+- `src/Lightbox.Core/Documents/MediumSettings.cs` (158 ln) · 11 indirect only
+  - MediumKind:10, PaperKind:29, MediumSettings:54
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (130 ln) · 1 test files
   - GeometryOps:5
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (104 ln) · 11 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (112 ln) · 11 test files
   - BrushKind:4, BrushSettings:23
 - `src/Lightbox.Core/Inbetween/Inbetweener.cs` (94 ln) · 2 test files
   - Inbetweener:19
