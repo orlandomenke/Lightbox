@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-423 tests, derived from the suite itself. Each line is a
+429 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -337,6 +337,20 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
 
 - Keyed Cells Get Thumbnails Holds Do Not — `:106`
+
+## DropColorFillTests
+`tests/Lightbox.App.Tests/ModifiersAndDropFillTests.cs`
+
+- Dropping AColour Fills And Adopts It — `:77`
+- It Works Whichever Tool Is Selected — `:94`
+- ALocked Layer Still Refuses It — `:107`
+
+## TemporaryToolModifierTests
+`tests/Lightbox.App.Tests/ModifiersAndDropFillTests.cs`
+
+- Alt Held Erases With The Current Brush Without Switching Tools — `:17`
+- Without Alt The Same Call Paints — `:32`
+- The Eraser Tool Still Erases Even Without Alt — `:42`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`

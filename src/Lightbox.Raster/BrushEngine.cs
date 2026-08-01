@@ -572,6 +572,18 @@ public static class BrushEngine
         var strength = Math.Clamp(brush.Flow, 0, 1);
         if (strength <= 0) return;
 
+        // Krita's two Color Smudge algorithms. Smearing drags a sample along
+        // the stroke and refreshes it as it goes, so detail smears into
+        // streaks. Dulling takes one colour from under the dab and lays it
+        // down flat, so detail dissolves instead — that is what a blender
+        // brush wants, and it is why a blender built out of Smearing never
+        // quite behaves.
+        var dulling = brush.SmudgeMode == SmudgeMode.Dulling;
+        var carryOver = (float)Math.Clamp(brush.SmudgeLength, 0, 1);
+        var spread = (float)Math.Clamp(brush.SmudgeRadius, 0.05, 1);
+        var colorRate = Math.Clamp(brush.ColorRate, 0, 1);
+        var ownColor = ParseColor(stroke.Color);
+
         SKColor carried = default;
         var hasColor = false;
         foreach (var (pos, pressure) in DabPositions(stroke))
@@ -579,7 +591,7 @@ public static class BrushEngine
             var radius = (float)RadiusAt(brush, pressure);
             if (radius <= 0) continue;
 
-            var sample = SampleAverage(pixels, pos, Math.Max(1f, radius / 2));
+            var sample = SampleAverage(pixels, pos, Math.Max(1f, radius * spread));
             if (!hasColor)
             {
                 // The first dab picks up what is under it and lays it straight
@@ -590,10 +602,15 @@ public static class BrushEngine
                 hasColor = true;
             }
 
-            if (carried.Alpha > 0)
+            // Dulling deposits the colour under the dab rather than the
+            // colour it has been carrying, which is the whole difference.
+            var deposit = dulling ? Mix(sample, carried, carryOver * 0.5) : carried;
+            if (colorRate > 0) deposit = Mix(deposit, ownColor, colorRate);
+
+            if (deposit.Alpha > 0)
             {
                 using var paint = new SKPaint { IsAntialias = brush.AntiAlias };
-                var dabColor = carried.WithAlpha((byte)Math.Round(carried.Alpha * strength));
+                var dabColor = deposit.WithAlpha((byte)Math.Round(deposit.Alpha * strength));
                 var hardness = (float)Math.Clamp(brush.Hardness, 0, 1);
                 if (hardness >= 0.999f)
                 {
@@ -608,7 +625,10 @@ public static class BrushEngine
                 target.Flush(); // the next sample must see this deposit
             }
 
-            carried = Mix(carried, sample, 0.5);
+            // How much of the carried colour survives into the next dab. At 0
+            // the sample is replaced every dab and colour barely travels; at 1
+            // it is dragged the length of the stroke.
+            carried = Mix(sample, carried, carryOver);
         }
     }
 

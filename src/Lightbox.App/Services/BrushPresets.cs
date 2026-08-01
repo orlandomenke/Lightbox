@@ -188,6 +188,21 @@ public static class BuiltInPresets
         },
         new()
         {
+            Id = "builtin-blender",
+            Name = "Blender",
+            Settings = new BrushSettings
+            {
+                Size = 28, Hardness = 0.3, Flow = 0.85, Spacing = 0.06,
+                Kind = BrushKind.Smudge,
+                // Dulling with no colour of its own: it dissolves detail
+                // rather than smearing it, which is what makes a blender read
+                // as a finger or a stump instead of a loaded brush.
+                SmudgeMode = SmudgeMode.Dulling,
+                SmudgeLength = 0.35, SmudgeRadius = 0.7, ColorRate = 0,
+            },
+        },
+        new()
+        {
             Id = "builtin-blur",
             Name = "Blur",
             Settings = new BrushSettings { Size = 24, Flow = 0.7, Spacing = 0.12, Kind = BrushKind.Blur },

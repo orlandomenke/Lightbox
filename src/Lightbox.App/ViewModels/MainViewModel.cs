@@ -594,6 +594,37 @@ public sealed partial class MainViewModel : ObservableObject
         set => SetBrush(s => s.Scatter = Math.Clamp(value, 0, 1));
     }
 
+    // ---- smudge ----------------------------------------------------------------
+
+    public IReadOnlyList<SmudgeMode> SmudgeModeChoices { get; } = Enum.GetValues<SmudgeMode>();
+
+    /// <summary>Only meaningful for a smudge brush; the page hides otherwise.</summary>
+    public bool IsSmudgeBrush => GetBrushValue(s => s.Kind) == BrushKind.Smudge;
+
+    public SmudgeMode BrushSmudgeMode
+    {
+        get => GetBrushValue(s => s.SmudgeMode);
+        set => SetBrush(s => s.SmudgeMode = value);
+    }
+
+    public double BrushSmudgeLength
+    {
+        get => GetBrush(s => s.SmudgeLength);
+        set => SetBrush(s => s.SmudgeLength = Math.Clamp(value, 0, 1));
+    }
+
+    public double BrushSmudgeRadius
+    {
+        get => GetBrush(s => s.SmudgeRadius);
+        set => SetBrush(s => s.SmudgeRadius = Math.Clamp(value, 0.05, 1));
+    }
+
+    public double BrushColorRate
+    {
+        get => GetBrush(s => s.ColorRate);
+        set => SetBrush(s => s.ColorRate = Math.Clamp(value, 0, 1));
+    }
+
     // ---- medium ---------------------------------------------------------------
     //
     // The physical simulation. Picking a medium decides which parts of the
@@ -824,6 +855,8 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(BrushPressureSizeGamma), nameof(BrushPressureFlowGamma), nameof(BrushPressureHardnessGamma),
         nameof(BrushPressureAffectsSize), nameof(BrushPressureAffectsFlow), nameof(BrushPressureAffectsHardness),
         nameof(BrushCursorDiameter),
+        nameof(IsSmudgeBrush), nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
+        nameof(BrushSmudgeRadius), nameof(BrushColorRate),
         nameof(BrushMedium), nameof(MediumIsSimulated), nameof(MediumHasBody),
         nameof(MediumWetness), nameof(MediumViscosity), nameof(MediumDrag), nameof(MediumFlowSteps),
         nameof(MediumAbsorbency), nameof(MediumEdgePull),
@@ -1096,9 +1129,88 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _fillBelowLines = true;
 
     /// <summary>Fill tool click: flood at a document position, record a fill stroke.</summary>
+    /// <summary>
+    /// A colour was dragged from the swatch onto the canvas. Fills there,
+    /// choosing the sensible method rather than making the artist pick one:
+    /// inside a selection the selection is the region, otherwise it is a
+    /// flood fill from the dropped point. The colour becomes the current
+    /// colour too — dragging it out is a statement of intent.
+    /// </summary>
+    public void DropColorAt(string hex, double x, double y)
+    {
+        if (IsPlaying) return;
+        if (!CanEdit(ActiveLayer, "fill on it")) return;
+
+        ColorHex = hex;
+
+        // Inside a selection, the selection is obviously the region the
+        // artist means — filling only the contiguous patch under the drop
+        // point would be a strange reading of the gesture. Outside one, fall
+        // back to a flood fill from where it landed.
+        if (HasSelection && SelectionContainsPoint(x, y))
+        {
+            FillWholeSelection();
+            return;
+        }
+        FillAtInternal(x, y);
+    }
+
+    private bool SelectionContainsPoint(double x, double y)
+    {
+        if (_selectionContours.Count == 0) return false;
+        using var path = BrushEngine.PathFromContours(_selectionContours);
+        return path.Contains((float)x, (float)y);
+    }
+
+    /// <summary>Fill every pixel of the current selection, as one undo step.</summary>
+    private void FillWholeSelection()
+    {
+        if (PaintTarget() is not { } target || _selectionContours.Count == 0) return;
+        var scene = Scene;
+
+        var stroke = new Stroke
+        {
+            Tool = ToolKind.Fill,
+            Color = ColorHex,
+            Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
+            Points = [.. _selectionContours[0]],
+            Holes = _selectionContours.Count > 1
+                ? _selectionContours.Skip(1).Select(c => c.ToList()).ToList()
+                : null,
+            Label = "fill-selection",
+        };
+        if (PrepareClipForSelection() is { } clip) stroke.ClipId = clip.Id;
+
+        FrameRasterizer.Append(_cache.Get(target, scene.Width, scene.Height), stroke);
+        _committingScopedEdit = true;
+        try
+        {
+            _editor.Perform(_ => StrokesOf(target).Add(stroke));
+        }
+        finally
+        {
+            _committingScopedEdit = false;
+        }
+        _dirtyThumbIds.Add(target.Id);
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+        RefreshThumbnails();
+        AiStatus = $"Filled the selection with {ColorHex}.";
+    }
+
     public void FillAt(double x, double y)
     {
-        if (ActiveTool != ToolId.Fill || IsPlaying) return;
+        if (ActiveTool != ToolId.Fill) return;
+        FillAtInternal(x, y);
+    }
+
+    /// <summary>
+    /// The fill itself, without the tool check — a colour dropped on the
+    /// canvas fills whatever tool happens to be selected.
+    /// </summary>
+    private void FillAtInternal(double x, double y)
+    {
+        if (IsPlaying) return;
         if (PaintTarget() is not { } target) return;
         if (!CanEdit(ActiveLayer, "fill on it")) return;
 
@@ -1750,14 +1862,21 @@ public sealed partial class MainViewModel : ObservableObject
     private int _liveStampedCount;
     private bool _snapshotQueued;
 
-    public void BeginStroke(double x, double y, double pressure)
+    public void BeginStroke(double x, double y, double pressure) =>
+        BeginStroke(x, y, pressure, eraseWithCurrentBrush: false);
+
+    /// <param name="eraseWithCurrentBrush">
+    /// Alt was held. The stroke erases but keeps the brush's own size, shape
+    /// and dynamics — unlike switching to the eraser, which brings its own.
+    /// </param>
+    public void BeginStroke(double x, double y, double pressure, bool eraseWithCurrentBrush)
     {
         if (ActiveTool is not (ToolId.Brush or ToolId.Eraser)) return;
         if (IsPlaying || PaintTarget() is not { } target) return;
         if (!CanEdit(ActiveLayer, "draw on it")) return;
         _stabilizer.Begin(x, y);
         _strokeBuilder.Begin(
-            IsEraser ? ToolKind.Eraser : ToolKind.Brush,
+            IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
             ColorHex,
             CurrentToolSettings.Clone(),
             x, y, pressure);

@@ -22,7 +22,7 @@ public partial class MainWindow : Window
         DataContext = _vm;
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
-        Canvas.PaintStarted += _vm.BeginStroke;
+        Canvas.PaintStarted += _vm.BeginStroke;  // (x, y, pressure, alt-erases)
         Canvas.PaintMoved += _vm.MoveStrokeBatch;
         Canvas.PaintEnded += _vm.EndStroke;
 
@@ -74,6 +74,9 @@ public partial class MainWindow : Window
         AddHandler(PointerPressedEvent, OnTimelinePointerPressed, RoutingStrategies.Tunnel);
         AddHandler(DragDrop.DragOverEvent, OnCelDragOver);
         AddHandler(DragDrop.DropEvent, OnCelDrop);
+        DragDrop.SetAllowDrop(Canvas, true);
+        Canvas.AddHandler(DragDrop.DragOverEvent, OnCanvasColorDragOver);
+        Canvas.AddHandler(DragDrop.DropEvent, OnCanvasColorDrop);
 
         // Dock geometry (side, collapse, min sizes) is a view concern the VM
         // only expresses as booleans.
@@ -751,6 +754,50 @@ public partial class MainWindow : Window
         BrushPageMedium.IsVisible = index == 2;
         BrushPagePressure.IsVisible = index == 3;
         BrushPagePresets.IsVisible = index == 4;
+    }
+
+    // ---- drag a colour onto the canvas to fill --------------------------------
+
+    private static readonly DataFormat<string> ColorDragFormat =
+        DataFormat.CreateInProcessFormat<string>("lightbox-color");
+
+    /// <summary>
+    /// Start dragging the current colour. Dropping it on the canvas fills
+    /// there — the shortest path from "I chose this colour" to "that shape is
+    /// that colour", without visiting the tool bar on the way.
+    /// </summary>
+    private async void OnColorSwatchPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        try
+        {
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(ColorDragFormat, _vm.ColorHex));
+            await DragDrop.DoDragDropAsync(e, transfer, DragDropEffects.Copy);
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("color-drag", ex);
+        }
+    }
+
+    private static string? DraggedColorOf(DragEventArgs e) =>
+        e.DataTransfer is { } transfer ? transfer.TryGetValue(ColorDragFormat) : null;
+
+    private void OnCanvasColorDragOver(object? sender, DragEventArgs e)
+    {
+        if (DraggedColorOf(e) is null) return;
+        e.DragEffects = DragDropEffects.Copy;
+        e.Handled = true;
+    }
+
+    private void OnCanvasColorDrop(object? sender, DragEventArgs e)
+    {
+        if (DraggedColorOf(e) is not { } hex) return;
+
+        var (x, y) = Canvas.ViewToDoc(e.GetPosition(Canvas));
+        _vm.DropColorAt(hex, x, y);
+        e.Handled = true;
     }
 
     // ---- canvas view tools (view-only: never touch the document) -------------

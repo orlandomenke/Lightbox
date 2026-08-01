@@ -1,5 +1,26 @@
 namespace Lightbox.Core.Documents;
 
+/// <summary>
+/// How a smudge brush carries colour. Krita's Color Smudge engine ships both
+/// and they behave quite differently; we only had the first, with its two
+/// governing numbers hardcoded.
+/// </summary>
+public enum SmudgeMode
+{
+    /// <summary>
+    /// Drag a sample along the stroke, refreshing it as it goes. Reads like
+    /// pulling a loaded brush through wet paint — detail smears into streaks.
+    /// </summary>
+    Smearing,
+
+    /// <summary>
+    /// Take one colour from under the dab, mix, and lay that down flat. Reads
+    /// like a finger or a blender stump: detail dissolves rather than smearing.
+    /// This is what a dedicated blender brush wants.
+    /// </summary>
+    Dulling,
+}
+
 /// <summary>How a brush applies paint.</summary>
 public enum BrushKind
 {
@@ -46,6 +67,30 @@ public sealed class BrushSettings
 
     /// <summary>What the brush does to the canvas.</summary>
     public BrushKind Kind { get; set; } = BrushKind.Paint;
+
+    /// <summary>Which smudge algorithm to use (ignored unless Kind is Smudge).</summary>
+    public SmudgeMode SmudgeMode { get; set; } = SmudgeMode.Smearing;
+
+    /// <summary>
+    /// 0..1: how much of the carried colour survives each dab. Low values
+    /// refresh the sample constantly so the brush barely transports colour;
+    /// high values drag it a long way. Was hardcoded at 0.5.
+    /// </summary>
+    public double SmudgeLength { get; set; } = 0.5;
+
+    /// <summary>
+    /// 0..1: how far around the dab the brush samples, as a fraction of its
+    /// radius. Wider sampling blends more and preserves less detail. Was
+    /// hardcoded at 0.5.
+    /// </summary>
+    public double SmudgeRadius { get; set; } = 0.5;
+
+    /// <summary>
+    /// 0..1: how much of the brush's own colour is added as it smudges. Zero
+    /// is a pure blender that only moves what is already there; raising it
+    /// turns the same brush into one that paints and blends at once.
+    /// </summary>
+    public double ColorRate { get; set; }
 
     /// <summary>0..1: darkened rim where paint pools at the stroke edge (watercolor).</summary>
     public double WetEdge { get; set; }
@@ -97,6 +142,10 @@ public sealed class BrushSettings
         Flow = Flow,
         Spacing = Spacing,
         Kind = Kind,
+        SmudgeMode = SmudgeMode,
+        SmudgeLength = SmudgeLength,
+        SmudgeRadius = SmudgeRadius,
+        ColorRate = ColorRate,
         WetEdge = WetEdge,
         Granulation = Granulation,
         TipId = TipId,

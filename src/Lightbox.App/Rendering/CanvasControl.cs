@@ -58,6 +58,12 @@ public sealed class CanvasControl : Control
     /// <summary>Shift+drag on the canvas asks for a new brush size (document pixels).</summary>
     public event Action<double>? BrushResizeRequested;
 
+    /// <summary>Alt was held when this stroke began, so it erases with the current brush.</summary>
+    private bool _erasingThisStroke;
+
+    /// <summary>True while an Alt-held stroke is in progress (drives the cursor).</summary>
+    public bool IsTemporaryEraser => _painting && _erasingThisStroke;
+
     /// <summary>Update (or clear) the pulled-string anchor — where paint actually lands.</summary>
     public void SetLazyAnchor(double? x, double? y)
     {
@@ -188,7 +194,11 @@ public sealed class CanvasControl : Control
     }
 
     /// <summary>Begin a stroke at a document-space position (pressure 0..1).</summary>
-    public event Action<double, double, double>? PaintStarted;
+    /// <summary>
+    /// Stroke begun: document x, y, pressure, and whether Alt was held — an
+    /// Alt stroke erases with the current brush rather than switching tools.
+    /// </summary>
+    public event Action<double, double, double, bool>? PaintStarted;
 
     /// <summary>
     /// Extend the live stroke with ALL coalesced samples of one pointer event
@@ -899,6 +909,17 @@ public sealed class CanvasControl : Control
                 return;
             }
 
+            // Ctrl is a held eyedropper while painting or filling: the colour
+            // you want is almost always already on the canvas, and reaching
+            // for a tool to fetch it breaks the stroke you were about to make.
+            if (ToolMode is CanvasToolMode.Paint or CanvasToolMode.Fill
+                && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            {
+                PickClicked?.Invoke(x, y);
+                e.Handled = true;
+                return;
+            }
+
             switch (ToolMode)
             {
                 case CanvasToolMode.Fill:
@@ -945,9 +966,14 @@ public sealed class CanvasControl : Control
 
             e.Pointer.Capture(this);
             _painting = true;
+            // Alt turns the brush in your hand into an eraser without
+            // swapping tools, so it keeps its size, shape and dynamics. That
+            // is different from E, which switches to the dedicated eraser and
+            // its own settings.
+            _erasingThisStroke = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
             ReportInputDiagnostic(e.Pointer.Type, pp.Properties.Pressure);
             ReportCursorPressure(PressureOf(pp), penDown: true);
-            PaintStarted?.Invoke(x, y, PressureOf(pp));
+            PaintStarted?.Invoke(x, y, PressureOf(pp), _erasingThisStroke);
             e.Handled = true;
         }
         catch (Exception ex)
