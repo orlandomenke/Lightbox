@@ -60,6 +60,7 @@ shared runner does not produce false alarms.
 | Presenting a frame, 4K zoomed to fit | 20 ms | ~11 ms at display resolution (~29 ms before) |
 | Textured (paper) commit, 4K, 500 px | 1200 ms | ~225 ms (3002 ms with per-pixel SetPixel) |
 | GC pause during a 4K stroke | — | 0 ms, 0 collections, 0.3 MB over 60 events |
+| First event of a stroke, 4K, after a stroke crossing the canvas | ≤ 2× the steady-state repaint | 41 k px² / ~2 ms (6.0 M px² / 129 ms before the compose-ring catch-up) |
 
 Raising a budget requires a measurement in the commit message explaining what
 got slower and why that is acceptable.

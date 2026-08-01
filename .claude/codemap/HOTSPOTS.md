@@ -14,7 +14,6 @@ file with no tests is the top of this list for a reason.
 | `src/Lightbox.App/Rendering/CanvasControl.cs` | 0.21 | 0.42 | 18 | 4 | 3 | 2 |
 | `src/Lightbox.App/ViewModels/MainViewModel.cs` | 0.20 | 0.81 | 30 | 5 | 30 | 26 |
 | `src/Lightbox.App/Services/BrushPresets.cs` | 0.09 | 0.12 | 6 | 1 | 2 | 0 |
-| `src/Lightbox.App/Rendering/SceneRenderer.cs` | 0.09 | 0.18 | 7 | 2 | 4 | 2 |
 | `src/Lightbox.App/ViewModels/LayerRow.cs` | 0.09 | 0.12 | 5 | 1 | 4 | 1 |
 | `src/Lightbox.App/App.axaml` | 0.08 | 0.08 | 4 | 1 | 0 | 0 |
 | `src/Lightbox.Raster/BrushEngine.cs` | 0.08 | 0.33 | 15 | 2 | 11 | 7 |
@@ -29,6 +28,7 @@ file with no tests is the top of this list for a reason.
 | `src/Lightbox.Core/Documents/Stroke.cs` | 0.06 | 0.26 | 3 | 0 | 45 | 24 |
 | `src/Lightbox.Core/Documents/BrushSettings.cs` | 0.06 | 0.25 | 7 | 1 | 25 | 16 |
 | `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` | 0.06 | 0.08 | 2 | 1 | 2 | 1 |
+| `src/Lightbox.App/Services/SequenceExporter.cs` | 0.06 | 0.08 | 3 | 1 | 1 | 1 |
 
 ## Most active regardless of coverage
 

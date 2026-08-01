@@ -3728,6 +3728,14 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// The document region the last publish actually recomposited (null = the
+    /// whole canvas). What the artist feels as a stutter is this rect growing,
+    /// so tests assert on it rather than on wall-clock, which is unusable on a
+    /// shared runner.
+    /// </summary>
+    internal SKRectI? LastPublishClip { get; private set; }
+
     /// <summary>Composite the scene for the current playhead and hand it to the view.</summary>
     public void PublishSnapshot()
     {
@@ -3794,13 +3802,14 @@ public sealed partial class MainViewModel : ObservableObject
         {
             usedClip = clip;
             SceneRenderer.ComposeInto(surface, passes, background, clip, renderScale);
-        });
+        }, renderScale);
         sw.Stop();
         if (Environment.GetEnvironmentVariable("LIGHTBOX_PERFTRACE") is not null)
         {
             Console.Error.WriteLine($"[publish] dirty={dirty} clip={usedClip} passes={passes.Count} {sw.Elapsed.TotalMilliseconds:0.0}ms");
         }
         Performance.RecordPublish(sw.Elapsed.TotalMilliseconds);
+        LastPublishClip = usedClip;
         if (SnapshotChanged is { } handler)
         {
             handler(new RenderSnapshot(image, scene.Width, scene.Height, seq));
@@ -3919,9 +3928,11 @@ public sealed partial class MainViewModel : ObservableObject
             $"{drawings.Count} drawing{(drawings.Count == 1 ? "" : "s")}";
 
         var bytes = _cache.CachedBytes + _composeRing.AllocatedBytes;
-        MemoryLabel = bytes >= 1024L * 1024 * 1024
+        var backend = Rendering.CanvasControl.GraphicsBackend;
+        MemoryLabel = (bytes >= 1024L * 1024 * 1024
             ? $"{bytes / (1024.0 * 1024 * 1024):0.0} GB images"
-            : $"{bytes / (1024.0 * 1024):0} MB images";
+            : $"{bytes / (1024.0 * 1024):0} MB images")
+            + (backend == "unknown" ? "" : $" · {backend}");
         Performance.DescribeDocument(scene.Width, scene.Height, scene.Layers.Count, drawings.Count, bytes);
     }
 }

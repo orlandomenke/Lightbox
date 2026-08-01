@@ -156,6 +156,25 @@ public sealed class CanvasControl : Control
     private static readonly object DiagLock = new();
     private static readonly HashSet<string> DiagLogged = [];
 
+    /// <summary>
+    /// Whether Avalonia handed the canvas a GPU-backed Skia context, and so
+    /// whether the frame the artist sees is presented by the GPU at all.
+    ///
+    /// Every "should this be on the GPU" question starts here and cannot be
+    /// answered from a headless container: on Windows the default backend is
+    /// ANGLE/D3D11 and this is expected to read "GPU", but a machine that fell
+    /// back to software rendering has a completely different cost profile and
+    /// no amount of GPU work would help it. Reported in the info strip so it
+    /// is a fact rather than an assumption.
+    /// </summary>
+    public static string GraphicsBackend { get; private set; } = "unknown";
+
+    private static void RecordBackend(ISkiaSharpApiLease lease)
+    {
+        if (GraphicsBackend != "unknown") return;
+        GraphicsBackend = lease.GrContext is null ? "CPU (software)" : "GPU";
+    }
+
     internal static void LogDiag(string context, Exception ex)
     {
         try
@@ -1271,6 +1290,7 @@ public sealed class CanvasControl : Control
             if (feature is null) return;
             using var lease = feature.Lease();
             var canvas = lease.SkCanvas;
+            RecordBackend(lease);
 
             canvas.Save();
             canvas.ClipRect(new SKRect(0, 0, (float)Bounds.Width, (float)Bounds.Height));

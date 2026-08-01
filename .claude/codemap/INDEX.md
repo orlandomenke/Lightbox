@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `faeaecf` · 143 files · 27966 lines · 445 tests.
+Generated from `0faf8ee` · 145 files · 28436 lines · 451 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -27,16 +27,18 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (3927 ln) · 26 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (3938 ln) · 26 test files
   - FrameCell:18, MainViewModel:61, LayerKindChoice:1827
-- `src/Lightbox.App/Rendering/CanvasControl.cs` (1495 ln) · 2 test files
-  - CanvasControl:28, CanvasToolMode:214, TxDrag:257, DrawOp:1231
+- `src/Lightbox.App/Rendering/CanvasControl.cs` (1515 ln) · 2 test files
+  - CanvasControl:28, CanvasToolMode:233, TxDrag:276, DrawOp:1250
 - `src/Lightbox.App/Views/MainWindow.axaml` (1446 ln) · **no tests**
   - BrushCategoryList, BrushPageEffects, BrushPageGeneral, BrushPageMedium, BrushPagePresets, BrushPagePressure, Canvas, CanvasHost …
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (1120 ln) · **no tests**
   - MainWindow:13
 - `src/Lightbox.App/Services/BrushPresets.cs` (271 ln) · 27 indirect only
   - BrushPreset:7, BuiltInPresets:24, PresetStore:218, State:223
+- `src/Lightbox.App/Rendering/ComposeRing.cs` (250 ln) · 1 test files
+  - ComposeRing:31, Buffer:33
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (211 ln) · **no tests**
   - ShortcutRow:11, ShortcutGroup:23, ConfigureWindow:36
 - `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (209 ln) · 1 test files
@@ -47,14 +49,12 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GroupRow:11, LayerRow:90
 - `src/Lightbox.App/Services/IpcDocumentApi.cs` (193 ln) · 1 test files
   - IpcDocumentApi:15, FrameRef:86, InsertPayload:118, DrawPayload:146, ViewRef:167
-- `src/Lightbox.App/Rendering/SceneRenderer.cs` (184 ln) · 2 test files
+- `src/Lightbox.App/Rendering/SceneRenderer.cs` (184 ln) · 3 test files
   - StrokeOverlay:14, RenderPass:17, SceneRenderer:30
 - `src/Lightbox.App/Controls/TimelineRuler.cs` (181 ln) · **no tests**
   - TimelineRuler:17
 - `src/Lightbox.App/Services/PerformanceMonitor.cs` (180 ln) · 26 indirect only
   - PerformanceMonitor:14
-- `src/Lightbox.App/Rendering/ComposeRing.cs` (147 ln) · 26 indirect only
-  - ComposeRing:21, Buffer:23
 - `src/Lightbox.App/Services/IpcServer.cs` (115 ln) · 1 test files
   - IpcServer:13
 - `src/Lightbox.App/Views/ConfigureWindow.axaml` (115 ln) · **no tests**

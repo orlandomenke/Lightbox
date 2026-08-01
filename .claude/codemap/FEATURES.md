@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-445 tests, derived from the suite itself. Each line is a
+451 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -43,6 +43,11 @@ regression even when every test still compiles.
 - Model Not Found Suggests Pull — `:100`
 - Empty Or Unusable Frames Is Retryable Error — `:115`
 - Draw Parses Strokes — `:127`
+
+## AdversarySnapshotTests
+`tests/Lightbox.App.Tests/AdversarySnapshotTests.cs`
+
+- Snapshot Identity And Cow — `:8`
 
 ## AiIntegrationTests
 `tests/Lightbox.App.Tests/AiIntegrationTests.cs`
@@ -124,6 +129,14 @@ regression even when every test still compiles.
 - Known Color Red Converts To Every Model — `:10`
 - Every Model Round Trips Through Hex — `:35`
 - Invalid Hex Returns Null — `:53`
+
+## ComposeRingTests
+`tests/Lightbox.App.Tests/ComposeRingTests.cs`
+
+- After ALarge Change The Next Publishes Still Only Repaint Their Own Dirty Rect — `:61`
+- ABuffer Still Holding ASnapshot Is Caught Up Once It Comes Free — `:100`
+- Every Publish Is ACorrect Full Composite — `:142`
+- Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:185`
 
 ## LayerRowTests
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
@@ -222,8 +235,9 @@ regression even when every test still compiles.
 - Four K Pointer Event During AStroke Repaints Only What Changed — `:69`
 - Four K Whole Stroke Including Commit Has No Pen Lift Stall — `:89`
 - Four K Undo After AStroke Stays Responsive — `:109`
-- Four K Frame Cache Stays Within Its Memory Budget — `:129`
-- Headroom Reports Smooth While Painting On Four K — `:149`
+- Four K The First Events Of AStroke Repaint No More Than The Middle Of One — `:142`
+- Four K Frame Cache Stays Within Its Memory Budget — `:191`
+- Headroom Reports Smooth While Painting On Four K — `:211`
 
 ## AlphaSelectAndWandTests
 `tests/Lightbox.App.Tests/LayerCompositingTests.cs`

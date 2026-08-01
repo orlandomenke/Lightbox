@@ -125,6 +125,68 @@ public class LargeCanvasPerformanceTests(ITestOutputHelper output)
         Assert.True(median < 1500, $"4K stroke + undo took {median:0.00} ms (budget 1500)");
     }
 
+    /// <summary>
+    /// The start of a stroke must not repaint more than the middle of one.
+    ///
+    /// It used to: the compose ring's idle buffers each accumulated the union
+    /// of everything that changed while they sat out, so after a stroke
+    /// crossing the canvas the next stroke's first three events each
+    /// recomposited that whole bounding box — measured at 73, 80, 80 ms
+    /// against a 7–12 ms steady state. Three slow events in a row is exactly
+    /// long enough to feel like the pen skipped.
+    ///
+    /// Asserted on the repainted area rather than the clock: the area is what
+    /// the cost is proportional to, and it does not move under a noisy runner.
+    /// </summary>
+    [AvaloniaFact]
+    public void FourK_TheFirstEventsOfAStroke_RepaintNoMoreThanTheMiddleOfOne()
+    {
+        var vm = Vm4K();
+        var sw = new Stopwatch();
+        var times = new List<double>();
+
+        long Event(double x, double y)
+        {
+            sw.Restart();
+            vm.MoveStroke(x, y, 0.9);
+            Pump();
+            times.Add(sw.Elapsed.TotalMilliseconds);
+            var clip = vm.LastPublishClip;
+            // A whole-canvas publish reports no clip at all.
+            return clip is { } r ? (long)r.Width * r.Height : (long)W * H;
+        }
+
+        // A stroke right across the canvas, so every idle buffer falls behind
+        // by the full width of the document.
+        vm.BeginStroke(200, 1000, 1);
+        Pump();
+        for (var i = 1; i <= 24; i++) Event(200 + i * 150, 1000 + i * 30);
+        vm.EndStroke();
+        Pump();
+
+        // Now a second stroke elsewhere. Its first events are the ones that
+        // used to pay off the first stroke's debt.
+        vm.BeginStroke(300, 300, 1);
+        Pump();
+        times.Clear();
+        var areas = new List<long>();
+        for (var i = 1; i <= 12; i++) areas.Add(Event(300 + i * 25, 300 + i * 6));
+        vm.EndStroke();
+        Pump();
+
+        var steady = areas.Skip(4).OrderBy(a => a).ToList();
+        var median = steady[steady.Count / 2];
+        var worst = areas.Take(3).Max();
+        output.WriteLine(
+            $"first three areas {string.Join(", ", areas.Take(3))} px² | steady median {median} px² | " +
+            $"first three {string.Join(", ", times.Take(3).Select(t => $"{t:0.0}"))} ms");
+
+        // A dab-sized repaint, not a stroke-sized one. Doubling is slack for
+        // the coalescing of a couple of events; the defect was ~600x.
+        Assert.True(worst <= median * 2,
+            $"stroke start repainted {worst} px² against a {median} px² steady state");
+    }
+
     [AvaloniaFact]
     public void FourK_FrameCache_StaysWithinItsMemoryBudget()
     {

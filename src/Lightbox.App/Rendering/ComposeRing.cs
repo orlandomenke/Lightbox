@@ -17,6 +17,16 @@ namespace Lightbox.App.Rendering;
 /// tracks the region that went stale since IT was last drawn, and only that
 /// gets repainted.</item>
 /// </list>
+///
+/// The second point has a sting in its tail that cost the first three events
+/// of every stroke ~80 ms at 4K: an idle buffer accumulates the UNION of every
+/// region that changed while it sat out, so the first publish to land on it
+/// after a stroke crossing the canvas had to recomposite that whole bounding
+/// box. The buffers are therefore brought back into line by <em>copying</em>
+/// the freshly composited pixels forward (see <see cref="CopyForward"/>)
+/// instead of recompositing them: one region blit rather than one blit per
+/// layer plus the background clear, and it happens while the region is still
+/// only as big as a dab.
 /// </summary>
 public sealed class ComposeRing : IDisposable
 {
@@ -42,6 +52,9 @@ public sealed class ComposeRing : IDisposable
     private int _next;
     private SKImageInfo _info;
 
+    /// <summary>The buffer painted most recently — a correct composite, and so the source every catch-up copies from.</summary>
+    private Buffer? _current;
+
     /// <summary>Bytes of back-buffer memory currently allocated.</summary>
     public long AllocatedBytes
     {
@@ -56,10 +69,22 @@ public sealed class ComposeRing : IDisposable
     /// Paint and hand out an immutable image. <paramref name="dirty"/> is the
     /// document region that changed since the previous publish (null = the
     /// whole canvas); <paramref name="paint"/> receives the clip to honour.
+    /// <paramref name="regionScale"/> maps those document coordinates onto the
+    /// surface, which is smaller than the document when the canvas cannot show
+    /// full detail — it must match the scale <paramref name="paint"/> composes
+    /// at, or the copy-forward would move the wrong pixels.
     /// </summary>
-    public SKImage Publish(SKImageInfo info, SKRectI? dirty, Action<SKSurface, SKRectI?> paint)
+    public SKImage Publish(
+        SKImageInfo info,
+        SKRectI? dirty,
+        Action<SKSurface, SKRectI?> paint,
+        double regionScale = 1.0)
     {
         if (!_info.Equals(info)) Reset(info);
+
+        // A full-canvas publish repaints its own buffer and invalidates the
+        // rest, so catching anything up first would only be thrown away.
+        if (dirty is not null) CatchUpIdleBuffers(regionScale);
 
         var buffer = PickBuffer();
 
@@ -70,6 +95,7 @@ public sealed class ComposeRing : IDisposable
         // this publish; the others just accumulate this publish's change.
         // A null dirty means "everything changed" and forces a full repaint;
         // a null Stale means "nothing outstanding", which is not the same.
+        // The catch-up above means Stale is normally already null here.
         SKRectI? region = dirty is null || buffer.NeedsFull
             ? null
             : Union(buffer.Stale, dirty.Value);
@@ -86,7 +112,79 @@ public sealed class ComposeRing : IDisposable
 
         var image = buffer.Surface.Snapshot();
         buffer.LastImage = image;
+        _current = buffer;
         return image;
+    }
+
+    /// <summary>
+    /// Bring the buffers that sat out back into line by <em>copying</em> the
+    /// last composite into them, rather than leaving them to recomposite
+    /// everything that changed while they were idle.
+    ///
+    /// Only a buffer whose own snapshot has been retired may be written to —
+    /// drawing into one that is still referenced is the copy-on-write
+    /// duplication this class exists to avoid — so a buffer still on screen
+    /// keeps accumulating, and is caught up on the first publish after it
+    /// comes free. Because this runs before the buffer for this publish is
+    /// chosen, that catch-up lands here rather than in the paint below.
+    /// </summary>
+    private void CatchUpIdleBuffers(double scale)
+    {
+        if (_current?.Surface is not { } source) return;
+
+        var behind = false;
+        foreach (var other in _buffers)
+        {
+            if (Behind(other)) { behind = true; break; }
+        }
+        if (!behind) return;
+
+        // Cheap while nothing draws into the source: Skia hands back the
+        // existing pixels and only duplicates them if the surface is painted
+        // while a snapshot lives, which is why this is disposed before
+        // PickBuffer can choose the source.
+        using var fresh = source.Snapshot();
+        if (fresh is null) return;
+
+        foreach (var other in _buffers)
+        {
+            if (!Behind(other)) continue;
+            CopyForward(other.Surface!, fresh, other.NeedsFull ? null : other.Stale, scale);
+            other.Stale = null;
+            other.NeedsFull = false;
+        }
+
+        bool Behind(Buffer b) =>
+            !ReferenceEquals(b, _current)
+            && b.Surface is not null
+            && b.IsFree
+            && (b.NeedsFull || b.Stale is not null);
+    }
+
+    /// <summary>
+    /// Replace <paramref name="region"/> of an idle buffer with the last
+    /// composited pixels. Src rather than SrcOver: the composite may be
+    /// transparent where the document is, and blending would leave the old
+    /// contents showing through.
+    /// </summary>
+    private static void CopyForward(SKSurface target, SKImage fresh, SKRectI? region, double scale)
+    {
+        var canvas = target.Canvas;
+        canvas.Save();
+        canvas.ResetMatrix();
+        if (region is { } r)
+        {
+            // The same mapping ComposeInto applies to its clip, so a rect that
+            // was repainted there is the rect that gets copied here.
+            canvas.ClipRect(SKRect.Create(
+                (float)Math.Floor(r.Left * scale),
+                (float)Math.Floor(r.Top * scale),
+                (float)Math.Ceiling(r.Width * scale) + 1,
+                (float)Math.Ceiling(r.Height * scale) + 1));
+        }
+        using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+        canvas.DrawImage(fresh, 0, 0, paint);
+        canvas.Restore();
     }
 
     /// <summary>
@@ -117,6 +215,10 @@ public sealed class ComposeRing : IDisposable
             buffer.NeedsFull = true;
             buffer.Stale = null;
         }
+        // Every buffer is wrong now, including the one a catch-up would copy
+        // from — dropping it is what stops the copy from re-certifying stale
+        // pixels as current.
+        _current = null;
     }
 
     private void Reset(SKImageInfo info)
@@ -130,6 +232,7 @@ public sealed class ComposeRing : IDisposable
         }
         _info = info;
         _next = 0;
+        _current = null;
     }
 
     /// <summary>Grow an outstanding stale region by another one (null = none yet).</summary>
