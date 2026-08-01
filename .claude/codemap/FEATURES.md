@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-611 tests, derived from the suite itself. Each line is a
+633 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -753,6 +753,28 @@ regression even when every test still compiles.
 - Garbage Lines Are Skipped Rather Than Throwing — `:107`
 - Without AColumns Header AReasonable Grid Is Chosen — `:115`
 
+## ProjectTests
+`tests/Lightbox.Core.Tests/ProjectTests.cs`
+
+- AProject Round Trips Through The Folder — `:45`
+- The Layout Is The One Documented — `:59`
+- An Animation On Disk Is An Ordinary Document — `:71`
+- AProject With No Type Writes No Type Key — `:83`
+- ADeclared Type Survives — `:97`
+- Loading AProject Does Not Read Its Documents — `:105`
+- Saving Rewrites Only The Dirty Document — `:121`
+- Saving With No Dirty Set Writes Every Loaded Document — `:140`
+- An Interrupted Write Leaves The Previous File Intact — `:154`
+- Shared Palettes Live On The Project And Round Trip — `:171`
+- Character Folders Are Unique Even When Names Collide — `:187`
+- Slugs Are Always Usable As AFolder Name — `:205`
+- Migrating ALoose Document Gives AOne Character Project — `:209`
+- Flatten Inlines The Swatches The Document Actually Uses — `:234`
+- Flatten Inlines Referenced Gradients — `:256`
+- Flatten Does Not Mutate The Open Document — `:278`
+- An Empty Project Saves And Loads Without Characters — `:295`
+- Loading Something That Is Not AProject Fails — `:304`
+
 ## MediumSettingsTests
 `tests/Lightbox.Core.Tests/Serialization/MediumSettingsTests.cs`
 
@@ -1037,6 +1059,14 @@ regression even when every test still compiles.
 - Master Switch Off Ignores Pen Pressure Entirely — `:20`
 - Pressure Hardness Softens The Edge At Light Pressure — `:42`
 - Pressure Settings Survive Clone And Serialization — `:60`
+
+## ProjectFlattenTests
+`tests/Lightbox.Raster.Tests/ProjectFlattenTests.cs`
+
+- AFlattened Document Renders Identically With The Project Gone — `:59`
+- Without Flattening The Same Export Would Render Differently — `:84`
+- AFlattened Gradient Renders Identically Too — `:102`
+- ADocument That References Nothing Shared Flattens To Itself — `:133`
 
 ## BrushEngineTests
 `tests/Lightbox.Raster.Tests/RasterTests.cs`
