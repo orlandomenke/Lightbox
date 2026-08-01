@@ -27,6 +27,20 @@ public sealed class Doc
     /// from the document alone.
     /// </summary>
     public Dictionary<string, ClipRegion> ClipRegions { get; set; } = [];
+
+    /// <summary>
+    /// The document's colour palettes. Per document rather than per
+    /// application: a character's palette is part of the character, and one
+    /// living in app settings could not travel with the file.
+    /// </summary>
+    public List<Palette> Palettes { get; set; } = [];
+
+    /// <summary>
+    /// Gradients referenced by <see cref="Stroke.GradientId"/>, keyed by id —
+    /// the same arrangement as clip regions and brush tips, so a reload
+    /// re-renders from the document alone.
+    /// </summary>
+    public Dictionary<string, Gradient> Gradients { get; set; } = [];
 }
 
 /// <summary>A recorded selection: closed contours (even-odd) plus edge feather.</summary>

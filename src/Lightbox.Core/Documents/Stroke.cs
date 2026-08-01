@@ -30,6 +30,26 @@ public sealed class Stroke
     public string? ClipId { get; set; }
 
     /// <summary>
+    /// The gradient this stroke paints, for <see cref="ToolKind.Gradient"/>.
+    /// Resolved against <see cref="Doc.Gradients"/>, so the mark is
+    /// reproducible from the record alone.
+    /// </summary>
+    public string? GradientId { get; set; }
+
+    /// <summary>
+    /// The palette swatch this stroke's colour comes from, or null for a
+    /// literal colour.
+    ///
+    /// When set, the swatch wins at render time — that is the whole point:
+    /// edit the swatch and every stroke referencing it changes, on every
+    /// frame and every layer, vector and raster alike. <see cref="Color"/> is
+    /// still kept up to date as the last resolved value, so a document whose
+    /// palette has been stripped, or whose swatch was deleted, still renders
+    /// the colour the artist last saw rather than falling back to black.
+    /// </summary>
+    public string? SwatchId { get; set; }
+
+    /// <summary>
     /// Painted on an alpha-locked layer: this stroke may only touch pixels
     /// that already had content beneath it. Recorded here rather than read
     /// from the layer at render time, so flipping the layer's alpha lock

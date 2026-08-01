@@ -65,6 +65,12 @@ public static class BrushEngine
             return;
         }
 
+        if (stroke.Tool == ToolKind.Gradient)
+        {
+            StampGradient(target, stroke, info, targetPixels, outputScale);
+            return;
+        }
+
         switch (stroke.Brush.Kind)
         {
             case BrushKind.Smudge when targetPixels is not null && stroke.Tool != ToolKind.Eraser:
@@ -136,7 +142,7 @@ public static class BrushEngine
             var contours = new List<IReadOnlyList<StrokePoint>> { stroke.Points };
             if (stroke.Holes is not null) contours.AddRange(stroke.Holes);
             using var path = PathFromContours(contours);
-            using var paint = new SKPaint { IsAntialias = stroke.Brush.AntiAlias, Color = ParseColor(stroke.Color) };
+            using var paint = new SKPaint { IsAntialias = stroke.Brush.AntiAlias, Color = StrokeColor(stroke) };
             canvas.DrawPath(path, paint);
         });
         ApplyClip(canvas, stroke, local, dev, outputScale);
@@ -148,6 +154,99 @@ public static class BrushEngine
             BlendMode = SKBlendMode.SrcOver,
         };
         target.DrawImage(snapshot, 0, 0, composite);
+    }
+
+    /// <summary>
+    /// A gradient ramp across the whole layer, bounded by whatever the stroke
+    /// was drawn under — its selection, its alpha lock, its opacity.
+    ///
+    /// The axis is the two points the artist dragged, in document
+    /// coordinates, and the ramp is a pure function of that axis and the
+    /// stops. No dabs, no dynamics, nothing seeded from position: a gradient
+    /// is the one mark in the app with no stochastic element at all, so
+    /// invariant 2 costs nothing here.
+    ///
+    /// A gradient with no selection covers the layer, which is what every
+    /// other tool does with a gradient too — the selection IS the shape.
+    /// </summary>
+    private static void StampGradient(
+        SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels, double outputScale)
+    {
+        if (stroke.Points.Count < 2) return;
+        if (stroke.GradientId is null) return;
+        if (PaletteRegistry.ResolveGradient(stroke.GradientId) is not { } gradient) return;
+
+        var dev = DeviceRect(new SKRectI(0, 0, info.Width, info.Height), outputScale);
+        var local = new SKImageInfo(dev.Width, dev.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var scratch = SKSurface.Create(local);
+        if (scratch is null) return;
+        var canvas = scratch.Canvas;
+        canvas.Clear(SKColors.Transparent);
+
+        var stops = GradientOps.Ordered(gradient);
+        if (stops.Count == 0) return;
+
+        var colors = new SKColor[stops.Count];
+        var positions = new float[stops.Count];
+        for (var i = 0; i < stops.Count; i++)
+        {
+            var (r, g, b, a) = GradientOps.Sample(gradient, stops[i].Position);
+            colors[i] = new SKColor(r, g, b, a);
+            positions[i] = (float)Math.Clamp(stops[i].Position, 0, 1);
+        }
+
+        var tile = gradient.Spread switch
+        {
+            GradientSpread.Repeat => SKShaderTileMode.Repeat,
+            GradientSpread.Mirror => SKShaderTileMode.Mirror,
+            _ => SKShaderTileMode.Clamp,
+        };
+
+        var from = new SKPoint((float)stroke.Points[0].X, (float)stroke.Points[0].Y);
+        var to = new SKPoint((float)stroke.Points[^1].X, (float)stroke.Points[^1].Y);
+
+        InDocumentSpace(canvas, dev, outputScale, () =>
+        {
+            using var shader = gradient.Kind == GradientKind.Radial
+                // Radial: the drag is centre-to-edge, so its length is the
+                // radius. A zero-length drag would make a degenerate shader.
+                ? SKShader.CreateRadialGradient(
+                    from, Math.Max(0.01f, Distance(from, to)), colors, positions, tile)
+                : SKShader.CreateLinearGradient(from, to, colors, positions, tile);
+            using var paint = new SKPaint { Shader = shader, IsAntialias = stroke.Brush.AntiAlias };
+            canvas.DrawRect(new SKRect(0, 0, info.Width, info.Height), paint);
+        });
+
+        ApplyClip(canvas, stroke, local, dev, outputScale);
+        ApplyAlphaLock(canvas, stroke, targetPixels, dev);
+
+        using var snapshot = scratch.Snapshot();
+        using var composite = new SKPaint
+        {
+            Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(stroke.Brush.Opacity, 0, 1) * 255)),
+            BlendMode = SKBlendMode.SrcOver,
+        };
+        target.DrawImage(snapshot, dev.Left, dev.Top, composite);
+    }
+
+    /// <summary>
+    /// The colour a stroke actually paints: its palette swatch if it has one
+    /// and the swatch still exists, otherwise the literal it recorded.
+    ///
+    /// The fallback is not a nicety. A document can arrive with its palette
+    /// removed, or referencing a swatch someone deleted, and the honest
+    /// answer then is the colour the artist last saw — not black, and not a
+    /// refusal to render.
+    /// </summary>
+    public static SKColor StrokeColor(Stroke stroke) =>
+        stroke.SwatchId is { Length: > 0 } id && PaletteRegistry.ResolveSwatch(id) is { } swatch
+            ? ParseColor(swatch.Color)
+            : ParseColor(stroke.Color);
+
+    private static float Distance(SKPoint a, SKPoint b)
+    {
+        float dx = b.X - a.X, dy = b.Y - a.Y;
+        return (float)Math.Sqrt(dx * dx + dy * dy);
     }
 
     /// <summary>
@@ -247,7 +346,7 @@ public static class BrushEngine
 
         if (brush.Medium.Kind != MediumKind.None)
         {
-            Media.MediumSimulator.Apply(scratch, targetPixels, ParseColor(stroke.Color), brush.Medium, dev);
+            Media.MediumSimulator.Apply(scratch, targetPixels, StrokeColor(stroke), brush.Medium, dev);
         }
         else
         {
@@ -327,7 +426,7 @@ public static class BrushEngine
 
         if (brush.Medium.Kind != MediumKind.None)
         {
-            Media.MediumSimulator.Apply(scratch, targetPixels, ParseColor(stroke.Color), brush.Medium, rect);
+            Media.MediumSimulator.Apply(scratch, targetPixels, StrokeColor(stroke), brush.Medium, rect);
         }
         else
         {
@@ -375,7 +474,7 @@ public static class BrushEngine
     private static void StampDabs(SKCanvas canvas, Stroke stroke)
     {
         var brush = stroke.Brush;
-        var color = ParseColor(stroke.Color);
+        var color = StrokeColor(stroke);
         var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
 
         // Direction comes from consecutive dab centres rather than from the
@@ -901,7 +1000,7 @@ public static class BrushEngine
         var carryOver = (float)Math.Clamp(brush.SmudgeLength, 0, 1);
         var spread = (float)Math.Clamp(brush.SmudgeRadius, 0.05, 1);
         var colorRate = Math.Clamp(brush.ColorRate, 0, 1);
-        var ownColor = ParseColor(stroke.Color);
+        var ownColor = StrokeColor(stroke);
 
         SKColor carried = default;
         var hasColor = false;
