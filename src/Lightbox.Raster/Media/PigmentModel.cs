@@ -163,17 +163,26 @@ public readonly struct Pigment
         var x = Math.Clamp(thickness, 0.0, 1.0);
         if (x <= NoPaint) return backdrop;
 
-        // Kubelka-Munk answers "what colour is this film over that backing",
-        // which presumes there is a backing. On an empty layer there is not:
-        // keeping the backdrop's alpha would return a fully computed colour at
-        // alpha 0, so every stroke onto blank canvas would vanish. Paint adds
-        // opacity in proportion to how much it hides, and the reflectance is
-        // computed against the backing the pigment actually sees, which where
-        // the layer is transparent is the pigment's own mass tone.
-        var backing = backdrop.Alpha == 255
-            ? backdrop
-            : Blend(MassTone, backdrop, backdrop.Alpha / 255.0);
+        // Over an opaque backing this is plain Kubelka-Munk, and it is the
+        // overwhelmingly common case — every pixel of an already-painted
+        // region. Kept as a straight-line fast path because the alternative
+        // below costs a second full evaluation.
+        if (backdrop.Alpha == 255)
+        {
+            return new SKColor(
+                FromLinear(Layer(_kR, _sR, _bR, x, ToLinear(backdrop.Red))),
+                FromLinear(Layer(_kG, _sG, _bG, x, ToLinear(backdrop.Green))),
+                FromLinear(Layer(_kB, _sB, _bB, x, ToLinear(backdrop.Blue))),
+                255);
+        }
 
+        // Kubelka-Munk answers "what colour is this film over that backing",
+        // which presumes there is a backing. Where the layer is transparent
+        // there is not: keeping the backdrop's alpha would return a fully
+        // computed colour at alpha 0, so a stroke onto blank canvas would
+        // vanish. The pigment sees its own mass tone there, and it adds
+        // opacity in proportion to how much it hides.
+        var backing = Blend(MassTone, backdrop, backdrop.Alpha / 255.0);
         var alpha = backdrop.Alpha / 255.0;
         var laid = alpha + (1.0 - alpha) * Coverage(x);
 

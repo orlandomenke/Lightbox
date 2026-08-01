@@ -295,6 +295,78 @@ public sealed class DocumentEditor
     }
 
     /// <summary>
+    /// Re-time a range so every drawing in it is held for <paramref name="step"/>
+    /// frames. The range gets longer and no drawing is lost — this is what an
+    /// animator means by "animating on 2s".
+    /// </summary>
+    /// <returns>Frames the range grew by.</returns>
+    public int StretchExposure(string layerId, int from, int to, int step)
+    {
+        if (step < 1 || FindLayer(layerId) is null) return 0;
+        var grew = 0;
+        Perform(doc =>
+        {
+            var layer = doc.Scene.Layers.First(l => l.Id == layerId);
+            PadCels(layer, doc.Scene.FrameCount);
+            var lo = Math.Clamp(Math.Min(from, to), 0, layer.Cels.Count - 1);
+            var hi = Math.Clamp(Math.Max(from, to), 0, layer.Cels.Count - 1);
+
+            // Rebuild the span: each drawing, then step-1 holds behind it.
+            // Holds already in the range are absorbed rather than multiplied,
+            // so stretching to 2s twice does not land on 4s.
+            var rebuilt = new List<Cel>();
+            for (var i = lo; i <= hi; i++)
+            {
+                if (layer.Cels[i].Frame is null) continue; // an existing hold
+                rebuilt.Add(layer.Cels[i]);
+                for (var h = 1; h < step; h++) rebuilt.Add(new Cel());
+            }
+            if (rebuilt.Count == 0) return;
+
+            var original = hi - lo + 1;
+            layer.Cels.RemoveRange(lo, original);
+            layer.Cels.InsertRange(lo, rebuilt);
+            grew = rebuilt.Count - original;
+            if (layer.Cels.Count > doc.Scene.FrameCount) doc.Scene.FrameCount = layer.Cels.Count;
+        });
+        return grew;
+    }
+
+    /// <summary>
+    /// Thin a range to every <paramref name="step"/>-th drawing, keeping the
+    /// range the same length by holding what survives. Destructive: the
+    /// drawings between are discarded.
+    /// </summary>
+    /// <returns>Drawings removed.</returns>
+    public int ReduceToStep(string layerId, int from, int to, int step)
+    {
+        if (step < 2 || FindLayer(layerId) is null) return 0;
+        var dropped = 0;
+        Perform(doc =>
+        {
+            var layer = doc.Scene.Layers.First(l => l.Id == layerId);
+            PadCels(layer, doc.Scene.FrameCount);
+            var lo = Math.Clamp(Math.Min(from, to), 0, layer.Cels.Count - 1);
+            var hi = Math.Clamp(Math.Max(from, to), 0, layer.Cels.Count - 1);
+
+            var kept = 0;
+            for (var i = lo; i <= hi; i++)
+            {
+                if (layer.Cels[i].Frame is null) continue;
+                // Keep every step-th drawing; the rest become holds, so the
+                // range keeps its length and its timing.
+                if (kept % step != 0)
+                {
+                    layer.Cels[i] = new Cel();
+                    dropped++;
+                }
+                kept++;
+            }
+        });
+        return dropped;
+    }
+
+    /// <summary>
     /// Remove the drawing at exactly <paramref name="index"/> — the cel
     /// becomes a hold, so the previous drawing shows through. No-op on holds.
     /// </summary>

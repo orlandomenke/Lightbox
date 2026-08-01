@@ -1,7 +1,44 @@
 # Lightbox
 
-A raster + vector desktop animation app for hand-drawn frame-by-frame work,
-where AI fills in the inbetweens. C#/.NET 8, Avalonia 12, SkiaSharp.
+A raster + vector desktop application for **frame-by-frame animation** and
+**digital painting**, with AI assistance throughout — most visibly filling in
+the inbetweens. C#/.NET 8, Avalonia 12, SkiaSharp.
+
+## What it is for, and how that settles arguments
+
+Two first-class purposes, not one with a hobby attached:
+
+1. **Frame-by-frame animation.** Drawing on paper, one frame at a time:
+   exposure sheets, holds, onion skin, flipping, animating on 2s. The unit of
+   work is a sequence, and anything that makes a single drawing nicer at the
+   expense of handling two hundred of them is a bad trade.
+2. **Digital painting.** A single image worth finishing: real media, pigment
+   that layers like pigment, brushes an artist can tune and import from the
+   tools they already own.
+3. **AI assistance** serving both — inbetweening, reference generation, and
+   an MCP surface so an agent can work the document directly.
+
+Most scope questions answer themselves once asked against these. Some worked
+examples, so the reasoning is reusable:
+
+- *"How much of Photoshop's brush panel should we take?"* — the parts that
+  change how a **mark reads** and that `.abr`/`.kpp` files actually carry.
+  Not the parts that only pay off on a single illustration you will spend a
+  day on, because every one of them also has to survive being replayed across
+  two hundred frames.
+- *"Should a simulation be allowed?"* — yes, if it is deterministic. A stroke
+  is replayed on load, on undo, and by the inbetweener; a mark that cannot be
+  reproduced exactly is not a mark, it is a one-off. This is why invariant 2
+  is absolute rather than a preference.
+- *"Should this be per-document or per-preference?"* — if it reaches pixels,
+  per stroke. An artist who returns to a scene after a month must find it
+  exactly as they left it.
+- *"Is flicker acceptable?"* — no. An effect that varies subtly between
+  similar strokes looks fine on one image and boils at 12 fps. Anything
+  stochastic must be seeded from geometry, not from an index or a clock.
+
+When a request genuinely does not resolve against these, it belongs in
+`.claude/quality/QUESTIONS.md` rather than in a guess.
 
 ## Start here, not with a search
 
