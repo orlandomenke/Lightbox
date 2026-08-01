@@ -733,6 +733,24 @@ public sealed partial class MainViewModel : ObservableObject
         set => SetBrush(s => s.Medium.Pickup = Math.Clamp(value, 0, 1));
     }
 
+    public double MediumPressureWater
+    {
+        get => GetBrush(s => s.Medium.PressureWater);
+        set => SetBrush(s => s.Medium.PressureWater = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumPressureMix
+    {
+        get => GetBrush(s => s.Medium.PressureMix);
+        set => SetBrush(s => s.Medium.PressureMix = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumRewetting
+    {
+        get => GetBrush(s => s.Medium.Rewetting);
+        set => SetBrush(s => s.Medium.Rewetting = Math.Clamp(value, 0, 1));
+    }
+
     public double BrushRotationJitter
     {
         get => GetBrush(s => s.RotationJitter);
@@ -814,6 +832,7 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(MediumPaper), nameof(MediumPaperScale), nameof(MediumPaperInfluence),
         nameof(MediumBody), nameof(MediumRelief), nameof(MediumBristleDrag),
         nameof(MediumPaintLoad), nameof(MediumPickup),
+        nameof(MediumPressureWater), nameof(MediumPressureMix), nameof(MediumRewetting),
     ];
 
     private void NotifyBrushProperties()

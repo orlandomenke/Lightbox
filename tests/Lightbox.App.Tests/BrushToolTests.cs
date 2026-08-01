@@ -47,6 +47,7 @@ public class BrushPresetTests
     public void SelectingAPreset_AppliesItsSettings_ToTheStrokeRecord()
     {
         var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var restore = vm.SelectedBrushPreset;
         var watercolor = vm.BrushPresetChoices.First(p => p.Name == "Watercolor");
         vm.SelectedBrushPreset = watercolor;
 
@@ -69,6 +70,8 @@ public class BrushPresetTests
         Assert.Equal(watercolor.Settings.Medium.Wetness, stroke.Brush.Medium.Wetness);
         Assert.Equal(watercolor.Settings.Medium.EdgePull, stroke.Brush.Medium.EdgePull);
         Assert.Equal(watercolor.Settings.Medium.Paper, stroke.Brush.Medium.Paper);
+
+        vm.SelectedBrushPreset = restore;
     }
 
     [AvaloniaFact]
@@ -79,6 +82,10 @@ public class BrushPresetTests
         // artist picked between them has quietly stopped existing.
         var vm = new MainViewModel(null) { SmoothStrokes = false };
         var seen = new List<(MediumKind Kind, double Wetness, double Viscosity, double Hiding)>();
+        // The brush store is shared across tests, and a medium brush now
+        // actually changes how strokes render — leaving one selected quietly
+        // changes what later tests paint with.
+        var restore = vm.SelectedBrushPreset;
 
         foreach (var name in new[] { "Watercolor", "Gouache", "Oil", "Ink wash" })
         {
@@ -102,6 +109,8 @@ public class BrushPresetTests
         Assert.True(water.Wetness > oil.Wetness, "watercolour should be wetter than oil");
         Assert.True(oil.Viscosity > water.Viscosity, "oil should be more viscous than watercolour");
         Assert.True(oil.Hiding > water.Hiding, "oil should hide more than watercolour");
+
+        vm.SelectedBrushPreset = restore;
     }
 
     [AvaloniaFact]

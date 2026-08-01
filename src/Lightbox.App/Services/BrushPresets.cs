@@ -108,6 +108,8 @@ public static class BuiltInPresets
                     Absorbency = 0.35, EdgePull = 0.7,
                     PigmentDensity = 0.5, Granularity = 0.6, Hiding = 0.05,
                     Paper = PaperKind.ColdPress, PaperScale = 14, PaperInfluence = 0.7,
+                    // A light touch is mostly water: paler, and it blooms.
+                    PressureWater = 0.8, Rewetting = 0.6,
                 },
             },
         },
@@ -128,6 +130,8 @@ public static class BuiltInPresets
                     PigmentDensity = 0.9, Granularity = 0.15, Hiding = 0.9,
                     Paper = PaperKind.ColdPress, PaperScale = 10, PaperInfluence = 0.35,
                     Body = 0.35, Relief = 0.2, PaintLoad = 0.85,
+                    // Body colour: pressure decides how much it picks up.
+                    PressureWater = 0.15, PressureMix = 0.8, Pickup = 0.25, Rewetting = 0.35,
                 },
             },
         },
@@ -149,6 +153,9 @@ public static class BuiltInPresets
                     Paper = PaperKind.Canvas, PaperScale = 8, PaperInfluence = 0.6,
                     Body = 0.8, Relief = 0.6, BristleDrag = 0.5,
                     PaintLoad = 0.6, Pickup = 0.4,
+                    // Barely engages the canvas under a light touch, drags it
+                    // thoroughly under a firm one.
+                    PressureWater = 0.05, PressureMix = 0.9, Rewetting = 0.55,
                 },
             },
         },
@@ -169,6 +176,7 @@ public static class BuiltInPresets
                     Absorbency = 0.75, EdgePull = 0.3,
                     PigmentDensity = 0.8, Granularity = 0.05, Hiding = 0.4,
                     Paper = PaperKind.Smooth, PaperScale = 6, PaperInfluence = 0.25,
+                    PressureWater = 0.5, Rewetting = 0.4,
                 },
             },
         },

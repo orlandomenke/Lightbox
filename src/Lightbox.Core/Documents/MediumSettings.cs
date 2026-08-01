@@ -133,6 +133,36 @@ public sealed class MediumSettings
     /// <summary>0..1: how much of what is already on the canvas the brush picks up and drags.</summary>
     public double Pickup { get; set; }
 
+    // ---- how pressure reaches the medium ---------------------------------------
+    //
+    // Pressure already scales dab size and dab alpha. These decide what a
+    // *light* touch means physically, which differs by medium: a watercolour
+    // brush held lightly carries proportionally more water than pigment, while
+    // an oil brush held lightly barely engages the paint underneath.
+
+    /// <summary>
+    /// 0..1: how much a light touch means water rather than pigment. Raising
+    /// it makes light strokes paler and more prone to blooming, because the
+    /// extra water carries what pigment there is further before it dries.
+    /// </summary>
+    public double PressureWater { get; set; }
+
+    /// <summary>
+    /// 0..1: how much pressure governs mixing with the paint already there.
+    /// At 1 a light touch barely disturbs the canvas and a firm one drags it
+    /// fully; at 0 pressure makes no difference to mixing.
+    /// </summary>
+    public double PressureMix { get; set; }
+
+    /// <summary>
+    /// 0..1: how much this stroke re-wets what is under it. Above zero, paint
+    /// already on the layer is lifted back into suspension and moves with the
+    /// new stroke — wet into wet. Deterministic despite being history
+    /// dependent: the rasterizer replays strokes in record order, so what a
+    /// stroke re-wets is exactly what the strokes before it left.
+    /// </summary>
+    public double Rewetting { get; set; }
+
     public MediumSettings Clone() => new()
     {
         Kind = Kind,
@@ -154,5 +184,8 @@ public sealed class MediumSettings
         BristleDrag = BristleDrag,
         PaintLoad = PaintLoad,
         Pickup = Pickup,
+        PressureWater = PressureWater,
+        PressureMix = PressureMix,
+        Rewetting = Rewetting,
     };
 }

@@ -354,6 +354,26 @@
                           <Slider Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1" Margin="4,0" />
                         </DockPanel>
 
+                        <TextBlock Text="Interaction" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                        <DockPanel ToolTip.Tip="How much a light touch means water rather than pigment. Raise it and light strokes go paler and bloom further.">
+                          <TextBlock Text="Light = water" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="How much pressure governs mixing with the paint already there. At 1 a light touch barely disturbs it.">
+                          <TextBlock Text="Pressure mix" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="How much this stroke re-wets what is under it. Above zero, earlier paint lifts and travels with the new stroke — wet into wet.">
+                          <TextBlock Text="Re-wetting" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumRewetting}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumRewetting}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
                         <StackPanel Spacing="6" IsVisible="{Binding MediumHasBody}">
                           <TextBlock Text="Body" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
                           <DockPanel>

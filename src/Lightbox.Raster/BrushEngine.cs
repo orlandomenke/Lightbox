@@ -202,8 +202,19 @@ public static class BrushEngine
 
         StampDabs(canvas, stroke);
 
-        if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, rect);
-        if (brush.Granulation > 0) ApplyGranulation(canvas, brush, rect);
+        // The medium replaces the flat texture effects: wet edge and
+        // granulation are the cheap stand-ins for what the simulation
+        // actually computes, so running both would double the rim and the
+        // grain.
+        if (brush.Medium.Kind != MediumKind.None)
+        {
+            Media.MediumSimulator.Apply(scratch, targetPixels, ParseColor(stroke.Color), brush.Medium, rect);
+        }
+        else
+        {
+            if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, rect);
+            if (brush.Granulation > 0) ApplyGranulation(canvas, brush, rect);
+        }
         ApplyClip(canvas, stroke, local, rect);
         ApplyAlphaLock(canvas, stroke, targetPixels, rect);
 

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-418 tests, derived from the suite itself. Each line is a
+423 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -78,11 +78,11 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/BrushToolTests.cs`
 
 - Selecting APreset Applies Its Settings To The Stroke Record — `:47`
-- Each Simulated Medium Reaches The Stroke Record With Its Own Physics — `:75`
-- Brush And Eraser Keep Separate Configurations — `:108`
-- Last Configured Brush Survives ANew Session — `:123`
-- Save Current As Preset Persists User Presets — `:147`
-- Imported Brush Becomes APreset And Its Tip Enters The Document — `:197`
+- Each Simulated Medium Reaches The Stroke Record With Its Own Physics — `:78`
+- Brush And Eraser Keep Separate Configurations — `:117`
+- Last Configured Brush Survives ANew Session — `:132`
+- Save Current As Preset Persists User Presets — `:156`
+- Imported Brush Becomes APreset And Its Tip Enters The Document — `:206`
 
 ## HiddenLayerTests
 `tests/Lightbox.App.Tests/BrushToolTests.cs`
@@ -677,6 +677,15 @@ regression even when every test still compiles.
 - Thin Wash Pins Instead Of Creeping Forever — `:375`
 - Mis Sized Buffers Are Rejected — `:410`
 - Four Hundred Square Twelve Steps Stays Within Budget — `:431`
+
+## MediumRenderingTests
+`tests/Lightbox.Raster.Tests/MediumRenderingTests.cs`
+
+- The Four Media Do Not Render Identically — `:89`
+- APlain Brush Is Untouched By Any Of This — `:135`
+- Watercolour Light Pressure Is Paler And Spreads Further — `:148`
+- Oil ASecond Stroke Disturbs The First — `:165`
+- Every Medium Re Renders Identically — `:192`
 
 ## PaperFieldScaleTests
 `tests/Lightbox.Raster.Tests/PaperFieldTests.cs`

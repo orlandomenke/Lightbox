@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `b4ec9d9` · 138 files · 26020 lines · 418 tests.
+Generated from `afa7305` · 140 files · 26576 lines · 423 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -27,16 +27,16 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (3625 ln) · 25 test files
-  - FrameCell:18, MainViewModel:61, LayerKindChoice:1600
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (3644 ln) · 25 test files
+  - FrameCell:18, MainViewModel:61, LayerKindChoice:1619
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (1469 ln) · 2 test files
   - CanvasControl:28, CanvasToolMode:204, TxDrag:247, DrawOp:1205
-- `src/Lightbox.App/Views/MainWindow.axaml` (1311 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (1331 ln) · **no tests**
   - BrushCategoryList, BrushPageEffects, BrushPageGeneral, BrushPageMedium, BrushPagePresets, BrushPagePressure, Canvas, CanvasHost …
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (1073 ln) · **no tests**
   - MainWindow:13
-- `src/Lightbox.App/Services/BrushPresets.cs` (248 ln) · 26 indirect only
-  - BrushPreset:7, BuiltInPresets:24, PresetStore:195, State:200
+- `src/Lightbox.App/Services/BrushPresets.cs` (256 ln) · 26 indirect only
+  - BrushPreset:7, BuiltInPresets:24, PresetStore:203, State:208
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (211 ln) · **no tests**
   - ShortcutRow:11, ShortcutGroup:23, ConfigureWindow:36
 - `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (209 ln) · 1 test files
@@ -101,13 +101,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
 - `src/Lightbox.Core/Geometry/TransformOps.cs` (219 ln) · 1 test files
   - TransformOps:12
-- `src/Lightbox.Core/Documents/MediumSettings.cs` (158 ln) · 3 test files
+- `src/Lightbox.Core/Documents/MediumSettings.cs` (191 ln) · 4 test files
   - MediumKind:10, PaperKind:29, MediumSettings:54
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (130 ln) · 1 test files
   - GeometryOps:5
 - `src/Lightbox.Core/Documents/Layer.cs` (115 ln) · 9 test files
   - LayerKind:3, LayerBlendMode:14, Cel:38, LayerGroup:49, Layer:67
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (112 ln) · 14 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (112 ln) · 15 test files
   - BrushKind:4, BrushSettings:23
 - `src/Lightbox.Core/Inbetween/Inbetweener.cs` (94 ln) · 2 test files
   - Inbetweener:19
@@ -121,7 +121,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocumentFactory:3
 - `src/Lightbox.Core/Serialization/FrameConverter.cs` (64 ln) · 30 indirect only
   - FrameConverter:14
-- `src/Lightbox.Core/Documents/Stroke.cs` (61 ln) · 20 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (61 ln) · 21 test files
   - Stroke:9
 - `src/Lightbox.Core/Documents/Scene.cs` (60 ln) · 2 test files
   - FrameMarker:4, Scene:13
@@ -141,9 +141,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ColorOps:3
 - `src/Lightbox.Core/Inbetween/Easing.cs` (20 ln) · 4 test files
   - Easing:3, EasingOps:11
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 43 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 44 indirect only
   - Ids:3
-- `src/Lightbox.Core/Documents/ToolKind.cs` (14 ln) · 16 test files
+- `src/Lightbox.Core/Documents/ToolKind.cs` (14 ln) · 17 test files
   - ToolKind:3
 
 ## Lightbox.Import
@@ -168,7 +168,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.Raster/Media/FluidLattice.cs` (820 ln) · 1 test files
   - FluidLattice:59
-- `src/Lightbox.Raster/BrushEngine.cs` (787 ln) · 5 test files
+- `src/Lightbox.Raster/BrushEngine.cs` (798 ln) · 6 test files
   - BrushEngine:25
 - `src/Lightbox.Raster/FloodFill.cs` (416 ln) · 2 test files
   - FloodFill:13, Options:15, Result:21, ContourTracer:280
@@ -176,6 +176,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PaperField:26, Tile:81
 - `src/Lightbox.Raster/Media/PigmentModel.cs` (347 ln) · 1 test files
   - Pigment:31
+- `src/Lightbox.Raster/Media/MediumSimulator.cs` (252 ln) · **no tests**
+  - MediumSimulator:22
 - `src/Lightbox.Raster/FrameRasterizer.cs` (74 ln) · 7 test files
   - FrameRasterizer:10
 - `src/Lightbox.Raster/BrushTipRegistry.cs` (34 ln) · 1 test files
