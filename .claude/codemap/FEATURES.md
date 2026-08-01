@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-450 tests, derived from the suite itself. Each line is a
+521 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -90,6 +90,45 @@ regression even when every test still compiles.
 - Painting On AHidden Layer Is Blocked Until Visible Again — `:11`
 - Ai Draw Refuses AHidden Layer — `:31`
 
+## CameraCompositingTests
+`tests/Lightbox.App.Tests/CameraCompositingTests.cs`
+
+- ACamera Centred On AQuadrant Frames That Quadrant — `:52`
+- Zooming Out Shows More Of The Document — `:67`
+- Rolling The Camera Rotates What The Frame Sees — `:83`
+- No Transform Composes Exactly As It Did Before Cameras Existed — `:101`
+- No Transform Still Honours The Uniform Scale Path — `:114`
+- AClip Under ARolling Camera Covers Where The Region Actually Landed — `:123`
+- Device Bounds Without ACamera Is The Mapping The Compositor Always Used — `:141`
+- The Compose Ring Copies Forward Correctly Under ACamera — `:152`
+
+## CameraExportTests
+`tests/Lightbox.App.Tests/CameraExportTests.cs`
+
+- Without ACamera The Export Is Byte For Byte What It Always Was — `:78`
+- Without ACamera The Output Is The Canvas — `:102`
+- The Output Size Comes From The Camera — `:111`
+- APan Produces ADifferent Framing On Each Frame — `:122`
+- AStatic Camera Frames The Same Thing On Every Frame — `:139`
+- ACamera With No Keys Frames The Scene Centre — `:153`
+- APush In Enlarges What The Frame Shows — `:167`
+
+## CameraViewModelTests
+`tests/Lightbox.App.Tests/CameraViewModelTests.cs`
+
+- ANew Document Has No Camera And No Overlay — `:22`
+- Adding ACamera Frames The Whole Canvas At One To One — `:31`
+- Adding ACamera Twice Is Harmless — `:54`
+- Removing The Camera Takes The Overlay With It — `:65`
+- Editing AFraming Keys It At The Playhead — `:79`
+- Scrubbing Between Keys Shows The Interpolated Framing — `:93`
+- Clearing AKey Leaves The Others — `:112`
+- The Ruler Learns Which Frames Carry AKey — `:131`
+- Viewing Through The Camera Drops The Overlay — `:147`
+- Viewing Through The Camera Does Not Touch The Document — `:163`
+- Painting Still Works While Looking Through The Camera — `:183`
+- ACamera With No Keys Still Frames Something — `:203`
+
 ## CanvasInputTests
 `tests/Lightbox.App.Tests/CanvasInputTests.cs`
 
@@ -130,8 +169,9 @@ regression even when every test still compiles.
 
 - After ALarge Change The Next Publishes Still Only Repaint Their Own Dirty Rect — `:61`
 - ABuffer Still Holding ASnapshot Is Caught Up Once It Comes Free — `:100`
-- Every Publish Is ACorrect Full Composite — `:142`
-- Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:185`
+- Catching Up Does Not Dispose The Image The Canvas Is Still Showing — `:151`
+- Every Publish Is ACorrect Full Composite — `:172`
+- Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:215`
 
 ## LayerRowTests
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
@@ -212,6 +252,17 @@ regression even when every test still compiles.
 
 - Pick Color At Reads The Composited Color And Paper When Empty — `:49`
 - Insert Keyframe At Playhead Keys The Active Cel — `:74`
+
+## FrameBitmapCacheTests
+`tests/Lightbox.App.Tests/FrameBitmapCacheTests.cs`
+
+- The Byte Budget Is Honoured Even When It Cannot Afford The Frame Floor — `:32`
+- The Frame Floor Still Applies When The Budget Can Afford It — `:49`
+- The Same Frame At Two Scales Is Cached Twice Rather Than Thrashing — `:62`
+- The Same Frame At Two Document Sizes Is Also Cached Separately — `:82`
+- Invalidating AFrame Drops Every Render Of It — `:96`
+- Invalidating One Frame Leaves The Others Alone — `:115`
+- Cached Bytes Tracks What Is Actually Held — `:129`
 
 ## IpcTests
 `tests/Lightbox.App.Tests/IpcTests.cs`
@@ -414,6 +465,22 @@ regression even when every test still compiles.
 - Pulled String Has ADead Zone Then Trails The Cursor — `:58`
 - Ema Lags Behind And Converges — `:72`
 
+## SpriteSheetExportTests
+`tests/Lightbox.App.Tests/SpriteSheetExportTests.cs`
+
+- Trimming Defaults To The Union So Every Cell Is The Same Size And Nothing Jitters — `:63`
+- The Union Covers Every Frames Ink — `:88`
+- Per Frame Trimming Records Where Each Cell Came From — `:103`
+- No Trim Gives Every Cell The Whole Canvas — `:119`
+- The Grid Holds Every Frame And The Sheet Is That Size — `:129`
+- Every Cell Actually Contains Its Frame — `:144`
+- Padding Leaves ATransparent Gutter Without Losing Ink — `:169`
+- Without APivot The Sidecar Carries None — `:182`
+- The Pivot Is Recorded Per Cell So Trimming Cannot Shift The Character — `:191`
+- The Sidecar Is Aseprite Shaped — `:219`
+- An Opaque Background Layer Does Not Defeat Trimming — `:247`
+- An Empty Document Still Produces ASheet — `:260`
+
 ## FrameInsertionTests
 `tests/Lightbox.App.Tests/TimelineExpansionTests.cs`
 
@@ -487,6 +554,28 @@ regression even when every test still compiles.
 - Entire Animation Scope Moves Every Layer — `:127`
 - Selection Region Limits The Transform To Strokes Inside It — `:146`
 - Empty Scope Refuses To Start — `:166`
+
+## CameraTests
+`tests/Lightbox.Core.Tests/CameraTests.cs`
+
+- No Camera Frames The Whole Scene Dead Centre — `:30`
+- No Keys Frames The Whole Scene Dead Centre — `:37`
+- One Key Is AStatic Framing — `:44`
+- Outside The Authored Range The Camera Holds Rather Than Drifting — `:57`
+- Pan And Roll Interpolate Linearly Between Keys — `:71`
+- Zoom Interpolates Geometrically So APush Holds AConstant Rate — `:80`
+- Each Easing Shapes The Move — `:101`
+- AZero Or Negative Zoom Falls Back To One Rather Than Dividing The Framing Away — `:109`
+- Keys Out Of Order Still Interpolate In Timeline Order — `:116`
+- Set Key Replaces The Key Already On That Frame — `:130`
+- Clear Key Removes Only That Frame — `:144`
+- ANew Scene Has No Camera — `:156`
+- ADocument Without ACamera Serializes With No Camera Key At All — `:163`
+- Adding Then Removing ACamera Returns The Document To Its Original Bytes — `:175`
+- ANew Scene Has No Pivot And The File Has No Pivot Key — `:191`
+- APivot Round Trips And Defaults To Feet Centre — `:199`
+- AShot Document Carries No Pivot And ASprite Document No Camera — `:213`
+- ACamera Round Trips Through Save And Load — `:226`
 
 ## ColorTests
 `tests/Lightbox.Core.Tests/Geometry/GeometryTests.cs`
@@ -732,6 +821,16 @@ regression even when every test still compiles.
 - Watercolour Light Pressure Is Paler And Spreads Further — `:148`
 - Oil ASecond Stroke Disturbs The First — `:165`
 - Every Medium Re Renders Identically — `:192`
+
+## OutputScaleTests
+`tests/Lightbox.Raster.Tests/OutputScaleTests.cs`
+
+- AHigher Output Scale Renders The Same Mark — `:141`
+- Scaling The Coordinates Instead Produces ADifferent Mark — `:159`
+- Output Scale One Is Untouched — `:179`
+- AHigher Output Scale Actually Resolves More Detail — `:192`
+- AClipped Stroke Clips To The Same Region At Every Scale — `:225`
+- An Alpha Locked Stroke Stays Inside Existing Paint At Every Scale — `:269`
 
 ## PaperFieldScaleTests
 `tests/Lightbox.Raster.Tests/PaperFieldTests.cs`

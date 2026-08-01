@@ -87,7 +87,18 @@ Rebuild by hand with `python3 scripts/codemap.py build` after large changes.
    global state at render time (anti-aliasing, pressure curves), so changing
    a preference never alters existing art.
 5. **The view transform is view-only.** Zoom, rotation, mirror and pan never
-   touch the document.
+   touch the document. The **camera** is the one transform that is not: it is
+   authored, keyframed, saved and exported. It still never mutates a stroke —
+   invariant 1 holds — it only decides what part of the record a render shows.
+   "View through camera" is on the view-only side of that line.
+7. **Render bigger by scaling the surface, never the geometry.** Stroke
+   coordinates are never multiplied. `Hash01` seeds every dab dynamic from the
+   IEEE-754 bits of a position, so doubling a coordinate re-rolls scatter,
+   size, flow, roundness, rotation and all three colour jitters — a 2× render
+   would be a *different mark*, not a sharper one. Output scale is therefore a
+   canvas transform (`FrameRasterizer`/`BrushEngine`), and
+   `OutputScaleTests` renders it the wrong way round on purpose to keep the
+   reason written down.
 6. **Painting is bounded work.** Live preview and commits repaint only the
    region a stroke can reach; anything that goes full-canvas per pointer
    event is a performance regression (see `.claude/quality/CHARTER.md`).
