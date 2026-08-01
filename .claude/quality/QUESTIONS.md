@@ -10,22 +10,6 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
-## Q5 · What "animate on 2s" does to existing drawings
-
-**Blocks:** range exposure editing (M16c).
-
-Selecting a range of cels and re-exposing on 2s has two possible meanings:
-
-- **(a)** Stretch: each existing drawing is held for 2 frames, so the range
-  gets longer and no drawing is lost. *(recommended: this is what "animating
-  on 2s" means to an animator)*
-- **(b)** Thin: keep every second drawing and discard the rest, so the range
-  keeps its length.
-
-**Recommend (a)**, with (b) available later as a separate "reduce" command.
-
----
-
 ## Q6 · What a sampled smudge re-reads on reload
 
 **Blocks:** Smudge (all layers) and Blur (all layers) — everything else
@@ -50,42 +34,44 @@ whole composite breaks that: the result depends on the layers underneath.
 
 ---
 
-## Q7 · How much of the Photoshop brush panel to take
-
-**Blocks:** the brush-settings expansion (see `docs/design/brush-family.md`).
-
-Tier 1 is five per-dab modulations — size jitter, angle/roundness jitter,
-direction-following angle, dual brush, flow jitter. All are seeded from dab
-position, so determinism is unaffected.
-
-- **(a)** Tier 1 only, then reassess. *(recommended: it is the set that
-  changes how a mark reads, and it is what `.abr` files most often carry
-  that we currently drop)*
-- **(b)** Tier 1 + Texture and Colour Dynamics from tier 2.
-- **(c)** Something narrower — name the two or three you actually want.
-
-**Recommend (a).**
-
----
-
-## Q8 · Whether to rename the brush pages to match Photoshop
-
-**Blocks:** nothing — but doing it later means moving controls twice.
-
-Photoshop groups brush controls by dynamic (Shape Dynamics, Scattering,
-Texture, Dual Brush, Transfer) rather than by parameter. Our Effects page
-groups by parameter.
-
-- **(a)** Adopt Photoshop's section names inside the Effects page.
-  *(recommended: it is the point of aligning — an imported preset should be
-  recognisable)*
-- **(b)** Keep our own grouping and just add the new controls.
-
-**Recommend (a).**
-
----
-
 ## Answered
+
+### Q5 · What "animate on 2s" does — **both, as separate commands**, 2026-08-01
+
+Two distinct operations rather than one with a mode:
+
+- **Stretch to Ns** — each drawing is held for N frames, so the range gets
+  longer and no drawing is lost. This is what an animator means by "animating
+  on 2s".
+- **Reduce to Ns** — keep every Nth drawing and discard the rest, so the
+  range keeps its length. Destructive, and named so it reads that way.
+
+### Q7 · How much of the Photoshop brush panel — **(b)**, 2026-08-01
+
+Tier 1 plus Texture and Colour Dynamics from tier 2:
+
+1. Size jitter with minimum diameter
+2. Angle and roundness jitter
+3. Direction-following angle
+4. Dual brush
+5. Flow jitter
+6. Texture — settable paper tile, depth and scale (generalises granulation)
+7. Colour Dynamics — foreground/background jitter, hue/saturation/brightness
+   jitter
+
+All are per-dab modulations seeded from dab position, so determinism is
+unaffected. Colour Dynamics is the one that needs a model change: it wants a
+second colour in the record.
+
+Still declined: airbrush build-up timing, bristle qualities, and the full
+Mixer Brush reservoir. Each is a simulation rather than a parameter, and none
+survives an `.abr` round trip in a form we could honour.
+
+### Q8 · Rename the brush pages to match Photoshop — **(a)**, 2026-08-01
+
+Adopt Photoshop's grouping inside the Effects page: Shape Dynamics,
+Scattering, Texture, Dual Brush, Transfer. An imported preset should be
+recognisable to someone who knows the panel it came from.
 
 ### Q1 · Smudge with no colour of its own — **(a)**, 2026-08-01
 

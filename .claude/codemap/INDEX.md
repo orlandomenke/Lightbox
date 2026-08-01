@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `3add3a6` · 133 files · 23659 lines · 382 tests.
+Generated from `e825daa` · 133 files · 23659 lines · 382 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
