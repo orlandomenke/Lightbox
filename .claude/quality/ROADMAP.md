@@ -124,6 +124,7 @@ workspace split lands — see "Project architecture" below.
 - [?] Workspace layouts, decoupled from project type
 - [x] Dockable panels `evidence: Docker, Sidebar, SidebarTests`
 - [?] Per-workspace panel sets (Illustration / Animation / Game)
+- [?] Auto save - configurable in time if a file is already present. 
 
 ## Pillar 2 — Persistent, customizable onion skinning
 
