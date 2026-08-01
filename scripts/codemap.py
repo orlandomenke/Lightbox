@@ -17,6 +17,7 @@ Usage
                                   numbers and the tests that cover them
     codemap.py file <path>        one file's symbols, dependents and tests
     codemap.py stale              exit 0 if the map is current, 1 if not
+    codemap.py refresh            rebuild only if the map is out of date
 """
 
 from __future__ import annotations
@@ -579,13 +580,20 @@ def cmd_file(target: str) -> None:
             print(f"  {dep}")
 
 
-def cmd_stale() -> None:
+def is_stale() -> str:
+    """Empty string when the map is current, otherwise why it is not."""
     stamp = OUT_DIR / ".stamp"
     if not stamp.exists():
-        print("stale: never built")
-        sys.exit(1)
+        return "never built"
     if stamp.read_text(encoding="utf-8").strip() != fingerprint():
-        print("stale: sources changed since the last build")
+        return "sources changed since the last build"
+    return ""
+
+
+def cmd_stale() -> None:
+    reason = is_stale()
+    if reason:
+        print(f"stale: {reason}")
         sys.exit(1)
     print("current")
 
@@ -606,6 +614,12 @@ def main() -> None:
         cmd_file(args[1])
     elif command == "stale":
         cmd_stale()
+    elif command == "refresh":
+        # Rebuild only when the sources have moved on. Cheap enough to run
+        # after every turn: a no-op costs a few milliseconds of stat calls,
+        # and a real rebuild is under a second.
+        if is_stale():
+            build()
     else:
         print(__doc__)
         sys.exit(2)

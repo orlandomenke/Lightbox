@@ -10,6 +10,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 scripts/codemap.py refresh >/dev/null 2>&1",
+            "timeout": 90
+          }
+        ]
+      }
     ]
   },
   "permissions": {

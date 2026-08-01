@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `4052471` · 125 files · 21091 lines · 325 tests.
+Generated from `55d9a0f` · 126 files · 21283 lines · 328 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -103,7 +103,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TransformOps:12
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (130 ln) · 1 test files
   - GeometryOps:5
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (104 ln) · 10 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (104 ln) · 11 test files
   - BrushKind:4, BrushSettings:23
 - `src/Lightbox.Core/Inbetween/Inbetweener.cs` (94 ln) · 2 test files
   - Inbetweener:19
@@ -121,7 +121,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameMarker:4, Scene:13
 - `src/Lightbox.Core/Documents/ReferenceSheet.cs` (50 ln) · 1 test files
   - ReferenceSheet:11, ReferenceView:21
-- `src/Lightbox.Core/Documents/Stroke.cs` (50 ln) · 15 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (50 ln) · 16 test files
   - Stroke:9
 - `src/Lightbox.Core/Timeline/ExposureSheet.cs` (50 ln) · 2 test files
   - ExposureSheet:8
@@ -139,9 +139,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocumentFactory:3
 - `src/Lightbox.Core/Inbetween/Easing.cs` (20 ln) · 4 test files
   - Easing:3, EasingOps:11
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 37 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 38 indirect only
   - Ids:3
-- `src/Lightbox.Core/Documents/ToolKind.cs` (14 ln) · 11 test files
+- `src/Lightbox.Core/Documents/ToolKind.cs` (14 ln) · 12 test files
   - ToolKind:3
 
 ## Lightbox.Import
@@ -164,7 +164,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Raster
 
-- `src/Lightbox.Raster/BrushEngine.cs` (686 ln) · 2 test files
+- `src/Lightbox.Raster/BrushEngine.cs` (754 ln) · 3 test files
   - BrushEngine:25
 - `src/Lightbox.Raster/FloodFill.cs` (416 ln) · 2 test files
   - FloodFill:13, Options:15, Result:21, ContourTracer:280

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-325 tests, derived from the suite itself. Each line is a
+328 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -645,3 +645,10 @@ regression even when every test still compiles.
 
 - Encode Decode Round Trips Pixels — `:158`
 - Materialize Composites Baseline Plus Strokes — `:172`
+
+## TexturedBrushTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/TexturedBrushTests.cs`
+
+- Wet Edge Darkens The Outline Not The Interior — `:47`
+- Granulation Is Deterministic And Anchored To The Document — `:81`
+- Textured Stroke Commit Does Not Stall The Pen — `:100`
