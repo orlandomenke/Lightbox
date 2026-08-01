@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `1f36348` · 128 files · 21676 lines · 331 tests.
+Generated from `c56d0f0` · 128 files · 21993 lines · 332 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -27,13 +27,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (3345 ln) · 22 test files
-  - FrameCell:18, MainViewModel:61, LayerKindChoice:1375
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (3495 ln) · 22 test files
+  - FrameCell:18, MainViewModel:61, LayerKindChoice:1525
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (1406 ln) · 2 test files
   - CanvasControl:28, CanvasToolMode:182, TxDrag:225, DrawOp:1179
-- `src/Lightbox.App/Views/MainWindow.axaml` (1164 ln) · **no tests**
-  - BrushCategoryList, BrushPageEffects, BrushPageGeneral, BrushPagePresets, BrushPagePressure, Canvas, CanvasHost, LayersDocker …
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (1071 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (1289 ln) · **no tests**
+  - BrushCategoryList, BrushPageEffects, BrushPageGeneral, BrushPageMedium, BrushPagePresets, BrushPagePressure, Canvas, CanvasHost …
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (1072 ln) · **no tests**
   - MainWindow:13
 - `src/Lightbox.App/Services/BrushPresets.cs` (248 ln) · 22 indirect only
   - BrushPreset:7, BuiltInPresets:24, PresetStore:195, State:200
@@ -101,7 +101,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
 - `src/Lightbox.Core/Geometry/TransformOps.cs` (219 ln) · 1 test files
   - TransformOps:12
-- `src/Lightbox.Core/Documents/MediumSettings.cs` (158 ln) · 1 test files
+- `src/Lightbox.Core/Documents/MediumSettings.cs` (158 ln) · 2 test files
   - MediumKind:10, PaperKind:29, MediumSettings:54
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (130 ln) · 1 test files
   - GeometryOps:5

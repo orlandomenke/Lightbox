@@ -199,6 +199,7 @@
                          SelectionChanged="OnBrushCategoryChanged" Background="#1c1c1c">
                   <ListBoxItem Content="General" />
                   <ListBoxItem Content="Effects" />
+                  <ListBoxItem Content="Medium" />
                   <ListBoxItem Content="Pen pressure" />
                   <ListBoxItem Content="Presets" />
                 </ListBox>
@@ -255,6 +256,130 @@
                                        Increment="0.05" FormatString="0.00" Width="94" />
                         <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                       </DockPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="BrushPageMedium" Spacing="6" IsVisible="False">
+                      <TextBlock Text="Medium" FontWeight="SemiBold" FontSize="12" />
+                      <TextBlock FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                                 Text="Simulates how real paint moves, settles and layers. Runs when the stroke is committed, over the region the stroke touched." />
+                      <ComboBox ItemsSource="{Binding MediumKindChoices}" SelectedItem="{Binding BrushMedium}"
+                                HorizontalAlignment="Stretch" Margin="0,2,0,6" />
+
+                      <StackPanel Spacing="6" IsVisible="{Binding MediumIsSimulated}">
+                        <TextBlock Text="Fluid" FontWeight="SemiBold" FontSize="11" Opacity="0.8" />
+                        <DockPanel>
+                          <TextBlock Text="Wetness" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumWetness}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumWetness}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Viscosity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumViscosity}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumViscosity}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Drag" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumDrag}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumDrag}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Absorbency" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="Capillary pull toward the wet boundary — this is what darkens the rim.">
+                          <TextBlock Text="Edge pull" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="Simulation iterations. Cost is linear in this — the one control here that can make a stroke commit feel slow.">
+                          <TextBlock Text="Flow steps" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32"
+                                         Increment="1" FormatString="0" Width="94" />
+                          <Slider Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32" Margin="4,0" />
+                        </DockPanel>
+
+                        <TextBlock Text="Pigment" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                        <DockPanel>
+                          <TextBlock Text="Density" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="How readily pigment settles into the paper's valleys.">
+                          <TextBlock Text="Granularity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumGranularity}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumGranularity}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="0 is a transparent glaze, 1 fully hides what is underneath.">
+                          <TextBlock Text="Hiding" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumHiding}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumHiding}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <CheckBox Content="Mix pigment physically (Kubelka–Munk)" FontSize="12"
+                                  IsChecked="{Binding MediumPhysicalMixing}"
+                                  ToolTip.Tip="Layer paint the way pigment layers, not the way film layers. A yellow glaze over blue gives green." />
+
+                        <TextBlock Text="Paper" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                        <DockPanel>
+                          <TextBlock Text="Surface" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <ComboBox ItemsSource="{Binding PaperKindChoices}" SelectedItem="{Binding MediumPaper}"
+                                    HorizontalAlignment="Stretch" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Grain size" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128"
+                                         Increment="1" FormatString="0" Width="94" />
+                          <Slider Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Influence" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                        <StackPanel Spacing="6" IsVisible="{Binding MediumHasBody}">
+                          <TextBlock Text="Body" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                          <DockPanel>
+                            <TextBlock Text="Thickness" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumBody}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" Width="94" />
+                            <Slider Value="{Binding MediumBody}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="Shades the paint's own height, giving impasto relief.">
+                            <TextBlock Text="Relief" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumRelief}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" Width="94" />
+                            <Slider Value="{Binding MediumRelief}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="Streaking along the stroke, as bristles comb the paint.">
+                            <TextBlock Text="Bristle drag" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumBristleDrag}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" Width="94" />
+                            <Slider Value="{Binding MediumBristleDrag}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="Paint on the brush at the start. Below 1 the brush runs out — that is dry-brush.">
+                            <TextBlock Text="Paint load" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" Width="94" />
+                            <Slider Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="How much of what is already on the canvas the brush picks up and drags.">
+                            <TextBlock Text="Pickup" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPickup}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" Width="94" />
+                            <Slider Value="{Binding MediumPickup}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                        </StackPanel>
+                      </StackPanel>
                     </StackPanel>
 
                     <StackPanel x:Name="BrushPagePressure" Spacing="6" IsVisible="False">

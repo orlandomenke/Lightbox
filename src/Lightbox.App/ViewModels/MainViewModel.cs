@@ -458,6 +458,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     private double GetBrush(Func<BrushSettings, double> get) => get(CurrentToolSettings);
 
+    /// <summary>For settings that are not doubles — enums, flags, counts.</summary>
+    private T GetBrushValue<T>(Func<BrushSettings, T> get) => get(CurrentToolSettings);
+
     private void SetBrush(Action<BrushSettings> set, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
     {
         set(CurrentToolSettings);
@@ -511,6 +514,145 @@ public sealed partial class MainViewModel : ObservableObject
     {
         get => GetBrush(s => s.Scatter);
         set => SetBrush(s => s.Scatter = Math.Clamp(value, 0, 1));
+    }
+
+    // ---- medium ---------------------------------------------------------------
+    //
+    // The physical simulation. Picking a medium decides which parts of the
+    // model run; these numbers tune it. All of them live on the stroke, so a
+    // change here never reaches back into paint already down.
+
+    public IReadOnlyList<MediumKind> MediumKindChoices { get; } = Enum.GetValues<MediumKind>();
+
+    public IReadOnlyList<PaperKind> PaperKindChoices { get; } = Enum.GetValues<PaperKind>();
+
+    public MediumKind BrushMedium
+    {
+        get => GetBrushValue(s => s.Medium.Kind);
+        set
+        {
+            SetBrush(s => s.Medium.Kind = value);
+            OnPropertyChanged(nameof(MediumIsSimulated));
+            OnPropertyChanged(nameof(MediumHasBody));
+        }
+    }
+
+    /// <summary>Whether the fluid controls apply at all — everything is inert under None.</summary>
+    public bool MediumIsSimulated => BrushMedium != MediumKind.None;
+
+    /// <summary>Body, relief and bristle drag only mean something for paint that has thickness.</summary>
+    public bool MediumHasBody => BrushMedium is MediumKind.Gouache or MediumKind.Oil;
+
+    public double MediumWetness
+    {
+        get => GetBrush(s => s.Medium.Wetness);
+        set => SetBrush(s => s.Medium.Wetness = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumViscosity
+    {
+        get => GetBrush(s => s.Medium.Viscosity);
+        set => SetBrush(s => s.Medium.Viscosity = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumDrag
+    {
+        get => GetBrush(s => s.Medium.Drag);
+        set => SetBrush(s => s.Medium.Drag = Math.Clamp(value, 0, 1));
+    }
+
+    /// <summary>
+    /// Capped at 32. Cost is linear in this, and it is the one control here
+    /// that can make a stroke commit feel slow, so the ceiling is deliberate.
+    /// </summary>
+    public int MediumFlowSteps
+    {
+        get => GetBrushValue(s => s.Medium.FlowSteps);
+        set => SetBrush(s => s.Medium.FlowSteps = Math.Clamp(value, 0, 32));
+    }
+
+    public double MediumAbsorbency
+    {
+        get => GetBrush(s => s.Medium.Absorbency);
+        set => SetBrush(s => s.Medium.Absorbency = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumEdgePull
+    {
+        get => GetBrush(s => s.Medium.EdgePull);
+        set => SetBrush(s => s.Medium.EdgePull = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumPigmentDensity
+    {
+        get => GetBrush(s => s.Medium.PigmentDensity);
+        set => SetBrush(s => s.Medium.PigmentDensity = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumGranularity
+    {
+        get => GetBrush(s => s.Medium.Granularity);
+        set => SetBrush(s => s.Medium.Granularity = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumHiding
+    {
+        get => GetBrush(s => s.Medium.Hiding);
+        set => SetBrush(s => s.Medium.Hiding = Math.Clamp(value, 0, 1));
+    }
+
+    public bool MediumPhysicalMixing
+    {
+        get => GetBrushValue(s => s.Medium.PhysicalMixing);
+        set => SetBrush(s => s.Medium.PhysicalMixing = value);
+    }
+
+    public PaperKind MediumPaper
+    {
+        get => GetBrushValue(s => s.Medium.Paper);
+        set => SetBrush(s => s.Medium.Paper = value);
+    }
+
+    public double MediumPaperScale
+    {
+        get => GetBrush(s => s.Medium.PaperScale);
+        set => SetBrush(s => s.Medium.PaperScale = Math.Clamp(value, 1, 128));
+    }
+
+    public double MediumPaperInfluence
+    {
+        get => GetBrush(s => s.Medium.PaperInfluence);
+        set => SetBrush(s => s.Medium.PaperInfluence = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumBody
+    {
+        get => GetBrush(s => s.Medium.Body);
+        set => SetBrush(s => s.Medium.Body = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumRelief
+    {
+        get => GetBrush(s => s.Medium.Relief);
+        set => SetBrush(s => s.Medium.Relief = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumBristleDrag
+    {
+        get => GetBrush(s => s.Medium.BristleDrag);
+        set => SetBrush(s => s.Medium.BristleDrag = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumPaintLoad
+    {
+        get => GetBrush(s => s.Medium.PaintLoad);
+        set => SetBrush(s => s.Medium.PaintLoad = Math.Clamp(value, 0, 1));
+    }
+
+    public double MediumPickup
+    {
+        get => GetBrush(s => s.Medium.Pickup);
+        set => SetBrush(s => s.Medium.Pickup = Math.Clamp(value, 0, 1));
     }
 
     public double BrushRotationJitter
@@ -585,6 +727,14 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(BrushRotationJitter), nameof(BrushPressureEnabled),
         nameof(BrushPressureSizeGamma), nameof(BrushPressureFlowGamma), nameof(BrushPressureHardnessGamma),
         nameof(BrushPressureAffectsSize), nameof(BrushPressureAffectsFlow), nameof(BrushPressureAffectsHardness),
+        nameof(BrushMedium), nameof(MediumIsSimulated), nameof(MediumHasBody),
+        nameof(MediumWetness), nameof(MediumViscosity), nameof(MediumDrag), nameof(MediumFlowSteps),
+        nameof(MediumAbsorbency), nameof(MediumEdgePull),
+        nameof(MediumPigmentDensity), nameof(MediumGranularity), nameof(MediumHiding),
+        nameof(MediumPhysicalMixing),
+        nameof(MediumPaper), nameof(MediumPaperScale), nameof(MediumPaperInfluence),
+        nameof(MediumBody), nameof(MediumRelief), nameof(MediumBristleDrag),
+        nameof(MediumPaintLoad), nameof(MediumPickup),
     ];
 
     private void NotifyBrushProperties()

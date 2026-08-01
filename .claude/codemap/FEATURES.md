@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-331 tests, derived from the suite itself. Each line is a
+332 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -58,10 +58,11 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/BrushToolTests.cs`
 
 - Selecting APreset Applies Its Settings To The Stroke Record — `:47`
-- Brush And Eraser Keep Separate Configurations — `:67`
-- Last Configured Brush Survives ANew Session — `:82`
-- Save Current As Preset Persists User Presets — `:106`
-- Imported Brush Becomes APreset And Its Tip Enters The Document — `:156`
+- Each Simulated Medium Reaches The Stroke Record With Its Own Physics — `:75`
+- Brush And Eraser Keep Separate Configurations — `:108`
+- Last Configured Brush Survives ANew Session — `:123`
+- Save Current As Preset Persists User Presets — `:147`
+- Imported Brush Becomes APreset And Its Tip Enters The Document — `:197`
 
 ## HiddenLayerTests
 `tests/Lightbox.App.Tests/BrushToolTests.cs`

@@ -61,6 +61,47 @@ public class BrushPresetTests
         Assert.Equal(watercolor.Settings.WetEdge, stroke.Brush.WetEdge);
         Assert.Equal(watercolor.Settings.Granulation, stroke.Brush.Granulation);
         Assert.Equal(watercolor.Settings.Flow, stroke.Brush.Flow);
+
+        // Watercolor carries its character in the medium rather than in the
+        // flat texture knobs, so those two assertions above are now 0 == 0.
+        // This is the part that would actually notice the preset being lost.
+        Assert.Equal(MediumKind.Watercolour, stroke.Brush.Medium.Kind);
+        Assert.Equal(watercolor.Settings.Medium.Wetness, stroke.Brush.Medium.Wetness);
+        Assert.Equal(watercolor.Settings.Medium.EdgePull, stroke.Brush.Medium.EdgePull);
+        Assert.Equal(watercolor.Settings.Medium.Paper, stroke.Brush.Medium.Paper);
+    }
+
+    [AvaloniaFact]
+    public void EachSimulatedMedium_ReachesTheStrokeRecord_WithItsOwnPhysics()
+    {
+        // Four presets that must differ by physics, not just by colour. If two
+        // of them ever collapse onto the same numbers, the distinction the
+        // artist picked between them has quietly stopped existing.
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var seen = new List<(MediumKind Kind, double Wetness, double Viscosity, double Hiding)>();
+
+        foreach (var name in new[] { "Watercolor", "Gouache", "Oil", "Ink wash" })
+        {
+            vm.SelectedBrushPreset = vm.BrushPresetChoices.First(p => p.Name == name);
+            vm.BeginStroke(10, 10, 0.7);
+            vm.MoveStroke(40, 40, 0.7);
+            vm.EndStroke();
+
+            var brush = ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes[^1].Brush;
+            Assert.NotEqual(MediumKind.None, brush.Medium.Kind);
+            seen.Add((brush.Medium.Kind, brush.Medium.Wetness, brush.Medium.Viscosity, brush.Medium.Hiding));
+        }
+
+        Assert.Equal(4, seen.Select(m => m.Kind).Distinct().Count());
+        Assert.Equal(4, seen.Distinct().Count());
+
+        // And the physics must be the right way round: watercolour is the
+        // wettest and least hiding, oil the most viscous and most hiding.
+        var water = seen.Single(m => m.Kind == MediumKind.Watercolour);
+        var oil = seen.Single(m => m.Kind == MediumKind.Oil);
+        Assert.True(water.Wetness > oil.Wetness, "watercolour should be wetter than oil");
+        Assert.True(oil.Viscosity > water.Viscosity, "oil should be more viscous than watercolour");
+        Assert.True(oil.Hiding > water.Hiding, "oil should hide more than watercolour");
     }
 
     [AvaloniaFact]

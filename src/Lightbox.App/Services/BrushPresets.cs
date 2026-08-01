@@ -94,7 +94,7 @@ public static class BuiltInPresets
         new()
         {
             Id = "builtin-watercolor-wet",
-            Name = "Watercolor (wet)",
+            Name = "Watercolor",
             Settings = new BrushSettings
             {
                 Size = 42, Hardness = 0.25, Opacity = 0.55, Flow = 0.45, Spacing = 0.08,

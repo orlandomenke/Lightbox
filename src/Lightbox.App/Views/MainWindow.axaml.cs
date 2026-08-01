@@ -747,8 +747,9 @@ public partial class MainWindow : Window
         var index = BrushCategoryList.SelectedIndex;
         BrushPageGeneral.IsVisible = index == 0;
         BrushPageEffects.IsVisible = index == 1;
-        BrushPagePressure.IsVisible = index == 2;
-        BrushPagePresets.IsVisible = index == 3;
+        BrushPageMedium.IsVisible = index == 2;
+        BrushPagePressure.IsVisible = index == 3;
+        BrushPagePresets.IsVisible = index == 4;
     }
 
     // ---- canvas view tools (view-only: never touch the document) -------------
