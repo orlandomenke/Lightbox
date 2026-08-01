@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-429 tests, derived from the suite itself. Each line is a
+444 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -601,6 +601,17 @@ regression even when every test still compiles.
 - Next Key Index Finds Strictly After — `:53`
 - Key Index At Or Before Works — `:62`
 
+## RetimingTests
+`tests/Lightbox.Core.Tests/Timeline/RetimingTests.cs`
+
+- Stretch Holds Each Drawing And Loses None — `:41`
+- Stretch On Threes Holds For Three — `:52`
+- Stretching Twice Does Not Compound — `:60`
+- Reduce Keeps Every Nth And Keeps The Length — `:74`
+- Reduce Is The One That Throws Work Away — `:87`
+- Both Are Undoable As One Step — `:101`
+- AStep Of One Or Less Is ANo Op — `:118`
+
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`
 
@@ -609,6 +620,18 @@ regression even when every test still compiles.
 - Without The Lock The Same Stroke Spills Outside — `:77`
 - The Flag Survives AClone And ARound Trip — `:85`
 - Re Rendering The Whole Frame Reproduces The Mask Without Storing It — `:98`
+
+## BrushDynamicsTests
+`tests/Lightbox.Raster.Tests/BrushDynamicsTests.cs`
+
+- Size Jitter Varies The Stroke But Minimum Diameter Stops Dabs Vanishing — `:67`
+- Flow Jitter Changes Alpha Without Changing Coverage — `:86`
+- Roundness Squashes The Dab — `:97`
+- Angle Follows Direction Changes AFlat Tip But Not ACircular One — `:109`
+- Color Dynamics Drift Toward The Second Colour — `:132`
+- Texture Bites Into The Stroke And Is Anchored To The Paper — `:154`
+- Every Dynamic Is Deterministic — `:172`
+- ABrush With No Dynamics Set Renders Exactly As Before — `:196`
 
 ## BrushEngineV2Tests
 `tests/Lightbox.Raster.Tests/BrushEngineV2Tests.cs`
@@ -704,8 +727,8 @@ regression even when every test still compiles.
 ## PaperFieldScaleTests
 `tests/Lightbox.Raster.Tests/PaperFieldTests.cs`
 
-- Scale Actually Changes The Grain Across The Usable Range — `:337`
-- Below Nyquist The Field Saturates Rather Than Aliasing — `:355`
+- Scale Actually Changes The Grain Across The Usable Range — `:343`
+- Below Nyquist The Field Saturates Rather Than Aliasing — `:361`
 
 ## PaperFieldTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/PaperFieldTests.cs`
@@ -721,7 +744,7 @@ regression even when every test still compiles.
 - Different Scales Are Different Fields — `:242`
 - Fill Rejects AToo Small Destination — `:252`
 - Fill Is Fast Enough For AFull Frame — `:260`
-- Fill Cost Follows The Region Not The Canvas — `:286`
+- Fill Cost Follows The Region Not The Canvas — `:292`
 
 ## PerformanceTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/PerformanceTests.cs`

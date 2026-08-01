@@ -213,7 +213,8 @@ public static class BrushEngine
         else
         {
             if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, rect);
-            if (brush.Granulation > 0) ApplyGranulation(canvas, brush, rect);
+            if (brush.TextureSurface is not null) ApplyTexture(canvas, brush, rect);
+            else if (brush.Granulation > 0) ApplyGranulation(canvas, brush, rect);
         }
         ApplyClip(canvas, stroke, local, rect);
         ApplyAlphaLock(canvas, stroke, targetPixels, rect);
@@ -232,9 +233,23 @@ public static class BrushEngine
         var brush = stroke.Brush;
         var color = ParseColor(stroke.Color);
         var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
+
+        // Direction comes from consecutive dab centres rather than from the
+        // source points, so it follows the path the dabs actually took —
+        // spacing and smoothing have already had their say by then.
+        SKPoint? previous = null;
+        var heading = double.NaN;
         foreach (var (pos, pressure) in DabPositions(stroke))
         {
-            StampDab(canvas, pos, pressure, brush, color, tip);
+            if (brush.AngleFollowsDirection && previous is { } from)
+            {
+                float dx = pos.X - from.X, dy = pos.Y - from.Y;
+                // A stationary dab keeps the last heading; recomputing from a
+                // zero-length step would snap the tip to zero degrees.
+                if (dx * dx + dy * dy > 0.0001f) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
+            }
+            StampDab(canvas, pos, pressure, brush, color, tip, heading);
+            previous = pos;
         }
     }
 
@@ -375,13 +390,35 @@ public static class BrushEngine
         if (region is not null) target.Restore();
     }
 
-    private static void StampDab(SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color, SKBitmap? tip)
+    private static void StampDab(
+        SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color,
+        SKBitmap? tip, double directionDeg = double.NaN)
     {
         var radius = (float)(RadiusAt(brush, pressure));
         if (radius <= 0) return;
 
         var alpha = DabAlpha(brush, pressure);
         if (alpha <= 0) return;
+
+        // Every dynamic below is seeded from the dab's own position, never
+        // from an index or a clock. Two consequences that matter here: a
+        // re-render is identical, and — because neighbouring frames put dabs
+        // in nearly the same places — a sequence does not boil at 12 fps.
+        if (brush.SizeJitter > 0)
+        {
+            var floor = Math.Clamp(brush.MinimumDiameter, 0, 1);
+            var scale = floor + (1 - floor) * (1 - Hash01(pos.X, pos.Y, 11) * brush.SizeJitter);
+            radius = (float)(radius * scale);
+            if (radius <= 0) return;
+        }
+
+        if (brush.FlowJitter > 0)
+        {
+            alpha *= 1 - Hash01(pos.X, pos.Y, 12) * Math.Clamp(brush.FlowJitter, 0, 1);
+            if (alpha <= 0) return;
+        }
+
+        color = JitterColor(color, pos, brush);
 
         // Position-seeded scatter keeps re-renders identical.
         if (brush.Scatter > 0)
@@ -392,9 +429,21 @@ public static class BrushEngine
         }
 
         var dabColor = color.WithAlpha((byte)Math.Round(alpha * 255));
+
+        // Roundness squashes the dab across its own axis. Combined with a
+        // direction-following angle, that is what turns a round tip into a
+        // chisel and a custom tip into bristles.
+        var roundness = Math.Clamp(brush.Roundness, 0.05, 1);
+        if (brush.RoundnessJitter > 0)
+        {
+            roundness *= 1 - Hash01(pos.X, pos.Y, 13) * Math.Clamp(brush.RoundnessJitter, 0, 1);
+            roundness = Math.Clamp(roundness, 0.05, 1);
+        }
+
         if (tip is not null)
         {
             var rotation = brush.TipRotationDeg;
+            if (brush.AngleFollowsDirection && !double.IsNaN(directionDeg)) rotation += directionDeg;
             if (brush.RotationJitter > 0)
             {
                 rotation += (Hash01(pos.X, pos.Y, 3) - 0.5) * 360 * brush.RotationJitter;
@@ -403,7 +452,7 @@ public static class BrushEngine
             canvas.Translate(pos.X, pos.Y);
             canvas.RotateDegrees((float)rotation);
             var scale = radius * 2 / Math.Max(tip.Width, tip.Height);
-            canvas.Scale(scale);
+            canvas.Scale(scale, (float)(scale * roundness));
             using var paint = new SKPaint
             {
                 IsAntialias = brush.AntiAlias,
@@ -416,20 +465,71 @@ public static class BrushEngine
 
         using var round = new SKPaint { IsAntialias = brush.AntiAlias };
         var hardness = HardnessAt(brush, pressure);
+
+        // Only a squashed dab needs the transform. Rotating a circle is a
+        // no-op mathematically but not in the rasteriser — pixels shift under
+        // the matrix — so taking that path for a round dab would make
+        // direction-following visibly change a brush it cannot affect.
+        //
+        // The transform is required rather than convenient: the gradient
+        // shader is built in the space it is painted in, so squashing the
+        // circle afterwards would squash its falloff too and the dab would
+        // stop matching its own hardness.
+        var oriented = roundness < 0.999;
+
+        if (oriented)
+        {
+            var rotation = brush.TipRotationDeg;
+            if (brush.AngleFollowsDirection && !double.IsNaN(directionDeg)) rotation += directionDeg;
+            canvas.Save();
+            canvas.Translate(pos.X, pos.Y);
+            canvas.RotateDegrees((float)rotation);
+            canvas.Scale(1f, (float)roundness);
+            SetRoundPaint(round, SKPoint.Empty, radius, hardness, dabColor);
+            canvas.DrawCircle(SKPoint.Empty, radius, round);
+            canvas.Restore();
+            return;
+        }
+
+        SetRoundPaint(round, pos, radius, hardness, dabColor);
+        canvas.DrawCircle(pos, radius, round);
+    }
+
+    private static void SetRoundPaint(SKPaint paint, SKPoint centre, float radius, float hardness, SKColor color)
+    {
         if (hardness >= 0.999f)
         {
-            round.Color = dabColor;
+            paint.Color = color;
+            return;
         }
-        else
+        paint.Shader = SKShader.CreateRadialGradient(
+            centre, radius, [color, color.WithAlpha(0)], [hardness, 1f], SKShaderTileMode.Clamp);
+    }
+
+    /// <summary>
+    /// Per-dab colour variation. Natural media drifts between two colours the
+    /// artist chose rather than randomly around one, which is why the drift
+    /// toward a secondary colour is separate from the hue/saturation/value
+    /// wobble — the first reads as paint, the second alone reads as noise.
+    /// </summary>
+    private static SKColor JitterColor(SKColor color, SKPoint pos, BrushSettings brush)
+    {
+        if (brush.ColorJitter > 0 && brush.SecondaryColor is { } secondary)
         {
-            round.Shader = SKShader.CreateRadialGradient(
-                pos,
-                radius,
-                [dabColor, dabColor.WithAlpha(0)],
-                [hardness, 1f],
-                SKShaderTileMode.Clamp);
+            var t = Hash01(pos.X, pos.Y, 21) * Math.Clamp(brush.ColorJitter, 0, 1);
+            color = Mix(color, ParseColor(secondary), t);
         }
-        canvas.DrawCircle(pos, radius, round);
+
+        var hueJitter = Math.Clamp(brush.HueJitter, 0, 1);
+        var satJitter = Math.Clamp(brush.SaturationJitter, 0, 1);
+        var valJitter = Math.Clamp(brush.BrightnessJitter, 0, 1);
+        if (hueJitter <= 0 && satJitter <= 0 && valJitter <= 0) return color;
+
+        color.ToHsv(out var h, out var sat, out var val);
+        if (hueJitter > 0) h = (float)((h + (Hash01(pos.X, pos.Y, 22) - 0.5) * 60 * hueJitter + 360) % 360);
+        if (satJitter > 0) sat = (float)Math.Clamp(sat * (1 + (Hash01(pos.X, pos.Y, 23) - 0.5) * 2 * satJitter), 0, 100);
+        if (valJitter > 0) val = (float)Math.Clamp(val * (1 + (Hash01(pos.X, pos.Y, 24) - 0.5) * 2 * valJitter), 0, 100);
+        return SKColor.FromHsv(h, sat, val, color.Alpha);
     }
 
     /// <summary>
@@ -532,6 +632,41 @@ public static class BrushEngine
             image.ReadPixels(tile.Info, tile.GetPixels(), tile.RowBytes, 0, 0);
         }
         return _grainTile = tile;
+    }
+
+    /// <summary>
+    /// Photoshop's Texture, which is granulation with the surface, its scale
+    /// and its depth made settable. Applied to the stroke rather than per dab:
+    /// the grain belongs to the paper, so it must not move when a dab lands on
+    /// it, and doing it once is far cheaper than doing it hundreds of times.
+    /// </summary>
+    private static void ApplyTexture(SKCanvas canvas, BrushSettings brush, SKRectI rect)
+    {
+        if (brush.TextureSurface is not { } surface) return;
+        var depth = (float)Math.Clamp(brush.TextureDepth, 0, 1);
+        if (depth <= 0) return;
+
+        var w = Math.Max(1, rect.Width);
+        var h = Math.Max(1, rect.Height);
+        var height = new float[w * h];
+        Media.PaperField.Fill(height, w, h, rect.Left, rect.Top, surface, brush.TextureScale);
+
+        var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        using var mask = new SKBitmap(info);
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                // A' = 1 - depth * (1 - height): the tooth keeps paint, the
+                // valleys let it through, and depth decides how deep the bite.
+                var keep = 1f - depth * (1f - height[y * w + x]);
+                mask.SetPixel(x, y, SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(keep, 0, 1) * 255)));
+            }
+        }
+
+        using var image = SKImage.FromBitmap(mask);
+        using var paint = new SKPaint { BlendMode = SKBlendMode.DstIn };
+        canvas.DrawImage(image, rect.Left, rect.Top, paint);
     }
 
     private static void ApplyGranulation(SKCanvas canvas, BrushSettings brush, SKRectI rect)

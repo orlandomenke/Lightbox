@@ -594,6 +594,97 @@ public sealed partial class MainViewModel : ObservableObject
         set => SetBrush(s => s.Scatter = Math.Clamp(value, 0, 1));
     }
 
+    // ---- brush dynamics (Photoshop's grouping) ---------------------------------
+
+    public double BrushSizeJitter
+    {
+        get => GetBrush(s => s.SizeJitter);
+        set => SetBrush(s => s.SizeJitter = Math.Clamp(value, 0, 1));
+    }
+
+    public double BrushMinimumDiameter
+    {
+        get => GetBrush(s => s.MinimumDiameter);
+        set => SetBrush(s => s.MinimumDiameter = Math.Clamp(value, 0, 1));
+    }
+
+    public double BrushRoundness
+    {
+        get => GetBrush(s => s.Roundness);
+        set => SetBrush(s => s.Roundness = Math.Clamp(value, 0.05, 1));
+    }
+
+    public double BrushRoundnessJitter
+    {
+        get => GetBrush(s => s.RoundnessJitter);
+        set => SetBrush(s => s.RoundnessJitter = Math.Clamp(value, 0, 1));
+    }
+
+    public bool BrushAngleFollowsDirection
+    {
+        get => GetBrushValue(s => s.AngleFollowsDirection);
+        set => SetBrush(s => s.AngleFollowsDirection = value);
+    }
+
+    public double BrushFlowJitter
+    {
+        get => GetBrush(s => s.FlowJitter);
+        set => SetBrush(s => s.FlowJitter = Math.Clamp(value, 0, 1));
+    }
+
+    public IReadOnlyList<string> TextureSurfaceChoices { get; } =
+        ["None", .. Enum.GetNames<PaperKind>()];
+
+    public string BrushTextureSurface
+    {
+        get => GetBrushValue(s => s.TextureSurface?.ToString() ?? "None");
+        set => SetBrush(s => s.TextureSurface =
+            Enum.TryParse<PaperKind>(value, out var kind) ? kind : null);
+    }
+
+    public double BrushTextureScale
+    {
+        get => GetBrush(s => s.TextureScale);
+        set => SetBrush(s => s.TextureScale = Math.Clamp(value, 1, 128));
+    }
+
+    public double BrushTextureDepth
+    {
+        get => GetBrush(s => s.TextureDepth);
+        set => SetBrush(s => s.TextureDepth = Math.Clamp(value, 0, 1));
+    }
+
+    /// <summary>Empty means colour dynamics drift only in hue/saturation/value.</summary>
+    public string BrushSecondaryColor
+    {
+        get => GetBrushValue(s => s.SecondaryColor ?? "");
+        set => SetBrush(s => s.SecondaryColor = string.IsNullOrWhiteSpace(value) ? null : value);
+    }
+
+    public double BrushColorJitter
+    {
+        get => GetBrush(s => s.ColorJitter);
+        set => SetBrush(s => s.ColorJitter = Math.Clamp(value, 0, 1));
+    }
+
+    public double BrushHueJitter
+    {
+        get => GetBrush(s => s.HueJitter);
+        set => SetBrush(s => s.HueJitter = Math.Clamp(value, 0, 1));
+    }
+
+    public double BrushSaturationJitter
+    {
+        get => GetBrush(s => s.SaturationJitter);
+        set => SetBrush(s => s.SaturationJitter = Math.Clamp(value, 0, 1));
+    }
+
+    public double BrushBrightnessJitter
+    {
+        get => GetBrush(s => s.BrightnessJitter);
+        set => SetBrush(s => s.BrightnessJitter = Math.Clamp(value, 0, 1));
+    }
+
     // ---- smudge ----------------------------------------------------------------
 
     public IReadOnlyList<SmudgeMode> SmudgeModeChoices { get; } = Enum.GetValues<SmudgeMode>();
@@ -855,6 +946,11 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(BrushPressureSizeGamma), nameof(BrushPressureFlowGamma), nameof(BrushPressureHardnessGamma),
         nameof(BrushPressureAffectsSize), nameof(BrushPressureAffectsFlow), nameof(BrushPressureAffectsHardness),
         nameof(BrushCursorDiameter),
+        nameof(BrushSizeJitter), nameof(BrushMinimumDiameter), nameof(BrushRoundness),
+        nameof(BrushRoundnessJitter), nameof(BrushAngleFollowsDirection), nameof(BrushFlowJitter),
+        nameof(BrushTextureSurface), nameof(BrushTextureScale), nameof(BrushTextureDepth),
+        nameof(BrushSecondaryColor), nameof(BrushColorJitter), nameof(BrushHueJitter),
+        nameof(BrushSaturationJitter), nameof(BrushBrightnessJitter),
         nameof(IsSmudgeBrush), nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
         nameof(BrushSmudgeRadius), nameof(BrushColorRate),
         nameof(BrushMedium), nameof(MediumIsSimulated), nameof(MediumHasBody),
@@ -2223,6 +2319,74 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (LayerOfCell(cell) is not { } layer) return;
         _editor.ReduceExposure(layer.Id, cell.Index);
+    }
+
+    /// <summary>Frames each drawing is held for by the two re-timing commands.</summary>
+    [ObservableProperty]
+    private int _exposureStep = 2;
+
+    partial void OnExposureStepChanged(int value)
+    {
+        if (value is < 1 or > 8) ExposureStep = Math.Clamp(value, 1, 8);
+    }
+
+    /// <summary>
+    /// Hold every drawing in the range for <see cref="ExposureStep"/> frames.
+    /// The range gets longer and nothing is lost — this is what "animate on
+    /// 2s" means to an animator.
+    /// </summary>
+    public void StretchExposureAt(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return;
+        if (!CanEdit(layer, "re-time it")) return;
+        var (start, end) = OpRangeFor(cell);
+        var grew = _editor.StretchExposure(layer.Id, start, end, ExposureStep);
+        AfterRetime(layer);
+        AiStatus = grew > 0
+            ? $"Stretched to {ExposureStep}s — the range grew by {grew} frame{(grew == 1 ? "" : "s")}."
+            : "Nothing to stretch in that range.";
+    }
+
+    /// <summary>
+    /// Keep every <see cref="ExposureStep"/>-th drawing and discard the rest,
+    /// holding what survives so the range keeps its length. Destructive, which
+    /// is why it is a separate command rather than a mode on the first.
+    /// </summary>
+    public void ReduceToStepAt(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return;
+        if (!CanEdit(layer, "re-time it")) return;
+        var (start, end) = OpRangeFor(cell);
+        var dropped = _editor.ReduceToStep(layer.Id, start, end, Math.Max(2, ExposureStep));
+        AfterRetime(layer);
+        AiStatus = dropped > 0
+            ? $"Reduced to {Math.Max(2, ExposureStep)}s — discarded {dropped} drawing{(dropped == 1 ? "" : "s")}."
+            : "Nothing to reduce in that range.";
+    }
+
+    private void AfterRetime(Layer layer)
+    {
+        foreach (var cel in layer.Cels)
+        {
+            if (cel.Frame is { } frame) _dirtyThumbIds.Add(frame.Id);
+        }
+        SyncLayerRows();
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+        RefreshThumbnails();
+        MarkDocumentEdited();
+    }
+
+    [RelayCommand]
+    private void StretchSelectedExposure()
+    {
+        if (CurrentCell() is { } cell) StretchExposureAt(cell);
+    }
+
+    [RelayCommand]
+    private void ReduceSelectedExposure()
+    {
+        if (CurrentCell() is { } cell) ReduceToStepAt(cell);
     }
 
     /// <summary>Clear the drawing(s) at the cell — or the whole selected range when the cell is inside it.</summary>

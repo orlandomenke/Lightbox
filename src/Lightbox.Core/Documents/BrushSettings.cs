@@ -110,6 +110,73 @@ public sealed class BrushSettings
     /// <summary>0..1: position-seeded dab offset, as a fraction of dab size.</summary>
     public double Scatter { get; set; }
 
+    // ---- shape dynamics --------------------------------------------------------
+    //
+    // Photoshop's grouping, because an imported preset should be recognisable
+    // to whoever made it. Each of these varies a value we already store, and
+    // each is seeded from dab position through Hash01 — so they cost nothing
+    // in determinism and nothing in re-render divergence, which is what makes
+    // them safe to replay across a whole sequence.
+
+    /// <summary>0..1: how much dab diameter varies per dab.</summary>
+    public double SizeJitter { get; set; }
+
+    /// <summary>
+    /// 0..1: floor for jittered size, as a fraction of the brush size.
+    /// Photoshop's Minimum Diameter — without it, jitter produces dabs that
+    /// vanish entirely and the stroke reads as broken rather than varied.
+    /// </summary>
+    public double MinimumDiameter { get; set; } = 0.25;
+
+    /// <summary>0..1: how much dab roundness varies per dab (1 = fully squashed).</summary>
+    public double RoundnessJitter { get; set; }
+
+    /// <summary>Base roundness, 1 = circular, lower squashes the dab.</summary>
+    public double Roundness { get; set; } = 1;
+
+    /// <summary>
+    /// Rotate each dab to follow the stroke. Required for any flat or chisel
+    /// tip to behave like one rather than a repeated stamp.
+    /// </summary>
+    public bool AngleFollowsDirection { get; set; }
+
+    // ---- transfer --------------------------------------------------------------
+
+    /// <summary>0..1: how much per-dab paint amount varies, giving wash variation.</summary>
+    public double FlowJitter { get; set; }
+
+    // ---- texture ---------------------------------------------------------------
+
+    /// <summary>Paper surface multiplied into the dab; null keeps the flat granulation.</summary>
+    public PaperKind? TextureSurface { get; set; }
+
+    /// <summary>Grain size in document pixels for <see cref="TextureSurface"/>.</summary>
+    public double TextureScale { get; set; } = 12;
+
+    /// <summary>0..1: how strongly the texture bites into the dab.</summary>
+    public double TextureDepth { get; set; }
+
+    // ---- colour dynamics -------------------------------------------------------
+
+    /// <summary>
+    /// The other colour to jitter toward. Natural media varies between two
+    /// picked colours rather than around one — that is what separates colour
+    /// dynamics from noise.
+    /// </summary>
+    public string? SecondaryColor { get; set; }
+
+    /// <summary>0..1: how far each dab drifts toward <see cref="SecondaryColor"/>.</summary>
+    public double ColorJitter { get; set; }
+
+    /// <summary>0..1: per-dab hue drift, as a fraction of a sixth of the wheel.</summary>
+    public double HueJitter { get; set; }
+
+    /// <summary>0..1: per-dab saturation drift.</summary>
+    public double SaturationJitter { get; set; }
+
+    /// <summary>0..1: per-dab brightness drift.</summary>
+    public double BrightnessJitter { get; set; }
+
     /// <summary>
     /// Master pen-pressure switch for this brush. Off = the tablet's pressure
     /// is ignored entirely (every dab acts as full pressure), regardless of
@@ -152,6 +219,20 @@ public sealed class BrushSettings
         TipRotationDeg = TipRotationDeg,
         RotationJitter = RotationJitter,
         Scatter = Scatter,
+        SizeJitter = SizeJitter,
+        MinimumDiameter = MinimumDiameter,
+        RoundnessJitter = RoundnessJitter,
+        Roundness = Roundness,
+        AngleFollowsDirection = AngleFollowsDirection,
+        FlowJitter = FlowJitter,
+        TextureSurface = TextureSurface,
+        TextureScale = TextureScale,
+        TextureDepth = TextureDepth,
+        SecondaryColor = SecondaryColor,
+        ColorJitter = ColorJitter,
+        HueJitter = HueJitter,
+        SaturationJitter = SaturationJitter,
+        BrightnessJitter = BrightnessJitter,
         PressureEnabled = PressureEnabled,
         PressureSizeGamma = PressureSizeGamma,
         PressureFlowGamma = PressureFlowGamma,

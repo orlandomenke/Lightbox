@@ -265,31 +265,119 @@
                           <Slider Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Margin="4,0" />
                         </DockPanel>
                       </StackPanel>
-                      <DockPanel>
-                        <TextBlock Text="Wet edge" Width="90" VerticalAlignment="Center" FontSize="12" />
-                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
-                                       Increment="0.05" FormatString="0.00" Width="94" />
-                        <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="4,0" />
+                      <TextBlock Text="Shape Dynamics" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <DockPanel ToolTip.Tip="How much dab diameter varies. This is the biggest single difference between a digital mark and a natural one.">
+                          <TextBlock Text="Size jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="Floor for jittered size. Without it, jitter produces dabs that vanish and the stroke reads as broken rather than varied.">
+                          <TextBlock Text="Minimum size" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="1 is circular; lower squashes the dab into a chisel.">
+                          <TextBlock Text="Roundness" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Roundness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Angle jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                      <CheckBox Content="Angle follows stroke direction" FontSize="12"
+                                IsChecked="{Binding BrushAngleFollowsDirection}"
+                                ToolTip.Tip="Required for any flat or chisel tip to behave like one instead of a repeated stamp." />
+
+                      <TextBlock Text="Scattering" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <DockPanel>
+                          <TextBlock Text="Scatter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                      <TextBlock Text="Texture" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                      <DockPanel ToolTip.Tip="Paper surface multiplied into the stroke. Anchored to the document, so the grain stays put as you paint over it.">
+                        <TextBlock Text="Surface" Width="100" VerticalAlignment="Center" FontSize="12" />
+                        <ComboBox ItemsSource="{Binding TextureSurfaceChoices}" SelectedItem="{Binding BrushTextureSurface}"
+                                  HorizontalAlignment="Stretch" />
                       </DockPanel>
-                      <DockPanel>
-                        <TextBlock Text="Granulation" Width="90" VerticalAlignment="Center" FontSize="12" />
-                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
-                                       Increment="0.05" FormatString="0.00" Width="94" />
-                        <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="4,0" />
+                        <DockPanel>
+                          <TextBlock Text="Grain size" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128"
+                                         Increment="1" FormatString="0" Width="94" />
+                          <Slider Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Depth" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="The flat grain used when no texture surface is chosen.">
+                          <TextBlock Text="Granulation" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Wet edge" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                      <TextBlock Text="Transfer" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <DockPanel ToolTip.Tip="Per-dab paint amount varies, giving wash and build-up variation that pressure alone cannot.">
+                          <TextBlock Text="Flow jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                      <TextBlock Text="Color Dynamics" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                      <DockPanel ToolTip.Tip="Natural media drifts between two chosen colours rather than randomly around one. Leave empty to vary only hue, saturation and brightness.">
+                        <TextBlock Text="Second color" Width="100" VerticalAlignment="Center" FontSize="12" />
+                        <TextBox Text="{Binding BrushSecondaryColor}" Watermark="none" />
                       </DockPanel>
-                      <DockPanel>
-                        <TextBlock Text="Scatter" Width="90" VerticalAlignment="Center" FontSize="12" />
-                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
-                                       Increment="0.05" FormatString="0.00" Width="94" />
-                        <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="4,0" />
-                      </DockPanel>
-                      <DockPanel>
-                        <TextBlock Text="Rot. jitter" Width="90" VerticalAlignment="Center" FontSize="12" />
-                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
-                                       Increment="0.05" FormatString="0.00" Width="94" />
-                        <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
-                      </DockPanel>
-                    </StackPanel>
+                        <DockPanel>
+                          <TextBlock Text="Toward second" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Hue jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Saturation jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Brightness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="94" />
+                          <Slider Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                      </StackPanel>
 
                     <StackPanel x:Name="BrushPageMedium" Spacing="6" IsVisible="False">
                       <TextBlock Text="Medium" FontWeight="SemiBold" FontSize="12" />
