@@ -267,6 +267,83 @@ public static class BrushEngine
     }
 
     /// <summary>
+    /// Run the post-dab pipeline over dabs that have <em>already been
+    /// stamped</em>, and write the result into <paramref name="destination"/>.
+    ///
+    /// This exists for the live preview. Medium, wet edge, texture and
+    /// granulation are stroke-global — the rim comes from the whole
+    /// silhouette, the fluid flows across the whole wet area — so the preview
+    /// has to recompute them over the entire stroke each time, not per
+    /// segment. Doing that through <see cref="StampStroke"/> re-stamped every
+    /// dab on every pass, which is O(stroke length) work to reproduce pixels
+    /// the preview already had sitting in its scratch. Here the dabs are
+    /// copied in and only the effects run, so a pass costs what the effects
+    /// cost and stops growing with the number of dabs.
+    ///
+    /// Deliberately does NOT apply the clip or the alpha lock: the compositor
+    /// masks the live overlay itself, and applying a feathered selection twice
+    /// would double its softness.
+    /// </summary>
+    /// <param name="dabs">
+    /// Document-resolution bitmap holding the stroke's dabs without stroke
+    /// opacity — exactly what the live scratch accumulates.
+    /// </param>
+    /// <param name="destination">
+    /// Document-resolution bitmap the processed stroke is written into,
+    /// replacing whatever was in the affected region.
+    /// </param>
+    /// <returns>The region written, or null when the stroke reaches nothing.</returns>
+    public static SKRectI? PostProcessDabs(
+        SKBitmap dabs, SKBitmap destination, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels)
+    {
+        var brush = stroke.Brush;
+        if (SegmentBounds(stroke, info, DabReach(brush)) is not { } rect) return null;
+
+        var local = new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var scratch = SKSurface.Create(local);
+        if (scratch is null) return null;
+        var canvas = scratch.Canvas;
+        canvas.Clear(SKColors.Transparent);
+
+        // The dabs, moved rather than re-made. Only the stroke's own region is
+        // handed over: wrapping the whole canvas-sized bitmap made Skia set up
+        // a 33 MB image on every pass at 4K, which cost more than the dabs it
+        // was saving on a short stroke.
+        using (var subset = new SKBitmap())
+        {
+            if (!dabs.ExtractSubset(subset, rect)) return null;
+            using var pixels = subset.PeekPixels();
+            using var view = pixels is null ? null : SKImage.FromPixels(pixels);
+            if (view is null) return null;
+            canvas.DrawImage(view, 0, 0);
+        }
+
+        // Identical to StampPaint's post-dab half, at output scale 1 — the
+        // live preview is display-only and never renders bigger.
+        if (brush.Medium.Kind == MediumKind.None && brush.TextureSurface is null && brush.Granulation > 0)
+        {
+            InDocumentSpace(canvas, rect, 1.0, () => ApplyGranulation(canvas, brush, rect));
+        }
+
+        if (brush.Medium.Kind != MediumKind.None)
+        {
+            Media.MediumSimulator.Apply(scratch, targetPixels, ParseColor(stroke.Color), brush.Medium, rect);
+        }
+        else
+        {
+            if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, 1.0);
+            if (brush.TextureSurface is not null) ApplyTexture(canvas, brush, rect, local);
+        }
+
+        using var snapshot = scratch.Snapshot();
+        using var target = new SKCanvas(destination);
+        using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+        target.DrawImage(snapshot, rect.Left, rect.Top, replace);
+        target.Flush();
+        return rect;
+    }
+
+    /// <summary>
     /// A document rect in the pixels a render at <paramref name="scale"/>
     /// actually has. Outward-rounded so the scratch never clips ink the
     /// document rect included, and integral so the scratch composites back

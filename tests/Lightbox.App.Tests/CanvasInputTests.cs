@@ -21,7 +21,7 @@ public class CanvasInputTests
         var vm = new MainViewModel(null) { SmoothStrokes = false };
         var canvas = new CanvasControl();
         var window = new Window { Width = 800, Height = 600, Content = canvas };
-        vm.SnapshotChanged += canvas.UpdateSnapshot;
+        vm.SnapshotChanged += s => canvas.UpdateSnapshot(s);
         canvas.PaintStarted += vm.BeginStroke;
         canvas.PaintMoved += vm.MoveStrokeBatch;
         canvas.PaintEnded += vm.EndStroke;

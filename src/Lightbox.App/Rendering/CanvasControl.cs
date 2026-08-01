@@ -77,7 +77,20 @@ public sealed class CanvasControl : Control
     /// <summary>Snapshots kept past the current one, even after they've been rendered.</summary>
     private const int RetiredKeep = 1;
 
-    /// <summary>Backstop when render completions never report back (headless).</summary>
+    /// <summary>
+    /// Backstop when render completions never report back — a hidden window,
+    /// or headless, where nothing ever draws and the queue would grow forever.
+    ///
+    /// It may only ever free a snapshot the render thread has finished with.
+    /// It used to free the oldest unconditionally once the queue passed this
+    /// mark, which was safe only for as long as publishes never outran
+    /// renders. When live wet-media previews started publishing an extra frame
+    /// per pass, they did outrun them, and the compositor drew an image that
+    /// had just been freed underneath it: an access violation inside
+    /// <c>sk_canvas_draw_image_rect</c>, plus flickering frames on the way
+    /// there. Bounded memory is not worth a crash — if everything queued is
+    /// still in flight, the queue is allowed to grow.
+    /// </summary>
     private const int RetiredHardCap = 4;
 
     /// <summary>Highest snapshot sequence the render thread has finished drawing.</summary>
@@ -645,10 +658,29 @@ public sealed class CanvasControl : Control
     private bool _panning;
     private Point _panLast;
 
-    public void UpdateSnapshot(RenderSnapshot snapshot)
+    /// <summary>
+    /// Take a published frame. Returns false when the frame was dropped
+    /// because the compositor is behind — see the back-pressure below.
+    /// </summary>
+    public bool UpdateSnapshot(RenderSnapshot snapshot)
     {
         if (Environment.GetEnvironmentVariable("LIGHTBOX_TRACE") is not null)
             Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss.fff} UpdateSnapshot");
+        var rendered = Interlocked.Read(ref _lastRenderedSeq);
+
+        // Back-pressure. If the queue is full of frames the compositor has not
+        // finished with, the publisher is ahead of the renderer and there is
+        // nothing safe to free. Drop the INCOMING frame instead — it has never
+        // been handed to the render thread, so disposing it cannot race, and
+        // the canvas simply keeps showing the frame it already has until the
+        // next publish. Freeing an old one here instead is what crashed:
+        // the compositor was mid-draw on it.
+        if (_retired.Count > RetiredHardCap && _retired.Peek() is { } head && head.Seq >= rendered)
+        {
+            snapshot.Image.Dispose();
+            return false;
+        }
+
         var old = _snapshot;
         _snapshot = snapshot;
         if (old is null) ReportDisplayScale(); // first frame: the scale is now knowable
@@ -658,16 +690,19 @@ public sealed class CanvasControl : Control
         // can still be in flight. Holding them longer is not just memory —
         // the compositor's back-buffer would have to copy-on-write around
         // them on every publish (~375 ms at 4K).
-        var rendered = Interlocked.Read(ref _lastRenderedSeq);
         while (_retired.Count > RetiredKeep
                && _retired.Peek() is { } stale
                && stale.Seq < rendered)
         {
             _retired.Dequeue().Image.Dispose();
         }
-        // Hard cap: if rendering never reports back (headless, hidden window),
-        // don't accumulate full-canvas images forever.
-        while (_retired.Count > RetiredHardCap)
+        // Hard cap, but never at the cost of freeing something in flight: an
+        // image the render thread has not finished with must survive however
+        // long the queue gets. Anything at or above `rendered` may still be
+        // on the compositor's canvas right now.
+        while (_retired.Count > RetiredHardCap
+               && _retired.Peek() is { } spare
+               && spare.Seq < rendered)
         {
             _retired.Dequeue().Image.Dispose();
         }
@@ -685,6 +720,7 @@ public sealed class CanvasControl : Control
                 InvalidateVisual();
             });
         }
+        return true;
     }
 
     private bool _framePending;
@@ -1244,6 +1280,26 @@ public sealed class CanvasControl : Control
         float DocW, float DocH, float Scale, float RotationDeg, bool Mirrored, float CenterX, float CenterY);
 
     /// <summary>Called from the render thread once a snapshot has been drawn.</summary>
+    /// <summary>
+    /// Report a completed render without a compositor. Tests only — it is the
+    /// only way to exercise the branch where snapshots CAN be released, since
+    /// nothing draws in a headless run.
+    /// </summary>
+    internal void NoteRenderedForTest(long seq) => NoteRendered(seq);
+
+    /// <summary>
+    /// Whether every image the canvas is still holding — the one on screen and
+    /// everything retired behind it — is alive. The crash was this going
+    /// false: the compositor drew a snapshot the canvas had already freed.
+    /// Tests only.
+    /// </summary>
+    internal bool HeldImagesAlive =>
+        (_snapshot is null || _snapshot.Image.Handle != IntPtr.Zero)
+        && _retired.All(r => r.Image.Handle != IntPtr.Zero);
+
+    /// <summary>How many frames are queued behind the one on screen. Tests only.</summary>
+    internal int RetiredCount => _retired.Count;
+
     private void NoteRendered(long seq)
     {
         long current;

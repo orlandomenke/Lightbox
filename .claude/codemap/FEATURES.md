@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-533 tests, derived from the suite itself. Each line is a
+538 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -284,8 +284,8 @@ regression even when every test still compiles.
 - Four K The First Events Of AStroke Repaint No More Than The Middle Of One — `:142`
 - Four K Masked Stroke Costs No More Than An Unmasked One — `:198`
 - Four K Wet Media Stroke Stays Within Its Budget — `:230`
-- Four K Frame Cache Stays Within Its Memory Budget — `:269`
-- Headroom Reports Smooth While Painting On Four K — `:289`
+- Four K Frame Cache Stays Within Its Memory Budget — `:271`
+- Headroom Reports Smooth While Painting On Four K — `:291`
 
 ## AlphaSelectAndWandTests
 `tests/Lightbox.App.Tests/LayerCompositingTests.cs`
@@ -484,6 +484,12 @@ regression even when every test still compiles.
 - Savitzky Golay Smooths But Keeps APeak Better Than Averaging — `:43`
 - Pulled String Has ADead Zone Then Trails The Cursor — `:58`
 - Ema Lags Behind And Converges — `:72`
+
+## SnapshotRetirementTests
+`tests/Lightbox.App.Tests/SnapshotRetirementTests.cs`
+
+- Publishes That Outrun The Renderer Never Free An Image Still In Flight — `:37`
+- Once Rendered The Old Frames Are Still Released — `:77`
 
 ## SpriteSheetExportTests
 `tests/Lightbox.App.Tests/SpriteSheetExportTests.cs`
@@ -916,6 +922,13 @@ regression even when every test still compiles.
 - Srgb Conversion Is Monotonic — `:514`
 - Over Works In Linear Light Not On Encoded Values — `:534`
 - Over Costs Under AMicrosecond Per Pixel — `:548`
+
+## PostProcessDabsTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/PostProcessDabsTests.cs`
+
+- Post Processing Pre Stamped Dabs Matches Rendering From Scratch — `:100`
+- AStroke That Reaches Nothing Reports No Bounds — `:121`
+- The Cost Of APass Does Not Grow With The Length Of The Stroke — `:132`
 
 ## PressureTests
 `tests/Lightbox.Raster.Tests/PressureTests.cs`

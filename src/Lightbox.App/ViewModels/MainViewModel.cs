@@ -1984,6 +1984,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>How many times the live post-process has rendered. Tests only.</summary>
     internal int LivePostPasses { get; private set; }
 
+    /// <summary>Total milliseconds spent in those passes. Tests only.</summary>
+    internal double LivePostTotalMs { get; private set; }
+
     /// <summary>
     /// Effects that cannot be applied per segment because they read the whole
     /// stroke. Texture and granulation are pointwise and could be incremental,
@@ -2163,6 +2166,9 @@ public sealed partial class MainViewModel : ObservableObject
         if (_strokeBuilder.Current is not { } live || !_strokeBuilder.IsActive) return;
         if (!NeedsLivePostProcess(live.Brush)) return;
         if (_livePostStampedCount == live.Points.Count) return; // nothing new since last pass
+        // The pass reads the dabs from the live scratch; the blur and smudge
+        // brushes use the copy-based path instead and have none.
+        if (_liveScratch is not { } dabs) return;
 
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         if (_livePostScratch is null || _livePostScratch.Width != info.Width || _livePostScratch.Height != info.Height)
@@ -2181,27 +2187,35 @@ public sealed partial class MainViewModel : ObservableObject
             Brush = live.Brush,
             Points = [.. live.Points],
         };
-        var bounds = BrushEngine.CommitBounds(whole, info);
 
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         using (var canvas = new SKCanvas(_livePostScratch))
         {
             ClearRegion(canvas, _livePostUsed);
-            // targetPixels is the committed layer: the medium re-wets what is
-            // already there, exactly as it will on commit.
-            var beneath = PaintTarget() is { } frame ? _cache.Get(frame, Scene.Width, Scene.Height) : null;
-            BrushEngine.StampStroke(canvas, whole, info, beneath);
-            canvas.Flush();
         }
+        // The dabs are already in the live scratch, so the pass runs the
+        // effects over them rather than re-stamping every dab — the cost of a
+        // pass stops growing with the length of the stroke.
+        // targetPixels is the committed layer: the medium re-wets what is
+        // already there, exactly as it will on commit.
+        var beneath = PaintTarget() is { } frame ? _cache.Get(frame, Scene.Width, Scene.Height) : null;
+        var bounds = BrushEngine.PostProcessDabs(dabs, _livePostScratch, whole, info, beneath);
+
         _livePostCostMs = (System.Diagnostics.Stopwatch.GetTimestamp() - started)
                           * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         _livePostStampedCount = live.Points.Count;
         _livePostUsed = bounds;
         LivePostPasses++;
+        LivePostTotalMs += _livePostCostMs;
 
         if (bounds is { } rect) MarkDirtyRegion(rect);
         else InvalidateWholeCanvas();
-        PublishSnapshot();
+        // Through the coalescing path, not straight to PublishSnapshot. A
+        // direct publish here put an extra frame on the wire for every pass on
+        // top of the one the pointer event had already queued, and publishing
+        // faster than the compositor draws is what let the canvas free an
+        // image out from under it.
+        RequestSnapshot();
 
         // Points arrived while this pass was rendering: go round again so the
         // preview settles on the whole stroke rather than stopping wherever

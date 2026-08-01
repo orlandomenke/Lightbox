@@ -249,8 +249,10 @@ public class LargeCanvasPerformanceTests(ITestOutputHelper output)
             sw.Stop();
 
             var total = sw.Elapsed.TotalMilliseconds;
-            output.WriteLine($"4K watercolour stroke, 20 events + commit: {total:0} ms " +
-                             $"({vm.LivePostPasses} live passes)");
+            var perPass = vm.LivePostPasses == 0 ? 0 : vm.LivePostTotalMs / vm.LivePostPasses;
+            output.WriteLine($"4K watercolour stroke, 20 events + commit: {total:0} ms | " +
+                             $"{vm.LivePostPasses} live passes, {vm.LivePostTotalMs:0} ms total, " +
+                             $"{perPass:0.0} ms each");
 
             // Generous, and deliberately so: this is the whole stroke plus its
             // commit plus every settle pass. It is here to catch the shape
