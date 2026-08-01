@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-389 tests, derived from the suite itself. Each line is a
+418 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -660,6 +660,46 @@ regression even when every test still compiles.
 - Fill Is Deterministic — `:113`
 - Fill Stays Inside ASelection Mask — `:124`
 
+## FluidLatticeTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/FluidLatticeTests.cs`
+
+- Pigment Is Conserved Across Every Channel — `:38`
+- Conservation Holds At Every Parameter Corner — `:66`
+- Deposit Never Exceeds Pigment That Was Seeded — `:86`
+- Run Zero Changes Nothing At All — `:113`
+- Two Runs Are Bit Identical — `:143`
+- Inviscid Undragged Deluge Stays Finite — `:186`
+- Extreme Parameters Do Not Produce Na N — `:221`
+- Edge Pull Concentrates Deposit Near The Wet Boundary — `:244`
+- Granularity Biases Deposit Into The Papers Valleys — `:291`
+- Paper Influence Zero Makes The Paper Irrelevant — `:335`
+- Water Spreads Beyond Where It Was Seeded — `:359`
+- Thin Wash Pins Instead Of Creeping Forever — `:375`
+- Mis Sized Buffers Are Rejected — `:410`
+- Four Hundred Square Twelve Steps Stays Within Budget — `:431`
+
+## PaperFieldScaleTests
+`tests/Lightbox.Raster.Tests/PaperFieldTests.cs`
+
+- Scale Actually Changes The Grain Across The Usable Range — `:337`
+- Below Nyquist The Field Saturates Rather Than Aliasing — `:355`
+
+## PaperFieldTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/PaperFieldTests.cs`
+
+- Rebuilt Tile Is Bit Identical — `:75`
+- Fill Agrees With Height At Exactly — `:100`
+- Tile Wraps Without ASeam — `:124`
+- Height Stays In Range And Centred — `:168`
+- Tooth Depth Separates The Three Papers — `:179`
+- Rough Has The Longer Wavelength — `:194`
+- Canvas Is Directional And Cold Press Is Not — `:207`
+- Scale Sets The Wavelength — `:224`
+- Different Scales Are Different Fields — `:242`
+- Fill Rejects AToo Small Destination — `:252`
+- Fill Is Fast Enough For AFull Frame — `:260`
+- Fill Cost Follows The Region Not The Canvas — `:286`
+
 ## PerformanceTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/PerformanceTests.cs`
 
@@ -674,33 +714,34 @@ regression even when every test still compiles.
 `tests/Lightbox.Raster.Tests/PigmentModelTests.cs`
 
 - Over Zero Thickness Returns Backdrop Bit For Bit — `:34`
-- Over Zero Thickness Preserves Alpha — `:51`
-- Over Fully Hiding Converges To Mass Tone Whatever Is Underneath — `:60`
-- Over Fully Hiding Is Independent Of Backdrop To The Bit — `:76`
-- Over No Scattering Is Beer Lambert — `:84`
-- Over No Absorption Is Pure Scattering — `:108`
-- Over No Pigment At All Leaves The Backdrop Alone — `:128`
-- Over Denormal Thickness Does Not Produce Garbage — `:137`
-- Over Extreme Inputs Stay In Gamut — `:150`
-- Yellow Glaze Over Blue Is Greener Than Every Possible Alpha Blend — `:180`
-- Yellow Glaze Over Blue Is More Saturated Than Alpha Blending — `:224`
-- Yellow Glaze Over Blue Darkens Rather Than Averaging — `:244`
-- Yellow Glaze Over Pure Blue Goes Black And Says So Honestly — `:254`
-- Over Thicker Glaze Moves Monotonically Away From The Backdrop — `:274`
-- Coverage Rises With Hiding And With Thickness — `:288`
-- From Color Hiding Dial Closes On The Chosen Colour Monotonically — `:306`
-- From Color White With No Hiding Is Invisible — `:328`
-- Mix At The Ends Reproduces The Inputs Exactly — `:339`
-- Mix Is Continuous — `:354`
-- Mix Is Clamped And Symmetric In Its Endpoints — `:397`
-- Mix Yellow And Blue Makes Green — `:407`
-- Over Is Deterministic — `:427`
-- From Coefficients And From Color Agree When They Describe The Same Film — `:450`
-- Srgb Conversion Round Trips Every Single Level — `:460`
-- Srgb Conversion Is The Real Transfer Function Not AGamma Guess — `:467`
-- Srgb Conversion Is Monotonic — `:482`
-- Over Works In Linear Light Not On Encoded Values — `:502`
-- Over Costs Under AMicrosecond Per Pixel — `:516`
+- Over Zero Thickness Changes Nothing At All — `:51`
+- Over Laying Paint Down Adds Opacity — `:59`
+- Over Fully Hiding Converges To Mass Tone Whatever Is Underneath — `:92`
+- Over Fully Hiding Is Independent Of Backdrop To The Bit — `:108`
+- Over No Scattering Is Beer Lambert — `:116`
+- Over No Absorption Is Pure Scattering — `:140`
+- Over No Pigment At All Leaves The Backdrop Alone — `:160`
+- Over Denormal Thickness Does Not Produce Garbage — `:169`
+- Over Extreme Inputs Stay In Gamut — `:182`
+- Yellow Glaze Over Blue Is Greener Than Every Possible Alpha Blend — `:212`
+- Yellow Glaze Over Blue Is More Saturated Than Alpha Blending — `:256`
+- Yellow Glaze Over Blue Darkens Rather Than Averaging — `:276`
+- Yellow Glaze Over Pure Blue Goes Black And Says So Honestly — `:286`
+- Over Thicker Glaze Moves Monotonically Away From The Backdrop — `:306`
+- Coverage Rises With Hiding And With Thickness — `:320`
+- From Color Hiding Dial Closes On The Chosen Colour Monotonically — `:338`
+- From Color White With No Hiding Is Invisible — `:360`
+- Mix At The Ends Reproduces The Inputs Exactly — `:371`
+- Mix Is Continuous — `:386`
+- Mix Is Clamped And Symmetric In Its Endpoints — `:429`
+- Mix Yellow And Blue Makes Green — `:439`
+- Over Is Deterministic — `:459`
+- From Coefficients And From Color Agree When They Describe The Same Film — `:482`
+- Srgb Conversion Round Trips Every Single Level — `:492`
+- Srgb Conversion Is The Real Transfer Function Not AGamma Guess — `:499`
+- Srgb Conversion Is Monotonic — `:514`
+- Over Works In Linear Light Not On Encoded Values — `:534`
+- Over Costs Under AMicrosecond Per Pixel — `:548`
 
 ## PressureTests
 `tests/Lightbox.Raster.Tests/PressureTests.cs`

@@ -48,12 +48,44 @@ public class PigmentModelTests
     }
 
     [Fact]
-    public void Over_ZeroThickness_PreservesAlpha()
+    public void Over_ZeroThickness_ChangesNothingAtAll()
     {
         var p = Pigment.FromColor(Yellow, 0.5);
         var bd = new SKColor(40, 70, 180, 77);
         Assert.Equal(bd, p.Over(bd, 0.0));
-        Assert.Equal((byte)77, p.Over(bd, 1.0).Alpha);
+    }
+
+    [Fact]
+    public void Over_LayingPaintDown_AddsOpacity()
+    {
+        // Kubelka-Munk answers "what colour is this film over that backing",
+        // which presumes a backing. Preserving the backdrop's alpha — as this
+        // did — meant a stroke onto an empty layer came back fully computed
+        // and fully transparent, i.e. invisible. Paint adds opacity in
+        // proportion to how much it hides.
+        var p = Pigment.FromColor(Yellow, 0.8);
+
+        // On an empty layer the alpha is the pigment's own hiding power at
+        // that thickness — a semi-opaque paint stays semi-opaque. What must
+        // not happen is alpha 0, which is what preserving the backdrop's
+        // alpha produced.
+        var onNothing = p.Over(new SKColor(0, 0, 0, 0), 1.0);
+        Assert.True(onNothing.Alpha is > 100 and < 255,
+            $"a pigment hiding 0.8 should be clearly visible but not opaque, got alpha {onNothing.Alpha}");
+
+        var hiding = Pigment.FromColor(Yellow, 1.0);
+        Assert.True(hiding.Over(new SKColor(0, 0, 0, 0), 1.0).Alpha > 240,
+            "a fully hiding pigment on an empty layer should be very nearly opaque");
+
+        var partial = p.Over(new SKColor(40, 70, 180, 77), 1.0);
+        Assert.True(partial.Alpha > 77, "paint must not reduce what is already there");
+
+        // A glaze that hides nothing adds nothing.
+        var glaze = Pigment.FromColor(Yellow, 0.0);
+        Assert.Equal((byte)77, glaze.Over(new SKColor(40, 70, 180, 77), 1.0).Alpha);
+
+        // And it never exceeds opaque.
+        Assert.Equal((byte)255, p.Over(new SKColor(40, 70, 180, 255), 1.0).Alpha);
     }
 
     [Fact]

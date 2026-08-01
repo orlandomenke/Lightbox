@@ -163,12 +163,33 @@ public readonly struct Pigment
         var x = Math.Clamp(thickness, 0.0, 1.0);
         if (x <= NoPaint) return backdrop;
 
+        // Kubelka-Munk answers "what colour is this film over that backing",
+        // which presumes there is a backing. On an empty layer there is not:
+        // keeping the backdrop's alpha would return a fully computed colour at
+        // alpha 0, so every stroke onto blank canvas would vanish. Paint adds
+        // opacity in proportion to how much it hides, and the reflectance is
+        // computed against the backing the pigment actually sees, which where
+        // the layer is transparent is the pigment's own mass tone.
+        var backing = backdrop.Alpha == 255
+            ? backdrop
+            : Blend(MassTone, backdrop, backdrop.Alpha / 255.0);
+
+        var alpha = backdrop.Alpha / 255.0;
+        var laid = alpha + (1.0 - alpha) * Coverage(x);
+
         return new SKColor(
-            FromLinear(Layer(_kR, _sR, _bR, x, ToLinear(backdrop.Red))),
-            FromLinear(Layer(_kG, _sG, _bG, x, ToLinear(backdrop.Green))),
-            FromLinear(Layer(_kB, _sB, _bB, x, ToLinear(backdrop.Blue))),
-            backdrop.Alpha);
+            FromLinear(Layer(_kR, _sR, _bR, x, ToLinear(backing.Red))),
+            FromLinear(Layer(_kG, _sG, _bG, x, ToLinear(backing.Green))),
+            FromLinear(Layer(_kB, _sB, _bB, x, ToLinear(backing.Blue))),
+            (byte)Math.Round(Math.Clamp(laid, 0.0, 1.0) * 255));
     }
+
+    /// <summary>Linear-light interpolation, t=0 giving <paramref name="a"/>.</summary>
+    private static SKColor Blend(SKColor a, SKColor b, double t) => new(
+        FromLinear(ToLinear(a.Red) + (ToLinear(b.Red) - ToLinear(a.Red)) * t),
+        FromLinear(ToLinear(a.Green) + (ToLinear(b.Green) - ToLinear(a.Green)) * t),
+        FromLinear(ToLinear(a.Blue) + (ToLinear(b.Blue) - ToLinear(a.Blue)) * t),
+        255);
 
     /// <summary>
     /// How much of the backdrop this layer hides at <paramref name="thickness"/>,

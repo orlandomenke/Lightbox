@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `c3fd9fc` · 134 files · 23912 lines · 389 tests.
+Generated from `b4ec9d9` · 138 files · 26020 lines · 418 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -35,7 +35,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushCategoryList, BrushPageEffects, BrushPageGeneral, BrushPageMedium, BrushPagePresets, BrushPagePressure, Canvas, CanvasHost …
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (1073 ln) · **no tests**
   - MainWindow:13
-- `src/Lightbox.App/Services/BrushPresets.cs` (248 ln) · 25 indirect only
+- `src/Lightbox.App/Services/BrushPresets.cs` (248 ln) · 26 indirect only
   - BrushPreset:7, BuiltInPresets:24, PresetStore:195, State:200
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (211 ln) · **no tests**
   - ShortcutRow:11, ShortcutGroup:23, ConfigureWindow:36
@@ -101,7 +101,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
 - `src/Lightbox.Core/Geometry/TransformOps.cs` (219 ln) · 1 test files
   - TransformOps:12
-- `src/Lightbox.Core/Documents/MediumSettings.cs` (158 ln) · 2 test files
+- `src/Lightbox.Core/Documents/MediumSettings.cs` (158 ln) · 3 test files
   - MediumKind:10, PaperKind:29, MediumSettings:54
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (130 ln) · 1 test files
   - GeometryOps:5
@@ -166,11 +166,15 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Raster
 
+- `src/Lightbox.Raster/Media/FluidLattice.cs` (820 ln) · 1 test files
+  - FluidLattice:59
 - `src/Lightbox.Raster/BrushEngine.cs` (787 ln) · 5 test files
   - BrushEngine:25
 - `src/Lightbox.Raster/FloodFill.cs` (416 ln) · 2 test files
   - FloodFill:13, Options:15, Result:21, ContourTracer:280
-- `src/Lightbox.Raster/Media/PigmentModel.cs` (326 ln) · 1 test files
+- `src/Lightbox.Raster/Media/PaperField.cs` (406 ln) · 2 test files
+  - PaperField:26, Tile:81
+- `src/Lightbox.Raster/Media/PigmentModel.cs` (347 ln) · 1 test files
   - Pigment:31
 - `src/Lightbox.Raster/FrameRasterizer.cs` (74 ln) · 7 test files
   - FrameRasterizer:10
