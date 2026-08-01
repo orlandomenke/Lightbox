@@ -36,6 +36,7 @@ public partial class MainWindow : Window
         _vm.LazyBrushMoved += (x, y) => Canvas.SetLazyAnchor(x, y);
         _vm.LazyBrushCleared += () => Canvas.SetLazyAnchor(null, null);
         Canvas.BrushResizeRequested += size => _vm.BrushSize = size;
+        Canvas.InputDiagnostic += text => _vm.PenDiagnostic = text;
         SyncCanvasToolMode();
 
         LayersDocker.PointerEntered += (_, _) => _pointerInLayersDocker = true;

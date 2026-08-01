@@ -99,10 +99,12 @@
         <MenuItem Header="_Configure…" Click="OnConfigureClicked" />
       </MenuItem>
       <MenuItem Header="_View">
-        <MenuItem Header="Sidebar" ToggleType="CheckBox" IsChecked="{Binding SidebarVisible}" />
-        <MenuItem Header="Timeline" ToggleType="CheckBox" IsChecked="{Binding TimelineVisible}" />
-        <MenuItem Header="Color" ToggleType="CheckBox" IsChecked="{Binding ColorDockerVisible}" />
-        <MenuItem Header="Character sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible}" />
+        <!-- MenuItem.IsChecked binds one-way by default: without Mode=TwoWay the
+             click only flips the checkmark locally and the docker never reopens. -->
+        <MenuItem Header="Sidebar" ToggleType="CheckBox" IsChecked="{Binding SidebarVisible, Mode=TwoWay}" />
+        <MenuItem Header="Timeline" ToggleType="CheckBox" IsChecked="{Binding TimelineVisible, Mode=TwoWay}" />
+        <MenuItem Header="Color" ToggleType="CheckBox" IsChecked="{Binding ColorDockerVisible, Mode=TwoWay}" />
+        <MenuItem Header="Character sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
       </MenuItem>
     </Menu>
 
@@ -229,6 +231,11 @@
 
                     <StackPanel x:Name="BrushPagePressure" Spacing="6" IsVisible="False">
                       <TextBlock Text="Pen pressure" FontWeight="SemiBold" FontSize="12" />
+                      <TextBlock Text="{Binding PenDiagnostic}" FontSize="11" Foreground="#7fd0ff"
+                                 TextWrapping="Wrap"
+                                 ToolTip.Tip="Live report of what Windows delivers while you draw" />
+                      <TextBlock Text="Seeing Mouse instead of Pen? Enable “Windows Ink” in your Huion/Wacom driver settings, then restart Lightbox."
+                                 FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
                       <CheckBox Content="Use pen pressure" IsChecked="{Binding BrushPressureEnabled}"
                                 ToolTip.Tip="Master switch for this brush — off ignores the tablet's pressure entirely" />
                       <StackPanel Spacing="6" IsEnabled="{Binding BrushPressureEnabled}">

@@ -1429,6 +1429,16 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>One pointer sample in document space.</summary>
     public readonly record struct PointerSample(double X, double Y, double Pressure);
 
+    /// <summary>
+    /// Live report of what the OS delivers while drawing, shown on the
+    /// Pen-pressure settings page. "Pen detected — pressure 0.63" means
+    /// the tablet works; a Mouse report from a pen means the tablet driver
+    /// isn't exposing the pen to Windows Ink (enable "Windows Ink" in the
+    /// Huion/Wacom driver settings).
+    /// </summary>
+    [ObservableProperty]
+    private string _penDiagnostic = "No input seen yet — draw a stroke.";
+
     // Live-preview state: a persistent copy of the target frame that only the
     // NEW segment of the stroke gets stamped into per pointer event — this is
     // what keeps painting O(stroke length) instead of O(length²).

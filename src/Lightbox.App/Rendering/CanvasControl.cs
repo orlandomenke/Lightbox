@@ -350,6 +350,28 @@ public sealed class CanvasControl : Control
         return raw <= 0 ? 0.5 : Math.Clamp(raw, 0.0, 1.0);
     }
 
+    /// <summary>
+    /// What the OS is actually delivering, for the Pen-pressure settings
+    /// page: lets a tablet user see instantly whether real pressure arrives
+    /// (it only does when the driver exposes the pen to Windows Ink).
+    /// </summary>
+    public event Action<string>? InputDiagnostic;
+
+    private string? _lastDiagnostic;
+
+    private void ReportInputDiagnostic(PointerType type, float rawPressure)
+    {
+        if (InputDiagnostic is null) return;
+        var text = type == PointerType.Pen
+            ? $"Pen detected — pressure {rawPressure:0.00}"
+            : $"{type} input — no pressure axis (constant {PressureOf0(rawPressure):0.00})";
+        if (text == _lastDiagnostic) return;
+        _lastDiagnostic = text;
+        InputDiagnostic.Invoke(text);
+    }
+
+    private static double PressureOf0(float raw) => raw <= 0 ? 0.5 : Math.Clamp(raw, 0f, 1f);
+
     // ---- view tools -----------------------------------------------------------
 
     private void ViewUpdated()
@@ -493,6 +515,7 @@ public sealed class CanvasControl : Control
 
             e.Pointer.Capture(this);
             _painting = true;
+            ReportInputDiagnostic(e.Pointer.Type, pp.Properties.Pressure);
             PaintStarted?.Invoke(x, y, PressureOf(pp));
             e.Handled = true;
         }
@@ -578,7 +601,11 @@ public sealed class CanvasControl : Control
                 var (x, y) = ViewToDoc(pp.Position);
                 samples.Add(new ViewModels.MainViewModel.PointerSample(x, y, PressureOf(pp)));
             }
-            if (samples.Count > 0) PaintMoved?.Invoke(samples);
+            if (samples.Count > 0)
+            {
+                ReportInputDiagnostic(e.Pointer.Type, points[^1].Properties.Pressure);
+                PaintMoved?.Invoke(samples);
+            }
             e.Handled = true;
         }
         catch (Exception ex)
