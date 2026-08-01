@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-328 tests, derived from the suite itself. Each line is a
+331 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -490,6 +490,13 @@ regression even when every test still compiles.
 - Length Mismatch Inflates Cost — `:42`
 - Unmatched Pair With Null — `:52`
 - Empty Frames Produce Only One Sided Pairs — `:60`
+
+## MediumSettingsTests
+`tests/Lightbox.Core.Tests/Serialization/MediumSettingsTests.cs`
+
+- Every Medium Parameter Survives ARound Trip — `:29`
+- ADocument Saved Before Media Existed Loads As No Medium — `:68`
+- Clone Deep Copies The Medium So Tweaking APreset Cannot Edit Past Strokes — `:123`
 
 ## RoundTripTests
 `tests/Lightbox.Core.Tests/Serialization/RoundTripTests.cs`

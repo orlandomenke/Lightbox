@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `1ae5468` · 127 files · 21449 lines · 328 tests.
+Generated from `1f36348` · 128 files · 21676 lines · 331 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -35,6 +35,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushCategoryList, BrushPageEffects, BrushPageGeneral, BrushPagePresets, BrushPagePressure, Canvas, CanvasHost, LayersDocker …
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (1071 ln) · **no tests**
   - MainWindow:13
+- `src/Lightbox.App/Services/BrushPresets.cs` (248 ln) · 22 indirect only
+  - BrushPreset:7, BuiltInPresets:24, PresetStore:195, State:200
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (211 ln) · **no tests**
   - ShortcutRow:11, ShortcutGroup:23, ConfigureWindow:36
 - `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (209 ln) · 1 test files
@@ -49,8 +51,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PerformanceMonitor:14
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` (179 ln) · 1 test files
   - StrokeOverlay:14, RenderPass:17, SceneRenderer:30
-- `src/Lightbox.App/Services/BrushPresets.cs` (155 ln) · 22 indirect only
-  - BrushPreset:7, BuiltInPresets:24, PresetStore:102, State:107
 - `src/Lightbox.App/ViewModels/LayerRow.cs` (154 ln) · 1 test files
   - GroupRow:11, LayerRow:80
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (147 ln) · 22 indirect only
@@ -101,11 +101,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
 - `src/Lightbox.Core/Geometry/TransformOps.cs` (219 ln) · 1 test files
   - TransformOps:12
-- `src/Lightbox.Core/Documents/MediumSettings.cs` (158 ln) · 11 indirect only
+- `src/Lightbox.Core/Documents/MediumSettings.cs` (158 ln) · 1 test files
   - MediumKind:10, PaperKind:29, MediumSettings:54
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (130 ln) · 1 test files
   - GeometryOps:5
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (112 ln) · 11 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (112 ln) · 12 test files
   - BrushKind:4, BrushSettings:23
 - `src/Lightbox.Core/Inbetween/Inbetweener.cs` (94 ln) · 2 test files
   - Inbetweener:19
@@ -117,33 +117,33 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeFilters:10
 - `src/Lightbox.Core/Inbetween/StrokeMatcher.cs` (73 ln) · 1 test files
   - StrokePair:6, StrokeMatcher:13
-- `src/Lightbox.Core/Serialization/FrameConverter.cs` (64 ln) · 26 indirect only
+- `src/Lightbox.Core/Serialization/FrameConverter.cs` (64 ln) · 27 indirect only
   - FrameConverter:14
 - `src/Lightbox.Core/Documents/Scene.cs` (51 ln) · 2 test files
   - FrameMarker:4, Scene:13
 - `src/Lightbox.Core/Documents/ReferenceSheet.cs` (50 ln) · 1 test files
   - ReferenceSheet:11, ReferenceView:21
-- `src/Lightbox.Core/Documents/Stroke.cs` (50 ln) · 16 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (50 ln) · 17 test files
   - Stroke:9
 - `src/Lightbox.Core/Timeline/ExposureSheet.cs` (50 ln) · 2 test files
   - ExposureSheet:8
-- `src/Lightbox.Core/Documents/Frame.cs` (47 ln) · 26 test files
+- `src/Lightbox.Core/Documents/Frame.cs` (47 ln) · 27 test files
   - FrameRole:8, Frame:19, VectorFrame:27, PaintedFrame:40
-- `src/Lightbox.Core/Serialization/DocJson.cs` (44 ln) · 6 test files
+- `src/Lightbox.Core/Serialization/DocJson.cs` (44 ln) · 7 test files
   - DocJson:11
 - `src/Lightbox.Core/Inbetween/StrokeInterpolator.cs` (43 ln) · 1 test files
   - StrokeInterpolator:6
-- `src/Lightbox.Core/Documents/Doc.cs` (39 ln) · 2 test files
+- `src/Lightbox.Core/Documents/Doc.cs` (39 ln) · 3 test files
   - Doc:8, ClipRegion:33
 - `src/Lightbox.Core/Geometry/ColorOps.cs` (29 ln) · 1 test files
   - ColorOps:3
-- `src/Lightbox.Core/Documents/DocumentFactory.cs` (25 ln) · 7 test files
+- `src/Lightbox.Core/Documents/DocumentFactory.cs` (25 ln) · 8 test files
   - DocumentFactory:3
 - `src/Lightbox.Core/Inbetween/Easing.cs` (20 ln) · 4 test files
   - Easing:3, EasingOps:11
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 38 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 39 indirect only
   - Ids:3
-- `src/Lightbox.Core/Documents/ToolKind.cs` (14 ln) · 12 test files
+- `src/Lightbox.Core/Documents/ToolKind.cs` (14 ln) · 13 test files
   - ToolKind:3
 
 ## Lightbox.Import

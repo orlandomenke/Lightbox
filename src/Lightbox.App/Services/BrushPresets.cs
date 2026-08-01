@@ -59,10 +59,14 @@ public static class BuiltInPresets
                 Size = 30, Hardness = 0.05, Opacity = 1, Flow = 0.25, Spacing = 0.08, PressureFlowGamma = 1,
             },
         },
+        // The two texture-only brushes: no simulation, just the rim and grain
+        // effects. Kept because they are cheap and predictable, and because
+        // every existing document that references them must keep rendering
+        // exactly as it does now.
         new()
         {
             Id = "builtin-watercolor",
-            Name = "Watercolor",
+            Name = "Watercolor (flat)",
             Settings = new BrushSettings
             {
                 Size = 22, Hardness = 0.4, Opacity = 0.65, Flow = 0.5, Spacing = 0.1,
@@ -72,11 +76,100 @@ public static class BuiltInPresets
         new()
         {
             Id = "builtin-gouache",
-            Name = "Gouache",
+            Name = "Gouache (flat)",
             Settings = new BrushSettings
             {
                 Size = 18, Hardness = 0.75, Opacity = 0.95, Flow = 0.9, Spacing = 0.12,
                 WetEdge = 0.15, Granulation = 0.25,
+            },
+        },
+
+        // ---- simulated media ------------------------------------------------
+        //
+        // These run the fluid lattice over the stroke region at commit. The
+        // numbers are the physical character of each medium: what separates
+        // watercolour from ink is not the colour but the wetness, the
+        // viscosity and how readily the paper takes the pigment.
+
+        new()
+        {
+            Id = "builtin-watercolor-wet",
+            Name = "Watercolor (wet)",
+            Settings = new BrushSettings
+            {
+                Size = 42, Hardness = 0.25, Opacity = 0.55, Flow = 0.45, Spacing = 0.08,
+                PressureFlowGamma = 0.8,
+                Medium = new MediumSettings
+                {
+                    Kind = MediumKind.Watercolour,
+                    // Very wet and very mobile: pigment travels, pools at the
+                    // boundary, and settles into the tooth as it dries.
+                    Wetness = 0.85, Viscosity = 0.1, Drag = 0.25, FlowSteps = 16,
+                    Absorbency = 0.35, EdgePull = 0.7,
+                    PigmentDensity = 0.5, Granularity = 0.6, Hiding = 0.05,
+                    Paper = PaperKind.ColdPress, PaperScale = 14, PaperInfluence = 0.7,
+                },
+            },
+        },
+        new()
+        {
+            Id = "builtin-gouache-body",
+            Name = "Gouache",
+            Settings = new BrushSettings
+            {
+                Size = 26, Hardness = 0.7, Opacity = 0.95, Flow = 0.85, Spacing = 0.1,
+                Medium = new MediumSettings
+                {
+                    Kind = MediumKind.Gouache,
+                    // Barely flows and hides what is underneath — the opposite
+                    // of watercolour in every term that matters.
+                    Wetness = 0.3, Viscosity = 0.75, Drag = 0.7, FlowSteps = 6,
+                    Absorbency = 0.8, EdgePull = 0.15,
+                    PigmentDensity = 0.9, Granularity = 0.15, Hiding = 0.9,
+                    Paper = PaperKind.ColdPress, PaperScale = 10, PaperInfluence = 0.35,
+                    Body = 0.35, Relief = 0.2, PaintLoad = 0.85,
+                },
+            },
+        },
+        new()
+        {
+            Id = "builtin-oil",
+            Name = "Oil",
+            Settings = new BrushSettings
+            {
+                Size = 34, Hardness = 0.6, Opacity = 1, Flow = 0.9, Spacing = 0.06,
+                Medium = new MediumSettings
+                {
+                    Kind = MediumKind.Oil,
+                    // Thick, slow, and it drags what is already there. Running
+                    // out of paint mid-stroke is the point, not a defect.
+                    Wetness = 0.2, Viscosity = 0.9, Drag = 0.85, FlowSteps = 4,
+                    Absorbency = 0.9, EdgePull = 0.05,
+                    PigmentDensity = 1, Granularity = 0.1, Hiding = 0.95,
+                    Paper = PaperKind.Canvas, PaperScale = 8, PaperInfluence = 0.6,
+                    Body = 0.8, Relief = 0.6, BristleDrag = 0.5,
+                    PaintLoad = 0.6, Pickup = 0.4,
+                },
+            },
+        },
+        new()
+        {
+            Id = "builtin-ink-wash",
+            Name = "Ink wash",
+            Settings = new BrushSettings
+            {
+                Size = 30, Hardness = 0.35, Opacity = 0.8, Flow = 0.6, Spacing = 0.07,
+                PressureSizeGamma = 1.4,
+                Medium = new MediumSettings
+                {
+                    Kind = MediumKind.Ink,
+                    // Extremely fluid and strongly absorbed: it bleeds along
+                    // the fibres rather than pooling, and hardly granulates.
+                    Wetness = 0.9, Viscosity = 0.05, Drag = 0.15, FlowSteps = 18,
+                    Absorbency = 0.75, EdgePull = 0.3,
+                    PigmentDensity = 0.8, Granularity = 0.05, Hiding = 0.4,
+                    Paper = PaperKind.Smooth, PaperScale = 6, PaperInfluence = 0.25,
+                },
             },
         },
         new()
