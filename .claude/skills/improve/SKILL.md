@@ -44,6 +44,9 @@ and return little, which is the entire point: their context is not yours.
 | **perf-warden** | Do the budgets still hold, and what got slower? |
 | **code-scout** | Where does the area we are about to touch actually live? |
 
+**ui-critic** is not in this list either: like leak-hunter it reads a diff, so
+it belongs in verify.
+
 Skip any agent whose question is already answered. Three agents that all
 report "nothing found" is a wasted round; pick the ones the recent diff makes
 relevant. **leak-hunter** is not in this list because it belongs in verify —
@@ -90,6 +93,11 @@ Then, in parallel:
   real stall in this project was in a path that did not. A leak it names is
   fixed, or accepted in the commit message with a measurement — never
   ignored.
+- **ui-critic** on the round's diff, whenever it touched XAML, a docker, a
+  dialog or a row template. It checks the change against
+  `.claude/quality/DESIGN.md` — control sizing, button consistency, docker
+  density. A BLOCKING verdict means a control or docker is unusable and the
+  round is not done.
 - **adversary** on every claim you intend to report, one claim per agent. A
   claim it refutes is not a finding and not a fix — go back to step 3 or drop
   it.
@@ -100,7 +108,37 @@ moving on. That line is how the *next* leak gets in.
 Gates G1–G8 in the charter are pass/fail. A round that fails one is narrowed
 or reverted; it is never reported as "mostly done".
 
-### 5 · Reflect
+### 5 · Sharpen — fix the gate, not just the defect
+
+Whenever the round fixed something **the gates should have caught and did
+not**, the round is not finished until the gate is fixed too, in the same
+commit. This is the loop improving itself rather than only the code, and it is
+the difference between a process that converges and one that keeps rediscovering
+the same class of bug.
+
+Ask it explicitly, every round: *what would have caught this earlier?*
+
+| The round found | The gate to sharpen |
+| --- | --- |
+| A stall in a path with no budget | Add the budget (already mandatory above) |
+| A behaviour with no test | Add it to the inventory, not just a test |
+| A defect the user hit before any agent did | An agent's prompt is missing a question — add it |
+| A UI control that drifted | A rule in `DESIGN.md`, or a check in **ui-critic** |
+| A roadmap box that was green and wrong | The evidence anchors were too weak — tighten them |
+| A question re-litigated from an earlier round | It belongs in `LOOP.md`'s Rejected line |
+
+Two limits, so this does not become its own busywork:
+
+- **Only when the round actually revealed the gap.** Do not audit the tooling
+  speculatively; that is a different task and the user can ask for it.
+- **A sharpening must be as concrete as a fix.** "Be more careful about
+  dockers" is not one. A new line in `DESIGN.md`, a new question in an agent's
+  prompt, or a new gate in `CHARTER.md` is.
+
+Record it on the round's `Sharpened:` line so the next round can see what the
+system learned.
+
+### 6 · Reflect
 
 Append to `.claude/quality/LOOP.md`:
 
@@ -110,6 +148,7 @@ Found: <what the assessment turned up>
 Did: <changes, with the test that proves each>
 Rejected: <candidates considered and dropped, with the reason>
 Gates: build ✓ tests ✓ (<n> passing) perf ✓ leaks ✓ inventory ✓ roadmap ✓
+Sharpened: <what in the loop itself changed so this class of defect is caught next time, or none>
 Roadmap: <items that changed mark this round, or none>
 Questions raised: <ids, or none>
 Next: <the strongest remaining candidate>

@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `33132f8` · 172 files · 35595 lines · 603 tests.
+Generated from `5ddbae9` · 174 files · 35835 lines · 603 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -31,9 +31,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameCell:18, MainViewModel:61, LayerKindChoice:2067
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (1736 ln) · 4 test files
   - CanvasControl:28, CanvasToolMode:263, TxDrag:339, DrawOp:1386
-- `src/Lightbox.App/Views/MainWindow.axaml` (1680 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (1694 ln) · **no tests**
   - BrushCategoryList, BrushPageEffects, BrushPageGeneral, BrushPageMedium, BrushPagePresets, BrushPagePressure, Canvas, CanvasHost …
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (1168 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (1186 ln) · **no tests**
   - MainWindow:13
 - `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 26 test files
   - SpriteTrim:11, SpriteSheetOptions:35, SpriteSheetResult:46, SpriteSheetExporter:69, SheetDocument:275, SheetFrame:281, SheetMeta:295, Box:310 …
@@ -69,6 +69,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CacheBudgetBox, CategoryList, ConflictBar, ConflictText, GroupsHost, MeasuredText, PerformancePage, QualityBox …
 - `src/Lightbox.App/Services/ColorSpace.cs` (109 ln) · 1 test files
   - ColorSpace:8
+- `src/Lightbox.App/Styles/Density.axaml` (108 ln) · **no tests**
 - `src/Lightbox.App/Services/StrokeStabilizer.cs` (103 ln) · 1 test files
   - SmoothingMode:7, StrokeStabilizer:34
 - `src/Lightbox.App/Rendering/CameraTransform.cs` (95 ln) · 1 test files
@@ -89,7 +90,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BackgroundBox, FpsBox, HeightBox, NameBox, PpiBox, PresetBox, TransparentBox, WidthBox
 - `src/Lightbox.App/Input/StrokeBuilder.cs` (58 ln) · 35 indirect only
   - StrokeBuilder:10
-- `src/Lightbox.App/App.axaml` (49 ln) · **no tests**
+- `src/Lightbox.App/App.axaml` (53 ln) · **no tests**
 - `src/Lightbox.App/Services/AutosaveService.cs` (49 ln) · 35 indirect only
   - AutosaveService:12
 - `src/Lightbox.App/Services/IpcProtocol.cs` (43 ln) · 4 test files
@@ -123,6 +124,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GeometryOps:5
 - `src/Lightbox.Core/Documents/Layer.cs` (115 ln) · 13 test files
   - LayerKind:3, LayerBlendMode:14, Cel:38, LayerGroup:49, Layer:67
+- `src/Lightbox.Core/Projects/ProjectManifest.cs` (96 ln) · 1 test files
+  - ProjectType:11, DocumentRef:29, Character:44, ProjectManifest:72
 - `src/Lightbox.Core/Documents/Scene.cs` (94 ln) · 4 test files
   - FrameMarker:4, Scene:13
 - `src/Lightbox.Core/Inbetween/Inbetweener.cs` (94 ln) · 2 test files

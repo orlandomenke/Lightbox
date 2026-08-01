@@ -9,6 +9,10 @@
          without this include they render as nothing at all. -->
     <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
 
+    <!-- The density scale. See .claude/quality/DESIGN.md for the reasoning;
+         the numbers live in one place so no view invents its own. -->
+    <StyleInclude Source="avares://Lightbox.App/Styles/Density.axaml" />
+
     <!-- Docker: title strip, optional top/bottom option bars, content between. -->
     <Style Selector="controls|Docker">
       <Setter Property="Background" Value="#242424" />

@@ -788,7 +788,7 @@
                   <Button Content="{Binding DisplayTitle}" Background="Transparent" Padding="8,3"
                           Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateTabCommand}"
                           CommandParameter="{Binding}" />
-                  <Button Content="✕" FontSize="10" Padding="5,3" Background="Transparent"
+                  <Button Classes="icon" Content="✕" FontSize="10" Background="Transparent"
                           Click="OnCloseTabClicked" ToolTip.Tip="Close document" />
                 </StackPanel>
               </Border>
@@ -920,20 +920,30 @@
         <!-- Closable sidebar of dockers (dock side is switched from code-behind) -->
         <Border x:Name="Sidebar" Grid.Column="4" Background="#1c1c1c"
                 IsVisible="{Binding SidebarVisible}">
-          <Grid x:Name="SidebarGrid" Margin="4">
-            <Grid.RowDefinitions>
-              <RowDefinition Height="1.2*" MinHeight="170" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="1.3*" MinHeight="160" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="0.7*" MinHeight="80" />
-              <!-- Palette and gradient dockers. Auto rather than starred so a
-                   hidden docker costs nothing: both are off by default, and a
-                   star row would reserve its share of the sidebar whether
-                   shown or not. -->
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+          <!--
+            The dockers stack and the stack SCROLLS. Starred rows divided the
+            sidebar proportionally, so opening a fifth docker shrank all five
+            until none of them was usable and no splitter could recover it —
+            the whole point of the row is gone once it is 40px tall.
+
+            Pixel heights instead, each with a floor it cannot be dragged
+            below, and the stack allowed to grow past the viewport. Scrolling
+            past a docker is fine; being unable to use one is not.
+            See .claude/quality/DESIGN.md.
+          -->
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <Grid x:Name="SidebarGrid" Margin="4">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="260" MinHeight="120" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="300" MinHeight="140" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="150" MinHeight="80" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="220" MinHeight="110" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="240" MinHeight="120" />
+              </Grid.RowDefinitions>
 
             <!-- Layer docker (its ✕ collapses the sidebar to its side; ⇄ switches sides) -->
             <controls:Docker x:Name="LayersDocker" Grid.Row="0" Title="Layers"
@@ -1015,21 +1025,20 @@
                           </ContextMenu>
                         </Border.ContextMenu>
                         <DockPanel>
-                          <Button DockPanel.Dock="Left" Content="{Binding CollapseGlyph}" FontSize="11" Width="24"
-                                  Padding="2" Background="Transparent" Click="OnGroupCollapseClicked"
+                          <Button Classes="icon" DockPanel.Dock="Left" Content="{Binding CollapseGlyph}" FontSize="11"
+                                  Background="Transparent" Click="OnGroupCollapseClicked"
                                   ToolTip.Tip="Collapse / expand the folder" />
-                          <ToggleButton DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
-                                        Width="34" ToolTip.Tip="Folder visibility (gates every layer inside)" />
-                          <ToggleButton DockPanel.Dock="Left" Content="🔒" IsChecked="{Binding Locked}"
-                                        Width="30" FontSize="11"
+                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
+                                        ToolTip.Tip="Folder visibility (gates every layer inside)" />
+                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="🔒" IsChecked="{Binding Locked}"
                                         ToolTip.Tip="Lock the folder — every layer inside refuses edits, but still renders" />
-                          <Button DockPanel.Dock="Right" Content="✕" FontSize="10" Padding="4,0" Background="Transparent"
+                          <Button Classes="icon" DockPanel.Dock="Right" Content="✕" FontSize="10" Background="Transparent"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DissolveGroupCommand}"
                                   CommandParameter="{Binding}" ToolTip.Tip="Dissolve the folder (layers stay)" />
-                          <Button DockPanel.Dock="Right" Content="＋" FontSize="10" Padding="4,0" Background="Transparent"
+                          <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10" Background="Transparent"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).AddActiveLayerToGroupCommand}"
                                   CommandParameter="{Binding}" ToolTip.Tip="Put the active layer in this folder" />
-                          <Panel Margin="4,0" MinHeight="26">
+                          <Panel Margin="4,0" MinHeight="24">
                             <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}" FontWeight="SemiBold"
                                        Background="Transparent" VerticalAlignment="Center"
                                        DoubleTapped="OnGroupNameDoubleTapped" ToolTip.Tip="Double-click to rename" />
@@ -1062,36 +1071,36 @@
                           </ContextMenu>
                         </Border.ContextMenu>
                         <DockPanel>
-                          <ToggleButton DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
-                                        Width="34" ToolTip.Tip="Layer visibility" />
-                          <ToggleButton DockPanel.Dock="Left" Content="🔒" IsChecked="{Binding Locked}"
-                                        Width="30" FontSize="11"
+                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
+                                        ToolTip.Tip="Layer visibility" />
+                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="🔒" IsChecked="{Binding Locked}"
                                         ToolTip.Tip="Lock the layer — refuses paint, fill, transform, delete and cel edits. It still renders and still exports." />
-                          <ToggleButton DockPanel.Dock="Left" Content="▣" IsChecked="{Binding AlphaLocked}"
-                                        Width="30" FontSize="11"
+                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="▣" IsChecked="{Binding AlphaLocked}"
                                         ToolTip.Tip="Lock transparency — paint only lands where the layer already has content, so the silhouette cannot change" />
                           <Border DockPanel.Dock="Left" Margin="4,0,0,0" BorderBrush="#555" BorderThickness="1"
-                                  CornerRadius="2" Width="46" Height="28" VerticalAlignment="Center"
+                                  CornerRadius="2" Width="38" Height="22" VerticalAlignment="Center"
                                   Background="#111" PointerPressed="OnLayerThumbPressed"
                                   ToolTip.Tip="Layer content — Ctrl+click to select its visible pixels (Shift adds, Alt subtracts)">
                             <Image Source="{Binding Thumb}" Stretch="Uniform" />
                           </Border>
-                          <Button DockPanel.Dock="Right" Content="⏏" FontSize="9" Padding="3,0" Background="Transparent"
+                          <Button Classes="icon" DockPanel.Dock="Right" Content="⏏" FontSize="9" Background="Transparent"
                                   IsVisible="{Binding IsGrouped}"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).RemoveLayerFromGroupCommand}"
                                   CommandParameter="{Binding}" ToolTip.Tip="Take this layer out of its folder" />
+                          <!-- Stacked reorder arrows: half-height each so the pair
+                               fits one row without setting the row's height. -->
                           <StackPanel DockPanel.Dock="Right" Orientation="Vertical" Spacing="0" VerticalAlignment="Center">
-                            <Button Content="▲" FontSize="8" Padding="4,0" Background="Transparent"
+                            <Button Content="▲" FontSize="8" Padding="4,0" MinHeight="11" Height="11" Background="Transparent"
                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveLayerUpCommand}"
                                     CommandParameter="{Binding}" ToolTip.Tip="Move layer up" />
-                            <Button Content="▼" FontSize="8" Padding="4,0" Background="Transparent"
+                            <Button Content="▼" FontSize="8" Padding="4,0" MinHeight="11" Height="11" Background="Transparent"
                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveLayerDownCommand}"
                                     CommandParameter="{Binding}" ToolTip.Tip="Move layer down" />
                           </StackPanel>
                           <TextBlock DockPanel.Dock="Right" Text="{Binding KindLabel}" Width="16"
                                      VerticalAlignment="Center" Opacity="0.5" FontSize="11"
                                      ToolTip.Tip="R = raster, V = vector" />
-                          <Panel Margin="4,0" MinHeight="30">
+                          <Panel Margin="4,0" MinHeight="24">
                             <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}"
                                        Background="Transparent" VerticalAlignment="Center"
                                        DoubleTapped="OnLayerNameDoubleTapped"
@@ -1251,7 +1260,7 @@
                              CloseCommand="{Binding ToggleSheetsDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
-                  <Button Content="＋ Sheet" Click="OnAddReferenceSheet"
+                  <Button Classes="text" Content="＋ Sheet" Click="OnAddReferenceSheet"
                           ToolTip.Tip="Add a character sheet (reference art, not part of the animation)" />
                 </Border>
               </controls:Docker.TopBar>
@@ -1282,7 +1291,7 @@
                           <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="docs:ReferenceView">
                               <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="✎" FontSize="11" Padding="6,2"
+                                <Button Classes="icon" DockPanel.Dock="Right" Content="✎" FontSize="11"
                                         Click="OnOpenReferenceView" ToolTip.Tip="Open this view in a tab" />
                                 <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
                                          VerticalAlignment="Center" FontSize="12"
@@ -1301,18 +1310,20 @@
             <!-- Palette docker: named colours the art references rather than
                  copies, so recolouring a swatch recolours every frame and
                  every layer that used it. -->
-            <controls:Docker Grid.Row="5" Title="Palette" MaxHeight="300" Margin="0,5,0,0"
+            <GridSplitter Grid.Row="5" Height="5" ResizeDirection="Rows" IsVisible="{Binding PaletteDockerVisible}" />
+
+            <controls:Docker Grid.Row="6" Title="Palette"
                              IsVisible="{Binding PaletteDockerVisible}"
                              CloseCommand="{Binding TogglePaletteDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
                   <StackPanel Spacing="4">
                     <DockPanel>
-                      <Button DockPanel.Dock="Right" Content="✕" FontSize="10" Padding="6,2"
+                      <Button Classes="icon" DockPanel.Dock="Right" Content="✕" FontSize="10"
                               Command="{Binding PaletteDocker.RemovePaletteCommand}"
                               IsEnabled="{Binding PaletteDocker.HasPalette}"
                               ToolTip.Tip="Delete this palette (art keeps the colours it was drawn in)" />
-                      <Button DockPanel.Dock="Right" Content="＋" FontSize="10" Padding="6,2"
+                      <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10"
                               Command="{Binding PaletteDocker.AddPaletteCommand}"
                               ToolTip.Tip="New palette" />
                       <ComboBox ItemsSource="{Binding PaletteDocker.Palettes}"
@@ -1326,17 +1337,17 @@
                       </ComboBox>
                     </DockPanel>
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                      <Button Content="＋ Swatch" FontSize="11" Padding="6,2"
+                      <Button Classes="text" Content="＋ Swatch"
                               Command="{Binding PaletteDocker.AddSwatchCommand}"
                               IsEnabled="{Binding PaletteDocker.HasPalette}"
                               ToolTip.Tip="Add the current colour to this palette" />
-                      <Button Content="－" FontSize="11" Padding="8,2"
+                      <Button Classes="icon" Content="－" FontSize="11"
                               Command="{Binding PaletteDocker.RemoveSwatchCommand}"
                               IsEnabled="{Binding PaletteDocker.HasSwatch}"
                               ToolTip.Tip="Remove the selected swatch" />
-                      <Button Content="Import…" FontSize="11" Padding="6,2" Click="OnImportPaletteClicked"
+                      <Button Classes="text" Content="Import…" Click="OnImportPaletteClicked"
                               ToolTip.Tip="Import a GIMP .gpl palette" />
-                      <Button Content="Export…" FontSize="11" Padding="6,2" Click="OnExportPaletteClicked"
+                      <Button Classes="text" Content="Export…" Click="OnExportPaletteClicked"
                               IsEnabled="{Binding PaletteDocker.HasPalette}"
                               ToolTip.Tip="Write this palette as a GIMP .gpl" />
                     </StackPanel>
@@ -1393,18 +1404,20 @@
             <!-- Gradient docker: the ramp definitions the gradient tool paints.
                  Like a palette swatch, editing one changes the art already
                  painted with it. -->
-            <controls:Docker Grid.Row="6" Title="Gradient" MaxHeight="340" Margin="0,5,0,0"
+            <GridSplitter Grid.Row="7" Height="5" ResizeDirection="Rows" IsVisible="{Binding GradientDockerVisible}" />
+
+            <controls:Docker Grid.Row="8" Title="Gradient"
                              IsVisible="{Binding GradientDockerVisible}"
                              CloseCommand="{Binding ToggleGradientDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
                   <StackPanel Spacing="4">
                     <DockPanel>
-                      <Button DockPanel.Dock="Right" Content="✕" FontSize="10" Padding="6,2"
+                      <Button Classes="icon" DockPanel.Dock="Right" Content="✕" FontSize="10"
                               Command="{Binding GradientDocker.RemoveGradientCommand}"
                               IsEnabled="{Binding GradientDocker.HasGradient}"
                               ToolTip.Tip="Delete this gradient" />
-                      <Button DockPanel.Dock="Right" Content="＋" FontSize="10" Padding="6,2"
+                      <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10"
                               Command="{Binding GradientDocker.AddGradientCommand}"
                               ToolTip.Tip="New gradient" />
                       <ComboBox ItemsSource="{Binding GradientDocker.Gradients}"
@@ -1440,11 +1453,11 @@
                 <Border Classes="dockerBar">
                   <StackPanel Spacing="4">
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                      <Button Content="＋ Stop" FontSize="11" Padding="6,2"
+                      <Button Classes="text" Content="＋ Stop"
                               Command="{Binding GradientDocker.AddStopCommand}"
                               IsEnabled="{Binding GradientDocker.HasGradient}"
                               ToolTip.Tip="Insert a stop after the selected one" />
-                      <Button Content="－" FontSize="11" Padding="8,2"
+                      <Button Classes="icon" Content="－" FontSize="11"
                               Command="{Binding GradientDocker.RemoveStopCommand}"
                               IsEnabled="{Binding GradientDocker.HasStop}"
                               ToolTip.Tip="Remove the selected stop (two are always kept)" />
@@ -1485,7 +1498,8 @@
                 </ListBox>
               </ScrollViewer>
             </controls:Docker>
-          </Grid>
+            </Grid>
+          </ScrollViewer>
         </Border>
       </Grid>
 

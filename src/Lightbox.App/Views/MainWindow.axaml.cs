@@ -100,7 +100,9 @@ public partial class MainWindow : Window
                 ApplyDockLayout();
             }
             if (args.PropertyName is nameof(MainViewModel.ColorDockerVisible)
-                or nameof(MainViewModel.SheetsDockerVisible))
+                or nameof(MainViewModel.SheetsDockerVisible)
+                or nameof(MainViewModel.PaletteDockerVisible)
+                or nameof(MainViewModel.GradientDockerVisible))
             {
                 ApplySidebarLayout();
             }
@@ -111,6 +113,7 @@ public partial class MainWindow : Window
             }
         };
         ApplyDockLayout();
+        ApplySidebarLayout();
 
         // If canvas input ever fails, say so in the status bar instead of dying silently.
         Canvas.CanvasError += message => _vm.AiStatus = message;
@@ -190,19 +193,34 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Collapse/restore the sidebar rows of the closable Color and Character
-    /// sheets dockers, remembering their dragged sizes.
+    /// Collapse and restore the sidebar's closable docker rows, remembering
+    /// the height each was last dragged to.
+    ///
+    /// Heights are in pixels, not stars. Starred rows split the sidebar
+    /// proportionally, so opening a fifth docker shrank all five at once until
+    /// none of them was tall enough to use and no splitter could win the space
+    /// back. Pixel rows keep their size, the stack is allowed to grow past the
+    /// sidebar, and the surrounding ScrollViewer takes the overflow.
     /// </summary>
-    private GridLength _colorRowHeight = new(1.3, GridUnitType.Star);
-    private GridLength _sheetsRowHeight = new(0.7, GridUnitType.Star);
+    private GridLength _colorRowHeight = new(300, GridUnitType.Pixel);
+    private GridLength _sheetsRowHeight = new(150, GridUnitType.Pixel);
+    private GridLength _paletteRowHeight = new(220, GridUnitType.Pixel);
+    private GridLength _gradientRowHeight = new(240, GridUnitType.Pixel);
 
     private void ApplySidebarLayout()
     {
         var rows = SidebarGrid.RowDefinitions;
-        ApplyDockerRow(rows[2], _vm.ColorDockerVisible, 160, ref _colorRowHeight);
+        ApplyDockerRow(rows[2], _vm.ColorDockerVisible, 140, ref _colorRowHeight);
         ApplyDockerRow(rows[4], _vm.SheetsDockerVisible, 80, ref _sheetsRowHeight);
+        ApplyDockerRow(rows[6], _vm.PaletteDockerVisible, 110, ref _paletteRowHeight);
+        ApplyDockerRow(rows[8], _vm.GradientDockerVisible, 120, ref _gradientRowHeight);
     }
 
+    /// <param name="minHeight">
+    /// The floor a drag cannot go below — the height at which the docker stops
+    /// being usable rather than merely tight. A hidden docker has no floor, so
+    /// it costs nothing.
+    /// </param>
     private static void ApplyDockerRow(RowDefinition row, bool visible, double minHeight, ref GridLength saved)
     {
         if (visible)

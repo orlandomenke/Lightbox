@@ -16,6 +16,8 @@ reviewer can disagree with it. The `/improve` loop treats section 1 as gates
 | G6 | Claims are verified, not asserted | anything reported as fixed has a test that fails without the fix, or an explicit note that it could not be tested and why |
 | G7 | No new performance leak in the diff | **leak-hunter** reviews the round's diff against the known-wrong shapes and returns CLEAR, or the finding is fixed or explicitly accepted with a measurement |
 | G8 | The roadmap matches the code | `python3 scripts/roadmap.py check` passes — a landed feature has its evidence anchors in the same commit |
+| G9 | The UI did not drift | **ui-critic** reviews any diff touching XAML, a docker, a dialog or a row template against `DESIGN.md` and returns CLEAN, or the finding is fixed. A BLOCKING verdict — a control or docker that cannot be used — always fails the gate |
+| G10 | The loop learned | if the round fixed something the gates should have caught, the gate is sharpened in the same commit and named on the round's `Sharpened:` line |
 
 **Why G7 exists as a separate gate from G4.** Budgets only cover paths that
 have a budget test. Every serious stall found in this project so far was in a
