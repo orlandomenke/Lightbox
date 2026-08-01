@@ -435,7 +435,6 @@ public sealed class CanvasControl : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        Focus();
         try
         {
             var pp = e.GetCurrentPoint(this);
