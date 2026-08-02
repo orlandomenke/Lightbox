@@ -145,7 +145,20 @@ anchor is the one thing the file cannot represent.
   `[Trait("Category", "Performance")]`. They are deliberately loose — they
   catch order-of-magnitude regressions, not drift.
 - The app runs headless for visual checks under Xvfb; see `MANUAL_TESTING.md`.
-- Work happens on `feature/ui-dockers`.
+- Work happens on a branch off `main`, merged back when it is green.
+  `feature/ui-dockers` was the long-lived UI branch and has landed.
+
+### Branches, merges and pull requests
+
+Delegate them to the **git-handler** agent (`.claude/agents/git-handler.md`)
+rather than doing them by hand. It cuts branches from the current default,
+checks divergence before it does anything, refuses to merge a red suite,
+builds the merged tree before pushing, writes PR bodies against the repo's
+template, and reports which branches have gone stale or are already merged and
+still hanging around.
+
+It does not merge or open a PR unless that was the actual request — those are
+the two git actions other people see.
 
 ### Verifying UI behaviour
 
