@@ -24,8 +24,9 @@ public class TestAppBuilder
     [ModuleInitializer]
     internal static void IsolateUserSettings()
     {
-        WorkspaceStore.Path = Path.Combine(
-            Path.GetTempPath(), $"lightbox-tests-{Guid.NewGuid():N}", "workspaces.json");
+        var scratch = Path.Combine(Path.GetTempPath(), $"lightbox-tests-{Guid.NewGuid():N}");
+        WorkspaceStore.Path = Path.Combine(scratch, "workspaces.json");
+        Lightbox.App.Services.AppSettings.Path = Path.Combine(scratch, "settings.json");
     }
 
     public static AppBuilder BuildAvaloniaApp() =>

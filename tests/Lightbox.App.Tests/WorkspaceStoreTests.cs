@@ -203,3 +203,49 @@ public class WorkspaceStoreTests
         Assert.DoesNotContain("*", vm.CurrentLabel);
     }
 }
+
+/// <summary>
+/// Autosave's configuration. Not about pixels, so it lives in the app's
+/// settings rather than in any document — invariant 4 is about the other kind.
+/// </summary>
+public class AutosaveSettingsTests
+{
+    [Fact]
+    public void TheDefaultIsEveryMinuteToTheRecoveryCopyOnly()
+    {
+        var settings = new Lightbox.App.Services.AppSettings();
+
+        Assert.Equal(TimeSpan.FromMinutes(1), settings.AutosaveInterval);
+        // Off by default, and not out of timidity: rewriting the file someone
+        // opened takes away the ability to close without saving.
+        Assert.False(settings.AutosaveInPlace);
+    }
+
+    [Fact]
+    public void ZeroTurnsAutosaveOff()
+    {
+        // A real answer, not a mistake to guard against — someone working on a
+        // network drive may well want it.
+        Assert.Null(new Lightbox.App.Services.AppSettings { AutosaveMinutes = 0 }.AutosaveInterval);
+    }
+
+    [Fact]
+    public void AnAbsurdIntervalIsClampedRatherThanHonoured()
+    {
+        Assert.Equal(TimeSpan.FromMinutes(60),
+            new Lightbox.App.Services.AppSettings { AutosaveMinutes = 9999 }.AutosaveInterval);
+        Assert.Equal(TimeSpan.FromMinutes(0.25),
+            new Lightbox.App.Services.AppSettings { AutosaveMinutes = 0.001 }.AutosaveInterval);
+    }
+
+    [Fact]
+    public void SettingsRoundTripAndSurviveCorruption()
+    {
+        var settings = new Lightbox.App.Services.AppSettings { AutosaveMinutes = 5, AutosaveInPlace = true };
+        var back = Lightbox.App.Services.AppSettings.Deserialize(settings.Serialize());
+
+        Assert.Equal(5, back.AutosaveMinutes);
+        Assert.True(back.AutosaveInPlace);
+        Assert.Equal(1, Lightbox.App.Services.AppSettings.Deserialize("nonsense").AutosaveMinutes);
+    }
+}

@@ -72,6 +72,7 @@ session start when it is stale.
 | What are we building, and how far along? | read `.claude/quality/ROADMAP.md` |
 | What is known broken? | `python3 scripts/bugs.py next` |
 | What is broken in the area I am editing? | `python3 scripts/bugs.py mine <domain>` |
+| What does the app do, from the artist's side? | read `docs/MANUAL.md` |
 | What should I pick up next? | `python3 scripts/roadmap.py next` |
 
 Rebuild by hand with `python3 scripts/codemap.py build` after large changes.
@@ -81,6 +82,12 @@ regression test that closes it, `bugs.py sync` derives the checkbox from
 whether that test exists, and deleting the test reopens the bug. An agent
 about to edit an area runs `bugs.py mine <domain>` and fixes the open P1/P2
 bugs it finds there alongside its own work.
+
+`docs/MANUAL.md` is the user manual, and it is **part of the definition of
+done**: a change that alters what an artist sees or does updates the relevant
+section in the same commit. It describes what exists today and marks what does
+not as *Planned* — a manual that documents a feature nobody can use is worse
+than no manual, because it cannot be trusted anywhere.
 
 `ROADMAP.md` holds the six pillars that give the app its identity, plus the
 drawing floor beneath them. **Its checkboxes are derived from the code**, not

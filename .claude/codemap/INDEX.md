@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `34c6f8a` · 199 files · 41905 lines · 718 tests.
+Generated from `e44d313` · 201 files · 42408 lines · 722 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -27,13 +27,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (5222 ln) · 40 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:2329, TransformParts:3539
-- `src/Lightbox.App/Views/MainWindow.axaml` (1826 ln) · **no tests**
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (5302 ln) · 40 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:2404, TransformParts:3619
+- `src/Lightbox.App/Views/MainWindow.axaml` (1883 ln) · **no tests**
   - BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushPageEffects, BrushPageGeneral, BrushPageMedium, BrushPagePresets …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (1778 ln) · 5 test files
   - CanvasControl:28, CanvasToolMode:263, TxDrag:339, DrawOp:1428
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (1593 ln) · 1 test files
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (1603 ln) · 1 test files
   - MainWindow:16
 - `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 30 test files
   - SpriteTrim:11, SpriteSheetOptions:35, SpriteSheetResult:46, SpriteSheetExporter:69, SheetDocument:275, SheetFrame:281, SheetMeta:295, Box:310 …
@@ -49,10 +49,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushPreset:7, BuiltInPresets:24, PresetStore:218, State:223
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 2 test files
   - ComposeRing:31, Buffer:33
+- `src/Lightbox.App/Docking/WorkspaceStore.cs` (256 ln) · 2 test files
+  - Workspace:13, WorkspaceStore:51
 - `src/Lightbox.App/Docking/DockLayout.cs` (240 ln) · 3 test files
   - DockPlacement:7, DockLayout:51
-- `src/Lightbox.App/Docking/WorkspaceStore.cs` (237 ln) · 2 test files
-  - Workspace:13, WorkspaceStore:51
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (211 ln) · 1 indirect only
   - ShortcutRow:11, ShortcutGroup:23, ConfigureWindow:36
 - `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (209 ln) · 1 test files
@@ -73,8 +73,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PerformanceMonitor:14
 - `src/Lightbox.App/Docking/DockZones.cs` (159 ln) · 1 test files
   - DockZones:44
+- `src/Lightbox.App/Styles/Density.axaml` (139 ln) · **no tests**
 - `src/Lightbox.App/Controls/DockStrip.cs` (132 ln) · 1 test files
   - DockStrip:24
+- `src/Lightbox.App/Controls/ValueDrag.cs` (126 ln) · 40 indirect only
+  - ValueDrag:27, Session:43
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (126 ln) · 1 test files
   - FrameBitmapCache:13
 - `src/Lightbox.App/Services/IpcServer.cs` (115 ln) · 1 test files
@@ -83,7 +86,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CacheBudgetBox, CategoryList, ConflictBar, ConflictText, GroupsHost, MeasuredText, PerformancePage, QualityBox …
 - `src/Lightbox.App/Services/ColorSpace.cs` (109 ln) · 1 test files
   - ColorSpace:8
-- `src/Lightbox.App/Styles/Density.axaml` (108 ln) · **no tests**
 - `src/Lightbox.App/Views/NewDocumentDialog.axaml.cs` (108 ln) · 1 test files
   - NewDocumentDialog:13, Preset:15, TypeChoice:24, PanelChoice:40
 - `src/Lightbox.App/Services/StrokeStabilizer.cs` (103 ln) · 1 test files
@@ -96,6 +98,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockPanelId:11, DockSide:23, DockPanelInfo:51, DockPanels:60
 - `src/Lightbox.App/Rendering/CameraTransform.cs` (95 ln) · 1 test files
   - CameraTransform:16
+- `src/Lightbox.App/Services/AppSettings.cs` (89 ln) · 40 indirect only
+  - AppSettings:15
+- `src/Lightbox.App/Services/AutosaveService.cs` (85 ln) · 40 indirect only
+  - AutosaveService:22
 - `src/Lightbox.App/App.axaml` (81 ln) · **no tests**
   - PART_Header, PART_Switcher
 - `src/Lightbox.App/ViewModels/Tools.cs` (77 ln) · 10 test files
@@ -112,8 +118,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeBuilder:10
 - `src/Lightbox.App/Views/FloatingPanelWindow.cs` (56 ln) · 1 indirect only
   - FloatingPanelWindow:16
-- `src/Lightbox.App/Services/AutosaveService.cs` (49 ln) · 40 indirect only
-  - AutosaveService:12
 - `src/Lightbox.App/Services/IpcProtocol.cs` (43 ln) · 4 test files
   - IpcProtocol:12, Request:23, Response:29
 - `src/Lightbox.App/Views/NewProjectDialog.axaml` (42 ln) · **no tests**

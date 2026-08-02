@@ -364,6 +364,16 @@ public partial class MainWindow : Window
         return answer;
     }
 
+    private void OnAutosaveOff(object? sender, RoutedEventArgs e) => _vm.AutosaveMinutes = 0;
+
+    private void OnAutosaveHalfMinute(object? sender, RoutedEventArgs e) => _vm.AutosaveMinutes = 0.5;
+
+    private void OnAutosaveMinute(object? sender, RoutedEventArgs e) => _vm.AutosaveMinutes = 1;
+
+    private void OnAutosaveFiveMinutes(object? sender, RoutedEventArgs e) => _vm.AutosaveMinutes = 5;
+
+    private void OnAutosaveFifteenMinutes(object? sender, RoutedEventArgs e) => _vm.AutosaveMinutes = 15;
+
     // ---- workspace commands ----------------------------------------------------
 
     private void OnSaveWorkspace(object? sender, RoutedEventArgs e)

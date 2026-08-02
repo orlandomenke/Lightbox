@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Lightbox.App.Controls">
   <!--
     The density scale from .claude/quality/DESIGN.md, in one place.
 
@@ -20,14 +21,17 @@
        exists for, and loses only the part that was in the way. -->
   <Style Selector="NumericUpDown">
     <Setter Property="ShowButtonSpinner" Value="False" />
-    <Setter Property="MinHeight" Value="24" />
-    <Setter Property="Height" Value="24" />
+    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="Height" Value="22" />
     <Setter Property="FontSize" Value="11" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <!-- Every numeric field scrubs: press and drag sideways. Set here so it
+         is true of all of them rather than the ones somebody remembered. -->
+    <Setter Property="controls:ValueDrag.Enabled" Value="True" />
   </Style>
   <Style Selector="NumericUpDown /template/ TextBox">
-    <Setter Property="Padding" Value="6,0" />
-    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="Padding" Value="4,0" />
+    <Setter Property="MinHeight" Value="20" />
   </Style>
 
   <Style Selector="TextBox">
@@ -93,10 +97,37 @@
     <Setter Property="FontSize" Value="11" />
   </Style>
 
-  <!-- Sliders stay generous: these are dragged mid-stroke, often without
-       looking at them, and a thin track is a missed grab. -->
+  <!--
+    Sliders keep a generous TRACK — they are dragged mid-stroke, often without
+    looking, and a thin track is a missed grab — but not a generous thumb. The
+    default Fluent thumb is sized for touch, and at this density it is the
+    single loudest thing in a tool bar full of quiet ones.
+  -->
   <Style Selector="Slider">
-    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="MinHeight" Value="22" />
+  </Style>
+  <Style Selector="Slider:horizontal /template/ Thumb">
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+  </Style>
+  <Style Selector="Slider:vertical /template/ Thumb">
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+  </Style>
+
+  <!--
+    A ComboBox declares Height, which in Avalonia stretches the control but
+    leaves its own content wherever the template put it — top, in this theme.
+    Beside a row of centred buttons that reads as a misalignment, and it is.
+  -->
+  <Style Selector="ComboBox">
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ComboBox /template/ ContentControl#ContentPresenter">
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ComboBox /template/ ContentPresenter">
+    <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
   <!-- Tool buttons are hit while drawing; they keep the larger target. -->

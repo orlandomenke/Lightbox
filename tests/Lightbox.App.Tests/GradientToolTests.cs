@@ -213,12 +213,20 @@ public class GradientToolTests
     }
 
     [AvaloniaFact]
-    public void TheToolRefusesWhenNoGradientIsSelected()
+    public void TheToolMakesABlackToWhiteGradientIfThereIsNone()
     {
+        // It used to refuse and point at the Gradient panel, which is a dead
+        // end: someone who just picked the gradient tool wants a gradient, and
+        // black to white is the ramp they would have made by hand anyway.
         var vm = new MainViewModel(null) { ActiveTool = ToolId.Gradient };
-        Drag(vm, 0, 10, 80, 10);
-        Assert.Empty(Strokes(vm));
-        Assert.Contains("Gradient docker", vm.AiStatus);
+        Assert.Empty(vm.Doc.Gradients);
+
+        Drag(vm, 0, 10, vm.Doc.Scene.Width, 10);
+
+        Assert.Single(vm.Doc.Gradients);
+        Assert.Single(Strokes(vm));
+        Assert.True(At(vm, 4, 10).Red < 40);
+        Assert.True(At(vm, vm.Doc.Scene.Width - 5, 10).Red > 215);
     }
 
     [AvaloniaFact]

@@ -198,7 +198,14 @@ public sealed partial class MainViewModel : ObservableObject
         _activeLayerIndex = FirstPaintableLayer(first.Editor.Doc);
         _editor.Changed += OnDocumentChanged;
         _clock.Tick += OnPlaybackTick;
-        _autosave = new AutosaveService(() => SaveTargetTab?.Doc ?? Doc);
+        Settings = AppSettings.Load();
+        _autosave = new AutosaveService(
+            () => SaveTargetTab?.Doc ?? Doc,
+            Settings.AutosaveInterval,
+            () => SaveTargetTab?.FilePath)
+        {
+            InPlace = Settings.AutosaveInPlace,
+        };
         ColorPicker = new ColorPickerViewModel();
         ColorPicker.SetHex(ColorHex);
         ColorPicker.HexCommitted += hex => ColorHex = hex;
@@ -769,6 +776,44 @@ public sealed partial class MainViewModel : ObservableObject
     /// </remarks>
     public WorkspaceViewModel Workspace { get; } = new();
 
+    /// <summary>Preferences that are not about pixels — see <see cref="AppSettings"/>.</summary>
+    public AppSettings Settings { get; private set; } = new();
+
+    /// <summary>Minutes between autosaves; 0 turns it off. Persists immediately.</summary>
+    public double AutosaveMinutes
+    {
+        get => Settings.AutosaveMinutes;
+        set
+        {
+            if (Math.Abs(Settings.AutosaveMinutes - value) < 1e-9) return;
+            Settings.AutosaveMinutes = value;
+            _autosave.Reschedule(Settings.AutosaveInterval);
+            Settings.Save();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(AutosaveLabel));
+        }
+    }
+
+    /// <summary>Also write over the document's own file, once it has one.</summary>
+    public bool AutosaveInPlace
+    {
+        get => Settings.AutosaveInPlace;
+        set
+        {
+            if (Settings.AutosaveInPlace == value) return;
+            Settings.AutosaveInPlace = value;
+            _autosave.InPlace = value;
+            Settings.Save();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(AutosaveLabel));
+        }
+    }
+
+    public string AutosaveLabel =>
+        Settings.AutosaveInterval is null
+            ? "Autosave off"
+            : $"Autosave every {Settings.AutosaveMinutes:0.##} min{(Settings.AutosaveInPlace ? ", in place" : "")}";
+
     /// <summary>Whether any project UI should exist at all.</summary>
     public bool HasProject => ProjectDocker.HasProject;
 
@@ -1124,6 +1169,35 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Only meaningful for a smudge brush; the page hides otherwise.</summary>
     public bool IsSmudgeBrush => GetBrushValue(s => s.Kind) == BrushKind.Smudge;
 
+    /// <summary>
+    /// A brush that reworks pixels already down rather than adding new ones.
+    /// </summary>
+    /// <remarks>
+    /// The tool options bar swaps to this group's controls when one is
+    /// selected, because the generic brush row is mostly wrong for them: a
+    /// smudge has no opacity in the usual sense, and what you actually reach
+    /// for is strength and how wide an area each dab samples.
+    /// </remarks>
+    public bool IsEffectBrush =>
+        GetBrushValue(s => s.Kind) is BrushKind.Smudge or BrushKind.Blur;
+
+    /// <summary>
+    /// How hard the effect bites, in the term each tool uses for it: how far
+    /// colour travels for a smudge, how much softening for a blur.
+    /// </summary>
+    public double EffectStrength
+    {
+        get => IsSmudgeBrush ? BrushSmudgeLength : BrushFlow;
+        set
+        {
+            if (IsSmudgeBrush) BrushSmudgeLength = value;
+            else BrushFlow = Math.Clamp(value, 0.01, 1);
+            OnPropertyChanged();
+        }
+    }
+
+    public string EffectStrengthLabel => IsSmudgeBrush ? "Length" : "Strength";
+
     public SmudgeMode BrushSmudgeMode
     {
         get => GetBrushValue(s => s.SmudgeMode);
@@ -1383,7 +1457,8 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(BrushTextureSurface), nameof(BrushTextureScale), nameof(BrushTextureDepth),
         nameof(BrushSecondaryColor), nameof(BrushColorJitter), nameof(BrushHueJitter),
         nameof(BrushSaturationJitter), nameof(BrushBrightnessJitter),
-        nameof(IsSmudgeBrush), nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
+        nameof(IsSmudgeBrush), nameof(IsEffectBrush), nameof(EffectStrength),
+        nameof(EffectStrengthLabel), nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
         nameof(BrushSmudgeRadius), nameof(BrushColorRate),
         nameof(BrushMedium), nameof(MediumIsSimulated), nameof(MediumHasBody),
         nameof(MediumWetness), nameof(MediumViscosity), nameof(MediumDrag), nameof(MediumFlowSteps),
@@ -2639,9 +2714,14 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (ActiveTool != ToolId.Gradient || IsPlaying) return;
         if (!CanEdit(ActiveLayer, "fill on it") || PaintTargetOrKey() is null) return;
+        // A brand-new document has no gradients, and telling someone who just
+        // picked the gradient tool to go and make one first is a dead end. A
+        // fresh Gradient is already black to white, which is the ramp anyone
+        // would have made by hand.
+        if (GradientDocker.SelectedGradient is null) GradientDocker.AddGradientCommand.Execute(null);
         if (GradientDocker.SelectedGradient is not { } gradient)
         {
-            AiStatus = "No gradient selected — add one in the Gradient docker first.";
+            AiStatus = "Could not create a gradient to paint with.";
             return;
         }
         CommitSwatchEdit();

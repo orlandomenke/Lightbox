@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-718 tests, derived from the suite itself. Each line is a
+722 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -321,13 +321,13 @@ regression even when every test still compiles.
 - The Last Two Stops Cannot Be Removed — `:171`
 - AGradient Stroke Survives AReload — `:182`
 - Undoing Removes The Gradient Stroke — `:205`
-- The Tool Refuses When No Gradient Is Selected — `:216`
-- ALocked Layer Refuses AGradient — `:225`
-- The Ramp Is Visible While Dragging And Survives The Pen Lift — `:234`
-- Opacity Is Recorded On The Stroke Not Read At Render Time — `:265`
-- Transforming AGradient Moves Its Axis — `:283`
-- ASelection Over AGradient Finds It — `:303`
-- ASelection Elsewhere Still Leaves Ordinary Strokes Alone — `:323`
+- The Tool Makes ABlack To White Gradient If There Is None — `:216`
+- ALocked Layer Refuses AGradient — `:233`
+- The Ramp Is Visible While Dragging And Survives The Pen Lift — `:242`
+- Opacity Is Recorded On The Stroke Not Read At Render Time — `:273`
+- Transforming AGradient Moves Its Axis — `:291`
+- ASelection Over AGradient Finds It — `:311`
+- ASelection Elsewhere Still Leaves Ordinary Strokes Alone — `:331`
 
 ## IpcTests
 `tests/Lightbox.App.Tests/IpcTests.cs`
@@ -710,6 +710,14 @@ regression even when every test still compiles.
 - Entire Animation Scope Moves Every Layer — `:130`
 - Selection Region Limits The Transform To Strokes Inside It — `:149`
 - Empty Scope Refuses To Start — `:169`
+
+## AutosaveSettingsTests
+`tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
+
+- The Default Is Every Minute To The Recovery Copy Only — `:214`
+- Zero Turns Autosave Off — `:225`
+- An Absurd Interval Is Clamped Rather Than Honoured — `:233`
+- Settings Round Trip And Survive Corruption — `:242`
 
 ## WorkspaceStoreTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`

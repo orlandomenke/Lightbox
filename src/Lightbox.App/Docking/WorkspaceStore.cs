@@ -173,9 +173,22 @@ public sealed class WorkspaceStore
         Converters = { new JsonStringEnumConverter() },
     };
 
+    /// <summary>Where <see cref="Load"/> reads from and a loaded store writes back to.</summary>
     public static string Path { get; set; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Lightbox", "workspaces.json");
+
+    /// <summary>
+    /// Where this particular store persists, or null for one that does not.
+    /// </summary>
+    /// <remarks>
+    /// Per instance rather than static, because a store built in memory —
+    /// <see cref="Default"/>, or one a test made — genuinely has nowhere to
+    /// save, and writing to a global path anyway is how one test's saved
+    /// workspace became the next test's starting layout.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? File { get; set; }
 
     public string Serialize() => JsonSerializer.Serialize(this, Json);
 
@@ -207,14 +220,19 @@ public sealed class WorkspaceStore
 
     public static WorkspaceStore Load()
     {
+        WorkspaceStore store;
         try
         {
-            return File.Exists(Path) ? Deserialize(File.ReadAllText(Path)) : Default();
+            store = System.IO.File.Exists(Path)
+                ? Deserialize(System.IO.File.ReadAllText(Path))
+                : Default();
         }
         catch (IOException)
         {
-            return Default();
+            store = Default();
         }
+        store.File = Path;
+        return store;
     }
 
     /// <summary>
@@ -223,9 +241,10 @@ public sealed class WorkspaceStore
     /// </summary>
     public void Save()
     {
+        if (File is not { Length: > 0 } path) return;
         try
         {
-            Lightbox.Core.Serialization.DocJson.WriteAtomic(Path, Serialize());
+            Lightbox.Core.Serialization.DocJson.WriteAtomic(path, Serialize());
         }
         catch (IOException)
         {
