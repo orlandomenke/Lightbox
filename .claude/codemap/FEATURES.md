@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1159 tests, derived from the suite itself. Each line is a
+1171 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -94,22 +94,22 @@ regression even when every test still compiles.
 ## BackgroundLayerTests
 `tests/Lightbox.App.Tests/BackgroundLayerTests.cs`
 
-- ANew Paper Document Gets ALocked Background Layer Below The Paint Layer — `:39`
-- The Paper Colour Comes Out In The Composite — `:55`
-- ATransparent Document Has No Background Layer And Stays Transparent — `:67`
-- The Background Layer Refuses Edits Until Unlocked — `:78`
-- Erasing The Unlocked Background Reveals Real Transparency — `:100`
-- ADocument Saved Before Background Layers Existed Still Opens On Its Paper — `:121`
-- The Paper Is AStroke Record Not Baked Pixels — `:137`
+- ANew Paper Document Gets ALocked Background Layer Below The Paint Layer — `:40`
+- The Paper Colour Comes Out In The Composite — `:56`
+- ATransparent Document Has No Background Layer And Stays Transparent — `:68`
+- The Background Layer Refuses Edits Until Unlocked — `:79`
+- Erasing The Unlocked Background Reveals Real Transparency — `:101`
+- ADocument Saved Before Background Layers Existed Still Opens On Its Paper — `:122`
+- The Paper Is AStroke Record Not Baked Pixels — `:138`
 
 ## BrushCursorTests
 `tests/Lightbox.App.Tests/BrushCursorTests.cs`
 
-- With AMouse The Ring Is The Full Brush Width — `:23`
-- Hovering Shows The Maximum Even After ALight Stroke — `:32`
-- The Ring Matches The Radius The Engine Will Stamp — `:46`
-- Turning Tracking Off Pins The Ring To Full Size — `:67`
-- When Pressure Is Disabled For The Brush The Ring Ignores It — `:81`
+- With AMouse The Ring Is The Full Brush Width — `:24`
+- Hovering Shows The Maximum Even After ALight Stroke — `:33`
+- The Ring Matches The Radius The Engine Will Stamp — `:47`
+- Turning Tracking Off Pins The Ring To Full Size — `:68`
+- When Pressure Is Disabled For The Brush The Ring Ignores It — `:82`
 
 ## BrushPresetTests
 `tests/Lightbox.App.Tests/BrushToolTests.cs`
@@ -552,8 +552,8 @@ regression even when every test still compiles.
 ## LivePreviewPixelTests
 `tests/Lightbox.App.Tests/LivePreviewPixelTests.cs`
 
-- Mid Stroke The Published Snapshot Shows The Line — `:43`
-- Self Crossing Looks The Same Live And Committed — `:66`
+- Mid Stroke The Published Snapshot Shows The Line — `:44`
+- Self Crossing Looks The Same Live And Committed — `:67`
 
 ## LivePreviewTests
 `tests/Lightbox.App.Tests/LivePreviewTests.cs`
@@ -569,6 +569,22 @@ regression even when every test still compiles.
 - The Smudge Preview Matches The Commit — `:84`
 - Blur Shows Mid Drag — `:111`
 - An Abandoned Smudge Leaves No Trace — `:143`
+
+## LoopRangeHandleTests
+`tests/Lightbox.App.Tests/LoopRangeHandleTests.cs`
+
+- Dragging The Start Handle Sets The Start Frame — `:87`
+- Dragging The End Handle Sets The End Frame — `:100`
+- The Bounds Cannot Cross — `:113`
+- Dragging AHandle Does Not Scrub — `:128`
+- Clicking Away From The Handles Still Scrubs — `:143`
+- With No Range Yet The Handles Sit On The Whole Timeline — `:155`
+- Alt Clicking AHandle Resets The Range — `:172`
+- Alt Clicking Between Them Resets It Too — `:183`
+- Alt Clicking Outside The Range Leaves It Alone — `:195`
+- Alt Clicking Does Not Scrub Either — `:206`
+- Right Clicking Asks For The Menu Rather Than Scrubbing — `:217`
+- Reset Range Clears Both Bounds — `:231`
 
 ## MainViewModelTests
 `tests/Lightbox.App.Tests/MainViewModelTests.cs`
@@ -691,21 +707,21 @@ regression even when every test still compiles.
 ## PaletteDockerTests
 `tests/Lightbox.App.Tests/PaletteDockerTests.cs`
 
-- ANew Document Starts With Black And White Selected On Black — `:49`
-- Adding ASwatch Takes The Current Colour And Is Undoable — `:67`
-- Selecting ASwatch Paints With It — `:81`
-- Choosing AColour Any Other Way Breaks The Swatch Link — `:105`
-- Recolouring ASwatch Repaints The Art That Used It — `:126`
-- Edit Mode Routes The Picker Into The Selected Swatch — `:149`
-- ARun Of Colour Edits Is One Undo Step — `:164`
-- Undoing AStructural Edit Does Not Swallow An Uncommitted Recolour — `:185`
-- ASwatch Survives Undo With Its Identity — `:203`
-- Removing ASwatch Leaves The Art In The Colour It Was Drawn In — `:227`
-- Switching Documents Switches Palettes — `:250`
-- Palettes Round Trip Through The Document With Their Links — `:270`
-- Imported Gpl Becomes APalette On The Document — `:289`
-- Exported Gpl Reads Back As The Same Palette — `:313`
-- An Unparseable Hex Is Rejected Rather Than Painting Black — `:337`
+- ANew Document Starts With Black And White Selected On Black — `:50`
+- Adding ASwatch Takes The Current Colour And Is Undoable — `:68`
+- Selecting ASwatch Paints With It — `:82`
+- Choosing AColour Any Other Way Breaks The Swatch Link — `:106`
+- Recolouring ASwatch Repaints The Art That Used It — `:127`
+- Edit Mode Routes The Picker Into The Selected Swatch — `:150`
+- ARun Of Colour Edits Is One Undo Step — `:165`
+- Undoing AStructural Edit Does Not Swallow An Uncommitted Recolour — `:186`
+- ASwatch Survives Undo With Its Identity — `:204`
+- Removing ASwatch Leaves The Art In The Colour It Was Drawn In — `:228`
+- Switching Documents Switches Palettes — `:251`
+- Palettes Round Trip Through The Document With Their Links — `:271`
+- Imported Gpl Becomes APalette On The Document — `:290`
+- Exported Gpl Reads Back As The Same Palette — `:314`
+- An Unparseable Hex Is Rejected Rather Than Painting Black — `:338`
 
 ## PaletteHierarchyTests
 `tests/Lightbox.App.Tests/PaletteHierarchyTests.cs`
@@ -1089,14 +1105,14 @@ regression even when every test still compiles.
 ## TransformToolTests
 `tests/Lightbox.App.Tests/TransformToolTests.cs`
 
-- Begin Transform Reports The Stroke Bounds And Commit Moves The Points — `:44`
-- Mirror Commit Flips Around The Pivot Without Moving — `:70`
-- Perspective Commit Maps The Corners Exactly — `:84`
-- Degenerate Perspective Is Refused And The Session Survives — `:104`
-- Cel Range Scope Transforms Each Distinct Drawing Once — `:117`
-- Entire Animation Scope Moves Every Layer — `:137`
-- Selection Region Limits The Transform To Strokes Inside It — `:156`
-- Empty Scope Refuses To Start — `:176`
+- Begin Transform Reports The Stroke Bounds And Commit Moves The Points — `:45`
+- Mirror Commit Flips Around The Pivot Without Moving — `:71`
+- Perspective Commit Maps The Corners Exactly — `:85`
+- Degenerate Perspective Is Refused And The Session Survives — `:105`
+- Cel Range Scope Transforms Each Distinct Drawing Once — `:118`
+- Entire Animation Scope Moves Every Layer — `:138`
+- Selection Region Limits The Transform To Strokes Inside It — `:157`
+- Empty Scope Refuses To Start — `:177`
 
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`

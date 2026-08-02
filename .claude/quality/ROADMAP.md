@@ -263,7 +263,7 @@ timeline, review, versioning, collaboration.
 - [x] Exposure sheets (X-sheet) `evidence: ExposureSheet, ExposureTests`
 - [x] Timeline scrubbing `evidence: TimelineExpansionTests, CurrentFrameIndex`
 - [x] Playback speed control `evidence: PlaybackSpeedTests, PlaybackClock`
-- [?] Loop regions
+- [x] Loop regions `evidence: TimelineRuler, DraggingTheStartHandleSetsTheStartFrame, DraggingTheEndHandleSetsTheEndFrame, AltClickingBetweenThemResetsItToo, WithLoopingOffItStopsOnTheLastFrame`
 - [x] Frame markers `evidence: FrameMarker`
 - [x] Automatic frame numbering `evidence: FrameLabel, FrameCell`
 - [?] Frame tagging

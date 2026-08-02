@@ -2465,14 +2465,14 @@
         <!-- Ruler (scrubbable numbering, range indication) above one row per layer -->
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
           <StackPanel Orientation="Vertical" Spacing="2">
-            <controls:TimelineRuler Height="22" HorizontalAlignment="Left"
+            <controls:TimelineRuler x:Name="Ruler" Height="22" HorizontalAlignment="Left"
                                     LeadingInset="152"
                                     CellWidth="{Binding TimelineRulerCellWidth}"
                                     Extent="{Binding TimelineExtent}"
                                     MaxFrame="{Binding MaxScrubFrame}"
                                     CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}"
-                                    RangeStart="{Binding PlaybackStartFrame}"
-                                    RangeEnd="{Binding PlaybackEndFrame}"
+                                    RangeStart="{Binding PlaybackStartFrame, Mode=TwoWay}"
+                                    RangeEnd="{Binding PlaybackEndFrame, Mode=TwoWay}"
                                     Markers="{Binding MarkersView}" />
             <ItemsControl ItemsSource="{Binding LayerRows}">
               <ItemsControl.ItemsPanel>

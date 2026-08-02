@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `88f2f7b` · 257 files · 62052 lines · 1159 tests.
+Generated from `de69365` · 258 files · 62494 lines · 1171 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -29,7 +29,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (7377 ln) · 58 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:2994, TransformParts:4723
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (2866 ln) · 6 test files
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (2877 ln) · 6 test files
   - MainWindow:17
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2588 ln) · 5 test files
   - CanvasControl:28, CanvasToolMode:492, GridGesture:548, TxDrag:695, DrawOp:2019
@@ -45,11 +45,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - WorkspaceViewModel:20, WorkspaceRow:400
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (382 ln) · 6 indirect only
   - ShortcutRow:11, ShortcutGroup:23, GridRow:38, ConfigureWindow:94
+- `src/Lightbox.App/Controls/TimelineRuler.cs` (367 ln) · 1 test files
+  - TimelineRuler:17, Handle:101
 - `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (367 ln) · 4 test files
   - ColorMode:9, ColorPickerViewModel:25
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` (347 ln) · 5 test files
   - StrokeOverlay:23, RenderPass:49, SceneRenderer:64
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 36 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 37 test files
   - SpriteTrim:11, SpriteSheetOptions:35, SpriteSheetResult:46, SpriteSheetExporter:69, SheetDocument:275, SheetFrame:281, SheetMeta:295, Box:310 …
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 6 indirect only
   - RampTrack:10, GradientRamp:41
@@ -76,8 +78,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - IpcDocumentApi:15, FrameRef:86, InsertPayload:118, DrawPayload:146, ViewRef:167
 - `src/Lightbox.App/Controls/Docker.cs` (192 ln) · 1 test files
   - Docker:16
-- `src/Lightbox.App/Controls/TimelineRuler.cs` (181 ln) · **no tests**
-  - TimelineRuler:17
 - `src/Lightbox.App/Services/PerformanceMonitor.cs` (180 ln) · 58 indirect only
   - PerformanceMonitor:14
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 2 test files
@@ -150,7 +150,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
-- `src/Lightbox.App/App.axaml.cs` (25 ln) · 85 indirect only
+- `src/Lightbox.App/App.axaml.cs` (25 ln) · 86 indirect only
   - App:8
 - `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 6 indirect only
   - NewProjectDialog:10

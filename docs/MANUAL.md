@@ -636,6 +636,28 @@ to read the thumbnails on a twelve-drawing cycle — it depends entirely on what
 you are doing, so it is a slider rather than a constant. The same number is in
 Edit → Configure → Timeline.
 
+### The playback range
+
+The scrub bar carries the loop bounds. **Hover it** and two grips appear — one
+at each end of the range, with a bar between them showing what will play.
+**Drag either** to move that bound; it settles onto whole frames as you go, so
+what you see while dragging is what you get. The two cannot cross: push one
+past the other and it pins a frame away.
+
+With no range set yet the grips sit on the ends of the whole timeline, so the
+first drag narrows it rather than starting from one frame somewhere arbitrary.
+
+**Alt-click** a grip, or anywhere between the two, to give the range back —
+between them is the bigger target and the region the range is actually about.
+**Right-click** the scrub bar for the same thing as a menu item.
+
+Grabbing a bound and moving the playhead are nearly the same gesture in nearly
+the same place, so the grips win where they are and clicking anywhere else on
+the bar still scrubs.
+
+The **Set playback start / end** items on a cel's context menu still work and
+do the same thing; the grips are the version you can aim.
+
 ### Looping
 
 Playback loops, because a cycle is usually what you are watching and stopping

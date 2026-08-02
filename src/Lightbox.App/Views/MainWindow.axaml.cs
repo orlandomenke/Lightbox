@@ -121,6 +121,17 @@ public partial class MainWindow : Window
         _vm.GuidesChanged += RefreshGuides;
         InitialiseRulers();
 
+        // Right-click on the scrub bar: the one thing worth offering there is
+        // giving the loop range back, so it is one item rather than a menu.
+        Ruler.RangeMenuRequested += (_, _) =>
+        {
+            var menu = new ContextMenu();
+            var reset = new MenuItem { Header = "Reset playback range" };
+            reset.Click += (_, _) => Ruler.ResetRange();
+            menu.Items.Add(reset);
+            menu.Open(Ruler);
+        };
+
         // The toggle button eats pointer events, so hook the hold-to-open
         // variant flyout with tunneling handlers.
         SelectToolButton.AddHandler(PointerPressedEvent, OnSelectToolPressed, RoutingStrategies.Tunnel);
