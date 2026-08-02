@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1399 tests, derived from the suite itself. Each line is a
+1404 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1905,6 +1905,15 @@ regression even when every test still compiles.
 - Thin Wash Pins Instead Of Creeping Forever — `:584`
 - Mis Sized Buffers Are Rejected — `:619`
 - Four Hundred Square Twelve Steps Stays Within Budget — `:640`
+
+## ImpastoTests
+`tests/Lightbox.Raster.Tests/ImpastoTests.cs`
+
+- Thick Paint Is Modelled And Flat Paint Is Not — `:71`
+- The Raised Edge Catches The Light — `:89`
+- Paint With No Body Renders Exactly As It Always Did — `:130`
+- Relief Is As Repeatable As Everything Else — `:147`
+- Shading Paints No Extra Coverage — `:160`
 
 ## LivePaletteTests
 `tests/Lightbox.Raster.Tests/LivePaletteTests.cs`

@@ -341,6 +341,16 @@ the same mark, on reload, after undo, and when the inbetweener replays it.
 That determinism is not a detail. An effect that varies subtly between similar
 strokes looks fine on one image and *boils* at 12 fps.
 
+**Body** and **relief** give thick paint its height. Body is how much the paint
+stands up off the paper; relief is how hard the light rakes across it. Together
+they are impasto — a raised edge on a gouache or oil stroke catches the light
+from the upper left and shadows on the other side. The light is fixed, and
+deliberately so: two strokes on one canvas must not disagree about where it is
+coming from.
+
+Each stroke is modelled from its own paint, so crossing two of them does not
+yet build a ridge where they meet.
+
 **Edge pull** is the wet edge: pigment carried out to the rim of the wash as it
 dries, so the mark ends up darker at its border than in the middle. At 0 the
 wash dries flat. Turn it up and the border darkens and the middle pales — the

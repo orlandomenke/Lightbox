@@ -281,6 +281,12 @@ public static class MediumSimulator
                 }
             }
         }
+
+        // Thick paint stands up, and standing paint catches light. Last, so it
+        // shades the pigment as it finally reads — including whatever mixing
+        // with the layer underneath decided.
+        Impasto.Shade(rgba, w, h, medium.Body, medium.Relief);
+
         System.Runtime.InteropServices.Marshal.Copy(rgba, 0, small.GetPixels(), rgba.Length);
 
         var canvas = scratch.Canvas;
