@@ -203,6 +203,7 @@
         <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Character sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Reference" ToggleType="CheckBox" IsChecked="{Binding ReferenceDockerVisible, Mode=TwoWay}" />
+        <MenuItem Header="Symbols" ToggleType="CheckBox" IsChecked="{Binding Workspace.SymbolsPanelVisible, Mode=TwoWay}" />
         <Separator />
         <!-- The bars that sit on the canvas. Separate from the panels above
              because they are a different trade: a panel takes room away from
@@ -1744,6 +1745,80 @@
                   </ItemsControl.DataTemplates>
                 </ItemsControl>
               </ScrollViewer>
+            </controls:Docker>
+
+        <!--
+          Symbols: a drawing stored once and placed many times. Absent unless a
+          project is open, like the project tree and for the same reason — a
+          symbol lives above the animations that place it, so without a project
+          there is nowhere for one to live.
+
+          The six libraries Pillar 3 asks for (pose, expression, hand, face,
+          prop, FX) are the Kind filter below, not six panels.
+        -->
+        <controls:Docker x:Name="SymbolsPanel" PanelId="Symbols" Title="Symbols"
+                         SwitchTargets="{Binding Workspace.SymbolsSwitchTargets}"
+                         CloseCommand="{Binding ToggleSymbolsPanelCommand}">
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <DockPanel>
+                    <ComboBox DockPanel.Dock="Left" Width="104"
+                              ItemsSource="{Binding SymbolBrowser.KindChoices}"
+                              SelectedItem="{Binding SymbolBrowser.KindFilter}"
+                              PlaceholderText="All kinds"
+                              ToolTip.Tip="Show one kind of symbol, or all of them" />
+                    <TextBox Text="{Binding SymbolBrowser.Search, Mode=TwoWay}"
+                             Watermark="Search" Margin="4,0,0,0"
+                             ToolTip.Tip="Matches a name or a tag" />
+                  </DockPanel>
+                </Border>
+              </controls:Docker.TopBar>
+              <controls:Docker.BottomBar>
+                <Border Classes="dockerBar">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <Button Content="Make symbol" Click="OnMakeSymbol"
+                            ToolTip.Tip="Turn this drawing into a symbol and place it here" />
+                    <Button Content="Place" Command="{Binding PlaceSelectedCommand}"
+                            IsEnabled="{Binding SymbolBrowser.Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            ToolTip.Tip="Put the selected symbol on this drawing" />
+                    <Button Classes="icon" Content="🗑" Click="OnDeleteSymbol"
+                            IsEnabled="{Binding SymbolBrowser.Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            ToolTip.Tip="Delete the symbol from the project" />
+                  </StackPanel>
+                </Border>
+              </controls:Docker.BottomBar>
+              <Panel>
+                <TextBlock Text="{Binding SymbolBrowser.EmptyMessage}" Margin="10" FontSize="11"
+                           Opacity="0.6" TextWrapping="Wrap" VerticalAlignment="Top"
+                           IsVisible="{Binding SymbolBrowser.EmptyMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                  <ListBox x:Name="SymbolTiles" ItemsSource="{Binding SymbolBrowser.Rows}"
+                           SelectedItem="{Binding SymbolBrowser.Selected}"
+                           Background="Transparent" BorderThickness="0" Margin="2">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <StackPanel Width="72" Margin="1" Spacing="1"
+                                    ToolTip.Tip="{Binding Tags}">
+                          <Border Background="#20262c" CornerRadius="3" Height="48">
+                            <Image Source="{Binding Thumb}" Stretch="Uniform" />
+                          </Border>
+                          <TextBlock Text="{Binding Name}" FontSize="10" TextTrimming="CharacterEllipsis" />
+                          <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding Length}" FontSize="9" Opacity="0.5" />
+                            <TextBlock Text="{Binding KindLabel}" FontSize="9" Opacity="0.5"
+                                       TextTrimming="CharacterEllipsis" />
+                          </DockPanel>
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </ScrollViewer>
+              </Panel>
             </controls:Docker>
 
         <controls:Docker x:Name="ColorPanel" PanelId="Color" Title="Color"

@@ -377,6 +377,9 @@ public partial class MainWindow : Window
     private bool IsPanelUsable(DockPanelId id) => id switch
     {
         DockPanelId.Project => _vm.HasProject,
+        // A symbol lives above the animations that place it, so with no
+        // project there is nowhere for one to live and nothing to show.
+        DockPanelId.Symbols => _vm.HasProject,
         DockPanelId.Timeline => _vm.ShowTimeline,
         _ => true,
     };
@@ -585,6 +588,27 @@ public partial class MainWindow : Window
         _vm.AiStatus = $"Saved workspace “{_vm.Workspace.SelectedName}”.";
     }
 
+
+    // ---- symbols ------------------------------------------------------------------
+
+    /// <summary>
+    /// Turn the current drawing into a symbol.
+    /// </summary>
+    /// <remarks>
+    /// Asks for a name first, because a browser full of "Symbol", "Symbol 2"
+    /// and "Symbol 3" is a browser nobody searches — and naming a thing is
+    /// cheapest at the moment you decide it is a thing.
+    /// </remarks>
+    private async void OnMakeSymbol(object? sender, RoutedEventArgs e)
+    {
+        if (await PromptForText("Make symbol", "Name", "Symbol") is not { } name) return;
+        _vm.MakeSymbolFromDrawing(name);
+    }
+
+    private void OnDeleteSymbol(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.SymbolBrowser.Selected is { } row) _vm.DeleteSymbol(row.Model);
+    }
     private async void OnSaveWorkspaceAs(object? sender, RoutedEventArgs e)
     {
         if (await PromptForText("Save workspace", "Name", _vm.Workspace.SelectedName) is not { } name) return;

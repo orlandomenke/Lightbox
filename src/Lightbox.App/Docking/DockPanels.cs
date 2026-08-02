@@ -17,6 +17,7 @@ public enum DockPanelId
     Palette,
     Gradient,
     Reference,
+    Symbols,
     Timeline,
 }
 
@@ -69,6 +70,9 @@ public static class DockPanels
         new(DockPanelId.Palette, "Palette", MaxExtent: 320, DefaultExtent: 220, MinExtent: 110),
         new(DockPanelId.Gradient, "Gradient", MaxExtent: 320, DefaultExtent: 240, MinExtent: 120),
         new(DockPanelId.Reference, "Reference", MaxExtent: 320, DefaultExtent: 300, MinExtent: 140),
+        // No cap: a grid of tiles has genuine use for width, the way the
+        // project tree and the layer stack do.
+        new(DockPanelId.Symbols, "Symbols", MaxExtent: null, DefaultExtent: 240, MinExtent: 130),
         new(DockPanelId.Timeline, "Timeline", MaxExtent: null, DefaultExtent: 280, MinExtent: 140, Movable: false),
     ];
 

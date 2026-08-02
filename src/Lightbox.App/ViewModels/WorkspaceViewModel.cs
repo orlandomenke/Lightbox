@@ -94,6 +94,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         set => SetVisible(DockPanelId.Project, value);
     }
 
+    public bool SymbolsPanelVisible
+    {
+        get => _layout.IsVisible(DockPanelId.Symbols);
+        set => SetVisible(DockPanelId.Symbols, value);
+    }
+
     public bool LayersPanelVisible
     {
         get => _layout.IsVisible(DockPanelId.Layers);
@@ -234,6 +240,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         DockPanelId.Palette => nameof(PaletteDockerVisible),
         DockPanelId.Gradient => nameof(GradientDockerVisible),
         DockPanelId.Reference => nameof(ReferenceDockerVisible),
+        DockPanelId.Symbols => nameof(SymbolsPanelVisible),
         _ => nameof(TimelineVisible),
     };
 
@@ -376,6 +383,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     // One property per header so the XAML can bind without a converter. They
     // never change — the catalogue is fixed — so they are computed once.
     public IReadOnlyList<DockPanelInfo> ProjectSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Project);
+
+    public IReadOnlyList<DockPanelInfo> SymbolsSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Symbols);
 
     public IReadOnlyList<DockPanelInfo> LayersSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Layers);
 

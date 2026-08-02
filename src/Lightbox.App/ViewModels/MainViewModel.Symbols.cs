@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.Input;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Timeline;
 using Lightbox.Raster;
@@ -16,6 +17,127 @@ namespace Lightbox.App.ViewModels;
 /// </remarks>
 public sealed partial class MainViewModel
 {
+    /// <summary>The symbol browser's state. Empty until a project is open.</summary>
+    public SymbolBrowserViewModel SymbolBrowser { get; private set; } = null!;
+
+    /// <summary>Wire the browser up. Called from the constructor.</summary>
+    private void InitialiseSymbolBrowser() =>
+        SymbolBrowser = new SymbolBrowserViewModel(
+            () => ProjectDocker.Project,
+            () => (Scene.Width, Scene.Height));
+
+    // ---- making one -------------------------------------------------------------
+
+    /// <summary>
+    /// Turn the strokes on the current drawing into a symbol, and replace them
+    /// with a placement of it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The authoring gesture, and the reason it replaces rather than copies:
+    /// two drawings that look identical and are not the same object is exactly
+    /// what a symbol exists to avoid. Photoshop's "convert to smart object"
+    /// makes the same trade.
+    /// </para>
+    /// <para>
+    /// The symbol keeps the strokes in their own coordinates and the placement
+    /// sits at the origin with no scale or rotation, so what renders afterwards
+    /// is the same mark it was before — no coordinate is rewritten and no
+    /// <c>Hash01</c> seed moves. A test asserts the pixels, because that is the
+    /// promise the gesture makes and it is one an artist would notice breaking.
+    /// </para>
+    /// </remarks>
+    public Symbol? MakeSymbolFromDrawing(string name, SymbolKind kind = SymbolKind.Prop)
+    {
+        if (ProjectDocker.Project is not { } project)
+        {
+            AiStatus = "Symbols belong to a project — create one first.";
+            return null;
+        }
+        if (!CanEdit(ActiveLayer, "make a symbol")) return null;
+        if (PaintTarget() is not PaintedFrame source || source.Strokes.Count == 0)
+        {
+            AiStatus = "Nothing on this drawing to make a symbol from.";
+            return null;
+        }
+
+        var symbol = new Symbol
+        {
+            Name = string.IsNullOrWhiteSpace(name) ? "Symbol" : name.Trim(),
+            Kind = kind,
+            // The strokes as they stand, in the coordinates they were drawn in.
+            // Pivot at the origin, so a placement at (0, 0) puts them back
+            // exactly where they were.
+            Frames = [new PaintedFrame { Strokes = [.. source.Strokes.Select(s => s.Clone())] }],
+        };
+
+        var taken = source.Strokes.ToList();
+        var placement = new SymbolPlacement { SymbolId = symbol.Id, SeenVersion = symbol.Version };
+        var frameId = source.Id;
+
+        project.Symbols[symbol.Id] = symbol;
+        SymbolRegistry.Register(symbol);
+
+        _editor.PerformDelta(
+            apply: doc =>
+            {
+                if (FrameIn(doc, frameId) is not { } frame) return;
+                frame.Strokes.Clear();
+                frame.Placements ??= [];
+                frame.Placements.Add(placement);
+            },
+            revert: doc =>
+            {
+                if (FrameIn(doc, frameId) is not { } frame) return;
+                frame.Placements?.RemoveAll(p => p.Id == placement.Id);
+                if (frame.Placements is { Count: 0 }) frame.Placements = null;
+                frame.Strokes.AddRange(taken);
+            },
+            affectedFrameId: frameId);
+
+        _selectedPlacementId = placement.Id;
+        AfterPlacementChange(frameId);
+        SymbolBrowser.Refresh();
+        AiStatus = $"“{symbol.Name}” is a symbol now. Editing it updates every placement of it.";
+        return symbol;
+    }
+
+    /// <summary>
+    /// Delete a symbol from the project.
+    /// </summary>
+    /// <remarks>
+    /// Placements of it are <b>left alone</b>, and stop rendering. Deleting
+    /// them would mean walking every document in the project — including the
+    /// ones not loaded — and a delete that quietly edited forty animations is
+    /// not a delete anybody could risk. An unresolved placement draws nothing
+    /// and is reported, which is the recoverable failure of the two.
+    /// </remarks>
+    public bool DeleteSymbol(Symbol symbol)
+    {
+        if (ProjectDocker.Project is not { } project) return false;
+        if (!project.Symbols.Remove(symbol.Id)) return false;
+        SymbolRegistry.Reset(project.Symbols);
+        SymbolBrowser.Refresh();
+        if (PaintTarget() is { } frame) AfterPlacementChange(frame.Id);
+        AiStatus = $"Deleted “{symbol.Name}”. Anything still placing it now draws nothing.";
+        return true;
+    }
+
+    /// <summary>Place the browser's selected symbol at the centre of the canvas.</summary>
+    /// <remarks>
+    /// The keyboard and menu route. Dragging onto the canvas puts it under the
+    /// pointer instead; both end in <see cref="PlaceSymbol"/>.
+    /// </remarks>
+    [RelayCommand]
+    private void PlaceSelected() => PlaceSelectedSymbol();
+
+    /// <inheritdoc cref="PlaceSelectedCommand" />
+    public SymbolPlacement? PlaceSelectedSymbol()
+    {
+        if (SymbolBrowser.Selected is not { } row) return null;
+        return PlaceSymbol(row.Model.Id, Scene.Width / 2.0, Scene.Height / 2.0);
+    }
+
     /// <summary>The placements on the cel being drawn on, or an empty list.</summary>
     public IReadOnlyList<SymbolPlacement> PlacementsHere =>
         PaintTarget() is PaintedFrame { Placements: { } list } ? list : [];

@@ -179,26 +179,33 @@ S4 is in: placing, moving, removing and breaking the link, each one undo step.
 The Move tool grabs a placed symbol before it grabs the drawing — moving a
 placement edits two numbers on the placement, while moving a drawing rewrites
 stroke coordinates, and which you get is decided by what you grabbed.
-
-Nothing *reaches* those operations with a mouse yet: there is no browser to
-drag from and no symbol editor, so the items below stay open until S5 and S6.
 Break-link is the one place in the application where a mark is allowed to
 change, and it is written down where it happens.
+
+S5 is in: the browser panel, absent unless a project is open. Make a symbol
+from the current drawing, find one by kind or by name or by tag, place it,
+delete it. The six libraries below are the kind filter, which is why they all
+tick together.
+
+Still open: dragging a tile onto the canvas, and opening a symbol to edit it
+(S6) — editing one today means breaking a link, changing the drawing and making
+a symbol again. Versioning and staleness reporting (S7) has its record in place
+and nothing reading it.
 
 - [x] Shared symbols — the record (design S1–S2) `evidence: Symbol, SymbolPlacement, SymbolRegistry, SymbolRasterizer, SymbolRecordTests, SymbolRenderTests`
 - [?] Linked assets — edit once, update everywhere (S6)
 - [?] Symbol editing (S6)
 - [?] Asset versioning (S7)
-- [?] Asset browser (S5)
-- [?] Asset tagging (S5)
-- [?] Smart asset search (S5)
-- [?] Pose library (S5 — a `SymbolKind` and a browser filter)
-- [?] Expression library (S5)
-- [?] Hand library (S5)
-- [?] Face library (S5)
-- [?] Prop library (S5)
-- [?] FX library (S5)
-- [?] Reusable backgrounds (S5)
+- [x] Asset browser (S5) `evidence: SymbolBrowserViewModel, SymbolBrowserTests, TheKindFilterIsWhatTheSixLibrariesAre`
+- [x] Asset tagging (S5) `evidence: SymbolRow, SearchMatchesANameOrATag, TagsEditAsOneLine`
+- [x] Smart asset search (S5) `evidence: SymbolBrowserViewModel, SearchMatchesANameOrATag, SearchAndKindNarrowTogether`
+- [x] Pose library (S5 — a `SymbolKind` and a browser filter) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
+- [x] Expression library (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
+- [x] Hand library (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
+- [x] Face library (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
+- [x] Prop library (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
+- [x] FX library (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
+- [x] Reusable backgrounds (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
 - [?] Animation library (S5)
 - [?] Dependency graph — out of the first cut, needs nesting first
 - [?] Reusable animation presets — out of the first cut

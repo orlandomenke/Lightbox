@@ -27,10 +27,11 @@ button is in the build.
 10. [Camera](#10-camera)
 11. [AI assistance](#11-ai-assistance)
 12. [Saving, exporting and recovery](#12-saving-exporting-and-recovery)
-13. [When the canvas feels slow](#13-when-the-canvas-feels-slow)
-14. [Keyboard](#14-keyboard)
-15. [Working with an agent (MCP)](#15-working-with-an-agent-mcp)
-16. [Planned](#16-planned)
+13. [Symbols](#13-symbols)
+14. [When the canvas feels slow](#14-when-the-canvas-feels-slow)
+15. [Keyboard](#15-keyboard)
+16. [Working with an agent (MCP)](#16-working-with-an-agent-mcp)
+17. [Planned](#17-planned)
 
 ---
 
@@ -920,7 +921,66 @@ opened takes away the ability to close without saving.
 
 ---
 
-## 13. When the canvas feels slow
+## 13. Symbols
+
+A **symbol** is a drawing stored once and placed many times. Edit the sword,
+and every animation holding it changes — that is the whole point, and it is why
+a placement refers to the symbol rather than copying it.
+
+Symbols belong to the **project**, not to one animation, because a prop lives
+above the animations that use it. **View → Symbols** opens the panel; it does
+nothing without a project open, so it is not offered until there is one.
+
+### Making one
+
+Draw something, then **Make symbol** in the panel's footer and give it a name.
+The strokes leave the drawing and a placement of the new symbol takes their
+place. Nothing about the picture changes at that moment — the mark is the same
+mark, in the same position.
+
+### Placing, moving, and letting go
+
+- **Place** puts the selected symbol on the current drawing.
+- The **Move tool** drags a placement the way it drags anything else. A placed
+  symbol under the cursor is picked up before the drawing underneath it is; the
+  symbol itself is not touched, so the other placements of it stay where they
+  are. Hold Shift to keep the move to one axis.
+- **Break link** turns a placement back into ordinary strokes on that drawing.
+  It is the honest way to get something you can edit stroke by stroke, and it
+  is a one-way door: the result is a drawing, not a symbol.
+
+A placement can be moved, scaled, rotated, faded and time-offset. It cannot
+have one of its strokes nudged — that would be a different drawing, and
+pretending otherwise is how a symbol quietly becomes a copy.
+
+### Finding one
+
+The panel filters by **kind** — prop, pose, expression, hand, face, FX,
+background — and searches names *and* tags. Tags are a plain comma-separated
+line rather than folders, because a sword is a prop, and it is also "knight",
+and also "act two"; filing it once makes the other two searches fail.
+
+### Cycles
+
+A symbol can hold several frames — a walk, a flicker, a blink. A placement of
+one advances with the timeline, and its **frame offset** shifts where in the
+cycle it starts, so one stored walk can carry two characters half a stride
+apart.
+
+### Deleting, and exporting
+
+Deleting a symbol leaves any placements of it alone; they simply stop drawing,
+and the app reports them. That is deliberate — a delete that quietly edited
+forty animations is not one anybody could risk.
+
+**Export document…** writes a standalone file that carries the symbols it uses,
+so an exported animation renders identically somewhere else.
+
+*Not yet: dragging a symbol from the panel onto the canvas, and opening one to
+edit it. Editing a symbol's drawing today means breaking a link, changing it,
+and making a symbol again.*
+
+## 14. When the canvas feels slow
 
 The info strip along the bottom reports what the app is actually doing:
 how much memory the rendered frames are using, and whether the canvas is being
@@ -960,7 +1020,7 @@ time in Configure, and it will stay changed.
 repaint and per frame, the headroom left, and what is worth changing about the
 document if there is none.
 
-## 14. Keyboard
+## 15. Keyboard
 
 Every shortcut is editable in **Edit → Configure…**, which is searchable.
 Shortcuts are context-aware: the same key can mean different things over the
@@ -985,7 +1045,7 @@ Zoom, rotation, mirror and pan are **view-only**. They never touch the document.
 
 ---
 
-## 15. Working with an agent (MCP)
+## 16. Working with an agent (MCP)
 
 Lightbox runs an MCP server, so an agent can work the document directly: read
 the scene, add strokes and frames, request inbetweens. Everything it does goes
@@ -994,7 +1054,7 @@ indistinguishable in kind from yours.
 
 ---
 
-## 16. Planned
+## 17. Planned
 
 Not built. Listed so the gap is visible rather than implied.
 

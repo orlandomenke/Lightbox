@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1251 tests, derived from the suite itself. Each line is a
+1272 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1006,6 +1006,31 @@ regression even when every test still compiles.
 - Saving Somewhere New Records It Too — `:159`
 - Clearing The List Empties It On Disk As Well — `:182`
 - Only What Is Still On Disk Is Offered — `:205`
+
+## SymbolBrowserTests
+`tests/Lightbox.App.Tests/SymbolBrowserTests.cs`
+
+- With No Project There Is Nothing To Browse — `:73`
+- The Symbols Panel Is In The Catalogue And Can Be Toggled — `:86`
+- Opening AProject Fills The Browser — `:98`
+- The Kind Filter Is What The Six Libraries Are — `:115`
+- No Filter Shows Everything — `:128`
+- Search Matches AName Or ATag — `:141`
+- Search And Kind Narrow Together — `:157`
+- An Empty Grid Says Which Kind Of Empty It Is — `:170`
+- Every Tile Gets AThumbnail — `:184`
+- Making ASymbol Takes The Drawing And Leaves APlacement — `:195`
+- Making ASymbol Does Not Change What The Drawing Looks Like — `:210`
+- Making ASymbol Is One Undo Step — `:228`
+- Making ASymbol From Nothing Says So — `:242`
+- Without AProject There Is Nowhere To Put ASymbol — `:251`
+- An Unnamed Symbol Still Gets AName — `:261`
+- Placing The Selected Symbol Puts It On The Drawing — `:272`
+- Placing With Nothing Selected Does Nothing — `:285`
+- Deleting ASymbol Leaves Its Placements Alone And They Stop Drawing — `:295`
+- Renaming ARow Renames The Symbol — `:316`
+- Renaming Does Not Count As Editing The Drawing — `:327`
+- Tags Edit As One Line — `:341`
 
 ## SymbolPlacingTests
 `tests/Lightbox.App.Tests/SymbolPlacingTests.cs`

@@ -264,9 +264,14 @@ public sealed partial class MainViewModel : ObservableObject
         // own. Without this relay the project panel stays hidden after New or
         // Open project: the docker's own callback only fires when the docker
         // edits the project, and adopting one is not an edit.
+        InitialiseSymbolBrowser();
         ProjectDocker.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(ProjectViewModel.HasProject)) OnPropertyChanged(nameof(HasProject));
+            if (e.PropertyName is not nameof(ProjectViewModel.HasProject)) return;
+            OnPropertyChanged(nameof(HasProject));
+            // The browser shows the project's symbols, so adopting a project is
+            // what fills it — and closing one is what empties it.
+            SymbolBrowser.Refresh();
         };
         // The forwarding properties above have no backing field to notify from,
         // so the workspace's notifications are relayed under the names the
@@ -2993,6 +2998,10 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ToggleProjectPanel() =>
         Workspace.SetVisible(Docking.DockPanelId.Project, !Workspace.ProjectPanelVisible);
+
+    [RelayCommand]
+    private void ToggleSymbolsPanel() =>
+        Workspace.SetVisible(Docking.DockPanelId.Symbols, !Workspace.SymbolsPanelVisible);
 
     [RelayCommand]
     private void ToggleLayersPanel() =>
