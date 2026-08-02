@@ -21,6 +21,58 @@ public enum SmudgeMode
     Dulling,
 }
 
+/// <summary>
+/// What a smudge or blur brush reads: its own layer, or everything under it.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The answer to <c>QUESTIONS.md</c> Q6, and it is three values rather than two
+/// because neither of the two was right for every mark. A smudge blending a
+/// character into a background wants to follow that background when it is
+/// repainted; a smudge nudged until it looked right wants to stay exactly as it
+/// was. Both are reasonable intentions about the same gesture, so the stroke
+/// records which one it was — invariant 4, the same reason anti-aliasing is
+/// stored per stroke rather than read from the tool bar at render time.
+/// </para>
+/// <para>
+/// <see cref="ThisLayer"/> is the default and what every stroke drawn before
+/// this existed is, so a document that never asks for the others renders and
+/// serializes exactly as it did.
+/// </para>
+/// </remarks>
+public enum SampleSource
+{
+    /// <summary>
+    /// Read only the layer being painted on. Keeps a layer's pixels a function
+    /// of that layer alone, which is what makes the frame cache per-layer.
+    /// </summary>
+    ThisLayer,
+
+    /// <summary>
+    /// Read the composite of everything beneath, at render time.
+    /// </summary>
+    /// <remarks>
+    /// What "sample all layers" means everywhere else, and it follows edits:
+    /// repaint the background and the smudge above it changes with it. The
+    /// price is the cache — a frame holding one of these cannot be reused,
+    /// because what is underneath may have moved since.
+    /// </remarks>
+    AllLayersLive,
+
+    /// <summary>
+    /// Read the composite of everything beneath <em>as it was when the stroke
+    /// was made</em>, captured into the stroke.
+    /// </summary>
+    /// <remarks>
+    /// The mark never changes again, and it costs no cache work at all because
+    /// the stroke carries what it needs. It costs file size, and it is the one
+    /// place pixels enter the record without being derived from strokes — note
+    /// that the document still re-renders identically from itself, so this
+    /// bends invariant 1's spirit rather than breaking its letter.
+    /// </remarks>
+    AllLayersBaked,
+}
+
 /// <summary>How a brush applies paint.</summary>
 public enum BrushKind
 {
@@ -70,6 +122,11 @@ public sealed class BrushSettings
 
     /// <summary>Which smudge algorithm to use (ignored unless Kind is Smudge).</summary>
     public SmudgeMode SmudgeMode { get; set; } = SmudgeMode.Smearing;
+
+    /// <summary>
+    /// What a smudge or blur reads (ignored by every other kind).
+    /// </summary>
+    public SampleSource SampleSource { get; set; } = SampleSource.ThisLayer;
 
     /// <summary>
     /// 0..1: how much of the carried colour survives each dab. Low values
@@ -210,6 +267,7 @@ public sealed class BrushSettings
         Spacing = Spacing,
         Kind = Kind,
         SmudgeMode = SmudgeMode,
+        SampleSource = SampleSource,
         SmudgeLength = SmudgeLength,
         SmudgeRadius = SmudgeRadius,
         ColorRate = ColorRate,

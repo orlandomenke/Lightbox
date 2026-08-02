@@ -53,9 +53,16 @@ public static class BrushEngine
     /// position, and scaling coordinates would re-roll all of them.
     /// Ignored on the draft path, which is display-only and always 1.
     /// </param>
+    /// <param name="backdrop">
+    /// The composite of everything beneath this layer, for a stroke that asked
+    /// to sample all of them. Null when there is nothing underneath or the
+    /// caller cannot supply it, in which case an all-layers stroke falls back
+    /// to its own layer — the same mark it would have made before the option
+    /// existed, rather than nothing.
+    /// </param>
     public static void StampStroke(
         SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels = null,
-        bool draft = false, double outputScale = 1.0)
+        bool draft = false, double outputScale = 1.0, SKBitmap? backdrop = null)
     {
         if (stroke.Points.Count == 0) return;
 
@@ -74,16 +81,127 @@ public static class BrushEngine
         switch (stroke.Brush.Kind)
         {
             case BrushKind.Smudge when targetPixels is not null && stroke.Tool != ToolKind.Eraser:
-                WithHardClip(target, stroke, outputScale, () => StampSmudge(target, targetPixels, stroke, outputScale));
+            {
+                using var owned = SampledSource(stroke, targetPixels, backdrop, info);
+                var read = owned ?? targetPixels;
+                WithHardClip(target, stroke, outputScale, () => StampSmudge(target, read, stroke, outputScale));
                 return;
+            }
+
             case BrushKind.Blur when targetPixels is not null && stroke.Tool != ToolKind.Eraser:
-                if (draft) WithHardClip(target, stroke, 1.0, () => StampBlurDraft(target, targetPixels, stroke, info));
-                else WithHardClip(target, stroke, outputScale, () => StampBlur(target, targetPixels, stroke, info, outputScale));
+            {
+                using var owned = SampledSource(stroke, targetPixels, backdrop, info);
+                var read = owned ?? targetPixels;
+                if (draft) WithHardClip(target, stroke, 1.0, () => StampBlurDraft(target, read, stroke, info));
+                else WithHardClip(target, stroke, outputScale, () => StampBlur(target, read, stroke, info, outputScale));
                 return;
+            }
         }
 
         if (draft) StampPaintDraft(target, stroke, info, targetPixels);
         else StampPaint(target, stroke, info, targetPixels, outputScale);
+    }
+
+    /// <summary>
+    /// What a smudge or blur actually reads, or null to read its own layer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The layer is composited <em>over</em> whatever is beneath rather than
+    /// replacing it, because "sample all layers" means what you can see: the
+    /// artist is smudging the picture, and the picture at that point is this
+    /// layer's paint on top of everything below it. Reading the backdrop alone
+    /// would smudge the background through the very strokes being blended into
+    /// it.
+    /// </para>
+    /// <para>
+    /// A baked stroke reads what it froze, which is why it needs neither the
+    /// caller's backdrop nor an invalidation rule: it carries its own.
+    /// </para>
+    /// </remarks>
+    private static SKBitmap? SampledSource(
+        Stroke stroke, SKBitmap layer, SKBitmap? backdrop, SKImageInfo info)
+    {
+        // No ThisLayer fast path: neither branch below matches it, so an early
+        // return would be a line no test could distinguish from its absence.
+        var source = stroke.Brush.SampleSource;
+        SKBitmap? beneath = null;
+        var owned = false;
+        if (source == SampleSource.AllLayersBaked && stroke.Baked is { PngBase64.Length: > 0 } baked)
+        {
+            beneath = BakedBackdrop(baked, layer.Width, layer.Height);
+            owned = true;
+        }
+        else if (source == SampleSource.AllLayersLive)
+        {
+            beneath = backdrop;
+        }
+        if (beneath is null) return null;
+
+        var merged = new SKBitmap(
+            new SKImageInfo(layer.Width, layer.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using (var canvas = new SKCanvas(merged))
+        {
+            canvas.Clear(SKColors.Transparent);
+            canvas.DrawBitmap(beneath, 0, 0);
+            canvas.DrawBitmap(layer, 0, 0);
+            canvas.Flush();
+        }
+        if (owned) beneath.Dispose();
+        return merged;
+    }
+
+    /// <summary>A baked sample expanded back to the layer's own frame.</summary>
+    private static SKBitmap? BakedBackdrop(BakedSample baked, int width, int height)
+    {
+        SKBitmap? patch = null;
+        try
+        {
+            patch = PngCodec.Decode(baked.PngBase64);
+        }
+        catch
+        {
+            // A corrupt sample falls back to reading the layer, which is the
+            // mark this stroke would have made without the option. Losing the
+            // blend is a smaller failure than refusing to open the document.
+            return null;
+        }
+        var full = new SKBitmap(
+            new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using (var canvas = new SKCanvas(full))
+        {
+            canvas.Clear(SKColors.Transparent);
+            canvas.DrawBitmap(patch, baked.X, baked.Y);
+            canvas.Flush();
+        }
+        patch.Dispose();
+        return full;
+    }
+
+    /// <summary>
+    /// Freeze what a stroke sampled, cropped to the pixels it can reach.
+    /// </summary>
+    /// <remarks>
+    /// Called once, when the stroke is committed. The crop is what keeps this
+    /// affordable: a smudge reaches a few hundred pixels, and storing the whole
+    /// canvas per stroke would put a megabyte in the record for a mark the size
+    /// of a thumbnail.
+    /// </remarks>
+    public static BakedSample? BakeSample(Stroke stroke, SKBitmap backdrop, SKImageInfo info)
+    {
+        if (CommitBounds(stroke, info) is not { } rect) return null;
+        rect.Intersect(new SKRectI(0, 0, backdrop.Width, backdrop.Height));
+        if (rect.Width <= 0 || rect.Height <= 0) return null;
+
+        using var patch = new SKBitmap(
+            new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using (var canvas = new SKCanvas(patch))
+        {
+            canvas.Clear(SKColors.Transparent);
+            canvas.DrawBitmap(backdrop, -rect.Left, -rect.Top);
+            canvas.Flush();
+        }
+        return new BakedSample { PngBase64 = PngCodec.Encode(patch), X = rect.Left, Y = rect.Top };
     }
 
     /// <summary>

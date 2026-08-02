@@ -67,6 +67,18 @@ public sealed class Stroke
     public string? Label { get; set; }
 
     /// <summary>
+    /// The pixels a baked all-layers smudge sampled, and where they sat.
+    /// </summary>
+    /// <remarks>
+    /// Null on every other stroke, and absent from the file — this is the one
+    /// thing in the record that is pixels rather than instructions, so it is
+    /// carried only by the strokes that asked to freeze what was underneath
+    /// them. Cropped to the stroke's own reach, not the canvas, because the
+    /// alternative is a full-size PNG per smudge.
+    /// </remarks>
+    public BakedSample? Baked { get; set; }
+
+    /// <summary>
     /// A copy with a fresh id and everything else intact.
     /// </summary>
     /// <remarks>
@@ -92,5 +104,26 @@ public sealed class Stroke
         ClipId = ClipId,
         AlphaLocked = AlphaLocked,
         Label = Label,
+        Baked = Baked,
     };
+}
+
+/// <summary>
+/// A frozen backdrop: the composite a stroke read, and the document-space
+/// corner it starts at.
+/// </summary>
+/// <remarks>
+/// Shared by reference when a stroke is cloned. It is immutable in practice —
+/// nothing edits a baked sample, it is replaced or dropped — and copying a
+/// megabyte of base64 per cel duplication would be a poor trade for a
+/// guarantee nothing needs.
+/// </remarks>
+public sealed class BakedSample
+{
+    /// <summary>Bare base64 of a PNG, no data-URL prefix.</summary>
+    public string PngBase64 { get; set; } = "";
+
+    public int X { get; set; }
+
+    public int Y { get; set; }
 }

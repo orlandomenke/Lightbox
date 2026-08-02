@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1297 tests, derived from the suite itself. Each line is a
+1307 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1916,6 +1916,20 @@ regression even when every test still compiles.
 
 - Encode Decode Round Trips Pixels — `:158`
 - Materialize Composites Baseline Plus Strokes — `:172`
+
+## SampleSourceTests
+`tests/Lightbox.Raster.Tests/SampleSourceTests.cs`
+
+- This Layer Ignores What Is Underneath — `:92`
+- All Layers Live Reads The Backdrop — `:104`
+- All Layers Live Follows The Backdrop When It Changes — `:112`
+- With Nothing Underneath All Layers Is Just The Layer — `:132`
+- ABaked Stroke Carries What It Sampled — `:146`
+- ABaked Sample Is Cropped To What The Stroke Can Reach — `:158`
+- ABaked Stroke Renders From Its Own Sample With No Backdrop Given — `:174`
+- ABaked Stroke Ignores ABackdrop That Changed Under It — `:188`
+- ABaked Stroke With No Sample Falls Back To Its Layer — `:208`
+- Sampling Reads The Layer Over The Backdrop Not The Backdrop Alone — `:222`
 
 ## SymbolFlattenTests
 `tests/Lightbox.Raster.Tests/SymbolFlattenTests.cs`

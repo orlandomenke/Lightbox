@@ -77,8 +77,14 @@ public static class FrameRasterizer
     /// only when the frame places one — it is what makes a placed cycle advance
     /// with the sequence instead of freezing on its first drawing.
     /// </param>
+    /// <param name="backdrop">
+    /// The composite of the layers beneath this one, for strokes that sample
+    /// all layers. Null everywhere that has no stack to hand — a thumbnail, a
+    /// symbol tile — and those fall back to sampling the layer itself.
+    /// </param>
     public static SKBitmap Materialize(
-        PaintedFrame frame, int width, int height, double outputScale = 1.0, int celIndex = 0)
+        PaintedFrame frame, int width, int height, double outputScale = 1.0, int celIndex = 0,
+        SKBitmap? backdrop = null)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         var scaled = Scaled(info, outputScale);
@@ -101,7 +107,7 @@ public static class FrameRasterizer
         }
         foreach (var stroke in frame.Strokes)
         {
-            BrushEngine.StampStroke(canvas, stroke, info, bitmap, outputScale: outputScale);
+            BrushEngine.StampStroke(canvas, stroke, info, bitmap, outputScale: outputScale, backdrop: backdrop);
         }
         // Placements last, over the strokes. A placement is a drawing put on
         // top of this cel, not one mixed into it — and the ordering has to be

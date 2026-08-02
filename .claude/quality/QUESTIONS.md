@@ -32,6 +32,36 @@ whole composite breaks that: the result depends on the layers underneath.
 
 **Recommend (a).** It costs cache work; (b) costs an invariant.
 
+**Answered, 2026-08-02: (c) — both, chosen per stroke.**
+
+Neither answer is right for every mark, which is the tell that this was a
+false choice. A smudge blending a character into a background wants to follow
+the background when it is repainted; a smudge that was nudged until it looked
+right wants to stay exactly as it was. Those are different intentions about the
+same gesture, and the app already has the machinery to record an intention:
+**invariant 4 — a setting that reaches pixels is stored per stroke.**
+Anti-aliasing works this way for the same reason.
+
+So `BrushSettings.SampleSource` is `ThisLayer` (the default, and what every
+existing stroke is), `AllLayersLive`, or `AllLayersBaked`. The tool options
+offer it; the stroke records it; the renderer obeys what the stroke says rather
+than what the tool bar currently reads.
+
+What each costs, unchanged from above and now paid only by the strokes that ask
+for it:
+
+- **Live** costs the cache cascade. A frame holding one keys on a document-wide
+  composite generation, so editing any layer re-renders it. Frames without one
+  key exactly as they always did.
+- **Baked** costs file size and a concession on invariant 1's *spirit*: the
+  stroke carries the backdrop it sampled. Note it does not break the letter of
+  it — the document still re-renders identically from its own record, which is
+  more than can be said for a baseline PNG. The concession is that some pixels
+  in the record are no longer derived from strokes.
+
+The default stays `ThisLayer`, so a document that never asks for this
+serializes and renders exactly as it does today.
+
 ---
 
 ## Q9 · Who owns brush settings

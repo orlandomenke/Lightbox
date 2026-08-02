@@ -65,8 +65,24 @@ public sealed class FrameBitmapCache : IDisposable
     /// Where on the timeline this cel is being shown. Only matters to a frame
     /// that places a symbol; see <see cref="KeyOf"/>.
     /// </param>
-    public SKBitmap Get(Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0)
+    /// <param name="backdrop">
+    /// What is beneath this layer, for strokes that sample all of them. A frame
+    /// holding a <see cref="SampleSource.AllLayersLive"/> stroke is rendered
+    /// and <b>not stored</b>: what is underneath may have changed since, and
+    /// there is no key that can say so without the cache learning the whole
+    /// layer stack. That re-render is the price Q6 named for choosing Live, and
+    /// it is the reason Baked exists beside it.
+    /// </param>
+    public SKBitmap Get(
+        Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0,
+        SKBitmap? backdrop = null)
     {
+        // Dropped rather than returned uncached: every caller treats what comes
+        // back as pixels the cache owns and none of them dispose it, so handing
+        // out an unowned bitmap here would leak one per repaint. Invalidating
+        // first guarantees the miss, and the entry is then owned and evicted
+        // like any other.
+        if (SamplesLive(frame)) Invalidate(frame.Id);
         var key = KeyOf(frame, width, height, outputScale, celIndex);
         if (_map.TryGetValue(key, out var node))
         {
@@ -75,12 +91,7 @@ public sealed class FrameBitmapCache : IDisposable
             return node.Value.Bmp;
         }
 
-        var bmp = frame switch
-        {
-            PaintedFrame p => FrameRasterizer.Materialize(p, width, height, outputScale, celIndex),
-            VectorFrame v => FrameRasterizer.Rasterize(v.Strokes, width, height, outputScale),
-            _ => throw new InvalidOperationException($"Unknown frame type {frame.GetType().Name}"),
-        };
+        var bmp = Render(frame, width, height, outputScale, celIndex, backdrop);
         var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp));
         _map[key] = newNode;
         CachedBytes += BytesOf(bmp);
@@ -88,6 +99,20 @@ public sealed class FrameBitmapCache : IDisposable
         Evict();
         return bmp;
     }
+
+    /// <summary>Whether anything on this frame reads the layers beneath it, live.</summary>
+    private static bool SamplesLive(Frame frame) =>
+        frame is PaintedFrame p
+        && p.Strokes.Any(s => s.Brush.SampleSource == SampleSource.AllLayersLive);
+
+    private static SKBitmap Render(
+        Frame frame, int width, int height, double outputScale, int celIndex, SKBitmap? backdrop) =>
+        frame switch
+        {
+            PaintedFrame p => FrameRasterizer.Materialize(p, width, height, outputScale, celIndex, backdrop),
+            VectorFrame v => FrameRasterizer.Rasterize(v.Strokes, width, height, outputScale),
+            _ => throw new InvalidOperationException($"Unknown frame type {frame.GetType().Name}"),
+        };
 
     /// <summary>
     /// The byte budget wins. It used to be gated behind the frame floor, so at
