@@ -123,7 +123,7 @@ workspace split lands — see "Project architecture" below.
 - [?] Scene management
 - [?] Project conversion (Illustration → Animation → Game) with no artwork recreated
 - [?] Workspace layouts, decoupled from project type
-- [x] Dockable panels `evidence: Docker, Sidebar, SidebarTests`
+- [x] Dockable panels `evidence: DockLayout, DockStrip, DockZones, PanelsLandInTheStripTheLayoutNames, AnEmptyEdgeCollapsesAndAFilledOneOpens`
 - [x] Project browser — characters and their animations `evidence: ProjectViewModel, ProjectRow, TheDockerListsCharactersWithTheirAnimationsUnderThem`
 - [x] Shared palette across a character's animations `evidence: TwoAnimationsUnderOneCharacterPaintFromOnePalette, RefreshProjectResources`
 - [x] Standalone export from inside a project `evidence: ProjectFlattenTests, AFlattenedDocumentRendersIdenticallyWithTheProjectGone`

@@ -818,23 +818,42 @@
       are enforced from code-behind, and overflowing content scrolls inside
       its own docker.
     -->
+    <!--
+      The workspace: four dock strips around the canvas, and a pool the panels
+      are parked in.
+
+      The panels are declared once, here, and never rebuilt. Docking moves the
+      same control instance from one strip to another, which is what lets a
+      panel keep its scroll position, its bindings and a half-typed value
+      across a drag. The layout only ever names panels; it never holds one.
+      See src/Lightbox.App/Docking/DockLayout.cs.
+    -->
     <Grid x:Name="RootGrid">
       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
         <RowDefinition Height="*" MinHeight="220" />
         <RowDefinition Height="Auto" />
-        <RowDefinition Height="280" MinHeight="180" />
+        <RowDefinition Height="280" MinHeight="140" />
       </Grid.RowDefinitions>
 
-      <Grid x:Name="WorkArea" Grid.Row="0">
+      <ScrollViewer x:Name="TopHost" Grid.Row="0" Margin="4,4,4,0"
+                    HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <controls:DockStrip x:Name="TopStrip" />
+      </ScrollViewer>
+      <GridSplitter x:Name="TopSplitter" Grid.Row="1" Height="5" ResizeDirection="Rows" />
+
+      <Grid x:Name="WorkArea" Grid.Row="2">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="76" MinWidth="40" MaxWidth="220" />
           <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="*" MinWidth="240" />
           <ColumnDefinition Width="Auto" />
-          <ColumnDefinition Width="300" MinWidth="240" />
+          <ColumnDefinition Width="300" MinWidth="200" />
         </Grid.ColumnDefinitions>
 
-        <!-- Toolbar: two icon columns; widen for one column, wider still for names -->
         <Border x:Name="Toolbar" Grid.Column="0" Background="#1c1c1c" SizeChanged="OnToolbarSizeChanged">
           <ScrollViewer VerticalScrollBarVisibility="Auto">
             <WrapPanel x:Name="ToolButtons" Margin="3">
@@ -908,7 +927,12 @@
 
         <GridSplitter Grid.Column="1" Width="5" ResizeDirection="Columns" />
 
-        <!-- Canvas + view-tool overlay (zoom/rotate/mirror/pan are view-only) -->
+        <ScrollViewer x:Name="LeftHost" Grid.Column="2" Margin="4,0,0,0"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <controls:DockStrip x:Name="LeftStrip" />
+        </ScrollViewer>
+        <GridSplitter x:Name="LeftSplitter" Grid.Column="3" Width="5" ResizeDirection="Columns" />
+
         <Panel x:Name="CanvasHost" Grid.Column="2">
           <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}" />
           <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
@@ -927,47 +951,30 @@
           </Border>
         </Panel>
 
-        <GridSplitter Grid.Column="3" Width="5" ResizeDirection="Columns"
-                      IsVisible="{Binding SidebarVisible}" />
+        <GridSplitter x:Name="RightSplitter" Grid.Column="5" Width="5" ResizeDirection="Columns" />
+        <ScrollViewer x:Name="RightHost" Grid.Column="6" Margin="0,0,4,0"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <controls:DockStrip x:Name="RightStrip" />
+        </ScrollViewer>
+      </Grid>
 
-        <!-- Closable sidebar of dockers (dock side is switched from code-behind) -->
-        <Border x:Name="Sidebar" Grid.Column="4" Background="#1c1c1c"
-                IsVisible="{Binding SidebarVisible}">
-          <!--
-            The dockers stack and the stack SCROLLS. Starred rows divided the
-            sidebar proportionally, so opening a fifth docker shrank all five
-            until none of them was usable and no splitter could recover it —
-            the whole point of the row is gone once it is 40px tall.
+      <GridSplitter x:Name="BottomSplitter" Grid.Row="3" Height="5" ResizeDirection="Rows" />
+      <ScrollViewer x:Name="BottomHost" Grid.Row="4" Margin="4,0,4,4"
+                    VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Auto">
+        <controls:DockStrip x:Name="BottomStrip" />
+      </ScrollViewer>
 
-            Pixel heights instead, each with a floor it cannot be dragged
-            below, and the stack allowed to grow past the viewport. Scrolling
-            past a docker is fine; being unable to use one is not.
-            See .claude/quality/DESIGN.md.
-          -->
-          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <Grid x:Name="SidebarGrid" Margin="4">
-              <Grid.RowDefinitions>
-                <!-- Project docker. Auto when there is no project, so a
-                     document-first session pays nothing for a container it
-                     never created. -->
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="260" MinHeight="120" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="300" MinHeight="140" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="150" MinHeight="80" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="220" MinHeight="110" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="240" MinHeight="120" />
-              </Grid.RowDefinitions>
-
-            <!-- Project docker: characters and the animations under them. Absent
-                 unless a project exists — the app is document-first, and a
-                 session that never creates one shows no project UI at all. -->
-            <controls:Docker Grid.Row="0" Title="{Binding ProjectDocker.ProjectName}"
-                             MinHeight="150" IsVisible="{Binding HasProject}">
+      <!-- Where panels wait when they are not in a strip: closed, or in flight
+           during a drag. Never shown. -->
+      <Panel x:Name="PanelPool" IsVisible="False">
+        <!-- Project: characters and the animations under them. Absent unless a
+             project exists — the app is document-first, and a session that
+             never creates one shows no project UI at all. The workspace keeps
+             its slot; ApplyDockLayout leaves it out until there is a project. -->
+        <controls:Docker x:Name="ProjectPanel" PanelId="Project"
+                         Title="{Binding ProjectDocker.ProjectName}"
+                         SwitchTargets="{Binding Workspace.ProjectSwitchTargets}"
+                         CloseCommand="{Binding ToggleProjectPanelCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
                   <StackPanel Orientation="Horizontal" Spacing="4">
@@ -1015,11 +1022,9 @@
               </ScrollViewer>
             </controls:Docker>
 
-            <GridSplitter Grid.Row="1" Height="5" ResizeDirection="Rows" IsVisible="{Binding HasProject}" />
-
-            <!-- Layer docker (its ✕ collapses the sidebar to its side; ⇄ switches sides) -->
-            <controls:Docker x:Name="LayersDocker" Grid.Row="2" Title="Layers"
-                             CloseCommand="{Binding ToggleSidebarCommand}">
+        <controls:Docker x:Name="LayersDocker" PanelId="Layers" Title="Layers"
+                         SwitchTargets="{Binding Workspace.LayersSwitchTargets}"
+                         CloseCommand="{Binding ToggleLayersPanelCommand}">
               <controls:Docker.TitleBarExtra>
                 <Button Content="⇄" FontSize="11" Padding="6,2"
                         Command="{Binding SwitchSidebarSideCommand}"
@@ -1189,11 +1194,9 @@
               </ScrollViewer>
             </controls:Docker>
 
-            <GridSplitter Grid.Row="3" Height="5" ResizeDirection="Rows" IsVisible="{Binding ColorDockerVisible}" />
-
-            <!-- Color docker: one color, several representations -->
-            <controls:Docker Grid.Row="4" Title="Color" IsVisible="{Binding ColorDockerVisible}"
-                             CloseCommand="{Binding ToggleColorDockerCommand}">
+        <controls:Docker x:Name="ColorPanel" PanelId="Color" Title="Color"
+                         SwitchTargets="{Binding Workspace.ColorSwitchTargets}"
+                         CloseCommand="{Binding ToggleColorDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
                   <ComboBox ItemsSource="{Binding ColorPicker.ModeChoices}" SelectedItem="{Binding ColorPicker.Mode}"
@@ -1218,14 +1221,26 @@
               <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="8" Spacing="8">
 
-                  <!-- Krita-style wheel: hue ring + value slider -->
-                  <StackPanel Spacing="8" IsVisible="{Binding ColorPicker.IsWheelMode}">
-                    <ColorSpectrum Shape="Ring" Components="HueSaturation" Height="190"
+                  <!--
+                    Krita-style wheel: hue ring plus a value slider beside it.
+
+                    The slider used to sit under the wheel, which meant a wheel
+                    tall enough to be usable pushed it out of the docker: the
+                    one control you reach for on every stroke was the one that
+                    scrolled away. Side by side, the pair is one row, and the
+                    ring shrinks with the docker instead of the slider
+                    disappearing from it.
+                  -->
+                  <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ColorPicker.IsWheelMode}">
+                    <ColorSpectrum Grid.Column="0" Shape="Ring" Components="HueSaturation"
+                                   MinHeight="110" MaxHeight="240"
+                                   Height="{Binding $self.Bounds.Width}"
                                    HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}" />
-                    <ColorSlider ColorModel="Hsva" ColorComponent="Component3"
+                    <ColorSlider Grid.Column="1" Orientation="Vertical" Width="22" Margin="8,0,0,0"
+                                 ColorModel="Hsva" ColorComponent="Component3"
                                  HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}"
                                  ToolTip.Tip="Value (brightness)" />
-                  </StackPanel>
+                  </Grid>
 
                   <!-- HSV sliders -->
                   <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsHsvMode}">
@@ -1325,11 +1340,9 @@
               </ScrollViewer>
             </controls:Docker>
 
-            <GridSplitter Grid.Row="5" Height="5" ResizeDirection="Rows" IsVisible="{Binding SheetsDockerVisible}" />
-
-            <!-- Character sheet docker: reference views of the subject, outside the timeline -->
-            <controls:Docker Grid.Row="6" Title="Character sheets" IsVisible="{Binding SheetsDockerVisible}"
-                             CloseCommand="{Binding ToggleSheetsDockerCommand}">
+        <controls:Docker x:Name="SheetsPanel" PanelId="Sheets" Title="Character sheets"
+                         SwitchTargets="{Binding Workspace.SheetsSwitchTargets}"
+                         CloseCommand="{Binding ToggleSheetsDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
                   <Button Classes="text" Content="＋ Sheet" Click="OnAddReferenceSheet"
@@ -1379,14 +1392,9 @@
               </ScrollViewer>
             </controls:Docker>
 
-            <!-- Palette docker: named colours the art references rather than
-                 copies, so recolouring a swatch recolours every frame and
-                 every layer that used it. -->
-            <GridSplitter Grid.Row="7" Height="5" ResizeDirection="Rows" IsVisible="{Binding PaletteDockerVisible}" />
-
-            <controls:Docker Grid.Row="8" Title="Palette"
-                             IsVisible="{Binding PaletteDockerVisible}"
-                             CloseCommand="{Binding TogglePaletteDockerCommand}">
+        <controls:Docker x:Name="PalettePanel" PanelId="Palette" Title="Palette"
+                         SwitchTargets="{Binding Workspace.PaletteSwitchTargets}"
+                         CloseCommand="{Binding TogglePaletteDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
                   <StackPanel Spacing="4">
@@ -1473,14 +1481,9 @@
               </ScrollViewer>
             </controls:Docker>
 
-            <!-- Gradient docker: the ramp definitions the gradient tool paints.
-                 Like a palette swatch, editing one changes the art already
-                 painted with it. -->
-            <GridSplitter Grid.Row="9" Height="5" ResizeDirection="Rows" IsVisible="{Binding GradientDockerVisible}" />
-
-            <controls:Docker Grid.Row="10" Title="Gradient"
-                             IsVisible="{Binding GradientDockerVisible}"
-                             CloseCommand="{Binding ToggleGradientDockerCommand}">
+        <controls:Docker x:Name="GradientPanel" PanelId="Gradient" Title="Gradient"
+                         SwitchTargets="{Binding Workspace.GradientSwitchTargets}"
+                         CloseCommand="{Binding ToggleGradientDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
                   <StackPanel Spacing="4">
@@ -1570,18 +1573,13 @@
                 </ListBox>
               </ScrollViewer>
             </controls:Docker>
-            </Grid>
-          </ScrollViewer>
-        </Border>
-      </Grid>
 
-      <GridSplitter Grid.Row="3" Height="5" ResizeDirection="Rows"
-                    IsVisible="{Binding ShowTimeline}" />
-
-      <!-- Timeline docker (its ✕ collapses it downward; reopen via View menu; hidden on reference tabs) -->
-      <controls:Docker x:Name="TimelineDocker" Grid.Row="4" Title="Timeline" Margin="4,0,4,4"
-                       IsVisible="{Binding ShowTimeline}"
-                       CloseCommand="{Binding ToggleTimelineCommand}">
+        <!-- The timeline does not move: its row is as long as the animation,
+             so a 300px sidebar is a placement that cannot work. No switcher
+             either, for the same reason. -->
+        <controls:Docker x:Name="TimelineDocker" PanelId="Timeline" Title="Timeline"
+                         ShowSwitcher="False"
+                         CloseCommand="{Binding ToggleTimelineCommand}">
         <controls:Docker.TopBar>
           <Border Classes="dockerBar">
             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -1763,7 +1761,14 @@
           </StackPanel>
         </ScrollViewer>
       </controls:Docker>
+      </Panel>
+
+      <!-- The drop highlight. Last child so it is over everything, and it takes
+           no pointer input at all — an overlay that did would swallow the very
+           moves it exists to follow. -->
+      <controls:DockDropIndicator x:Name="DropIndicator" Grid.RowSpan="5" />
     </Grid>
+
 
   </DockPanel>
 </Window>

@@ -207,6 +207,26 @@ public sealed partial class MainViewModel : ObservableObject
         PaletteDocker.SwatchEditRunEnded += CommitSwatchEdit;
         GradientDocker = new GradientDockerViewModel(OnGradientEdited, PerformGradientEdit);
         ProjectDocker = new ProjectViewModel(NewAnimationDoc, OpenProjectDocument, OnProjectChanged);
+        // HasProject is a forwarding property, so it has no notification of its
+        // own. Without this relay the project panel stays hidden after New or
+        // Open project: the docker's own callback only fires when the docker
+        // edits the project, and adopting one is not an edit.
+        ProjectDocker.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(ProjectViewModel.HasProject)) OnPropertyChanged(nameof(HasProject));
+        };
+        // The forwarding properties above have no backing field to notify from,
+        // so the workspace's notifications are relayed under the names the
+        // View menu and the tests already bind to.
+        Workspace.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is null) return;
+            OnPropertyChanged(e.PropertyName);
+            if (e.PropertyName == nameof(WorkspaceViewModel.TimelineVisible))
+            {
+                OnPropertyChanged(nameof(ShowTimeline));
+            }
+        };
         PaletteRegistry.Reset(Doc.Palettes, Doc.Gradients);
         PaletteDocker.Load(Doc);
         GradientDocker.Load(Doc);
@@ -254,7 +274,6 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Timeline is hidden on reference tabs regardless of the View-menu toggle.</summary>
     public bool ShowTimeline => TimelineVisible && ActiveTab?.Kind != DocumentTabKind.Reference;
 
-    partial void OnTimelineVisibleChanged(bool value) => OnPropertyChanged(nameof(ShowTimeline));
 
     [RelayCommand]
     private void ActivateTab(DocumentTab tab) => ActiveTab = tab;
@@ -728,6 +747,15 @@ public sealed partial class MainViewModel : ObservableObject
     /// opened — the app is document-first and shows no project UI until then.
     /// </summary>
     public ProjectViewModel ProjectDocker { get; }
+
+    /// <summary>
+    /// Which panels are open, where, and how big — the whole workspace.
+    /// </summary>
+    /// <remarks>
+    /// Owned here rather than by the window so a layout survives the window
+    /// being rebuilt, and so the tests can drive it without one.
+    /// </remarks>
+    public WorkspaceViewModel Workspace { get; } = new();
 
     /// <summary>Whether any project UI should exist at all.</summary>
     public bool HasProject => ProjectDocker.HasProject;
@@ -2224,26 +2252,37 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _sidebarVisible = true;
 
-    [ObservableProperty]
-    private bool _colorDockerVisible = true;
+    // Which panels are open is the workspace's business now, not a set of
+    // loose booleans. These stay because the View menu and a good deal of the
+    // test suite already speak them, and forwarding is cheaper than renaming
+    // both — but the layout is the single source of truth underneath.
 
-    [ObservableProperty]
-    private bool _sheetsDockerVisible = true;
+    public bool ColorDockerVisible
+    {
+        get => Workspace.ColorDockerVisible;
+        set => Workspace.ColorDockerVisible = value;
+    }
 
-    /// <summary>
-    /// Off by default. A palette is something an artist sets up deliberately;
-    /// a document with none has an empty docker taking sidebar height it could
-    /// give to the layers.
-    /// </summary>
-    [ObservableProperty]
-    private bool _paletteDockerVisible;
+    public bool SheetsDockerVisible
+    {
+        get => Workspace.SheetsDockerVisible;
+        set => Workspace.SheetsDockerVisible = value;
+    }
+
+    public bool PaletteDockerVisible
+    {
+        get => Workspace.PaletteDockerVisible;
+        set => Workspace.PaletteDockerVisible = value;
+    }
+
+    public bool GradientDockerVisible
+    {
+        get => Workspace.GradientDockerVisible;
+        set => Workspace.GradientDockerVisible = value;
+    }
 
     [RelayCommand]
     private void TogglePaletteDocker() => PaletteDockerVisible = !PaletteDockerVisible;
-
-    /// <summary>Off by default, for the same reason the palette docker is.</summary>
-    [ObservableProperty]
-    private bool _gradientDockerVisible;
 
     [RelayCommand]
     private void ToggleGradientDocker() => GradientDockerVisible = !GradientDockerVisible;
@@ -2254,12 +2293,23 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ToggleSheetsDocker() => SheetsDockerVisible = !SheetsDockerVisible;
 
+    [RelayCommand]
+    private void ToggleProjectPanel() =>
+        Workspace.SetVisible(Docking.DockPanelId.Project, !Workspace.ProjectPanelVisible);
+
+    [RelayCommand]
+    private void ToggleLayersPanel() =>
+        Workspace.SetVisible(Docking.DockPanelId.Layers, !Workspace.LayersPanelVisible);
+
     /// <summary>Which side the docker sidebar collapses to / sits on.</summary>
     [ObservableProperty]
     private bool _sidebarOnRight = true;
 
-    [ObservableProperty]
-    private bool _timelineVisible = true;
+    public bool TimelineVisible
+    {
+        get => Workspace.TimelineVisible;
+        set => Workspace.TimelineVisible = value;
+    }
 
     public ObservableCollection<Layer> LayerChoices { get; } = [];
 

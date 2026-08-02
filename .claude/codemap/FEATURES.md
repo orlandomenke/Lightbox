@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-674 tests, derived from the suite itself. Each line is a
+704 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -172,6 +172,36 @@ regression even when every test still compiles.
 - Catching Up Does Not Dispose The Image The Canvas Is Still Showing — `:151`
 - Every Publish Is ACorrect Full Composite — `:172`
 - Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:215`
+
+## DockLayoutTests
+`tests/Lightbox.App.Tests/DockLayoutTests.cs`
+
+- The Default Layout Opens The Sidebar Panels And ATimeline — `:14`
+- Docking Into AStrip Puts The Panel At The Asked For Position — `:31`
+- Orders Are Always Contiguous From Zero — `:43`
+- Moving The Last Panel Out Of An Area Empties It — `:63`
+- Hiding APanel Keeps Where It Was So Showing It Puts It Back — `:76`
+- Swapping Exchanges Two Panels Positions — `:89`
+- Swapping With AHidden Panel Opens It And Closes The Other — `:107`
+- ASidebar Is Capped By Its Panels But An Uncapped Panel Removes The Ceiling — `:119`
+- The Timeline Is Not Draggable — `:133`
+- ALayout Round Trips Through Json — `:142`
+- ACorrupt Layout Falls Back Rather Than Throwing — `:158`
+
+## DockZoneTests
+`tests/Lightbox.App.Tests/DockZoneTests.cs`
+
+- Near An Empty Edge The Whole Area Is Offered — `:19`
+- Each Edge Is Reachable — `:37`
+- The Middle Of The Canvas Is Not ADrop Target — `:43`
+- The Timeline Cannot Be Dropped — `:51`
+- The Upper Half Of APanel Inserts Above It — `:62`
+- The Lower Half Of APanel Inserts Below It — `:72`
+- The Preview Is ABand At The Boundary So The Neighbour Visibly Makes Room — `:78`
+- Dropping APanel Back Where It Already Is Changes Nothing — `:91`
+- Dragging The Only Panel Of AStrip Over Itself Offers Nothing — `:102`
+- AGap Below AShort Stack Appends To It — `:110`
+- ATop Strip Splits Left To Right Rather Than Top To Bottom — `:126`
 
 ## LayerRowTests
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
@@ -680,6 +710,18 @@ regression even when every test still compiles.
 - Entire Animation Scope Moves Every Layer — `:130`
 - Selection Region Limits The Transform To Strokes Inside It — `:149`
 - Empty Scope Refuses To Start — `:169`
+
+## WorkspaceTests
+`tests/Lightbox.App.Tests/WorkspaceTests.cs`
+
+- Panels Land In The Strip The Layout Names — `:42`
+- Moving APanel Moves The Control — `:54`
+- An Empty Edge Collapses And AFilled One Opens — `:66`
+- Closing APanel Parks It Rather Than Destroying It — `:88`
+- The Header Switcher Trades Two Panels Places — `:107`
+- Every Panel Except The Timeline Offers ASwitcher — `:123`
+- The Project Panel Appears As Soon As There Is AProject — `:144`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:167`
 
 ## CameraTests
 `tests/Lightbox.Core.Tests/CameraTests.cs`

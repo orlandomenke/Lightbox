@@ -115,6 +115,12 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Fix: the paper holds. A background layer gets `Frame = null` on an added frame, so the exposure sheet resolves it back to the one paper drawing — which is what a paper layer means.
   - Found while writing B1's regression test: the ghost was visible in the test only because the paper had gone missing. Cost: S
 
+- [x] **B11** `P2` `ui` The project panel never appears after New or Open project `evidence: TheProjectPanelAppearsAsSoonAsThereIsAProject`
+  - Repro: create or open a project. The project tree is not in the sidebar. Adding a character to it later makes it appear.
+  - Cause: `MainViewModel.HasProject` forwards to `ProjectDocker.HasProject` and so has no notification of its own. The relay it depended on was the docker's *change callback*, which fires when the docker edits the project — and adopting one is not an edit.
+  - Fix: relay `ProjectViewModel.PropertyChanged` for `HasProject` directly.
+  - Reported from a build. Cost: S
+
 - [ ] **B8** `P3` `ui` Timeline context submenu flickers under a pen `evidence: manual`
   - Repro: right-click a timeline cel with a pen and hover "Insert frame". The submenu flickers and will not stay open. A mouse is fine.
   - Cause: not investigated. Pen hover events arrive as a different device with its own enter/leave pattern; the submenu almost certainly closes on a spurious leave.

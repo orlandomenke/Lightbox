@@ -1,9 +1,12 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
+using Lightbox.App.Controls;
+using Lightbox.App.Docking;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Serialization;
@@ -93,23 +96,17 @@ public partial class MainWindow : Window
         Canvas.AddHandler(DragDrop.DragOverEvent, OnCanvasColorDragOver);
         Canvas.AddHandler(DragDrop.DropEvent, OnCanvasColorDrop);
 
-        // Dock geometry (side, collapse, min sizes) is a view concern the VM
-        // only expresses as booleans.
+        // Two things move a panel in or out of a strip without the layout
+        // changing: a project appearing (the project panel is absent until
+        // there is one) and a reference tab taking the focus (the timeline
+        // means nothing on one). Both are answered the same way as everything
+        // else — rebuild from the layout.
         _vm.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName is nameof(MainViewModel.SidebarOnRight)
-                or nameof(MainViewModel.SidebarVisible)
+            if (args.PropertyName is nameof(MainViewModel.HasProject)
                 or nameof(MainViewModel.ShowTimeline))
             {
                 ApplyDockLayout();
-            }
-            if (args.PropertyName is nameof(MainViewModel.ColorDockerVisible)
-                or nameof(MainViewModel.SheetsDockerVisible)
-                or nameof(MainViewModel.PaletteDockerVisible)
-                or nameof(MainViewModel.GradientDockerVisible)
-                or nameof(MainViewModel.HasProject))
-            {
-                ApplySidebarLayout();
             }
             if (args.PropertyName is nameof(MainViewModel.ActiveTool)
                 or nameof(MainViewModel.ActiveSelectVariant))
@@ -117,8 +114,9 @@ public partial class MainWindow : Window
                 SyncCanvasToolMode();
             }
         };
+        _vm.Workspace.Changed += ApplyDockLayout;
+        InitialisePanels();
         ApplyDockLayout();
-        ApplySidebarLayout();
 
         // If canvas input ever fails, say so in the status bar instead of dying silently.
         Canvas.CanvasError += message => _vm.AiStatus = message;
@@ -145,104 +143,316 @@ public partial class MainWindow : Window
         };
     }
 
-    // ---- docker geometry -----------------------------------------------------
-
-    private GridLength _timelineHeight = new(280, GridUnitType.Pixel);
-    private GridLength _sidebarWidth = new(300, GridUnitType.Pixel);
-    private int _sidebarColumn = 4;
+    // ---- the workspace -------------------------------------------------------
 
     /// <summary>
-    /// Keep the grid in step with the VM's docker booleans: collapse rows and
-    /// columns for hidden dockers (remembering their dragged size), and move
-    /// the sidebar between the left and right column.
+    /// Every panel, once. They are created by the XAML into
+    /// <c>PanelPool</c> and moved between strips from there; nothing here ever
+    /// builds a panel, so a panel keeps its scroll position, its bindings and
+    /// any half-typed value across a drag.
+    /// </summary>
+    private readonly Dictionary<DockPanelId, Docker> _panels = [];
+
+    private readonly Dictionary<DockPanelId, FloatingPanelWindow> _floating = [];
+
+    private void InitialisePanels()
+    {
+        foreach (var panel in PanelPool.Children.OfType<Docker>().ToList())
+        {
+            _panels[panel.PanelId] = panel;
+            panel.SwitchTargets ??= WorkspaceViewModel.SwitchTargetsFor(panel.PanelId);
+            panel.SwitchRequested += (from, to) => _vm.Workspace.Swap(from.PanelId, to);
+            panel.PanelDragStarted += BeginPanelDrag;
+        }
+        foreach (var strip in Strips())
+        {
+            strip.Value.Side = strip.Key;
+            strip.Value.ExtentsChanged += () => _vm.Workspace.Touch();
+        }
+    }
+
+    private IEnumerable<KeyValuePair<DockSide, DockStrip>> Strips()
+    {
+        yield return new(DockSide.Left, LeftStrip);
+        yield return new(DockSide.Right, RightStrip);
+        yield return new(DockSide.Top, TopStrip);
+        yield return new(DockSide.Bottom, BottomStrip);
+    }
+
+    /// <summary>
+    /// Rebuild every strip from the layout.
+    ///
+    /// Wholesale rather than incremental on purpose: reparenting seven controls
+    /// costs nothing next to a layout pass, and it means the window never has
+    /// to work out what changed — only what the layout now says. Docking bugs
+    /// that survive this are bugs in the model, which is tested without a
+    /// window at all.
     /// </summary>
     private void ApplyDockLayout()
     {
-        var rows = RootGrid.RowDefinitions;
-        if (rows[2].Height.IsAbsolute && rows[2].Height.Value > 20) _timelineHeight = rows[2].Height;
-        if (_vm.ShowTimeline)
-        {
-            rows[2].MinHeight = 180;
-            rows[2].Height = _timelineHeight;
-        }
-        else
-        {
-            rows[2].MinHeight = 0;
-            rows[2].Height = GridLength.Auto;
-        }
-        // The splitter turns the canvas row absolute while dragging; it must
-        // go back to star or a reopened timeline lands outside the window.
-        rows[0].Height = new GridLength(1, GridUnitType.Star);
+        var layout = _vm.Workspace.Layout;
 
-        // Work-area columns: 0 toolbar, 1 splitter, 2 + 4 canvas/sidebar
-        // (whichever side the sidebar is on), 3 the splitter between them.
-        var cols = WorkArea.ColumnDefinitions;
-        if (cols[_sidebarColumn].Width.IsAbsolute && cols[_sidebarColumn].Width.Value > 20)
-            _sidebarWidth = cols[_sidebarColumn].Width;
-        _sidebarColumn = _vm.SidebarOnRight ? 4 : 2;
-        var canvasColumn = _vm.SidebarOnRight ? 2 : 4;
-        Grid.SetColumn(Sidebar, _sidebarColumn);
-        Grid.SetColumn(CanvasHost, canvasColumn);
-        cols[canvasColumn].Width = new GridLength(1, GridUnitType.Star);
-        cols[canvasColumn].MinWidth = 240;
-        if (_vm.SidebarVisible)
+        foreach (var (side, strip) in Strips())
         {
-            cols[_sidebarColumn].MinWidth = 240;
-            cols[_sidebarColumn].Width = _sidebarWidth;
+            var panels = layout.PanelsIn(side).Where(IsPanelUsable).Select(id => _panels[id]).ToList();
+            foreach (var panel in panels) Detach(panel);
+            strip.Rebuild(panels, layout);
+            // The cap comes from the panels actually shown, not from the ones
+            // the layout lists: a project panel with no project is not in the
+            // strip, so it should not be lifting the strip's ceiling.
+            SizeArea(side, layout, DockPanels.CapOf(panels.Select(p => p.PanelId)), panels.Count > 0);
         }
-        else
+
+        // Anything not in a strip goes back to the pool, or into its own
+        // window. Parking rather than destroying is what makes closing a panel
+        // and reopening it a no-op rather than a reset.
+        foreach (var (id, panel) in _panels)
         {
-            cols[_sidebarColumn].MinWidth = 0;
-            cols[_sidebarColumn].Width = GridLength.Auto;
+            var side = layout.SideOf(id);
+            if (side == DockSide.Floating && IsPanelUsable(id)) ShowFloating(id, panel, layout);
+            else if (panel.Parent is null) Park(panel);
+        }
+        foreach (var id in _floating.Keys.ToList())
+        {
+            if (layout.SideOf(id) != DockSide.Floating || !IsPanelUsable(id)) CloseFloating(id);
         }
     }
 
     /// <summary>
-    /// Collapse and restore the sidebar's closable docker rows, remembering
-    /// the height each was last dragged to.
-    ///
-    /// Heights are in pixels, not stars. Starred rows split the sidebar
-    /// proportionally, so opening a fifth docker shrank all five at once until
-    /// none of them was tall enough to use and no splitter could win the space
-    /// back. Pixel rows keep their size, the stack is allowed to grow past the
-    /// sidebar, and the surrounding ScrollViewer takes the overflow.
+    /// Whether a panel makes sense right now, regardless of where the layout
+    /// puts it: the project tree needs a project, and the timeline means
+    /// nothing on a reference tab.
     /// </summary>
-    private GridLength _projectRowHeight = new(200, GridUnitType.Pixel);
-    private GridLength _colorRowHeight = new(300, GridUnitType.Pixel);
-    private GridLength _sheetsRowHeight = new(150, GridUnitType.Pixel);
-    private GridLength _paletteRowHeight = new(220, GridUnitType.Pixel);
-    private GridLength _gradientRowHeight = new(240, GridUnitType.Pixel);
-
-    private void ApplySidebarLayout()
+    private bool IsPanelUsable(DockPanelId id) => id switch
     {
-        var rows = SidebarGrid.RowDefinitions;
-        // Row 0 is the project docker, which sizes itself and is absent unless
-        // a project exists; rows shift by two from there.
-        ApplyDockerRow(rows[0], _vm.HasProject, 150, ref _projectRowHeight);
-        ApplyDockerRow(rows[4], _vm.ColorDockerVisible, 140, ref _colorRowHeight);
-        ApplyDockerRow(rows[6], _vm.SheetsDockerVisible, 80, ref _sheetsRowHeight);
-        ApplyDockerRow(rows[8], _vm.PaletteDockerVisible, 110, ref _paletteRowHeight);
-        ApplyDockerRow(rows[10], _vm.GradientDockerVisible, 120, ref _gradientRowHeight);
+        DockPanelId.Project => _vm.HasProject,
+        DockPanelId.Timeline => _vm.ShowTimeline,
+        _ => true,
+    };
+
+    private static void Detach(Control child)
+    {
+        switch (child.Parent)
+        {
+            case Panel panel: panel.Children.Remove(child); break;
+            case ContentControl host when ReferenceEquals(host.Content, child): host.Content = null; break;
+            case Decorator d when ReferenceEquals(d.Child, child): d.Child = null; break;
+        }
     }
 
-    /// <param name="minHeight">
-    /// The floor a drag cannot go below — the height at which the docker stops
-    /// being usable rather than merely tight. A hidden docker has no floor, so
-    /// it costs nothing.
-    /// </param>
-    private static void ApplyDockerRow(RowDefinition row, bool visible, double minHeight, ref GridLength saved)
+    private void Park(Docker panel)
     {
-        if (visible)
+        Detach(panel);
+        if (!PanelPool.Children.Contains(panel)) PanelPool.Children.Add(panel);
+    }
+
+    /// <summary>
+    /// Open or collapse an edge. "Optional means absent, not disabled": an area
+    /// with nothing in it takes no width, shows no splitter and costs no
+    /// layout, so a workspace that never uses the left edge looks exactly like
+    /// one that could not have.
+    /// </summary>
+    private void SizeArea(DockSide side, DockLayout layout, double? cap, bool occupied)
+    {
+        var extent = layout.AreaExtents.TryGetValue(side, out var saved) && saved > 40
+            ? saved
+            : side is DockSide.Left or DockSide.Right ? 300 : 280;
+
+        switch (side)
         {
-            row.MinHeight = minHeight;
-            row.Height = saved;
+            case DockSide.Left:
+                Collapse(LeftHost, LeftSplitter, occupied);
+                SizeColumn(WorkArea.ColumnDefinitions[2], occupied, extent, cap);
+                break;
+            case DockSide.Right:
+                Collapse(RightHost, RightSplitter, occupied);
+                SizeColumn(WorkArea.ColumnDefinitions[6], occupied, extent, cap);
+                break;
+            case DockSide.Top:
+                Collapse(TopHost, TopSplitter, occupied);
+                SizeRow(RootGrid.RowDefinitions[0], occupied, extent, cap);
+                break;
+            default:
+                Collapse(BottomHost, BottomSplitter, occupied);
+                SizeRow(RootGrid.RowDefinitions[4], occupied, extent, cap);
+                break;
         }
-        else
+    }
+
+    private static void Collapse(Control host, Control splitter, bool occupied)
+    {
+        host.IsVisible = occupied;
+        splitter.IsVisible = occupied;
+    }
+
+    private static void SizeColumn(ColumnDefinition col, bool occupied, double extent, double? cap)
+    {
+        if (!occupied)
         {
-            if (!row.Height.IsAuto) saved = row.Height;
+            col.MinWidth = 0;
+            col.MaxWidth = double.PositiveInfinity;
+            col.Width = new GridLength(0, GridUnitType.Pixel);
+            return;
+        }
+        col.MinWidth = 180;
+        // A capped strip holds only fixed-size controls, so widening it just
+        // adds whitespace. Uncapped panels — the layer stack, the project tree
+        // — genuinely use the room, and remove the ceiling for the whole strip.
+        col.MaxWidth = cap ?? double.PositiveInfinity;
+        col.Width = new GridLength(cap is { } c ? Math.Min(extent, c) : extent, GridUnitType.Pixel);
+    }
+
+    private static void SizeRow(RowDefinition row, bool occupied, double extent, double? cap)
+    {
+        if (!occupied)
+        {
             row.MinHeight = 0;
-            row.Height = GridLength.Auto;
+            row.MaxHeight = double.PositiveInfinity;
+            row.Height = new GridLength(0, GridUnitType.Pixel);
+            return;
         }
+        row.MinHeight = 120;
+        row.MaxHeight = cap ?? double.PositiveInfinity;
+        row.Height = new GridLength(cap is { } c ? Math.Min(extent, c) : extent, GridUnitType.Pixel);
+    }
+
+    // ---- dragging a panel ----------------------------------------------------
+
+    private Docker? _dragging;
+    private IPointer? _dragPointer;
+
+    /// <summary>
+    /// A header was pulled. From here until the pointer comes up, the window
+    /// owns the gesture: it resolves a drop target on every move, shows it, and
+    /// commits on release.
+    /// </summary>
+    /// <remarks>
+    /// Pointer capture is taken on the <b>window</b>, not the panel, precisely
+    /// because the panel is about to be reparented — capture held by a control
+    /// that is being moved between visual trees does not survive the move, and
+    /// the drag would end halfway through itself.
+    /// </remarks>
+    private void BeginPanelDrag(Docker panel, PointerEventArgs e)
+    {
+        if (_dragging is not null) return;
+        _dragging = panel;
+        _dragPointer = e.Pointer;
+        e.Pointer.Capture(this);
+        AddHandler(PointerMovedEvent, OnPanelDragMoved, RoutingStrategies.Tunnel);
+        AddHandler(PointerReleasedEvent, OnPanelDragReleased, RoutingStrategies.Tunnel);
+        UpdateDropTarget(e);
+    }
+
+    private void OnPanelDragMoved(object? sender, PointerEventArgs e)
+    {
+        if (_dragging is null) return;
+        UpdateDropTarget(e);
+        e.Handled = true;
+    }
+
+    private void OnPanelDragReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_dragging is not { } panel) return;
+        var target = ResolveDrop(e);
+        EndPanelDrag();
+        e.Handled = true;
+
+        if (target is { } drop)
+        {
+            _vm.Workspace.Dock(panel.PanelId, drop.Side, drop.Index);
+            return;
+        }
+        // Let go over nothing: the panel floats. Dropping a panel into empty
+        // space and having it snap back would make tearing one out impossible.
+        var at = e.GetPosition(this);
+        var origin = this.PointToScreen(at);
+        var info = DockPanels.Of(panel.PanelId);
+        _vm.Workspace.Float(
+            panel.PanelId, origin.X - 40, origin.Y - 10,
+            info.MaxExtent ?? 360, Math.Max(240, info.DefaultExtent));
+    }
+
+    private void EndPanelDrag()
+    {
+        RemoveHandler(PointerMovedEvent, OnPanelDragMoved);
+        RemoveHandler(PointerReleasedEvent, OnPanelDragReleased);
+        _dragPointer?.Capture(null);
+        _dragPointer = null;
+        _dragging = null;
+        DropIndicator.Show(null);
+    }
+
+    private void UpdateDropTarget(PointerEventArgs e) => DropIndicator.Show(ResolveDrop(e));
+
+    private DropTarget? ResolveDrop(PointerEventArgs e)
+    {
+        if (_dragging is not { } panel) return null;
+        var at = e.GetPosition(RootGrid);
+        return DockZones.Resolve(
+            at.X, at.Y, RectOf(RootGrid), CurrentSlots(), panel.PanelId, _vm.Workspace.Layout);
+    }
+
+    /// <summary>Where every docked panel currently is, in RootGrid coordinates.</summary>
+    private List<PanelSlot> CurrentSlots()
+    {
+        var slots = new List<PanelSlot>();
+        var layout = _vm.Workspace.Layout;
+        foreach (var (id, panel) in _panels)
+        {
+            var side = layout.SideOf(id);
+            if (side is DockSide.Hidden or DockSide.Floating) continue;
+            Visual visual = panel;
+            // TranslatePoint returns null for a panel that is not in this
+            // window's tree — parked in the pool, or floating — which is
+            // exactly the set that has no slot to report.
+            if (!panel.IsVisible) continue;
+            if (visual.TranslatePoint(default, RootGrid) is not { } origin) continue;
+            slots.Add(new PanelSlot(
+                id, side, layout.Place(id).Order,
+                new DockRect(origin.X, origin.Y, panel.Bounds.Width, panel.Bounds.Height)));
+        }
+        return slots;
+    }
+
+    private static DockRect RectOf(Control c) => new(0, 0, c.Bounds.Width, c.Bounds.Height);
+
+    // ---- floating panels -------------------------------------------------------
+
+    private void ShowFloating(DockPanelId id, Docker panel, DockLayout layout)
+    {
+        if (_floating.TryGetValue(id, out var open))
+        {
+            open.Activate();
+            return;
+        }
+        Detach(panel);
+        var window = new FloatingPanelWindow(panel, layout.Place(id));
+        window.Dismissed += floated =>
+        {
+            // The window's own close button closes the panel. Park it first so
+            // the panel outlives the window that was showing it.
+            if (!_floating.Remove(floated, out var w)) return;
+            Park(w.Release());
+            _vm.Workspace.SetVisible(floated, false);
+        };
+        window.Moved += floated =>
+        {
+            if (!_floating.TryGetValue(floated, out var w)) return;
+            var place = _vm.Workspace.Layout.Place(floated);
+            place.FloatX = w.Position.X;
+            place.FloatY = w.Position.Y;
+            place.FloatWidth = w.Width;
+            place.FloatHeight = w.Height;
+        };
+        _floating[id] = window;
+        window.Show(this);
+    }
+
+    private void CloseFloating(DockPanelId id)
+    {
+        if (!_floating.Remove(id, out var window)) return;
+        Park(window.Release());
+        window.Close();
     }
 
     // Shortcut contexts follow the pointer: the same key can mean different

@@ -1,6 +1,7 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:Lightbox.App.Controls"
+             xmlns:docking="using:Lightbox.App.Docking"
              x:Class="Lightbox.App.App"
              RequestedThemeVariant="Dark">
   <Application.Styles>
@@ -21,17 +22,44 @@
           <Border Background="{TemplateBinding Background}"
                   BorderBrush="#383838" BorderThickness="1" CornerRadius="4">
             <DockPanel>
-              <Border DockPanel.Dock="Top" Background="#1b1b1b" Padding="8,2">
+              <!--
+                The header is both the panel switcher and the drag grip.
+
+                The switcher is Blender's rule: the header names what this slot
+                shows, and picking another panel trades places with it rather
+                than opening a second copy. It renders as the title until you
+                click it, so a header still reads as a title.
+
+                Everything that is not a control in this strip is grip — press
+                and pull to move the panel. The threshold lives in Docker so a
+                click to focus is not a tear-out.
+              -->
+              <Border x:Name="PART_Header" DockPanel.Dock="Top" Background="#1b1b1b" Padding="8,2">
                 <DockPanel>
                   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
                     <ContentPresenter Content="{TemplateBinding TitleBarExtra}" VerticalAlignment="Center" />
                     <Button Content="✕" FontSize="11" Padding="6,2"
                             Command="{TemplateBinding CloseCommand}"
                             IsVisible="{TemplateBinding CloseCommand, Converter={x:Static ObjectConverters.IsNotNull}}"
-                            ToolTip.Tip="Collapse this docker (reopen via the View menu)" />
+                            ToolTip.Tip="Close this panel (reopen via the View menu)" />
                   </StackPanel>
+                  <ComboBox x:Name="PART_Switcher" DockPanel.Dock="Left"
+                            ItemsSource="{TemplateBinding SwitchTargets}"
+                            IsVisible="{TemplateBinding ShowSwitcher}"
+                            PlaceholderText="{TemplateBinding Title}"
+                            MinWidth="0" MinHeight="20" Height="20" FontSize="12" FontWeight="SemiBold"
+                            Background="Transparent" BorderThickness="0" Padding="0,0,2,0"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="Show a different panel here — the two trade places">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="docking:DockPanelInfo">
+                        <TextBlock Text="{Binding Title}" FontWeight="Normal" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
                   <TextBlock Text="{TemplateBinding Title}" FontSize="12" FontWeight="SemiBold"
-                             Opacity="0.9" VerticalAlignment="Center" />
+                             Opacity="0.9" VerticalAlignment="Center"
+                             IsVisible="{Binding !ShowSwitcher, RelativeSource={RelativeSource TemplatedParent}}" />
                 </DockPanel>
               </Border>
               <ContentPresenter DockPanel.Dock="Top" Content="{TemplateBinding TopBar}" />
