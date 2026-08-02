@@ -17,6 +17,7 @@ var calibration = Runner.CalibrationMs();
 Console.WriteLine($"  {calibration:F0} ms for the reference loop\n");
 
 var scenarios = AnimationSweeps.All()
+    .Concat(DrawingSweeps.All())
     .Where(s => filter is null || s.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
                               || s.Dimension.Contains(filter, StringComparison.OrdinalIgnoreCase))
     .ToList();
@@ -32,6 +33,10 @@ foreach (var scenario in scenarios)
         + (curve.Cliff is { } c ? $", cliff at {c}" : ""));
 }
 
+// A filtered run holds only the scenarios asked for. Diffing it against a
+// full baseline would report every other scenario as GONE, which is how
+// somebody investigating one curve gets told nine things broke.
+var Partial = filter is not null;
 var report = Report(curves, calibration);
 if (outPath is not null)
 {
@@ -43,7 +48,7 @@ if (outPath is not null)
     // by the calibration figure. Raw milliseconds from two different machines
     // compare to nothing.
     var json = Path.ChangeExtension(outPath, ".json");
-    File.WriteAllText(json, Json(curves, calibration));
+    File.WriteAllText(json, Json(curves, calibration, Partial));
     Console.WriteLine($"\nWrote {outPath}\n      {json}");
 }
 else
@@ -59,11 +64,12 @@ string? Args(string name)
     return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
 }
 
-static string Json(List<Curve> curves, double calibration)
+static string Json(List<Curve> curves, double calibration, bool partial)
 {
     var sb = new StringBuilder();
     sb.AppendLine("{");
     sb.AppendLine($"  \"calibrationMs\": {calibration:F1},");
+    sb.AppendLine($"  \"partial\": {(partial ? "true" : "false")},");
     sb.AppendLine("  \"scenarios\": [");
     for (var i = 0; i < curves.Count; i++)
     {

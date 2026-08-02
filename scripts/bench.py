@@ -164,9 +164,15 @@ def cmd_check() -> int:
         if pt and ct and ct > pt * TIME_FACTOR:
             findings.append(f"SLOWER   {name} — {ct / pt:.1f}x its calibrated cost")
 
-    for name in old:
-        if name not in new:
-            findings.append(f"GONE     {name} — no longer swept; deleted, or the sweep broke")
+    # A --filter run holds only what was asked for, so absence means "not run"
+    # rather than "gone". Reporting nine GONEs at somebody investigating one
+    # curve is how a check gets ignored.
+    if not now.get("partial"):
+        for name in old:
+            if name not in new:
+                findings.append(f"GONE     {name} — no longer swept; deleted, or the sweep broke")
+    elif len(new) < len(old):
+        print(f"(filtered run — {len(new)} of {len(old)} scenarios; absences not reported)\n")
 
     if not findings:
         print(f"no change worth reporting across {len(new)} scenario(s)")

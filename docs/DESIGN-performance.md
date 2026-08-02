@@ -95,13 +95,39 @@ The list is data, not code, so the vector work adds rows rather than a rewrite.
 | Area | Dimensions |
 | --- | --- |
 | **Animation** *(swept)* | layers, onion depth, strokes per frame, frames per scene, playback, scrubbing |
-| Drawing / painting | canvas area, brush diameter, dabs per stroke, strokes per frame, medium flow steps, tip resolution |
+| **Drawing / painting** *(swept)* | canvas area, brush diameter, dabs per stroke, medium flow steps |
+| Drawing / painting *(later)* | tip resolution, tip-set blending, smudge sample radius |
 | Document | strokes per document, undo depth, clip regions, symbol placements |
 | Vector *(later)* | control points per path, paths per frame, boolean ops, hit-testing |
 
 Animation went first because it had **no coverage at all**: every existing
 budget measures one stroke on one frame, which is drawing. The application's
 unit of work is a sequence, and nothing had ever grown one.
+
+## Two things the first run taught, kept because they will recur
+
+**Group findings by cause, not by symptom.** The first map came back with six
+red rows and they were three problems. A full recomposite costing ~20 ms a
+1080p layer shows up as four separate failures — scrubbing, playback, onion
+depth, layer count — and filing four bugs would have put four people in the
+same blend loop. The ranked table is by symptom because that is what an artist
+feels; the ledger is by cause because that is what somebody fixes.
+
+**The harness will be wrong before the code is.** Four measurements in the
+first sitting were confidently wrong, and each looked like a finding:
+
+| What it said | What it was |
+| --- | --- |
+| compositing one cached layer misses 16 ms | a fresh 1080p surface allocated inside the timed region |
+| a full recomposite blows the frame budget | true, but scored against a budget the app never pays — `ComposeRing` repaints the dirty region |
+| onion skin costs 8000% of budget | its scene sat exactly on the cache ceiling; the curve belonged to eviction |
+| a cliff moved from 8 to 4 | the same measurement, one rung apart on a geometric ladder |
+
+The pattern is the same each time: **the number was real and the attribution
+was not.** So the order of questions when a sweep reports something dramatic is
+*what else is in this measurement*, and only then *what is wrong with the code*.
+The first three are now designed out; the fourth is why `check` needs a factor
+of two before it reports a cliff.
 
 ## What happens to a cliff that moves
 
