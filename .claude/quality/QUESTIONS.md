@@ -92,3 +92,65 @@ re-litigate it:
   but editing or undoing a stroke in the middle now invalidates the *next* N
   as well, and the frame cache and invariant 6 have to know it. Bounded by N
   rather than by the whole history is precisely why (c) was chosen over (b).
+
+---
+
+## Q13 · What counts as the same sheet of paper, for wet paint
+
+**Blocks:** the fluid pass. `docs/DESIGN-fluid-media.md` names it; Q10's answer
+does not settle it.
+
+Q10 gives wet paint a window of N strokes. It does not say what a "stroke
+before this one" means when the drawing changed in between.
+
+- **Frames.** A cel is a separate drawing. Paint frame 1, move to frame 2, and
+  frame 2's first mark almost certainly should not pick up frame 1's wet paint
+  — they are different sheets. But a **held cel** is one drawing exposed at
+  several indices, and scrubbing away and back returns you to paint you did
+  leave wet.
+- **Layers.** Wetness is a property of paper and a layer is not paper. Q6
+  already decided the analogous thing for smudge — `ThisLayer` is the default —
+  and the same reasoning applies.
+- **Generated strokes.** The inbetweener writes strokes into frames nobody was
+  painting on. If those participate in a window, an inbetween's appearance
+  depends on how many strokes the generator happened to emit before it.
+
+- **(a)** *The window is per frame and per layer.* Wet paint never crosses
+  either. Simplest, matches Q6, and makes the replay trivially bounded: the
+  strokes before this one on this layer of this frame.
+- **(b)** *Per frame, across layers.* Closer to a physical sheet, but it makes a
+  layer's render depend on other layers, which is the coupling the frame cache
+  is built to avoid — and Q6 already found that expensive.
+- **(c)** *Per frame and layer, and generated strokes never carry wetness* —
+  (a), plus the inbetweener and the MCP surface always write `WetStrokes = 0`
+  regardless of what the source stroke said.
+
+**Recommend (c).** (a) is right about scope; the extra clause is because an
+inbetween whose look depends on emission order is a determinism problem wearing
+a different hat, and invariant 2's whole point is that generated frames must
+not diverge.
+
+## Q14 · What an eraser does to wet paint
+
+**Blocks:** the fluid pass, and only the fluid pass.
+
+Dragging an eraser through a wet mark is physically a different act from
+erasing a dry one — you push the paint about as much as you remove it. The
+engine has no opinion yet, and three are available:
+
+- **(a)** *An eraser is a stroke like any other.* It spends one of the window's
+  N and removes pigment; moisture goes with the pigment it belonged to. Cheap,
+  and it keeps "a stroke is a stroke" true, which is worth something.
+- **(b)** *An eraser is invisible to the window.* It removes pigment and does
+  not count against N, so wet paint either side of an erase stays wet for the
+  same number of real marks. Matches the intuition that wiping something out is
+  not painting.
+- **(c)** *An eraser smears.* It reads the moisture it passes through and drags
+  it, like a smudge that also subtracts — the physical answer, and the most
+  work by a distance.
+
+**Recommend (a) to start.** It is the one that needs no new machinery, and (c)
+is a brush someone could build later on top of the advection loop rather than
+a property the eraser has to have from the beginning. Worth asking rather than
+assuming, because an artist who erases into a wash and expects it to feather
+will find (a) hard-edged and wrong.

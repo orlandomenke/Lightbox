@@ -6,6 +6,12 @@ future pass on `BrushEngine`, written down so it survives the gap. Recorded
 engine rather than copied wholesale, and where it collides with an invariant
 that is said plainly below.
 
+**Updated 2026-08-02** with the answer to Q10 — wet paint survives for a
+bounded window of strokes — which turns the document's central open question
+into a constraint the rest has to satisfy, and which turns out to cost the
+record nothing. One prediction the original note made has since been tested and
+was wrong; it is kept below rather than quietly removed.
+
 ## The problem it names
 
 Our wet media vary the mark with noise: opacity jitter, scatter, granulation,
@@ -18,8 +24,23 @@ way the brush was travelling. No amount of better noise produces that, because
 the missing thing is the coupling, not the variety.
 
 Symptom, in our own terms: a soft-round wash reads as a tube of circles with
-speckle on it. Related to bug **B/M16b** (stamping arcs), which is the same
-absence seen from a different angle.
+speckle on it.
+
+> **A prediction this document made, and got wrong.** The original note tied
+> this to bug **M16b** (stamping arcs) as "the same absence seen from a
+> different angle". It was not. M16b was measured and fixed on 2026-08-02 and
+> the cause was chord error — the dab walk followed the straight lines between
+> recorded pen samples, putting the path up to 6 px inside a curve the artist
+> drew, with a facet wider than the brush on the outside of every bend. It had
+> nothing to do with fluid coupling and needed no simulation to fix; the path
+> is a centripetal Catmull–Rom through the recorded points now.
+>
+> Worth keeping rather than deleting, because it narrows what this pass is
+> for. "The marks look like separate stamps" had two causes, and the geometric
+> one was the cheaper and the larger. What is left for fluid coupling is the
+> part that survived the fix: a wash still reads as flat, because the pigment
+> does not know what it landed on. Measure before assuming the remainder is
+> what this document says it is.
 
 ## The shape of the change
 
@@ -48,7 +69,8 @@ Instead of a flat radial falloff, the stamp's alpha curve **peaks just before
 the edge** and then drops. That deposits more pigment and moisture at the rim:
 the watercolour wet edge, rather than a soft digital glow.
 
-Cheapest of the five, and visible on its own. Probably where to start.
+Cheapest of the five, and visible on its own — see *Where to start*, which
+argues for beginning here rather than with (1).
 
 ### 3. Directional advection — the smudge loop
 
@@ -101,7 +123,9 @@ replayed identically from a known start state. Two consequences:
 
 - The state must live in the stroke record or be derivable from it. A moisture
   buffer that persists between strokes and is not saved makes a reload render
-  differently, which is the definition of a broken record.
+  differently, which is the definition of a broken record. **Q10's answer takes
+  the second branch** — see below; the window is bounded, so the state is
+  recomputed from strokes already in the record and nothing new is stored.
 - Every part of the loop must be exactly reproducible in floating point,
   including iteration order. A parallel diffusion step that reduces in
   non-deterministic order would break re-renders and make AI inbetweens
@@ -113,23 +137,119 @@ costs, which is fine; a diffusion pass over the whole canvas per event is not.
 Any cellular-automata or bleed step has to be confined to the stroke's dirty
 region.
 
-**Open question, and it is the real one:** whether wet state crosses strokes.
-Paint that dries between strokes is much easier — the state is per stroke,
-bounded, and disposable. Paint that stays wet so the next stroke can pick it up
-is what artists actually mean by wet media, and it puts simulation state in the
-document. That decision comes before any of the five, and it belongs in
-`QUESTIONS.md` rather than being settled by whoever implements first.
+## Does wet state cross strokes — answered
+
+**Q10, answered 2026-08-02: yes, for a bounded window, and the size of the
+window is a brush setting.** `BrushSettings.WetStrokes`: `0` means the paint is
+dry the moment the pen lifts, `N` means the mark stays wet for the next `N`
+strokes and anything laid within that window can pick it up.
+
+The paint declares its own life, not the brush that arrives later. A stroke
+made with `WetStrokes = 3` stays available for three strokes whatever is
+painted next; a stroke made dry is dry immediately even if the following brush
+is soaking. That is the physical reading and it is what "0 is directly dry"
+means. Strokes with different windows simply expire at different times — there
+is nothing to reconcile.
+
+### Why bounded changes everything
+
+The thing that made this hard was the assumption that persistent wetness means
+persistent *state*, and therefore a moisture buffer in the file. A bounded
+window means it does not:
+
+> **The wet state at stroke *k* is a pure function of strokes *k−N* … *k−1*,
+> and those are already in the record.**
+
+So nothing new is saved, and invariant 1 is untouched. `Doc` gains no buffer,
+the file gains no pixels, and a reload reproduces the painting by doing what it
+already does — replaying strokes in order. Unbounded wetness (option (b)) would
+have needed either the whole history or a stored buffer; that is the whole
+reason (c) beat it, and it is worth restating whenever somebody proposes
+"just keep the buffer".
+
+Default `0` keeps every existing document byte-identical, and every existing
+render bit-identical. Absent by default, the camera's rule again.
+
+### What it does cost
+
+Three things, all of them bounded, none of them free:
+
+**A full frame render is free.** `Materialize` already replays every stroke in
+order from an empty surface, so the moisture channel simply rides along. This
+is the case that needs no new thinking at all.
+
+**The incremental append is where the work is.** `FrameRasterizer.Append`
+stamps one new stroke onto the cached RGBA bitmap — and RGBA does not carry
+moisture, so a wet stroke cannot be appended from it. Two ways out, and the
+choice wants a measured spike rather than an argument:
+
+- Keep a moisture channel beside the cached frame, bounded to the region the
+  last `N` strokes touched, and append against that.
+- Keep nothing, and replay the last `N` strokes into a scratch buffer to
+  reconstruct the moisture before appending.
+
+The first costs memory that scales with the wet region, the second costs time
+that scales with `N` and with those strokes' size. `N` is small in practice —
+an artist working wet-into-wet means two or three strokes, not forty — which is
+what makes either affordable and is also the argument for capping `N` low.
+
+**An edit invalidates forward, by `N`.** Change or undo stroke *j* and the
+renders of *j* … *j+N* are stale, not just *j*. Bounded and predictable, which
+is exactly what (b) could not promise — there, an edit anywhere invalidated
+everything after it. The frame cache and the scoped-edit path both have to know
+this before any of the five pieces below ship.
+
+### Still open, and worth deciding before the spike
+
+Two things the answer does not settle. Both are in `QUESTIONS.md`.
+
+- **What counts as the same sheet of paper** (Q13) — whether the window
+  crosses frames and layers. A cel is a separate drawing and a layer is not
+  paper, so the likely answer is "neither", but a held cel and the inbetweener
+  both complicate it.
+- **What a non-painting stroke does to wet paint** (Q14) — an eraser dragged
+  through a wet mark is a physically different act from erasing a dry one, and
+  it is not obvious whether it should spend a stroke of the window, remove the
+  moisture, or be ignored by it.
+
+## Where to start
+
+Not with the channels, despite (1) being what the other four depend on.
+
+**Start with (2), the wet edge**, because it is the only one of the five that
+is visible on its own, needs no buffer, no window and no new state, and can be
+measured against the existing budgets in an afternoon. If a peaked alpha curve
+does not make a wash read better, that is worth knowing before building three
+buffers to find out.
+
+**Then (5), velocity-dependent deposition**, for the same reason: the stroke
+already carries the timestamps, spacing already varies, and what is missing is
+one coupling. Dry-brush tearing that comes from drawing fast is a real gain and
+it does not touch the record.
+
+Only then (1), and with it (3) and (4), which are the ones that need the
+channels and the wet window and the invalidation rule. That is the expensive
+half and it should be entered deliberately, with the two open questions
+answered and a spike behind it.
 
 ## Not decided here
 
-Order of work, whether this is a new medium alongside the existing ones or a
-replacement for them, the buffer format, and whether (4) belongs in the brush
-engine or the compositor. All of it wants a measured spike against the charter's
-budgets before anything is promised.
+Whether this is a new medium alongside the existing ones or a replacement for
+them; the buffer format; whether (4) belongs in the brush engine or the
+compositor; and how to hold the moisture channel for the incremental append —
+buffer beside the cache, or replay the last `N`. There is also a cap on `N` to
+choose, and the argument for a low one is above rather than measured.
+
+All of it wants a spike against the charter's budgets before anything is
+promised. **G7 in particular**: three of the five pieces add per-dab or
+per-region work to the paint path, and every serious stall this project has had
+was in a path with no budget covering it. A budget for the wet path goes in
+with the first piece that touches it, not after.
 
 ## Source
 
 A working note from the user, 2026-08-02, on moving from noise to physics for
 paint and ink. Read it as a brief that has been checked, not as a specification:
-the five pieces and their reasoning are theirs, the invariant analysis and the
-open question above are this repository's.
+the five pieces and their reasoning are theirs; the invariant analysis, the Q10
+consequences, the order of work and the two remaining questions are this
+repository's.
