@@ -45,7 +45,33 @@ public class DockStrip : Grid
 
         // An area with nothing in it collapses rather than leaving a gutter.
         IsVisible = panels.Count > 0;
-        if (panels.Count == 0) return;
+        if (panels.Count == 0)
+        {
+            MinWidth = 0;
+            MinHeight = 0;
+            return;
+        }
+
+        // The strip is inside a ScrollViewer, and a starred row inside one
+        // takes the VIEWPORT's height rather than the content's. Left alone
+        // that turns overflow into clipping: four panels asking for 900px in a
+        // 330px sidebar produced two visible panels and two flattened to
+        // nothing, with no scrollbar, because the star row had swallowed the
+        // whole viewport before the pixel rows were measured.
+        //
+        // Asking for the sum as a minimum makes the strip taller than the
+        // viewport when it has to be, so every panel keeps its size and the
+        // ScrollViewer does its job. When there is room to spare the star row
+        // still absorbs it.
+        var wanted = 0.0;
+        for (var i = 0; i < panels.Count; i++)
+        {
+            if (i > 0) wanted += SplitterSize;
+            var e = layout.Place(panels[i].PanelId).Extent;
+            wanted += e > 0 ? e : DockPanels.Of(panels[i].PanelId).DefaultExtent;
+        }
+        if (Vertical) { MinHeight = wanted; MinWidth = 0; }
+        else { MinWidth = wanted; MinHeight = 0; }
 
         for (var i = 0; i < panels.Count; i++)
         {

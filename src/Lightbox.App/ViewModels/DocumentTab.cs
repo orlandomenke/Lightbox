@@ -5,6 +5,17 @@ using Lightbox.Core.Timeline;
 namespace Lightbox.App.ViewModels;
 
 /// <summary>Settings collected by the File → New dialog.</summary>
+/// <param name="ProjectType">
+/// What kind of work this is for, or null for <b>None</b> — a single file with
+/// no project structure at all. Null is the honest default: the app is
+/// document-first, and a picture that never becomes a project must not be made
+/// to carry one. The type is used to offer that type's workspace, and is
+/// recorded on the project when one is created.
+/// </param>
+/// <param name="Workspace">
+/// What to do with the panel arrangement. Defaults to keeping whatever is on
+/// screen, because the common case is making another document while working.
+/// </param>
 public sealed record NewDocumentSettings(
     string Name,
     int Width,
@@ -12,7 +23,19 @@ public sealed record NewDocumentSettings(
     int Fps,
     int Ppi,
     string BackgroundColor,
-    bool TransparentBackground);
+    bool TransparentBackground,
+    Lightbox.Core.Projects.ProjectType? ProjectType = null,
+    WorkspaceChoice Workspace = WorkspaceChoice.Keep);
+
+/// <summary>What a New should do to the panels.</summary>
+public enum WorkspaceChoice
+{
+    /// <summary>Leave the arrangement alone.</summary>
+    Keep,
+
+    /// <summary>Switch to the built-in workspace for the chosen project type.</summary>
+    ProjectDefaults,
+}
 
 public enum DocumentTabKind
 {

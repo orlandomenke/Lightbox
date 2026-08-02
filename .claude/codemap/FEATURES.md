@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-704 tests, derived from the suite itself. Each line is a
+718 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -710,6 +710,24 @@ regression even when every test still compiles.
 - Entire Animation Scope Moves Every Layer — `:130`
 - Selection Region Limits The Transform To Strokes Inside It — `:149`
 - Empty Scope Refuses To Start — `:169`
+
+## WorkspaceStoreTests
+`tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
+
+- Every Project Type Has ABuilt In Workspace — `:15`
+- The Built Ins Differ From Each Other — `:30`
+- Saving Under ANew Name Adds AWorkspace And Selects It — `:43`
+- Saving Over Your Own Workspace Replaces It — `:56`
+- Saving Over ABuilt In Forks It Instead — `:71`
+- Only Your Own Workspaces Can Be Deleted — `:87`
+- Deleting The Selected Workspace Selects Another — `:98`
+- AStore Round Trips And Gains Built Ins It Predates — `:110`
+- ACorrupt Store Falls Back Rather Than Throwing — `:128`
+- Applying AWorkspace Replaces The Layout And Clears The Star — `:138`
+- Reset Goes Back To What The Workspace Says — `:153`
+- Taking AProject Types Defaults Switches Workspace — `:167`
+- Only Saved Workspaces Offer ABin — `:180`
+- The Label Marks AWorkspace The User Has Since Rearranged — `:191`
 
 ## WorkspaceTests
 `tests/Lightbox.App.Tests/WorkspaceTests.cs`

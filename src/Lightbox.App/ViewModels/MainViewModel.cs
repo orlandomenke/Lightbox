@@ -323,6 +323,13 @@ public sealed partial class MainViewModel : ObservableObject
             // selecting it would make the very first stroke bounce.
             SavedLayerIndex = FirstPaintableLayer(doc),
         });
+        // The kind of work chosen at creation is a reason to offer that kind's
+        // panels — offered, not imposed, which is why it is a choice on the
+        // dialog and defaults to leaving the arrangement alone.
+        if (settings.Workspace == WorkspaceChoice.ProjectDefaults)
+        {
+            Workspace.UseDefaultFor(settings.ProjectType);
+        }
     }
 
     // ---- project commands ---------------------------------------------------
@@ -335,9 +342,13 @@ public sealed partial class MainViewModel : ObservableObject
     /// drawing, and the container should form around that work instead of
     /// asking them to recreate it somewhere else.
     /// </summary>
-    public void NewProject(string root, string name)
+    public void NewProject(
+        string root, string name,
+        ProjectType? type = null,
+        WorkspaceChoice workspace = WorkspaceChoice.Keep)
     {
         var project = ProjectIo.Create(name, root);
+        project.Manifest.Type = type;
         var character = ProjectIo.AddCharacter(project, name);
 
         if (SaveTargetTab is { } tab)
@@ -352,6 +363,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         ProjectDocker.Adopt(project);
         SaveProject(everything: true);
+        if (workspace == WorkspaceChoice.ProjectDefaults) Workspace.UseDefaultFor(type);
         AiStatus = $"Created project “{name}”.";
     }
 

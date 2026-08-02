@@ -316,10 +316,105 @@ public partial class MainWindow : Window
         row.Height = new GridLength(cap is { } c ? Math.Min(extent, c) : extent, GridUnitType.Pixel);
     }
 
+    /// <summary>
+    /// A one-field modal. Returns null when the user cancels — which is not
+    /// the same as an empty string, and the callers rely on the difference.
+    /// </summary>
+    private async Task<string?> PromptForText(string title, string label, string initial)
+    {
+        var box = new TextBox { Text = initial, PlaceholderText = label };
+        string? answer = null;
+
+        var dialog = new Window
+        {
+            Title = title,
+            Width = 320,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        var ok = new Button { Content = "Save", IsDefault = true, MinWidth = 72 };
+        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 72 };
+        ok.Click += (_, _) =>
+        {
+            answer = box.Text ?? "";
+            dialog.Close();
+        };
+        cancel.Click += (_, _) => dialog.Close();
+
+        dialog.Content = new StackPanel
+        {
+            Margin = new Avalonia.Thickness(14),
+            Spacing = 10,
+            Children =
+            {
+                new TextBlock { Text = label, Opacity = 0.8 },
+                box,
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    Spacing = 6,
+                    Children = { cancel, ok },
+                },
+            },
+        };
+        box.Focus();
+        await dialog.ShowDialog(this);
+        return answer;
+    }
+
+    // ---- workspace commands ----------------------------------------------------
+
+    private void OnSaveWorkspace(object? sender, RoutedEventArgs e)
+    {
+        _vm.Workspace.SaveCurrent();
+        _vm.AiStatus = $"Saved workspace “{_vm.Workspace.SelectedName}”.";
+    }
+
+    private async void OnSaveWorkspaceAs(object? sender, RoutedEventArgs e)
+    {
+        if (await PromptForText("Save workspace", "Name", _vm.Workspace.SelectedName) is not { } name) return;
+        _vm.Workspace.SaveAs(name);
+        _vm.AiStatus = $"Saved workspace “{_vm.Workspace.SelectedName}”.";
+    }
+
+    private void OnResetWorkspace(object? sender, RoutedEventArgs e)
+    {
+        _vm.Workspace.Reset();
+        _vm.AiStatus = $"Reset to “{_vm.Workspace.SelectedName}”.";
+    }
+
+    private void OnWorkspacePicked(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not ComboBox picker || picker.SelectedItem is not WorkspaceRow row) return;
+        // Back to the placeholder — which shows the current workspace's name —
+        // because the list is a set of verbs, not a bound value. Leaving a
+        // selection in it would go stale the moment anything is rearranged.
+        picker.SelectedItem = null;
+        _vm.Workspace.Apply(row.Name);
+    }
+
+    private void OnDeleteWorkspace(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.Tag is not string name) return;
+        // The bin is inside the row, so the click would also pick the row.
+        e.Handled = true;
+        _vm.Workspace.Delete(name);
+        WorkspacePicker.SelectedItem = null;
+        WorkspacePicker.IsDropDownOpen = false;
+    }
+
     // ---- dragging a panel ----------------------------------------------------
 
     private Docker? _dragging;
     private IPointer? _dragPointer;
+
+    /// <summary>
+    /// The window the drag's pointer events arrive in — this one for a docked
+    /// panel, the floating window for one being dragged back.
+    /// </summary>
+    private Window? _dragHost;
 
     /// <summary>
     /// A header was pulled. From here until the pointer comes up, the window
@@ -336,10 +431,15 @@ public partial class MainWindow : Window
     {
         if (_dragging is not null) return;
         _dragging = panel;
+        // A floating panel lives in its own window, so its pointer events never
+        // reach this one. Capture where the panel actually is and translate to
+        // main-window coordinates through the screen — that is what makes a
+        // torn-out panel dockable again instead of stranded.
+        _dragHost = _floating.Values.FirstOrDefault(w => w.PanelId == panel.PanelId) ?? (Window)this;
         _dragPointer = e.Pointer;
-        e.Pointer.Capture(this);
-        AddHandler(PointerMovedEvent, OnPanelDragMoved, RoutingStrategies.Tunnel);
-        AddHandler(PointerReleasedEvent, OnPanelDragReleased, RoutingStrategies.Tunnel);
+        e.Pointer.Capture(_dragHost);
+        _dragHost.AddHandler(PointerMovedEvent, OnPanelDragMoved, RoutingStrategies.Tunnel);
+        _dragHost.AddHandler(PointerReleasedEvent, OnPanelDragReleased, RoutingStrategies.Tunnel);
         UpdateDropTarget(e);
     }
 
@@ -354,6 +454,10 @@ public partial class MainWindow : Window
     {
         if (_dragging is not { } panel) return;
         var target = ResolveDrop(e);
+        // Where the pointer is, in screen space, read before the drag state is
+        // torn down — the float fallback below needs it.
+        Visual hostVisual = _dragHost ?? this;
+        var origin = hostVisual.PointToScreen(e.GetPosition((Visual)(_dragHost ?? this)));
         EndPanelDrag();
         e.Handled = true;
 
@@ -364,8 +468,6 @@ public partial class MainWindow : Window
         }
         // Let go over nothing: the panel floats. Dropping a panel into empty
         // space and having it snap back would make tearing one out impossible.
-        var at = e.GetPosition(this);
-        var origin = this.PointToScreen(at);
         var info = DockPanels.Of(panel.PanelId);
         _vm.Workspace.Float(
             panel.PanelId, origin.X - 40, origin.Y - 10,
@@ -374,10 +476,14 @@ public partial class MainWindow : Window
 
     private void EndPanelDrag()
     {
-        RemoveHandler(PointerMovedEvent, OnPanelDragMoved);
-        RemoveHandler(PointerReleasedEvent, OnPanelDragReleased);
+        if (_dragHost is { } host)
+        {
+            host.RemoveHandler(PointerMovedEvent, OnPanelDragMoved);
+            host.RemoveHandler(PointerReleasedEvent, OnPanelDragReleased);
+        }
         _dragPointer?.Capture(null);
         _dragPointer = null;
+        _dragHost = null;
         _dragging = null;
         DropIndicator.Show(null);
     }
@@ -387,9 +493,22 @@ public partial class MainWindow : Window
     private DropTarget? ResolveDrop(PointerEventArgs e)
     {
         if (_dragging is not { } panel) return null;
-        var at = e.GetPosition(RootGrid);
+        if (PointerOverRoot(e) is not { } at) return null;
         return DockZones.Resolve(
             at.X, at.Y, RectOf(RootGrid), CurrentSlots(), panel.PanelId, _vm.Workspace.Layout);
+    }
+
+    /// <summary>
+    /// The pointer in RootGrid coordinates, however far away the window it is
+    /// actually over happens to be. Null when this window is not on screen.
+    /// </summary>
+    private Point? PointerOverRoot(PointerEventArgs e)
+    {
+        if (_dragHost is null || ReferenceEquals(_dragHost, this)) return e.GetPosition(RootGrid);
+        Visual host = _dragHost;
+        var screen = host.PointToScreen(e.GetPosition(_dragHost));
+        Visual root = RootGrid;
+        return root.PointToClient(screen);
     }
 
     /// <summary>Where every docked panel currently is, in RootGrid coordinates.</summary>
@@ -1405,9 +1524,11 @@ public partial class MainWindow : Window
         });
         if (folder.Count == 0 || folder[0].TryGetLocalPath() is not { } parent) return;
 
-        var name = _vm.ActiveTab?.Title is { Length: > 0 } t && !t.StartsWith("Untitled") ? t : "Project";
-        var root = Path.Combine(parent, name + Lightbox.Core.Projects.ProjectIo.Extension);
-        _vm.NewProject(root, name);
+        var suggested = _vm.ActiveTab?.Title is { Length: > 0 } t && !t.StartsWith("Untitled") ? t : "Project";
+        if (await new NewProjectDialog(suggested).ShowDialog<NewProjectSettings?>(this) is not { } settings) return;
+
+        var root = Path.Combine(parent, settings.Name + Lightbox.Core.Projects.ProjectIo.Extension);
+        _vm.NewProject(root, settings.Name, settings.Type, settings.Workspace);
     }
 
     private async void OnOpenProjectClicked(object? sender, RoutedEventArgs e)

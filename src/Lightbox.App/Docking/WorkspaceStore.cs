@@ -1,0 +1,237 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Lightbox.Core.Projects;
+
+namespace Lightbox.App.Docking;
+
+/// <summary>One named workspace: a layout and what to call it.</summary>
+/// <param name="BuiltIn">
+/// A workspace that ships with the app. It can be selected and edited, but
+/// not deleted — deleting the last workspace would leave nothing to fall back
+/// to, and "reset" needs something to reset *to*.
+/// </param>
+public sealed class Workspace
+{
+    public string Name { get; set; } = "Workspace";
+
+    public bool BuiltIn { get; set; }
+
+    /// <summary>
+    /// The project type this workspace is the default for, or null for a
+    /// plain named one. Only ever set on built-ins.
+    /// </summary>
+    public ProjectType? DefaultFor { get; set; }
+
+    public DockLayout Layout { get; set; } = DockLayout.Default();
+
+    public Workspace Clone() => new()
+    {
+        Name = Name,
+        BuiltIn = BuiltIn,
+        DefaultFor = DefaultFor,
+        Layout = Layout.Clone(),
+    };
+}
+
+/// <summary>
+/// Every workspace the user has, and the one they are in.
+/// </summary>
+/// <remarks>
+/// Workspaces are <b>global</b>, never stored in a project. A layout is a
+/// property of the person, not of the artwork: the same artist wants the same
+/// panels in the same places whichever character they opened, and a workspace
+/// travelling inside a project file would mean opening someone else's file
+/// rearranges your screen.
+///
+/// Project type still matters, but only as a starting point: each type has a
+/// built-in workspace, and creating a project of that type is a moment where
+/// taking those defaults is a reasonable offer. Taking it is the user's
+/// choice, made at that moment, not something the project remembers.
+/// </remarks>
+public sealed class WorkspaceStore
+{
+    public List<Workspace> Workspaces { get; set; } = [];
+
+    /// <summary>The workspace currently applied, by name.</summary>
+    public string Current { get; set; } = "";
+
+    public Workspace? Find(string name) =>
+        Workspaces.FirstOrDefault(w => string.Equals(w.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The built-in workspace for a project type, or the general one.</summary>
+    public Workspace DefaultFor(ProjectType? type) =>
+        Workspaces.FirstOrDefault(w => w.BuiltIn && w.DefaultFor == type)
+        ?? Workspaces.FirstOrDefault(w => w.BuiltIn && w.DefaultFor is null)
+        ?? Workspaces.First();
+
+    /// <summary>
+    /// Store a layout under a name, replacing a user workspace of that name.
+    /// A built-in is never overwritten — <see cref="DefaultFor"/> has to keep
+    /// meaning something for reset to work — so saving over one forks it.
+    /// </summary>
+    public Workspace Save(string name, DockLayout layout)
+    {
+        name = name.Trim();
+        if (name.Length == 0) name = "Workspace";
+        if (Find(name) is { BuiltIn: false } existing)
+        {
+            existing.Layout = layout.Clone();
+            Current = existing.Name;
+            return existing;
+        }
+        if (Find(name) is { BuiltIn: true }) name = Unique(name + " (edited)");
+        var saved = new Workspace { Name = name, Layout = layout.Clone() };
+        Workspaces.Add(saved);
+        Current = saved.Name;
+        return saved;
+    }
+
+    private string Unique(string wanted)
+    {
+        if (Find(wanted) is null) return wanted;
+        for (var n = 2; ; n++)
+        {
+            var candidate = $"{wanted} {n}";
+            if (Find(candidate) is null) return candidate;
+        }
+    }
+
+    /// <summary>Remove a user workspace. Built-ins refuse; so does the last one.</summary>
+    public bool Delete(string name)
+    {
+        if (Find(name) is not { BuiltIn: false } target) return false;
+        if (Workspaces.Count <= 1) return false;
+        Workspaces.Remove(target);
+        if (string.Equals(Current, name, StringComparison.OrdinalIgnoreCase))
+        {
+            Current = Workspaces[0].Name;
+        }
+        return true;
+    }
+
+    // ---- the built-ins -------------------------------------------------------
+
+    /// <summary>
+    /// The workspaces that ship with the app: one per project type, and a
+    /// general one for a document that belongs to no project.
+    /// </summary>
+    /// <remarks>
+    /// Each is the panels that type of work actually needs. An illustration has
+    /// no timeline and wants the palette; a storyboard wants the timeline and
+    /// nothing else; game art wants the layer stack and the palette because a
+    /// sprite is made of both. These are starting points, not rules — every one
+    /// of them is editable, and the point of saving your own is that you
+    /// disagreed.
+    /// </remarks>
+    public static WorkspaceStore Default()
+    {
+        var store = new WorkspaceStore();
+        store.Workspaces.Add(new Workspace
+        {
+            Name = "Default",
+            BuiltIn = true,
+            Layout = DockLayout.Default(),
+        });
+        store.Workspaces.Add(Built("Illustration", ProjectType.Illustration,
+            right: [DockPanelId.Layers, DockPanelId.Color, DockPanelId.Palette],
+            bottom: []));
+        store.Workspaces.Add(Built("Animation", ProjectType.Animation,
+            right: [DockPanelId.Project, DockPanelId.Layers, DockPanelId.Color],
+            bottom: [DockPanelId.Timeline]));
+        store.Workspaces.Add(Built("Game art", ProjectType.GameArt,
+            right: [DockPanelId.Project, DockPanelId.Layers, DockPanelId.Palette],
+            bottom: [DockPanelId.Timeline]));
+        store.Workspaces.Add(Built("Storyboard", ProjectType.Storyboard,
+            right: [DockPanelId.Project, DockPanelId.Sheets],
+            bottom: [DockPanelId.Timeline]));
+        store.Workspaces.Add(Built("Comic", ProjectType.Comic,
+            right: [DockPanelId.Project, DockPanelId.Layers, DockPanelId.Color, DockPanelId.Sheets],
+            bottom: []));
+        store.Workspaces.Add(Built("Asset library", ProjectType.AssetLibrary,
+            right: [DockPanelId.Project, DockPanelId.Palette],
+            bottom: []));
+        store.Current = "Default";
+        return store;
+    }
+
+    private static Workspace Built(
+        string name, ProjectType type, DockPanelId[] right, DockPanelId[] bottom)
+    {
+        var layout = new DockLayout();
+        for (var i = 0; i < right.Length; i++) layout.Dock(right[i], DockSide.Right, i);
+        for (var i = 0; i < bottom.Length; i++) layout.Dock(bottom[i], DockSide.Bottom, i);
+        layout.AreaExtents[DockSide.Right] = 300;
+        layout.AreaExtents[DockSide.Bottom] = 280;
+        return new Workspace { Name = name, BuiltIn = true, DefaultFor = type, Layout = layout };
+    }
+
+    // ---- persistence ---------------------------------------------------------
+
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() },
+    };
+
+    public static string Path { get; set; } = System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "Lightbox", "workspaces.json");
+
+    public string Serialize() => JsonSerializer.Serialize(this, Json);
+
+    /// <summary>
+    /// Read the saved workspaces, adding any built-in the file predates.
+    /// A store written before a project type existed must not leave that type
+    /// without a default.
+    /// </summary>
+    public static WorkspaceStore Deserialize(string json)
+    {
+        WorkspaceStore? store;
+        try
+        {
+            store = JsonSerializer.Deserialize<WorkspaceStore>(json, Json);
+        }
+        catch (JsonException)
+        {
+            store = null;
+        }
+        if (store is null || store.Workspaces.Count == 0) return Default();
+
+        foreach (var builtIn in Default().Workspaces)
+        {
+            if (store.Find(builtIn.Name) is null) store.Workspaces.Add(builtIn);
+        }
+        if (store.Find(store.Current) is null) store.Current = store.Workspaces[0].Name;
+        return store;
+    }
+
+    public static WorkspaceStore Load()
+    {
+        try
+        {
+            return File.Exists(Path) ? Deserialize(File.ReadAllText(Path)) : Default();
+        }
+        catch (IOException)
+        {
+            return Default();
+        }
+    }
+
+    /// <summary>
+    /// Write the store. Failures are swallowed: losing a panel arrangement is
+    /// an annoyance, and it must never be the reason a save or a close fails.
+    /// </summary>
+    public void Save()
+    {
+        try
+        {
+            Lightbox.Core.Serialization.DocJson.WriteAtomic(Path, Serialize());
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+}

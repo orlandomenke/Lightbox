@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lightbox.App.Docking;
@@ -18,9 +19,26 @@ namespace Lightbox.App.ViewModels;
 /// </remarks>
 public sealed partial class WorkspaceViewModel : ObservableObject
 {
-    private DockLayout _layout = DockLayout.Default();
+    private readonly WorkspaceStore _store;
+
+    private DockLayout _layout;
+
+    public WorkspaceViewModel() : this(WorkspaceStore.Load())
+    {
+    }
+
+    /// <summary>Test seam: a store that is not the user's own file.</summary>
+    public WorkspaceViewModel(WorkspaceStore store)
+    {
+        _store = store;
+        _layout = (store.Find(store.Current) ?? store.Workspaces[0]).Layout.Clone();
+        SelectedName = store.Current;
+        RefreshChoices();
+    }
 
     public DockLayout Layout => _layout;
+
+    public WorkspaceStore Store => _store;
 
     /// <summary>The layout changed and the view should re-lay-out.</summary>
     public event Action? Changed;
@@ -38,10 +56,14 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         Raise();
     }
 
+    /// <summary>Persist the arrangement on screen into the selected workspace's slot.</summary>
+    public void Persist() => _store.Save();
+
     /// <summary>Note a change made directly on <see cref="Layout"/> — a splitter drag.</summary>
     public void Touch()
     {
         IsDirty = true;
+        OnPropertyChanged(nameof(CurrentLabel));
         Changed?.Invoke();
     }
 
@@ -49,6 +71,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(Layout));
         foreach (var info in DockPanels.All) OnPropertyChanged(VisibilityNameOf(info.Id));
+        RefreshChoices();
         Changed?.Invoke();
     }
 
@@ -156,6 +179,97 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     /// <summary>The header switcher: two panels trade places.</summary>
     public void Swap(DockPanelId a, DockPanelId b) => Mutate(l => l.Swap(a, b));
 
+    // ---- named workspaces ----------------------------------------------------
+
+    /// <summary>
+    /// The picker's rows. Rebuilt rather than mutated, because a workspace's
+    /// name is its identity and a rename is a different row.
+    /// </summary>
+    public ObservableCollection<WorkspaceRow> WorkspaceChoices { get; } = [];
+
+    /// <summary>The name of the workspace showing now, or a saved one's name.</summary>
+    public string SelectedName { get; private set; } = "";
+
+    /// <summary>
+    /// The picker's label. A workspace the user has since rearranged is marked,
+    /// because "Animation" on screen next to a layout that is not Animation's
+    /// is the one thing a picker must not claim.
+    /// </summary>
+    public string CurrentLabel => IsDirty ? SelectedName + " *" : SelectedName;
+
+    private void RefreshChoices()
+    {
+        WorkspaceChoices.Clear();
+        foreach (var workspace in _store.Workspaces)
+        {
+            WorkspaceChoices.Add(new WorkspaceRow(
+                workspace.Name,
+                workspace.BuiltIn,
+                string.Equals(workspace.Name, SelectedName, StringComparison.OrdinalIgnoreCase)));
+        }
+        OnPropertyChanged(nameof(WorkspaceChoices));
+        OnPropertyChanged(nameof(CurrentLabel));
+    }
+
+    /// <summary>Apply a saved workspace by name.</summary>
+    [RelayCommand]
+    public void Apply(string name)
+    {
+        if (_store.Find(name) is not { } workspace) return;
+        _store.Current = workspace.Name;
+        SelectedName = workspace.Name;
+        Replace(workspace.Layout.Clone());
+        _store.Save();
+    }
+
+    /// <summary>Store the arrangement on screen under a name.</summary>
+    [RelayCommand]
+    public void SaveAs(string name)
+    {
+        var saved = _store.Save(name, _layout);
+        SelectedName = saved.Name;
+        IsDirty = false;
+        _store.Save();
+        RefreshChoices();
+    }
+
+    /// <summary>Update the workspace showing now, in place.</summary>
+    [RelayCommand]
+    public void SaveCurrent() => SaveAs(SelectedName);
+
+    /// <summary>
+    /// Throw away the changes and go back to what the selected workspace says.
+    /// A built-in resets to how it shipped, because a built-in is never
+    /// overwritten in the first place.
+    /// </summary>
+    [RelayCommand]
+    public void Reset() => Apply(SelectedName);
+
+    /// <summary>Delete a saved workspace. Built-ins and the last one refuse.</summary>
+    [RelayCommand]
+    public void Delete(string name)
+    {
+        if (!_store.Delete(name)) return;
+        if (string.Equals(SelectedName, name, StringComparison.OrdinalIgnoreCase))
+        {
+            Apply(_store.Current);
+        }
+        _store.Save();
+        RefreshChoices();
+    }
+
+    /// <summary>
+    /// Take the built-in workspace for a project type — the offer made when a
+    /// project of that type is created.
+    /// </summary>
+    public void UseDefaultFor(Lightbox.Core.Projects.ProjectType? type)
+    {
+        var workspace = _store.DefaultFor(type);
+        SelectedName = workspace.Name;
+        _store.Current = workspace.Name;
+        Replace(workspace.Layout.Clone());
+    }
+
     /// <summary>What a panel's header offers: everything except itself.</summary>
     public static IReadOnlyList<DockPanelInfo> SwitchTargetsFor(DockPanelId id) =>
         DockPanels.All.Where(p => p.Id != id && p.Movable).ToList();
@@ -173,4 +287,18 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     public IReadOnlyList<DockPanelInfo> PaletteSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Palette);
 
     public IReadOnlyList<DockPanelInfo> GradientSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Gradient);
+}
+
+/// <summary>
+/// One row of the workspace picker.
+/// </summary>
+/// <param name="CanDelete">
+/// Only a saved workspace offers a bin. A built-in is what reset falls back
+/// to, so deleting one would take the fallback with it.
+/// </param>
+public sealed record WorkspaceRow(string Name, bool BuiltIn, bool IsCurrent)
+{
+    public bool CanDelete => !BuiltIn;
+
+    public override string ToString() => Name;
 }

@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using Lightbox.App.Docking;
 
 namespace Lightbox.App.Controls;
@@ -156,10 +158,25 @@ public class Docker : ContentControl
     internal void HeaderPressed(PointerPressedEventArgs e)
     {
         if (!DockPanels.Of(PanelId).Movable) return;
-        // A press that landed on the switcher or the close button belongs to
-        // them. Only bare header chrome is grip.
-        if (e.Source is not (Border or TextBlock)) return;
+        // A press that landed on a control in the header belongs to that
+        // control. Only bare chrome is grip.
+        //
+        // Checking the source's type is not enough: a ComboBox's template is
+        // made of Borders, so a press on the switcher looked exactly like a
+        // press on the header, and the drag it started captured the pointer
+        // and killed the popup before it could be clicked. Walk up instead,
+        // and stop at anything interactive.
+        if (LandedOnAControl(e.Source as Visual)) return;
         _pressed = e.GetPosition(this);
+    }
+
+    private bool LandedOnAControl(Visual? source)
+    {
+        for (var node = source; node is not null && !ReferenceEquals(node, this); node = node.GetVisualParent())
+        {
+            if (node is Button or ComboBox or ToggleButton or TextBox or Slider or CheckBox) return true;
+        }
+        return false;
     }
 
     internal void HeaderMoved(PointerEventArgs e)

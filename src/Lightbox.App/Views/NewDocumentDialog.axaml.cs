@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Lightbox.App.ViewModels;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.App.Views;
 
@@ -15,6 +16,37 @@ public partial class NewDocumentDialog : Window
     {
         public override string ToString() => Label;
     }
+
+    /// <summary>
+    /// The seven-way picker. <c>None</c> is a real answer, not an absence of
+    /// one — it is what makes File → New still mean "one drawing".
+    /// </summary>
+    private sealed record TypeChoice(string Label, ProjectType? Type)
+    {
+        public override string ToString() => Label;
+    }
+
+    private static readonly TypeChoice[] Types =
+    [
+        new("None — a single file", null),
+        new("Illustration", ProjectType.Illustration),
+        new("Animation", ProjectType.Animation),
+        new("Game art", ProjectType.GameArt),
+        new("Storyboard", ProjectType.Storyboard),
+        new("Comic", ProjectType.Comic),
+        new("Asset library", ProjectType.AssetLibrary),
+    ];
+
+    private sealed record PanelChoice(string Label, WorkspaceChoice Choice)
+    {
+        public override string ToString() => Label;
+    }
+
+    private static readonly PanelChoice[] PanelChoices =
+    [
+        new("Keep the current arrangement", WorkspaceChoice.Keep),
+        new("Use this type's defaults", WorkspaceChoice.ProjectDefaults),
+    ];
 
     private static readonly Preset[] Presets =
     [
@@ -32,6 +64,10 @@ public partial class NewDocumentDialog : Window
         InitializeComponent();
         PresetBox.ItemsSource = Presets;
         PresetBox.SelectedIndex = 3; // Full HD default
+        TypeBox.ItemsSource = Types;
+        TypeBox.SelectedIndex = 0;   // None
+        WorkspaceBox.ItemsSource = PanelChoices;
+        WorkspaceBox.SelectedIndex = 0;
     }
 
     private void OnPresetChanged(object? sender, SelectionChangedEventArgs e)
@@ -39,6 +75,13 @@ public partial class NewDocumentDialog : Window
         if (PresetBox.SelectedItem is not Preset { Width: > 0 } preset) return;
         WidthBox.Value = preset.Width;
         HeightBox.Value = preset.Height;
+    }
+
+    private void OnTypeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        // Nothing to offer for None: there is no type whose defaults to take,
+        // and an option that cannot change anything is worse than no option.
+        WorkspaceRow.IsVisible = TypeBox.SelectedItem is TypeChoice { Type: not null };
     }
 
     private void OnCreateClicked(object? sender, RoutedEventArgs e)
@@ -54,7 +97,11 @@ public partial class NewDocumentDialog : Window
             (int)(FpsBox.Value ?? 12),
             (int)(PpiBox.Value ?? 72),
             background,
-            TransparentBox.IsChecked == true));
+            TransparentBox.IsChecked == true,
+            (TypeBox.SelectedItem as TypeChoice)?.Type,
+            WorkspaceRow.IsVisible && WorkspaceBox.SelectedItem is PanelChoice choice
+                ? choice.Choice
+                : WorkspaceChoice.Keep));
     }
 
     private void OnCancelClicked(object? sender, RoutedEventArgs e) => Close(null);

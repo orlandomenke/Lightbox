@@ -126,17 +126,67 @@
       <MenuItem Header="_View">
         <!-- MenuItem.IsChecked binds one-way by default: without Mode=TwoWay the
              click only flips the checkmark locally and the docker never reopens. -->
-        <MenuItem Header="Sidebar" ToggleType="CheckBox" IsChecked="{Binding SidebarVisible, Mode=TwoWay}" />
+        <MenuItem Header="Project" ToggleType="CheckBox" IsChecked="{Binding Workspace.ProjectPanelVisible, Mode=TwoWay}" />
+        <MenuItem Header="Layers" ToggleType="CheckBox" IsChecked="{Binding Workspace.LayersPanelVisible, Mode=TwoWay}" />
         <MenuItem Header="Timeline" ToggleType="CheckBox" IsChecked="{Binding TimelineVisible, Mode=TwoWay}" />
         <MenuItem Header="Color" ToggleType="CheckBox" IsChecked="{Binding ColorDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Palette" ToggleType="CheckBox" IsChecked="{Binding PaletteDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Character sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
+        <Separator />
+        <!-- Workspaces are global, never stored in a project: a layout is a
+             property of the person, not of the artwork. Opening someone
+             else's file must not rearrange your screen. -->
+        <MenuItem Header="_Workspace">
+          <MenuItem Header="Save current workspace" Click="OnSaveWorkspace"
+                    ToolTip.Tip="Update the selected workspace with the arrangement on screen" />
+          <MenuItem Header="Save as new workspace…" Click="OnSaveWorkspaceAs" />
+          <MenuItem Header="Reset to saved" Click="OnResetWorkspace"
+                    ToolTip.Tip="Discard the changes and go back to what this workspace says" />
+        </MenuItem>
       </MenuItem>
     </Menu>
 
     <!-- Dynamic tool options bar: contents depend on the selected tool -->
     <Border DockPanel.Dock="Top" Padding="8,6" Background="#1f1f1f">
+      <DockPanel>
+
+        <!--
+          Workspace picker, pinned to the right.
+
+          Here rather than buried in a menu because switching workspaces is a
+          thing you do between tasks, several times a session, and a menu two
+          levels deep is where a feature goes to be forgotten. Saved
+          workspaces carry a bin; the built-ins do not, because a built-in is
+          what "reset" falls back to and deleting one would take the fallback
+          with it.
+        -->
+        <ComboBox x:Name="WorkspacePicker" DockPanel.Dock="Right"
+                  ItemsSource="{Binding Workspace.WorkspaceChoices}"
+                  PlaceholderText="{Binding Workspace.CurrentLabel}"
+                  SelectionChanged="OnWorkspacePicked"
+                  MinWidth="150" VerticalAlignment="Center"
+                  ToolTip.Tip="Switch workspace — panel arrangements, saved globally">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:WorkspaceRow">
+              <DockPanel MinWidth="150">
+                <Button DockPanel.Dock="Right" Classes="icon" Content="🗑" FontSize="11"
+                        Background="Transparent" BorderThickness="0"
+                        IsVisible="{Binding CanDelete}"
+                        Click="OnDeleteWorkspace" Tag="{Binding Name}"
+                        ToolTip.Tip="Delete this workspace" />
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+              </DockPanel>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
+      <!--
+        The tool options scroll rather than push. A brush row is wide, and
+        without this the DockPanel gives it everything and crushes the
+        workspace picker beside it into a sliver.
+      -->
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
       <StackPanel Orientation="Horizontal" Spacing="14">
 
         <!-- Transform session (Ctrl+T): shown above whatever tool was active -->
@@ -733,6 +783,8 @@
           <TextBlock Text="Shift adds · Alt subtracts" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
         </StackPanel>
       </StackPanel>
+      </ScrollViewer>
+      </DockPanel>
     </Border>
 
     <!-- AI bar -->

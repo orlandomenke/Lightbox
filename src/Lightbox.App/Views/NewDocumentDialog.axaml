@@ -13,6 +13,24 @@
       <TextBox x:Name="NameBox" Text="Untitled" />
     </DockPanel>
 
+    <!--
+      What kind of work this is. "None" is first and is the default: the app is
+      document-first, and a picture that never becomes a project must not be
+      made to carry one. Everything below it only decides which panels you get
+      and, if a project is created later, what type it is recorded as.
+    -->
+    <DockPanel>
+      <TextBlock Text="For" Width="110" VerticalAlignment="Center" />
+      <ComboBox x:Name="TypeBox" SelectionChanged="OnTypeChanged" HorizontalAlignment="Stretch"
+                ToolTip.Tip="None makes a single file with no project structure" />
+    </DockPanel>
+
+    <DockPanel x:Name="WorkspaceRow" IsVisible="False">
+      <TextBlock Text="Panels" Width="110" VerticalAlignment="Center" />
+      <ComboBox x:Name="WorkspaceBox" HorizontalAlignment="Stretch"
+                ToolTip.Tip="Keep the arrangement you are working in, or take this type's defaults" />
+    </DockPanel>
+
     <DockPanel>
       <TextBlock Text="Preset" Width="110" VerticalAlignment="Center" />
       <ComboBox x:Name="PresetBox" SelectionChanged="OnPresetChanged" HorizontalAlignment="Stretch" />
