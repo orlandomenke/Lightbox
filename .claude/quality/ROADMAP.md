@@ -201,8 +201,22 @@ Dragging a tile onto the canvas drops it where the pointer is; Place is the
 keyboard route and puts it in the middle. The staleness report and its
 Acknowledge live in the panel's footer, absent when there is nothing to say.
 
-Still open, and deliberately: symbols containing symbols, and the three items
-below that were never in this cut.
+The dependency graph closes the pillar. It answers "where is this placed?"
+across every document in the project — which is the one question the folder
+layout is arranged to avoid asking, so it is an explicit action and never runs
+to refresh a panel. It is what makes deleting a symbol a decision: placements
+are still left alone on purpose, because a delete that quietly edited forty
+animations is worse than one that leaves marks that stop drawing and say so,
+but that is only defensible now the artist is told how many there are. Scope is
+symbol → document; symbol → symbol edges do not exist while nesting is refused,
+and the note saying the graph "needs nesting first" was true only of the half
+nobody was asking for.
+
+Still open, and deliberately: symbols containing symbols. The two items below
+are **not** unstarted — they are undecided, and the decision is in
+`QUESTIONS.md` as Q11 and Q12. The short of it: the Animation library already
+ships the reusable animation (a cycle symbol placed with a frame offset), so
+whatever "reusable animation presets" meant, it was not that.
 
 - [x] Shared symbols — the record (design S1–S2) `evidence: Symbol, SymbolPlacement, SymbolRegistry, SymbolRasterizer, SymbolRecordTests, SymbolRenderTests`
 - [x] Linked assets — edit once, update everywhere (S6) `evidence: OpenSymbol, EditingASymbolChangesEveryPlacementOfIt, AnEditBumpsTheVersion`
@@ -219,9 +233,9 @@ below that were never in this cut.
 - [x] FX library (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
 - [x] Reusable backgrounds (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
 - [x] Animation library (S5) `evidence: SymbolKind, ACycleOpensWithACelPerFrame, AnOffsetPlacementRunsTheSameCycleOutOfStep`
-- [?] Dependency graph — out of the first cut, needs nesting first
-- [?] Reusable animation presets — out of the first cut
-- [?] Animation templates — out of the first cut
+- [x] Dependency graph — where a symbol is placed, project-wide `evidence: SymbolGraph, SymbolUsage, SymbolUse, SymbolGraphTests, ASymbolKnowsHowManyPlacementsItHasAndWhere, APlacementLeftBehindByADeleteIsStillReported`
+- [?] Reusable animation presets — **undecided, see Q11.** Recommend striking it: the Animation library is the reusable animation. What is genuinely absent is a *timing* preset — a saved exposure pattern applied to a range of cels — which no symbol can express
+- [?] Animation templates — **undecided, see Q12.** Recommend a document in the project marked as a template, rather than a built-in list nobody can add to
 
 ## Pillar 4 — Animation-aware drawing tools
 

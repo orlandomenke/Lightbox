@@ -1801,6 +1801,9 @@
                     <Button Content="Place" Command="{Binding PlaceSelectedCommand}"
                             IsEnabled="{Binding SymbolBrowser.Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
                             ToolTip.Tip="Put the selected symbol on this drawing" />
+                    <Button Content="Usage" Click="OnSymbolUsage"
+                            IsEnabled="{Binding SymbolBrowser.Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            ToolTip.Tip="Count where this symbol is placed — reads every document in the project" />
                     <Button Classes="icon" Content="🗑" Click="OnDeleteSymbol"
                             IsEnabled="{Binding SymbolBrowser.Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
                             ToolTip.Tip="Delete the symbol from the project" />

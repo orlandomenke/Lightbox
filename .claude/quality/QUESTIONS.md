@@ -157,3 +157,59 @@ is transparent, whether or not a background layer exists.
 
 The ring shows maximum size while hovering and tracks live pressure while the
 pen is down. Live tracking is a setting, defaulting **on**.
+
+---
+
+## Q11 · What a "reusable animation preset" would be that a cycle symbol is not
+
+**Blocks:** the last `[?]` but one in Pillar 3.
+
+The pillar lists *Reusable animation presets* and *Animation templates* as
+separate from the Animation library — but the Animation library shipped, and
+what it delivers is a multi-frame symbol placed with a frame offset, which is
+already a reusable animation. Two placements of one cycle run the same drawings
+out of step. Whatever these two items are for, it is not that.
+
+The reading that survives is that they are about **timing rather than
+drawings** — the part of frame-by-frame work that a symbol does not carry:
+
+- **(a)** *Strike it.* The Animation library is the reusable animation, and
+  these two lines are a pre-implementation guess that the design outgrew. A
+  roadmap that keeps items nothing can distinguish from shipped ones is the
+  wish list this file's checkbox rules exist to prevent.
+- **(b)** *A timing preset* — a saved exposure pattern (on 1s, on 2s, a
+  slow-in of 1-1-2-3-4) applied to a selected range of cels, re-exposing the
+  drawings that are already there. This is a real animator's tool, it is
+  genuinely absent, and it is nothing a symbol can express, because a symbol
+  carries drawings and this carries their spacing.
+- **(c)** *A motion preset* — keyframed placement transforms, so a symbol can
+  be told to arc across the frame over twelve cels. This is the largest of the
+  three and it needs a decision about whether placements become animatable at
+  all, which is a pillar-4 question wearing a pillar-3 hat.
+
+**Recommend (b), and strike the other line as (a).** One item, specified:
+*"Timing presets — save an exposure pattern and apply it to a range of cels."*
+It is the only one of the three that is both absent and unambiguous.
+
+## Q12 · Whether an animation template is a document or a project type
+
+**Blocks:** the last `[?]` in Pillar 3.
+
+*Animation templates* — starting a new animation from a skeleton rather than an
+empty document — is real and absent. What is undecided is where it lives, and
+the app already has two mechanisms that overlap it: `NewDocumentSettings`
+(size, fps, frame count) and project types (which decide the workspace).
+
+- **(a)** *A document in the project marked as a template.* Copy it, rename it,
+  start drawing. Costs nothing new — a template is an ordinary animation with a
+  flag — and an artist can make one out of work they have already done, which
+  is where real templates come from.
+- **(b)** *A built-in list* (walk cycle 8 on 2s, run cycle 6, blink 4, take 12).
+  Better on day one, worthless on day two: every studio times its own walk
+  differently, and a list nobody can add to becomes a list nobody uses.
+- **(c)** *Both* — built-ins that are seeded as project documents on first use,
+  so they are editable from the moment they appear.
+
+**Recommend (a).** It is the smallest thing that is not a guess about how other
+people animate, and (c) is (a) plus a starter pack, which can be added later
+without changing the mechanism.

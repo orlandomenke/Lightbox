@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1332 tests, derived from the suite itself. Each line is a
+1341 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1629,6 +1629,19 @@ regression even when every test still compiles.
 - AClone Keeps Everything Else Too — `:42`
 - AClone Is ANew Stroke With Its Own Points — `:58`
 - ADuplicated Cel Still Paints From The Same Swatch — `:70`
+
+## SymbolGraphTests
+`tests/Lightbox.Core.Tests/SymbolGraphTests.cs`
+
+- ASymbol Knows How Many Placements It Has And Where — `:75`
+- ASymbol Nothing Places Says So Rather Than Going Missing — `:92`
+- APlacement Left Behind By ADelete Is Still Reported — `:106`
+- AHeld Cel Is One Placement Not One Per Exposure — `:122`
+- Placements On Every Layer Are Counted — `:140`
+- Two Symbols Are Counted Apart — `:153`
+- ADocument That Cannot Be Read Is Skipped Rather Than Fatal — `:168`
+- AVariants Own Art Is Counted As Its Own Document — `:182`
+- Of Is The Same Answer For One Symbol — `:209`
 
 ## SymbolRecordTests
 `tests/Lightbox.Core.Tests/SymbolRecordTests.cs`

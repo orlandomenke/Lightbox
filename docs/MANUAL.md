@@ -1011,9 +1011,16 @@ hundred placements to old copies of it.
 
 ### Deleting, and exporting
 
+**Usage** counts where the selected symbol is placed — how many placements, in
+how many documents — across the whole project. It is a button rather than
+something the panel keeps up to date, because answering it means reading every
+animation in the project, and a character with forty of them should open by
+reading one file rather than forty.
+
 Deleting a symbol leaves any placements of it alone; they simply stop drawing,
-and the app reports them. That is deliberate — a delete that quietly edited
-forty animations is not one anybody could risk.
+and the app tells you how many were left behind. That is deliberate — a delete
+that quietly edited forty animations is not one anybody could risk. Press
+**Usage** first if you want to know before rather than after.
 
 **Export document…** writes a standalone file that carries the symbols it uses,
 so an exported animation renders identically somewhere else.

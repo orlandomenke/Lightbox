@@ -612,6 +612,19 @@ public partial class MainWindow : Window
         if (_vm.SymbolBrowser.Selected is { } row) _vm.DeleteSymbol(row.Model);
     }
 
+    /// <summary>
+    /// Report where the selected symbol is placed.
+    /// </summary>
+    /// <remarks>
+    /// A button rather than something the panel shows automatically: the count
+    /// comes from reading every document in the project, which is exactly what
+    /// the folder layout exists to avoid doing on its own.
+    /// </remarks>
+    private void OnSymbolUsage(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.SymbolBrowser.Selected is { } row) _vm.AiStatus = _vm.DescribeUsage(row.Model);
+    }
+
     private void OnAcknowledgeStale(object? sender, RoutedEventArgs e)
     {
         var count = _vm.AcknowledgeOutdatedPlacements();

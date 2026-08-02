@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.Input;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Projects;
 using Lightbox.Core.Timeline;
 using Lightbox.Raster;
 using SkiaSharp;
@@ -103,23 +104,57 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>
+    /// Where a symbol is placed, across every document in the project.
+    /// </summary>
+    /// <remarks>
+    /// Reads every document in the project, which is the one thing the folder
+    /// layout exists to avoid doing — so it is called when the artist asks a
+    /// question that needs the answer, and never to keep a panel up to date.
+    /// </remarks>
+    public SymbolUsage UsageOf(Symbol symbol) =>
+        ProjectDocker.Project is { } project
+            ? SymbolGraph.Of(project, symbol.Id)
+            : new SymbolUsage(symbol.Id, []);
+
+    /// <summary>A sentence naming what a symbol is holding up, for the panel and the delete prompt.</summary>
+    public string DescribeUsage(Symbol symbol)
+    {
+        var usage = UsageOf(symbol);
+        if (usage.IsUnused) return $"“{symbol.Name}” is not placed anywhere.";
+        var docs = usage.Documents.Count;
+        var places = usage.Total == 1 ? "1 placement" : $"{usage.Total} placements";
+        var where = docs == 1
+            ? $"“{usage.Documents[0].Document.Name}”"
+            : $"{docs} documents";
+        return $"“{symbol.Name}”: {places} in {where}.";
+    }
+
+    /// <summary>
     /// Delete a symbol from the project.
     /// </summary>
     /// <remarks>
-    /// Placements of it are <b>left alone</b>, and stop rendering. Deleting
-    /// them would mean walking every document in the project — including the
-    /// ones not loaded — and a delete that quietly edited forty animations is
-    /// not a delete anybody could risk. An unresolved placement draws nothing
-    /// and is reported, which is the recoverable failure of the two.
+    /// Placements of it are <b>left alone</b>, and stop rendering — a delete
+    /// that quietly edited forty animations is not one anybody could risk, and
+    /// an unresolved placement draws nothing and is reported, which is the
+    /// recoverable failure of the two.
+    /// <para>
+    /// What has changed is that the count is now known. The caller is expected
+    /// to have shown <see cref="DescribeUsage"/> first: leaving placements
+    /// behind is only defensible if the artist was told how many there were,
+    /// and until the dependency graph existed nothing could count them.
+    /// </para>
     /// </remarks>
     public bool DeleteSymbol(Symbol symbol)
     {
         if (ProjectDocker.Project is not { } project) return false;
+        var stranded = SymbolGraph.Of(project, symbol.Id).Total;
         if (!project.Symbols.Remove(symbol.Id)) return false;
         SymbolRegistry.Reset(project.Symbols);
         SymbolBrowser.Refresh();
         if (PaintTarget() is { } frame) AfterPlacementChange(frame.Id);
-        AiStatus = $"Deleted “{symbol.Name}”. Anything still placing it now draws nothing.";
+        AiStatus = stranded == 0
+            ? $"Deleted “{symbol.Name}”. Nothing was placing it."
+            : $"Deleted “{symbol.Name}”. {stranded} placement{(stranded == 1 ? "" : "s")} of it now draw nothing.";
         return true;
     }
 
