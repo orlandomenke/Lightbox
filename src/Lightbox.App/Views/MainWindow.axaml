@@ -157,6 +157,24 @@
                   ToolTip.Tip="The start screen. Escape on it always drops through to a blank document." />
       </MenuItem>
       <MenuItem Header="_View">
+        <!--
+          Guides are document data, like the camera, so they live under View
+          next to the other things you turn on rather than in a panel that
+          would cost a strip to everybody who never places one.
+        -->
+        <MenuItem Header="Guides">
+          <MenuItem Header="Add horizontal ruler" Click="OnAddHorizontalGuide" />
+          <MenuItem Header="Add vertical ruler" Click="OnAddVerticalGuide" />
+          <MenuItem Header="Add grid" Click="OnAddGridGuide" />
+          <MenuItem Header="Add isometric guide" Click="OnAddIsometricGuide" />
+          <MenuItem Header="Add vanishing point" Click="OnAddVanishingPoint"
+                    ToolTip.Tip="One is one-point perspective, two is two-point, three is three" />
+          <Separator />
+          <MenuItem Header="Snap to guides" ToggleType="CheckBox"
+                    IsChecked="{Binding SnapToGuides, Mode=TwoWay}" />
+          <MenuItem Header="Clear all guides" Command="{Binding ClearGuidesCommand}" />
+        </MenuItem>
+        <Separator />
         <!-- MenuItem.IsChecked binds one-way by default: without Mode=TwoWay the
              click only flips the checkmark locally and the docker never reopens. -->
         <MenuItem Header="Project" ToggleType="CheckBox" IsChecked="{Binding Workspace.ProjectPanelVisible, Mode=TwoWay}" />
@@ -483,6 +501,27 @@
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Opacity the gradient tool lays the ramp down at" />
           </StackPanel>
+        </StackPanel>
+
+        <!-- Shape options -->
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsShapeTool}">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Shape" VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding ShapeChoices}" SelectedItem="{Binding ActiveShape}"
+                      Width="110" VerticalAlignment="Center"
+                      ToolTip.Tip="Shift squares it, Alt grows it from the centre" />
+          </StackPanel>
+          <!-- Only a polygon has a side count, and a disabled field is one
+               more thing to read past on every other shape. -->
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                      IsVisible="{Binding IsPolygonShape}">
+            <TextBlock Text="Sides" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding PolygonSides}" Minimum="3" Maximum="64" Increment="1"
+                           FormatString="0" Classes="value" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Text="Drawn with the current brush" FontSize="11" Opacity="0.55"
+                     VerticalAlignment="Center"
+                     ToolTip.Tip="A shape is a stroke, so it takes the brush you have loaded — and erases and re-renders like any other mark" />
         </StackPanel>
 
         <!-- Full brush parameters (brush + eraser) -->
@@ -1177,6 +1216,14 @@
                   <TextBlock Text="Gradient" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsShapeTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Shape}"
+                            ToolTip.Tip="Shape (U) — drag to draw. Shift squares it, Alt grows it from the centre.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="◻" FontSize="15" />
+                  <TextBlock Text="Shape" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
               <ToggleButton x:Name="SelectToolButton" Classes="tool" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Select}"
                             ToolTip.Tip="Select (S — press again to switch variant; hold for the list)">
@@ -1273,6 +1320,11 @@
                 sheet imported has nothing for this to switch on, and a toggle
                 that cannot change anything is worse than no toggle.
               -->
+              <!-- Absent unless a guide has been placed: nothing to snap to
+                   means nothing to switch. -->
+              <ToggleButton Content="⌗" IsChecked="{Binding SnapToGuides}" Padding="6,2"
+                            IsVisible="{Binding HasGuides}"
+                            ToolTip.Tip="Snap to guides" />
               <ToggleButton Content="⊞" IsChecked="{Binding ReferenceGridEditMode}" Padding="6,2"
                             IsVisible="{Binding HasReferences}"
                             ToolTip.Tip="Edit the reference grid — drag the boxes, drag a corner to resize, right-click for the pivot. Esc leaves." />

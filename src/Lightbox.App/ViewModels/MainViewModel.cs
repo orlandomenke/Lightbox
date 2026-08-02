@@ -3099,6 +3099,18 @@ public sealed partial class MainViewModel : ObservableObject
         // Drawing ends any run of palette edits, so the recolour lands on the
         // undo stack before the stroke does rather than after it.
         CommitSwatchEdit();
+        // A stroke's guide is chosen once, from a direction it has committed
+        // to. The anchor is where that direction is measured from, so it is
+        // the unsnapped start — snapping the anchor first would measure the
+        // heading from a point the hand never visited.
+        _lockedGuide = null;
+        _lockDecided = false;
+        _strokeAnchor = (x, y);
+        if (SnapToGuides && Scene.Guides is { Count: > 0 } startGuides)
+        {
+            (x, y) = Snapper.Point(startGuides, x, y, SnapTolerance);
+            _strokeAnchor = (x, y);
+        }
         _stabilizer.Begin(x, y);
         _strokeBuilder.Begin(
             IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
@@ -3274,6 +3286,163 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Abandon the drag — Escape, or capture lost.</summary>
+    // ---- the shape tool ------------------------------------------------------------
+
+    /// <summary>Which shape the shape tool draws.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPolygonShape))]
+    private ShapeKind _activeShape = ShapeKind.Rectangle;
+
+    /// <summary>Corners, when the shape is a polygon.</summary>
+    [ObservableProperty]
+    private int _polygonSides = 5;
+
+    public bool IsPolygonShape => ActiveShape == ShapeKind.Polygon;
+
+    public IReadOnlyList<ShapeKind> ShapeChoices { get; } =
+        [ShapeKind.Line, ShapeKind.Rectangle, ShapeKind.Ellipse, ShapeKind.Polygon];
+
+    public bool IsShapeTool => ActiveTool == ToolId.Shape;
+
+    private Stroke? _liveShape;
+
+    private (double X, double Y) _shapeStart;
+
+    /// <summary>
+    /// Start a shape.
+    /// </summary>
+    /// <remarks>
+    /// The corners are snapped like any other point, so a rectangle dropped on
+    /// a grid lands on the grid — which is most of why anybody turns a grid on.
+    /// </remarks>
+    public void BeginShape(double x, double y)
+    {
+        if (ActiveTool != ToolId.Shape || IsPlaying) return;
+        if (!CanEdit(ActiveLayer, "draw on it") || PaintTargetOrKey() is null) return;
+        CommitSwatchEdit();
+
+        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
+        {
+            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
+        }
+        _shapeStart = (x, y);
+        _liveShape = new Stroke
+        {
+            Tool = IsEraser ? ToolKind.Eraser : ToolKind.Brush,
+            Color = ColorHex,
+            SwatchId = ActiveSwatchId,
+            Brush = CurrentToolSettings.Clone(),
+            Points = ShapeBuilder.Outline(ActiveShape, x, y, x, y, sides: PolygonSides),
+            AlphaLocked = ActiveLayer.AlphaLocked,
+            Label = ActiveShape.ToString().ToLowerInvariant(),
+        };
+        if (PrepareClipForSelection() is { } clip) _liveShape.ClipId = clip.Id;
+
+        EnsureLiveScratch();
+        RenderShapePreview();
+        PublishSnapshot();
+    }
+
+    /// <param name="fromCentre">Alt: grow from the first corner rather than to it.</param>
+    /// <param name="regular">Shift: a square, a circle, a regular polygon.</param>
+    public void MoveShape(double x, double y, bool fromCentre = false, bool regular = false)
+    {
+        if (_liveShape is not { } stroke) return;
+        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
+        {
+            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
+        }
+        stroke.Points = ShapeBuilder.Outline(
+            ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
+        RenderShapePreview();
+        RequestSnapshot();
+    }
+
+    public void EndShape(double x, double y, bool fromCentre = false, bool regular = false)
+    {
+        if (_liveShape is not { } stroke) return;
+        if (SnapToGuides && Scene.Guides is { Count: > 0 } guides)
+        {
+            (x, y) = Snapper.Point(guides, x, y, SnapTolerance);
+        }
+        stroke.Points = ShapeBuilder.Outline(
+            ActiveShape, _shapeStart.X, _shapeStart.Y, x, y, fromCentre, regular, PolygonSides);
+        CancelShape();
+
+        if (PaintTarget() is not { } target) return;
+        // A click with no drag is not a shape. Committing it would leave a
+        // single dab where the artist expected a rectangle.
+        var dx = x - _shapeStart.X;
+        var dy = y - _shapeStart.Y;
+        if (dx * dx + dy * dy < 1.0)
+        {
+            AiStatus = "Drag to size the shape.";
+            return;
+        }
+
+        var clip = PrepareClipForSelection();
+        if (clip is not null) stroke.ClipId = clip.Value.Id;
+        FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
+
+        var frameId = target.Id;
+        var addedClip = false;
+        _committingScopedEdit = true;
+        try
+        {
+            _editor.PerformDelta(
+                apply: doc =>
+                {
+                    if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
+                    StrokeListIn(doc, frameId)?.Add(stroke);
+                },
+                revert: doc =>
+                {
+                    RemoveStrokeById(doc, frameId, stroke.Id);
+                    if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
+                },
+                affectedFrameId: frameId);
+        }
+        finally
+        {
+            _committingScopedEdit = false;
+        }
+        _dirtyThumbIds.Add(target.Id);
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+    }
+
+    public void CancelShape()
+    {
+        if (_liveShape is null) return;
+        _liveShape = null;
+        ClearLiveScratch();
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+    }
+
+    private void RenderShapePreview()
+    {
+        if (_liveShape is not { } stroke || _liveScratchCanvas is null) return;
+        ClearLiveScratch();
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        // The same stroke the commit will record, at full opacity — the
+        // overlay applies the brush's own, so baking it here would double it.
+        var preview = new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = stroke.Color,
+            SwatchId = stroke.SwatchId,
+            ClipId = stroke.ClipId,
+            Brush = stroke.Brush.Clone(),
+            Points = [.. stroke.Points],
+        };
+        preview.Brush.Opacity = 1;
+        BrushEngine.StampStroke(_liveScratchCanvas, preview, info);
+        _liveScratchCanvas.Flush();
+        _liveScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
+        InvalidateWholeCanvas();
+    }
+
     public void CancelGradient()
     {
         if (_liveGradient is null) return;
@@ -3320,7 +3489,8 @@ public sealed partial class MainViewModel : ObservableObject
         if (!_strokeBuilder.IsActive) return;
         foreach (var s in samples)
         {
-            var (x, y) = _stabilizer.FilterLive(s.X, s.Y);
+            var (fx, fy) = _stabilizer.FilterLive(s.X, s.Y);
+            var (x, y) = Guided(fx, fy);
             _strokeBuilder.Add(x, y, s.Pressure);
         }
         if (_stabilizer.BrushPosition is { } anchor) LazyBrushMoved?.Invoke(anchor.X, anchor.Y);
@@ -5436,6 +5606,124 @@ public sealed partial class MainViewModel : ObservableObject
         }
         return passes;
     }
+
+    // ---- guides -----------------------------------------------------------------
+
+    /// <summary>The guides on this document, or an empty list.</summary>
+    public IReadOnlyList<Guide> Guides => Scene.Guides ?? [];
+
+    public bool HasGuides => Scene.HasGuides;
+
+    /// <summary>
+    /// Whether guides constrain what you draw right now.
+    /// </summary>
+    /// <remarks>
+    /// A working state rather than a document property, the same side of the
+    /// line as onion skin: the guides are authored and saved, but whether you
+    /// are currently drawing against them is how you are working this minute.
+    /// It survives the session through settings, not through the file.
+    /// </remarks>
+    [ObservableProperty]
+    private bool _snapToGuides = true;
+
+    /// <summary>How close a point has to be, in document pixels, to be pulled.</summary>
+    [ObservableProperty]
+    private double _snapTolerance = 12;
+
+    /// <summary>The guide the stroke in progress has locked to, if any.</summary>
+    private Guide? _lockedGuide;
+
+    private (double X, double Y) _strokeAnchor;
+
+    private bool _lockDecided;
+
+    /// <summary>
+    /// Put a raw point where the guides say it belongs.
+    /// </summary>
+    /// <remarks>
+    /// After stabilisation, not before. Snapping first and smoothing after
+    /// would drag the point back off the guide, which is the wrong way round —
+    /// the wobble is what you want removed, the guide is what you want obeyed.
+    /// </remarks>
+    private (double X, double Y) Guided(double x, double y)
+    {
+        if (!SnapToGuides || Scene.Guides is not { Count: > 0 } guides) return (x, y);
+
+        // Locked already: hold the line, and stop reconsidering. A wobbly hand
+        // that re-chooses mid-stroke makes the line kink.
+        if (_lockedGuide is { } locked)
+        {
+            return Snapper.Along(locked, _strokeAnchor.X, _strokeAnchor.Y, x, y);
+        }
+        if (!_lockDecided)
+        {
+            if (Snapper.Lock(guides, _strokeAnchor.X, _strokeAnchor.Y, x, y) is { } found)
+            {
+                _lockedGuide = found;
+                _lockDecided = true;
+                return Snapper.Along(found, _strokeAnchor.X, _strokeAnchor.Y, x, y);
+            }
+            // Far enough to have meant something, and it matched nothing:
+            // this is a freehand stroke and asking again every event would
+            // only let a late wobble grab it.
+            var dx = x - _strokeAnchor.X;
+            var dy = y - _strokeAnchor.Y;
+            if (Math.Sqrt(dx * dx + dy * dy) >= Snapper.LockDistance) _lockDecided = true;
+        }
+        return Snapper.Point(guides, x, y, SnapTolerance);
+    }
+
+    /// <summary>Add a guide. The first one brings the machinery into being.</summary>
+    public Guide AddGuide(GuideKind kind, double x, double y, double angle = 0, double spacing = 32)
+    {
+        var guide = new Guide { Kind = kind, X = x, Y = y, Angle = angle, Spacing = spacing };
+        _editor.Perform(doc => (doc.Scene.Guides ??= []).Add(guide));
+        NotifyGuides();
+        return guide;
+    }
+
+    public void RemoveGuide(Guide guide)
+    {
+        var id = guide.Id;
+        _editor.Perform(doc =>
+        {
+            doc.Scene.Guides?.RemoveAll(g => g.Id == id);
+            // Absent, not empty: a document whose last guide goes writes no
+            // guide key again.
+            if (doc.Scene.Guides is { Count: 0 }) doc.Scene.Guides = null;
+        });
+        NotifyGuides();
+    }
+
+    /// <summary>Move a guide's anchor, in document pixels.</summary>
+    public void MoveGuide(Guide guide, double dx, double dy)
+    {
+        if (guide.Locked) return;
+        _editor.PerformDelta(
+            _ => { guide.X += dx; guide.Y += dy; },
+            _ => { guide.X -= dx; guide.Y -= dy; });
+        NotifyGuides();
+    }
+
+    [RelayCommand]
+    private void ClearGuides()
+    {
+        if (!HasGuides) return;
+        _editor.Perform(doc => doc.Scene.Guides = null);
+        NotifyGuides();
+    }
+
+    private void NotifyGuides()
+    {
+        OnPropertyChanged(nameof(Guides));
+        OnPropertyChanged(nameof(HasGuides));
+        GuidesChanged?.Invoke();
+        PublishSnapshot();
+        MarkDocumentEdited();
+    }
+
+    /// <summary>The guides changed; the canvas redraws its chrome from this.</summary>
+    public event Action? GuidesChanged;
 
     /// <summary>The references on this document, or an empty list.</summary>
     public IReadOnlyList<ReferenceStrip> References =>

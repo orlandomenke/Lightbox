@@ -13,6 +13,16 @@ public enum ToolId
 
     /// <summary>Drag to lay down the gradient selected in the gradient docker.</summary>
     Gradient,
+
+    /// <summary>
+    /// Drag to draw a line, rectangle, ellipse or polygon.
+    /// </summary>
+    /// <remarks>
+    /// One tool with a shape choice rather than four tools, because the
+    /// gesture is identical and four buttons for one drag is four things to
+    /// find. Which shape is a tool option, like the select tool's variants.
+    /// </remarks>
+    Shape,
 }
 
 /// <summary>

@@ -525,6 +525,59 @@ permanently rather than behind a click.
 
 ---
 
+### Guides
+
+**View → Guides** places rulers, grids, isometric axes and vanishing points.
+None exist until you place one, and a document that never uses them carries no
+guide machinery at all.
+
+| Guide | What it constrains |
+| --- | --- |
+| Horizontal / vertical ruler | Strokes drawn along it come out straight |
+| Grid | Points snap to its intersections — corners, shapes, the starts of strokes |
+| Isometric | Three axes at ±30° and vertical, from one origin you can move once |
+| Vanishing point | Strokes radiate from it. One is one-point perspective, two is two-point, three is three |
+
+They do two different things, and knowing which is which is the whole trick:
+
+- A **grid snaps points**. Each point independently goes to the nearest
+  intersection. That is what you want when you are placing things.
+- A **ruler or vanishing point constrains a stroke**. The first part of your
+  drag says which direction you meant; once you have travelled far enough to be
+  believed, it locks to the guide that matches and holds the rest of the stroke
+  on that line. That is what you want when you are drawing *along* something.
+
+Locking once is deliberate. Re-deciding every moment would mean a slightly
+wobbly hand flicking between two vanishing points mid-stroke and the line
+kinking. Draw across every guide and none of them takes it — a guide that grabs
+strokes you meant freehand is a guide you turn off.
+
+The ruler decides the direction, not how far: the stroke still goes where your
+hand went. **⌗** in the shortcut bar turns snapping off without removing
+anything, and hiding a guide does *not* stop it snapping — those are two
+switches, because hiding a rig to look at the drawing under it is something you
+do constantly.
+
+Guides are saved with the document, like the camera, and drawn *under* the
+artwork — a ruler on paper is something you draw over. The snapped points are
+what the stroke records, so moving a guide afterwards never moves a line you
+have already drawn.
+
+### Shapes
+
+The **Shape** tool draws a line, rectangle, ellipse or polygon: pick the shape
+in the tool options and drag. **Shift** squares it — a circle, a square, a
+regular polygon — and **Alt** grows it from the point you started rather than
+towards it.
+
+A shape is an ordinary stroke, drawn with whatever brush you have loaded. A
+watercolour rectangle is watercolour; it erases, re-renders and inbetweens like
+every other mark, and it snaps to guides like every other mark. The trade is
+that it is not re-editable as a shape afterwards — that is the right bargain for
+a tool where the unit of work is two hundred drawings, not one.
+
+---
+
 ## 7. Layers
 
 Raster and vector layers, folders, blend modes, per-layer opacity, visibility,

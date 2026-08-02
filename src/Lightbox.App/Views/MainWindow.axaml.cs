@@ -81,6 +81,9 @@ public partial class MainWindow : Window
         Canvas.GradientDragStarted += _vm.BeginGradient;
         Canvas.GradientDragMoved += _vm.MoveGradient;
         Canvas.GradientDragEnded += _vm.EndGradient;
+        Canvas.ShapeDragStarted += _vm.BeginShape;
+        Canvas.ShapeDragMoved += _vm.MoveShape;
+        Canvas.ShapeDragEnded += _vm.EndShape;
         Canvas.GradientDragCancelled += _vm.CancelGradient;
         _vm.GradientAxisChanged += Canvas.SetGradientAxis;
 
@@ -116,6 +119,8 @@ public partial class MainWindow : Window
             }
         };
         _vm.ReferenceChanged += RefreshReferenceBoxes;
+        _vm.GuidesChanged += RefreshGuides;
+        RefreshGuides();
 
         // The toggle button eats pointer events, so hook the hold-to-open
         // variant flyout with tunneling handlers.
@@ -1322,6 +1327,7 @@ public partial class MainWindow : Window
             ToolId.Fill => Rendering.CanvasControl.CanvasToolMode.Fill,
             ToolId.Picker => Rendering.CanvasControl.CanvasToolMode.Pick,
             ToolId.Gradient => Rendering.CanvasControl.CanvasToolMode.Gradient,
+            ToolId.Shape => Rendering.CanvasControl.CanvasToolMode.Shape,
             ToolId.Select => _vm.ActiveSelectVariant switch
             {
                 SelectVariant.Polygon => Rendering.CanvasControl.CanvasToolMode.SelectPolygon,
@@ -2287,6 +2293,90 @@ public partial class MainWindow : Window
         if (dir is null) return;
         var written = await Task.Run(() => Services.SequenceExporter.ExportPngSequence(_vm.Doc, dir));
         _vm.AiStatus = $"Exported {written.Count} PNG frame(s).";
+    }
+
+    // ---- guides -------------------------------------------------------------------
+
+    /// <summary>
+    /// Hand the canvas the guides to draw, or null when there are none.
+    /// </summary>
+    /// <remarks>
+    /// A vanishing point constrains a continuum of directions, so it is
+    /// flattened here into an evenly spread fan. Drawing every direction would
+    /// be a filled disc; twenty-four is enough to read as perspective and few
+    /// enough to see the drawing through. The renderer stays dumb about what a
+    /// guide means, which is what keeps it off the document objects.
+    /// </remarks>
+    private void RefreshGuides()
+    {
+        if (!_vm.HasGuides)
+        {
+            Canvas.Guides = null;
+            return;
+        }
+        var lines = new List<Rendering.CanvasControl.GuideLine>();
+        foreach (var guide in _vm.Guides)
+        {
+            if (!guide.Visible) continue;
+            var angles = guide.Kind == GuideKind.VanishingPoint
+                ? Fan()
+                : guide.Angles;
+            lines.Add(new Rendering.CanvasControl.GuideLine(
+                (int)guide.Kind, (float)guide.X, (float)guide.Y, (float)guide.Spacing, angles));
+        }
+        Canvas.Guides = lines.Count > 0 ? lines : null;
+    }
+
+    private static IReadOnlyList<double> Fan()
+    {
+        const int rays = 24;
+        var angles = new double[rays];
+        for (var i = 0; i < rays; i++) angles[i] = i * (180.0 / rays);
+        return angles;
+    }
+
+
+    /// <summary>
+    /// New guides land in the middle of the canvas.
+    /// </summary>
+    /// <remarks>
+    /// Somewhere visible, so the artist can see what appeared and drag it where
+    /// they meant. A guide placed at the origin on a large canvas is a guide
+    /// that looks like nothing happened.
+    /// </remarks>
+    private (double X, double Y) CanvasMiddle() => (_vm.Doc.Scene.Width / 2.0, _vm.Doc.Scene.Height / 2.0);
+
+    private void OnAddHorizontalGuide(object? sender, RoutedEventArgs e)
+    {
+        var (x, y) = CanvasMiddle();
+        _vm.AddGuide(GuideKind.Line, x, y);
+    }
+
+    private void OnAddVerticalGuide(object? sender, RoutedEventArgs e)
+    {
+        var (x, y) = CanvasMiddle();
+        _vm.AddGuide(GuideKind.Line, x, y, angle: 90);
+    }
+
+    private void OnAddGridGuide(object? sender, RoutedEventArgs e) =>
+        // From the origin, because a grid is a lattice over the whole canvas
+        // and starting it in the middle would put its intersections in
+        // half-cell offsets from every edge.
+        _vm.AddGuide(GuideKind.Grid, 0, 0);
+
+    private void OnAddIsometricGuide(object? sender, RoutedEventArgs e)
+    {
+        var (x, y) = CanvasMiddle();
+        _vm.AddGuide(GuideKind.Isometric, x, y);
+    }
+
+    private void OnAddVanishingPoint(object? sender, RoutedEventArgs e)
+    {
+        // On the horizon — a third of the way down is where one usually is —
+        // and off to one side, since a VP directly ahead gives you nothing to
+        // draw along.
+        var scene = _vm.Doc.Scene;
+        _vm.AddGuide(GuideKind.VanishingPoint, scene.Width * 0.15, scene.Height / 3.0);
     }
 
     // ---- converting a project ---------------------------------------------------

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1071 tests, derived from the suite itself. Each line is a
+1089 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -431,6 +431,28 @@ regression even when every test still compiles.
 - Transforming AGradient Moves Its Axis — `:291`
 - ASelection Over AGradient Finds It — `:311`
 - ASelection Elsewhere Still Leaves Ordinary Strokes Alone — `:331`
+
+## GuideAndShapeTests
+`tests/Lightbox.App.Tests/GuideAndShapeTests.cs`
+
+- ADocument With No Guides Draws Exactly As Before — `:35`
+- The First Guide Brings The Machinery And The Last One Takes It Away — `:52`
+- Adding And Removing AGuide Is Undoable — `:67`
+- AStroke On AGrid Records The Snapped Points — `:80`
+- Moving AGuide Afterwards Does Not Move The Art — `:95`
+- ARuler Straightens The Stroke Drawn Along It — `:110`
+- AStroke Across The Ruler Is Left Freehand — `:129`
+- Turning Snapping Off Leaves The Stroke Alone — `:146`
+- AStroke To ADead Guide Is Unconstrained — `:159`
+- AShape Is An Ordinary Stroke — `:174`
+- AShape Carries The Current Brush And Swatch — `:194`
+- Shift Squares It And Alt Grows It From The Centre — `:209`
+- AClick With No Drag Is Not AShape — `:226`
+- AShape Is Undoable In One Step — `:241`
+- AShape Snaps To The Grid Like Anything Else — `:256`
+- The Shape Tool Does Not Paint On ADrag With The Brush — `:272`
+- The Canvas Draws No Guides Until There Are Some — `:290`
+- AHidden Guide Is Not Drawn But Still Snaps — `:315`
 
 ## IpcTests
 `tests/Lightbox.App.Tests/IpcTests.cs`
