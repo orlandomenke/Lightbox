@@ -37,6 +37,42 @@ public sealed class DocumentRef
 }
 
 /// <summary>
+/// A version of a character that reuses its animations — Winter Armour,
+/// Damaged, Player Two.
+/// </summary>
+/// <remarks>
+/// A variant owns <b>overrides, not copies</b>. It names a palette, and it may
+/// point specific animations at different documents; everything it does not
+/// override comes from the character. That is what "inherits animations"
+/// means: a walk cycle drawn once is the walk cycle of every variant, and
+/// fixing it fixes all of them.
+///
+/// The mechanism is the live palette already in the engine. A variant is
+/// mostly a different set of swatch values behind the same swatch ids, so
+/// switching variant re-scopes the registry and the same drawings paint in
+/// different colours — no second copy of the art, and nothing to keep in sync.
+///
+/// Shape differences that colour cannot express (a helmet the base character
+/// does not have) are what <see cref="AnimationOverrides"/> is for: one
+/// animation replaced wholesale, the rest still shared.
+/// </remarks>
+public sealed class CharacterVariant
+{
+    public string Id { get; set; } = Ids.NewId("var");
+
+    public string Name { get; set; } = "Variant";
+
+    /// <summary>The palette this variant paints with. Null falls back to the character's.</summary>
+    public string? PaletteId { get; set; }
+
+    /// <summary>
+    /// Animations this variant replaces, base <see cref="DocumentRef.Id"/> →
+    /// the variant's own ref. Everything absent from here is inherited.
+    /// </summary>
+    public Dictionary<string, DocumentRef> AnimationOverrides { get; set; } = [];
+}
+
+/// <summary>
 /// A character: the unit of work Pillar 1 is named after. Its animations share
 /// one palette, one set of references and one pivot, which is exactly what a
 /// folder of loose files cannot express.
@@ -63,6 +99,27 @@ public sealed class Character
 
     /// <summary>Reference art files, relative to the project root.</summary>
     public List<string> References { get; set; } = [];
+
+    /// <summary>
+    /// Versions of this character that reuse its animations. Empty is the
+    /// ordinary state — the base character is not a variant and does not need
+    /// to be listed as one, so a character nobody varied carries no variant
+    /// keys at all.
+    /// </summary>
+    public List<CharacterVariant> Variants { get; set; } = [];
+
+    /// <summary>
+    /// The animations a variant actually plays: its own overrides where it has
+    /// them, the character's everywhere else. Null asks for the base
+    /// character, which is what "no variant selected" means.
+    /// </summary>
+    public IEnumerable<DocumentRef> AnimationsFor(CharacterVariant? variant) =>
+        variant is null
+            ? Animations
+            : Animations.Select(a => variant.AnimationOverrides.GetValueOrDefault(a.Id, a));
+
+    public CharacterVariant? FindVariant(string? id) =>
+        id is null ? null : Variants.FirstOrDefault(v => v.Id == id);
 }
 
 /// <summary>

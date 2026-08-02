@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-646 tests, derived from the suite itself. Each line is a
+662 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -683,6 +683,25 @@ regression even when every test still compiles.
 - AShot Document Carries No Pivot And ASprite Document No Camera — `:213`
 - ACamera Round Trips Through Save And Load — `:226`
 
+## CharacterVariantTests
+`tests/Lightbox.Core.Tests/CharacterVariantTests.cs`
+
+- ACharacter Nobody Varied Carries No Variant Keys — `:57`
+- AVariant Copies The Palette Keeping Every Swatch Id — `:71`
+- Recolouring AVariant Leaves The Base Character Alone — `:85`
+- Selecting AVariant Switches Which Palette The Character Paints With — `:97`
+- AVariant Inherits Every Animation It Does Not Override — `:110`
+- An Overridden Animation Replaces Only Itself — `:124`
+- AVariants Own Art Is Saved And Reloaded — `:139`
+- Variants Round Trip With Their Palettes — `:157`
+- Only Asset Library Projects Offer Their Characters — `:176`
+- Scanning Ignores Folders That Are Not Projects — `:192`
+- Importing ACharacter Brings Its Animations And Palette — `:201`
+- An Imported Character Still Paints From Its Palette — `:218`
+- Importing Copies Rather Than Links — `:236`
+- Importing Carries Variants And Rebases Their Overrides — `:253`
+- Importing Twice Gives Two Characters With Distinct Folders — `:277`
+
 ## ColorTests
 `tests/Lightbox.Core.Tests/Geometry/GeometryTests.cs`
 
@@ -783,14 +802,15 @@ regression even when every test still compiles.
 - Saving With No Dirty Set Writes Every Loaded Document — `:140`
 - An Interrupted Write Leaves The Previous File Intact — `:154`
 - Shared Palettes Live On The Project And Round Trip — `:171`
-- Character Folders Are Unique Even When Names Collide — `:187`
-- Slugs Are Always Usable As AFolder Name — `:205`
-- Migrating ALoose Document Gives AOne Character Project — `:209`
-- Flatten Inlines The Swatches The Document Actually Uses — `:234`
-- Flatten Inlines Referenced Gradients — `:256`
-- Flatten Does Not Mutate The Open Document — `:278`
-- An Empty Project Saves And Loads Without Characters — `:295`
-- Loading Something That Is Not AProject Fails — `:304`
+- ASaved Project Keeps Its Swatch Ids — `:187`
+- Character Folders Are Unique Even When Names Collide — `:214`
+- Slugs Are Always Usable As AFolder Name — `:232`
+- Migrating ALoose Document Gives AOne Character Project — `:236`
+- Flatten Inlines The Swatches The Document Actually Uses — `:261`
+- Flatten Inlines Referenced Gradients — `:283`
+- Flatten Does Not Mutate The Open Document — `:305`
+- An Empty Project Saves And Loads Without Characters — `:322`
+- Loading Something That Is Not AProject Fails — `:331`
 
 ## MediumSettingsTests
 `tests/Lightbox.Core.Tests/Serialization/MediumSettingsTests.cs`

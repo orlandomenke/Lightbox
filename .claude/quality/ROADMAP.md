@@ -118,8 +118,8 @@ workspace split lands — see "Project architecture" below.
 - [?] Project types at creation (Illustration / Animation / Game Art / Storyboard / Comic / Asset Library / Empty)
 - [x] Project as a container above the document `evidence: ProjectManifest, ProjectIo, Project, ProjectTests, AProjectRoundTripsThroughTheFolder`
 - [x] Character workspace — animations, assets, references, palette in one place `evidence: ReferenceSheet, ReferenceSheetModelTests, ReferenceTabTests`
-- [?] Character library
-- [?] Character variants that inherit animations (Default / Winter Armor / Damaged)
+- [x] Character library `evidence: CharacterLibrary, LibraryEntry, ImportingACharacterBringsItsAnimationsAndPalette, AnImportedCharacterStillPaintsFromItsPalette`
+- [x] Character variants that inherit animations (Default / Winter Armor / Damaged) `evidence: CharacterVariant, AnimationsFor, AVariantInheritsEveryAnimationItDoesNotOverride, AnOverriddenAnimationReplacesOnlyItself`
 - [?] Scene management
 - [?] Project conversion (Illustration → Animation → Game) with no artwork recreated
 - [?] Workspace layouts, decoupled from project type
@@ -363,7 +363,7 @@ Three consequences worth stating before anyone builds against the design:
 - [?] Comic organization (pages → panels)
 - [?] Panel tools and speech balloons
 - [?] Print workflow (CMYK, bleed, DPI targets)
-- [?] Asset Library project type
+- [x] Asset Library project type `evidence: CharacterLibrary, OnlyAssetLibraryProjectsOfferTheirCharacters`
 
 ---
 

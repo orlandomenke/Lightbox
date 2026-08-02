@@ -35,7 +35,7 @@ public static class ProjectIo
     private const string ManifestName = "project.json";
     private const string CharactersDir = "characters";
     private const string AnimationsDir = "animations";
-    private const string PalettesDir = "palettes";
+    private const string PalettesFile = "palettes/palettes.json";
     private const string GradientsFile = "gradients/gradients.json";
 
     // ---- create -------------------------------------------------------------
@@ -70,6 +70,53 @@ public static class ProjectIo
             Path = $"{CharactersDir}/{character.Slug}/{AnimationsDir}/{slug}.lightbox.json",
         };
         character.Animations.Add(reference);
+        project.Loaded[reference.Id] = doc;
+        return reference;
+    }
+
+    /// <summary>
+    /// Add a variant of a character, with its own copy of the palette.
+    /// </summary>
+    /// <remarks>
+    /// The copy <b>keeps every swatch id</b>. That is the entire trick: the
+    /// art references swatches by id, so a palette carrying the same ids with
+    /// different colours repaints the same drawings without a second copy of
+    /// them existing. Fresh ids would make the variant paint nothing.
+    /// </remarks>
+    public static CharacterVariant AddVariant(Project project, Character character, string name)
+    {
+        var variant = new CharacterVariant { Name = name };
+        if (project.Palettes.FirstOrDefault(p => p.Id == character.PaletteId) is { } basePalette)
+        {
+            var copy = new Palette
+            {
+                Name = $"{basePalette.Name} — {name}",
+                Columns = basePalette.Columns,
+                Swatches = basePalette.Swatches
+                    .Select(s => new Swatch { Id = s.Id, Color = s.Color, Name = s.Name })
+                    .ToList(),
+            };
+            project.Palettes.Add(copy);
+            variant.PaletteId = copy.Id;
+        }
+        character.Variants.Add(variant);
+        return variant;
+    }
+
+    /// <summary>
+    /// Give a variant its own version of one animation — the escape hatch for
+    /// a difference colour cannot express. Everything else stays inherited.
+    /// </summary>
+    public static DocumentRef OverrideAnimation(
+        Project project, Character character, CharacterVariant variant, DocumentRef inherited, Doc doc)
+    {
+        var slug = UniqueFileSlug(character, Slug($"{inherited.Name}-{variant.Name}"));
+        var reference = new DocumentRef
+        {
+            Name = $"{inherited.Name} ({variant.Name})",
+            Path = $"{CharactersDir}/{character.Slug}/{AnimationsDir}/{slug}.lightbox.json",
+        };
+        variant.AnimationOverrides[inherited.Id] = reference;
         project.Loaded[reference.Id] = doc;
         return reference;
     }
@@ -110,11 +157,11 @@ public static class ProjectIo
 
     private static void LoadResources(Project project)
     {
-        foreach (var relative in project.Manifest.Palettes)
+        var palettes = Path.Combine(project.Root, PalettesFile.Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(palettes))
         {
-            var path = Path.Combine(project.Root, relative.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(path)) continue;
-            project.Palettes.Add(GimpPalette.Read(File.ReadAllText(path), Path.GetFileNameWithoutExtension(path)));
+            var stored = JsonSerializer.Deserialize<List<Palette>>(File.ReadAllText(palettes), DocJson.Options);
+            project.Palettes.AddRange(stored ?? []);
         }
 
         var gradients = Path.Combine(project.Root, GradientsFile.Replace('/', Path.DirectorySeparatorChar));
@@ -173,16 +220,29 @@ public static class ProjectIo
         }
     }
 
+    /// <summary>
+    /// Palettes and gradients, as JSON.
+    /// </summary>
+    /// <remarks>
+    /// JSON rather than <c>.gpl</c>, and the distinction is load-bearing. A
+    /// GIMP palette carries names and RGB; it <b>cannot carry ids</b>. Storing
+    /// shared palettes that way meant every <c>Stroke.SwatchId</c> and every
+    /// <c>Character.PaletteId</c> pointed at an id that no longer existed after
+    /// a reload, so the whole live-palette feature quietly stopped working the
+    /// first time a project was reopened.
+    ///
+    /// <c>.gpl</c> is still what the palette docker imports and exports. It is
+    /// an interchange format, which is a different job from being the store.
+    /// </remarks>
     private static void SaveResources(Project project)
     {
         project.Manifest.Palettes.Clear();
-        foreach (var palette in project.Palettes)
+        if (project.Palettes.Count > 0)
         {
-            var relative = $"{PalettesDir}/{Slug(palette.Name)}.gpl";
-            project.Manifest.Palettes.Add(relative);
+            project.Manifest.Palettes.Add(PalettesFile);
             DocJson.WriteAtomic(
-                Path.Combine(project.Root, relative.Replace('/', Path.DirectorySeparatorChar)),
-                GimpPalette.Write(palette));
+                Path.Combine(project.Root, PalettesFile.Replace('/', Path.DirectorySeparatorChar)),
+                JsonSerializer.Serialize(project.Palettes, DocJson.Options));
         }
 
         if (project.Gradients.Count == 0) return;
@@ -308,6 +368,7 @@ public static class ProjectIo
     private static string UniqueFileSlug(Character character, string wanted)
     {
         var taken = character.Animations
+            .Concat(character.Variants.SelectMany(v => v.AnimationOverrides.Values))
             .Select(a => Path.GetFileName(a.Path).Replace(".lightbox.json", ""))
             .ToHashSet();
         return Unique(wanted, taken);

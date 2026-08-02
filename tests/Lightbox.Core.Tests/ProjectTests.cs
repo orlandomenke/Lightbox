@@ -184,6 +184,33 @@ public sealed class ProjectTests : IDisposable
     }
 
     [Fact]
+    public void ASavedProjectKeepsItsSwatchIds()
+    {
+        // B10. Palettes were stored as .gpl, which carries names and RGB and
+        // cannot carry ids — so every Stroke.SwatchId pointed at nothing after
+        // a reload and the live-palette feature silently died on first reopen.
+        var swatch = new Swatch { Color = "#8090a0", Name = "Armour" };
+        var palette = new Palette { Name = "Knight", Swatches = [swatch] };
+        var project = ProjectIo.Create("Knight", _root);
+        project.Palettes.Add(palette);
+        var knight = ProjectIo.AddCharacter(project, "Knight");
+        knight.PaletteId = palette.Id;
+
+        var doc = Drawing();
+        ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0].SwatchId = swatch.Id;
+        ProjectIo.AddAnimation(project, knight, "Walk", doc);
+        ProjectIo.Save(project);
+
+        var reloaded = ProjectIo.Load(_root);
+        var back = Assert.Single(reloaded.Palettes);
+        Assert.Equal(palette.Id, back.Id);
+        Assert.Equal(swatch.Id, Assert.Single(back.Swatches).Id);
+        // And the links still resolve, which is the thing that actually broke.
+        Assert.Equal(back.Id, reloaded.Characters.First().PaletteId);
+        Assert.NotNull(reloaded.PaletteFor(reloaded.Characters.First()));
+    }
+
+    [Fact]
     public void CharacterFoldersAreUniqueEvenWhenNamesCollide()
     {
         var project = ProjectIo.Create("P", _root);

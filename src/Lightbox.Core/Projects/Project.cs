@@ -42,9 +42,37 @@ public sealed class Project
 
     public IEnumerable<Character> Characters => Manifest.Characters;
 
-    /// <summary>Every animation in the project, whether loaded or not.</summary>
+    /// <summary>
+    /// Every animation in the project, whether loaded or not — including the
+    /// documents that variants override with. Save and load walk this, so a
+    /// variant's own art has to be in it or it never reaches disk.
+    /// </summary>
     public IEnumerable<DocumentRef> AllDocuments =>
-        Manifest.Characters.SelectMany(c => c.Animations).Concat(Manifest.Documents);
+        Manifest.Characters.SelectMany(c => c.Animations)
+            .Concat(Manifest.Characters
+                .SelectMany(c => c.Variants)
+                .SelectMany(v => v.AnimationOverrides.Values))
+            .Concat(Manifest.Documents);
+
+    /// <summary>
+    /// The variant being viewed, per character id.
+    ///
+    /// Runtime, not serialized. Which version of a character you are looking at
+    /// is the same kind of thing as where the playhead is: it changes what
+    /// renders and never touches the record. Saving it would also mean a file
+    /// that opens differently depending on who closed it last.
+    /// </summary>
+    public Dictionary<string, string> ActiveVariant { get; } = [];
+
+    public CharacterVariant? VariantOf(Character character) =>
+        character.FindVariant(ActiveVariant.GetValueOrDefault(character.Id));
+
+    /// <summary>The palette a character paints with right now, variant included.</summary>
+    public Palette? PaletteFor(Character character)
+    {
+        var id = VariantOf(character)?.PaletteId ?? character.PaletteId;
+        return id is null ? null : Palettes.FirstOrDefault(p => p.Id == id);
+    }
 
     public DocumentRef? FindRef(string id) => AllDocuments.FirstOrDefault(d => d.Id == id);
 
