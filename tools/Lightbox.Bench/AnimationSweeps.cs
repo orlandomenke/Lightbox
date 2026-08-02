@@ -189,10 +189,10 @@ public static class AnimationSweeps
         Rig? rig = null;
 
         return new Scenario(
-            "Draw a frame with onion skin",
+            "Recomposite a frame with onion skin",
             "ghosts each side",
             [0, 1, 2, 3, 4, 5],
-            Cadence.WhileDrawing,
+            Cadence.WhilePlaying,
             Setup: n =>
             {
                 // 12 frames x 3 layers at 1080p is 299 MB, comfortably inside the
@@ -224,7 +224,11 @@ public static class AnimationSweeps
                 }
                 Composite(rig.Target, scene, rig.Cache, 6);
             },
-            Note: "3 layers, so the ghost count is 3× the depth on each side. The multiplier nobody had measured.")
+            Note: "3 layers, so the ghost count is 3× the depth on each side — the multiplier nobody had "
+                + "measured. The frame-change budget, for the same reason the layers row takes it: ghosts are "
+                + "re-blended whole when the playhead moves, and only inside the dirty region while a stroke "
+                + "is being drawn. At 0 ghosts this is a bare recomposite, so read these rows as a marginal "
+                + "cost per ghost — what turning onion skin up actually adds — not as a total.")
         {
             Gauge = () => rig?.Cache.CachedBytes ?? 0,
             GaugeUnit = "cache MB",

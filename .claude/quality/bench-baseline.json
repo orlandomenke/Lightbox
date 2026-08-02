@@ -1,0 +1,67 @@
+{
+  "calibrationMs": 28.9,
+  "scenarios": [
+    {
+      "name": "Recomposite the whole frame",
+      "dimension": "layers",
+      "cadence": "WhilePlaying",
+      "budgetMs": 83.3,
+      "exponent": 0.99,
+      "cliff": 4,
+      "worstP95Calibrated": 16.459,
+      "maxSwept": 24
+    },
+    {
+      "name": "Draw a frame with onion skin",
+      "dimension": "ghosts each side",
+      "cadence": "WhileDrawing",
+      "budgetMs": 16.0,
+      "exponent": 0.84,
+      "cliff": 0,
+      "worstP95Calibrated": 28.136,
+      "maxSwept": 5
+    },
+    {
+      "name": "Rasterise a frame from its strokes",
+      "dimension": "strokes",
+      "cadence": "PerAction",
+      "budgetMs": 100.0,
+      "exponent": 1.03,
+      "cliff": 100,
+      "worstP95Calibrated": 55.136,
+      "maxSwept": 800
+    },
+    {
+      "name": "Hold a whole scene in the frame cache",
+      "dimension": "frames",
+      "cadence": "PerSession",
+      "budgetMs": 2000.0,
+      "exponent": 1.87,
+      "cliff": 24,
+      "worstP95Calibrated": 399.973,
+      "maxSwept": 96
+    },
+    {
+      "name": "Show the next frame during playback",
+      "dimension": "frames in the scene",
+      "cadence": "WhilePlaying",
+      "budgetMs": 83.3,
+      "exponent": 0.84,
+      "cliff": 48,
+      "worstP95Calibrated": 4.994,
+      "maxSwept": 96
+    },
+    {
+      "name": "Scrub to a frame across the sheet",
+      "dimension": "frames in the scene",
+      "cadence": "WhileDrawing",
+      "budgetMs": 16.0,
+      "exponent": 0.82,
+      "cliff": 12,
+      "worstP95Calibrated": 4.277,
+      "maxSwept": 96
+    }
+  ],
+  "sha": "dc51d5e1d745a1e862abadc96a000d31b28feaf8",
+  "takenAt": "2026-08-02T23:05:37+00:00"
+}
