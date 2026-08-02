@@ -351,6 +351,17 @@ coming from.
 Each stroke is modelled from its own paint, so crossing two of them does not
 yet build a ridge where they meet.
 
+**Paint load** is how much paint the brush starts with. At 1 it never runs
+out. Below that the mark begins full and fades as you draw, and at low values
+it is gone within a short scrape — that is dry-brush, and it works whether or
+not a medium is switched on. The length scale follows the brush size, so
+resizing a brush does not change how far its paint goes.
+
+**Wetness** is how far the paint travels. A wet mark spreads past where the
+brush went, more so the longer the flow runs — a 40-pixel stroke reaches nearly
+60 at full wetness. The extra room costs a little to paint, so a dry medium
+does not pay for it.
+
 **Edge pull** is the wet edge: pigment carried out to the rim of the wash as it
 dries, so the mark ends up darker at its border than in the middle. At 0 the
 wash dries flat. Turn it up and the border darkens and the middle pales — the

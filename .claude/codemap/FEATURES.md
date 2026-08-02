@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1444 tests, derived from the suite itself. Each line is a
+1454 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1966,6 +1966,13 @@ regression even when every test still compiles.
 - AMedium That Never Flows Still Paints The Stroke — `:228`
 - Every Medium Re Renders Identically — `:245`
 
+## MediumSpreadTests
+`tests/Lightbox.Raster.Tests/MediumSpreadTests.cs`
+
+- AWet Medium Bleeds Past The Brush — `:59`
+- AWetter Brush Bleeds Further — `:73`
+- It Keeps Spreading The Longer It Runs — `:83`
+
 ## OutputScaleTests
 `tests/Lightbox.Raster.Tests/OutputScaleTests.cs`
 
@@ -1975,6 +1982,17 @@ regression even when every test still compiles.
 - AHigher Output Scale Actually Resolves More Detail — `:193`
 - AClipped Stroke Clips To The Same Region At Every Scale — `:226`
 - An Alpha Locked Stroke Stays Inside Existing Paint At Every Scale — `:270`
+
+## PaintLoadTests
+`tests/Lightbox.Raster.Tests/PaintLoadTests.cs`
+
+- ALoaded Brush Starts Full And Runs Out — `:54`
+- AFull Brush Never Runs Out — `:69`
+- ALess Loaded Brush Runs Out Sooner — `:81`
+- ABigger Brush Carries Further — `:97`
+- It Works Without ASimulated Medium — `:114`
+- Running Out Is As Repeatable As Everything Else — `:127`
+- Load Is Not Applied Twice When AMedium Is On — `:139`
 
 ## PaperFieldScaleTests
 `tests/Lightbox.Raster.Tests/PaperFieldTests.cs`

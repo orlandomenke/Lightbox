@@ -620,16 +620,22 @@ public static class BrushEngine
         // spacing and smoothing have already had their say by then.
         SKPoint? previous = null;
         var heading = double.NaN;
+        // Distance along the stroke, for PaintLoad. Measured between dab
+        // centres rather than between recorded points, so it is the path the
+        // paint actually took after spacing and smoothing have had their say.
+        double travelled = 0;
         foreach (var (pos, pressure) in DabPositions(stroke))
         {
-            if (brush.AngleFollowsDirection && previous is { } from)
+            if (previous is { } from)
             {
                 float dx = pos.X - from.X, dy = pos.Y - from.Y;
+                var step = Math.Sqrt(dx * dx + dy * dy);
+                travelled += step;
                 // A stationary dab keeps the last heading; recomputing from a
                 // zero-length step would snap the tip to zero degrees.
-                if (dx * dx + dy * dy > 0.0001f) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
+                if (brush.AngleFollowsDirection && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
             }
-            StampDab(canvas, pos, pressure, brush, color, tip, heading, tipImage);
+            StampDab(canvas, pos, pressure, brush, color, tip, heading, tipImage, LoadAt(travelled, brush));
             previous = pos;
         }
     }
@@ -650,7 +656,49 @@ public static class BrushEngine
     private static float DabReach(BrushSettings brush)
     {
         var radiusFactor = brush.TipId is null ? 0.5 : 0.75; // 0.5 × √2, rounded up
-        return (float)(brush.Size * (radiusFactor + Math.Max(0, brush.Scatter)) + 4);
+        return (float)(brush.Size * (radiusFactor + Math.Max(0, brush.Scatter)) + 4) + BleedReach(brush);
+    }
+
+    /// <summary>
+    /// How far past the dabs a simulated medium can carry paint.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This was B27, and the cause was not the fluid model.</b> The wash
+    /// bled 20% however wet it was and however long it ran, and the suspicion
+    /// was the lattice's capillary entry pressure pinning the front. Measured
+    /// directly, the lattice spreads fine — a disc of radius 12 reaches 19 at
+    /// water depth 1 and 26 at depth 4. What it could not do was spread past
+    /// the region it was given, and that region came from
+    /// <see cref="DabReach"/>: the geometry of the <em>stamps</em>, which knows
+    /// nothing about fluid. The lattice edge was a wall two pixels outside the
+    /// mark, and everything downstream faithfully simulated a wash in a box.
+    /// </para>
+    /// <para>
+    /// So the region has to be told. Scaled by wetness and by how long the
+    /// solver runs, because those are exactly what decide how far paint
+    /// travels, and capped — a margin is area, area is the cost of painting,
+    /// and invariant 6 says painting is bounded work. A generous wash on a big
+    /// brush is allowed to be expensive; it is not allowed to be unbounded.
+    /// </para>
+    /// <para>
+    /// Zero without a medium, so a plain brush's region is exactly what it
+    /// always was and nothing about ordinary drawing pays for this.
+    /// </para>
+    /// </remarks>
+    private static float BleedReach(BrushSettings brush)
+    {
+        var medium = brush.Medium;
+        if (medium.Kind == MediumKind.None) return 0;
+
+        var wetness = Math.Clamp(medium.Wetness, 0, 1);
+        var steps = Math.Clamp(medium.FlowSteps, 0, 32);
+        if (wetness <= 0 || steps <= 0) return 0;
+
+        // Roughly a lattice cell a step at full wetness — the CFL bound the
+        // transport step already obeys — and never more than the brush is wide.
+        var reach = wetness * steps * 0.75;
+        return (float)Math.Min(reach, brush.Size);
     }
 
     /// <summary>The stroke's points inflated by the dab reach, clamped to the canvas; null when off-canvas.</summary>
@@ -777,12 +825,13 @@ public static class BrushEngine
 
     private static void StampDab(
         SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color,
-        SKBitmap? tip, double directionDeg = double.NaN, SKImage? tipImage = null)
+        SKBitmap? tip, double directionDeg = double.NaN, SKImage? tipImage = null,
+        double load = 1)
     {
         var radius = (float)(RadiusAt(brush, pressure));
         if (radius <= 0) return;
 
-        var alpha = DabAlpha(brush, pressure);
+        var alpha = DabAlpha(brush, pressure) * load;
         if (alpha <= 0) return;
 
         // Every dynamic below is seeded from the dab's own position, never
@@ -1415,6 +1464,56 @@ public static class BrushEngine
             acc += d;
             prev = cur;
         }
+    }
+
+    /// <summary>
+    /// How much paint the brush still has, this far along the stroke.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>PaintLoad said one thing and did another.</b> It is documented as
+    /// "paint on the brush at the start of a stroke — below 1 the brush runs
+    /// out as the stroke lengthens, which is what dry-brush is", and it was
+    /// implemented as a flat multiplier on pigment, which made an oil stroke
+    /// evenly forty per cent transparent from the first dab to the last. That
+    /// is a transparency slider wearing a dry-brush label (B26).
+    /// </para>
+    /// <para>
+    /// Depletion needs distance, and distance lives here rather than in
+    /// <c>MediumSimulator</c> — which works off the scratch surface's coverage
+    /// on purpose and never learns how the stroke was drawn. Putting it in the
+    /// dab walk also means it works for a brush with no medium at all, which
+    /// is what a real dry-brush is.
+    /// </para>
+    /// <para>
+    /// Exponential, not linear: a brush does not run out at a steady rate and
+    /// then stop, it gives up most of its paint early and trails off. The
+    /// length scale is in brush diameters, so a big brush carries further —
+    /// which is also true, and it means an artist who resizes a brush does not
+    /// have to re-tune the load.
+    /// </para>
+    /// <para>
+    /// A load of 1 returns exactly 1 at every distance, so the default is a
+    /// byte-for-byte no-op and no existing drawing moves.
+    /// </para>
+    /// </remarks>
+    internal static double LoadAt(double travelled, BrushSettings brush)
+    {
+        var load = Math.Clamp(brush.Medium.PaintLoad, 0, 1);
+        if (load >= 1) return 1;
+
+        // Diameters of stroke the paint lasts, per unit of load.
+        //
+        // Small, and the reason is dab overlap. At the usual spacing a dozen
+        // dabs land on any given pixel, so the mark's alpha is
+        // 1-(1-a)^12 and it saturates: cutting per-dab alpha by 15% moves the
+        // visible mark by under 1%. Measured — at Reach 50 a load of 0.35
+        // faded from 1.000 to 0.858 over seven hundred pixels, which is not a
+        // brush running out, it is a brush thinking about it. The per-dab
+        // curve has to fall much further than the mark does.
+        const double Reach = 12;
+        var scale = Math.Max(brush.Size, 1) * Reach * load;
+        return Math.Exp(-travelled / scale);
     }
 
     public static SKColor ParseColor(string hex)

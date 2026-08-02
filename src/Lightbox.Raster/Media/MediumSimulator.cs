@@ -72,6 +72,27 @@ public static class MediumSimulator
     private const int MaxSide = 320;
 
     /// <summary>
+    /// Water depth, in lattice units, that <c>Wetness</c> 1 means.
+    /// </summary>
+    /// <remarks>
+    /// <b>B27 was a units bug, not a physics one.</b> Wetness mapped straight
+    /// to 0..1 of depth, and <c>FluidLattice.EntryHead</c> — the capillary
+    /// entry pressure below which the paper simply holds the water — is 0.15
+    /// absolute. So a watercolour brush seeded at 0.85 in the core and a
+    /// fraction of that at the soft fringe, which put the whole fringe under
+    /// the threshold: only the middle of the mark could flow, and it had to
+    /// push through a collar that could not. The wash bled 20%.
+    /// <para>
+    /// The lattice's own note says to seed around 0.5–3 per cell, so the app
+    /// was sitting at the very bottom of the sane range. Measured on a disc of
+    /// radius 12 over 32 steps, the front reaches 17 at depth 0.5, 19 at 1, 22
+    /// at 2 and 26 at 4 — the model spreads perfectly well, it was never being
+    /// asked to.
+    /// </para>
+    /// </remarks>
+    private const float WetnessDepth = 3f;
+
+    /// <summary>
     /// Run the medium over a stamped stroke.
     /// </summary>
     /// <param name="scratch">
@@ -177,7 +198,6 @@ public static class MediumSimulator
         var wetness = (float)Math.Clamp(medium.Wetness, 0, 1);
         var density = (float)Math.Clamp(medium.PigmentDensity, 0, 1);
         var pressureWater = (float)Math.Clamp(medium.PressureWater, 0, 1);
-        var load = (float)Math.Clamp(medium.PaintLoad, 0, 1);
 
         for (var y = 0; y < h; y++)
         {
@@ -187,8 +207,15 @@ public static class MediumSimulator
                 if (c <= 0.002f) continue;
 
                 // Water rises as the touch lightens; pigment tracks coverage.
-                var water = wetness * c * (1f + pressureWater * (1f - c));
-                var pigment = density * c * load;
+                //
+                // PaintLoad is deliberately absent here. It used to multiply
+                // this line, which made a loaded brush evenly translucent
+                // rather than loaded-then-dry (B26). It now depletes along the
+                // stroke in BrushEngine.LoadAt, so it is already in `c` — the
+                // coverage this pass reads. Reintroducing it would apply it
+                // twice.
+                var water = WetnessDepth * wetness * c * (1f + pressureWater * (1f - c));
+                var pigment = density * c;
                 lattice.Seed(x, y, water, pigment, r, g, b);
             }
         }
