@@ -3442,7 +3442,131 @@ public sealed partial class MainViewModel : ObservableObject
         TransformActive = false;
         _transformFrames.Clear();
         _transformFilter = null;
+        ClearTransformPreview();
         TransformEnded?.Invoke();
+    }
+
+    // ---- live transform preview -------------------------------------------------
+
+    /// <summary>
+    /// The gizmo's current shape, in document space, or null when nothing is
+    /// being previewed.
+    /// </summary>
+    /// <remarks>
+    /// A transform used to show only its outline: the drawing sat still under
+    /// a moving box, and the artist did not see the result until they pressed
+    /// Enter. Judging a rotation from a rectangle is guesswork, and the same
+    /// argument the live-stroke preview settled applies here — what you are
+    /// making has to be visible while you make it.
+    ///
+    /// This is a <b>composite-time</b> matrix and nothing else. The stroke
+    /// record is mapped once, on apply, by <see cref="CommitTransformCore"/>.
+    /// Re-mapping N frames of geometry on every pointer event would be both
+    /// slow and destructive of undo; moving finished pixels for one frame is
+    /// neither.
+    /// </remarks>
+    private SKMatrix? _transformPreview;
+
+    /// <summary>
+    /// A frame's pixels split into the part the transform moves and the part
+    /// it leaves behind. With no selection everything moves and
+    /// <see cref="Static"/> is null, which is the ordinary case and costs no
+    /// extra render at all — <see cref="Moving"/> is the frame's own cached
+    /// bitmap, borrowed rather than copied.
+    /// </summary>
+    private sealed record TransformParts(SKBitmap Moving, SKBitmap? Static, bool Owned);
+
+    private readonly Dictionary<string, TransformParts> _transformParts = [];
+
+    /// <summary>
+    /// Show the drag. Null clears the preview and puts the pixels back where
+    /// the record says they are.
+    /// </summary>
+    public void PreviewTransform(SKMatrix? matrix)
+    {
+        if (!TransformActive)
+        {
+            if (_transformPreview is null) return;
+            matrix = null;
+        }
+        // Identity is "no preview": it renders the same and skips the split.
+        if (matrix is { } m && m.IsIdentity) matrix = null;
+        if (_transformPreview is null && matrix is null) return;
+        _transformPreview = matrix;
+        // The drawing can land anywhere on the canvas, so no dirty region is
+        // safe here.
+        InvalidateWholeCanvas();
+        RequestSnapshot();
+    }
+
+    private void ClearTransformPreview()
+    {
+        _transformPreview = null;
+        foreach (var parts in _transformParts.Values)
+        {
+            if (!parts.Owned) continue;
+            parts.Moving.Dispose();
+            parts.Static?.Dispose();
+        }
+        _transformParts.Clear();
+    }
+
+    /// <summary>
+    /// The moving/static split for one in-scope frame, built once per session
+    /// and reused for every pointer event of the drag. Null when this frame
+    /// cannot be previewed honestly — a partial selection over a frame that is
+    /// not a stroke record — in which case the gizmo alone stands in, as it
+    /// did before.
+    /// </summary>
+    private TransformParts? PartsFor(Frame frame)
+    {
+        if (_transformFilter is null)
+        {
+            // Everything moves, so the layer bitmap already IS the moving part
+            // and no render is needed. It is deliberately re-fetched rather
+            // than remembered: the cache owns and disposes these, and a
+            // remembered one becomes a dangling pointer the moment anything
+            // invalidates the frame.
+            return new TransformParts(_cache.Get(frame, Scene.Width, Scene.Height), null, Owned: false);
+        }
+
+        if (_transformParts.TryGetValue(frame.Id, out var cached)) return cached;
+
+        TransformParts? parts;
+        if (frame is PaintedFrame painted && _transformFilter is { } filter)
+        {
+            var moving = painted.Strokes.Where(filter).ToList();
+            var rest = painted.Strokes.Where(s => !filter(s)).ToList();
+            SKBitmap stay;
+            if (painted.PngBase64 is { Length: > 0 })
+            {
+                // The baseline stays put under a region-limited transform,
+                // exactly as the commit leaves it — and it goes underneath the
+                // strokes that stay, because that is the order it renders in.
+                stay = new SKBitmap(new SKImageInfo(
+                    Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+                using (var canvas = new SKCanvas(stay))
+                {
+                    canvas.Clear(SKColors.Transparent);
+                    using var baseline = Lightbox.Raster.PngCodec.Decode(painted.PngBase64);
+                    canvas.DrawBitmap(baseline, 0, 0);
+                }
+                foreach (var s in rest) FrameRasterizer.Append(stay, s);
+            }
+            else
+            {
+                stay = FrameRasterizer.Rasterize(rest, Scene.Width, Scene.Height);
+            }
+            parts = new TransformParts(
+                FrameRasterizer.Rasterize(moving, Scene.Width, Scene.Height), stay, Owned: true);
+        }
+        else
+        {
+            parts = null;
+        }
+
+        if (parts is not null) _transformParts[frame.Id] = parts;
+        return parts;
     }
 
     /// <summary>Commit a move/scale/rotate/mirror (mirror = negative scale) around a pivot.</summary>
@@ -3488,6 +3612,9 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var frames = _transformFrames.ToList();
         var filter = _transformFilter;
+        // The preview goes first, and not only for tidiness: it borrows the
+        // cache's own bitmaps, and the invalidation below disposes them.
+        ClearTransformPreview();
         // Invalidate before the edit so the Changed refresh re-renders from
         // the transformed record.
         foreach (var frame in frames) _cache.Invalidate(frame.Id);
@@ -4602,6 +4729,19 @@ public sealed partial class MainViewModel : ObservableObject
 
             var bmp = _cache.Get(frame, scene.Width, scene.Height);
 
+            // Blur and smudge REPLACE the layer rather than overlaying it.
+            //
+            // They rework pixels that are already there, so there is no set of
+            // new marks to lay on top — the answer is the whole layer, redone.
+            // BeginStroke already copies the layer into _liveComposite for
+            // exactly this, and FlushLivePreview has been appending each drag
+            // segment to it every event; it simply was never shown, so the
+            // smear only appeared when the pen lifted and the commit landed.
+            if (_liveComposite is not null && _strokeBuilder.IsActive && layer.Id == ActiveLayer.Id)
+            {
+                bmp = _liveComposite;
+            }
+
             // Live stroke: the dabs live in their own scratch and composite
             // over the layer here. The layer bitmap is never copied for a
             // preview — a full-canvas copy costs ~1 s at 4K.
@@ -4636,6 +4776,25 @@ public sealed partial class MainViewModel : ObservableObject
                     live.Tool == ToolKind.Eraser,
                     live.AlphaLocked,
                     live.ClipId is null ? null : ClipRegionRegistry.Resolve(live.ClipId));
+            }
+
+            // A transform in progress: show the drag, not just the box around
+            // it. The strokes that move are drawn through the gizmo's matrix
+            // and the ones that stay (a region-limited transform) are drawn
+            // where they are, which is exactly the split the commit makes.
+            if (_transformPreview is { } preview
+                && _transformFrames.Exists(f => f.Id == frame.Id)
+                && PartsFor(frame) is { } parts)
+            {
+                if (parts.Static is { } stay)
+                {
+                    passes.Add(new RenderPass(
+                        stay, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+                }
+                passes.Add(new RenderPass(
+                    parts.Moving, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
+                    overlay, preview));
+                continue;
             }
 
             passes.Add(new RenderPass(

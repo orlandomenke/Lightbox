@@ -425,6 +425,48 @@ public sealed class CanvasControl : Control
     public (double[] Src, double[] Dst) TransformQuadResult =>
         ([_txMinX, _txMinY, _txMaxX, _txMinY, _txMaxX, _txMaxY, _txMinX, _txMaxY], (double[])_txQuad.Clone());
 
+    /// <summary>
+    /// The gizmo's current shape as a document-space matrix, for the live
+    /// preview. Identity while the gizmo is untouched.
+    /// </summary>
+    /// <remarks>
+    /// The same composition <c>MainViewModel.CommitTransformAffine</c> builds
+    /// for the baseline resample, and the same homography the perspective
+    /// commit solves — so what the preview shows and what apply produces come
+    /// from one definition of the transform, not two that can drift.
+    /// </remarks>
+    public SKMatrix TransformMatrix
+    {
+        get
+        {
+            if (!_txActive) return SKMatrix.Identity;
+            if (_txPerspective)
+            {
+                var (src, dst) = TransformQuadResult;
+                double[] h;
+                try
+                {
+                    h = Lightbox.Core.Geometry.TransformOps.PerspectiveCoefficients(src, dst);
+                }
+                catch (InvalidOperationException)
+                {
+                    // A collapsed quad has no preview; apply refuses it too.
+                    return SKMatrix.Identity;
+                }
+                return new SKMatrix(
+                    (float)h[0], (float)h[1], (float)h[2],
+                    (float)h[3], (float)h[4], (float)h[5],
+                    (float)h[6], (float)h[7], 1f);
+            }
+            var m = SKMatrix.CreateTranslation((float)-_txPivotX, (float)-_txPivotY);
+            m = m.PostConcat(SKMatrix.CreateScale((float)_txScaleX, (float)_txScaleY));
+            m = m.PostConcat(SKMatrix.CreateRotation((float)_txAngle));
+            m = m.PostConcat(SKMatrix.CreateTranslation(
+                (float)(_txPivotX + _txDx), (float)(_txPivotY + _txDy)));
+            return m;
+        }
+    }
+
     /// <summary>True when the gizmo is still identity (nothing to commit).</summary>
     public bool TransformIsIdentity =>
         !_txPerspective

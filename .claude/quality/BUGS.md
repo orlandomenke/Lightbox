@@ -90,17 +90,17 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Fix: store project palettes as JSON, ids intact. `.gpl` stays what it is — an interop format for the docker's Import/Export, not a storage format.
   - Mine, from the previous commit. Found by the variant tests rather than by review. Cost: S
 
-- [ ] **B4** `P2` `brush` Blur, smudge and blender brushes only update on pen lift `evidence: SmudgeShowsMidDrag`
+- [x] **B4** `P2` `brush` Blur, smudge and blender brushes only update on pen lift `evidence: SmudgeShowsMidDrag`
   - Repro: pick smudge or blur, drag across existing paint. The smear appears only when the pen lifts.
   - Cause: `FlushLivePreview` appends the draft into `_liveComposite`, but `PublishSnapshot`'s overlay branch only ever reads `_liveScratch`. The composite is computed every event and never shown.
   - Fix: for the active layer, a blur/smudge drag **replaces** the layer bitmap rather than overlaying a scratch — these tools modify pixels that are already there, so an overlay is the wrong shape.
   - Same class as the wet-media bug already fixed: brushwork must look while drawing the way it will look afterwards.
   - Cost: M
 
-- [ ] **B5** `P2` `transform` Transform shows no live pixels, only the gizmo `evidence: TransformPreviewMovesThePixels`
+- [x] **B5** `P2` `transform` Transform shows no live pixels, only the gizmo `evidence: TransformPreviewMovesThePixels`
   - Repro: Ctrl+T, drag a handle. The quad moves; the drawing does not until commit.
   - Cause: the gizmo is view-only chrome and nothing maps the strokes until `CommitTransformAffine`/`Perspective`.
-  - Fix: preview through the live-scratch overlay, the same seam the gradient drag uses.
+  - Fix: a per-pass matrix on `RenderPass`. The gizmo hands its shape to the view model on every change and the composite draws the moving pixels through it — no geometry is re-mapped until apply, so undo and invariant 1 are untouched. Under a selection the frame splits into the strokes that move and the ones that stay, which is the split the commit makes.
   - Cost: M
 
 - [x] **B6** `P2` `timeline` No way to delete a cel `evidence: DeleteCel_RipplesTheRest`
@@ -120,10 +120,11 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Cause: not investigated. Pen hover events arrive as a different device with its own enter/leave pattern; the submenu almost certainly closes on a spurious leave.
   - **Recorded, not being worked on** at the user's request. Cost: ?
 
-- [ ] **B7** `P3` `transform` Transform does not affect gradients `evidence: TransformingAGradient_MovesItsAxis`
+- [x] **B7** `P3` `transform` Transform does not affect gradients `evidence: TransformingAGradient_MovesItsAxis`
   - Repro: lay a gradient, Ctrl+T, move it. The ramp does not follow.
-  - Cause: not yet established. `TransformOps.TransformStroke` maps `stroke.Points` for every tool kind, so a gradient's two axis points *should* move. Suspect the region filter (`MajorityInside` on a two-point stroke) or `Bounds` padding by `Brush.Size / 2` where a gradient's brush size means nothing.
-  - Reproduce before fixing. Cost: M
+  - Cause: reproduced — it is the region filter, and only with a selection. Without one the ramp does follow. `MajorityInside` counts a stroke's points, and a gradient's two points are the ends of its axis, not a centreline; the ramp colours the whole layer regardless of where they sit. A marquee drawn straight over a visible gradient reported "nothing to transform in this scope".
+  - Fix: judge a gradient by what it covers. It joins any region-limited transform and moves whole, which is the rule the filter already followed for everything else.
+  - Cost: M
 
 ## Fixed
 

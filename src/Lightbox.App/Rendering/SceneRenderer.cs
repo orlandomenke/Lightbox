@@ -32,12 +32,21 @@ public sealed record StrokeOverlay(
 }
 
 /// <summary>One compositing pass: a layer bitmap with optional tint, opacity and blend mode.</summary>
+/// <param name="Matrix">
+/// A document-space matrix applied to this pass alone, or null for the
+/// ordinary case. The transform tool uses it to show a drag before it is
+/// committed: the pixels already exist, and moving them for one composite is
+/// far cheaper — and far more responsive — than re-mapping the stroke record
+/// on every pointer event. The record is only ever touched on apply, so
+/// invariant 1 is untouched; this is a preview, not an edit.
+/// </param>
 public sealed record RenderPass(
     SKBitmap Bitmap,
     SKColor? Tint,
     double Opacity,
     SKBlendMode Blend = SKBlendMode.SrcOver,
-    StrokeOverlay? Overlay = null);
+    StrokeOverlay? Overlay = null,
+    SKMatrix? Matrix = null);
 
 /// <summary>
 /// Pure SkiaSharp scene compositing: white paper, then passes in order
@@ -104,52 +113,71 @@ public static class SceneRenderer
 
         foreach (var pass in passes)
         {
-            var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
-            using var paint = new SKPaint
+            // A pass may carry a matrix of its own — the transform tool's live
+            // preview. It nests inside the scene transform rather than
+            // replacing it, so the preview lands in document space, which is
+            // where the commit will put the strokes.
+            if (pass.Matrix is { } passMatrix)
             {
-                Color = SKColors.White.WithAlpha(alpha),
-                BlendMode = pass.Blend,
-            };
-            if (pass.Tint is { } tint)
-            {
-                paint.ColorFilter = SKColorFilter.CreateBlendMode(tint, SKBlendMode.SrcIn);
+                canvas.Save();
+                canvas.Concat(passMatrix);
+                DrawPass(canvas, pass);
+                canvas.Restore();
             }
-
-            if (pass.Overlay is not { } overlay)
+            else
             {
-                DrawLayer(canvas, pass.Bitmap, paint);
-                continue;
+                DrawPass(canvas, pass);
             }
-
-            using var strokePaint = new SKPaint
-            {
-                Color = SKColors.White.WithAlpha(
-                    (byte)Math.Round(Math.Clamp(overlay.Opacity, 0, 1) * 255)),
-                BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
-            };
-
-            // Isolation is only needed when the stroke must combine with its
-            // own layer before that layer meets the ones below — an eraser
-            // (which would otherwise cut through everything) or a layer that
-            // is transparent or blended. Skipping the offscreen layer in the
-            // ordinary case roughly halves the cost of a live repaint.
-            var needsIsolation = overlay.Erases || alpha != 255 || pass.Blend != SKBlendMode.SrcOver;
-            if (!needsIsolation)
-            {
-                DrawLayer(canvas, pass.Bitmap, paint);
-                DrawStroke(canvas, pass.Bitmap, overlay, strokePaint);
-                continue;
-            }
-
-            // SaveLayer allocates the current clip only, so a bounded live
-            // region stays affordable even on a huge canvas.
-            canvas.SaveLayer(paint);
-            DrawLayer(canvas, pass.Bitmap, null);
-            DrawStroke(canvas, pass.Bitmap, overlay, strokePaint);
-            canvas.Restore();
         }
         canvas.Restore();
         canvas.Flush();
+    }
+
+    private static void DrawPass(SKCanvas canvas, RenderPass pass)
+    {
+        var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
+        using var paint = new SKPaint
+        {
+            Color = SKColors.White.WithAlpha(alpha),
+            BlendMode = pass.Blend,
+        };
+        if (pass.Tint is { } tint)
+        {
+            paint.ColorFilter = SKColorFilter.CreateBlendMode(tint, SKBlendMode.SrcIn);
+        }
+
+        if (pass.Overlay is not { } overlay)
+        {
+            DrawLayer(canvas, pass.Bitmap, paint);
+            return;
+        }
+
+        using var strokePaint = new SKPaint
+        {
+            Color = SKColors.White.WithAlpha(
+                (byte)Math.Round(Math.Clamp(overlay.Opacity, 0, 1) * 255)),
+            BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+        };
+
+        // Isolation is only needed when the stroke must combine with its
+        // own layer before that layer meets the ones below — an eraser
+        // (which would otherwise cut through everything) or a layer that
+        // is transparent or blended. Skipping the offscreen layer in the
+        // ordinary case roughly halves the cost of a live repaint.
+        var needsIsolation = overlay.Erases || alpha != 255 || pass.Blend != SKBlendMode.SrcOver;
+        if (!needsIsolation)
+        {
+            DrawLayer(canvas, pass.Bitmap, paint);
+            DrawStroke(canvas, pass.Bitmap, overlay, strokePaint);
+            return;
+        }
+
+        // SaveLayer allocates the current clip only, so a bounded live
+        // region stays affordable even on a huge canvas.
+        canvas.SaveLayer(paint);
+        DrawLayer(canvas, pass.Bitmap, null);
+        DrawStroke(canvas, pass.Bitmap, overlay, strokePaint);
+        canvas.Restore();
     }
 
     /// <summary>

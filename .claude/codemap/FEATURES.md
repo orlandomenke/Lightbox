@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-662 tests, derived from the suite itself. Each line is a
+674 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -295,6 +295,9 @@ regression even when every test still compiles.
 - ALocked Layer Refuses AGradient — `:225`
 - The Ramp Is Visible While Dragging And Survives The Pen Lift — `:234`
 - Opacity Is Recorded On The Stroke Not Read At Render Time — `:265`
+- Transforming AGradient Moves Its Axis — `:283`
+- ASelection Over AGradient Finds It — `:303`
+- ASelection Elsewhere Still Leaves Ordinary Strokes Alone — `:323`
 
 ## IpcTests
 `tests/Lightbox.App.Tests/IpcTests.cs`
@@ -403,6 +406,14 @@ regression even when every test still compiles.
 - Batched Moves Produce One Stroke With All Points — `:10`
 - Committed Pixels Match Direct Rasterization — `:30`
 - Pointer Up Without Down Is Harmless — `:56`
+
+## LiveToolPreviewTests
+`tests/Lightbox.App.Tests/LiveToolPreviewTests.cs`
+
+- Smudge Shows Mid Drag — `:56`
+- The Smudge Preview Matches The Commit — `:84`
+- Blur Shows Mid Drag — `:111`
+- An Abandoned Smudge Leaves No Trace — `:143`
 
 ## MainViewModelTests
 `tests/Lightbox.App.Tests/MainViewModelTests.cs`
@@ -648,6 +659,15 @@ regression even when every test still compiles.
 - Select Shortcut Activates Then Cycles Variants — `:10`
 - Is Eraser Compat Tracks The Active Tool — `:39`
 - Non Paint Tools Do Not Produce Brush Strokes — `:54`
+
+## TransformPreviewTests
+`tests/Lightbox.App.Tests/TransformPreviewTests.cs`
+
+- Transform Preview Moves The Pixels — `:50`
+- The Preview Is Not An Edit — `:66`
+- Cancelling Puts The Pixels Back — `:85`
+- What The Preview Showed Is What Apply Produces — `:99`
+- With ASelection Only The Selected Strokes Move — `:116`
 
 ## TransformToolTests
 `tests/Lightbox.App.Tests/TransformToolTests.cs`

@@ -276,4 +276,66 @@ public class GradientToolTests
         vm.GradientOpacity = 1.0;
         Assert.Equal(before, At(vm, vm.Doc.Scene.Width - 5, 10));
     }
+
+    // ---- B7: the transform tool and gradients -------------------------------
+
+    [AvaloniaFact]
+    public void TransformingAGradient_MovesItsAxis()
+    {
+        // The plain case, so the regression test says what "works" means
+        // before the selection case says what used to break.
+        var vm = WithGradient(out _);
+        Drag(vm, 100, 20, 100, 120);
+        // Below the ramp, so it is the clamped end colour — white.
+        Assert.True(At(vm, 100, 200).Red > 250);
+
+        Assert.True(vm.BeginTransform());
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 0, 150);
+
+        var stroke = Assert.Single(Strokes(vm));
+        Assert.Equal(170, stroke.Points[0].Y, 3);
+        Assert.Equal(270, stroke.Points[^1].Y, 3);
+        // The ramp went with it: that same point is now inside it.
+        Assert.InRange(At(vm, 100, 200).Red, 40, 140);
+    }
+
+    [AvaloniaFact]
+    public void ASelectionOverAGradient_FindsIt()
+    {
+        // B7. A gradient's two points are the ends of its axis, not a
+        // centreline, and the ramp colours the whole layer regardless of where
+        // they sit. Judging the selection by those two points meant a marquee
+        // drawn straight over a visible gradient reported an empty scope.
+        var vm = WithGradient(out _);
+        Drag(vm, 100, 20, 100, 120);
+
+        vm.ApplySelectionShape(                 // well clear of both axis points
+            [new(20, 140, 1), new(280, 140, 1), new(280, 240, 1), new(20, 240, 1)],
+            add: false, subtract: false);
+
+        Assert.True(vm.BeginTransform(), vm.AiStatus);
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 0, 150);
+
+        Assert.Equal(170, Assert.Single(Strokes(vm)).Points[0].Y, 3);
+    }
+
+    [AvaloniaFact]
+    public void ASelectionElsewhereStillLeavesOrdinaryStrokesAlone()
+    {
+        // The counter-test: widening the filter for gradients must not widen
+        // it for anything else.
+        var vm = WithGradient(out _);
+        vm.ActiveTool = ToolId.Brush;
+        vm.SmoothStrokes = false;
+        vm.BeginStroke(40, 40, 1);
+        vm.MoveStroke(80, 40, 1);
+        vm.EndStroke();
+
+        vm.ApplySelectionShape(
+            [new(200, 200, 1), new(280, 200, 1), new(280, 280, 1), new(200, 280, 1)],
+            add: false, subtract: false);
+
+        Assert.False(vm.BeginTransform());
+        Assert.Contains("Nothing to transform", vm.AiStatus);
+    }
 }

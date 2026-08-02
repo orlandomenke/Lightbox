@@ -129,8 +129,23 @@ public static class TransformOps
     /// inside the mask (row-major w×h booleans). Strokes move whole — no
     /// point-tearing — so connected drawings stay connected.
     /// </summary>
+    /// <remarks>
+    /// A gradient is judged by what it covers rather than by where its points
+    /// are, because its points are not a centreline: they are the two ends of
+    /// the axis the ramp runs along, and the ramp colours the whole layer (or
+    /// its clip) regardless of where they sit. Counting them is how a
+    /// selection drawn straight over a visible gradient used to come back
+    /// "nothing to transform in this scope" — the pixels were plainly inside,
+    /// and the two points that decided the question were not.
+    ///
+    /// Covering everything means a gradient joins any region-limited
+    /// transform, and moves whole when it does. That is the same rule the rest
+    /// of this method follows, applied to an object whose extent happens to be
+    /// the canvas.
+    /// </remarks>
     public static bool MajorityInside(Stroke stroke, bool[] mask, int w, int h)
     {
+        if (stroke.Tool == ToolKind.Gradient) return Array.IndexOf(mask, true) >= 0;
         if (stroke.Points.Count == 0) return false;
         var inside = 0;
         foreach (var p in stroke.Points)

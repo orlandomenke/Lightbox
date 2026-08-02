@@ -55,6 +55,10 @@ public partial class MainWindow : Window
             TransformPerspectiveToggle.IsChecked = false; // gizmo resets per session
             SyncCanvasToolMode();
         };
+        // The gizmo is the authority on the shape of the drag; the view model
+        // owns the pixels. Feeding the matrix across on every gizmo change is
+        // what makes the drawing move with the box instead of after it.
+        Canvas.TransformGizmoChanged += () => _vm.PreviewTransform(Canvas.TransformMatrix);
         Canvas.TransformMenuRequested += ShowTransformMenu;
         SyncCanvasToolMode();
 
