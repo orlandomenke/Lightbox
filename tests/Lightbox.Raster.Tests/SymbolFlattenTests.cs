@@ -28,6 +28,7 @@ namespace Lightbox.Raster.Tests;
 /// the design said so in advance.
 /// </para>
 /// </remarks>
+[Collection("Registries")]
 public class SymbolFlattenTests : IDisposable
 {
     private const int W = 160, H = 120;

@@ -13,6 +13,7 @@ namespace Lightbox.Raster.Tests;
 /// stroke record going through the same engine. There is nothing raster- or
 /// vector-specific to get right; the colour is resolved once, in one place.
 /// </summary>
+[Collection("Registries")]
 public class LivePaletteTests : IDisposable
 {
     private const int W = 120, H = 80;

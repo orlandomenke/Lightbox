@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `fe73726` · 265 files · 64285 lines · 1214 tests.
+Generated from `af2a28a` · 269 files · 65245 lines · 1241 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -8,7 +8,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Ai
 
-- `src/Lightbox.Ai/AnthropicArtist.cs` (184 ln) · 59 indirect only
+- `src/Lightbox.Ai/AnthropicArtist.cs` (184 ln) · 2 indirect only
   - AnthropicArtist:18
 - `src/Lightbox.Ai/OllamaArtist.cs` (150 ln) · 1 test files
   - OllamaArtist:17, ChatMessage:33, ChatResponse:39
@@ -16,7 +16,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeWire:15, PointDto:22, StrokeDto:29, InbetweenFrameDto:40, InbetweenResultDto:46, DrawResultDto:51
 - `src/Lightbox.Ai/Prompts.cs` (89 ln) · 1 test files
   - Prompts:11
-- `src/Lightbox.Ai/ApiKeyProvider.cs` (81 ln) · 59 indirect only
+- `src/Lightbox.Ai/ApiKeyProvider.cs` (81 ln) · 2 indirect only
   - ApiKeyProvider:10
 - `src/Lightbox.Ai/StrokeSchemas.cs` (73 ln) · 1 test files
   - StrokeSchemas:10
@@ -27,8 +27,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (7389 ln) · 59 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:3006, TransformParts:4735
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (7412 ln) · 2 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:3006, TransformParts:4758
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (2877 ln) · 6 test files
   - MainWindow:17
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2588 ln) · 5 test files
@@ -49,15 +49,17 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TimelineRuler:17, Handle:101
 - `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (367 ln) · 4 test files
   - ColorMode:9, ColorPickerViewModel:25
+- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (360 ln) · 60 test files
+  - MainViewModel:17
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` (347 ln) · 5 test files
   - StrokeOverlay:23, RenderPass:49, SceneRenderer:64
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 39 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 41 test files
   - SpriteTrim:11, SpriteSheetOptions:35, SpriteSheetResult:46, SpriteSheetExporter:69, SheetDocument:275, SheetFrame:281, SheetMeta:295, Box:310 …
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 6 indirect only
   - RampTrack:10, GradientRamp:41
 - `src/Lightbox.App/Docking/DockLayout.cs` (276 ln) · 3 test files
   - DockPlacement:7, DockLayout:51
-- `src/Lightbox.App/Services/BrushPresets.cs` (271 ln) · 60 indirect only
+- `src/Lightbox.App/Services/BrushPresets.cs` (271 ln) · 4 indirect only
   - BrushPreset:7, BuiltInPresets:24, PresetStore:218, State:223
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 2 test files
   - ComposeRing:31, Buffer:33
@@ -78,7 +80,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - IpcDocumentApi:15, FrameRef:86, InsertPayload:118, DrawPayload:146, ViewRef:167
 - `src/Lightbox.App/Controls/Docker.cs` (192 ln) · 1 test files
   - Docker:16
-- `src/Lightbox.App/Services/PerformanceMonitor.cs` (180 ln) · 59 indirect only
+- `src/Lightbox.App/Services/PerformanceMonitor.cs` (180 ln) · 2 indirect only
   - PerformanceMonitor:14
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 2 test files
   - CanvasOverlayBar:28
@@ -102,7 +104,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RecentKind:3, RecentItem:10, RecentItems:43
 - `src/Lightbox.App/Views/StartScreen.axaml.cs` (131 ln) · 1 test files
   - StartChoice:14, StartScreen:61
-- `src/Lightbox.App/Controls/ValueDrag.cs` (126 ln) · 59 indirect only
+- `src/Lightbox.App/Controls/ValueDrag.cs` (126 ln) · 2 indirect only
   - ValueDrag:27, Session:43
 - `src/Lightbox.App/Services/FileReveal.cs` (125 ln) · 1 test files
   - Desktop:7, FileReveal:35
@@ -126,7 +128,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockPanelId:11, DockSide:24, DockPanelInfo:52, DockPanels:61
 - `src/Lightbox.App/Rendering/CameraTransform.cs` (95 ln) · 1 test files
   - CameraTransform:16
-- `src/Lightbox.App/Services/AutosaveService.cs` (85 ln) · 59 indirect only
+- `src/Lightbox.App/Services/AutosaveService.cs` (85 ln) · 2 indirect only
   - AutosaveService:22
 - `src/Lightbox.App/Views/StartScreen.axaml` (84 ln) · **no tests**
   - DocumentFields, DontShowBox, NoRecents, ProjectFields, RecentList, Tabs
@@ -138,9 +140,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SequenceExporter:20
 - `src/Lightbox.App/Views/NewProjectPanel.axaml.cs` (61 ln) · 6 indirect only
   - NewProjectSettings:8, NewProjectPanel:16, TypeChoice:18, PanelChoice:34
-- `src/Lightbox.App/Rendering/ThumbnailRenderer.cs` (60 ln) · 59 indirect only
+- `src/Lightbox.App/Rendering/ThumbnailRenderer.cs` (60 ln) · 2 indirect only
   - ThumbnailRenderer:7
-- `src/Lightbox.App/Input/StrokeBuilder.cs` (58 ln) · 59 indirect only
+- `src/Lightbox.App/Input/StrokeBuilder.cs` (58 ln) · 2 indirect only
   - StrokeBuilder:10
 - `src/Lightbox.App/Views/FloatingPanelWindow.cs` (56 ln) · 6 indirect only
   - FloatingPanelWindow:16
@@ -150,7 +152,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
-- `src/Lightbox.App/App.axaml.cs` (25 ln) · 89 indirect only
+- `src/Lightbox.App/App.axaml.cs` (25 ln) · 45 indirect only
   - App:8
 - `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 6 indirect only
   - NewProjectDialog:10
@@ -169,13 +171,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Core
 
-- `src/Lightbox.Core/Projects/ProjectIo.cs` (818 ln) · 9 test files
+- `src/Lightbox.Core/Projects/ProjectIo.cs` (818 ln) · 10 test files
   - ProjectIo:31, ConversionReport:544
-- `src/Lightbox.Core/Timeline/DocumentEditor.cs` (603 ln) · 6 test files
+- `src/Lightbox.Core/Timeline/DocumentEditor.cs` (603 ln) · 7 test files
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (242 ln) · 28 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (242 ln) · 30 test files
   - SmudgeMode:8, BrushKind:25, BrushSettings:44
 - `src/Lightbox.Core/Geometry/TransformOps.cs` (234 ln) · 1 test files
   - TransformOps:12
@@ -193,7 +195,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ShapeKind:5, ShapeBuilder:38
 - `src/Lightbox.Core/Documents/MediumSettings.cs` (191 ln) · 8 test files
   - MediumKind:10, PaperKind:29, MediumSettings:54
-- `src/Lightbox.Core/Documents/Symbol.cs` (179 ln) · 4 test files
+- `src/Lightbox.Core/Documents/Symbol.cs` (179 ln) · 5 test files
   - SymbolKind:11, Symbol:42, SymbolPlacement:120
 - `src/Lightbox.Core/Documents/PaletteFolder.cs` (178 ln) · 3 test files
   - PaletteFolder:20, PaletteTree:40
@@ -203,7 +205,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameMarker:4, Scene:13
 - `src/Lightbox.Core/Documents/Camera.cs` (146 ln) · 4 test files
   - CameraKey:10, Camera:46, CameraOps:65
-- `src/Lightbox.Core/Documents/Palette.cs` (144 ln) · 12 test files
+- `src/Lightbox.Core/Documents/Palette.cs` (144 ln) · 13 test files
   - Swatch:8, Palette:30, GimpPalette:55
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (130 ln) · 1 test files
   - GeometryOps:5
@@ -215,6 +217,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GuideKind:4, Guide:60
 - `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 26 test files
   - DocumentFactory:3
+- `src/Lightbox.Core/Documents/Stroke.cs` (96 ln) · 45 test files
+  - Stroke:9
 - `src/Lightbox.Core/Inbetween/Inbetweener.cs` (94 ln) · 2 test files
   - Inbetweener:19
 - `src/Lightbox.Core/Documents/Doc.cs` (89 ln) · 16 test files
@@ -223,17 +227,15 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - OnionSkin:27
 - `src/Lightbox.Core/Inbetween/StrokeRecordCleaner.cs` (87 ln) · 1 test files
   - StrokeRecordCleaner:20
-- `src/Lightbox.Core/Documents/Stroke.cs` (81 ln) · 43 test files
-  - Stroke:9
 - `src/Lightbox.Core/Geometry/StrokeFilters.cs` (80 ln) · 1 test files
   - StrokeFilters:10
 - `src/Lightbox.Core/Inbetween/StrokeMatcher.cs` (73 ln) · 1 test files
   - StrokePair:6, StrokeMatcher:13
-- `src/Lightbox.Core/Serialization/FrameConverter.cs` (73 ln) · 64 indirect only
+- `src/Lightbox.Core/Serialization/FrameConverter.cs` (73 ln) · 66 indirect only
   - FrameConverter:14
 - `src/Lightbox.Core/Serialization/DocJson.cs` (66 ln) · 15 test files
   - DocJson:11
-- `src/Lightbox.Core/Documents/Frame.cs` (62 ln) · 60 test files
+- `src/Lightbox.Core/Documents/Frame.cs` (62 ln) · 62 test files
   - FrameRole:8, Frame:19, VectorFrame:27, PaintedFrame:40
 - `src/Lightbox.Core/Documents/ReferenceSheet.cs` (50 ln) · 1 test files
   - ReferenceSheet:11, ReferenceView:21
@@ -243,13 +245,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeInterpolator:6
 - `src/Lightbox.Core/Geometry/ColorOps.cs` (29 ln) · 1 test files
   - ColorOps:3
-- `src/Lightbox.Core/Documents/ToolKind.cs` (23 ln) · 34 test files
+- `src/Lightbox.Core/Documents/ToolKind.cs` (23 ln) · 36 test files
   - ToolKind:3
 - `src/Lightbox.Core/Inbetween/Easing.cs` (20 ln) · 6 test files
   - Easing:3, EasingOps:11
 - `src/Lightbox.Core/Documents/Pivot.cs` (16 ln) · 2 test files
   - Pivot:7
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 103 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 89 indirect only
   - Ids:3
 
 ## Lightbox.Import
@@ -282,21 +284,21 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PaperField:26, Tile:81
 - `src/Lightbox.Raster/Media/PigmentModel.cs` (356 ln) · 1 test files
   - Pigment:31
+- `src/Lightbox.Raster/SymbolRasterizer.cs` (305 ln) · 2 test files
+  - SymbolRasterizer:39, Rendered:46
 - `src/Lightbox.Raster/Media/MediumSimulator.cs` (298 ln) · **no tests**
   - MediumSimulator:22
-- `src/Lightbox.Raster/SymbolRasterizer.cs` (250 ln) · 1 test files
-  - SymbolRasterizer:39, Rendered:46
 - `src/Lightbox.Raster/FrameRasterizer.cs` (114 ln) · 14 test files
   - FrameRasterizer:10
-- `src/Lightbox.Raster/SymbolRegistry.cs` (95 ln) · 3 test files
+- `src/Lightbox.Raster/SymbolRegistry.cs` (95 ln) · 5 test files
   - SymbolRegistry:24
-- `src/Lightbox.Raster/PaletteRegistry.cs` (79 ln) · 5 test files
+- `src/Lightbox.Raster/PaletteRegistry.cs` (79 ln) · 6 test files
   - PaletteRegistry:25
 - `src/Lightbox.Raster/ReferenceStripRegistry.cs` (50 ln) · **no tests**
   - ReferenceStripRegistry:22
 - `src/Lightbox.Raster/BrushTipRegistry.cs` (34 ln) · 1 test files
   - BrushTipRegistry:12
-- `src/Lightbox.Raster/ClipRegionRegistry.cs` (27 ln) · 2 test files
+- `src/Lightbox.Raster/ClipRegionRegistry.cs` (27 ln) · 3 test files
   - ClipRegionRegistry:12
 - `src/Lightbox.Raster/PngCodec.cs` (22 ln) · 3 test files
   - PngCodec:6

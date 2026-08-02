@@ -17,6 +17,7 @@ namespace Lightbox.Raster.Tests;
 /// pass without touching <c>Hash01</c> then the design is wrong rather than the
 /// engine. It passes.
 /// </remarks>
+[Collection("Registries")]
 public class SymbolRenderTests : IDisposable
 {
     private const int W = 200, H = 160;

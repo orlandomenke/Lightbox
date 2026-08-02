@@ -4583,6 +4583,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// </param>
     public bool BeginMove(double x, double y, bool wholeLayer)
     {
+        // A placed symbol under the cursor wins, and only when the grab is on
+        // the drawing rather than on the whole layer. Moving a placement is an
+        // edit to two numbers on the placement; moving the drawing rewrites
+        // stroke coordinates. They are different operations that happen to
+        // share a gesture, and which one you get is decided by what you
+        // grabbed — the same way it is in Photoshop.
+        if (!wholeLayer && BeginPlacementMove(x, y)) return true;
+
         var scope = wholeLayer ? TransformScope.ActiveLayerAllFrames : TransformScope.ActiveCel;
         // Assigned before the session starts, so the property's change handler
         // has no live session to restart and simply records the scope.
@@ -4602,6 +4610,11 @@ public sealed partial class MainViewModel : ObservableObject
     /// </param>
     public void UpdateMove(double x, double y, bool axisLock)
     {
+        if (PlacementMoveActive)
+        {
+            UpdatePlacementMove(x, y, axisLock);
+            return;
+        }
         if (_moveAnchor is not { } anchor) return;
         var dx = x - anchor.X;
         var dy = y - anchor.Y;
@@ -4617,6 +4630,11 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Put it down. One undo step for the whole drag, or nothing at all.</summary>
     public void EndMove()
     {
+        if (PlacementMoveActive)
+        {
+            EndPlacementMove();
+            return;
+        }
         if (_moveAnchor is null) return;
         var (dx, dy) = _moveDelta;
         _moveAnchor = null;
@@ -4634,6 +4652,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void CancelMove()
     {
+        if (PlacementMoveActive)
+        {
+            CancelPlacementMove();
+            return;
+        }
         _moveAnchor = null;
         _moveDelta = default;
         if (TransformActive) CancelTransform();

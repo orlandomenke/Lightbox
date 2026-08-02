@@ -6,6 +6,7 @@ using SkiaSharp;
 
 namespace Lightbox.Raster.Tests;
 
+[Collection("Registries")]
 public class FloodFillTests
 {
     private static SKBitmap Canvas(int w = 64, int h = 64)

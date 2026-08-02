@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1214 tests, derived from the suite itself. Each line is a
+1241 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -993,6 +993,33 @@ regression even when every test still compiles.
 - Clearing The List Empties It On Disk As Well — `:182`
 - Only What Is Still On Disk Is Offered — `:205`
 
+## SymbolPlacingTests
+`tests/Lightbox.App.Tests/SymbolPlacingTests.cs`
+
+- Placing ASymbol Puts It On The Cel — `:65`
+- APlacement Records What It Was Placed Against — `:77`
+- Placing Is One Undo Step — `:88`
+- Placing An Unknown Symbol Does Nothing And Says So — `:101`
+- ALocked Layer Refuses APlacement — `:113`
+- Removing APlacement Leaves The Symbol Alone — `:122`
+- Removing Is One Undo Step And Keeps The Order — `:134`
+- APlacement Can Be Found Under The Pointer — `:151`
+- Empty Canvas Under The Pointer Finds Nothing — `:160`
+- The Topmost Placement Wins — `:169`
+- The Move Tool Grabs APlacement Before The Drawing — `:183`
+- The Move Tool Still Moves The Drawing Away From APlacement — `:195`
+- Dragging APlacement Moves It — `:208`
+- Shift Holds The Placement To One Axis — `:222`
+- Moving APlacement Is One Undo Step — `:236`
+- Moving APlacement Does Not Touch The Symbol — `:253`
+- AClick That Went Nowhere Is Not An Edit — `:272`
+- Cancelling AMove Puts It Back — `:285`
+- Breaking The Link Leaves Ordinary Strokes — `:302`
+- Broken Strokes Keep Their Swatch — `:319`
+- Breaking The Link Is One Undo Step — `:339`
+- Breaking One Link Leaves Other Placements Linked — `:353`
+- AScaled Placement Bakes Its Size Into The Brush — `:366`
+
 ## SymbolScopeTests
 `tests/Lightbox.App.Tests/SymbolScopeTests.cs`
 
@@ -1499,6 +1526,14 @@ regression even when every test still compiles.
 - ASheet With No Flat Surround Is All Content — `:305`
 - Nearly Transparent Noise Is Not Content — `:321`
 
+## StrokeCloneTests
+`tests/Lightbox.Core.Tests/StrokeCloneTests.cs`
+
+- AClone Keeps Its Link To The Palette — `:30`
+- AClone Keeps Everything Else Too — `:42`
+- AClone Is ANew Stroke With Its Own Points — `:58`
+- ADuplicated Cel Still Paints From The Same Swatch — `:70`
+
 ## SymbolRecordTests
 `tests/Lightbox.Core.Tests/SymbolRecordTests.cs`
 
@@ -1641,20 +1676,20 @@ regression even when every test still compiles.
 ## FillStrokeTests
 `tests/Lightbox.Raster.Tests/FloodFillTests.cs`
 
-- Fill Stroke Renders Its Region With Holes Left Empty — `:157`
-- Fill Stroke Survives Document Serialization Pixel For Pixel — `:169`
-- Clipped Stroke Re Renders Identically From Json Alone — `:187`
-- Feather Softens The Clip Edge — `:223`
+- Fill Stroke Renders Its Region With Holes Left Empty — `:158`
+- Fill Stroke Survives Document Serialization Pixel For Pixel — `:170`
+- Clipped Stroke Re Renders Identically From Json Alone — `:188`
+- Feather Softens The Clip Edge — `:224`
 
 ## FloodFillTests
 `tests/Lightbox.Raster.Tests/FloodFillTests.cs`
 
-- Fill Stops At Barriers Within Tolerance And Crosses Them Beyond It — `:33`
-- Fill Traces Inner Contours As Holes — `:52`
-- Gap Closing Seals Small Openings But Not Larger Ones — `:72`
-- Grow And Shrink Overfill And Underfill The Region — `:99`
-- Fill Is Deterministic — `:113`
-- Fill Stays Inside ASelection Mask — `:124`
+- Fill Stops At Barriers Within Tolerance And Crosses Them Beyond It — `:34`
+- Fill Traces Inner Contours As Holes — `:53`
+- Gap Closing Seals Small Openings But Not Larger Ones — `:73`
+- Grow And Shrink Overfill And Underfill The Region — `:100`
+- Fill Is Deterministic — `:114`
+- Fill Stays Inside ASelection Mask — `:125`
 
 ## FluidLatticeTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/FluidLatticeTests.cs`
@@ -1677,13 +1712,13 @@ regression even when every test still compiles.
 ## LivePaletteTests
 `tests/Lightbox.Raster.Tests/LivePaletteTests.cs`
 
-- Recolouring ASwatch Recolours The Stroke — `:42`
-- One Swatch Drives Every Frame And Every Layer — `:56`
-- Vector And Raster Frames Resolve The Same Swatch — `:71`
-- AStroke With No Swatch Keeps Its Own Colour — `:95`
-- AMissing Swatch Falls Back To The Colour The Artist Last Saw — `:109`
-- AFill Resolves The Swatch Too — `:119`
-- Re Registering APalette Replaces Rather Than Ignores — `:142`
+- Recolouring ASwatch Recolours The Stroke — `:43`
+- One Swatch Drives Every Frame And Every Layer — `:57`
+- Vector And Raster Frames Resolve The Same Swatch — `:72`
+- AStroke With No Swatch Keeps Its Own Colour — `:96`
+- AMissing Swatch Falls Back To The Colour The Artist Last Saw — `:110`
+- AFill Resolves The Swatch Too — `:120`
+- Re Registering APalette Replaces Rather Than Ignores — `:143`
 
 ## MediumRenderingTests
 `tests/Lightbox.Raster.Tests/MediumRenderingTests.cs`
@@ -1697,12 +1732,12 @@ regression even when every test still compiles.
 ## OutputScaleTests
 `tests/Lightbox.Raster.Tests/OutputScaleTests.cs`
 
-- AHigher Output Scale Renders The Same Mark — `:141`
-- Scaling The Coordinates Instead Produces ADifferent Mark — `:159`
-- Output Scale One Is Untouched — `:179`
-- AHigher Output Scale Actually Resolves More Detail — `:192`
-- AClipped Stroke Clips To The Same Region At Every Scale — `:225`
-- An Alpha Locked Stroke Stays Inside Existing Paint At Every Scale — `:269`
+- AHigher Output Scale Renders The Same Mark — `:142`
+- Scaling The Coordinates Instead Produces ADifferent Mark — `:160`
+- Output Scale One Is Untouched — `:180`
+- AHigher Output Scale Actually Resolves More Detail — `:193`
+- AClipped Stroke Clips To The Same Region At Every Scale — `:226`
+- An Alpha Locked Stroke Stays Inside Existing Paint At Every Scale — `:270`
 
 ## PaperFieldScaleTests
 `tests/Lightbox.Raster.Tests/PaperFieldTests.cs`
@@ -1786,10 +1821,10 @@ regression even when every test still compiles.
 ## ProjectFlattenTests
 `tests/Lightbox.Raster.Tests/ProjectFlattenTests.cs`
 
-- AFlattened Document Renders Identically With The Project Gone — `:63`
-- Without Flattening The Same Export Would Render Differently — `:88`
-- AFlattened Gradient Renders Identically Too — `:106`
-- ADocument That References Nothing Shared Flattens To Itself — `:137`
+- AFlattened Document Renders Identically With The Project Gone — `:64`
+- Without Flattening The Same Export Would Render Differently — `:89`
+- AFlattened Gradient Renders Identically Too — `:107`
+- ADocument That References Nothing Shared Flattens To Itself — `:138`
 
 ## BrushEngineTests
 `tests/Lightbox.Raster.Tests/RasterTests.cs`
@@ -1813,36 +1848,36 @@ regression even when every test still compiles.
 ## SymbolFlattenTests
 `tests/Lightbox.Raster.Tests/SymbolFlattenTests.cs`
 
-- AFlattened Document Renders Its Placements With The Project Gone — `:95`
-- Without Flattening The Same Export Would Render Nothing — `:115`
-- ASymbols Own Swatches Travel With It — `:135`
-- ADocument That Places Nothing Carries No Symbols — `:163`
-- Only The Symbols The Document Places Travel — `:178`
-- AFlattened Document Survives ASave And Reload — `:195`
-- ASymbol The Document Already Carries Still Has Its Swatches Walked — `:216`
-- Flattening AFlattened Document Keeps What Travelled The First Time — `:236`
+- AFlattened Document Renders Its Placements With The Project Gone — `:96`
+- Without Flattening The Same Export Would Render Nothing — `:116`
+- ASymbols Own Swatches Travel With It — `:136`
+- ADocument That Places Nothing Carries No Symbols — `:164`
+- Only The Symbols The Document Places Travel — `:179`
+- AFlattened Document Survives ASave And Reload — `:196`
+- ASymbol The Document Already Carries Still Has Its Swatches Walked — `:217`
+- Flattening AFlattened Document Keeps What Travelled The First Time — `:237`
 
 ## SymbolRenderTests
 `tests/Lightbox.Raster.Tests/SymbolRenderTests.cs`
 
-- Registering ASymbol Makes It Resolvable — `:122`
-- Reset Drops What The Last Project Had — `:132`
-- APlaced Symbol Reaches The Pixels — `:147`
-- APlacement Lands Its Pivot Where It Was Put — `:158`
-- AFrame With No Placements Renders Exactly As It Always Did — `:184`
-- An Unresolved Symbol Draws Nothing And Says So — `:197`
-- AZero Opacity Placement Draws Nothing — `:208`
-- The Same Symbol Placed Twice Is Pixel Identical — `:222`
-- Two Placements On One Cel Are The Same Mark Twice — `:238`
-- Editing The Symbol Changes Every Placement Of It — `:255`
-- An Edit That Forgets To Bump The Version Serves The Old Drawing — `:272`
-- Scaling APlacement Does Not Rewrite Its Geometry — `:292`
-- Rendering At Twice The Output Scale Is The Same Placement Sharper — `:310`
-- Scales That Differ By Noise Share One Cached Render — `:329`
-- The Render Cache Stays Bounded — `:351`
-- APlaced Cycle Advances With The Cel Index — `:374`
-- An Offset Placement Runs The Same Cycle Out Of Step — `:393`
-- AProp Shows Its One Drawing On Every Cel — `:407`
+- Registering ASymbol Makes It Resolvable — `:123`
+- Reset Drops What The Last Project Had — `:133`
+- APlaced Symbol Reaches The Pixels — `:148`
+- APlacement Lands Its Pivot Where It Was Put — `:159`
+- AFrame With No Placements Renders Exactly As It Always Did — `:185`
+- An Unresolved Symbol Draws Nothing And Says So — `:198`
+- AZero Opacity Placement Draws Nothing — `:209`
+- The Same Symbol Placed Twice Is Pixel Identical — `:223`
+- Two Placements On One Cel Are The Same Mark Twice — `:239`
+- Editing The Symbol Changes Every Placement Of It — `:256`
+- An Edit That Forgets To Bump The Version Serves The Old Drawing — `:273`
+- Scaling APlacement Does Not Rewrite Its Geometry — `:293`
+- Rendering At Twice The Output Scale Is The Same Placement Sharper — `:311`
+- Scales That Differ By Noise Share One Cached Render — `:330`
+- The Render Cache Stays Bounded — `:352`
+- APlaced Cycle Advances With The Cel Index — `:375`
+- An Offset Placement Runs The Same Cycle Out Of Step — `:394`
+- AProp Shows Its One Drawing On Every Cel — `:408`
 
 ## SmudgeFirstDabTests
 `tests/Lightbox.Raster.Tests/TexturedBrushTests.cs`

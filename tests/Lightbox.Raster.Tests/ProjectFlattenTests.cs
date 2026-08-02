@@ -19,6 +19,7 @@ namespace Lightbox.Raster.Tests;
 /// the wrong swatch, and the failure would surface as art that quietly changed
 /// colour after export.
 /// </summary>
+[Collection("Registries")]
 public class ProjectFlattenTests : IDisposable
 {
     private const int W = 120, H = 80;

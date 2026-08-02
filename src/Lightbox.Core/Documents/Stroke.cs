@@ -66,11 +66,26 @@ public sealed class Stroke
     /// </summary>
     public string? Label { get; set; }
 
+    /// <summary>
+    /// A copy with a fresh id and everything else intact.
+    /// </summary>
+    /// <remarks>
+    /// <b>Every property belongs here.</b> This is what duplicating a cel and
+    /// generating an inbetween both go through, and it silently omitted
+    /// <see cref="SwatchId"/> and <see cref="GradientId"/> — so a copied
+    /// drawing kept its colour but lost its link to the palette, and
+    /// recolouring the swatch afterwards changed the original and not the copy.
+    /// A field added to a stroke and not added here does not fail: it goes
+    /// quiet, which is why the list is exhaustive rather than "the ones that
+    /// matter".
+    /// </remarks>
     public Stroke Clone() => new()
     {
         Id = Ids.NewId("s"),
         Tool = Tool,
         Color = Color,
+        SwatchId = SwatchId,
+        GradientId = GradientId,
         Brush = Brush.Clone(),
         Points = [.. Points],
         Holes = Holes?.Select(h => new List<StrokePoint>(h)).ToList(),

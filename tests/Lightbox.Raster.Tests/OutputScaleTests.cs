@@ -22,6 +22,7 @@ namespace Lightbox.Raster.Tests;
 /// the wrong way round on purpose, so the reason for that choice is written
 /// down in a test rather than only in a comment.
 /// </summary>
+[Collection("Registries")]
 public class OutputScaleTests
 {
     private const int W = 200, H = 140;

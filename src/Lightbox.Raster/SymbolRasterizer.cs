@@ -106,14 +106,11 @@ public static class SymbolRasterizer
         if (outputScale != 1.0) target.Scale((float)outputScale);
 
         // Document ← symbol, about the pivot. A hand symbol is placed by the
-        // wrist, not by the corner of its bounding box.
-        target.Translate((float)placement.X, (float)placement.Y);
-        if (placement.Angle != 0) target.RotateDegrees((float)placement.Angle);
-        if (placement.ScaleX != 1 || placement.ScaleY != 1)
-        {
-            target.Scale((float)placement.ScaleX, (float)placement.ScaleY);
-        }
-        target.Translate(-(float)symbol.PivotX, -(float)symbol.PivotY);
+        // wrist, not by the corner of its bounding box. Shared with
+        // PlacementBounds so where a placement draws and where it can be
+        // clicked cannot drift apart.
+        var placed = PlacementMatrix(placement, symbol);
+        target.Concat(in placed);
 
         // Symbol ← the cached image, which covers Rect at Scale px per unit.
         target.Translate(rendered.Rect.Left, rendered.Rect.Top);
@@ -131,6 +128,64 @@ public static class SymbolRasterizer
         target.DrawImage(
             image, 0, 0, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear), paint);
         target.Restore();
+    }
+
+    /// <summary>
+    /// Where a placement's ink lands in document coordinates, or null when
+    /// nothing of it renders.
+    /// </summary>
+    /// <remarks>
+    /// Derived from the same cached render the drawing uses, rather than from
+    /// the symbol's stroke coordinates. That is deliberate: a hit test built on
+    /// the strokes would disagree with the pixels wherever a brush reaches past
+    /// its path — scatter, wet edge, a soft tip — and clicking a symbol you can
+    /// plainly see and having nothing happen is the kind of small lie an artist
+    /// stops trusting the tool over.
+    /// </remarks>
+    public static SKRect? PlacementBounds(
+        SymbolPlacement placement, SKImageInfo info, int celIndex, double outputScale = 1.0)
+    {
+        if (SymbolRegistry.Resolve(placement.SymbolId) is not { } symbol) return null;
+        if (symbol.Frames.Count == 0) return null;
+        var index = placement.FrameIndexAt(celIndex, symbol.FrameCount);
+        if (index < 0 || index >= symbol.Frames.Count) return null;
+        var scale = RenderScale(placement, outputScale);
+        if (Resolve(symbol, index, info, scale) is not { } rendered) return null;
+
+        var m = PlacementMatrix(placement, symbol);
+        // Mapped as four corners rather than as a rectangle, so a rotated
+        // placement reports the box it actually occupies.
+        var r = rendered.Rect;
+        Span<SKPoint> corners =
+        [
+            m.MapPoint(r.Left, r.Top), m.MapPoint(r.Right, r.Top),
+            m.MapPoint(r.Right, r.Bottom), m.MapPoint(r.Left, r.Bottom),
+        ];
+        float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+        foreach (var c in corners)
+        {
+            minX = Math.Min(minX, c.X);
+            maxX = Math.Max(maxX, c.X);
+            minY = Math.Min(minY, c.Y);
+            maxY = Math.Max(maxY, c.Y);
+        }
+        return new SKRect(minX, minY, maxX, maxY);
+    }
+
+    /// <summary>Document ← symbol, about the pivot.</summary>
+    private static SKMatrix PlacementMatrix(SymbolPlacement placement, Symbol symbol)
+    {
+        var m = SKMatrix.CreateTranslation((float)placement.X, (float)placement.Y);
+        if (placement.Angle != 0)
+        {
+            m = m.PreConcat(SKMatrix.CreateRotationDegrees((float)placement.Angle));
+        }
+        if (placement.ScaleX != 1 || placement.ScaleY != 1)
+        {
+            m = m.PreConcat(SKMatrix.CreateScale((float)placement.ScaleX, (float)placement.ScaleY));
+        }
+        return m.PreConcat(
+            SKMatrix.CreateTranslation(-(float)symbol.PivotX, -(float)symbol.PivotY));
     }
 
     /// <summary>

@@ -175,9 +175,15 @@ placement into ordinary strokes; it cannot, because baking the transform into
 coordinates re-rolls every `Hash01`-seeded dynamic and the export would be a
 different drawing. `docs/DESIGN-symbols.md` records the change and the reason.
 
-Nothing places a symbol yet: there is no browser, no drag onto the canvas and
-no symbol editor, so the remaining items below stay open. What exists is the
-machinery a placement made by hand or by an agent renders and exports through.
+S4 is in: placing, moving, removing and breaking the link, each one undo step.
+The Move tool grabs a placed symbol before it grabs the drawing — moving a
+placement edits two numbers on the placement, while moving a drawing rewrites
+stroke coordinates, and which you get is decided by what you grabbed.
+
+Nothing *reaches* those operations with a mouse yet: there is no browser to
+drag from and no symbol editor, so the items below stay open until S5 and S6.
+Break-link is the one place in the application where a mark is allowed to
+change, and it is written down where it happens.
 
 - [x] Shared symbols — the record (design S1–S2) `evidence: Symbol, SymbolPlacement, SymbolRegistry, SymbolRasterizer, SymbolRecordTests, SymbolRenderTests`
 - [?] Linked assets — edit once, update everywhere (S6)
