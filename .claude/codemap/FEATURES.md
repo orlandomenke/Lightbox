@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-839 tests, derived from the suite itself. Each line is a
+854 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -266,6 +266,17 @@ regression even when every test still compiles.
 - Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:84`
 - Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:100`
 - Open Document Tab Uses File Name And Keeps Existing Tabs — `:119`
+
+## FileRevealTests
+`tests/Lightbox.App.Tests/FileRevealTests.cs`
+
+- Windows Selects AFile Inside Its Folder — `:15`
+- Windows Opens AFolder Rather Than Selecting It — `:26`
+- Mac Reveals With Dash R — `:34`
+- Linux Opens The Containing Folder Because There Is No Portable Select — `:45`
+- Opening Hands The Path To The Desktop — `:56`
+- APath With No Parent Is Its Own Folder — `:66`
+- Nothing Is Revealed For APath That Is Not There — `:72`
 
 ## FillAndBackgroundBugTests
 `tests/Lightbox.App.Tests/FillAndBackgroundBugTests.cs`
@@ -594,6 +605,12 @@ regression even when every test still compiles.
 - Moving ADocument Where It Already Is Does Nothing — `:332`
 - AMoved Document Survives ASave And Reopen — `:342`
 - Renaming ARow Writes Through — `:362`
+- Every Row Knows Where It Is On Disk — `:377`
+- With No Project There Is No Path To Show — `:396`
+- Copy Path Gives The Selected Rows File — `:406`
+- Opening Externally Says So When The File Is Not Written Yet — `:419`
+- Duplicating An Animation Copies Its Art Into The Same Character — `:437`
+- Duplicating Writes The Copy On The Next Save — `:470`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
@@ -819,16 +836,18 @@ regression even when every test still compiles.
 ## WorkspaceTests
 `tests/Lightbox.App.Tests/WorkspaceTests.cs`
 
-- Panels Land In The Strip The Layout Names — `:42`
-- Moving APanel Moves The Control — `:54`
-- An Empty Edge Collapses And AFilled One Opens — `:66`
-- Closing APanel Parks It Rather Than Destroying It — `:88`
-- The Header Switcher Trades Two Panels Places — `:107`
-- Every Panel Except The Timeline Offers ASwitcher — `:123`
-- The Project Panel Appears As Soon As There Is AProject — `:144`
-- The Canvas Gets The Room Left Over By The Strips — `:167`
-- The Reference Panel Is Absent Until It Is Asked For — `:191`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:207`
+- Panels Land In The Strip The Layout Names — `:43`
+- Moving APanel Moves The Control — `:55`
+- An Empty Edge Collapses And AFilled One Opens — `:67`
+- Closing APanel Parks It Rather Than Destroying It — `:89`
+- The Header Switcher Trades Two Panels Places — `:108`
+- Every Panel Except The Timeline Offers ASwitcher — `:124`
+- The Project Panel Appears As Soon As There Is AProject — `:145`
+- The Canvas Gets The Room Left Over By The Strips — `:168`
+- The Project Row Menu Actually Does Something When Clicked — `:192`
+- The New Menu Actually Makes Things — `:239`
+- The Reference Panel Is Absent Until It Is Asked For — `:282`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:298`
 
 ## CameraTests
 `tests/Lightbox.Core.Tests/CameraTests.cs`

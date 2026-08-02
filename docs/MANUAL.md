@@ -146,6 +146,22 @@ work inside a project should not be followed by a second step that files it:
 | **Character** | A new character, with its own animations and palette |
 | **Document** | The project itself — a background, a colour test, a one-off |
 
+**Right-click a row** for everything else:
+
+| | What it does |
+| --- | --- |
+| **Open** | As a tab in Lightbox — the same as double-clicking |
+| **Open with default app…** | Hands the file to whatever application your desktop associates with it. A `.lightbox.json` usually lands in a text editor. |
+| **Show in file manager** | Reveals it in Explorer, Finder or your Linux file manager. A character shows its folder; an animation shows its file, selected where the platform can do that. |
+| **Copy path** | The absolute path, on the clipboard |
+| **Duplicate** | Copies an animation, art and all, into the same character. A walk you want to turn into a limp starts here. The copy reaches disk on the next save. |
+| **Rename…** | Edits the name in place. Enter commits, Escape cancels. |
+| **Remove from project** | Takes it out of the index. The file stays on disk. |
+
+The **🗁** at the right of the panel's header opens the project folder itself —
+the one path that is always there, however little of the project has been
+created yet.
+
 **Drag a document onto another character** to re-file it, or onto a
 project-level row to take it out of every character. It keeps its identity, so
 a tab already showing it stays bound to it. The file on disk is not moved

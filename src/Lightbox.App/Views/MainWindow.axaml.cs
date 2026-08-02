@@ -1730,8 +1730,20 @@ public partial class MainWindow : Window
     /// </summary>
     private async void OnProjectRowPressed(object? sender, PointerPressedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is not ProjectRow { Animation: not null } row) return;
+        if ((sender as Control)?.DataContext is not ProjectRow pressed) return;
+
+        // Right-click selects first. Every item in the row's menu acts on the
+        // selection, and a menu that acted on whatever was selected before you
+        // right-clicked would delete the wrong thing sooner or later.
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+        {
+            _vm.ProjectDocker.Selected = pressed;
+            return;
+        }
+
+        if (pressed is not { Animation: not null } row) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        _vm.ProjectDocker.Selected = row;
 
         _draggedRow = row;
         try
@@ -1747,6 +1759,83 @@ public partial class MainWindow : Window
         finally
         {
             _draggedRow = null;
+        }
+    }
+
+    private void OnProjectNewAnimation(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewAnimation);
+
+    private void OnProjectNewCharacter(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewCharacterItem);
+
+    private void OnProjectNewDocument(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewLooseDocument);
+
+    private void OnProjectOpen(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.OpenSelectedRowCommand.Execute(null);
+
+    private void OnProjectOpenExternally(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.OpenSelectedExternallyCommand.Execute(null);
+
+    private void OnProjectReveal(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.RevealSelectedCommand.Execute(null);
+
+    private void OnProjectDuplicate(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.DuplicateSelectedCommand.Execute(null);
+
+    private void OnProjectRemove(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.RemoveSelectedCommand.Execute(null);
+
+    private void OnProjectRowRename(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.ProjectDocker.Selected is { } row) row.IsRenaming = true;
+    }
+
+    private void OnProjectNameKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox box || box.DataContext is not ProjectRow row) return;
+        switch (e.Key)
+        {
+            case Key.Enter:
+                _vm.ProjectDocker.Rename(row, box.Text ?? "");
+                row.IsRenaming = false;
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                box.Text = row.Name; // revert, so the LostFocus commit is a no-op
+                row.IsRenaming = false;
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private void OnProjectNameLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox box || box.DataContext is not ProjectRow row) return;
+        if (row.IsRenaming) _vm.ProjectDocker.Rename(row, box.Text ?? "");
+        row.IsRenaming = false;
+    }
+
+    /// <summary>
+    /// Copy the selected row's path. The view model records it too, so the
+    /// behaviour is testable without a clipboard, but the clipboard is the
+    /// point and only the window has one.
+    /// </summary>
+    private async void OnProjectCopyPath(object? sender, RoutedEventArgs e)
+    {
+        _vm.ProjectDocker.CopySelectedPathCommand.Execute(null);
+        if (Clipboard is { } clipboard && _vm.ProjectDocker.CopiedPath is { Length: > 0 } path)
+        {
+            try
+            {
+                using var transfer = new DataTransfer();
+                transfer.Add(DataTransferItem.Create(DataFormat.Text, path));
+                await clipboard.SetDataAsync(transfer);
+            }
+            catch (Exception ex)
+            {
+                Rendering.CanvasControl.LogDiag("project-copy-path", ex);
+            }
         }
     }
 

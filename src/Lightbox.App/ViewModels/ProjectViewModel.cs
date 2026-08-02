@@ -42,6 +42,10 @@ public sealed partial class ProjectRow : ObservableObject
     [ObservableProperty]
     private bool _isOpen;
 
+    /// <summary>The name is being edited in place.</summary>
+    [ObservableProperty]
+    private bool _isRenaming;
+
     /// <summary>A character reads as a heading; its animations are indented under it.</summary>
     public double Indent => IsCharacter || IsLoose ? 0 : 14;
 
@@ -285,6 +289,119 @@ public sealed partial class ProjectViewModel : ObservableObject
         if (row.Animation is { } animation) animation.Name = trimmed;
         else row.Character!.Name = trimmed;
         row.Name = trimmed;
+        _changed();
+    }
+
+    // ---- where things are on disk ------------------------------------------------
+
+    /// <summary>The project folder, or null.</summary>
+    public string? RootPath => Project?.Root;
+
+    /// <summary>
+    /// Where a row lives on disk: an animation's file, a character's folder,
+    /// or null when there is no project.
+    /// </summary>
+    /// <remarks>
+    /// The path may not exist yet — an animation created a moment ago has no
+    /// file until the project is saved. Callers say what to do about that;
+    /// <see cref="Services.FileReveal"/> falls back to the folder it will land
+    /// in, which is more use than refusing.
+    /// </remarks>
+    public string? PathOf(ProjectRow? row)
+    {
+        if (Project is not { } project) return null;
+        if (row is null) return project.Root;
+        if (row.Animation is { } animation)
+        {
+            return Path.Combine(
+                project.Root, animation.Path.Replace('/', Path.DirectorySeparatorChar));
+        }
+        return row.Character is { } character
+            ? Path.Combine(project.Root, "characters", character.Slug)
+            : project.Root;
+    }
+
+    public string? SelectedPath => PathOf(Selected);
+
+    /// <summary>Show the project folder in the desktop's file manager.</summary>
+    [RelayCommand]
+    private void RevealRoot()
+    {
+        if (RootPath is not { } root) return;
+        if (!Services.FileReveal.Reveal(root)) Status = "Could not open the file manager.";
+    }
+
+    /// <summary>Show the selected row's file or folder in the file manager.</summary>
+    [RelayCommand]
+    private void RevealSelected()
+    {
+        if (SelectedPath is not { } path) return;
+        if (!Services.FileReveal.Reveal(path)) Status = "Could not open the file manager.";
+    }
+
+    /// <summary>
+    /// Hand the selected file to whatever application the desktop associates
+    /// with it — a text editor for a <c>.lightbox.json</c>, usually.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from opening it as a tab, which is what double-click and
+    /// <see cref="OpenSelected"/> do. Both are worth having and neither is a
+    /// substitute: one is for drawing, the other is for looking at the JSON or
+    /// dragging the file somewhere.
+    /// </remarks>
+    [RelayCommand]
+    private void OpenSelectedExternally()
+    {
+        if (SelectedPath is not { } path) return;
+        if (!File.Exists(path) && !Directory.Exists(path))
+        {
+            Status = "Save the project first — this file is not on disk yet.";
+            return;
+        }
+        if (!Services.FileReveal.Open(path)) Status = "No application is registered for this file.";
+    }
+
+    /// <summary>The selected row's path, for pasting into a terminal or a bug report.</summary>
+    public string CopiedPath { get; private set; } = "";
+
+    [RelayCommand]
+    private void CopySelectedPath()
+    {
+        if (SelectedPath is not { } path) return;
+        CopiedPath = path;
+        Status = path;
+    }
+
+    /// <summary>Open the selected row as a tab — the double-click, as a menu item.</summary>
+    [RelayCommand]
+    private void OpenSelectedRow() => OpenSelected();
+
+    /// <summary>
+    /// Copy the selected animation into the same character, art and all.
+    /// </summary>
+    /// <remarks>
+    /// The most common thing missing from the panel: a cycle you want to
+    /// vary — a walk into a limp — starts as a copy of the walk, and the
+    /// alternative is exporting and re-importing it.
+    /// </remarks>
+    [RelayCommand]
+    private void DuplicateSelected()
+    {
+        if (Project is not { } project || Selected is not { Animation: { } source } row) return;
+        if (ProjectIo.LoadDocument(project, source) is not { } doc)
+        {
+            Status = $"“{source.Name}” is missing from disk.";
+            return;
+        }
+
+        var copy = Lightbox.Core.Serialization.DocJson.Clone(doc);
+        var reference = row.Character is { } owner
+            ? ProjectIo.AddAnimation(project, owner, $"{source.Name} copy", copy)
+            : ProjectIo.AddDocument(project, $"{source.Name} copy", copy);
+        _dirty.Add(reference.Id);
+        Rebuild();
+        Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id);
+        Status = $"Copied to “{reference.Name}”. Save to write it to disk.";
         _changed();
     }
 }

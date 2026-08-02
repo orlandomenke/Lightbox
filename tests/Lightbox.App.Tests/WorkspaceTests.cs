@@ -1,3 +1,4 @@
+using Avalonia.VisualTree;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Lightbox.App.Controls;
@@ -186,6 +187,96 @@ public sealed class WorkspaceTests : BrushStateIsolated
         Assert.True(canvas.Bounds.Height >= 100,
             $"the canvas needs the leftover height, got {canvas.Bounds.Height}");
     }
+
+    [AvaloniaFact]
+    public void TheProjectRowMenuActuallyDoesSomethingWhenClicked()
+    {
+        // The failure this guards is silent. A flyout's items live in a popup
+        // rather than in the window's tree, so a `$parent[Window]` binding —
+        // the pattern the ＋ menu uses — resolves to nothing here and leaves
+        // every item looking correct and doing nothing. Raising the real Click
+        // is the only way to tell the difference.
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-menu-{Guid.NewGuid():N}.lbproj");
+        try
+        {
+            var (w, vm) = Open();
+            vm.NewProject(root, "Knight");
+            vm.Save();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            var list = w.FindControl<ListBox>("ProjectRows")!;
+            var host = Assert.IsAssignableFrom<Control>(list.ContainerFromIndex(0))
+                .GetVisualDescendants().OfType<DockPanel>()
+                .First(p => p.ContextFlyout is MenuFlyout);
+            var flyout = (MenuFlyout)host.ContextFlyout!;
+            flyout.ShowAt(host);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            var items = flyout.Items.OfType<MenuItem>().ToList();
+            flyout.Hide();
+
+            Assert.Equal(
+                ["Open", "Open with default app…", "Show in file manager", "Copy path",
+                 "Duplicate", "Rename…", "Remove from project"],
+                items.Select(i => i.Header?.ToString()).ToList());
+
+            vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+            Click(items, "Copy path");
+            Assert.EndsWith(".lightbox.json", vm.ProjectDocker.CopiedPath);
+
+            Click(items, "Duplicate");
+            Assert.Equal(2, vm.ProjectDocker.Project!.Characters.First().Animations.Count);
+
+            Click(items, "Rename…");
+            Assert.True(vm.ProjectDocker.Selected!.IsRenaming);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
+    public void TheNewMenuActuallyMakesThings()
+    {
+        // Same failure mode as the row menu, in the header. It used to build
+        // its items from NewItemKinds with a `$parent[Window]` command binding,
+        // which a popup cannot resolve.
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-new-{Guid.NewGuid():N}.lbproj");
+        try
+        {
+            var (w, vm) = Open();
+            vm.NewProject(root, "Knight");
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            var button = w.GetVisualDescendants().OfType<Button>()
+                .First(b => b.Flyout is MenuFlyout && Equals(b.Content, "＋ New ▾"));
+            var flyout = (MenuFlyout)button.Flyout!;
+            flyout.ShowAt(button);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            var items = flyout.Items.OfType<MenuItem>().ToList();
+            flyout.Hide();
+
+            Assert.Equal(["Animation", "Character", "Document"],
+                items.Select(i => i.Header?.ToString()).ToList());
+
+            Click(items, "Animation");
+            Assert.Equal(2, vm.ProjectDocker.Project!.Characters.First().Animations.Count);
+
+            Click(items, "Character");
+            Assert.Equal(2, vm.ProjectDocker.Project.Characters.Count());
+
+            Click(items, "Document");
+            Assert.Single(vm.ProjectDocker.Project.Manifest.Documents);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static void Click(IEnumerable<MenuItem> items, string header) =>
+        items.First(i => Equals(i.Header, header))
+            .RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
 
     [AvaloniaFact]
     public void TheReferencePanelIsAbsentUntilItIsAskedFor()

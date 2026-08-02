@@ -370,4 +370,115 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         Assert.Equal("Sir Reginald", vm.ProjectDocker.Project!.Characters.First().Name);
         Assert.Equal("Sir Reginald", row.Name);
     }
+
+    // ---- reaching the files ---------------------------------------------------
+
+    [AvaloniaFact]
+    public void EveryRowKnowsWhereItIsOnDisk()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        var docker = vm.ProjectDocker;
+        var character = docker.Rows.First(r => r.IsCharacter);
+        var animation = docker.Rows.First(r => r.Animation is not null);
+
+        Assert.Equal(_root, docker.RootPath);
+        // A character is a folder; an animation is a file inside it.
+        Assert.Equal(Path.Combine(_root, "characters", "knight"), docker.PathOf(character));
+        Assert.StartsWith(Path.Combine(_root, "characters", "knight"), docker.PathOf(animation));
+        Assert.EndsWith(".lightbox.json", docker.PathOf(animation));
+        // Nothing selected is the project itself, which is what the folder
+        // button in the header opens.
+        Assert.Equal(_root, docker.PathOf(null));
+    }
+
+    [AvaloniaFact]
+    public void WithNoProjectThereIsNoPathToShow()
+    {
+        var docker = Vm().ProjectDocker;
+
+        Assert.Null(docker.RootPath);
+        Assert.Null(docker.PathOf(null));
+        Assert.Null(docker.SelectedPath);
+    }
+
+    [AvaloniaFact]
+    public void CopyPathGivesTheSelectedRowsFile()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+
+        vm.ProjectDocker.CopySelectedPathCommand.Execute(null);
+
+        Assert.Equal(vm.ProjectDocker.SelectedPath, vm.ProjectDocker.CopiedPath);
+        Assert.EndsWith(".lightbox.json", vm.ProjectDocker.CopiedPath);
+    }
+
+    [AvaloniaFact]
+    public void OpeningExternallySaysSoWhenTheFileIsNotWrittenYet()
+    {
+        // An animation can exist in the manifest before it exists on disk — a
+        // duplicate, until the next save. Handing that path to the desktop
+        // would do nothing at all and look like the menu item was broken.
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.Save();
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+        vm.ProjectDocker.DuplicateSelectedCommand.Execute(null);
+        Assert.False(File.Exists(vm.ProjectDocker.SelectedPath));
+
+        vm.ProjectDocker.OpenSelectedExternallyCommand.Execute(null);
+
+        Assert.Contains("Save the project first", vm.ProjectDocker.Status);
+    }
+
+    [AvaloniaFact]
+    public void DuplicatingAnAnimationCopiesItsArtIntoTheSameCharacter()
+    {
+        // A cycle you want to vary — a walk into a limp — starts as a copy of
+        // the walk, and the alternative was exporting and re-importing it.
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.BeginStroke(20, 20, 1);
+        vm.MoveStroke(80, 80, 1);
+        vm.EndStroke();
+        vm.Save();
+        var source = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+        vm.ProjectDocker.Selected = source;
+
+        vm.ProjectDocker.DuplicateSelectedCommand.Execute(null);
+
+        var character = vm.ProjectDocker.Project!.Characters.First();
+        Assert.Equal(2, character.Animations.Count);
+        var copy = character.Animations[1];
+        Assert.Equal($"{source.Animation!.Name} copy", copy.Name);
+        Assert.NotEqual(source.Animation.Path, copy.Path);
+        // The art came with it, and it is a copy rather than the same object.
+        var original = vm.ProjectDocker.Project.Loaded[source.Animation.Id];
+        var duplicate = vm.ProjectDocker.Project.Loaded[copy.Id];
+        Assert.NotSame(original, duplicate);
+        Assert.Equal(
+            original.Scene.Layers.Sum(l => l.Cels.Count),
+            duplicate.Scene.Layers.Sum(l => l.Cels.Count));
+        Assert.Contains(
+            duplicate.Scene.Layers.SelectMany(l => l.Cels),
+            c => c.Frame is PaintedFrame { Strokes.Count: > 0 });
+    }
+
+    [AvaloniaFact]
+    public void DuplicatingWritesTheCopyOnTheNextSave()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.Save();
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+        vm.ProjectDocker.DuplicateSelectedCommand.Execute(null);
+
+        vm.Save();
+
+        var copy = vm.ProjectDocker.Project!.Characters.First().Animations[1];
+        Assert.True(File.Exists(Path.Combine(
+            _root, copy.Path.Replace('/', Path.DirectorySeparatorChar))));
+    }
 }

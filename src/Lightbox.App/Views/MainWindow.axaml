@@ -1198,28 +1198,37 @@
                     entry lands somewhere specific, under the selected
                     character or on the project itself.
                   -->
-                  <StackPanel Orientation="Horizontal" Spacing="4">
-                    <Button Classes="text" Content="＋ New ▾" ToolTip.Tip="Create something in this project">
-                      <Button.Flyout>
-                        <MenuFlyout ItemsSource="{Binding ProjectDocker.NewItemKinds}">
-                          <MenuFlyout.ItemContainerTheme>
-                            <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
-                                          x:DataType="vm:ProjectViewModel+NewItemKind">
-                              <Setter Property="Header" Value="{Binding Label}" />
-                              <Setter Property="ToolTip.Tip" Value="{Binding Hint}" />
-                              <Setter Property="Command"
-                                      Value="{Binding $parent[Window].((vm:MainViewModel)DataContext).ProjectDocker.AddItemCommand}" />
-                              <Setter Property="CommandParameter" Value="{Binding}" />
-                            </ControlTheme>
-                          </MenuFlyout.ItemContainerTheme>
-                        </MenuFlyout>
-                      </Button.Flyout>
-                    </Button>
-                    <Button Classes="icon" Content="－"
-                            Command="{Binding ProjectDocker.RemoveSelectedCommand}"
-                            IsEnabled="{Binding ProjectDocker.HasSelection}"
-                            ToolTip.Tip="Remove from the project (the file stays on disk)" />
-                  </StackPanel>
+                  <DockPanel>
+                    <!-- The project folder, at the far edge: the one path in
+                         the tree that is always there, however little of it
+                         has been created yet. -->
+                    <Button Classes="icon" DockPanel.Dock="Right" Content="🗁"
+                            Command="{Binding ProjectDocker.RevealRootCommand}"
+                            ToolTip.Tip="Show the project folder in the file manager" />
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <Button Classes="text" Content="＋ New ▾" ToolTip.Tip="Create something in this project">
+                        <Button.Flyout>
+                          <!-- Written out rather than generated from
+                               NewItemKinds, and Click rather than Command: a
+                               flyout's items live in a popup, so a
+                               `$parent[Window]` binding has no window to find
+                               and every entry is silently dead. -->
+                          <MenuFlyout>
+                            <MenuItem Header="Animation" Click="OnProjectNewAnimation"
+                                      ToolTip.Tip="A drawing sequence under the selected character" />
+                            <MenuItem Header="Character" Click="OnProjectNewCharacter"
+                                      ToolTip.Tip="A new character, with its own animations and palette" />
+                            <MenuItem Header="Document" Click="OnProjectNewDocument"
+                                      ToolTip.Tip="Belongs to the project, not to any character" />
+                          </MenuFlyout>
+                        </Button.Flyout>
+                      </Button>
+                      <Button Classes="icon" Content="－"
+                              Command="{Binding ProjectDocker.RemoveSelectedCommand}"
+                              IsEnabled="{Binding ProjectDocker.HasSelection}"
+                              ToolTip.Tip="Remove from the project (the file stays on disk)" />
+                    </StackPanel>
+                  </DockPanel>
                 </Border>
               </controls:Docker.TopBar>
               <controls:Docker.BottomBar>
@@ -1256,9 +1265,44 @@
                                  Background="Transparent"
                                  PointerPressed="OnProjectRowPressed"
                                  DragDrop.AllowDrop="True">
+                        <!-- Right-click selects the row first (see
+                             OnProjectRowPressed), so every item here acts on
+                             the row under the pointer rather than on whatever
+                             happened to be selected before. -->
+                        <!--
+                          Click rather than Command. A flyout's items live in a
+                          popup, not in the window's tree, so the
+                          `$parent[Window]` binding the ＋ menu uses resolves to
+                          nothing here and every item is silently dead. The
+                          handlers act on ProjectDocker.Selected, which the
+                          right-click sets before the menu opens.
+                        -->
+                        <DockPanel.ContextFlyout>
+                          <MenuFlyout>
+                            <MenuItem Header="Open" Click="OnProjectOpen"
+                                      ToolTip.Tip="Open as a tab in Lightbox" />
+                            <MenuItem Header="Open with default app…" Click="OnProjectOpenExternally"
+                                      ToolTip.Tip="Hand the file to whatever application the desktop associates with it" />
+                            <MenuItem Header="Show in file manager" Click="OnProjectReveal" />
+                            <MenuItem Header="Copy path" Click="OnProjectCopyPath" />
+                            <Separator />
+                            <MenuItem Header="Duplicate" Click="OnProjectDuplicate"
+                                      ToolTip.Tip="Copy this animation, art and all — a walk into a limp" />
+                            <MenuItem Header="Rename…" Click="OnProjectRowRename" />
+                            <MenuItem Header="Remove from project" Click="OnProjectRemove"
+                                      ToolTip.Tip="Take it out of the index. The file stays on disk." />
+                          </MenuFlyout>
+                        </DockPanel.ContextFlyout>
                         <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.7" />
-                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="11" />
+                        <Panel MinHeight="20">
+                          <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}"
+                                     VerticalAlignment="Center" FontSize="11" />
+                          <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                   IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
+                                   FontSize="11" LostFocus="OnProjectNameLostFocus"
+                                   KeyDown="OnProjectNameKeyDown" />
+                        </Panel>
                       </DockPanel>
                     </DataTemplate>
                   </ListBox.ItemTemplate>
