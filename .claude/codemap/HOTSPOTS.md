@@ -16,8 +16,8 @@ file with no tests is the top of this list for a reason.
 | `src/Lightbox.App/Rendering/CanvasControl.cs` | 0.10 | 0.38 | 28 | 5 | 6 | 5 |
 | `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` | 0.08 | 0.11 | 5 | 2 | 2 | 0 |
 | `src/Lightbox.App/App.axaml` | 0.08 | 0.08 | 9 | 1 | 0 | 0 |
+| `src/Lightbox.Raster/BrushEngine.cs` | 0.07 | 0.27 | 20 | 3 | 15 | 10 |
 | `src/Lightbox.Core/Documents/Frame.cs` | 0.07 | 0.26 | 3 | 0 | 91 | 64 |
-| `src/Lightbox.Raster/BrushEngine.cs` | 0.07 | 0.26 | 19 | 3 | 15 | 10 |
 | `src/Lightbox.App/Services/BrushPresets.cs` | 0.06 | 0.08 | 6 | 1 | 3 | 0 |
 | `src/Lightbox.App/ViewModels/LayerRow.cs` | 0.06 | 0.07 | 5 | 1 | 4 | 1 |
 | `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` | 0.06 | 0.22 | 3 | 0 | 71 | 63 |
@@ -36,8 +36,8 @@ file with no tests is the top of this list for a reason.
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` — heat 0.59, 56 commits (7 fixes), 7 dependents
 - `src/Lightbox.App/Views/MainWindow.axaml` — heat 0.54, 59 commits (6 fixes), 0 dependents
 - `src/Lightbox.App/Rendering/CanvasControl.cs` — heat 0.38, 28 commits (5 fixes), 6 dependents
+- `src/Lightbox.Raster/BrushEngine.cs` — heat 0.27, 20 commits (3 fixes), 15 dependents
 - `src/Lightbox.Core/Documents/Frame.cs` — heat 0.26, 3 commits (0 fixes), 91 dependents
-- `src/Lightbox.Raster/BrushEngine.cs` — heat 0.26, 19 commits (3 fixes), 15 dependents
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` — heat 0.22, 3 commits (0 fixes), 71 dependents
 - `src/Lightbox.Core/Documents/Stroke.cs` — heat 0.22, 5 commits (0 fixes), 71 dependents
 - `src/Lightbox.App/Services/SpriteSheetExporter.cs` — heat 0.21, 2 commits (0 fixes), 70 dependents
