@@ -38,6 +38,23 @@ public sealed class AppSettings
     public OnionSettings Onion { get; set; } = new();
 
     /// <summary>
+    /// What you had open last. See <see cref="RecentItems"/> for why it lives
+    /// with the person rather than with any document.
+    /// </summary>
+    public RecentItems Recent { get; set; } = new();
+
+    /// <summary>
+    /// Show the start screen when the application opens.
+    /// </summary>
+    /// <remarks>
+    /// On by default now that there is one. Escape still leaves you on a blank
+    /// untitled document, so "open it and draw" is a keystroke rather than a
+    /// setting — but somebody who only ever wants that can turn the screen off
+    /// from the screen itself.
+    /// </remarks>
+    public bool ShowStartScreen { get; set; } = true;
+
+    /// <summary>
     /// Whether to autosave over the document's own file once it has one,
     /// rather than only to the recovery copy.
     /// </summary>

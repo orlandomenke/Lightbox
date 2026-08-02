@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-879 tests, derived from the suite itself. Each line is a
+890 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -648,6 +648,21 @@ regression even when every test still compiles.
 - Opening Externally Says So When The File Is Not Written Yet — `:419`
 - Duplicating An Animation Copies Its Art Into The Same Character — `:437`
 - Duplicating Writes The Copy On The Next Save — `:470`
+
+## RecentItemsTests
+`tests/Lightbox.App.Tests/RecentItemsTests.cs`
+
+- The Newest Is First — `:27`
+- Reopening Moves It To The Top Rather Than Adding It Again — `:35`
+- The Path Is What Makes Two Entries The Same — `:46`
+- ATrailing Separator Is Not ADifferent Project — `:58`
+- The List Stops Growing — `:68`
+- An Entry With No Name Is Named After Its File — `:83`
+- Nothing Is Recorded For An Empty Path — `:96`
+- Forgetting Removes One And Clearing Removes All — `:107`
+- Only The Entries Still On Disk Are Offered — `:121`
+- AProject Is AFolder And ADocument Is AFile — `:148`
+- The List Survives Being Written And Read Back — `:173`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`

@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `ee9da7e` · 224 files · 49670 lines · 879 tests.
+Generated from `3a4ed1a` · 226 files · 50004 lines · 890 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -86,6 +86,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PART_Clear, PART_Swatch
 - `src/Lightbox.App/Controls/DockStrip.cs` (132 ln) · 1 test files
   - DockStrip:24
+- `src/Lightbox.App/Services/RecentItems.cs` (132 ln) · 1 test files
+  - RecentKind:3, RecentItem:10, RecentItems:43
 - `src/Lightbox.App/Controls/ValueDrag.cs` (126 ln) · 45 indirect only
   - ValueDrag:27, Session:43
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (126 ln) · 1 test files
@@ -96,6 +98,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - OverlayId:12, CanvasEdge:21, OverlayPlacement:30, CanvasOverlayLayout:54
 - `src/Lightbox.App/App.axaml` (119 ln) · **no tests**
   - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Switcher
+- `src/Lightbox.App/Services/AppSettings.cs` (119 ln) · 1 test files
+  - AppSettings:15
 - `src/Lightbox.App/Services/IpcServer.cs` (115 ln) · 1 test files
   - IpcServer:13
 - `src/Lightbox.App/Views/ConfigureWindow.axaml` (115 ln) · **no tests**
@@ -108,8 +112,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SmoothingMode:7, StrokeStabilizer:34
 - `src/Lightbox.App/ViewModels/DocumentTab.cs` (103 ln) · 13 test files
   - NewDocumentSettings:19, WorkspaceChoice:31, DocumentTabKind:40, DocumentTab:56
-- `src/Lightbox.App/Services/AppSettings.cs` (102 ln) · 45 indirect only
-  - AppSettings:15
 - `src/Lightbox.App/Controls/DockDropIndicator.cs` (101 ln) · **no tests**
   - DockDropIndicator:23
 - `src/Lightbox.App/Docking/DockPanels.cs` (101 ln) · 5 test files
