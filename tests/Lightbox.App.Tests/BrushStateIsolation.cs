@@ -48,7 +48,8 @@ public abstract class BrushStateIsolated : IDisposable
             Path.GetTempPath(), $"lightbox-workspaces-{Guid.NewGuid():N}.json");
     }
 
-    public void Dispose()
+    /// <summary>Virtual so a fixture with its own temp files can chain onto it.</summary>
+    public virtual void Dispose()
     {
         var mine = MainViewModel.BrushStorePath;
         var mySettings = Lightbox.App.Services.AppSettings.Path;

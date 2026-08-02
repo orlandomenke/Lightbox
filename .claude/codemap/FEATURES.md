@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1356 tests, derived from the suite itself. Each line is a
+1375 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -114,13 +114,16 @@ regression even when every test still compiles.
 ## BrushMemoryTests
 `tests/Lightbox.App.Tests/BrushMemoryTests.cs`
 
-- Global Is Still The Default With No Project Open — `:48`
-- Choosing Per Document Overrides Whatever The Project Would Say — `:59`
-- Under Global The Document Records Nothing — `:69`
-- Under Per Document Painting Records The Brush On The Drawing — `:82`
-- Reopening The Document Puts That Brush Back In The Tool Bar — `:97`
-- ADocument With Nothing Recorded Leaves The Brush Alone — `:119`
-- Switching To Per Document Mid Session Hands Back What Is Already There — `:136`
+- With No Project Open The Brush Belongs To The Tool — `:65`
+- AComic Keeps The Brush With The Project Without Being Asked — `:78`
+- AStoryboard Keeps One Brush For The Tool — `:87`
+- AChosen Scope Overrides The Project Type — `:95`
+- Under Global The Project Records Nothing — `:105`
+- Painting Records The Brush On The Project — `:118`
+- An Agents Stroke Does Not Rewrite It — `:132`
+- ANew Document In The Project Is Fed That Brush — `:150`
+- AProject With Nothing Recorded Leaves The Brush Alone — `:168`
+- Switching To Per Project Mid Session Hands Back What Is Already There — `:182`
 
 ## BrushPresetTests
 `tests/Lightbox.App.Tests/BrushToolTests.cs`
@@ -243,6 +246,19 @@ regression even when every test still compiles.
 - Rotate90 Swaps Axes In The Mapping — `:69`
 - Reset View Restores The Default Mapping — `:81`
 - View Transform Never Touches The Document — `:98`
+
+## CelDragGestureTests
+`tests/Lightbox.App.Tests/CelDragGestureTests.cs`
+
+- Opening AContext Menu Cancels The Pending Drag — `:40`
+- Without The Menu APull Still Drags The Cel — `:55`
+- Letting Go Disarms The Gesture — `:67`
+- AWobble Under The Threshold Is AClick Not ADrag — `:81`
+- AMove With The Button Up Disarms Rather Than Waits — `:94`
+- An Empty Slot Is Not Armed At All — `:105`
+- ARight Click Alone Never Arms It — `:117`
+- Moving Over ADifferent Cel Does Not Start The Armed One — `:128`
+- ADrag Already Running Ignores ACancel — `:137`
 
 ## ColorPickerViewModelTests
 `tests/Lightbox.App.Tests/ColorPickerTests.cs`
@@ -486,6 +502,17 @@ regression even when every test still compiles.
 - The Shape Tool Does Not Paint On ADrag With The Brush — `:272`
 - The Canvas Draws No Guides Until There Are Some — `:290`
 - AHidden Guide Is Not Drawn But Still Snaps — `:315`
+
+## GuidePainterTests
+`tests/Lightbox.App.Tests/GuidePainterTests.cs`
+
+- AGuide Is Visible Over An Opaque Drawing — `:74`
+- The Art Still Reads Through It — `:87`
+- No Guides Means Nothing Is Painted Over The Art — `:103`
+- ADraft Is Brighter Than APlaced Guide — `:115`
+- AVanishing Point Is Marked Where Its Rays Meet — `:128`
+- AGrid Too Fine To Read Is Not Drawn At All — `:141`
+- AGrid Coarse Enough To Read Is Drawn — `:164`
 
 ## IpcTests
 `tests/Lightbox.App.Tests/IpcTests.cs`
@@ -1288,13 +1315,13 @@ regression even when every test still compiles.
 ## BrushScopeTests
 `tests/Lightbox.Core.Tests/BrushScopeTests.cs`
 
-- Work You Come Back To Keeps The Brush With The Drawing — `:21`
+- Work With AHouse Style Keeps The Brush With The Project — `:21`
 - Work You Move Through In One Pass Keeps One Brush For The Tool — `:32`
-- With No Project It Is What The Application Always Did — `:41`
-- ADocument That Never Asks For This Writes No Brush Key — `:50`
-- ARemembered Brush Survives ASave And Reload — `:62`
-- The Remembered Brush Is ACopy Not The Live One — `:84`
-- Remembering ABrush Changes No Pixel In The Record — `:100`
+- With No Project It Is What The Application Always Did — `:42`
+- AProject That Never Asks For This Writes No Brush Key — `:51`
+- ARemembered Brush Survives ASave And Reload — `:73`
+- Every Document In The Project Is Fed The Same Brush — `:102`
+- Remembering ABrush Changes No Pixel In The Record — `:128`
 
 ## CameraTests
 `tests/Lightbox.Core.Tests/CameraTests.cs`

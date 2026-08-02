@@ -227,4 +227,25 @@ public sealed class ProjectManifest
     /// files relative to the root. Read into <c>Project.Palettes</c> on load.
     /// </summary>
     public List<string> Palettes { get; set; } = [];
+
+    /// <summary>
+    /// The brush this project's documents are painted with, for
+    /// <see cref="Documents.BrushScope.PerProject"/>. Null and absent from
+    /// the file otherwise.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Here rather than on a document because the answer has to reach the
+    /// pages that do not exist yet: page one remembering its own brush leaves
+    /// page eleven starting from whatever you last used elsewhere. It sits
+    /// beside <see cref="Palettes"/> for the same reason those do — Pillar 1
+    /// says a character's work shares one palette and one brush set.
+    /// </para>
+    /// <para>
+    /// It is a bookmark, not a setting that reaches pixels, so invariant 4 is
+    /// untouched: every stroke still carries its own settings and nothing
+    /// renders from this.
+    /// </para>
+    /// </remarks>
+    public Documents.BrushSettings? Brush { get; set; }
 }

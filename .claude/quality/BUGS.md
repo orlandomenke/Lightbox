@@ -166,16 +166,16 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Cause: `Stroke.Clone` copied nine properties and not `SwatchId` or `GradientId`, so a cloned stroke fell back to its literal colour. It is what `DocumentEditor.CloneFrame` and the inbetweener both use, so it reached cel copy, cel duplication, drag-with-copy and every AI inbetween.
   - Fix: copy them. The list is exhaustive now and says so, because a field added to a stroke and missed here does not fail — it goes quiet. Found while writing break-link, which needed the same copy. Cost: S
 
-- [ ] **B17** `P2` `canvas` Guides are invisible over the drawing `evidence: manual`
+- [x] **B17** `P2` `canvas` Guides are invisible over the drawing `evidence: GuidePainter, GuidePainterTests, AGuideIsVisibleOverAnOpaqueDrawing, TheArtStillReadsThroughIt`
   - Repro: place any guide on a new document. It shows on the grey surround and vanishes the moment it crosses the canvas.
   - Cause: mine, and the comment I wrote made it sound deliberate. `DrawGuides` ran before the artwork on the reasoning that "a ruler on paper is something you draw over" — but a new document opens with an opaque background layer, so under the drawing means under a sheet of white. The analogy does not survive an opaque bottom layer.
   - Fix: draw guides over the artwork, translucent. The thing the old order was protecting — not hiding the drawing — is paid for with alpha instead.
-  - `evidence: manual` because the chrome is drawn by a Skia custom draw op that the headless test platform never leases; the composited snapshot the pixel tests read does not contain it. Verify by eye: a guide must be visible across the canvas, and the art must still read through it. Cost: S
+  - Was `evidence: manual`, and no longer is. The obstacle was real — the rig is painted inside a Skia lease the headless platform never grants — but the answer was to move the painting somewhere a test can call rather than to give up: `GuidePainter` is pure Skia and takes a canvas, and `PaintDocument` owns the checkerboard/artwork/guides order, because splitting those three apart is exactly how the bug happened. Putting the guides back underneath fails five of the seven tests. Cost: S
 
-- [ ] **B8** `P3` `ui` Timeline context submenu flickers under a pen `evidence: manual`
+- [x] **B8** `P3` `ui` Timeline context submenu flickers under a pen `evidence: CelDragGesture, CelDragGestureTests, OpeningAContextMenuCancelsThePendingDrag, LettingGoDisarmsTheGesture`
   - Repro: right-click a timeline cel with a pen and hover "Insert frame". The submenu flickers and will not stay open. A mouse is fine.
-  - Cause: not investigated. Pen hover events arrive as a different device with its own enter/leave pattern; the submenu almost certainly closes on a spurious leave.
-  - **Recorded, not being worked on** at the user's request. Cost: ?
+  - Cause: not a spurious leave, which was the guess. A pen right-click is a press-and-hold, so the press armed the cel drag, the hold opened the menu, and moving towards the submenu crossed the six-pixel threshold and started a drag — which seized the pointer and shut the menu. "A mouse is fine" is the detail that pins it: a mouse right-click never passes the left-button guard, so it never arms anything.
+  - Fix: a context menu and a drag are two readings of one press and only one can win, so opening the menu cancels the gesture. Releasing cancels it too — the arming press used to be cleared only by a move that found the button up, so lifting without moving left it armed for any later movement. Both rules live in `CelDragGesture` rather than in a handler, which is also what made them testable. Cost: S
 
 - [x] **B7** `P3` `transform` Transform does not affect gradients `evidence: TransformingAGradient_MovesItsAxis`
   - Repro: lay a gradient, Ctrl+T, move it. The ramp does not follow.

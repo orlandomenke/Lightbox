@@ -48,7 +48,7 @@ item that a painting app is simply expected to have lives here.
 - [x] Texture brushes `evidence: PaperField, PaperKind, TexturedBrushTests`
 - [x] Smudge, blend and mixer brushes `evidence: SmudgeMode, SmudgeFirstDabTests, MediumSettingsTests`
 - [x] Smudge and blur sample all layers, live or frozen `evidence: SampleSource, BakedSample, BakeSample, SampleSourceTests, LiveSampleRebakeTests, ALiveSmudgeFollowsAnEditToTheLayerUnderIt, ABakedStrokeIgnoresABackdropThatChangedUnderIt, AHandDrawnBakedSmudgeFreezesWhatWasUnderIt`
-- [x] A document remembers the brush it was painted with `evidence: BrushScope, BrushScopeDefaults, BrushScopeTests, BrushMemoryTests, ReopeningTheDocumentPutsThatBrushBackInTheToolBar, ADocumentThatNeverAsksForThisWritesNoBrushKey`
+- [x] A project remembers the brush its work is painted with `evidence: BrushScope, BrushScopeDefaults, BrushScopeTests, BrushMemoryTests, ANewDocumentInTheProjectIsFedThatBrush, AProjectThatNeverAsksForThisWritesNoBrushKey`
 - [x] Eraser variants `evidence: ToolKind, BrushKind, EraserResurrectionTests`
 - [?] Pixel-perfect mode
 - [x] Pressure curve editor `evidence: BrushPagePressure, PressureVmTests, PressureTests`

@@ -1,31 +1,48 @@
 using Avalonia.Headless.XUnit;
-using Lightbox.App.ViewModels;
 using Lightbox.App.Services;
+using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// Q9, from the tool bar's side: a document hands back the brush it was
+/// Q9, from the tool bar's side: a project hands back the brush its work is
 /// painted with.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The gripe this answers is not about preference, it is about memory. Come
-/// back to a comic page or a game asset after a fortnight and the tool bar
-/// says whatever you last used on something else. The document already knows
-/// what it was drawn with — every stroke carries its settings — and this is
-/// what puts the answer back where you can paint with it.
+/// back to a comic or a set of game assets after a fortnight and the tool bar
+/// says whatever you last used on something else.
 /// </para>
 /// <para>
-/// Guarded here rather than only in <c>BrushScopeTests</c> because the record
-/// half being right is worth nothing if the tool bar never reads it. See
-/// charter O7.
+/// The <b>project</b> rather than the document, because the answer has to
+/// reach the pages that do not exist yet: page one remembering its own brush
+/// leaves page eleven starting from scratch, which is the same problem one
+/// file later.
 /// </para>
 /// </remarks>
 [Collection("BrushState")]
 public class BrushMemoryTests : BrushStateIsolated
 {
+    private readonly string _root = Path.Combine(
+        Path.GetTempPath(), $"lightbox-brushmem-{Guid.NewGuid():N}.lbproj");
+
+    /// <summary>Also tears down the shared brush store; see the base class.</summary>
+    public override void Dispose()
+    {
+        base.Dispose();
+        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+    }
+
+    private MainViewModel WithProject(ProjectType? type = ProjectType.Comic)
+    {
+        var vm = new MainViewModel(null);
+        vm.ProjectDocker.Project = ProjectIo.Create("Knight", _root, type);
+        return vm;
+    }
+
     /// <summary>
     /// Paint a real stroke, through the pipeline a pen drives.
     /// </summary>
@@ -33,8 +50,8 @@ public class BrushMemoryTests : BrushStateIsolated
     /// Not <c>AppendExternalStrokes</c>, which is how the AI and the MCP
     /// server put marks down. That path deliberately does NOT record the
     /// brush: a stroke the artist did not paint is not the brush they were
-    /// painting with, and letting an agent rewrite the tool bar's memory would
-    /// undo the whole point of remembering it.
+    /// painting with, and letting an agent rewrite the memory would undo the
+    /// point of having one.
     /// </remarks>
     private static void Paint(MainViewModel vm)
     {
@@ -45,106 +62,134 @@ public class BrushMemoryTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
-    public void GlobalIsStillTheDefaultWithNoProjectOpen()
+    public void WithNoProjectOpenTheBrushBelongsToTheTool()
     {
-        // The behaviour the application has always had, and what somebody who
-        // opened it to draw one picture gets.
+        // Somebody who opened the app to draw one picture gets exactly what
+        // the application always did — and there is nowhere to keep a project
+        // brush, so even asking for one cannot change that.
         var vm = new MainViewModel(null);
 
         Assert.Equal(BrushScope.Global, vm.BrushScope);
-        Assert.Equal("Follow the project", vm.BrushMemoryChoice);
+        vm.BrushMemoryChoice = "Per project";
+        Assert.Equal(BrushScope.Global, vm.BrushScope);
     }
 
     [AvaloniaFact]
-    public void ChoosingPerDocumentOverridesWhateverTheProjectWouldSay()
+    public void AComicKeepsTheBrushWithTheProjectWithoutBeingAsked()
     {
-        var vm = new MainViewModel(null);
+        // The default doing its job: the artist never opens Configure.
+        var vm = WithProject(ProjectType.Comic);
 
-        vm.BrushMemoryChoice = "Per document";
-
-        Assert.Equal(BrushScope.PerDocument, vm.BrushScope);
+        Assert.Equal(BrushScope.PerProject, vm.BrushScope);
     }
 
     [AvaloniaFact]
-    public void UnderGlobalTheDocumentRecordsNothing()
+    public void AStoryboardKeepsOneBrushForTheTool()
     {
-        // The other half of the choice. A file made this way must be
+        var vm = WithProject(ProjectType.Storyboard);
+
+        Assert.Equal(BrushScope.Global, vm.BrushScope);
+    }
+
+    [AvaloniaFact]
+    public void AChosenScopeOverridesTheProjectType()
+    {
+        var vm = WithProject(ProjectType.Storyboard);
+
+        vm.BrushMemoryChoice = "Per project";
+
+        Assert.Equal(BrushScope.PerProject, vm.BrushScope);
+    }
+
+    [AvaloniaFact]
+    public void UnderGlobalTheProjectRecordsNothing()
+    {
+        // The other half of the choice. A project made this way must be
         // indistinguishable from one made before the feature existed.
-        var vm = new MainViewModel(null);
+        var vm = WithProject();
         vm.BrushMemoryChoice = "Global";
 
         Paint(vm);
 
-        Assert.Null(vm.Doc.Brush);
+        Assert.Null(vm.ProjectDocker.Project!.Manifest.Brush);
     }
 
     [AvaloniaFact]
-    public void UnderPerDocumentPaintingRecordsTheBrushOnTheDrawing()
+    public void PaintingRecordsTheBrushOnTheProject()
     {
         // On commit rather than on save: the session this exists for is the
         // one that ended without a save, because somebody closed the laptop.
-        var vm = new MainViewModel(null);
-        vm.BrushMemoryChoice = "Per document";
+        var vm = WithProject();
         vm.BrushSize = 41;
 
         Paint(vm);
 
-        Assert.NotNull(vm.Doc.Brush);
-        Assert.Equal(41, vm.Doc.Brush!.Size);
+        Assert.NotNull(vm.ProjectDocker.Project!.Manifest.Brush);
+        Assert.Equal(41, vm.ProjectDocker.Project.Manifest.Brush!.Size);
     }
 
     [AvaloniaFact]
-    public void ReopeningTheDocumentPutsThatBrushBackInTheToolBar()
+    public void AnAgentsStrokeDoesNotRewriteIt()
     {
-        // The promise, end to end: paint with one brush, go away, come back to
-        // a tool bar set to something else, and get your brush returned.
-        var vm = new MainViewModel(null);
-        vm.BrushMemoryChoice = "Per document";
+        // AppendExternalStrokes is the AI and MCP path. A stroke the artist
+        // did not paint is not the brush they were painting with.
+        var vm = WithProject();
+        vm.Doc.Scene.Layers[0].Locked = false;
+
+        vm.AppendExternalStrokes(vm.Doc.Scene.Layers[0].Id, 0, [new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Points = [new StrokePoint(5, 5, 1), new StrokePoint(50, 50, 1)],
+            Brush = new BrushSettings { Size = 99 },
+        }]);
+
+        Assert.Null(vm.ProjectDocker.Project!.Manifest.Brush);
+    }
+
+    [AvaloniaFact]
+    public void ANewDocumentInTheProjectIsFedThatBrush()
+    {
+        // The reason this is per project rather than per document: the brush
+        // has to reach the page that did not exist when it was chosen.
+        var vm = WithProject();
         vm.BrushSize = 41;
         Paint(vm);
-        var painted = vm.Doc;
 
-        // A second document, drawn with something quite different.
-        vm.NewDocument(new NewDocumentSettings("Second", 120, 80, 12, 72, "#ffffff", false));
+        vm.NewDocument(new NewDocumentSettings("Page 2", 120, 80, 12, 72, "#ffffff", false));
         vm.BrushSize = 7;
-        Assert.Equal(7, vm.BrushSize);
-
-        // Back to the first.
-        vm.ActiveTab = vm.Tabs.First(t => ReferenceEquals(t.Doc, painted));
+        // Coming back is what a tab switch does; a freshly opened project
+        // document goes through the same recall.
+        vm.ActiveTab = vm.Tabs[0];
 
         Assert.Equal(41, vm.BrushSize);
     }
 
     [AvaloniaFact]
-    public void ADocumentWithNothingRecordedLeavesTheBrushAlone()
+    public void AProjectWithNothingRecordedLeavesTheBrushAlone()
     {
-        // Silence is the right answer for an older file, or one made under
-        // Global. Resetting somebody's brush to a default every time they open
-        // something would be worse than the problem this solves.
-        var vm = new MainViewModel(null);
-        vm.BrushMemoryChoice = "Per document";
-        var first = vm.Doc;
-        vm.NewDocument(new NewDocumentSettings("Second", 120, 80, 12, 72, "#ffffff", false));
+        // Silence is the right answer for an older project, or one worked on
+        // under Global. Resetting somebody's brush to a default every time
+        // they open something would be worse than the problem this solves.
+        var vm = WithProject();
         vm.BrushSize = 23;
 
-        vm.ActiveTab = vm.Tabs.First(t => ReferenceEquals(t.Doc, first));
+        vm.ActiveTab = vm.Tabs[0];
 
         Assert.Equal(23, vm.BrushSize);
     }
 
     [AvaloniaFact]
-    public void SwitchingToPerDocumentMidSessionHandsBackWhatIsAlreadyThere()
+    public void SwitchingToPerProjectMidSessionHandsBackWhatIsAlreadyThere()
     {
         // Turning the setting on should not require a tab change to take
         // effect — the artist just told the application what they wanted.
-        var vm = new MainViewModel(null);
-        vm.BrushMemoryChoice = "Per document";
+        var vm = WithProject();
         vm.BrushSize = 55;
         Paint(vm);
         vm.BrushMemoryChoice = "Global";
         vm.BrushSize = 9;
 
-        vm.BrushMemoryChoice = "Per document";
+        vm.BrushMemoryChoice = "Per project";
 
         Assert.Equal(55, vm.BrushSize);
     }

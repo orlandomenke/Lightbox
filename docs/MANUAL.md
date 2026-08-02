@@ -1055,26 +1055,31 @@ layer, exactly as **This layer** would.
 ### Where the brush lives
 
 **Edit → Configure → Drawing** also decides whether the brush belongs to the
-tool or to the drawing:
+tool or to the work:
 
 | | |
 | --- | --- |
-| **Follow the project** | The default. Illustration, comic, game art and asset libraries keep the brush with the drawing; animation and storyboards keep one brush for the tool. |
-| **Global** | One brush, carried between documents and sessions. What Photoshop and Krita do. |
-| **Per document** | Each drawing remembers the brush it was last painted with and hands it back when you reopen it. |
+| **Follow the project** | The default. Illustration, comic, game art and asset libraries keep the brush with the project; animation and storyboards keep one brush for the tool. |
+| **Global** | One brush, carried between projects and sessions. What Photoshop and Krita do. |
+| **Per project** | The project remembers the brush you paint with and gives it to every document in it. |
 
-The point of **per document** is the break between sessions. Come back to a
-comic page or a game asset after a fortnight and the tool bar says whatever you
-last used on something else — but the page itself was drawn with something
-particular, and on work where the character of the stroke is part of the style
-that matters. The brush is saved in the file, so it survives the gap that made
-you forget it.
+The point of **per project** is the break between sessions. Come back to a
+comic or a set of game assets after a fortnight and the tool bar says whatever
+you last used on something else — but the work was drawn with something
+particular, and where the character of the stroke is part of the style that
+matters.
+
+The project rather than the file, because the answer has to reach the pages
+that do not exist yet: page one remembering its own brush would leave page
+eleven starting from scratch. It is the same reasoning as the shared palette —
+a character's work has one set of colours and one set of marks.
 
 It is recorded when you make a mark, not when you save, so a session that ended
-without saving still remembers. A document with nothing recorded — an older
-file, or one drawn under **Global** — leaves your brush alone rather than
-resetting it. Strokes an AI or an agent adds never change it: they are not what
-*you* were painting with.
+without saving still remembers. A project with nothing recorded — an older one,
+or one worked on under **Global** — leaves your brush alone rather than
+resetting it. With no project open there is nowhere to keep a brush, so the
+setting reads as **Global** whatever it says. Strokes an AI or an agent adds
+never change it: they are not what *you* were painting with.
 
 ## 14. When the canvas feels slow
 

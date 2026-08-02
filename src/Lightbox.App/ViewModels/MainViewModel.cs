@@ -400,11 +400,16 @@ public sealed partial class MainViewModel : ObservableObject
     /// what the application has always done.
     /// </remarks>
     public BrushScope BrushScope =>
-        Settings.BrushScopeChoice ?? BrushScopeDefaults.For(ProjectDocker.Project?.Manifest.Type);
+        // No project is not a preference that can be overridden — there is
+        // nowhere to keep a brush, so the honest answer is the one the
+        // application has always given.
+        ProjectDocker.Project is not { } project
+            ? BrushScope.Global
+            : Settings.BrushScopeChoice ?? BrushScopeDefaults.For(project.Manifest.Type);
 
     /// <summary>The three answers, in the order they are offered.</summary>
     public IReadOnlyList<string> BrushMemoryChoices { get; } =
-        ["Follow the project", "Global", "Per document"];
+        ["Follow the project", "Global", "Per project"];
 
     /// <summary>
     /// The chosen answer, as the Configure page words it. "Follow the project"
@@ -416,7 +421,7 @@ public sealed partial class MainViewModel : ObservableObject
         get => Settings.BrushScopeChoice switch
         {
             BrushScope.Global => "Global",
-            BrushScope.PerDocument => "Per document",
+            BrushScope.PerProject => "Per project",
             _ => "Follow the project",
         };
         set
@@ -424,7 +429,7 @@ public sealed partial class MainViewModel : ObservableObject
             var stored = value switch
             {
                 "Global" => nameof(BrushScope.Global),
-                "Per document" => nameof(BrushScope.PerDocument),
+                "Per project" => nameof(BrushScope.PerProject),
                 _ => null,
             };
             if (Settings.BrushMemory == stored) return;
@@ -432,8 +437,8 @@ public sealed partial class MainViewModel : ObservableObject
             Settings.Save();
             OnPropertyChanged();
             OnPropertyChanged(nameof(BrushScope));
-            // Switching to per-document mid-session should hand back what this
-            // document already remembers, rather than waiting for a tab change.
+            // Switching to per-project mid-session should hand back what the
+            // project already remembers, rather than waiting for a tab change.
             RecallDocumentBrush();
         }
     }
@@ -449,9 +454,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// </remarks>
     private void RememberDocumentBrush()
     {
-        if (BrushScope != BrushScope.PerDocument) return;
-        if ((SaveTargetTab ?? ActiveTab) is not { } tab) return;
-        tab.Doc.Brush = _brushWork.Clone();
+        if (BrushScope != BrushScope.PerProject) return;
+        if (ProjectDocker.Project is not { } project) return;
+        project.Manifest.Brush = _brushWork.Clone();
     }
 
     /// <summary>Put the document's remembered brush back in the tool bar, if it has one.</summary>
@@ -463,8 +468,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// </remarks>
     private void RecallDocumentBrush()
     {
-        if (BrushScope != BrushScope.PerDocument) return;
-        if ((SaveTargetTab ?? ActiveTab)?.Doc.Brush is not { } remembered) return;
+        if (BrushScope != BrushScope.PerProject) return;
+        if (ProjectDocker.Project?.Manifest.Brush is not { } remembered) return;
         _brushWork = remembered.Clone();
         // The preset combo would otherwise still name whatever was chosen
         // before the switch, describing a brush that is no longer loaded.

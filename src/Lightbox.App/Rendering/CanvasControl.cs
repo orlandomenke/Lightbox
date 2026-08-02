@@ -2075,16 +2075,17 @@ public sealed class CanvasControl : Control
             canvas.RotateDegrees(view.RotationDeg);
             canvas.Scale(view.Mirrored ? -view.Scale : view.Scale, view.Scale);
             canvas.Translate(-view.DocW / 2f, -view.DocH / 2f);
-            DrawTransparencyCheckerboard(canvas, view);
-            using (var paint = new SKPaint { IsAntialias = true })
-            {
-                canvas.DrawImage(
-                    snapshot.Image,
-                    new SKRect(0, 0, view.DocW, view.DocH),
-                    new SKSamplingOptions(SKFilterMode.Linear),
-                    paint);
-            }
-            DrawGuides(canvas);
+            // Checkerboard, artwork, guides — one call, because splitting them
+            // apart is how B17 happened. See GuidePainter.PaintDocument.
+            GuidePainter.PaintDocument(
+                canvas,
+                snapshot.Image,
+                view.DocW,
+                view.DocH,
+                view.Scale,
+                c => DrawTransparencyCheckerboard(c, view),
+                ToPainterLines(guides),
+                draftGuide is { } d ? ToPainterLine(d) : null);
             DrawCameraFrame(canvas);
             DrawGradientAxis(canvas);
             DrawAnts(canvas);
@@ -2122,112 +2123,12 @@ public sealed class CanvasControl : Control
         /// past that it is a grey wash, not a grid.
         /// </para>
         /// </remarks>
-        private void DrawGuides(SKCanvas canvas)
-        {
-            if (guides is not { Count: > 0 } lines)
-            {
-                if (draftGuide is { } only) DrawDraft(canvas, only);
-                return;
-            }
-            var scale = Math.Max(0.01f, view.Scale);
-            var reach = (view.DocW + view.DocH) * 2f;
+        private static IReadOnlyList<GuidePainter.Line>? ToPainterLines(
+            IReadOnlyList<GuideLine>? lines) =>
+            lines is null ? null : [.. lines.Select(ToPainterLine)];
 
-            using var thin = new SKPaint
-            {
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1f / scale,
-                Color = new SKColor(80, 150, 240, 110),
-                IsAntialias = true,
-            };
-            using var mark = new SKPaint
-            {
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.5f / scale,
-                Color = new SKColor(240, 120, 80, 200),
-                IsAntialias = true,
-            };
-
-            foreach (var guide in lines)
-            {
-                if (guide.Kind == (int)GuideKindGrid)
-                {
-                    DrawGrid(canvas, guide, thin, scale);
-                    continue;
-                }
-                foreach (var angle in guide.Angles)
-                {
-                    Ray(canvas, guide.X, guide.Y, angle, reach, thin);
-                }
-                if (guide.Kind != (int)GuideKindVanishingPoint) continue;
-                // A vanishing point is a place as well as a set of directions,
-                // and without a mark on it you cannot tell which of the rays
-                // meet where.
-                var arm = 7f / scale;
-                canvas.DrawLine(guide.X - arm, guide.Y, guide.X + arm, guide.Y, mark);
-                canvas.DrawLine(guide.X, guide.Y - arm, guide.X, guide.Y + arm, mark);
-            }
-
-            if (draftGuide is { } draft) DrawDraft(canvas, draft);
-        }
-
-        /// <summary>
-        /// The guide being pulled out of a ruler right now.
-        /// </summary>
-        /// <remarks>
-        /// Brighter than a placed guide, because it is the thing you are
-        /// looking at: the whole gesture is aiming a line, and a draft drawn
-        /// in the same faint blue as the rig behind it cannot be aimed.
-        /// </remarks>
-        private void DrawDraft(SKCanvas canvas, GuideLine draft)
-        {
-            var scale = Math.Max(0.01f, view.Scale);
-            using var paint = new SKPaint
-            {
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1f / scale,
-                Color = new SKColor(240, 160, 80, 220),
-                IsAntialias = true,
-            };
-            var reach = (view.DocW + view.DocH) * 2f;
-            foreach (var angle in draft.Angles) Ray(canvas, draft.X, draft.Y, angle, reach, paint);
-        }
-
-        private const int GuideKindGrid = 1;
-
-        private const int GuideKindVanishingPoint = 3;
-
-        private static void Ray(
-            SKCanvas canvas, float x, float y, double degrees, float reach, SKPaint paint)
-        {
-            var radians = degrees * Math.PI / 180;
-            var dx = (float)Math.Cos(radians) * reach;
-            var dy = (float)Math.Sin(radians) * reach;
-            canvas.DrawLine(x - dx, y - dy, x + dx, y + dy, paint);
-        }
-
-        private void DrawGrid(SKCanvas canvas, GuideLine guide, SKPaint paint, float scale)
-        {
-            var pitch = Math.Max(1f, guide.Spacing);
-            // Below a few pixels on screen a grid is a grey wash. Drawing it
-            // anyway costs thousands of lines to produce something nobody can
-            // use, which is invariant 6's spirit applied to chrome.
-            if (pitch * scale < 4) return;
-
-            var reach = Math.Max(view.DocW, view.DocH) * 2f;
-            var steps = (int)Math.Ceiling(reach / pitch);
-            var angle = guide.Angles.Count > 0 ? guide.Angles[0] : 0;
-            var radians = angle * Math.PI / 180;
-            var (cos, sin) = ((float)Math.Cos(radians), (float)Math.Sin(radians));
-
-            for (var i = -steps; i <= steps; i++)
-            {
-                var offset = i * pitch;
-                // One family of lines, then the other: the grid's own axes,
-                // rotated with it.
-                Ray(canvas, guide.X - sin * offset, guide.Y + cos * offset, angle, reach, paint);
-                Ray(canvas, guide.X + cos * offset, guide.Y + sin * offset, angle + 90, reach, paint);
-            }
-        }
+        private static GuidePainter.Line ToPainterLine(GuideLine g) =>
+            new(g.Kind, g.X, g.Y, g.Spacing, g.Angles);
 
         /// <summary>
         /// The reference grid, while it is being edited.

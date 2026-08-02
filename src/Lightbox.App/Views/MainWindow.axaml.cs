@@ -142,6 +142,11 @@ public partial class MainWindow : Window
         // Timeline cel interactions that need modifiers or drag (buttons eat
         // plain pointer events): Shift+click range select, drag-a-cel drop.
         AddHandler(PointerPressedEvent, OnTimelinePointerPressed, RoutingStrategies.Tunnel);
+        // Both disarm the cel drag; see OnTimelineContextRequested for why the
+        // context menu has to. Tunnelling so they are seen before anything can
+        // mark the event handled.
+        AddHandler(ContextRequestedEvent, OnTimelineContextRequested, RoutingStrategies.Tunnel);
+        AddHandler(PointerReleasedEvent, OnTimelinePointerReleased, RoutingStrategies.Tunnel);
         AddHandler(DragDrop.DragOverEvent, OnCelDragOver);
         AddHandler(DragDrop.DropEvent, OnCelDrop);
         DragDrop.SetAllowDrop(Canvas, true);
@@ -1125,12 +1130,40 @@ public partial class MainWindow : Window
             return;
         }
         // Remember the press so a later move can turn it into a cel drag.
-        if (cell.IsKeyed && !cell.IsVirtual)
-        {
-            _celDragCandidate = cell;
-            _celDragPress = e;
-            _celDragStart = e.GetPosition(this);
-        }
+        _celDrag.Press(cell, e.GetPosition(this), leftButton: true, keyed: cell.IsKeyed && !cell.IsVirtual);
+        _celDragPress = _celDrag.Candidate is null ? null : e;
+    }
+
+    /// <summary>
+    /// A context menu and a cel drag are two readings of the same press, and
+    /// only one can win.
+    /// </summary>
+    /// <remarks>
+    /// B8: a pen right-click is a press-and-hold, so the press armed the drag
+    /// and the hold opened the menu — then moving towards "Insert frame"
+    /// crossed the threshold, started a drag, and the drag seized the pointer
+    /// and shut the menu. A mouse right-click never arms it, which is why the
+    /// report said a mouse was fine.
+    /// </remarks>
+    private void OnTimelineContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        _celDrag.Cancel();
+        _celDragPress = null;
+    }
+
+    /// <summary>
+    /// Letting go ends the gesture, whether or not a move ever arrived.
+    /// </summary>
+    /// <remarks>
+    /// The arming press used to be cleared only by a move that found the
+    /// button up, so lifting the pen without moving left it armed — and the
+    /// next press-and-drag anywhere on that cel would pick up a gesture that
+    /// began minutes earlier.
+    /// </remarks>
+    private void OnTimelinePointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        _celDrag.Cancel();
+        _celDragPress = null;
     }
 
     // ---- drag a cel along its row ------------------------------------------------
@@ -1138,26 +1171,20 @@ public partial class MainWindow : Window
     private static readonly DataFormat<FrameCell> CelDragFormat =
         DataFormat.CreateInProcessFormat<FrameCell>("lightbox-cel");
 
-    private FrameCell? _celDragCandidate;
+    private readonly Input.CelDragGesture _celDrag = new();
     private PointerPressedEventArgs? _celDragPress;
-    private Avalonia.Point _celDragStart;
-    private bool _celDragging;
 
     private async void OnCellPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_celDragging || _celDragCandidate is not { } cell || _celDragPress is not { } press) return;
-        if (sender is not Button button || !ReferenceEquals(button.DataContext, cell)) return;
+        if (_celDragPress is not { } press) return;
+        if (sender is not Button button || button.DataContext is not FrameCell cell) return;
         var point = e.GetCurrentPoint(this);
-        if (!point.Properties.IsLeftButtonPressed)
+        if (!_celDrag.ShouldStart(cell, point.Position, point.Properties.IsLeftButtonPressed))
         {
-            _celDragCandidate = null;
-            _celDragPress = null;
+            if (_celDrag.Candidate is null) _celDragPress = null;
             return;
         }
-        var delta = point.Position - _celDragStart;
-        if (Math.Abs(delta.X) < 6 && Math.Abs(delta.Y) < 6) return;
 
-        _celDragging = true;
         try
         {
             var transfer = new DataTransfer();
@@ -1166,8 +1193,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            _celDragging = false;
-            _celDragCandidate = null;
+            _celDrag.Finished();
             _celDragPress = null;
         }
     }

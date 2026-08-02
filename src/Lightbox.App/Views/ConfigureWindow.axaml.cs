@@ -285,18 +285,19 @@ public partial class ConfigureWindow : Window
     private void RefreshBrushScopeHint()
     {
         if (BrushScopeHint is null || _vm is null) return;
-        var effective = _vm.BrushScope == Lightbox.Core.Documents.BrushScope.PerDocument
-            ? "each drawing keeps its own brush"
+        var effective = _vm.BrushScope == Lightbox.Core.Documents.BrushScope.PerProject
+            ? "the project keeps the brush and gives it to every document in it"
             : "one brush for the application";
         BrushScopeHint.Text = _vm.BrushMemoryChoice switch
         {
             "Global" =>
                 "One brush, carried between documents and sessions — what Photoshop and Krita do.",
-            "Per document" =>
-                "Each drawing remembers the brush it was last painted with and hands it back when you "
-                + "reopen it. Saved in the file, so it survives the break that made you forget.",
+            "Per project" =>
+                "The project remembers the brush you paint with and hands it to every document in it, "
+                + "including the ones you have not made yet. Saved with the project, so it survives the "
+                + "break that made you forget it.",
             _ =>
-                $"Illustration, comic, game art and asset libraries keep the brush with the drawing; "
+                $"Illustration, comic, game art and asset libraries keep the brush with the project; "
                 + $"animation and storyboards keep one brush for the tool. Right now: {effective}.",
         };
     }

@@ -16,19 +16,31 @@ public enum BrushScope
     Global,
 
     /// <summary>
-    /// Each document remembers the brush it was last painted with, saved in
-    /// the file, and hands it back when reopened.
+    /// The project remembers the brush its documents are painted with, and
+    /// hands it to every one of them.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The case this exists for is a break between sessions. Coming back to a
-    /// comic page or a game asset after a fortnight, the question is not "what
-    /// brush do I like" but "what brush is <i>this</i> drawn with" — and on
-    /// work where the character of the stroke is part of the style, guessing
-    /// wrong is visible in the result. The document already knows: every
-    /// stroke carries its own settings (invariant 4). This only puts the
-    /// answer back in the tool bar.
+    /// comic or a set of game assets after a fortnight, the question is not
+    /// "what brush do I like" but "what brush is <i>this</i> drawn with" — and
+    /// on work where the character of the stroke is part of the style,
+    /// guessing wrong is visible in the result.
+    /// </para>
+    /// <para>
+    /// The project rather than the document, because the answer has to reach
+    /// the pages that do not exist yet. Page one of a comic remembering its
+    /// own brush leaves page eleven starting from whatever you last used on
+    /// something else, which is the same problem one file later. Pillar 1
+    /// already says it: a character's animations share one palette, one brush
+    /// set, one set of references.
+    /// </para>
+    /// <para>
+    /// With no project open there is nothing to hold it, so this reads as
+    /// <see cref="Global"/>.
+    /// </para>
     /// </remarks>
-    PerDocument,
+    PerProject,
 }
 
 /// <summary>What a project type implies about where the brush lives.</summary>
@@ -39,12 +51,12 @@ public static class BrushScopeDefaults
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The split is about how long a document stays open in one head. Work you
-    /// come back to — an illustration, a comic page, a game asset — is
-    /// per-document, because the gap between sittings is where the brush gets
-    /// forgotten. Work you move through in one pass — a storyboard, the
-    /// animations of one character — is global, because you are switching
-    /// documents constantly and want the same pencil in each.
+    /// The split is about whether a body of work has a house style. A comic, a
+    /// set of game assets, an illustration series — the mark is part of what
+    /// the work looks like, and every new page should start from it. A
+    /// storyboard is drawn to be read and thrown away, and an animator moving
+    /// through one character's cycles is already carrying one pencil; those
+    /// keep the brush on the tool.
     /// </para>
     /// <para>
     /// A default, not a rule: <c>AppSettings.BrushMemory</c> overrides it, and
@@ -55,10 +67,10 @@ public static class BrushScopeDefaults
     /// </remarks>
     public static BrushScope For(ProjectType? type) => type switch
     {
-        ProjectType.Illustration => BrushScope.PerDocument,
-        ProjectType.Comic => BrushScope.PerDocument,
-        ProjectType.GameArt => BrushScope.PerDocument,
-        ProjectType.AssetLibrary => BrushScope.PerDocument,
+        ProjectType.Illustration => BrushScope.PerProject,
+        ProjectType.Comic => BrushScope.PerProject,
+        ProjectType.GameArt => BrushScope.PerProject,
+        ProjectType.AssetLibrary => BrushScope.PerProject,
         ProjectType.Animation => BrushScope.Global,
         ProjectType.Storyboard => BrushScope.Global,
         _ => BrushScope.Global,

@@ -18,21 +18,22 @@ namespace Lightbox.Core.Tests;
 public class BrushScopeTests
 {
     [Fact]
-    public void WorkYouComeBackToKeepsTheBrushWithTheDrawing()
+    public void WorkWithAHouseStyleKeepsTheBrushWithTheProject()
     {
-        // The types named in the answer, and the reasoning behind the split:
-        // these are documents with gaps between sittings.
-        Assert.Equal(BrushScope.PerDocument, BrushScopeDefaults.For(ProjectType.Comic));
-        Assert.Equal(BrushScope.PerDocument, BrushScopeDefaults.For(ProjectType.GameArt));
-        Assert.Equal(BrushScope.PerDocument, BrushScopeDefaults.For(ProjectType.Illustration));
-        Assert.Equal(BrushScope.PerDocument, BrushScopeDefaults.For(ProjectType.AssetLibrary));
+        // The types named in the answer. The mark is part of what the work
+        // looks like, so every new page should start from it.
+        Assert.Equal(BrushScope.PerProject, BrushScopeDefaults.For(ProjectType.Comic));
+        Assert.Equal(BrushScope.PerProject, BrushScopeDefaults.For(ProjectType.GameArt));
+        Assert.Equal(BrushScope.PerProject, BrushScopeDefaults.For(ProjectType.Illustration));
+        Assert.Equal(BrushScope.PerProject, BrushScopeDefaults.For(ProjectType.AssetLibrary));
     }
 
     [Fact]
     public void WorkYouMoveThroughInOnePassKeepsOneBrushForTheTool()
     {
-        // The other half. You are switching documents constantly and want the
-        // same pencil in each, which is exactly what per-document would undo.
+        // The other half. A storyboard is drawn to be read and thrown away,
+        // and an animator working one character's cycles already carries one
+        // pencil.
         Assert.Equal(BrushScope.Global, BrushScopeDefaults.For(ProjectType.Animation));
         Assert.Equal(BrushScope.Global, BrushScopeDefaults.For(ProjectType.Storyboard));
     }
@@ -47,53 +48,80 @@ public class BrushScopeTests
     }
 
     [Fact]
-    public void ADocumentThatNeverAsksForThisWritesNoBrushKey()
+    public void AProjectThatNeverAsksForThisWritesNoBrushKey()
     {
-        // The camera's rule. A file made under Global — every file that
+        // The camera's rule. A project made under Global — every project that
         // exists today — must serialize exactly as it does now.
-        var doc = DocumentFactory.CreateDoc(120, 80, 12);
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-brush-{Guid.NewGuid():N}.lbproj");
+        try
+        {
+            // Through the real writer, not a bare JsonSerializer — the whole
+            // claim is about what lands on disk.
+            ProjectIo.Save(ProjectIo.Create("Knight", root));
 
-        var json = DocJson.Serialize(doc);
+            var json = File.ReadAllText(Path.Combine(root, "project.json"));
 
-        Assert.DoesNotContain("\"brush\"", json, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("brush", json, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
     public void ARememberedBrushSurvivesASaveAndReload()
     {
         // The whole point: the gap between sessions is where the brush gets
-        // forgotten, so the answer has to be in the file rather than in the
+        // forgotten, so the answer has to be on disk rather than in the
         // application's memory of what you were doing.
-        var doc = DocumentFactory.CreateDoc(120, 80, 12);
-        doc.Brush = new BrushSettings
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-brush-{Guid.NewGuid():N}.lbproj");
+        try
         {
-            Size = 37, Hardness = 0.22, Flow = 0.61, Spacing = 0.07,
-            Kind = BrushKind.Paint, SmudgeLength = 0.4,
-        };
+            var project = ProjectIo.Create("Knight", root);
+            project.Manifest.Brush = new BrushSettings
+            {
+                Size = 37, Hardness = 0.22, Flow = 0.61, Spacing = 0.07, Kind = BrushKind.Paint,
+            };
+            ProjectIo.Save(project);
 
-        var back = DocJson.Deserialize(DocJson.Serialize(doc));
+            var back = ProjectIo.Load(root);
 
-        Assert.NotNull(back.Brush);
-        Assert.Equal(37, back.Brush!.Size);
-        Assert.Equal(0.22, back.Brush.Hardness, 6);
-        Assert.Equal(0.61, back.Brush.Flow, 6);
-        Assert.Equal(0.07, back.Brush.Spacing, 6);
+            Assert.NotNull(back.Manifest.Brush);
+            Assert.Equal(37, back.Manifest.Brush!.Size);
+            Assert.Equal(0.22, back.Manifest.Brush.Hardness, 6);
+            Assert.Equal(0.61, back.Manifest.Brush.Flow, 6);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
-    public void TheRememberedBrushIsACopyNotTheLiveOne()
+    public void EveryDocumentInTheProjectIsFedTheSameBrush()
     {
-        // It is a bookmark, not the tool's own state. Sharing the instance
-        // would make every later tweak of the working brush rewrite what the
-        // document says it was painted with, which is the opposite of the
-        // question it answers.
-        var doc = DocumentFactory.CreateDoc(120, 80, 12);
-        var working = new BrushSettings { Size = 10 };
-        doc.Brush = working.Clone();
+        // The reason this is per project and not per document: the answer has
+        // to reach the pages that do not exist yet. One store, so animation
+        // forty gets what animation one was drawn with.
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-brush-{Guid.NewGuid():N}.lbproj");
+        try
+        {
+            var project = ProjectIo.Create("Knight", root);
+            var knight = ProjectIo.AddCharacter(project, "Knight");
+            ProjectIo.AddAnimation(project, knight, "Walk", DocumentFactory.CreateDoc(120, 80, 12));
+            project.Manifest.Brush = new BrushSettings { Size = 19 };
 
-        working.Size = 99;
+            // A page made later, after the brush was chosen.
+            ProjectIo.AddAnimation(project, knight, "Idle", DocumentFactory.CreateDoc(120, 80, 12));
 
-        Assert.Equal(10, doc.Brush!.Size);
+            Assert.Equal(19, project.Manifest.Brush.Size);
+            Assert.Equal(2, knight.Animations.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
@@ -112,7 +140,8 @@ public class BrushScopeTests
         };
         frame.Strokes.Add(stroke);
 
-        doc.Brush = new BrushSettings { Size = 200, Hardness = 0 };
+        var manifest = new ProjectManifest { Brush = new BrushSettings { Size = 200, Hardness = 0 } };
+        Assert.NotNull(manifest.Brush);
 
         Assert.Equal(12, frame.Strokes[0].Brush.Size);
         Assert.Equal(1, frame.Strokes[0].Brush.Hardness);
