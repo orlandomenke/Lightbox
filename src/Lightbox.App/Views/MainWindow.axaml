@@ -238,10 +238,26 @@
           <ComboBox ItemsSource="{Binding BrushPresetChoices}" SelectedItem="{Binding SelectedBrushPreset}"
                     Width="130" VerticalAlignment="Center"
                     ToolTip.Tip="Brush preset (B returns to the last configured brush)" />
-          <Border Width="24" Height="24" CornerRadius="12" BorderBrush="#555" BorderThickness="1"
-                  VerticalAlignment="Center" Background="{Binding ColorPicker.SwatchBrush}"
-                  PointerPressed="OnColorSwatchPressed" Cursor="Hand"
-                  ToolTip.Tip="Current color — drag it onto the canvas to fill" />
+          <!--
+            Foreground over background, the arrangement every painting tool
+            has had for thirty years. One pair, shared by the brush, the fill
+            and the gradient: reaching for the same colour in three tools and
+            finding three answers is what this prevents. X swaps, D resets.
+          -->
+          <Panel Width="32" Height="26" VerticalAlignment="Center"
+                 ToolTip.Tip="Foreground over background — X swaps them, D resets to black over white">
+            <Border Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    CornerRadius="3" BorderBrush="#555" BorderThickness="1"
+                    Background="{Binding BackgroundColorHex}"
+                    PointerPressed="OnBackgroundSwatchPressed" Cursor="Hand" />
+            <Border Width="18" Height="18" HorizontalAlignment="Left" VerticalAlignment="Top"
+                    CornerRadius="3" BorderBrush="#888" BorderThickness="1"
+                    Background="{Binding ColorPicker.SwatchBrush}"
+                    PointerPressed="OnColorSwatchPressed" Cursor="Hand" />
+          </Panel>
+          <Button Classes="icon" Content="⇄" FontSize="10" VerticalAlignment="Center"
+                  Background="Transparent" BorderThickness="0"
+                  Command="{Binding SwapColorsCommand}" ToolTip.Tip="Swap foreground and background (X)" />
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Size" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Width="110" VerticalAlignment="Center" />

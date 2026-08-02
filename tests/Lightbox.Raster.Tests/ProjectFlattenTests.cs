@@ -51,6 +51,10 @@ public class ProjectFlattenTests : IDisposable
     private static Doc DocWith(params Stroke[] strokes)
     {
         var doc = DocumentFactory.CreateDoc(W, H, 12);
+        // What flatten does with the PROJECT's palettes is the subject here.
+        // A document's own starting black-and-white would be carried across
+        // by definition, and saying so in every assertion adds nothing.
+        doc.Palettes.Clear();
         ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.AddRange(strokes);
         return doc;
     }

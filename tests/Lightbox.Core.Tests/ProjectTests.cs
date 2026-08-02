@@ -22,6 +22,10 @@ public sealed class ProjectTests : IDisposable
     private static Doc Drawing(string color = "#3070b0")
     {
         var doc = DocumentFactory.CreateDoc(120, 80, 12);
+        // These tests are about the project's palettes. A document's own
+        // starting black-and-white is noise here, and leaving it in would make
+        // every "which palette did this end up with" assertion read around it.
+        doc.Palettes.Clear();
         ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
         {
             Tool = ToolKind.Brush,

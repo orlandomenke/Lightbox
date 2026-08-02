@@ -1202,6 +1202,15 @@ public partial class MainWindow : Window
     /// </summary>
     private PointerPressedEventArgs? _swatchPressArgs;
 
+    /// <summary>
+    /// The background swatch opens its own picker. It has no drag-to-fill —
+    /// there is one colour you paint with, and it is the foreground.
+    /// </summary>
+    private void OnBackgroundSwatchPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Control control) FlyoutBase.ShowAttachedFlyout(control);
+    }
+
     private void OnColorSwatchPressed(object? sender, PointerPressedEventArgs e)
     {
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
@@ -1328,6 +1337,12 @@ public partial class MainWindow : Window
                 break;
             case "timeline.nextFrame":
                 _vm.CurrentFrameIndex = Math.Min(_vm.Doc.Scene.FrameCount - 1, _vm.CurrentFrameIndex + 1);
+                break;
+            case "color.swap":
+                _vm.SwapColorsCommand.Execute(null);
+                break;
+            case "color.reset":
+                _vm.ResetColorsCommand.Execute(null);
                 break;
             case "tool.brush":
                 _vm.ActiveTool = ToolId.Brush; // back to the last-configured brush

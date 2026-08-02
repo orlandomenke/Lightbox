@@ -209,6 +209,11 @@ public sealed partial class MainViewModel : ObservableObject
         ColorPicker = new ColorPickerViewModel();
         ColorPicker.SetHex(ColorHex);
         ColorPicker.HexCommitted += hex => ColorHex = hex;
+        // Picking from the palette is not the same as landing on that colour
+        // with the wheel: the stroke records the swatch, so a later recolour
+        // reaches the art. Without this the palette inside a picker would be
+        // a convenient list of colours and nothing more.
+        ColorPicker.SwatchPicked += PaintWithSwatch;
         PaletteDocker = new PaletteDockerViewModel(
             OnSwatchRecoloured, PerformPaletteEdit, PaintWithSwatch, () => ColorHex);
         PaletteDocker.SwatchEditRunEnded += CommitSwatchEdit;
@@ -234,7 +239,11 @@ public sealed partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(ShowTimeline));
             }
         };
-        PaletteRegistry.Reset(Doc.Palettes, Doc.Gradients);
+        // Through RegisterResources rather than resetting the registry
+        // directly, so the pickers' palette source is wired from the first
+        // moment too — otherwise every flyout opens with no palette until
+        // something else happens to change the document.
+        RegisterResources();
         PaletteDocker.Load(Doc);
         GradientDocker.Load(Doc);
         LoadBrushState();
@@ -242,6 +251,10 @@ public sealed partial class MainViewModel : ObservableObject
         SyncLayerRows();
         RefreshThumbnails();
         RefreshDocumentStats();
+        // Start on the palette's black rather than on a literal. The first
+        // stroke of a session is as worth being recolourable as any other,
+        // and it is the one an artist is least likely to go back and re-link.
+        ResetColors();
     }
 
     // ---- document tabs --------------------------------------------------------
@@ -638,6 +651,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnColorHexChanged(string value)
     {
+        OnPropertyChanged(nameof(ForegroundColorHex));
         ColorPicker.SetHex(value);
         if (_settingColorFromSwatch) return;
 
@@ -874,8 +888,17 @@ public sealed partial class MainViewModel : ObservableObject
             palettes = palettes.Concat(project.Palettes);
             foreach (var (id, gradient) in project.Gradients) gradients[id] = gradient;
         }
-        PaletteRegistry.Reset(palettes, gradients);
+        var resolved = palettes.ToList();
+        PaletteRegistry.Reset(resolved, gradients);
+        // Every colour picker in the app — the panel's and every flyout's —
+        // offers the same swatches, because they are all looking at the same
+        // document.
+        _paletteSwatches = resolved.SelectMany(p => p.Swatches).ToList();
+        ColorPickerViewModel.PaletteSource = () => _paletteSwatches;
+        ColorPicker.RefreshPalette();
     }
+
+    private IReadOnlyList<Swatch> _paletteSwatches = [];
 
     // ---- gradients ----------------------------------------------------------
 
@@ -1589,8 +1612,76 @@ public sealed partial class MainViewModel : ObservableObject
         _applyingPreset = false;
     }
 
+    // ---- the active colour pair -------------------------------------------------
+    //
+    // Foreground and background, the way every painting tool has had them
+    // since Photoshop 1: one pair, shared by the brush, the fill and the
+    // gradient, swapped with X and reset with D. They are global on purpose —
+    // reaching for the same colour in three tools and finding three different
+    // answers is the thing this arrangement exists to prevent.
+
+    /// <summary>The colour tools paint with. <c>ColorHex</c> is its old name.</summary>
     [ObservableProperty]
-    private string _colorHex = "#1a1a1a";
+    private string _colorHex = "#000000";
+
+    /// <summary>
+    /// The other one. What the eraser reveals conceptually, what a
+    /// foreground-to-background gradient ends on, and what X swaps to.
+    /// </summary>
+    [ObservableProperty]
+    private string _backgroundColorHex = "#ffffff";
+
+    /// <summary>Alias, so views can say what they mean.</summary>
+    public string ForegroundColorHex
+    {
+        get => ColorHex;
+        set => ColorHex = value;
+    }
+
+
+    /// <summary>
+    /// Trade foreground and background (X).
+    /// </summary>
+    /// <remarks>
+    /// The swatch link goes with them. Swapping to a palette colour and back
+    /// has to leave the stroke still following that swatch, or X quietly turns
+    /// live palette colours into literals — which is a data loss you would not
+    /// notice until the recolour did nothing.
+    /// </remarks>
+    [RelayCommand]
+    public void SwapColors()
+    {
+        var (foreground, background) = (ColorHex, BackgroundColorHex);
+        var (foregroundSwatch, backgroundSwatch) = (ActiveSwatchId, _backgroundSwatchId);
+        BackgroundColorHex = foreground;
+        _backgroundSwatchId = foregroundSwatch;
+        if (backgroundSwatch is not null) PaintWithSwatch(backgroundSwatch);
+        else
+        {
+            ActiveSwatchId = null;
+            ColorHex = background;
+        }
+    }
+
+    private string? _backgroundSwatchId = DocumentFactory.WhiteSwatchId;
+
+    /// <summary>Back to black over white (D).</summary>
+    [RelayCommand]
+    public void ResetColors()
+    {
+        BackgroundColorHex = "#ffffff";
+        _backgroundSwatchId = DocumentFactory.WhiteSwatchId;
+        if (Doc.Palettes.SelectMany(p => p.Swatches)
+                .Any(sw => sw.Id == DocumentFactory.BlackSwatchId))
+        {
+            PaintWithSwatch(DocumentFactory.BlackSwatchId);
+        }
+        else
+        {
+            ActiveSwatchId = null;
+            ColorHex = "#000000";
+        }
+    }
 
     // ---- active tool ----------------------------------------------------------
 

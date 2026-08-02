@@ -1,4 +1,6 @@
 using Avalonia.Media;
+using CommunityToolkit.Mvvm.Input;
+using Lightbox.Core.Documents;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Lightbox.App.Services;
 
@@ -30,7 +32,57 @@ public sealed partial class ColorPickerViewModel : ObservableObject
 
     public ColorPickerViewModel()
     {
-        SetHex("#1a1a1a");
+        SetHex("#000000");
+    }
+
+    // ---- the document's palette, in every picker -----------------------------
+
+    /// <summary>
+    /// Where every picker gets the palette from.
+    /// </summary>
+    /// <remarks>
+    /// Static because there is one active document and therefore one palette
+    /// worth offering, and because the alternative — threading the palette
+    /// through every flyout, template and control that hosts a picker — is a
+    /// lot of plumbing to arrive at the same single answer.
+    ///
+    /// Set by <c>MainViewModel</c> whenever the document or its palettes
+    /// change. Null until then, which is what makes a picker built in a test
+    /// simply show no palette rather than reach for one.
+    /// </remarks>
+    public static Func<IReadOnlyList<Swatch>>? PaletteSource { get; set; }
+
+    /// <summary>
+    /// Raised with a swatch id when the artist picked from the palette rather
+    /// than from the wheel.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="HexCommitted"/> because the two mean different
+    /// things: a colour, versus a <i>reference</i> to a colour. Only the second
+    /// can follow a later palette edit, and the owner has to know which it got
+    /// or the live-palette link is silently dropped every time someone clicks
+    /// a swatch in a flyout.
+    /// </remarks>
+    public event Action<string>? SwatchPicked;
+
+    public IReadOnlyList<Swatch> PaletteSwatches => PaletteSource?.Invoke() ?? [];
+
+    public bool HasPalette => PaletteSwatches.Count > 0;
+
+    /// <summary>Re-read the palette — the document changed, or a swatch did.</summary>
+    public void RefreshPalette()
+    {
+        OnPropertyChanged(nameof(PaletteSwatches));
+        OnPropertyChanged(nameof(HasPalette));
+    }
+
+    [RelayCommand]
+    private void PickSwatch(Swatch? swatch)
+    {
+        if (swatch is null) return;
+        SetHex(swatch.Color);
+        Commit();
+        SwatchPicked?.Invoke(swatch.Id);
     }
 
     [ObservableProperty]

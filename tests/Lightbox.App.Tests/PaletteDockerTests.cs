@@ -11,6 +11,19 @@ namespace Lightbox.App.Tests;
 /// </summary>
 public class PaletteDockerTests
 {
+    /// <summary>
+    /// A view model whose document has no palette. Every document now starts
+    /// with black and white; these tests are about a palette the test builds,
+    /// and the default one would be two extra swatches in every assertion.
+    /// </summary>
+    private static MainViewModel Vm()
+    {
+        var vm = new MainViewModel(null);
+        vm.Doc.Palettes.Clear();
+        vm.PaletteDocker.Load(vm.Doc);
+        return vm;
+    }
+
     private static SwatchRow AddSwatch(MainViewModel vm, string hex)
     {
         if (!vm.PaletteDocker.HasPalette) vm.PaletteDocker.AddPaletteCommand.Execute(null);
@@ -26,18 +39,27 @@ public class PaletteDockerTests
     }
 
     [AvaloniaFact]
-    public void ANewDocumentHasNoPalettesAndTheDockerIsHidden()
+    public void ANewDocumentStartsWithBlackAndWhiteSelectedOnBlack()
     {
+        // A swatch is the difference between a stroke that carries a colour
+        // and one that carries a reference, and only the second can be
+        // recoloured later. Starting empty means the first hour of work can
+        // never follow a palette edit.
         var vm = new MainViewModel(null);
-        Assert.Empty(vm.Doc.Palettes);
-        Assert.Empty(vm.PaletteDocker.Palettes);
+
+        var palette = Assert.Single(vm.Doc.Palettes);
+        Assert.Equal(["Black", "White"], palette.Swatches.Select(s => s.Name));
+        Assert.Equal("#000000", vm.ColorHex);
+        Assert.Equal(DocumentFactory.BlackSwatchId, vm.ActiveSwatchId);
+        // The panel is still closed by default — having a palette and showing
+        // the editor for it are different questions.
         Assert.False(vm.PaletteDockerVisible);
     }
 
     [AvaloniaFact]
     public void AddingASwatchTakesTheCurrentColourAndIsUndoable()
     {
-        var vm = new MainViewModel(null);
+        var vm = Vm();
         var row = AddSwatch(vm, "#3070b0");
 
         Assert.Equal("#3070b0", row.Color);
@@ -51,7 +73,8 @@ public class PaletteDockerTests
     [AvaloniaFact]
     public void SelectingASwatchPaintsWithIt()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = Vm();
+        vm.SmoothStrokes = false;
         var row = AddSwatch(vm, "#3070b0");
         vm.ColorHex = "#ffffff"; // some other colour, breaking the link
         Assert.Null(vm.ActiveSwatchId);
@@ -77,7 +100,8 @@ public class PaletteDockerTests
         // Otherwise you would paint in one colour and record a reference to
         // another, and the stroke would jump the next time anyone touched
         // the palette.
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = Vm();
+        vm.SmoothStrokes = false;
         var row = AddSwatch(vm, "#3070b0");
         vm.PaletteDocker.SelectedSwatch = row;
         Assert.Equal(row.Id, vm.ActiveSwatchId);
@@ -94,7 +118,9 @@ public class PaletteDockerTests
     [AvaloniaFact]
     public void RecolouringASwatchRepaintsTheArtThatUsedIt()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false, BrushSize = 24 };
+        var vm = Vm();
+        vm.SmoothStrokes = false;
+        vm.BrushSize = 24;
         var row = AddSwatch(vm, "#ff0000");
         vm.PaletteDocker.SelectedSwatch = row;
         vm.BeginStroke(20, 20, 1);
@@ -115,7 +141,7 @@ public class PaletteDockerTests
     [AvaloniaFact]
     public void EditModeRoutesThePickerIntoTheSelectedSwatch()
     {
-        var vm = new MainViewModel(null);
+        var vm = Vm();
         var row = AddSwatch(vm, "#ff0000");
         vm.PaletteDocker.SelectedSwatch = row;
         vm.PaletteDocker.EditSelectedSwatch = true;
@@ -132,7 +158,7 @@ public class PaletteDockerTests
     {
         // Dragging the colour wheel fires an edit per pointer event. Sixty
         // undo entries for one decision would bury the drawing history.
-        var vm = new MainViewModel(null);
+        var vm = Vm();
         var row = AddSwatch(vm, "#000000");
         vm.PaletteDocker.SelectedSwatch = row;
         vm.PaletteDocker.EditSelectedSwatch = true;
@@ -153,7 +179,7 @@ public class PaletteDockerTests
     {
         // A snapshot undo replaces Doc wholesale. An uncommitted recolour that
         // is not on the stack yet would silently vanish with it.
-        var vm = new MainViewModel(null);
+        var vm = Vm();
         var row = AddSwatch(vm, "#000000");
         vm.PaletteDocker.SelectedSwatch = row;
         vm.PaletteDocker.EditSelectedSwatch = true;
@@ -172,7 +198,8 @@ public class PaletteDockerTests
         // The registry holds Swatch objects; a snapshot undo builds new ones.
         // If the registry kept the old objects, recolouring would stop working
         // after any undo.
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = Vm();
+        vm.SmoothStrokes = false;
         var row = AddSwatch(vm, "#ff0000");
         vm.PaletteDocker.SelectedSwatch = row;
         vm.BeginStroke(20, 20, 1);
@@ -192,7 +219,8 @@ public class PaletteDockerTests
     [AvaloniaFact]
     public void RemovingASwatchLeavesTheArtInTheColourItWasDrawnIn()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = Vm();
+        vm.SmoothStrokes = false;
         var row = AddSwatch(vm, "#3070b0");
         vm.PaletteDocker.SelectedSwatch = row;
         vm.BeginStroke(20, 20, 1);
@@ -214,11 +242,13 @@ public class PaletteDockerTests
     [AvaloniaFact]
     public void SwitchingDocumentsSwitchesPalettes()
     {
-        var vm = new MainViewModel(null);
+        var vm = Vm();
         var first = AddSwatch(vm, "#ff0000");
         var firstTab = vm.ActiveTab!;
 
-        vm.OpenDocumentTab(DocumentFactory.CreateDoc(100, 100, 12), null);
+        var other = DocumentFactory.CreateDoc(100, 100, 12);
+        other.Palettes.Clear();
+        vm.OpenDocumentTab(other, null);
         Assert.Empty(vm.PaletteDocker.Palettes);
         // The other document's swatch must not resolve here, or two documents
         // open at once would recolour each other.
@@ -232,7 +262,8 @@ public class PaletteDockerTests
     [AvaloniaFact]
     public void PalettesRoundTripThroughTheDocumentWithTheirLinks()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = Vm();
+        vm.SmoothStrokes = false;
         var row = AddSwatch(vm, "#3070b0");
         vm.PaletteDocker.SelectedSwatch = row;
         vm.BeginStroke(20, 20, 1);
@@ -250,7 +281,7 @@ public class PaletteDockerTests
     [AvaloniaFact]
     public void ImportedGplBecomesAPaletteOnTheDocument()
     {
-        var vm = new MainViewModel(null);
+        var vm = Vm();
         var path = Path.Combine(Path.GetTempPath(), $"lightbox-{Guid.NewGuid():N}.gpl");
         File.WriteAllText(path, "GIMP Palette\nName: Knight\nColumns: 4\n#\n255   0   0\tCape\n32  64 128\tArmour\n");
         try
@@ -274,7 +305,7 @@ public class PaletteDockerTests
     [AvaloniaFact]
     public void ExportedGplReadsBackAsTheSamePalette()
     {
-        var vm = new MainViewModel(null);
+        var vm = Vm();
         AddSwatch(vm, "#ff0000");
         AddSwatch(vm, "#204080");
         vm.PaletteDocker.Swatches[0].Name = "Cape";
@@ -298,7 +329,7 @@ public class PaletteDockerTests
     [AvaloniaFact]
     public void AnUnparseableHexIsRejectedRatherThanPaintingBlack()
     {
-        var vm = new MainViewModel(null);
+        var vm = Vm();
         var row = AddSwatch(vm, "#3070b0");
         row.Color = "not a colour";
         Assert.Equal("#3070b0", row.Color);

@@ -23,11 +23,40 @@ public enum GradientSpread
 /// Alpha is carried separately from the colour so a stop can fade out without
 /// the hex string having to grow a fourth pair.
 /// </summary>
+/// <remarks>
+/// <see cref="Alpha"/> is the fallback track. When the gradient declares
+/// <see cref="Gradient.AlphaStops"/>, opacity comes from there instead and
+/// this value is not read — see <see cref="GradientAlphaStop"/> for why the
+/// two are separate.
+/// </remarks>
 public sealed class GradientStop
 {
     public double Position { get; set; }
 
     public string Color { get; set; } = "#000000";
+
+    public double Alpha { get; set; } = 1.0;
+}
+
+/// <summary>
+/// One opacity stop, at its own position along the axis.
+/// </summary>
+/// <remarks>
+/// Opacity gets a track of its own because it genuinely changes at different
+/// places from colour. A sky fading out at the top while going orange in the
+/// middle needs two stops in one place and one in another, and tying them
+/// together forces a stop into the colour ramp that has no business being
+/// there — you end up authoring a colour you did not want in order to place
+/// an opacity you did.
+///
+/// This is why Photoshop and Krita both show two rows of markers, and why
+/// this model has two lists. Empty means "no separate track": the colour
+/// stops' own <see cref="GradientStop.Alpha"/> is used, so a gradient made
+/// before this existed writes no new key and renders exactly as it did.
+/// </remarks>
+public sealed class GradientAlphaStop
+{
+    public double Position { get; set; }
 
     public double Alpha { get; set; } = 1.0;
 }
@@ -54,6 +83,24 @@ public sealed class Gradient
         new() { Position = 0, Color = "#000000" },
         new() { Position = 1, Color = "#ffffff" },
     ];
+
+    /// <summary>
+    /// Opacity along the axis, independent of colour.
+    /// </summary>
+    /// <remarks>
+    /// Null is the ordinary state — the same discipline the camera follows —
+    /// and means the colour stops carry their own alpha. A gradient that never
+    /// separates the two writes no key at all, so a document made before this
+    /// existed and one made after are byte-identical when they mean the same
+    /// thing.
+    /// </remarks>
+    public List<GradientAlphaStop>? AlphaStops { get; set; }
+
+    /// <summary>Whether opacity is authored separately from colour.</summary>
+    public bool HasAlphaTrack => AlphaStops is { Count: > 0 };
+
+    /// <summary>The alpha track, creating it on first use.</summary>
+    public List<GradientAlphaStop> EnsureAlphaTrack() => AlphaStops ??= [];
 }
 
 /// <summary>Colour along a gradient. Pure, so a re-render always agrees.</summary>
@@ -80,6 +127,18 @@ public static class GradientOps
         if (stops.Count == 0) return (0, 0, 0, 0);
 
         t = Wrap(t, gradient.Spread);
+        var sampled = SampleColorStops(stops, t);
+        // The alpha track overrides the colour stops' own alpha when it
+        // exists. When it does not — which is every gradient authored before
+        // the track did — nothing changes.
+        return gradient.HasAlphaTrack
+            ? (sampled.R, sampled.G, sampled.B, SampleAlpha(gradient.AlphaStops!, t))
+            : sampled;
+    }
+
+    private static (byte R, byte G, byte B, byte A) SampleColorStops(
+        IReadOnlyList<GradientStop> stops, double t)
+    {
         if (stops.Count == 1 || t <= stops[0].Position) return Bytes(stops[0], 1, stops[0], 0);
         if (t >= stops[^1].Position) return Bytes(stops[^1], 1, stops[^1], 0);
 
@@ -96,6 +155,29 @@ public static class GradientOps
         }
         return Bytes(stops[^1], 1, stops[^1], 0);
     }
+
+    /// <summary>Opacity from the alpha track. Same shape as the colour walk.</summary>
+    public static byte SampleAlpha(IReadOnlyList<GradientAlphaStop> track, double t)
+    {
+        var stops = track.OrderBy(s => s.Position).ToList();
+        if (stops.Count == 0) return 255;
+        if (stops.Count == 1 || t <= stops[0].Position) return Byte(stops[0].Alpha);
+        if (t >= stops[^1].Position) return Byte(stops[^1].Alpha);
+
+        for (var i = 0; i < stops.Count - 1; i++)
+        {
+            var a = stops[i];
+            var b = stops[i + 1];
+            if (t < a.Position || t > b.Position) continue;
+            var span = b.Position - a.Position;
+            var f = span <= 1e-9 ? 1.0 : (t - a.Position) / span;
+            // Alpha is coverage, not light: it interpolates as it is written.
+            return Byte(a.Alpha * (1 - f) + b.Alpha * f);
+        }
+        return Byte(stops[^1].Alpha);
+    }
+
+    private static byte Byte(double alpha) => (byte)Math.Round(Math.Clamp(alpha, 0, 1) * 255);
 
     private static double Wrap(double t, GradientSpread spread)
     {

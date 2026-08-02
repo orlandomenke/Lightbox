@@ -64,6 +64,8 @@ public sealed class ShortcutMap
             new("select.none", "Deselect", "Tools", G(Key.D, KeyModifiers.Control)),
             new("select.invert", "Invert selection", "Tools", G(Key.I, KeyModifiers.Control | KeyModifiers.Shift)),
             new("select.cancel", "Cancel polygon", "Tools", G(Key.Escape)),
+            new("color.swap", "Swap foreground and background", "Tools", G(Key.X)),
+            new("color.reset", "Reset to black over white", "Tools", G(Key.D)),
 
             new("canvas.undo", "Undo", "Canvas", G(Key.Z, KeyModifiers.Control)),
             new("canvas.redo", "Redo", "Canvas", G(Key.Y, KeyModifiers.Control)),

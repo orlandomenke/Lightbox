@@ -36,6 +36,7 @@ public class PaletteTests
     public void APaletteRoundTripsThroughTheDocument()
     {
         var doc = DocumentFactory.CreateDoc(100, 100, 12);
+        doc.Palettes.Clear();   // just the one under test
         doc.Palettes.Add(Sample());
         var id = doc.Palettes[0].Swatches[1].Id;
 
@@ -51,9 +52,18 @@ public class PaletteTests
     }
 
     [Fact]
-    public void ANewDocumentHasNoPalettes()
+    public void ANewDocumentStartsWithBlackAndWhite()
     {
-        Assert.Empty(DocumentFactory.CreateDoc(100, 100, 12).Palettes);
+        // The one place "absent unless asked for" does not apply. A swatch is
+        // not a feature you opt into — it is the difference between a stroke
+        // that carries a colour and one that carries a reference, and only the
+        // second can be recoloured later. An empty palette means the first
+        // hour of work can never follow a palette edit.
+        var palette = Assert.Single(DocumentFactory.CreateDoc(100, 100, 12).Palettes);
+
+        Assert.Equal(["Black", "White"], palette.Swatches.Select(s => s.Name));
+        Assert.Equal("#000000", palette.Swatches[0].Color);
+        Assert.Equal("#ffffff", palette.Swatches[1].Color);
     }
 
     [Fact]

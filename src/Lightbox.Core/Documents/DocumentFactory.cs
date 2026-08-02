@@ -27,8 +27,40 @@ public static class DocumentFactory
                 FrameCount = 1,
                 Layers = layers,
             },
+            Palettes = [DefaultPalette()],
         };
     }
+
+    /// <summary>Ids for the two swatches every document starts with.</summary>
+    public const string BlackSwatchId = "swatch_black";
+
+    public const string WhiteSwatchId = "swatch_white";
+
+    /// <summary>
+    /// Black and white, in a palette, from the first moment.
+    /// </summary>
+    /// <remarks>
+    /// This is the one place the "absent unless asked for" rule does not
+    /// apply, and deliberately. A palette swatch is not a feature you opt
+    /// into — it is the difference between a stroke that carries a colour and
+    /// a stroke that carries a <i>reference</i>, and only the second one can
+    /// be recoloured later. Starting with an empty palette means the first
+    /// hour of work is painted in literals that can never follow a palette
+    /// edit, and there is no way to fix that afterwards short of repainting.
+    ///
+    /// So the floor is the two colours every drawing already uses. They cost
+    /// two entries in the file and they mean the live-palette machinery is on
+    /// from the first stroke.
+    /// </remarks>
+    public static Palette DefaultPalette() => new()
+    {
+        Name = "Default",
+        Swatches =
+        [
+            new Swatch { Id = BlackSwatchId, Name = "Black", Color = "#000000" },
+            new Swatch { Id = WhiteSwatchId, Name = "White", Color = "#ffffff" },
+        ],
+    };
 
     /// <summary>
     /// The paper, as a locked layer whose single stroke fills the canvas. A

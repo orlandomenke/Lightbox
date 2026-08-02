@@ -1,7 +1,8 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:Lightbox.App.Controls"
-        xmlns:vm="using:Lightbox.App.ViewModels">
+        xmlns:vm="using:Lightbox.App.ViewModels"
+        xmlns:docs="using:Lightbox.Core.Documents">
   <!--
     The colour picker's body, defined once.
 
@@ -97,6 +98,36 @@
           <TextBox Text="{Binding Hex, Mode=TwoWay}" FontSize="11"
                    ToolTip.Tip="Hex colour, e.g. #1a1a1a" />
         </DockPanel>
+
+        <!--
+          The document's palette, in every picker.
+
+          Picking here is not the same as landing on the colour with the
+          wheel: the stroke records the SWATCH, so a later recolour reaches
+          the art. Offering the palette in the panel only would mean the
+          convenient path — a flyout, mid-task — was also the one that
+          quietly broke that link.
+        -->
+        <StackPanel Spacing="3" IsVisible="{Binding HasPalette}">
+          <TextBlock Text="Palette" FontSize="10" Opacity="0.6" />
+          <ItemsControl ItemsSource="{Binding PaletteSwatches}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="docs:Swatch">
+                <Button Width="18" Height="18" Padding="0" Margin="0,0,3,3"
+                        Background="{Binding Color}"
+                        BorderBrush="#666" BorderThickness="1" CornerRadius="2"
+                        ToolTip.Tip="{Binding Name}"
+                        Command="{Binding $parent[ItemsControl].((vm:ColorPickerViewModel)DataContext).PickSwatchCommand}"
+                        CommandParameter="{Binding}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
 
       </StackPanel>
     </DataTemplate>

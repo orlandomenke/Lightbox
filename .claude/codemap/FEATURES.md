@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-729 tests, derived from the suite itself. Each line is a
+744 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -43,6 +43,19 @@ regression even when every test still compiles.
 - Model Not Found Suggests Pull — `:100`
 - Empty Or Unusable Frames Is Retryable Error — `:115`
 - Draw Parses Strokes — `:127`
+
+## ActiveColorTests
+`tests/Lightbox.App.Tests/ActiveColorTests.cs`
+
+- The App Starts On Black From The Palette Over White — `:17`
+- Swapping Trades The Two Colours — `:30`
+- Swapping Keeps The Palette Link — `:41`
+- Swapping To AColour With No Swatch Drops The Link Rather Than Faking One — `:56`
+- Reset Goes Back To Black Over White And Relinks — `:71`
+- The Colour Painted With Is The Foreground Whichever Tool Is Active — `:85`
+- Every Picker Sees The Documents Palette — `:103`
+- Picking From The Palette Links The Swatch Rather Than Taking Its Value — `:115`
+- APicker Built With No Document Simply Shows No Palette — `:131`
 
 ## AiIntegrationTests
 `tests/Lightbox.App.Tests/AiIntegrationTests.cs`
@@ -508,21 +521,21 @@ regression even when every test still compiles.
 ## PaletteDockerTests
 `tests/Lightbox.App.Tests/PaletteDockerTests.cs`
 
-- ANew Document Has No Palettes And The Docker Is Hidden — `:29`
-- Adding ASwatch Takes The Current Colour And Is Undoable — `:38`
-- Selecting ASwatch Paints With It — `:52`
-- Choosing AColour Any Other Way Breaks The Swatch Link — `:75`
-- Recolouring ASwatch Repaints The Art That Used It — `:95`
-- Edit Mode Routes The Picker Into The Selected Swatch — `:116`
-- ARun Of Colour Edits Is One Undo Step — `:131`
-- Undoing AStructural Edit Does Not Swallow An Uncommitted Recolour — `:152`
-- ASwatch Survives Undo With Its Identity — `:170`
-- Removing ASwatch Leaves The Art In The Colour It Was Drawn In — `:193`
-- Switching Documents Switches Palettes — `:215`
-- Palettes Round Trip Through The Document With Their Links — `:233`
-- Imported Gpl Becomes APalette On The Document — `:251`
-- Exported Gpl Reads Back As The Same Palette — `:275`
-- An Unparseable Hex Is Rejected Rather Than Painting Black — `:299`
+- ANew Document Starts With Black And White Selected On Black — `:42`
+- Adding ASwatch Takes The Current Colour And Is Undoable — `:60`
+- Selecting ASwatch Paints With It — `:74`
+- Choosing AColour Any Other Way Breaks The Swatch Link — `:98`
+- Recolouring ASwatch Repaints The Art That Used It — `:119`
+- Edit Mode Routes The Picker Into The Selected Swatch — `:142`
+- ARun Of Colour Edits Is One Undo Step — `:157`
+- Undoing AStructural Edit Does Not Swallow An Uncommitted Recolour — `:178`
+- ASwatch Survives Undo With Its Identity — `:196`
+- Removing ASwatch Leaves The Art In The Colour It Was Drawn In — `:220`
+- Switching Documents Switches Palettes — `:243`
+- Palettes Round Trip Through The Document With Their Links — `:263`
+- Imported Gpl Becomes APalette On The Document — `:282`
+- Exported Gpl Reads Back As The Same Palette — `:306`
+- An Unparseable Hex Is Rejected Rather Than Painting Black — `:330`
 
 ## ProjectDockerTests
 `tests/Lightbox.App.Tests/ProjectDockerTests.cs`
@@ -829,6 +842,12 @@ regression even when every test still compiles.
 - An Empty Gradient Is Transparent Rather Than ACrash — `:126`
 - Gradients Round Trip Through The Document — `:133`
 - ANew Document Has No Gradients — `:152`
+- With No Alpha Track The Colour Stops Carry Their Own Alpha — `:160`
+- An Alpha Track Overrides The Colour Stops Alpha — `:180`
+- Opacity And Colour Change At Their Own Positions — `:197`
+- One Alpha Stop Holds Its Value Everywhere — `:225`
+- An Alpha Track Round Trips Through The Document — `:234`
+- AGradient With No Alpha Track Writes No Alpha Key — `:250`
 
 ## EraserResurrectionTests
 `tests/Lightbox.Core.Tests/Inbetween/CleanerTests.cs`
@@ -876,36 +895,36 @@ regression even when every test still compiles.
 
 - Swatches Get Stable Identities — `:27`
 - APalette Round Trips Through The Document — `:36`
-- ANew Document Has No Palettes — `:54`
-- Gpl Round Trips Names And Colours — `:60`
-- Gpl Writes The Header Other Tools Look For — `:75`
-- Gpl Reading Is Forgiving Of Real Files — `:90`
-- AMulti Word Swatch Name Survives — `:100`
-- Garbage Lines Are Skipped Rather Than Throwing — `:107`
-- Without AColumns Header AReasonable Grid Is Chosen — `:115`
+- ANew Document Starts With Black And White — `:55`
+- Gpl Round Trips Names And Colours — `:70`
+- Gpl Writes The Header Other Tools Look For — `:85`
+- Gpl Reading Is Forgiving Of Real Files — `:100`
+- AMulti Word Swatch Name Survives — `:110`
+- Garbage Lines Are Skipped Rather Than Throwing — `:117`
+- Without AColumns Header AReasonable Grid Is Chosen — `:125`
 
 ## ProjectTests
 `tests/Lightbox.Core.Tests/ProjectTests.cs`
 
-- AProject Round Trips Through The Folder — `:45`
-- The Layout Is The One Documented — `:59`
-- An Animation On Disk Is An Ordinary Document — `:71`
-- AProject With No Type Writes No Type Key — `:83`
-- ADeclared Type Survives — `:97`
-- Loading AProject Does Not Read Its Documents — `:105`
-- Saving Rewrites Only The Dirty Document — `:121`
-- Saving With No Dirty Set Writes Every Loaded Document — `:140`
-- An Interrupted Write Leaves The Previous File Intact — `:154`
-- Shared Palettes Live On The Project And Round Trip — `:171`
-- ASaved Project Keeps Its Swatch Ids — `:187`
-- Character Folders Are Unique Even When Names Collide — `:214`
-- Slugs Are Always Usable As AFolder Name — `:232`
-- Migrating ALoose Document Gives AOne Character Project — `:236`
-- Flatten Inlines The Swatches The Document Actually Uses — `:261`
-- Flatten Inlines Referenced Gradients — `:283`
-- Flatten Does Not Mutate The Open Document — `:305`
-- An Empty Project Saves And Loads Without Characters — `:322`
-- Loading Something That Is Not AProject Fails — `:331`
+- AProject Round Trips Through The Folder — `:49`
+- The Layout Is The One Documented — `:63`
+- An Animation On Disk Is An Ordinary Document — `:75`
+- AProject With No Type Writes No Type Key — `:87`
+- ADeclared Type Survives — `:101`
+- Loading AProject Does Not Read Its Documents — `:109`
+- Saving Rewrites Only The Dirty Document — `:125`
+- Saving With No Dirty Set Writes Every Loaded Document — `:144`
+- An Interrupted Write Leaves The Previous File Intact — `:158`
+- Shared Palettes Live On The Project And Round Trip — `:175`
+- ASaved Project Keeps Its Swatch Ids — `:191`
+- Character Folders Are Unique Even When Names Collide — `:218`
+- Slugs Are Always Usable As AFolder Name — `:236`
+- Migrating ALoose Document Gives AOne Character Project — `:240`
+- Flatten Inlines The Swatches The Document Actually Uses — `:265`
+- Flatten Inlines Referenced Gradients — `:287`
+- Flatten Does Not Mutate The Open Document — `:309`
+- An Empty Project Saves And Loads Without Characters — `:326`
+- Loading Something That Is Not AProject Fails — `:335`
 
 ## MediumSettingsTests
 `tests/Lightbox.Core.Tests/Serialization/MediumSettingsTests.cs`
@@ -1195,10 +1214,10 @@ regression even when every test still compiles.
 ## ProjectFlattenTests
 `tests/Lightbox.Raster.Tests/ProjectFlattenTests.cs`
 
-- AFlattened Document Renders Identically With The Project Gone — `:59`
-- Without Flattening The Same Export Would Render Differently — `:84`
-- AFlattened Gradient Renders Identically Too — `:102`
-- ADocument That References Nothing Shared Flattens To Itself — `:133`
+- AFlattened Document Renders Identically With The Project Gone — `:63`
+- Without Flattening The Same Export Would Render Differently — `:88`
+- AFlattened Gradient Renders Identically Too — `:106`
+- ADocument That References Nothing Shared Flattens To Itself — `:137`
 
 ## BrushEngineTests
 `tests/Lightbox.Raster.Tests/RasterTests.cs`
