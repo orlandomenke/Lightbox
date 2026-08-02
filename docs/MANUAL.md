@@ -351,6 +351,19 @@ A checkerboard swatch means **no colour**, which is a different answer from
 black. The brush's secondary colour is the one place that matters, and it has
 a ✕ to get back to it.
 
+### Keeping a colour you found
+
+Every picker has a **＋** beside the word *Palette*. It puts the colour on the
+wheel into the palette the Palette panel has selected, and makes a palette
+first if the document has none — finding a colour and keeping it should be one
+gesture, not a trip to another panel and back.
+
+The new swatch is then the one you are painting with, so the stroke that
+follows *references* it. A colour you went to the trouble of writing down would
+otherwise be the one colour in the drawing a later palette edit could not
+reach. Adding the background colour, or a gradient stop's colour, leaves the
+brush where it was.
+
 ### Palettes
 
 Every document starts with a palette holding **pure black and pure white**,

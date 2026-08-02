@@ -247,6 +247,49 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Add a colour that arrived from somewhere other than the docker — the
+    /// wheel's "Add to palette", wherever that wheel happens to be.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unlike <see cref="AddSwatch"/> this does not require a palette to be
+    /// selected: with none, it makes one. Refusing here would mean the artist
+    /// had to go and find the palette docker, create a palette and come back —
+    /// at which point the colour they wanted to keep is whatever the wheel has
+    /// moved to since.
+    /// </para>
+    /// <para>
+    /// One undo step covers the palette and the swatch together, because
+    /// undoing "add a colour" halfway and leaving an empty palette behind is
+    /// not a state anybody asked for.
+    /// </para>
+    /// <para>
+    /// The new swatch is deliberately <i>not</i> selected here. Selecting one
+    /// in this docker means "paint with it", and the colour might have come
+    /// from the background half of the pair or from a gradient stop — none of
+    /// which should change what the brush is loaded with. The caller knows
+    /// whose colour it was and does the linking.
+    /// </para>
+    /// </remarks>
+    public Swatch? AddColor(string hex)
+    {
+        if (_doc is null) return null;
+        var swatch = new Swatch { Color = hex };
+        var target = SelectedPalette?.Id;
+        _edit(d =>
+        {
+            var palette = target is null ? null : d.Palettes.FirstOrDefault(p => p.Id == target);
+            if (palette is null)
+            {
+                palette = new Palette { Name = $"Palette {d.Palettes.Count + 1}" };
+                d.Palettes.Add(palette);
+            }
+            palette.Swatches.Add(swatch);
+        });
+        return swatch;
+    }
+
+    /// <summary>
     /// Remove a swatch from the palette. Art that referenced it keeps the
     /// literal colour recorded on the stroke — the reference goes dead rather
     /// than the drawing going black.

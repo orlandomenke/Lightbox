@@ -108,9 +108,21 @@
           convenient path — a flyout, mid-task — was also the one that
           quietly broke that link.
         -->
-        <StackPanel Spacing="3" IsVisible="{Binding HasPalette}">
-          <TextBlock Text="Palette" FontSize="10" Opacity="0.6" />
-          <ItemsControl ItemsSource="{Binding PaletteSwatches}">
+        <StackPanel Spacing="3" IsVisible="{Binding CanAddToPalette}">
+          <!--
+            The header is visible even with no palette, because that is exactly
+            when "add to palette" earns its keep: it is what brings the first
+            palette into being, and hiding it there would mean the only way to
+            keep a colour was to go and make somewhere to keep it first.
+          -->
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Classes="icon" Content="＋" FontSize="10"
+                    Padding="4,0" Background="Transparent" BorderThickness="0"
+                    Command="{Binding AddToPaletteCommand}"
+                    ToolTip.Tip="Add this colour to the palette — the selected one, or a new one if there is none yet" />
+            <TextBlock Text="Palette" FontSize="10" Opacity="0.6" VerticalAlignment="Center" />
+          </DockPanel>
+          <ItemsControl ItemsSource="{Binding PaletteSwatches}" IsVisible="{Binding HasPalette}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
                 <WrapPanel Orientation="Horizontal" />

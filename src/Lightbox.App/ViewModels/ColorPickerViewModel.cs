@@ -65,15 +65,43 @@ public sealed partial class ColorPickerViewModel : ObservableObject
     /// </remarks>
     public event Action<string>? SwatchPicked;
 
+    /// <summary>
+    /// Where a picker sends a colour it has been asked to keep.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The mirror of <see cref="PaletteSource"/>, and static for the same
+    /// reason: there is one document, so there is one palette worth adding to,
+    /// and threading it through every flyout that hosts a picker would be a
+    /// lot of plumbing to reach the same single answer.
+    /// </para>
+    /// <para>
+    /// Returns the swatch that was created, so the picker can hand the id on to
+    /// whoever owns it. Null when the colour could not be kept — no document.
+    /// </para>
+    /// </remarks>
+    public static Func<string, Swatch?>? PaletteSink { get; set; }
+
     public IReadOnlyList<Swatch> PaletteSwatches => PaletteSource?.Invoke() ?? [];
 
     public bool HasPalette => PaletteSwatches.Count > 0;
+
+    /// <summary>
+    /// Whether this picker can put its colour in the palette.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="HasPalette"/>, and deliberately true when that
+    /// is false: having no palette yet is the case where adding one colour is
+    /// most useful, because it is what brings the first palette into being.
+    /// </remarks>
+    public bool CanAddToPalette => PaletteSink is not null;
 
     /// <summary>Re-read the palette — the document changed, or a swatch did.</summary>
     public void RefreshPalette()
     {
         OnPropertyChanged(nameof(PaletteSwatches));
         OnPropertyChanged(nameof(HasPalette));
+        OnPropertyChanged(nameof(CanAddToPalette));
     }
 
     [RelayCommand]
@@ -82,6 +110,25 @@ public sealed partial class ColorPickerViewModel : ObservableObject
         if (swatch is null) return;
         SetHex(swatch.Color);
         Commit();
+        SwatchPicked?.Invoke(swatch.Id);
+    }
+
+    /// <summary>
+    /// Keep the colour on the wheel: add it to the selected palette, creating
+    /// one if the document has none.
+    /// </summary>
+    /// <remarks>
+    /// The new swatch is then <i>picked</i>, not merely added. Landing on a
+    /// colour and writing it down is the moment it stops being a one-off, and
+    /// leaving the stroke pointing at a literal afterwards would mean the
+    /// colour you just chose to keep was the one colour in the drawing a later
+    /// palette edit could not reach.
+    /// </remarks>
+    [RelayCommand]
+    private void AddToPalette()
+    {
+        if (PaletteSink?.Invoke(Hex) is not { } swatch) return;
+        RefreshPalette();
         SwatchPicked?.Invoke(swatch.Id);
     }
 

@@ -1,0 +1,167 @@
+using Avalonia.Headless.XUnit;
+using Lightbox.App.ViewModels;
+using Lightbox.Core.Documents;
+
+namespace Lightbox.App.Tests;
+
+/// <summary>
+/// "Add to palette", from whichever wheel the artist happens to be looking at.
+/// </summary>
+/// <remarks>
+/// The point of the button is that finding a colour and keeping it are one
+/// gesture. Everything here is about the second half of that being complete:
+/// the colour lands somewhere real, it lands in the palette the artist can see,
+/// it is undoable in one step, and the stroke that follows references it rather
+/// than copying it.
+/// </remarks>
+public class AddToPaletteTests
+{
+    /// <summary>A view model whose document has no palette at all.</summary>
+    private static MainViewModel Empty()
+    {
+        var vm = new MainViewModel(null);
+        vm.Doc.Palettes.Clear();
+        vm.PaletteDocker.Load(vm.Doc);
+        return vm;
+    }
+
+    [AvaloniaFact]
+    public void TheColourOnTheWheelGoesIntoTheSelectedPalette()
+    {
+        var vm = new MainViewModel(null);
+        var palette = vm.PaletteDocker.SelectedPalette!;
+        var before = palette.Swatches.Count;
+
+        vm.ColorPicker.SetHex("#3070b0");
+        vm.ColorPicker.AddToPaletteCommand.Execute(null);
+
+        Assert.Equal(before + 1, vm.Doc.Palettes.Single(p => p.Id == palette.Id).Swatches.Count);
+        Assert.Equal("#3070b0", palette.Swatches[^1].Color);
+    }
+
+    [AvaloniaFact]
+    public void WithNoPaletteYetOneIsMade()
+    {
+        // The case the button is most useful in, and the one it would be
+        // easiest to refuse. Refusing means going to find the palette docker,
+        // creating a palette and coming back — by which time the wheel has
+        // moved on.
+        var vm = Empty();
+        Assert.Empty(vm.Doc.Palettes);
+
+        vm.ColorPicker.SetHex("#c04a2f");
+        vm.ColorPicker.AddToPaletteCommand.Execute(null);
+
+        var palette = Assert.Single(vm.Doc.Palettes);
+        Assert.Equal("#c04a2f", Assert.Single(palette.Swatches).Color);
+        // And the docker is showing it, not an empty list next to a palette
+        // that exists.
+        Assert.Same(palette, vm.PaletteDocker.SelectedPalette);
+        Assert.Single(vm.PaletteDocker.Swatches);
+    }
+
+    [AvaloniaFact]
+    public void MakingThePaletteAndAddingTheColourIsOneUndoStep()
+    {
+        // Undoing halfway would leave an empty palette nobody asked for.
+        var vm = Empty();
+        vm.ColorPicker.SetHex("#c04a2f");
+        vm.ColorPicker.AddToPaletteCommand.Execute(null);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Empty(vm.Doc.Palettes);
+    }
+
+    [AvaloniaFact]
+    public void TheStrokeThatFollowsReferencesTheNewSwatchRatherThanCopyingIt()
+    {
+        // The whole reason to keep a colour. If the stroke recorded the literal
+        // instead, the one colour you deliberately wrote down would be the one
+        // a later palette edit could not reach.
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        vm.ColorHex = "#3070b0";
+        Assert.Null(vm.ActiveSwatchId);
+
+        vm.ColorPicker.AddToPaletteCommand.Execute(null);
+
+        var swatch = vm.PaletteDocker.SelectedPalette!.Swatches[^1];
+        Assert.Equal(swatch.Id, vm.ActiveSwatchId);
+
+        vm.BeginStroke(20, 20, 1);
+        vm.MoveStroke(60, 60, 1);
+        vm.EndStroke();
+        Assert.Equal(swatch.Id, ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1].SwatchId);
+    }
+
+    [AvaloniaFact]
+    public void AddingTheBackgroundColourDoesNotChangeWhatTheBrushIsLoadedWith()
+    {
+        // The palette docker's own selection means "paint with this", so the
+        // naive wiring — select the new row — repaints the foreground whichever
+        // half of the pair the colour came from.
+        var vm = new MainViewModel(null);
+        vm.BackgroundColorHex = "#c04a2f";
+
+        vm.BackgroundPicker.AddToPaletteCommand.Execute(null);
+
+        var swatch = vm.PaletteDocker.SelectedPalette!.Swatches[^1];
+        Assert.Equal("#c04a2f", swatch.Color);
+        Assert.Equal("#000000", vm.ColorHex);
+        Assert.Equal(DocumentFactory.BlackSwatchId, vm.ActiveSwatchId);
+    }
+
+    [AvaloniaFact]
+    public void ItGoesToTheSelectedPaletteAndNotSimplyTheFirstOne()
+    {
+        var vm = Empty();
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        var first = vm.PaletteDocker.SelectedPalette!;
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        var second = vm.PaletteDocker.SelectedPalette!;
+        Assert.NotSame(first, second);
+
+        vm.ColorPicker.SetHex("#3070b0");
+        vm.ColorPicker.AddToPaletteCommand.Execute(null);
+
+        Assert.Empty(vm.Doc.Palettes.Single(p => p.Id == first.Id).Swatches);
+        Assert.Single(vm.Doc.Palettes.Single(p => p.Id == second.Id).Swatches);
+    }
+
+    [AvaloniaFact]
+    public void EveryPickerCanKeepAColour_NotOnlyTheOneInThePanel()
+    {
+        // A picker built for a flyout has no owner, so nothing links to the new
+        // swatch — but the palette still gains the colour, which is what the
+        // artist asked for.
+        var vm = new MainViewModel(null);
+        var flyout = new ColorPickerViewModel();
+        Assert.True(flyout.CanAddToPalette);
+        flyout.SetHex("#118844");
+
+        flyout.AddToPaletteCommand.Execute(null);
+
+        Assert.Contains(vm.PaletteDocker.SelectedPalette!.Swatches, s => s.Color == "#118844");
+        // Nobody was listening, so the brush is where it was.
+        Assert.Equal(DocumentFactory.BlackSwatchId, vm.ActiveSwatchId);
+    }
+
+    [AvaloniaFact]
+    public void APickerWithNoDocumentBehindItSimplyCannotAddOne()
+    {
+        // Which is what keeps the button off a picker in a test harness rather
+        // than having it reach for application state that is not there.
+        var savedSink = ColorPickerViewModel.PaletteSink;
+        ColorPickerViewModel.PaletteSink = null;
+        try
+        {
+            var picker = new ColorPickerViewModel();
+            Assert.False(picker.CanAddToPalette);
+            picker.AddToPaletteCommand.Execute(null); // no throw
+        }
+        finally
+        {
+            ColorPickerViewModel.PaletteSink = savedSink;
+        }
+    }
+}

@@ -922,6 +922,10 @@ public sealed partial class MainViewModel : ObservableObject
         // document.
         _paletteSwatches = resolved.SelectMany(p => p.Swatches).ToList();
         ColorPickerViewModel.PaletteSource = () => _paletteSwatches;
+        // The way back. Every picker in the app can put its colour in the
+        // palette, and they all mean the same palette — the one the docker has
+        // selected — because there is one document.
+        ColorPickerViewModel.PaletteSink = PaletteDocker.AddColor;
         ColorPicker.RefreshPalette();
         // The source is static, so both halves of the pair see the new list —
         // but each has to be told to look again, or the background picker keeps

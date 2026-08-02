@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-900 tests, derived from the suite itself. Each line is a
+908 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -56,6 +56,18 @@ regression even when every test still compiles.
 - Every Picker Sees The Documents Palette — `:103`
 - Picking From The Palette Links The Swatch Rather Than Taking Its Value — `:115`
 - APicker Built With No Document Simply Shows No Palette — `:131`
+
+## AddToPaletteTests
+`tests/Lightbox.App.Tests/AddToPaletteTests.cs`
+
+- The Colour On The Wheel Goes Into The Selected Palette — `:29`
+- With No Palette Yet One Is Made — `:43`
+- Making The Palette And Adding The Colour Is One Undo Step — `:64`
+- The Stroke That Follows References The New Swatch Rather Than Copying It — `:77`
+- Adding The Background Colour Does Not Change What The Brush Is Loaded With — `:98`
+- It Goes To The Selected Palette And Not Simply The First One — `:115`
+- Every Picker Can Keep AColour Not Only The One In The Panel — `:132`
+- APicker With No Document Behind It Simply Cannot Add One — `:150`
 
 ## AiIntegrationTests
 `tests/Lightbox.App.Tests/AiIntegrationTests.cs`
