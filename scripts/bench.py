@@ -138,18 +138,21 @@ def cmd_check() -> int:
 
         # A cliff moving down is the headline: it means a workload that used to
         # be usable is not any more, stated in the artist's own units.
+        # Cliffs sit on a geometric ladder of swept values, so a neighbouring
+        # rung is the resolution of the measurement rather than a change: the
+        # same scenario read 8 layers on one run and 4 on the next with the
+        # pressure identical to within 1%. Reporting that every time is how a
+        # check stops being believed. A factor of two is a real rung.
         pc, cc = prev.get("cliff"), cur.get("cliff")
-        if pc != cc:
-            if cc is None:
-                findings.append(f"BETTER   {name} — cliff gone (was {pc} {cur['dimension']})")
-            elif pc is None:
-                findings.append(
-                    f"CLIFF    {name} — now misses its budget at {cc} {cur['dimension']}")
-            elif cc < pc:
-                findings.append(
-                    f"CLIFF    {name} — breaks at {cc} {cur['dimension']}, used to hold to {pc}")
-            else:
-                findings.append(f"BETTER   {name} — holds to {cc} {cur['dimension']} (was {pc})")
+        if pc is None and cc is not None:
+            findings.append(f"CLIFF    {name} — now misses its budget at {cc} {cur['dimension']}")
+        elif pc is not None and cc is None:
+            findings.append(f"BETTER   {name} — cliff gone (was {pc} {cur['dimension']})")
+        elif pc and cc and cc <= pc / 2:
+            findings.append(
+                f"CLIFF    {name} — breaks at {cc} {cur['dimension']}, used to hold to {pc}")
+        elif pc and cc and cc >= pc * 2:
+            findings.append(f"BETTER   {name} — holds to {cc} {cur['dimension']} (was {pc})")
 
         pe, ce = prev.get("exponent"), cur.get("exponent")
         if pe and ce and ce - pe >= EXPONENT_JUMP:
