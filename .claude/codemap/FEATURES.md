@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1272 tests, derived from the suite itself. Each line is a
+1292 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1031,6 +1031,30 @@ regression even when every test still compiles.
 - Renaming ARow Renames The Symbol — `:316`
 - Renaming Does Not Count As Editing The Drawing — `:327`
 - Tags Edit As One Line — `:341`
+
+## SymbolEditingTests
+`tests/Lightbox.App.Tests/SymbolEditingTests.cs`
+
+- Opening ASymbol Makes ATab For It — `:71`
+- The Tab Edits The Symbols Own Frames Rather Than Copies — `:83`
+- Opening The Same Symbol Twice Focuses The Tab It Already Has — `:95`
+- ACycle Opens With ACel Per Frame — `:107`
+- ASymbol Tab Has No Paper Behind It — `:119`
+- ASymbol Tab Is Not Something To Save As AFile — `:131`
+- An Empty Symbol Still Opens — `:143`
+- Editing ASymbol Changes Every Placement Of It — `:157`
+- An Edit Bumps The Version — `:177`
+- Editing An Animation Does Not Bump Any Symbol — `:191`
+- Adding ACel In The Symbol Tab Adds AFrame To The Symbol — `:205`
+- Changing The Symbols Fps Sticks To The Symbol — `:219`
+- The Browser Tile Follows The Edit — `:231`
+- Editing The Selected Symbol Opens It — `:245`
+- APlacement Made Before An Edit Is Reported As Outdated — `:259`
+- APlacement Made After The Edit Is Not Outdated — `:280`
+- The Report Counts Placements And Names Symbols — `:294`
+- Acknowledging Quietens The Report Without Changing The Drawing — `:310`
+- Acknowledging Is An Undo Step — `:331`
+- Acknowledging Nothing Is Not An Edit — `:348`
 
 ## SymbolPlacingTests
 `tests/Lightbox.App.Tests/SymbolPlacingTests.cs`

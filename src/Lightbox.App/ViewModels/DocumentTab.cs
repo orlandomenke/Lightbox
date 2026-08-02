@@ -41,6 +41,9 @@ public enum DocumentTabKind
 {
     Animation,
     Reference,
+
+    /// <summary>A project symbol, opened to be drawn on.</summary>
+    Symbol,
 }
 
 /// <summary>
@@ -68,6 +71,18 @@ public sealed partial class DocumentTab : ObservableObject
 
     /// <summary>The character-sheet view this tab edits (Reference tabs only).</summary>
     public ReferenceView? View { get; init; }
+
+    /// <summary>
+    /// The project symbol this tab edits (Symbol tabs only).
+    /// </summary>
+    /// <remarks>
+    /// The same arrangement as <see cref="View"/>: the tab's editor wraps a
+    /// scene whose cels hold the symbol's own frame objects, so a stroke lands
+    /// in the symbol rather than in a copy of it. There is no
+    /// <see cref="Owner"/> — a symbol belongs to the project, not to whichever
+    /// animation happened to be open when it was made.
+    /// </remarks>
+    public Symbol? Symbol { get; init; }
 
     internal DocumentEditor Editor { get; set; }
 

@@ -138,6 +138,201 @@ public sealed partial class MainViewModel
         return PlaceSymbol(row.Model.Id, Scene.Width / 2.0, Scene.Height / 2.0);
     }
 
+    // ---- editing one --------------------------------------------------------------
+
+    /// <summary>
+    /// Open a symbol in a tab of its own and draw on it with the ordinary
+    /// tools.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The pillar's headline, and the reason everything before it was worth
+    /// doing: edit the sword once and every animation holding it changes.
+    /// </para>
+    /// <para>
+    /// The same arrangement a reference tab uses. The wrapper scene's cels hold
+    /// the symbol's <em>own frame objects</em> rather than copies, so a stroke
+    /// lands in the symbol directly and there is no apply step to forget. What
+    /// the wrapper does not share is the list itself — adding or removing a cel
+    /// makes a frame the symbol has never heard of — so the list is re-read
+    /// from the editor after every edit. See <see cref="SyncEditedSymbol"/>.
+    /// </para>
+    /// </remarks>
+    public void OpenSymbol(Symbol symbol)
+    {
+        if (Tabs.FirstOrDefault(t => ReferenceEquals(t.Symbol, symbol)) is { } open)
+        {
+            ActiveTab = open;
+            return;
+        }
+        if (symbol.Frames.Count == 0) symbol.Frames.Add(new PaintedFrame());
+
+        var layer = new Layer { Name = symbol.Name, Kind = LayerKind.Painted };
+        foreach (var frame in symbol.Frames) layer.Cels.Add(new Cel { Frame = frame });
+
+        var wrapper = new Doc
+        {
+            Scene = new Scene
+            {
+                Name = symbol.Name,
+                Width = Scene.Width,
+                Height = Scene.Height,
+                Fps = symbol.Fps,
+                FrameCount = symbol.Frames.Count,
+                // Transparent, always. A symbol is placed over a drawing, so a
+                // white sheet behind it while editing would be a lie about what
+                // it looks like in use — and would be baked into nothing, since
+                // the paper is a layer and this scene has none.
+                TransparentBackground = true,
+                Layers = [layer],
+            },
+        };
+        AddTab(new DocumentTab(new DocumentEditor(wrapper), $"Symbol / {symbol.Name}")
+        {
+            Kind = DocumentTabKind.Symbol,
+            Symbol = symbol,
+        });
+    }
+
+    /// <summary>Open the symbol the browser has selected.</summary>
+    [RelayCommand]
+    private void EditSelectedSymbol()
+    {
+        if (SymbolBrowser.Selected is { } row) OpenSymbol(row.Model);
+    }
+
+    /// <summary>
+    /// Push what was just drawn in a symbol tab back into the symbol, and tell
+    /// everything that shows it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Called from the edit funnel, so it covers a stroke, an undo, a new cel
+    /// and a deleted one alike. The frame list is re-read rather than assumed
+    /// because undo replaces the wrapper's layer wholesale — the same reason a
+    /// reference tab re-points its view.
+    /// </para>
+    /// <para>
+    /// <b>The version bump is what makes the pillar true.</b> Every placement
+    /// resolves the symbol by id at render time and the render cache is keyed
+    /// by version, so bumping it is the whole of "every animation holding it
+    /// updates". Skipping it would leave every placement showing the drawing as
+    /// it was when it was first rendered, which is the failure the S2 tests
+    /// describe.
+    /// </para>
+    /// </remarks>
+    private void SyncEditedSymbol()
+    {
+        if (ActiveTab is not { Kind: DocumentTabKind.Symbol, Symbol: { } symbol }) return;
+        var frames = Doc.Scene.Layers
+            .SelectMany(l => l.Cels)
+            .Select(c => c.Frame)
+            .OfType<Frame>()
+            .ToList();
+        if (frames.Count == 0) return;
+
+        symbol.Frames = frames;
+        symbol.Fps = Doc.Scene.Fps;
+        symbol.Version++;
+        SymbolBrowser.RefreshThumbs();
+        OnPropertyChanged(nameof(OutdatedPlacements));
+        OnPropertyChanged(nameof(StalePlacementReport));
+    }
+
+    // ---- what changed under you -----------------------------------------------------
+
+    /// <summary>
+    /// Placements on this drawing whose symbol has been edited since they were
+    /// made.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Reported, never acted on. A placement shows the symbol as it is now —
+    /// that is the whole pillar — so nothing here is broken and nothing needs
+    /// repairing. What this answers is the question an animator will have when
+    /// a drawing changes on its own: <i>which of these did I place before the
+    /// sword was redrawn?</i>
+    /// </para>
+    /// <para>
+    /// Deliberately not an offer to "revert to the version you placed against".
+    /// That would need every past version kept, and it is the wrong shape of
+    /// answer: the fix for an edit somebody did not want is to undo the edit in
+    /// the symbol, once, not to pin two hundred placements to old copies.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<SymbolPlacement> OutdatedPlacements =>
+        [.. PlacementsHere.Where(IsOutdated)];
+
+    private static bool IsOutdated(SymbolPlacement placement) =>
+        SymbolRegistry.Resolve(placement.SymbolId) is { } symbol
+        && symbol.Version > placement.SeenVersion;
+
+    /// <summary>
+    /// A sentence for the status line, or null when there is nothing to say.
+    /// </summary>
+    public string? StalePlacementReport
+    {
+        get
+        {
+            var stale = OutdatedPlacements;
+            if (stale.Count == 0) return null;
+            var names = stale
+                .Select(p => SymbolRegistry.Resolve(p.SymbolId)?.Name)
+                .OfType<string>()
+                .Distinct()
+                .ToList();
+            var which = names.Count switch
+            {
+                0 => "A symbol",
+                1 => $"“{names[0]}”",
+                2 => $"“{names[0]}” and “{names[1]}”",
+                _ => $"“{names[0]}” and {names.Count - 1} others",
+            };
+            return stale.Count == 1
+                ? $"{which} has changed since it was placed here."
+                : $"{which} have changed since {stale.Count} placements here were made.";
+        }
+    }
+
+    /// <summary>
+    /// Mark the placements on this drawing as seen at the symbol's current
+    /// version, so the report goes quiet.
+    /// </summary>
+    /// <remarks>
+    /// Acknowledgement, not repair — nothing about the drawing changes. It is
+    /// an undo step all the same, because the record does.
+    /// </remarks>
+    public int AcknowledgeOutdatedPlacements()
+    {
+        if (PaintTarget() is not PaintedFrame target) return 0;
+        var stale = OutdatedPlacements;
+        if (stale.Count == 0) return 0;
+
+        var before = stale.Select(p => (p.Id, p.SeenVersion)).ToList();
+        var after = stale
+            .Select(p => (p.Id, Version: SymbolRegistry.Resolve(p.SymbolId)?.Version ?? p.SeenVersion))
+            .ToList();
+        var frameId = target.Id;
+
+        _editor.PerformDelta(
+            apply: doc => SetSeenVersions(doc, frameId, after),
+            revert: doc => SetSeenVersions(doc, frameId, before),
+            affectedFrameId: frameId);
+        OnPropertyChanged(nameof(OutdatedPlacements));
+        OnPropertyChanged(nameof(StalePlacementReport));
+        return stale.Count;
+    }
+
+    private static void SetSeenVersions(
+        Doc doc, string frameId, List<(string Id, int Version)> versions)
+    {
+        if (FrameIn(doc, frameId)?.Placements is not { } placements) return;
+        foreach (var (id, version) in versions)
+        {
+            if (placements.FirstOrDefault(p => p.Id == id) is { } p) p.SeenVersion = version;
+        }
+    }
+
     /// <summary>The placements on the cel being drawn on, or an empty list.</summary>
     public IReadOnlyList<SymbolPlacement> PlacementsHere =>
         PaintTarget() is PaintedFrame { Placements: { } list } ? list : [];
@@ -478,5 +673,7 @@ public sealed partial class MainViewModel
         RefreshThumbnails();
         OnPropertyChanged(nameof(PlacementsHere));
         OnPropertyChanged(nameof(SelectedPlacement));
+        OnPropertyChanged(nameof(OutdatedPlacements));
+        OnPropertyChanged(nameof(StalePlacementReport));
     }
 }

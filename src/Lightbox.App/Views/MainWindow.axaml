@@ -1775,16 +1775,21 @@
               </controls:Docker.TopBar>
               <controls:Docker.BottomBar>
                 <Border Classes="dockerBar">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
+                  <!-- Wraps rather than clips: the panel's minimum is 130px and
+                       four controls do not fit in it on one line. -->
+                  <WrapPanel ItemSpacing="4" LineSpacing="4">
                     <Button Content="Make symbol" Click="OnMakeSymbol"
                             ToolTip.Tip="Turn this drawing into a symbol and place it here" />
+                    <Button Content="Edit" Command="{Binding EditSelectedSymbolCommand}"
+                            IsEnabled="{Binding SymbolBrowser.Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            ToolTip.Tip="Open the symbol to draw on it — every placement of it updates" />
                     <Button Content="Place" Command="{Binding PlaceSelectedCommand}"
                             IsEnabled="{Binding SymbolBrowser.Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
                             ToolTip.Tip="Put the selected symbol on this drawing" />
                     <Button Classes="icon" Content="🗑" Click="OnDeleteSymbol"
                             IsEnabled="{Binding SymbolBrowser.Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
                             ToolTip.Tip="Delete the symbol from the project" />
-                  </StackPanel>
+                  </WrapPanel>
                 </Border>
               </controls:Docker.BottomBar>
               <Panel>
@@ -1792,7 +1797,8 @@
                            Opacity="0.6" TextWrapping="Wrap" VerticalAlignment="Top"
                            IsVisible="{Binding SymbolBrowser.EmptyMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                  <ListBox x:Name="SymbolTiles" ItemsSource="{Binding SymbolBrowser.Rows}"
+                  <ListBox x:Name="SymbolTiles" DoubleTapped="OnSymbolTileOpened"
+                           ItemsSource="{Binding SymbolBrowser.Rows}"
                            SelectedItem="{Binding SymbolBrowser.Selected}"
                            Background="Transparent" BorderThickness="0" Margin="2">
                     <ListBox.ItemsPanel>

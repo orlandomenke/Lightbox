@@ -334,8 +334,15 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>The animation tab a save/AI call should target (a reference tab defers to its owner).</summary>
-    public DocumentTab? SaveTargetTab =>
-        ActiveTab?.Kind == DocumentTabKind.Reference ? ActiveTab.Owner ?? ActiveTab : ActiveTab;
+    public DocumentTab? SaveTargetTab => ActiveTab?.Kind switch
+    {
+        DocumentTabKind.Reference => ActiveTab.Owner ?? ActiveTab,
+        // A symbol has no file of its own — it is written by the project's
+        // save. Offering Save As on one would produce a document nothing
+        // references.
+        DocumentTabKind.Symbol => null,
+        _ => ActiveTab,
+    };
 
     /// <summary>Timeline is hidden on reference tabs regardless of the View-menu toggle.</summary>
     public bool ShowTimeline => TimelineVisible && ActiveTab?.Kind != DocumentTabKind.Reference;
@@ -707,16 +714,29 @@ public sealed partial class MainViewModel : ObservableObject
         // method's scoped-edit early return, and a stroke is exactly the edit
         // an incremental save must not miss.
         if ((tab.Owner ?? tab).Source is { } source) ProjectDocker.MarkDirty(source);
-        if (tab.Kind == DocumentTabKind.Reference)
+        // A switch, so that adding a third kind of tab cannot quietly re-bind
+        // an else onto the wrong branch — which is exactly what adding the
+        // second one did, and it dirtied every reference tab.
+        switch (tab.Kind)
         {
-            // Undo/redo replaces the wrapper doc's layer list; keep the owning
-            // document's view pointed at whatever the editor currently holds.
-            if (tab.View is { } view) view.Layers = Doc.Scene.Layers;
-            if (tab.Owner is { } owner) owner.IsDirty = true;
-        }
-        else
-        {
-            tab.IsDirty = true;
+            case DocumentTabKind.Reference:
+                // Undo/redo replaces the wrapper doc's layer list; keep the
+                // owning document's view pointed at whatever the editor holds.
+                if (tab.View is { } view) view.Layers = Doc.Scene.Layers;
+                if (tab.Owner is { } owner) owner.IsDirty = true;
+                break;
+
+            case DocumentTabKind.Symbol:
+                // A symbol belongs to the project, so there is no owning
+                // document to dirty — the project's own save writes it. What
+                // has to happen here is the version bump, which is what makes
+                // every placement of it redraw.
+                SyncEditedSymbol();
+                break;
+
+            default:
+                tab.IsDirty = true;
+                break;
         }
     }
 

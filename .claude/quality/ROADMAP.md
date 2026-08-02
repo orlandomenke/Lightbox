@@ -187,15 +187,22 @@ from the current drawing, find one by kind or by name or by tag, place it,
 delete it. The six libraries below are the kind filter, which is why they all
 tick together.
 
-Still open: dragging a tile onto the canvas, and opening a symbol to edit it
-(S6) — editing one today means breaking a link, changing the drawing and making
-a symbol again. Versioning and staleness reporting (S7) has its record in place
-and nothing reading it.
+S6 and S7 are in, which closes the first cut. A symbol opens in a tab of its
+own and is drawn on with the ordinary tools; every edit lands in the symbol as
+it is made and bumps its version, so every placement of it is already showing
+the new drawing when you switch back. Placements made before an edit are
+reported as outdated and can be acknowledged — reported, never repaired, since
+they already show the current symbol and the fix for an unwanted edit is to
+undo it once in the symbol.
+
+Still open, and deliberately: dragging a tile onto the canvas (Place puts it in
+the middle and the Move tool takes it from there), symbols containing symbols,
+and the three items below that were never in this cut.
 
 - [x] Shared symbols — the record (design S1–S2) `evidence: Symbol, SymbolPlacement, SymbolRegistry, SymbolRasterizer, SymbolRecordTests, SymbolRenderTests`
-- [?] Linked assets — edit once, update everywhere (S6)
-- [?] Symbol editing (S6)
-- [?] Asset versioning (S7)
+- [x] Linked assets — edit once, update everywhere (S6) `evidence: OpenSymbol, EditingASymbolChangesEveryPlacementOfIt, AnEditBumpsTheVersion`
+- [x] Symbol editing (S6) `evidence: OpenSymbol, SymbolEditingTests, TheTabEditsTheSymbolsOwnFramesRatherThanCopies`
+- [x] Asset versioning (S7) `evidence: OutdatedPlacements, StalePlacementReport, APlacementMadeBeforeAnEditIsReportedAsOutdated`
 - [x] Asset browser (S5) `evidence: SymbolBrowserViewModel, SymbolBrowserTests, TheKindFilterIsWhatTheSixLibrariesAre`
 - [x] Asset tagging (S5) `evidence: SymbolRow, SearchMatchesANameOrATag, TagsEditAsOneLine`
 - [x] Smart asset search (S5) `evidence: SymbolBrowserViewModel, SearchMatchesANameOrATag, SearchAndKindNarrowTogether`
@@ -206,7 +213,7 @@ and nothing reading it.
 - [x] Prop library (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
 - [x] FX library (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
 - [x] Reusable backgrounds (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
-- [?] Animation library (S5)
+- [x] Animation library (S5) `evidence: SymbolKind, ACycleOpensWithACelPerFrame, AnOffsetPlacementRunsTheSameCycleOutOfStep`
 - [?] Dependency graph — out of the first cut, needs nesting first
 - [?] Reusable animation presets — out of the first cut
 - [?] Animation templates — out of the first cut

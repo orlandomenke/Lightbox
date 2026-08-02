@@ -609,6 +609,12 @@ public partial class MainWindow : Window
     {
         if (_vm.SymbolBrowser.Selected is { } row) _vm.DeleteSymbol(row.Model);
     }
+
+    /// <summary>Double-click a tile to open the symbol, like an animation row.</summary>
+    private void OnSymbolTileOpened(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.SymbolBrowser.Selected is { } row) _vm.OpenSymbol(row.Model);
+    }
     private async void OnSaveWorkspaceAs(object? sender, RoutedEventArgs e)
     {
         if (await PromptForText("Save workspace", "Name", _vm.Workspace.SelectedName) is not { } name) return;

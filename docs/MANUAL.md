@@ -967,6 +967,33 @@ one advances with the timeline, and its **frame offset** shifts where in the
 cycle it starts, so one stored walk can carry two characters half a stride
 apart.
 
+### Editing one
+
+Select a tile and press **Edit**, or double-click it. The symbol opens in a tab
+of its own with a transparent background — a symbol is drawn over something, so
+there is no paper behind it — and you draw on it with the ordinary tools. A
+multi-frame symbol gets a cel per frame on the timeline, so a cycle is edited
+the way any short animation is.
+
+**Every change lands in the symbol as you make it.** There is no apply step.
+Switch back to an animation and every placement of that symbol is already
+showing the new drawing. That is the whole promise of the feature, and it is
+why a symbol is worth making instead of copying a drawing around.
+
+A symbol tab cannot be saved as a file of its own: it belongs to the project,
+and saving the project writes it.
+
+### Knowing what changed under you
+
+When a symbol is edited, placements made before the edit are marked as such.
+Nothing is broken — they already show the new drawing — but the app can tell
+you *which* of the drawings in front of you changed while you were elsewhere.
+**Acknowledge** clears the marks; it changes nothing about the picture.
+
+There is deliberately no "put it back the way it was when I placed it". The fix
+for an edit nobody wanted is to undo it in the symbol, once — not to pin two
+hundred placements to old copies of it.
+
 ### Deleting, and exporting
 
 Deleting a symbol leaves any placements of it alone; they simply stop drawing,
@@ -976,9 +1003,9 @@ forty animations is not one anybody could risk.
 **Export document…** writes a standalone file that carries the symbols it uses,
 so an exported animation renders identically somewhere else.
 
-*Not yet: dragging a symbol from the panel onto the canvas, and opening one to
-edit it. Editing a symbol's drawing today means breaking a link, changing it,
-and making a symbol again.*
+*Not yet: dragging a symbol from the panel onto the canvas — Place puts it in
+the middle of the drawing and the Move tool takes it from there. Symbols cannot
+contain other symbols.*
 
 ## 14. When the canvas feels slow
 
