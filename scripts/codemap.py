@@ -38,7 +38,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_DIR = ROOT / ".claude" / "codemap"
-SOURCE_DIRS = ["src", "tests"]
+SOURCE_DIRS = ["src", "tests", "tools"]
 CODE_SUFFIXES = {".cs", ".axaml"}
 
 # Commit subjects that mean "this file needed fixing", which is the strongest
@@ -110,7 +110,7 @@ class FileInfo:
 def project_of(path: Path) -> str:
     parts = path.parts
     for i, part in enumerate(parts):
-        if part in ("src", "tests") and i + 1 < len(parts):
+        if part in ("src", "tests", "tools") and i + 1 < len(parts):
             return parts[i + 1]
     return "?"
 
@@ -118,7 +118,14 @@ def project_of(path: Path) -> str:
 def classify(path: Path) -> str:
     if path.suffix == ".axaml":
         return "ui"
-    return "test" if "tests" in path.parts else "source"
+    if "tests" in path.parts:
+        return "test"
+    # Development tooling — indexed so the roadmap can anchor to it, but not
+    # counted as application source, which would put a benchmark harness into
+    # the hotspot and coverage figures for the app.
+    if "tools" in path.parts:
+        return "tool"
+    return "source"
 
 
 def collect_files() -> list[Path]:

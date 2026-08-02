@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Lightbox.Bench</RootNamespace>
+    <!--
+      Server GC off, concurrent GC off. The harness reports allocation and
+      pause behaviour, and a background collector would attribute another
+      scenario's work to whichever one happened to be running.
+    -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Lightbox.Core\Lightbox.Core.csproj" />
+    <ProjectReference Include="..\..\src\Lightbox.Raster\Lightbox.Raster.csproj" />
+    <ProjectReference Include="..\..\src\Lightbox.App\Lightbox.App.csproj" />
+  </ItemGroup>
+
+</Project>

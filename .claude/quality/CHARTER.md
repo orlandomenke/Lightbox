@@ -138,6 +138,38 @@ the simulation itself, not the stamping.
 Raising a budget requires a measurement in the commit message explaining what
 got slower and why that is acceptable.
 
+### The budgets are the ratchet. The map is somewhere else.
+
+Everything above answers one question — *did this diff make a path we already
+know about slower* — and it answers it on every commit, which is why it is
+cheap and fixed. It cannot answer *where does this stop being usable* or *what
+should we fix first*, and it never grows a sequence: every budget in the table
+measures one stroke on one frame, which is drawing rather than animating.
+
+`tools/Lightbox.Bench` is the other artefact. It sweeps a dimension, fits the
+exponent, and reports the **cliff** — the first value whose p95 misses the
+budget for that cadence. It takes minutes, so it is run deliberately and never
+from the loop; `docs/DESIGN-performance.md` argues the split, and
+`.claude/quality/PERFORMANCE.md` is its output.
+
+Two differences from the budgets are deliberate rather than accidental:
+
+- **p95, not the fastest run.** The argument above for the minimum is right for
+  a ratchet and names what it gives up — *blind to a path that is usually fast
+  and sometimes terrible*. For a cliff that blind spot is the subject: a
+  repaint that is 8 ms nineteen times and 40 ms once is a visible hitch.
+- **Ranked by pressure, not by milliseconds.** `p95 ÷ budget`, where the budget
+  already encodes how often the thing is paid. Ranked by raw cost the simulated
+  media come first — they are the largest numbers here — and they are paid once
+  per stroke on a brush the picker badges as expensive, so that ranking is
+  wrong.
+
+**A cliff that moves the wrong way is a bug in `BUGS.md`**, with the two
+measurements as its evidence — not a gate, and not a note in a report. A gate
+would put a minutes-long sweep in the commit loop and fail falsely on a noisy
+runner; a report with its own private backlog gets read once. The ledger is the
+only mechanism here that has ever changed what gets built.
+
 **The garbage collector is not in the drawing path.** Measured on a 4K canvas
 with a 500 px brush over 60 pointer events: zero collections in any generation,
 zero total pause, 0.3 MB allocated. Every stall found so far has been
