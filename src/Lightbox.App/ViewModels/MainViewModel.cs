@@ -214,6 +214,23 @@ public sealed partial class MainViewModel : ObservableObject
         // reaches the art. Without this the palette inside a picker would be
         // a convenient list of colours and nothing more.
         ColorPicker.SwatchPicked += PaintWithSwatch;
+        // The other half of the pair gets a picker of its own rather than a
+        // hex field. Reaching for the background colour is the same act as
+        // reaching for the foreground one, and offering a wheel for one and a
+        // text box for the other is the kind of asymmetry you notice every
+        // single time.
+        BackgroundPicker = new ColorPickerViewModel();
+        BackgroundPicker.SetHex(BackgroundColorHex);
+        BackgroundPicker.HexCommitted += hex =>
+        {
+            _backgroundSwatchId = null;
+            BackgroundColorHex = hex;
+        };
+        BackgroundPicker.SwatchPicked += id =>
+        {
+            _backgroundSwatchId = id;
+            if (PaletteRegistry.ResolveSwatch(id) is { } swatch) BackgroundColorHex = swatch.Color;
+        };
         PaletteDocker = new PaletteDockerViewModel(
             OnSwatchRecoloured, PerformPaletteEdit, PaintWithSwatch, () => ColorHex);
         PaletteDocker.SwatchEditRunEnded += CommitSwatchEdit;
@@ -649,6 +666,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The color docker's state, kept in sync with <see cref="ColorHex"/>.</summary>
     public ColorPickerViewModel ColorPicker { get; }
 
+    /// <summary>The background half of the pair, with the same wheel and palette.</summary>
+    public ColorPickerViewModel BackgroundPicker { get; }
+
     partial void OnColorHexChanged(string value)
     {
         OnPropertyChanged(nameof(ForegroundColorHex));
@@ -666,6 +686,13 @@ public sealed partial class MainViewModel : ObservableObject
         // touched the palette.
         ActiveSwatchId = null;
     }
+
+    /// <summary>
+    /// Keep the background picker showing the background colour, however it
+    /// changed — X swaps it, D resets it, and the wheel must not still be
+    /// pointing at the colour it used to be.
+    /// </summary>
+    partial void OnBackgroundColorHexChanged(string value) => BackgroundPicker.SetHex(value);
 
     // ---- live palettes ------------------------------------------------------
 
@@ -896,6 +923,10 @@ public sealed partial class MainViewModel : ObservableObject
         _paletteSwatches = resolved.SelectMany(p => p.Swatches).ToList();
         ColorPickerViewModel.PaletteSource = () => _paletteSwatches;
         ColorPicker.RefreshPalette();
+        // The source is static, so both halves of the pair see the new list —
+        // but each has to be told to look again, or the background picker keeps
+        // showing the previous document's swatches.
+        BackgroundPicker.RefreshPalette();
 
         if (Scene.References is { Count: > 0 } strips)
         {

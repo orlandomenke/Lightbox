@@ -1366,14 +1366,10 @@ public partial class MainWindow : Window
         DataFormat.CreateInProcessFormat<string>("lightbox-color");
 
     /// <summary>
-    /// Start dragging the current colour. Dropping it on the canvas fills
-    /// there — the shortest path from "I chose this colour" to "that shape is
-    /// that colour", without visiting the tool bar on the way.
-    /// </summary>
-    /// <summary>
-    /// The colour preview does two things, told apart by whether the pointer
-    /// moves: a click shows what the colour actually is, a drag carries it to
-    /// the canvas to fill with.
+    /// A colour swatch does two things, told apart by whether the pointer
+    /// moves: a click opens its picker, a drag carries the colour to the canvas
+    /// to fill with — the shortest path from "I chose this colour" to "that
+    /// shape is that colour", without visiting the tool bar on the way.
     /// </summary>
     /// <remarks>
     /// <c>DoDragDropAsync</c> does not return until the gesture is over and
@@ -1390,23 +1386,34 @@ public partial class MainWindow : Window
     /// </summary>
     private PointerPressedEventArgs? _swatchPressArgs;
 
-    /// <summary>
-    /// The background swatch opens its own picker. It has no drag-to-fill —
-    /// there is one colour you paint with, and it is the foreground.
-    /// </summary>
-    private void OnBackgroundSwatchPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is Control control) FlyoutBase.ShowAttachedFlyout(control);
-    }
+    /// <summary>The swatch a gesture started on — there are three of them now.</summary>
+    private Control? _swatchControl;
 
+    /// <summary>
+    /// Press on any colour swatch: a click opens its picker, a drag carries
+    /// the colour off to be dropped as a fill.
+    /// </summary>
+    /// <remarks>
+    /// One handler for all of them. It used to be two, and both were dead: the
+    /// foreground swatch in the tool bar wired its gesture onto the Color
+    /// panel's swatch rather than the one you pressed, and the background one
+    /// asked for an attached flyout that had never been attached. Neither did
+    /// anything at all.
+    /// </remarks>
     private void OnColorSwatchPressed(object? sender, PointerPressedEventArgs e)
     {
+        if (sender is not Control swatch) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         _swatchPress = e.GetPosition(this);
         _swatchPressArgs = e;
-        ColorSwatch.PointerMoved += OnColorSwatchMoved;
-        ColorSwatch.PointerReleased += OnColorSwatchReleased;
+        _swatchControl = swatch;
+        swatch.PointerMoved += OnColorSwatchMoved;
+        swatch.PointerReleased += OnColorSwatchReleased;
     }
+
+    /// <summary>Which colour a swatch carries — its Tag names the half of the pair.</summary>
+    private string ColorOf(Control? swatch) =>
+        swatch?.Tag as string == "background" ? _vm.BackgroundColorHex : _vm.ColorHex;
 
     private async void OnColorSwatchMoved(object? sender, PointerEventArgs e)
     {
@@ -1414,12 +1421,13 @@ public partial class MainWindow : Window
         var now = e.GetPosition(this);
         if (Math.Abs(now.X - start.X) < 4 && Math.Abs(now.Y - start.Y) < 4) return;
         var press = _swatchPressArgs;
+        var hex = ColorOf(_swatchControl);
         EndSwatchGesture();
         if (press is null) return;
         try
         {
             var transfer = new DataTransfer();
-            transfer.Add(DataTransferItem.Create(ColorDragFormat, _vm.ColorHex));
+            transfer.Add(DataTransferItem.Create(ColorDragFormat, hex));
             await DragDrop.DoDragDropAsync(press, transfer, DragDropEffects.Copy);
         }
         catch (Exception ex)
@@ -1430,17 +1438,21 @@ public partial class MainWindow : Window
 
     private void OnColorSwatchReleased(object? sender, PointerReleasedEventArgs e)
     {
-        var wasClick = _swatchPress is not null;
+        var clicked = _swatchPress is not null ? _swatchControl : null;
         EndSwatchGesture();
-        if (wasClick) FlyoutBase.ShowAttachedFlyout(ColorSwatch);
+        if (clicked is not null) FlyoutBase.ShowAttachedFlyout(clicked);
     }
 
     private void EndSwatchGesture()
     {
+        if (_swatchControl is { } swatch)
+        {
+            swatch.PointerMoved -= OnColorSwatchMoved;
+            swatch.PointerReleased -= OnColorSwatchReleased;
+        }
         _swatchPress = null;
         _swatchPressArgs = null;
-        ColorSwatch.PointerMoved -= OnColorSwatchMoved;
-        ColorSwatch.PointerReleased -= OnColorSwatchReleased;
+        _swatchControl = null;
     }
 
     private static string? DraggedColorOf(DragEventArgs e) =>

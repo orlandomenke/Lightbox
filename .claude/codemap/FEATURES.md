@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-890 tests, derived from the suite itself. Each line is a
+900 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -203,6 +203,20 @@ regression even when every test still compiles.
 - Known Color Red Converts To Every Model — `:10`
 - Every Model Round Trips Through Hex — `:35`
 - Invalid Hex Returns Null — `:53`
+
+## ColorSwatchGestureTests
+`tests/Lightbox.App.Tests/ColorSwatchGestureTests.cs`
+
+- Each Half Of The Pair Carries Its Own Picker — `:77`
+- Clicking ASwatch Opens Its Picker — `:103`
+- Clicking The Background Swatch Opens The Background Picker And Not The Foreground One — `:114`
+- Dragging Off ASwatch Does Not Also Open Its Picker — `:126`
+- The Dropdown Beside The Pair Opens The Foreground Picker — `:145`
+- The Background Picker Starts On The Background Colour — `:163`
+- Swapping And Resetting Move The Background Picker Too — `:171`
+- Editing The Background Picker Changes The Background And Leaves The Foreground Alone — `:187`
+- Picking ABackground From The Palette Keeps The Link Through ASwap — `:200`
+- The Background Picker Sees The Documents Palette As Well — `:217`
 
 ## ComposeRingTests
 `tests/Lightbox.App.Tests/ComposeRingTests.cs`

@@ -326,6 +326,16 @@ and finding three different answers is what this prevents.
 The swatch link travels with the swap, so trading to a palette colour and back
 leaves your strokes still following that swatch.
 
+Either half does two things:
+
+- **Click** it to open its own picker — the same wheel, value slider, readouts
+  and palette the Color panel shows, editing that half of the pair.
+- **Drag** it onto the canvas to fill with that colour.
+
+The **▾** beside the pair opens the foreground picker directly. It is there
+because the swatches themselves are a press-and-maybe-drag gesture, and a hand
+that moves on the way down should get a fill rather than a panel.
+
 ### Choosing a colour anywhere else
 
 Every other place a colour is set — a palette swatch, a gradient stop, the

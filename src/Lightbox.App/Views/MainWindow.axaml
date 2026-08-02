@@ -261,16 +261,49 @@
             finding three answers is what this prevents. X swaps, D resets.
           -->
           <Panel Width="32" Height="26" VerticalAlignment="Center"
-                 ToolTip.Tip="Foreground over background — X swaps them, D resets to black over white">
-            <Border Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                 ToolTip.Tip="Foreground over background — click to pick, drag onto the canvas to fill. X swaps them, D resets to black over white">
+            <Border x:Name="BackgroundSwatch" Tag="background"
+                    Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                     CornerRadius="3" BorderBrush="#555" BorderThickness="1"
                     Background="{Binding BackgroundColorHex}"
-                    PointerPressed="OnBackgroundSwatchPressed" Cursor="Hand" />
-            <Border Width="18" Height="18" HorizontalAlignment="Left" VerticalAlignment="Top"
+                    PointerPressed="OnColorSwatchPressed" Cursor="Hand">
+              <FlyoutBase.AttachedFlyout>
+                <Flyout Placement="Bottom">
+                  <ContentControl Content="{Binding BackgroundPicker}"
+                                  ContentTemplate="{StaticResource ColorPickerBody}" />
+                </Flyout>
+              </FlyoutBase.AttachedFlyout>
+            </Border>
+            <Border x:Name="ForegroundSwatch" Tag="foreground"
+                    Width="18" Height="18" HorizontalAlignment="Left" VerticalAlignment="Top"
                     CornerRadius="3" BorderBrush="#888" BorderThickness="1"
                     Background="{Binding ColorPicker.SwatchBrush}"
-                    PointerPressed="OnColorSwatchPressed" Cursor="Hand" />
+                    PointerPressed="OnColorSwatchPressed" Cursor="Hand">
+              <FlyoutBase.AttachedFlyout>
+                <Flyout Placement="Bottom">
+                  <ContentControl Content="{Binding ColorPicker}"
+                                  ContentTemplate="{StaticResource ColorPickerBody}" />
+                </Flyout>
+              </FlyoutBase.AttachedFlyout>
+            </Border>
           </Panel>
+          <!--
+            The dropdown beside the pair. The swatches themselves are a
+            press-and-maybe-drag gesture, and a gesture is a bad place to hang
+            the only way to reach the picker: a press that turns into a drag has
+            to decide *not* to open it, so the picker is one committed click
+            away and never the accidental result of a hand that moved.
+          -->
+          <Button x:Name="ColorPickerDropdown" Classes="icon" Content="▾" FontSize="9"
+                  VerticalAlignment="Center" Background="Transparent" BorderThickness="0"
+                  ToolTip.Tip="Colour picker">
+            <Button.Flyout>
+              <Flyout Placement="Bottom">
+                <ContentControl Content="{Binding ColorPicker}"
+                                ContentTemplate="{StaticResource ColorPickerBody}" />
+              </Flyout>
+            </Button.Flyout>
+          </Button>
           <Button Classes="icon" Content="⇄" FontSize="10" VerticalAlignment="Center"
                   Background="Transparent" BorderThickness="0"
                   Command="{Binding SwapColorsCommand}" ToolTip.Tip="Swap foreground and background (X)" />
