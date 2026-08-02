@@ -385,7 +385,93 @@ public sealed partial class MainViewModel : ObservableObject
         AttachEditor(value.Editor);
         ActiveLayerIndex = Math.Clamp(value.SavedLayerIndex, 0, Scene.Layers.Count - 1);
         CurrentFrameIndex = Math.Clamp(value.SavedFrameIndex, 0, Math.Max(0, Scene.FrameCount - 1));
+        RecallDocumentBrush();
         _switchingTabs = false;
+    }
+
+    // ---- whose brush is it (Q9) -------------------------------------------------
+
+    /// <summary>
+    /// Whether the brush follows the tool or the drawing, right now.
+    /// </summary>
+    /// <remarks>
+    /// A chosen preference wins; otherwise the project type decides, and with
+    /// no project open there is no type to ask and it is Global — which is
+    /// what the application has always done.
+    /// </remarks>
+    public BrushScope BrushScope =>
+        Settings.BrushScopeChoice ?? BrushScopeDefaults.For(ProjectDocker.Project?.Manifest.Type);
+
+    /// <summary>The three answers, in the order they are offered.</summary>
+    public IReadOnlyList<string> BrushMemoryChoices { get; } =
+        ["Follow the project", "Global", "Per document"];
+
+    /// <summary>
+    /// The chosen answer, as the Configure page words it. "Follow the project"
+    /// stores nothing, so the default keeps tracking the project type rather
+    /// than freezing to whatever it happened to mean the day it was read.
+    /// </summary>
+    public string BrushMemoryChoice
+    {
+        get => Settings.BrushScopeChoice switch
+        {
+            BrushScope.Global => "Global",
+            BrushScope.PerDocument => "Per document",
+            _ => "Follow the project",
+        };
+        set
+        {
+            var stored = value switch
+            {
+                "Global" => nameof(BrushScope.Global),
+                "Per document" => nameof(BrushScope.PerDocument),
+                _ => null,
+            };
+            if (Settings.BrushMemory == stored) return;
+            Settings.BrushMemory = stored;
+            Settings.Save();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(BrushScope));
+            // Switching to per-document mid-session should hand back what this
+            // document already remembers, rather than waiting for a tab change.
+            RecallDocumentBrush();
+        }
+    }
+
+    /// <summary>
+    /// Write the working brush onto the document, so reopening it hands the
+    /// brush back.
+    /// </summary>
+    /// <remarks>
+    /// Called on stroke commit rather than on save: the case this exists for
+    /// is a session that ended without one, and a bookmark that only survives
+    /// a deliberate save is no use to somebody who closed the laptop.
+    /// </remarks>
+    private void RememberDocumentBrush()
+    {
+        if (BrushScope != BrushScope.PerDocument) return;
+        if ((SaveTargetTab ?? ActiveTab) is not { } tab) return;
+        tab.Doc.Brush = _brushWork.Clone();
+    }
+
+    /// <summary>Put the document's remembered brush back in the tool bar, if it has one.</summary>
+    /// <remarks>
+    /// Silent when the document has no brush recorded — an older file, or one
+    /// made under Global — because the alternative is resetting the artist's
+    /// brush to a default every time they open something, which is worse than
+    /// the problem this solves.
+    /// </remarks>
+    private void RecallDocumentBrush()
+    {
+        if (BrushScope != BrushScope.PerDocument) return;
+        if ((SaveTargetTab ?? ActiveTab)?.Doc.Brush is not { } remembered) return;
+        _brushWork = remembered.Clone();
+        // The preset combo would otherwise still name whatever was chosen
+        // before the switch, describing a brush that is no longer loaded.
+        _applyingPreset = true;
+        SelectedBrushPreset = null;
+        _applyingPreset = false;
+        NotifyBrushProperties();
     }
 
     /// <summary>The animation tab a save/AI call should target (a reference tab defers to its owner).</summary>
@@ -1417,9 +1503,17 @@ public sealed partial class MainViewModel : ObservableObject
         if (value is null || _applyingPreset) return;
         _applyingPreset = true;
         IsEraser = value.Tool == ToolKind.Eraser;
-        var antiAlias = AntiAliasing; // global — a preset never overrides it
+        // Both of these are settings in Configure rather than parts of a
+        // brush, so a preset never overrides them. Sample source was missing
+        // from this list and picking any preset silently reset it to
+        // "this layer" — which made a window that says the choice applies to
+        // the next mark tell the truth only until you changed brush.
+        var antiAlias = AntiAliasing;
+        var sampleSource = SmudgeSampleSource;
         _brushWork = value.Settings.Clone();
         _brushWork.AntiAlias = antiAlias;
+        _brushWork.SampleSource = sampleSource;
+        _eraserWork.SampleSource = sampleSource;
         EnsurePresetTip(value);
         NotifyBrushProperties();
         _applyingPreset = false;
@@ -3743,6 +3837,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (clip is not null) stroke.ClipId = clip.Value.Id;
 
         FreezeSampledBackdrop(stroke);
+        RememberDocumentBrush();
         FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
 
         var frameId = target.Id;
@@ -3895,6 +3990,7 @@ public sealed partial class MainViewModel : ObservableObject
         var clip = PrepareClipForSelection();
         if (clip is not null) stroke.ClipId = clip.Value.Id;
         FreezeSampledBackdrop(stroke);
+        RememberDocumentBrush();
         FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
 
         var frameId = target.Id;
@@ -4230,6 +4326,16 @@ public sealed partial class MainViewModel : ObservableObject
         // A stroke painted under a selection carries it forever (provenance).
         var clip = PrepareClipForSelection();
         if (clip is not null) stroke.ClipId = clip.Value.Id;
+
+        // Both of these were wired into EndGradient and EndShape and missed
+        // here, which is the path a pen actually takes. The freeze mattered:
+        // an all-layers-BAKED smudge drawn by hand never froze anything and
+        // silently fell back to reading its own layer. Live hid it, because
+        // the re-bake runs off the edit funnel and covered for the missing
+        // call — so the half that was tested end to end worked and the half
+        // that was not did not.
+        FreezeSampledBackdrop(stroke);
+        RememberDocumentBrush();
 
         // Commit the pixels incrementally: stamp the EXACT stroke onto the
         // cached frame bitmap instead of invalidating it — invalidation would

@@ -152,3 +152,49 @@ Next: **B17** (guides invisible over the drawing, P2) is the oldest open thing
 and needs a pair of eyes rather than a test. After that the thin pillars are 4
 (14%), 5 (21%) and 6 (24%) — pillar 4, animation-aware drawing tools, is the
 one that most changes what the app is for.
+
+## Q9 — who owns brush settings · answered 2026-08-02 · shipped
+
+**A variation on (c): global or per-document, defaulted by project type and
+overridable in Configure.** Neither fixed answer is right, because the two
+halves of this application want opposite things from the same control, and the
+same person does both.
+
+The case that decides it is not preference, it is memory. Coming back to a
+comic page or a game asset after a fortnight, the question is not "which brush
+do I like" but "which brush is *this* drawn with" — and on work where the
+character of the stroke is part of the style, guessing wrong is visible in the
+result. Photoshop and Krita both make you remember; that is the gripe.
+
+Defaults: Illustration, Comic, Game Art and Asset Library keep the brush with
+the drawing, because those are documents with gaps between sittings. Animation
+and Storyboard keep one brush for the tool, because you are switching
+documents constantly and want the same pencil in each. No project open means
+Global — what the application has always done.
+
+`Doc.Brush` is a nullable `BrushSettings`, absent from the file by default, and
+written **on stroke commit rather than on save**: the session this exists for
+is the one that ended without a save. It is not a breach of invariant 4 —
+nothing renders from it, every stroke still carries its own settings, and
+changing it repaints nothing.
+
+Rejected:
+- **A fixed global-with-per-document-override**, the original (c). It makes the
+  artist configure the same thing per project when the project type already
+  says what kind of work it is.
+- **Recording the brush from `AppendExternalStrokes`.** That is the AI and MCP
+  path; a stroke the artist did not paint is not the brush they were painting
+  with, and letting an agent rewrite the tool bar's memory would undo the point.
+
+Two bugs found while wiring it, both from the same cause — the free-hand
+`EndStroke` was missed when a commit-time hook was added to `EndGradient` and
+`EndShape`:
+- **`FreezeSampledBackdrop` was never called for a hand-drawn stroke**, so
+  `AllLayersBaked` — shipped two commits earlier as working — froze nothing and
+  fell back to reading its own layer. Live covered for it, because the re-bake
+  runs off the edit funnel, so the half with an end-to-end test worked and the
+  half with only engine tests did not.
+- **Applying a preset reset the sample source**, which made Configure's claim
+  that the choice applies to the next mark true only until you changed brush.
+  Anti-aliasing was already carried across a preset for exactly this reason;
+  sample source was missing from that list.

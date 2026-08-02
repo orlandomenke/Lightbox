@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1341 tests, derived from the suite itself. Each line is a
+1356 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -110,6 +110,17 @@ regression even when every test still compiles.
 - The Ring Matches The Radius The Engine Will Stamp — `:47`
 - Turning Tracking Off Pins The Ring To Full Size — `:68`
 - When Pressure Is Disabled For The Brush The Ring Ignores It — `:82`
+
+## BrushMemoryTests
+`tests/Lightbox.App.Tests/BrushMemoryTests.cs`
+
+- Global Is Still The Default With No Project Open — `:48`
+- Choosing Per Document Overrides Whatever The Project Would Say — `:59`
+- Under Global The Document Records Nothing — `:69`
+- Under Per Document Painting Records The Brush On The Drawing — `:82`
+- Reopening The Document Puts That Brush Back In The Tool Bar — `:97`
+- ADocument With Nothing Recorded Leaves The Brush Alone — `:119`
+- Switching To Per Document Mid Session Hands Back What Is Already There — `:136`
 
 ## BrushPresetTests
 `tests/Lightbox.App.Tests/BrushToolTests.cs`
@@ -592,7 +603,8 @@ regression even when every test still compiles.
 - ABaked Smudge Does Not Follow — `:122`
 - An Ordinary Document Is Not Touched — `:138`
 - With Nothing Underneath The Sample Is Dropped Rather Than Kept Stale — `:156`
-- Rebaking Is Not An Undo Step — `:178`
+- AHand Drawn Baked Smudge Freezes What Was Under It — `:178`
+- Rebaking Is Not An Undo Step — `:207`
 
 ## LiveToolPreviewTests
 `tests/Lightbox.App.Tests/LiveToolPreviewTests.cs`
@@ -1272,6 +1284,17 @@ regression even when every test still compiles.
 - The New Menu Actually Makes Things — `:239`
 - The Reference Panel Is Absent Until It Is Asked For — `:282`
 - ACapped Strip Is No Wider Than Its Panels Can Use — `:298`
+
+## BrushScopeTests
+`tests/Lightbox.Core.Tests/BrushScopeTests.cs`
+
+- Work You Come Back To Keeps The Brush With The Drawing — `:21`
+- Work You Move Through In One Pass Keeps One Brush For The Tool — `:32`
+- With No Project It Is What The Application Always Did — `:41`
+- ADocument That Never Asks For This Writes No Brush Key — `:50`
+- ARemembered Brush Survives ASave And Reload — `:62`
+- The Remembered Brush Is ACopy Not The Live One — `:84`
+- Remembering ABrush Changes No Pixel In The Record — `:100`
 
 ## CameraTests
 `tests/Lightbox.Core.Tests/CameraTests.cs`

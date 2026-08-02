@@ -77,6 +77,27 @@ public sealed class Doc
     /// <summary>Whether this document carries symbols of its own. Derived; not serialized.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasSymbols => Symbols is { Count: > 0 };
+
+    /// <summary>
+    /// The brush this document was last painted with, for
+    /// <see cref="BrushScope.PerDocument"/>. Null everywhere else, and absent
+    /// from the file.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not a setting that reaches pixels, and so not a breach of invariant 4:
+    /// nothing renders from this. Every stroke still carries its own settings,
+    /// and changing what is here repaints nothing. It is a bookmark — what the
+    /// tool bar should say when this document is opened again — and the reason
+    /// it lives in the file rather than in preferences is that the question it
+    /// answers is about the drawing, not about the person.
+    /// </para>
+    /// <para>
+    /// Absent by default, the camera's rule again: a document that never asks
+    /// for this serializes exactly as it does today.
+    /// </para>
+    /// </remarks>
+    public BrushSettings? Brush { get; set; }
 }
 
 /// <summary>A recorded selection: closed contours (even-odd) plus edge feather.</summary>

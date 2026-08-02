@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Lightbox.Core.Documents;
 
 namespace Lightbox.App.Services;
 
@@ -79,6 +80,31 @@ public sealed class AppSettings
 
     /// <summary>How close a point must be to a guide to be pulled onto it, in document pixels.</summary>
     public double SnapTolerance { get; set; } = 12;
+
+    /// <summary>
+    /// Whether the brush belongs to the tool or to the drawing —
+    /// <c>"Global"</c>, <c>"PerDocument"</c>, or null to let the project type
+    /// decide.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Null by default and null is the interesting value: it means "follow the
+    /// project", which is the answer that is right more often than either
+    /// fixed choice. A comic page and a storyboard want opposite things, and
+    /// the same person does both.
+    /// </para>
+    /// <para>
+    /// A string rather than the enum so an unrecognised value in a settings
+    /// file written by a newer build falls back to the default instead of
+    /// refusing to load — the same reason the canvas quality is one.
+    /// </para>
+    /// </remarks>
+    public string? BrushMemory { get; set; }
+
+    /// <summary>The chosen scope, or null to follow the project type.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public BrushScope? BrushScopeChoice =>
+        Enum.TryParse<BrushScope>(BrushMemory, out var scope) ? scope : null;
 
     /// <summary>How much detail the canvas composites while you work.</summary>
     /// <remarks>

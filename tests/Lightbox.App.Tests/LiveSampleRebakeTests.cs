@@ -175,6 +175,35 @@ public class LiveSampleRebakeTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void AHandDrawnBakedSmudgeFreezesWhatWasUnderIt()
+    {
+        // Regression. FreezeSampledBackdrop was wired into EndGradient and
+        // EndShape and missed out of EndStroke — the path a pen actually
+        // takes — so an all-layers-BAKED smudge drawn by hand froze nothing
+        // and quietly fell back to reading its own layer.
+        //
+        // It went unnoticed because Live covered for it: the re-bake runs off
+        // the edit funnel, which EndStroke does trigger, so the half that had
+        // an end-to-end test worked and the half that only had engine tests
+        // did not. Charter O7, arriving from the other direction.
+        var vm = TwoLayers(out _, out _);
+        vm.SmudgeSampleSource = SampleSource.AllLayersBaked;
+        // The route an artist takes: pick the smudge preset.
+        vm.SelectedBrushPreset = vm.BrushPresetChoices.First(p => p.Settings.Kind == BrushKind.Smudge);
+        Assert.True(vm.IsSmudgeBrush);
+
+        vm.BeginStroke(40, 60, 1);
+        vm.MoveStroke(150, 60, 1);
+        vm.EndStroke();
+
+        var painted = (PaintedFrame)vm.Doc.Scene.Layers[^1].Cels[0].Frame!;
+        var smudge = Assert.Single(painted.Strokes);
+        Assert.Equal(SampleSource.AllLayersBaked, smudge.Brush.SampleSource);
+        Assert.NotNull(smudge.Baked);
+        Assert.NotEmpty(smudge.Baked!.PngBase64);
+    }
+
+    [AvaloniaFact]
     public void RebakingIsNotAnUndoStep()
     {
         // The bake is derived from the layers below, not authored, and a

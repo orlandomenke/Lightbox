@@ -260,8 +260,45 @@ public partial class ConfigureWindow : Window
         _loadingDrawing = true;
         SampleBox.ItemsSource = _vm.SampleSourceChoices;
         SampleBox.SelectedItem = _vm.SmudgeSampleSource;
+        BrushScopeBox.ItemsSource = _vm.BrushMemoryChoices;
+        BrushScopeBox.SelectedItem = _vm.BrushMemoryChoice;
         _loadingDrawing = false;
         RefreshSampleHint();
+        RefreshBrushScopeHint();
+    }
+
+    private void OnBrushScopeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingDrawing || _vm is null) return;
+        if (BrushScopeBox.SelectedItem is string choice) _vm.BrushMemoryChoice = choice;
+        RefreshBrushScopeHint();
+    }
+
+    /// <summary>
+    /// Say what the setting resolves to, not just what was picked.
+    /// </summary>
+    /// <remarks>
+    /// "Follow the project" is the default and is the one answer a person
+    /// cannot check by reading it back, so the hint spells out what it means
+    /// for the project they actually have open.
+    /// </remarks>
+    private void RefreshBrushScopeHint()
+    {
+        if (BrushScopeHint is null || _vm is null) return;
+        var effective = _vm.BrushScope == Lightbox.Core.Documents.BrushScope.PerDocument
+            ? "each drawing keeps its own brush"
+            : "one brush for the application";
+        BrushScopeHint.Text = _vm.BrushMemoryChoice switch
+        {
+            "Global" =>
+                "One brush, carried between documents and sessions — what Photoshop and Krita do.",
+            "Per document" =>
+                "Each drawing remembers the brush it was last painted with and hands it back when you "
+                + "reopen it. Saved in the file, so it survives the break that made you forget.",
+            _ =>
+                $"Illustration, comic, game art and asset libraries keep the brush with the drawing; "
+                + $"animation and storyboards keep one brush for the tool. Right now: {effective}.",
+        };
     }
 
     private void OnSampleSourceChanged(object? sender, SelectionChangedEventArgs e)
