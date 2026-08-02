@@ -169,9 +169,15 @@ draws it. A placement is rasterised in symbol space and transformed onto the
 canvas, so the same symbol placed twice is the same mark twice rather than two
 rolls of the same dice — the property invariant 2 makes non-negotiable.
 
+S3 is in too: an exported document carries the symbols it places, so it renders
+identically with the project gone. The design said flatten should dissolve a
+placement into ordinary strokes; it cannot, because baking the transform into
+coordinates re-rolls every `Hash01`-seeded dynamic and the export would be a
+different drawing. `docs/DESIGN-symbols.md` records the change and the reason.
+
 Nothing places a symbol yet: there is no browser, no drag onto the canvas and
 no symbol editor, so the remaining items below stay open. What exists is the
-machinery a placement made by hand or by an agent renders through.
+machinery a placement made by hand or by an agent renders and exports through.
 
 - [x] Shared symbols — the record (design S1–S2) `evidence: Symbol, SymbolPlacement, SymbolRegistry, SymbolRasterizer, SymbolRecordTests, SymbolRenderTests`
 - [?] Linked assets — edit once, update everywhere (S6)

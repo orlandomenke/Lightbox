@@ -148,9 +148,11 @@ no key. No UI.
 `OnDocumentChanged`, the rasterizer pass, the canvas transform, the
 placed-twice-is-identical test, an unresolved symbol renders nothing.
 
-**S3 — the flattener.** `ProjectIo.Flatten` inlines placements as ordinary
-strokes. Pixel-identity test: export, clear every registry, render, hash-compare
-against the in-project render.
+**S3 — the flattener.** ~~`ProjectIo.Flatten` inlines placements as ordinary
+strokes.~~ **Built differently — see below.** `ProjectIo.Flatten` copies the
+symbols an exported document places into `Doc.Symbols`, and walks their strokes
+for shared swatches and gradients like any others. Pixel-identity test: export,
+clear every registry, render, hash-compare against the in-project render.
 
 **S4 — placing and moving.** Drag from a browser onto the canvas; the Move tool
 already moves things and a placement is a thing. Break link. One undo step each.
@@ -185,3 +187,24 @@ If S2's placed-twice-is-identical test cannot be made to pass without touching
 `Hash01`, the symbol transform is wrong and the design needs rethinking before
 S3 — not a special case in the engine. The determinism invariant outranks this
 pillar.
+
+### What actually changed, and why
+
+S2's test passed as written. **S3 did not**, and the clause above is what
+settled it.
+
+"Inline placements as ordinary strokes" cannot be built. Baking a placement's
+transform into its strokes means multiplying their coordinates, and every dab
+dynamic is seeded by `Hash01` from the IEEE-754 bits of a dab position — so a
+flattened sword would come out with different scatter, size and colour jitter
+from the one the artist approved. The step's own pixel-identity test would have
+failed by construction: the two things S3 asked for contradicted each other.
+
+So the symbols travel with the document instead. `Doc.Symbols` is nullable and
+absent by default, exactly like `Doc.Palettes` inlined by the same flatten, and
+an exported file renders through the identical pass rather than through a baked
+approximation of it. Self-contained, and the same drawing.
+
+The cost, stated plainly: an exported document is no longer *only* strokes — a
+reader has to resolve placements to render it. That is the price of the export
+being the same mark as the original, and it is the cheaper of the two.

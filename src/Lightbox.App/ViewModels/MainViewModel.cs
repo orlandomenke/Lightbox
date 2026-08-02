@@ -1117,14 +1117,18 @@ public sealed partial class MainViewModel : ObservableObject
         }
         var resolved = palettes.ToList();
         PaletteRegistry.Reset(resolved, gradients);
-        // Symbols are project-scoped only — a document has none of its own,
-        // because the point of a symbol is that it lives above the animations
-        // that hold it. With no project open the registry resolves nothing,
-        // which is the correct answer rather than a degraded one.
-        SymbolRegistry.Reset(
-            ProjectDocker.Project?.Symbols
-            ?? (IReadOnlyDictionary<string, Lightbox.Core.Documents.Symbol>)
-                new Dictionary<string, Lightbox.Core.Documents.Symbol>());
+        // Symbols are project-scoped while a project is open, which is the
+        // point of them: the sword lives above the animations that hold it. A
+        // document carries its own only when it arrived flattened from
+        // somewhere else, and then the project's copy of an id wins — the same
+        // precedence the palettes use, for the same reason.
+        var symbols = new Dictionary<string, Lightbox.Core.Documents.Symbol>();
+        foreach (var (id, symbol) in Doc.Symbols ?? []) symbols[id] = symbol;
+        if (ProjectDocker.Project is { } withSymbols)
+        {
+            foreach (var (id, symbol) in withSymbols.Symbols) symbols[id] = symbol;
+        }
+        SymbolRegistry.Reset(symbols);
         // Every colour picker in the app — the panel's and every flyout's —
         // offers the same swatches, because they are all looking at the same
         // document.

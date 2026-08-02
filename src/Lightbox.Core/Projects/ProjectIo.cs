@@ -667,12 +667,21 @@ public static class ProjectIo
     public static Doc Flatten(Doc doc, Project project)
     {
         var copy = DocJson.Clone(doc);
-        var strokes = copy.Scene.Layers
+        var frames = copy.Scene.Layers
             .SelectMany(l => l.Cels)
             .Select(c => c.Frame)
             .Concat(copy.ReferenceSheets.SelectMany(s => s.Views).SelectMany(v => v.Layers).SelectMany(l => l.Cels).Select(c => c.Frame))
             .OfType<Frame>()
+            .ToList();
+
+        var symbols = InlineSymbols(copy, frames, project);
+        var strokes = frames
             .SelectMany(StrokesOf)
+            // A symbol's own strokes reference shared swatches and gradients
+            // like any others, so they have to join the walk below. Leaving
+            // them out gave an exported sword the literal colours its strokes
+            // were carrying rather than the ones it was painted in.
+            .Concat(symbols.SelectMany(s => s.Frames).SelectMany(StrokesOf))
             .ToList();
 
         var swatches = strokes.Select(s => s.SwatchId).OfType<string>().ToHashSet();
@@ -699,6 +708,57 @@ public static class ProjectIo
             }
         }
         return copy;
+    }
+
+    /// <summary>
+    /// Copy the symbols an exported document places into the document itself,
+    /// and return them so their own strokes join the resource walk.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The design originally said "inline placements as ordinary strokes", and
+    /// that is the one part of it that could not survive contact with
+    /// invariant 2. Baking a placement's transform into stroke coordinates
+    /// means multiplying them, and every dab dynamic is seeded by
+    /// <c>Hash01</c> from the bits of a dab position — so the flattened sword
+    /// would come out with different scatter, size and colour jitter from the
+    /// one the artist approved. The export would be a different drawing, which
+    /// is precisely the failure the pixel-identity test exists to catch.
+    /// </para>
+    /// <para>
+    /// So the symbols travel instead of being dissolved. The exported document
+    /// carries what it references and renders through exactly the same pass,
+    /// which makes it self-contained — invariant 1 satisfied where it must be —
+    /// without the export being a different mark from the original.
+    /// </para>
+    /// </remarks>
+    private static List<Symbol> InlineSymbols(Doc copy, List<Frame> frames, Project project)
+    {
+        var placed = frames
+            .OfType<PaintedFrame>()
+            .Where(f => f.HasPlacements)
+            .SelectMany(f => f.Placements!)
+            .Select(p => p.SymbolId)
+            .Where(id => id.Length > 0)
+            .ToHashSet();
+        if (placed.Count == 0) return [];
+
+        var inlined = new List<Symbol>();
+        foreach (var id in placed)
+        {
+            // Already the document's own: a flatten of a flatten must not
+            // replace what travelled with the file the first time.
+            if (copy.Symbols?.ContainsKey(id) == true)
+            {
+                inlined.Add(copy.Symbols[id]);
+                continue;
+            }
+            if (!project.Symbols.TryGetValue(id, out var symbol)) continue;
+            copy.Symbols ??= [];
+            copy.Symbols[id] = symbol;
+            inlined.Add(symbol);
+        }
+        return inlined;
     }
 
     private static IEnumerable<Stroke> StrokesOf(Frame frame) => frame switch

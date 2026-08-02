@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1206 tests, derived from the suite itself. Each line is a
+1214 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1809,6 +1809,18 @@ regression even when every test still compiles.
 
 - Encode Decode Round Trips Pixels — `:158`
 - Materialize Composites Baseline Plus Strokes — `:172`
+
+## SymbolFlattenTests
+`tests/Lightbox.Raster.Tests/SymbolFlattenTests.cs`
+
+- AFlattened Document Renders Its Placements With The Project Gone — `:95`
+- Without Flattening The Same Export Would Render Nothing — `:115`
+- ASymbols Own Swatches Travel With It — `:135`
+- ADocument That Places Nothing Carries No Symbols — `:163`
+- Only The Symbols The Document Places Travel — `:178`
+- AFlattened Document Survives ASave And Reload — `:195`
+- ASymbol The Document Already Carries Still Has Its Swatches Walked — `:216`
+- Flattening AFlattened Document Keeps What Travelled The First Time — `:236`
 
 ## SymbolRenderTests
 `tests/Lightbox.Raster.Tests/SymbolRenderTests.cs`
