@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1440 tests, derived from the suite itself. Each line is a
+1444 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1946,6 +1946,14 @@ regression even when every test still compiles.
 - AMissing Swatch Falls Back To The Colour The Artist Last Saw — `:110`
 - AFill Resolves The Swatch Too — `:120`
 - Re Registering APalette Replaces Rather Than Ignores — `:143`
+
+## MediumPerformanceTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/MediumPerformanceTests.cs`
+
+- AWatercolour Stroke Commits Within Budget — `:65`
+- The Medium Costs The Same On AHuge Canvas As On ASmall One — `:77`
+- AMedium Stroke Does Not Allocate ALattice Each Time — `:99`
+- AReused Lattice Renders Exactly What AFresh One Would — `:129`
 
 ## MediumRenderingTests
 `tests/Lightbox.Raster.Tests/MediumRenderingTests.cs`

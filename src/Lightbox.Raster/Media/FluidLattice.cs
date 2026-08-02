@@ -146,9 +146,15 @@ public sealed class FluidLattice
     /// </summary>
     private const float NeutralPaper = 0.5f;
 
-    private readonly int _w;
-    private readonly int _h;
-    private readonly int _uw;  // faces per row: _w + 1
+    private int _w;
+    private int _h;
+    private int _uw;  // faces per row: _w + 1
+
+    /// <summary>
+    /// Cells the buffers below were sized for. A lattice may be used at any
+    /// size up to this without reallocating — see <see cref="Rent"/>.
+    /// </summary>
+    private readonly int _capacity;
 
     private readonly float[] _paper;
 
@@ -164,8 +170,6 @@ public sealed class FluidLattice
     private readonly float[] _div;
     private readonly float[] _dist;      // chamfer distance to the dry boundary
     private readonly float[] _scale;     // per-cell outflow limiter
-    private readonly float[] _depRate;
-    private readonly float[] _liftRate;
 
     // Pigment is carried premultiplied: channel 0 is the amount, 1..3 are
     // amount × linear colour. Every transport and transfer applies the same
@@ -175,37 +179,124 @@ public sealed class FluidLattice
     private readonly float[][] _suspB = new float[4][];
     private readonly float[][] _dep = new float[4][];
 
-    public FluidLattice(int width, int height)
+    public FluidLattice(int width, int height) : this(width, height, width * height) { }
+
+    private FluidLattice(int width, int height, int capacity)
     {
         if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width));
         if (height <= 0) throw new ArgumentOutOfRangeException(nameof(height));
 
-        _w = width;
-        _h = height;
-        _uw = width + 1;
-        var n = width * height;
+        _capacity = Math.Max(capacity, width * height);
+        Resize(width, height);
+
+        // Faces need one more column and one more row than cells, and the
+        // capacity has to cover the worst shape it could be asked for — a
+        // single row is the extreme, where faces outnumber cells by one.
+        var n = _capacity;
+        var faces = _capacity + Math.Max(width, height) + 1;
 
         _paper = new float[n];
         Array.Fill(_paper, NeutralPaper);
 
         _water = new float[n];
         _waterB = new float[n];
-        _u = new float[_uw * height];
-        _uB = new float[_uw * height];
-        _v = new float[width * (height + 1)];
-        _vB = new float[width * (height + 1)];
+        _u = new float[faces];
+        _uB = new float[faces];
+        _v = new float[faces];
+        _vB = new float[faces];
         _p = new float[n];
         _div = new float[n];
         _dist = new float[n];
         _scale = new float[n];
-        _depRate = new float[n];
-        _liftRate = new float[n];
 
         for (var c = 0; c < 4; c++)
         {
             _susp[c] = new float[n];
             _suspB[c] = new float[n];
             _dep[c] = new float[n];
+        }
+    }
+
+    private void Resize(int width, int height)
+    {
+        _w = width;
+        _h = height;
+        _uw = width + 1;
+    }
+
+    /// <summary>
+    /// A lattice of this size, reusing the last one when it is big enough.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this exists.</b> A lattice is roughly twenty floats a cell, so a
+    /// 320² one is nine megabytes in arrays that every single one goes straight
+    /// onto the large object heap — and a fresh one was being built for every
+    /// stroke. Measured at 9.6 MB per stroke, which is a few hundred strokes to
+    /// a gigabyte of LOH churn, and the LOH is collected with a full blocking
+    /// Gen2. Pauses while painting are the one performance failure an artist
+    /// feels directly, and this was manufacturing them.
+    /// </para>
+    /// <para>
+    /// Reused rather than pooled by size, because the rent is always for the
+    /// region one stroke can reach and consecutive strokes with one brush are
+    /// close in size but rarely equal. So the buffers are kept at the largest
+    /// size asked for so far and a smaller rent simply uses less of them —
+    /// which works because every loop strides by <c>_w</c> and nothing reads
+    /// past <c>_w × _h</c>.
+    /// </para>
+    /// <para>
+    /// <b>Per thread, and always cleared.</b> One field held across threads
+    /// would let a live preview and a commit share a solver mid-run. Clearing
+    /// is not an optimisation to skip: a lattice carrying the last stroke's
+    /// water would render a different mark, and the same document would then
+    /// reload differently — invariant 2, via the back door.
+    /// </para>
+    /// </remarks>
+    public static FluidLattice Rent(int width, int height)
+    {
+        var cells = width * height;
+        var cached = _cache;
+        if (cached is not null && cached._capacity >= cells && cached._u.Length >= cells + Math.Max(width, height) + 1)
+        {
+            cached.Resize(width, height);
+            cached.Reset();
+            return cached;
+        }
+
+        // Round the capacity up so a run of gently growing strokes does not
+        // reallocate on each one.
+        var lattice = new FluidLattice(width, height, Math.Max(cells, 64 * 64));
+        _cache = lattice;
+        return lattice;
+    }
+
+    [ThreadStatic]
+    private static FluidLattice? _cache;
+
+    /// <summary>Back to bare dry paper, over the region currently in use.</summary>
+    private void Reset()
+    {
+        var n = _w * _h;
+        var faces = Math.Min(_u.Length, n + Math.Max(_w, _h) + 1);
+
+        _paper.AsSpan(0, n).Fill(NeutralPaper);
+        _water.AsSpan(0, n).Clear();
+        _waterB.AsSpan(0, n).Clear();
+        _u.AsSpan(0, faces).Clear();
+        _uB.AsSpan(0, faces).Clear();
+        _v.AsSpan(0, faces).Clear();
+        _vB.AsSpan(0, faces).Clear();
+        _p.AsSpan(0, n).Clear();
+        _div.AsSpan(0, n).Clear();
+        _dist.AsSpan(0, n).Clear();
+        _scale.AsSpan(0, n).Clear();
+
+        for (var c = 0; c < 4; c++)
+        {
+            _susp[c].AsSpan(0, n).Clear();
+            _suspB[c].AsSpan(0, n).Clear();
+            _dep[c].AsSpan(0, n).Clear();
         }
     }
 
@@ -220,15 +311,16 @@ public sealed class FluidLattice
     /// </param>
     public void SetPaper(ReadOnlySpan<float> height, double influence)
     {
-        if (height.Length != _paper.Length)
+        var cells = _w * _h;
+        if (height.Length != cells)
         {
             throw new ArgumentException(
-                $"Paper height must be {_w}×{_h} = {_paper.Length} samples, got {height.Length}.",
+                $"Paper height must be {_w}×{_h} = {cells} samples, got {height.Length}.",
                 nameof(height));
         }
 
         var k = Clamped((float)influence, 0f, 1f);
-        for (var i = 0; i < _paper.Length; i++)
+        for (var i = 0; i < cells; i++)
         {
             _paper[i] = NeutralPaper + (Clamped(height[i], 0f, 1f) - NeutralPaper) * k;
         }
@@ -313,19 +405,20 @@ public sealed class FluidLattice
     /// </remarks>
     public void Dry()
     {
+        var cells = _w * _h;
         for (var c = 0; c < 4; c++)
         {
             float[] s = _susp[c], d = _dep[c];
-            for (var i = 0; i < s.Length; i++)
+            for (var i = 0; i < cells; i++)
             {
                 d[i] += s[i];
                 s[i] = 0f;
             }
         }
 
-        Array.Clear(_water);
-        Array.Clear(_u);
-        Array.Clear(_v);
+        _water.AsSpan(0, cells).Clear();
+        _u.AsSpan(0, Math.Min(_u.Length, cells + Math.Max(_w, _h) + 1)).Clear();
+        _v.AsSpan(0, Math.Min(_v.Length, cells + Math.Max(_w, _h) + 1)).Clear();
     }
 
     /// <summary>
@@ -377,7 +470,8 @@ public sealed class FluidLattice
 
         float[] s = _susp[channel], d = _dep[channel];
         double total = 0;
-        for (var i = 0; i < s.Length; i++) total += s[i] + d[i];
+        var cells = _w * _h;
+        for (var i = 0; i < cells; i++) total += s[i] + d[i];
         return total;
     }
 
@@ -385,7 +479,8 @@ public sealed class FluidLattice
     public double TotalWater()
     {
         double total = 0;
-        for (var i = 0; i < _water.Length; i++) total += _water[i];
+        var cells = _w * _h;
+        for (var i = 0; i < cells; i++) total += _water[i];
         return total;
     }
 
@@ -649,8 +744,9 @@ public sealed class FluidLattice
             }
         }
 
-        Array.Clear(wOut);
-        for (var c = 0; c < 4; c++) Array.Clear(_suspB[c]);
+        var cells = _w * _h;
+        wOut.AsSpan(0, cells).Clear();
+        for (var c = 0; c < 4; c++) _suspB[c].AsSpan(0, cells).Clear();
 
         // The pigment buffers are hoisted out of the loop rather than indexed
         // through the jagged array per cell: four extra indirections per cell
@@ -768,9 +864,10 @@ public sealed class FluidLattice
     private void CapillaryPull(float edge)
     {
         float[] water = _water, dist = _dist;
+        var cells = _w * _h;
         BuildDryDistance();
 
-        for (var c = 0; c < 4; c++) Array.Clear(_suspB[c]);
+        for (var c = 0; c < 4; c++) _suspB[c].AsSpan(0, cells).Clear();
 
         float[] s0 = _susp[0], s1 = _susp[1], s2 = _susp[2], s3 = _susp[3];
         float[] t0 = _suspB[0], t1 = _suspB[1], t2 = _suspB[2], t3 = _suspB[3];
@@ -817,7 +914,7 @@ public sealed class FluidLattice
         for (var c = 0; c < 4; c++)
         {
             float[] s = _susp[c], d = _suspB[c];
-            for (var i = 0; i < s.Length; i++) s[i] = Clamped(s[i] + d[i], 0f, float.MaxValue);
+            for (var i = 0; i < cells; i++) s[i] = Clamped(s[i] + d[i], 0f, float.MaxValue);
         }
     }
 
@@ -847,7 +944,8 @@ public sealed class FluidLattice
         const float Far = 1e9f;
 
         float[] water = _water, d = _dist;
-        for (var i = 0; i < d.Length; i++) d[i] = water[i] > WetEps ? Far : 0f;
+        var cells = _w * _h;
+        for (var i = 0; i < cells; i++) d[i] = water[i] > WetEps ? Far : 0f;
 
         for (var y = 0; y < _h; y++)
         {
@@ -927,36 +1025,51 @@ public sealed class FluidLattice
     /// Water itself is soaked up here too; that is what ends a wash. It moves
     /// no pigment, so conservation is untouched.
     /// </summary>
+    /// <remarks>
+    /// <b>One pass, not five.</b> This used to compute the two rates into
+    /// scratch arrays and then walk the lattice again for each of the four
+    /// pigment channels, which is five traversals of every cell and two arrays
+    /// of pure round-trip traffic — written in one loop and read in the next,
+    /// long after they had fallen out of cache. Both rates depend only on the
+    /// cell, so they are computed where they are used and the scratch is gone.
+    /// The arithmetic is identical; the result is bit-identical.
+    /// </remarks>
     private void Deposit(float absorb, float gran)
     {
-        float[] water = _water, paper = _paper, dep = _depRate, lift = _liftRate;
+        float[] water = _water, paper = _paper;
+        float[] s0 = _susp[0], s1 = _susp[1], s2 = _susp[2], s3 = _susp[3];
+        float[] d0 = _dep[0], d1 = _dep[1], d2 = _dep[2], d3 = _dep[3];
+
         var depBase = DepositBase * (0.25f + 0.75f * absorb);
         var liftBase = LiftBase * (1f - absorb);
         var dryKeep = 1f - absorb * WaterDry;
 
-        for (var i = 0; i < water.Length; i++)
+        var cells = _w * _h;
+        for (var i = 0; i < cells; i++)
         {
             var w = water[i];
             var mobile = w / (w + WaterHold);
             var valley = 1f - 2f * paper[i];
-            dep[i] = Clamped(depBase * (1f - mobile) * (1f + gran * valley), 0f, MaxTransfer);
-            lift[i] = Clamped(liftBase * mobile * (1f - gran * valley), 0f, MaxTransfer);
+            var dep = Clamped(depBase * (1f - mobile) * (1f + gran * valley), 0f, MaxTransfer);
+            var lift = Clamped(liftBase * mobile * (1f - gran * valley), 0f, MaxTransfer);
             water[i] = w * dryKeep;
-        }
 
-        for (var c = 0; c < 4; c++)
-        {
-            float[] s = _susp[c], d = _dep[c];
-            for (var i = 0; i < s.Length; i++)
-            {
-                var settled = s[i] * dep[i];
-                s[i] -= settled;
-                var bound = d[i] + settled;
-                var lifted = bound * lift[i];
-                d[i] = bound - lifted;
-                s[i] += lifted;
-            }
+            Settle(s0, d0, i, dep, lift);
+            Settle(s1, d1, i, dep, lift);
+            Settle(s2, d2, i, dep, lift);
+            Settle(s3, d3, i, dep, lift);
         }
+    }
+
+    /// <summary>One channel's exchange with the paper at one cell.</summary>
+    private static void Settle(float[] susp, float[] dep, int i, float depRate, float liftRate)
+    {
+        var s = susp[i];
+        var settled = s * depRate;
+        var bound = dep[i] + settled;
+        var lifted = bound * liftRate;
+        dep[i] = bound - lifted;
+        susp[i] = s - settled + lifted;
     }
 
     /// <summary>

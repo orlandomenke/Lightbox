@@ -101,7 +101,11 @@ public static class MediumSimulator
         var coverage = SampleCoverage(scratch, rect, w, h, step);
         if (coverage is null) return;
 
-        var lattice = new FluidLattice(w, h);
+        // Rented, not built: a 320-cell lattice is nine megabytes of large-object
+        // arrays, and one per stroke is a gigabyte of LOH churn every few
+        // hundred marks. See FluidLattice.Rent — it is cleared on the way out,
+        // so a stroke can never inherit the last one's water.
+        var lattice = FluidLattice.Rent(w, h);
         var paper = new float[w * h];
         PaperField.Fill(paper, w, h, rect.Left / step, rect.Top / step, medium.Paper, medium.PaperScale / step);
         lattice.SetPaper(paper, medium.PaperInfluence);
