@@ -472,7 +472,8 @@
                       <TextBlock Text="Color Dynamics" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
                       <DockPanel ToolTip.Tip="Natural media drifts between two chosen colours rather than randomly around one. Leave empty to vary only hue, saturation and brightness.">
                         <TextBlock Text="Second color" Width="100" VerticalAlignment="Center" FontSize="12" />
-                        <TextBox Text="{Binding BrushSecondaryColor}" Watermark="none" />
+                        <controls:ColorField Hex="{Binding BrushSecondaryColor, Mode=TwoWay}"
+                                             AllowsNone="True" HorizontalAlignment="Left" />
                       </DockPanel>
                         <DockPanel>
                           <TextBlock Text="Toward second" Width="100" VerticalAlignment="Center" FontSize="12" />
@@ -1086,13 +1087,29 @@
                          CloseCommand="{Binding ToggleProjectPanelCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
+                  <!--
+                    One ＋, with a menu of what to make. New work inside a
+                    project should not be "create it, then file it" — each
+                    entry lands somewhere specific, under the selected
+                    character or on the project itself.
+                  -->
                   <StackPanel Orientation="Horizontal" Spacing="4">
-                    <Button Classes="text" Content="＋ Character"
-                            Command="{Binding ProjectDocker.AddCharacterCommand}"
-                            ToolTip.Tip="A character owns animations, a palette and references" />
-                    <Button Classes="text" Content="＋ Animation"
-                            Command="{Binding ProjectDocker.AddAnimationCommand}"
-                            ToolTip.Tip="New animation under the selected character, opened as a tab" />
+                    <Button Classes="text" Content="＋ New ▾" ToolTip.Tip="Create something in this project">
+                      <Button.Flyout>
+                        <MenuFlyout ItemsSource="{Binding ProjectDocker.NewItemKinds}">
+                          <MenuFlyout.ItemContainerTheme>
+                            <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                                          x:DataType="vm:ProjectViewModel+NewItemKind">
+                              <Setter Property="Header" Value="{Binding Label}" />
+                              <Setter Property="ToolTip.Tip" Value="{Binding Hint}" />
+                              <Setter Property="Command"
+                                      Value="{Binding $parent[Window].((vm:MainViewModel)DataContext).ProjectDocker.AddItemCommand}" />
+                              <Setter Property="CommandParameter" Value="{Binding}" />
+                            </ControlTheme>
+                          </MenuFlyout.ItemContainerTheme>
+                        </MenuFlyout>
+                      </Button.Flyout>
+                    </Button>
                     <Button Classes="icon" Content="－"
                             Command="{Binding ProjectDocker.RemoveSelectedCommand}"
                             IsEnabled="{Binding ProjectDocker.HasSelection}"
@@ -1107,9 +1124,12 @@
                 </Border>
               </controls:Docker.BottomBar>
               <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ListBox ItemsSource="{Binding ProjectDocker.Rows}"
+                <ListBox x:Name="ProjectRows" ItemsSource="{Binding ProjectDocker.Rows}"
                          SelectedItem="{Binding ProjectDocker.Selected}"
                          Background="Transparent" BorderThickness="0" Margin="2"
+                         DragDrop.AllowDrop="True"
+                         DragDrop.DragOver="OnProjectRowDragOver"
+                         DragDrop.Drop="OnProjectRowDrop"
                          DoubleTapped="OnProjectRowActivated">
                   <ListBox.Styles>
                     <Style Selector="ListBoxItem">
@@ -1119,10 +1139,20 @@
                   </ListBox.Styles>
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:ProjectRow">
+                      <!--
+                        A row is a drag source and a drop target: pull a
+                        document onto a character to re-file it, or onto the
+                        project heading to take it out of every character.
+                        Background must be set or the empty part of the row is
+                        not hit-testable and the drop never arrives.
+                      -->
                       <DockPanel Classes.characterRow="{Binding IsCharacter}"
-                                 Classes.animationRow="{Binding !IsCharacter}" MinHeight="22">
-                        <TextBlock DockPanel.Dock="Left" Text="🗀" FontSize="11" VerticalAlignment="Center"
-                                   IsVisible="{Binding IsCharacter}" Margin="0,0,4,0" />
+                                 Classes.animationRow="{Binding !IsCharacter}" MinHeight="22"
+                                 Background="Transparent"
+                                 PointerPressed="OnProjectRowPressed"
+                                 DragDrop.AllowDrop="True">
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="11"
+                                   VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.7" />
                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="11" />
                       </DockPanel>
                     </DataTemplate>
@@ -1315,14 +1345,28 @@
               <controls:Docker.BottomBar>
                 <Border Classes="dockerBar">
                   <DockPanel>
+                    <!--
+                      The preview is also the readout. Hex and the channel
+                      numbers live behind a click rather than taking a row of
+                      the panel for good: they are what a colour IS, not how
+                      you pick one, and the wheel above is how you pick one.
+                      Dragging the swatch onto the canvas still fills.
+                    -->
                     <Border x:Name="ColorSwatch" DockPanel.Dock="Left" Width="28" Height="28"
                             CornerRadius="14" BorderBrush="#555" BorderThickness="1"
                             Background="{Binding ColorPicker.SwatchBrush}"
                             PointerPressed="OnColorSwatchPressed"
                             Cursor="Hand"
-                            ToolTip.Tip="Current color — drag it onto the canvas to fill" />
-                    <TextBox Text="{Binding ColorHex}" Margin="8,0,0,0" VerticalAlignment="Center"
-                             ToolTip.Tip="Hex color, e.g. #1a1a1a" />
+                            ToolTip.Tip="Current colour — click for its values, or drag it onto the canvas to fill">
+                      <FlyoutBase.AttachedFlyout>
+                        <Flyout Placement="Top">
+                          <ContentControl Content="{Binding ColorPicker}"
+                                          ContentTemplate="{StaticResource ColorPickerBody}" />
+                        </Flyout>
+                      </FlyoutBase.AttachedFlyout>
+                    </Border>
+                    <TextBlock Text="{Binding ColorHex}" Margin="8,0,0,0" VerticalAlignment="Center"
+                               FontSize="11" Opacity="0.75" />
                   </DockPanel>
                 </Border>
               </controls:Docker.BottomBar>
@@ -1552,9 +1596,8 @@
                               IsEnabled="{Binding PaletteDocker.HasSwatch}"
                               ToolTip.Tip="The colour picker recolours the selected swatch — and every stroke painted with it — instead of setting the paint colour" />
                     <DockPanel IsVisible="{Binding PaletteDocker.HasSwatch}">
-                      <TextBox DockPanel.Dock="Right" Width="86" FontSize="11"
-                               Text="{Binding PaletteDocker.SelectedSwatch.Color, Mode=TwoWay}"
-                               ToolTip.Tip="Swatch colour, e.g. #b07a5e" />
+                      <controls:ColorField DockPanel.Dock="Right" Margin="4,0,0,0"
+                                           Hex="{Binding PaletteDocker.SelectedSwatch.Color, Mode=TwoWay}" />
                       <TextBox Text="{Binding PaletteDocker.SelectedSwatch.Name, Mode=TwoWay}"
                                FontSize="11" Margin="0,0,4,0" PlaceholderText="Swatch name"
                                ToolTip.Tip="A palette is a vocabulary — “skin shadow”, not “#b07a5e”" />
@@ -1665,11 +1708,8 @@
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:GradientStopRow">
                       <DockPanel>
-                        <Border DockPanel.Dock="Left" Width="20" Height="20" CornerRadius="3"
-                                BorderBrush="#666" BorderThickness="1" Background="{Binding Fill}"
-                                Margin="0,0,4,0" />
-                        <TextBox DockPanel.Dock="Right" Width="76" FontSize="11"
-                                 Text="{Binding Color, Mode=TwoWay}" ToolTip.Tip="Stop colour" />
+                        <controls:ColorField DockPanel.Dock="Left" Margin="0,0,4,0"
+                                             Hex="{Binding Color, Mode=TwoWay}" />
                         <NumericUpDown DockPanel.Dock="Right" Width="60" FontSize="11" Margin="0,0,4,0"
                                        Value="{Binding Alpha}" Minimum="0" Maximum="100"
                                        Increment="5" FormatString="0" ToolTip.Tip="Opacity %" />

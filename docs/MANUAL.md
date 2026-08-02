@@ -132,10 +132,25 @@ loose file *is* an animation, and a project is readable with a text editor.
 A project opens by reading its index only. A character with forty animations
 opens without loading forty documents; each is read when you open it.
 
-**The Project panel** lists characters with their animations underneath.
-Double-click an animation to open it as a tab. **＋ Character** and
-**＋ Animation** add rows; **－** removes a row from the index and leaves the
-file on disk.
+**The Project panel** lists characters with their animations underneath, and
+below them any documents that belong to the project rather than to a character.
+Double-click one to open it as a tab.
+
+**＋ New** offers what to make, and each lands somewhere specific — creating
+work inside a project should not be followed by a second step that files it:
+
+| | Where it goes |
+| --- | --- |
+| **Animation** | Under the selected character |
+| **Character** | A new character, with its own animations and palette |
+| **Document** | The project itself — a background, a colour test, a one-off |
+
+**Drag a document onto another character** to re-file it, or onto a
+project-level row to take it out of every character. It keeps its identity, so
+a tab already showing it stays bound to it. The file on disk is not moved
+until the next save writes it to its new path, and the old one is left alone —
+the same reasoning as **－**, which removes a row from the index and never
+deletes a drawing.
 
 ### Variants
 
@@ -249,8 +264,27 @@ each stroke**, so changing a preference never alters art you have already made.
 ## 6. Colour
 
 The **Color** panel offers a hue wheel with the value slider beside it, and
-HSV, HSL, RGB and CMYK slider sets. The swatch at the bottom can be dragged onto
-the canvas to fill.
+HSV, HSL, RGB and CMYK slider sets.
+
+The swatch at the bottom does two things, told apart by whether you move:
+
+- **Click** it for the numbers — hex, HSV and RGB — in a flyout.
+- **Drag** it onto the canvas to fill with that colour.
+
+### Choosing a colour anywhere else
+
+Every other place a colour is set — a palette swatch, a gradient stop, the
+brush's secondary colour — is a **swatch you click**, and it opens the same
+wheel, the same value slider and the same readouts.
+
+Hex is at the bottom of that flyout, under the wheel, in the same order the
+Color panel uses. It is a readout you can also type into, which is the right
+rank for it: typing `#c04a2f` is transcribing a colour you already found, not
+choosing one.
+
+A checkerboard swatch means **no colour**, which is a different answer from
+black. The brush's secondary colour is the one place that matters, and it has
+a ✕ to get back to it.
 
 ### Palettes
 

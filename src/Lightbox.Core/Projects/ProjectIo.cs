@@ -35,6 +35,7 @@ public static class ProjectIo
     private const string ManifestName = "project.json";
     private const string CharactersDir = "characters";
     private const string AnimationsDir = "animations";
+    private const string DocumentsDir = "documents";
     private const string PalettesFile = "palettes/palettes.json";
     private const string GradientsFile = "gradients/gradients.json";
 
@@ -72,6 +73,68 @@ public static class ProjectIo
         character.Animations.Add(reference);
         project.Loaded[reference.Id] = doc;
         return reference;
+    }
+
+    /// <summary>
+    /// Register a document that belongs to the project but to no character —
+    /// a background, a colour test, a one-off illustration.
+    /// </summary>
+    public static DocumentRef AddDocument(Project project, string name, Doc doc)
+    {
+        var taken = project.Manifest.Documents.Select(d => d.Path).ToHashSet();
+        var slug = Slug(name);
+        var candidate = slug;
+        for (var n = 2; taken.Contains($"{DocumentsDir}/{candidate}.lightbox.json"); n++)
+        {
+            candidate = $"{slug}-{n}";
+        }
+        var reference = new DocumentRef
+        {
+            Name = name,
+            Path = $"{DocumentsDir}/{candidate}.lightbox.json",
+        };
+        project.Manifest.Documents.Add(reference);
+        project.Loaded[reference.Id] = doc;
+        return reference;
+    }
+
+    /// <summary>
+    /// Move a document to another character, or to the project itself when
+    /// <paramref name="destination"/> is null.
+    /// </summary>
+    /// <remarks>
+    /// The <b>id is kept</b> and the path is recomputed. Keeping the id is what
+    /// lets an open tab stay bound to the document it is showing, so moving a
+    /// row in the tree does not orphan the window you are drawing in.
+    ///
+    /// The file on disk is not moved here. The path in the manifest is the new
+    /// one, and the next save writes the document there; the old file is left
+    /// alone, on the same reasoning that removing a row leaves it alone.
+    /// A move that deleted an artist's file because the tree was rearranged
+    /// would be a poor trade for tidiness.
+    /// </remarks>
+    public static bool MoveDocument(Project project, DocumentRef reference, Character? destination)
+    {
+        var from = project.Manifest.Characters.FirstOrDefault(c => c.Animations.Any(a => a.Id == reference.Id));
+        var atProjectLevel = project.Manifest.Documents.Any(d => d.Id == reference.Id);
+        if (from is null && !atProjectLevel) return false;
+        if (ReferenceEquals(from, destination)) return false;
+
+        from?.Animations.RemoveAll(a => a.Id == reference.Id);
+        if (atProjectLevel) project.Manifest.Documents.RemoveAll(d => d.Id == reference.Id);
+
+        if (destination is null)
+        {
+            reference.Path = $"{DocumentsDir}/{Slug(reference.Name)}.lightbox.json";
+            project.Manifest.Documents.Add(reference);
+        }
+        else
+        {
+            var slug = UniqueFileSlug(destination, Slug(reference.Name));
+            reference.Path = $"{CharactersDir}/{destination.Slug}/{AnimationsDir}/{slug}.lightbox.json";
+            destination.Animations.Add(reference);
+        }
+        return true;
     }
 
     /// <summary>

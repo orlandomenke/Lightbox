@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-722 tests, derived from the suite itself. Each line is a
+729 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -539,7 +539,14 @@ regression even when every test still compiles.
 - Without AProject Or APath There Is Nothing To Save In Place — `:199`
 - AProject Reopens With Its Characters And Animations — `:207`
 - Removing An Animation Leaves Its File On Disk — `:228`
-- Renaming ARow Writes Through — `:246`
+- The New Menu Offers Animation Character And ALoose Document — `:248`
+- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:261`
+- ALoose Document Gets Its Own Row With No Character Above It — `:278`
+- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:293`
+- Moving ADocument To The Project Takes It Out Of Every Character — `:318`
+- Moving ADocument Where It Already Is Does Nothing — `:332`
+- AMoved Document Survives ASave And Reopen — `:342`
+- Renaming ARow Writes Through — `:362`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`

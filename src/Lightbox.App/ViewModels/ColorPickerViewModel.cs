@@ -97,7 +97,24 @@ public sealed partial class ColorPickerViewModel : ObservableObject
     public IBrush SwatchBrush =>
         new SolidColorBrush(Color.FromRgb((byte)Math.Round(_r * 255), (byte)Math.Round(_g * 255), (byte)Math.Round(_b * 255)));
 
-    public string Hex => ColorSpace.RgbToHex(_r, _g, _b);
+    /// <summary>
+    /// The colour as <c>#rrggbb</c>. Settable, so the flyout's hex box is an
+    /// input as well as a readout — nonsense is ignored rather than rejected,
+    /// because a half-typed <c>#c0</c> is a person mid-thought, not an error.
+    /// </summary>
+    public string Hex
+    {
+        get => ColorSpace.RgbToHex(_r, _g, _b);
+        set
+        {
+            if (ColorSpace.HexToRgb(value ?? "") is null) return;
+            SetHex(value!);
+            Commit();
+        }
+    }
+
+    /// <summary>Announce the current colour to whoever owns this picker.</summary>
+    public void Commit() => HexCommitted?.Invoke(Hex);
 
     // ---- edits: recompute the canonical color from the edited model ---------
 

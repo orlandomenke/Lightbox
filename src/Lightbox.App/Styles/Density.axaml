@@ -105,6 +105,22 @@
   -->
   <Style Selector="Slider">
     <Setter Property="MinHeight" Value="22" />
+    <!--
+      Centre the slider against the label beside it.
+
+      Fluent's slider template reserves room above and below the track for a
+      tick strip nothing here uses, so the track sat high in the space the
+      control was given and read as misaligned next to a centred label. It was.
+    -->
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="Slider:horizontal /template/ Grid#SliderContainer">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="0" />
+  </Style>
+  <Style Selector="Slider:horizontal /template/ Track">
+    <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
   <Style Selector="Slider:horizontal /template/ Thumb">
     <Setter Property="Width" Value="14" />

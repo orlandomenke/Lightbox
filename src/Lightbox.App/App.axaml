@@ -14,6 +14,9 @@
          the numbers live in one place so no view invents its own. -->
     <StyleInclude Source="avares://Lightbox.App/Styles/Density.axaml" />
 
+    <!-- The colour picker's body and the flyout field that reuses it. -->
+    <StyleInclude Source="avares://Lightbox.App/Styles/ColorPicker.axaml" />
+
     <!-- Docker: title strip, optional top/bottom option bars, content between. -->
     <Style Selector="controls|Docker">
       <Setter Property="Background" Value="#242424" />

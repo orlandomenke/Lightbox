@@ -9,6 +9,7 @@ using Lightbox.App.Controls;
 using Lightbox.App.Docking;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Projects;
 using Lightbox.Core.Serialization;
 
 namespace Lightbox.App.Views;
@@ -1181,19 +1182,68 @@ public partial class MainWindow : Window
     /// there — the shortest path from "I chose this colour" to "that shape is
     /// that colour", without visiting the tool bar on the way.
     /// </summary>
-    private async void OnColorSwatchPressed(object? sender, PointerPressedEventArgs e)
+    /// <summary>
+    /// The colour preview does two things, told apart by whether the pointer
+    /// moves: a click shows what the colour actually is, a drag carries it to
+    /// the canvas to fill with.
+    /// </summary>
+    /// <remarks>
+    /// <c>DoDragDropAsync</c> does not return until the gesture is over and
+    /// reports no distance, so "was that a drag" cannot be asked afterwards.
+    /// The press is therefore held, and the decision made on the first move —
+    /// which is the same shape as the panel-header grip, for the same reason.
+    /// </remarks>
+    private Point? _swatchPress;
+
+    /// <summary>
+    /// The press that started the gesture. Held because the drag API wants the
+    /// event that began it, and by the time we know this is a drag rather than
+    /// a click that event has been and gone.
+    /// </summary>
+    private PointerPressedEventArgs? _swatchPressArgs;
+
+    private void OnColorSwatchPressed(object? sender, PointerPressedEventArgs e)
     {
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        _swatchPress = e.GetPosition(this);
+        _swatchPressArgs = e;
+        ColorSwatch.PointerMoved += OnColorSwatchMoved;
+        ColorSwatch.PointerReleased += OnColorSwatchReleased;
+    }
+
+    private async void OnColorSwatchMoved(object? sender, PointerEventArgs e)
+    {
+        if (_swatchPress is not { } start) return;
+        var now = e.GetPosition(this);
+        if (Math.Abs(now.X - start.X) < 4 && Math.Abs(now.Y - start.Y) < 4) return;
+        var press = _swatchPressArgs;
+        EndSwatchGesture();
+        if (press is null) return;
         try
         {
             var transfer = new DataTransfer();
             transfer.Add(DataTransferItem.Create(ColorDragFormat, _vm.ColorHex));
-            await DragDrop.DoDragDropAsync(e, transfer, DragDropEffects.Copy);
+            await DragDrop.DoDragDropAsync(press, transfer, DragDropEffects.Copy);
         }
         catch (Exception ex)
         {
             Rendering.CanvasControl.LogDiag("color-drag", ex);
         }
+    }
+
+    private void OnColorSwatchReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        var wasClick = _swatchPress is not null;
+        EndSwatchGesture();
+        if (wasClick) FlyoutBase.ShowAttachedFlyout(ColorSwatch);
+    }
+
+    private void EndSwatchGesture()
+    {
+        _swatchPress = null;
+        _swatchPressArgs = null;
+        ColorSwatch.PointerMoved -= OnColorSwatchMoved;
+        ColorSwatch.PointerReleased -= OnColorSwatchReleased;
     }
 
     private static string? DraggedColorOf(DragEventArgs e) =>
@@ -1555,6 +1605,72 @@ public partial class MainWindow : Window
     /// <summary>Double-click a project row to open that animation as a tab.</summary>
     private void OnProjectRowActivated(object? sender, Avalonia.Input.TappedEventArgs e) =>
         _vm.ProjectDocker.OpenSelected();
+
+    // ---- re-filing a document by dragging it -----------------------------------
+
+    private static readonly DataFormat<string> ProjectRowFormat =
+        DataFormat.CreateInProcessFormat<string>("lightbox-project-row");
+
+    private ProjectRow? _draggedRow;
+
+    /// <summary>
+    /// Start a drag from a document row. Character rows are drop targets only:
+    /// dragging a character would have to mean reordering, and reordering
+    /// characters is not a thing the project model has an opinion about yet.
+    /// </summary>
+    private async void OnProjectRowPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is not ProjectRow { Animation: not null } row) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+
+        _draggedRow = row;
+        try
+        {
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(ProjectRowFormat, row.Animation.Id));
+            await DragDrop.DoDragDropAsync(e, transfer, DragDropEffects.Move);
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("project-row-drag", ex);
+        }
+        finally
+        {
+            _draggedRow = null;
+        }
+    }
+
+    private void OnProjectRowDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = DropTargetFor(e) is not null ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnProjectRowDrop(object? sender, DragEventArgs e)
+    {
+        if (_draggedRow is not { } row) return;
+        if (DropTargetFor(e) is not { } target) return;
+        e.Handled = true;
+        _vm.ProjectDocker.Move(row, target.Character);
+    }
+
+    /// <summary>
+    /// Where a drop would land: the character under the pointer, or the
+    /// project itself when the pointer is over a loose document or past the
+    /// end of the list. Null when the drop would change nothing.
+    /// </summary>
+    private (Character? Character, bool Valid)? DropTargetFor(DragEventArgs e)
+    {
+        if (_draggedRow is not { } dragged) return null;
+        var over = (e.Source as Control)?.DataContext as ProjectRow;
+
+        // Over nothing in particular means the project: dropping into the
+        // empty space below the tree is the natural way to say "not under any
+        // character", and it is the only way to say it when every row is one.
+        var destination = over?.Character;
+        if (ReferenceEquals(destination, dragged.Character)) return null;
+        return (destination, true);
+    }
 
     private async void OnExportDocumentClicked(object? sender, RoutedEventArgs e)
     {

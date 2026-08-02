@@ -242,6 +242,122 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         Assert.True(File.Exists(path));
     }
 
+    // ---- making things inside the project -----------------------------------
+
+    [AvaloniaFact]
+    public void TheNewMenuOffersAnimationCharacterAndALooseDocument()
+    {
+        // Each lands somewhere specific. Creating work inside a project should
+        // not be "make it, then file it".
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+
+        Assert.Equal(
+            ["Animation", "Character", "Document"],
+            vm.ProjectDocker.NewItemKinds.Select(k => k.Label));
+    }
+
+    [AvaloniaFact]
+    public void ADocumentCreatedFromTheDockerBelongsToTheProjectNotACharacter()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+
+        vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewLooseDocument);
+
+        var loose = Assert.Single(vm.ProjectDocker.Project!.Manifest.Documents);
+        Assert.DoesNotContain(
+            vm.ProjectDocker.Project!.Characters.SelectMany(c => c.Animations),
+            a => a.Id == loose.Id);
+        Assert.StartsWith("documents/", loose.Path);
+        // And it opened, bound to its slot — the same as adding an animation.
+        Assert.Equal(loose.Id, vm.ActiveTab!.Source?.Id);
+    }
+
+    [AvaloniaFact]
+    public void ALooseDocumentGetsItsOwnRowWithNoCharacterAboveIt()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewLooseDocument);
+
+        var row = vm.ProjectDocker.Rows[^1];
+        Assert.True(row.IsLoose);
+        Assert.Null(row.Character);
+        Assert.Equal(0, row.Indent);
+    }
+
+    // ---- re-filing ------------------------------------------------------------
+
+    [AvaloniaFact]
+    public void MovingADocumentToAnotherCharacterRepathsItAndKeepsItsId()
+    {
+        // The id has to survive: a tab already showing the document stays
+        // bound to it, so rearranging the tree does not orphan the window you
+        // are drawing in.
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.ProjectDocker.AddCharacterCommand.Execute(null);
+        var project = vm.ProjectDocker.Project!;
+        var from = project.Characters.First();
+        var to = project.Characters.Last();
+        Assert.NotSame(from, to);
+
+        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null && r.Character == from);
+        var id = row.Animation!.Id;
+
+        Assert.True(vm.ProjectDocker.Move(row, to));
+
+        Assert.Empty(from.Animations);
+        var moved = Assert.Single(to.Animations);
+        Assert.Equal(id, moved.Id);
+        Assert.Contains(to.Slug, moved.Path);
+    }
+
+    [AvaloniaFact]
+    public void MovingADocumentToTheProjectTakesItOutOfEveryCharacter()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        var project = vm.ProjectDocker.Project!;
+        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+
+        Assert.True(vm.ProjectDocker.Move(row, null));
+
+        Assert.Empty(project.Characters.SelectMany(c => c.Animations));
+        Assert.Single(project.Manifest.Documents);
+    }
+
+    [AvaloniaFact]
+    public void MovingADocumentWhereItAlreadyIsDoesNothing()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+
+        Assert.False(vm.ProjectDocker.Move(row, row.Character));
+    }
+
+    [AvaloniaFact]
+    public void AMovedDocumentSurvivesASaveAndReopen()
+    {
+        // The end-to-end claim: the manifest, the file and the reload agree.
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.ProjectDocker.AddCharacterCommand.Execute(null);
+        var to = vm.ProjectDocker.Project!.Characters.Last();
+        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+        vm.ProjectDocker.Move(row, to);
+        vm.Save();
+
+        var reopened = Vm();
+        reopened.OpenProject(_root);
+
+        var characters = reopened.ProjectDocker.Project!.Characters.ToList();
+        Assert.Empty(characters[0].Animations);
+        Assert.Single(characters[1].Animations);
+    }
+
     [AvaloniaFact]
     public void RenamingARowWritesThrough()
     {
