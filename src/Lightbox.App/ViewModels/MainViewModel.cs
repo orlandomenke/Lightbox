@@ -135,7 +135,15 @@ public sealed partial class MainViewModel : ObservableObject
         ActiveLayer is { } layer && (!Scene.IsLayerVisible(layer) || !Scene.IsLayerEditable(layer));
 
     /// <summary>Frame times measured on the render thread.</summary>
-    public void RecordFrameTime(double milliseconds) => Performance.RecordFrame(milliseconds);
+    /// <remarks>
+    /// The one place a frame cost arrives, so it is also where the app notices
+    /// the canvas is not keeping up. See <see cref="ConsiderCanvasRelief"/>.
+    /// </remarks>
+    public void RecordFrameTime(double milliseconds)
+    {
+        Performance.RecordFrame(milliseconds);
+        ConsiderCanvasRelief();
+    }
 
     // ---- brush cursor ----------------------------------------------------------
 
@@ -7336,11 +7344,71 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (Rendering.CanvasControl.SoftwareRendering is not true) return;
         RefreshDocumentStats();
-        if (Settings.CanvasQualityChosen || CanvasQuality != CanvasQuality.Display) return;
-        CanvasQuality = CanvasQuality.Half;
+        if (!TurnTheCanvasQualityDown()) return;
         AiStatus =
             "No GPU here, so the canvas is being drawn in software — quality lowered to Half "
             + "while you work. Exports are unaffected. Edit ▸ Configure ▸ Performance changes it.";
+    }
+
+    /// <summary>
+    /// The one lever, pulled once, and never over the artist.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the two things that can decide the canvas needs help — the
+    /// backend coming back as software, and the measurement saying so — because
+    /// the conditions under which it is allowed to happen at all are the same
+    /// and must not drift apart.
+    /// </remarks>
+    private bool TurnTheCanvasQualityDown()
+    {
+        // Two rules, and between them they also carry "only once": the first
+        // pull leaves the quality at Half, which is no longer the default.
+        if (Settings.CanvasQualityChosen || CanvasQuality != CanvasQuality.Display) return false;
+        CanvasQuality = CanvasQuality.Half;
+        return true;
+    }
+
+    /// <summary>
+    /// Turn the quality down when the canvas is <em>measurably</em> not keeping
+    /// up, whatever the graphics backend says.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The software-rendering path above acts on a well-founded guess: no GPU
+    /// context means presenting the frame will dominate, and that is true
+    /// before a single frame has been measured. What it cannot do is help the
+    /// machine that <em>has</em> a GPU and is still too slow — an integrated
+    /// chip on a 4K canvas with a dozen onion ghosts is slower than a software
+    /// rasteriser on a sprite sheet, and it was getting a label saying
+    /// everything was fine.
+    /// </para>
+    /// <para>
+    /// So the backend is an input rather than the trigger. Software renderers
+    /// get help at the first sign of trouble because there is no other lever on
+    /// those machines; a GPU has to be visibly struggling first, since the more
+    /// likely fix there is something about the document and the advice already
+    /// names it.
+    /// </para>
+    /// <para>
+    /// Once per session, only over a default, and announced — the same three
+    /// rules the backend path follows. A canvas that silently got softer is a
+    /// bug report.
+    /// </para>
+    /// </remarks>
+    public void ConsiderCanvasRelief()
+    {
+        if (Settings.CanvasQualityChosen || CanvasQuality != CanvasQuality.Display) return;
+        if (!Performance.HasSettled) return;
+
+        var software = Rendering.CanvasControl.SoftwareRendering is true;
+        var threshold = software ? 40 : 20;
+        if (Performance.HeadroomPercent > threshold) return;
+        if (!TurnTheCanvasQualityDown()) return;
+
+        AiStatus =
+            $"The canvas is taking {Performance.FrameMs:0} ms a frame to show, so quality has been "
+            + "lowered to Half while you work. The drawing, exports and thumbnails are unaffected. "
+            + "Edit ▸ Configure ▸ Performance changes it.";
     }
 
     /// <summary>Undo steps kept. Deltas are cheap; snapshots hold a whole document each.</summary>

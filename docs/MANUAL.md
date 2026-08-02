@@ -27,9 +27,10 @@ button is in the build.
 10. [Camera](#10-camera)
 11. [AI assistance](#11-ai-assistance)
 12. [Saving, exporting and recovery](#12-saving-exporting-and-recovery)
-13. [Keyboard](#13-keyboard)
-14. [Working with an agent (MCP)](#14-working-with-an-agent-mcp)
-15. [Planned](#15-planned)
+13. [When the canvas feels slow](#13-when-the-canvas-feels-slow)
+14. [Keyboard](#14-keyboard)
+15. [Working with an agent (MCP)](#15-working-with-an-agent-mcp)
+16. [Planned](#16-planned)
 
 ---
 
@@ -919,7 +920,47 @@ opened takes away the ability to close without saving.
 
 ---
 
-## 13. Keyboard
+## 13. When the canvas feels slow
+
+The info strip along the bottom reports what the app is actually doing:
+how much memory the rendered frames are using, and whether the canvas is being
+put on screen by the **GPU** or by the **CPU (software)**.
+
+Software means no graphics context was available — usually an out-of-date
+driver, a virtual machine, or a remote desktop session. It is not a small
+difference. Showing the canvas means rescaling the whole document for every
+frame, and in software that becomes the most expensive thing the app does,
+outweighing the drawing itself.
+
+**Canvas quality** is the lever, in **Edit → Configure → Performance**:
+
+| | |
+| --- | --- |
+| **Display** | Matches the screen — full detail zoomed in, less zoomed out. The default. |
+| **Full** | Always the document's own resolution. Sharpest, slowest. |
+| **Half** | Half of what the screen shows. Softer while you work, fastest. |
+
+It only changes what you see while working. **The drawing, the exports and the
+thumbnails are always full resolution**, whatever this is set to.
+
+### When the app changes it for you
+
+If the canvas cannot keep up, Lightbox turns the quality down to Half once and
+says so in the status line. That happens when the graphics backend comes back
+as software, and also when the measured frame time says the canvas is
+struggling — which catches a machine that has a GPU and is still too slow, on
+a big canvas with a lot of onion skin.
+
+It will not do this if you have set a canvas quality yourself. Choosing one —
+including choosing Display, the default — settles the matter, and the app will
+not overrule it however slow the machine gets. You can change it back at any
+time in Configure, and it will stay changed.
+
+**Measured now**, at the bottom of that page, shows the current cost per
+repaint and per frame, the headroom left, and what is worth changing about the
+document if there is none.
+
+## 14. Keyboard
 
 Every shortcut is editable in **Edit → Configure…**, which is searchable.
 Shortcuts are context-aware: the same key can mean different things over the
@@ -944,7 +985,7 @@ Zoom, rotation, mirror and pan are **view-only**. They never touch the document.
 
 ---
 
-## 14. Working with an agent (MCP)
+## 15. Working with an agent (MCP)
 
 Lightbox runs an MCP server, so an agent can work the document directly: read
 the scene, add strokes and frames, request inbetweens. Everything it does goes
@@ -953,7 +994,7 @@ indistinguishable in kind from yours.
 
 ---
 
-## 15. Planned
+## 16. Planned
 
 Not built. Listed so the gap is visible rather than implied.
 

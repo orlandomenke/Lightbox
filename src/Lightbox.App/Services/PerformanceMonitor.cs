@@ -57,6 +57,18 @@ public sealed partial class PerformanceMonitor : ObservableObject
     [ObservableProperty]
     private bool _needsAttention;
 
+    /// <summary>
+    /// Whether enough has been measured for the numbers to mean anything.
+    /// </summary>
+    /// <remarks>
+    /// The first repaints of a session pay for JIT, the first surfaces and a
+    /// cold frame cache, so a headroom figure taken from three samples says
+    /// "struggling" on a machine that is fine. Anything that <em>acts</em> on
+    /// the measurement has to wait for this; anything that merely displays it
+    /// can show the number as it settles.
+    /// </remarks>
+    public bool HasSettled => _count >= 10 && _frameCount >= 10;
+
     public void RecordPublish(double milliseconds)
     {
         _samples[_next] = milliseconds;

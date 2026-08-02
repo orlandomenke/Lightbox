@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `af2a28a` · 269 files · 65245 lines · 1241 tests.
+Generated from `be28b35` · 271 files · 65615 lines · 1251 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -27,8 +27,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (7412 ln) · 2 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:3006, TransformParts:4758
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (7480 ln) · 2 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:3014, TransformParts:4766
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (2877 ln) · 6 test files
   - MainWindow:17
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2588 ln) · 5 test files
@@ -49,7 +49,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TimelineRuler:17, Handle:101
 - `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (367 ln) · 4 test files
   - ColorMode:9, ColorPickerViewModel:25
-- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (360 ln) · 60 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (360 ln) · 61 test files
   - MainViewModel:17
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` (347 ln) · 5 test files
   - StrokeOverlay:23, RenderPass:49, SceneRenderer:64
@@ -80,7 +80,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - IpcDocumentApi:15, FrameRef:86, InsertPayload:118, DrawPayload:146, ViewRef:167
 - `src/Lightbox.App/Controls/Docker.cs` (192 ln) · 1 test files
   - Docker:16
-- `src/Lightbox.App/Services/PerformanceMonitor.cs` (180 ln) · 2 indirect only
+- `src/Lightbox.App/Services/PerformanceMonitor.cs` (192 ln) · 2 indirect only
   - PerformanceMonitor:14
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 2 test files
   - CanvasOverlayBar:28
@@ -96,7 +96,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockZones:44
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (143 ln) · 1 test files
   - FrameBitmapCache:13
-- `src/Lightbox.App/ViewModels/Tools.cs` (137 ln) · 16 test files
+- `src/Lightbox.App/ViewModels/Tools.cs` (137 ln) · 17 test files
   - ToolId:4, CanvasQuality:46, TransformScope:59, TransformSampling:85, SelectVariant:98, HoldDrawing:117
 - `src/Lightbox.App/Controls/DockStrip.cs` (132 ln) · 1 test files
   - DockStrip:24

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1241 tests, derived from the suite itself. Each line is a
+1251 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -200,6 +200,20 @@ regression even when every test still compiles.
 - One Button For Play And Pause — `:305`
 - An Illustration Project Is Not Offered Transport Controls — `:320`
 - The Camera Toggle Is Absent Until There Is ACamera — `:340`
+
+## CanvasReliefTests
+`tests/Lightbox.App.Tests/CanvasReliefTests.cs`
+
+- ACanvas That Cannot Keep Up Gets Its Quality Turned Down — `:48`
+- ACanvas That Is Keeping Up Is Left Alone — `:60`
+- ASlow Start Is Not Enough To Act On — `:70`
+- ASoftware Renderer Gets Help Sooner — `:83`
+- AChosen Quality Is Never Revised — `:111`
+- Choosing The Default On Purpose Is Still AChoice — `:124`
+- It Happens Once And Then Leaves The Artist Alone — `:139`
+- It Says So — `:154`
+- It Does Not Announce ALowering That Did Not Happen — `:166`
+- The Backend Path And The Measured Path Do Not Both Fire — `:190`
 
 ## CanvasViewTests
 `tests/Lightbox.App.Tests/CanvasViewTests.cs`
@@ -1694,20 +1708,20 @@ regression even when every test still compiles.
 ## FluidLatticeTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/FluidLatticeTests.cs`
 
-- Pigment Is Conserved Across Every Channel — `:38`
-- Conservation Holds At Every Parameter Corner — `:66`
-- Deposit Never Exceeds Pigment That Was Seeded — `:86`
-- Run Zero Changes Nothing At All — `:113`
-- Two Runs Are Bit Identical — `:143`
-- Inviscid Undragged Deluge Stays Finite — `:186`
-- Extreme Parameters Do Not Produce Na N — `:221`
-- Edge Pull Concentrates Deposit Near The Wet Boundary — `:244`
-- Granularity Biases Deposit Into The Papers Valleys — `:291`
-- Paper Influence Zero Makes The Paper Irrelevant — `:335`
-- Water Spreads Beyond Where It Was Seeded — `:359`
-- Thin Wash Pins Instead Of Creeping Forever — `:375`
-- Mis Sized Buffers Are Rejected — `:410`
-- Four Hundred Square Twelve Steps Stays Within Budget — `:431`
+- Pigment Is Conserved Across Every Channel — `:39`
+- Conservation Holds At Every Parameter Corner — `:67`
+- Deposit Never Exceeds Pigment That Was Seeded — `:87`
+- Run Zero Changes Nothing At All — `:114`
+- Two Runs Are Bit Identical — `:144`
+- Inviscid Undragged Deluge Stays Finite — `:187`
+- Extreme Parameters Do Not Produce Na N — `:222`
+- Edge Pull Concentrates Deposit Near The Wet Boundary — `:245`
+- Granularity Biases Deposit Into The Papers Valleys — `:292`
+- Paper Influence Zero Makes The Paper Irrelevant — `:336`
+- Water Spreads Beyond Where It Was Seeded — `:360`
+- Thin Wash Pins Instead Of Creeping Forever — `:376`
+- Mis Sized Buffers Are Rejected — `:411`
+- Four Hundred Square Twelve Steps Stays Within Budget — `:432`
 
 ## LivePaletteTests
 `tests/Lightbox.Raster.Tests/LivePaletteTests.cs`
@@ -1748,68 +1762,68 @@ regression even when every test still compiles.
 ## PaperFieldTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/PaperFieldTests.cs`
 
-- Rebuilt Tile Is Bit Identical — `:75`
-- Fill Agrees With Height At Exactly — `:100`
-- Tile Wraps Without ASeam — `:124`
-- Height Stays In Range And Centred — `:168`
-- Tooth Depth Separates The Three Papers — `:179`
-- Rough Has The Longer Wavelength — `:194`
-- Canvas Is Directional And Cold Press Is Not — `:207`
-- Scale Sets The Wavelength — `:224`
-- Different Scales Are Different Fields — `:242`
-- Fill Rejects AToo Small Destination — `:252`
-- Fill Is Fast Enough For AFull Frame — `:260`
+- Rebuilt Tile Is Bit Identical — `:76`
+- Fill Agrees With Height At Exactly — `:101`
+- Tile Wraps Without ASeam — `:125`
+- Height Stays In Range And Centred — `:169`
+- Tooth Depth Separates The Three Papers — `:180`
+- Rough Has The Longer Wavelength — `:195`
+- Canvas Is Directional And Cold Press Is Not — `:208`
+- Scale Sets The Wavelength — `:225`
+- Different Scales Are Different Fields — `:243`
+- Fill Rejects AToo Small Destination — `:253`
+- Fill Is Fast Enough For AFull Frame — `:261`
 - Fill Cost Follows The Region Not The Canvas — `:292`
 
 ## PerformanceTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/PerformanceTests.cs`
 
-- Live Preview Effect Brush Segment Is Bounded To The Segment — `:54`
-- Live Preview Plain Brush Segment Stays Cheap — `:72`
-- Stroke Commit Exact Append Is Independent Of Frame Complexity — `:82`
-- Live Preview Large Brush Segment Stays Interactive — `:95`
-- Flood Fill Full Canvas Region Meets Budget — `:108`
-- Flood Fill Inside Region With Hole Meets Budget — `:124`
+- Live Preview Effect Brush Segment Is Bounded To The Segment — `:42`
+- Live Preview Plain Brush Segment Stays Cheap — `:60`
+- Stroke Commit Exact Append Is Independent Of Frame Complexity — `:70`
+- Live Preview Large Brush Segment Stays Interactive — `:83`
+- Flood Fill Full Canvas Region Meets Budget — `:96`
+- Flood Fill Inside Region With Hole Meets Budget — `:112`
 
 ## PigmentModelTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/PigmentModelTests.cs`
 
-- Over Zero Thickness Returns Backdrop Bit For Bit — `:34`
-- Over Zero Thickness Changes Nothing At All — `:51`
-- Over Laying Paint Down Adds Opacity — `:59`
-- Over Fully Hiding Converges To Mass Tone Whatever Is Underneath — `:92`
-- Over Fully Hiding Is Independent Of Backdrop To The Bit — `:108`
-- Over No Scattering Is Beer Lambert — `:116`
-- Over No Absorption Is Pure Scattering — `:140`
-- Over No Pigment At All Leaves The Backdrop Alone — `:160`
-- Over Denormal Thickness Does Not Produce Garbage — `:169`
-- Over Extreme Inputs Stay In Gamut — `:182`
-- Yellow Glaze Over Blue Is Greener Than Every Possible Alpha Blend — `:212`
-- Yellow Glaze Over Blue Is More Saturated Than Alpha Blending — `:256`
-- Yellow Glaze Over Blue Darkens Rather Than Averaging — `:276`
-- Yellow Glaze Over Pure Blue Goes Black And Says So Honestly — `:286`
-- Over Thicker Glaze Moves Monotonically Away From The Backdrop — `:306`
-- Coverage Rises With Hiding And With Thickness — `:320`
-- From Color Hiding Dial Closes On The Chosen Colour Monotonically — `:338`
-- From Color White With No Hiding Is Invisible — `:360`
-- Mix At The Ends Reproduces The Inputs Exactly — `:371`
-- Mix Is Continuous — `:386`
-- Mix Is Clamped And Symmetric In Its Endpoints — `:429`
-- Mix Yellow And Blue Makes Green — `:439`
-- Over Is Deterministic — `:459`
-- From Coefficients And From Color Agree When They Describe The Same Film — `:482`
-- Srgb Conversion Round Trips Every Single Level — `:492`
-- Srgb Conversion Is The Real Transfer Function Not AGamma Guess — `:499`
-- Srgb Conversion Is Monotonic — `:514`
-- Over Works In Linear Light Not On Encoded Values — `:534`
-- Over Costs Under AMicrosecond Per Pixel — `:548`
+- Over Zero Thickness Returns Backdrop Bit For Bit — `:35`
+- Over Zero Thickness Changes Nothing At All — `:52`
+- Over Laying Paint Down Adds Opacity — `:60`
+- Over Fully Hiding Converges To Mass Tone Whatever Is Underneath — `:93`
+- Over Fully Hiding Is Independent Of Backdrop To The Bit — `:109`
+- Over No Scattering Is Beer Lambert — `:117`
+- Over No Absorption Is Pure Scattering — `:141`
+- Over No Pigment At All Leaves The Backdrop Alone — `:161`
+- Over Denormal Thickness Does Not Produce Garbage — `:170`
+- Over Extreme Inputs Stay In Gamut — `:183`
+- Yellow Glaze Over Blue Is Greener Than Every Possible Alpha Blend — `:213`
+- Yellow Glaze Over Blue Is More Saturated Than Alpha Blending — `:257`
+- Yellow Glaze Over Blue Darkens Rather Than Averaging — `:277`
+- Yellow Glaze Over Pure Blue Goes Black And Says So Honestly — `:287`
+- Over Thicker Glaze Moves Monotonically Away From The Backdrop — `:307`
+- Coverage Rises With Hiding And With Thickness — `:321`
+- From Color Hiding Dial Closes On The Chosen Colour Monotonically — `:339`
+- From Color White With No Hiding Is Invisible — `:361`
+- Mix At The Ends Reproduces The Inputs Exactly — `:372`
+- Mix Is Continuous — `:387`
+- Mix Is Clamped And Symmetric In Its Endpoints — `:430`
+- Mix Yellow And Blue Makes Green — `:440`
+- Over Is Deterministic — `:460`
+- From Coefficients And From Color Agree When They Describe The Same Film — `:483`
+- Srgb Conversion Round Trips Every Single Level — `:493`
+- Srgb Conversion Is The Real Transfer Function Not AGamma Guess — `:500`
+- Srgb Conversion Is Monotonic — `:515`
+- Over Works In Linear Light Not On Encoded Values — `:535`
+- Over Costs Under AMicrosecond Per Pixel — `:549`
 
 ## PostProcessDabsTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/PostProcessDabsTests.cs`
 
-- Post Processing Pre Stamped Dabs Matches Rendering From Scratch — `:100`
-- AStroke That Reaches Nothing Reports No Bounds — `:121`
-- The Cost Of APass Does Not Grow With The Length Of The Stroke — `:132`
+- Post Processing Pre Stamped Dabs Matches Rendering From Scratch — `:101`
+- AStroke That Reaches Nothing Reports No Bounds — `:122`
+- The Cost Of APass Does Not Grow With The Length Of The Stroke — `:133`
 
 ## PressureTests
 `tests/Lightbox.Raster.Tests/PressureTests.cs`
@@ -1882,14 +1896,14 @@ regression even when every test still compiles.
 ## SmudgeFirstDabTests
 `tests/Lightbox.Raster.Tests/TexturedBrushTests.cs`
 
-- ASingle Tap On ABoundary Softens It Rather Than Doing Nothing — `:193`
-- ATap On Flat Colour Changes Nothing — `:213`
-- Smudge Never Deposits The Brush Colour — `:227`
+- ASingle Tap On ABoundary Softens It Rather Than Doing Nothing — `:183`
+- ATap On Flat Colour Changes Nothing — `:203`
+- Smudge Never Deposits The Brush Colour — `:217`
 
 ## TexturedBrushTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/TexturedBrushTests.cs`
 
-- Wet Edge Darkens The Outline Not The Interior — `:47`
-- Granulation Is Deterministic And Anchored To The Document — `:81`
-- Paper Texture Commit Does Not Stall The Pen — `:100`
-- Textured Stroke Commit Does Not Stall The Pen — `:131`
+- Wet Edge Darkens The Outline Not The Interior — `:48`
+- Granulation Is Deterministic And Anchored To The Document — `:82`
+- Paper Texture Commit Does Not Stall The Pen — `:101`
+- Textured Stroke Commit Does Not Stall The Pen — `:121`
