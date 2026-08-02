@@ -139,6 +139,7 @@
       </MenuItem>
       <MenuItem Header="_Edit">
         <MenuItem Header="_Configure…" Click="OnConfigureClicked" />
+        <MenuItem Header="Brush _tips…" Click="OnBrushTipsClicked" />
         <Separator />
         <!-- Autosave. Zero is a real answer, not a mistake — someone working
              on a network drive may well want it off. -->

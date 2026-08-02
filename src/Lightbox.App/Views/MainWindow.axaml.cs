@@ -2131,6 +2131,14 @@ public partial class MainWindow : Window
     private async void OnConfigureClicked(object? sender, RoutedEventArgs e) =>
         await new ConfigureWindow(_shortcuts, _vm).ShowDialog(this);
 
+    /// <summary>
+    /// The tip workshop. A window rather than a docker because making a tip is
+    /// not something you do mid-stroke, and a panel for it would cost layout
+    /// space in every session that never opens one.
+    /// </summary>
+    private async void OnBrushTipsClicked(object? sender, RoutedEventArgs e) =>
+        await new BrushTipsWindow(_vm).ShowDialog(this);
+
     // ---- transform session (window side) --------------------------------------
 
     /// <summary>Read the gizmo and commit through the matching VM path.</summary>

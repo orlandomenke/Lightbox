@@ -248,4 +248,17 @@ public sealed class ProjectManifest
     /// </para>
     /// </remarks>
     public Documents.BrushSettings? Brush { get; set; }
+
+    /// <summary>
+    /// Brush tips shared by everything in the project. Null and absent from
+    /// the file for a project that never made one.
+    /// </summary>
+    /// <remarks>
+    /// Beside <see cref="Palettes"/> and <see cref="Brush"/>, and for the same
+    /// reason: a tip is part of how a project looks, and the next animation
+    /// under this character should start with the brushes the last one used.
+    /// The raster still travels into each document that paints with it — this
+    /// is a library to choose from, not what a drawing renders out of.
+    /// </remarks>
+    public List<Documents.BrushTip>? Tips { get; set; }
 }

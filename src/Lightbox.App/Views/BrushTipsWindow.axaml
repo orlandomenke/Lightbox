@@ -1,0 +1,181 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:Lightbox.App.Views"
+        x:Class="Lightbox.App.Views.BrushTipsWindow"
+        Title="Brush tips"
+        Width="760" Height="560"
+        WindowStartupLocation="CenterOwner">
+
+  <Grid ColumnDefinitions="150,1,*">
+
+    <!-- Sources (left), the same shape the Configure window uses -->
+    <ListBox x:Name="CategoryList" Grid.Column="0" SelectedIndex="0" Background="#1c1c1c"
+             SelectionChanged="OnCategoryChanged">
+      <ListBoxItem Content="Library" />
+      <ListBoxItem Content="Generate" />
+      <ListBoxItem Content="From a scan" />
+    </ListBox>
+
+    <Border Grid.Column="1" Background="#141414" />
+
+    <!-- Library -->
+    <DockPanel x:Name="LibraryPage" Grid.Column="2" Margin="10">
+      <TextBlock DockPanel.Dock="Top" Text="Tips you have made. Painting with one copies it into the drawing, so the file keeps rendering without the library."
+                 TextWrapping="Wrap" Opacity="0.7" Margin="0,0,0,8" />
+
+      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0"
+                  HorizontalAlignment="Right">
+        <Button x:Name="PromoteButton" Content="Move to project" Click="OnPromote"
+                ToolTip.Tip="Share this tip with every document in the project" />
+        <TextBox x:Name="NameBox" Width="180" Watermark="Name" IsEnabled="False"
+                 TextChanged="OnRenamed" />
+        <Button x:Name="DeleteButton" Content="Delete" Click="OnDelete" />
+      </StackPanel>
+
+      <TextBlock x:Name="EmptyLibrary" DockPanel.Dock="Top"
+                 Text="Nothing here yet. Generate a shape, or bring in a scan."
+                 Opacity="0.5" Margin="0,20,0,0" HorizontalAlignment="Center" IsVisible="False" />
+
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ListBox x:Name="TipList" SelectionChanged="OnTipSelected" Background="Transparent">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="views:TipRow">
+              <DockPanel Margin="0,2">
+                <Border DockPanel.Dock="Left" Width="52" Height="52" Background="#242424"
+                        CornerRadius="3" Margin="0,0,10,0">
+                  <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="2" />
+                </Border>
+                <StackPanel VerticalAlignment="Center" Spacing="2">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Detail}" Opacity="0.6" FontSize="11" />
+                </StackPanel>
+              </DockPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </ScrollViewer>
+    </DockPanel>
+
+    <!-- Generate -->
+    <DockPanel x:Name="GeneratePage" Grid.Column="2" Margin="10" IsVisible="False">
+      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0"
+                  HorizontalAlignment="Right">
+        <TextBox x:Name="GenerateName" Width="180" Watermark="Name" Text="Soft round" />
+        <Button Content="Add to library" Click="OnGenerate" />
+      </StackPanel>
+
+      <Grid ColumnDefinitions="*,12,180">
+        <StackPanel Grid.Column="0" Spacing="6">
+          <TextBlock Text="Shape" Opacity="0.7" />
+          <ComboBox x:Name="ShapeBox" SelectedIndex="1" HorizontalAlignment="Stretch"
+                    SelectionChanged="OnRecipeChanged">
+            <ComboBoxItem Content="Hard circle" />
+            <ComboBoxItem Content="Soft circle" />
+            <ComboBoxItem Content="Ring" />
+            <ComboBoxItem Content="Chisel" />
+            <ComboBoxItem Content="Hatch" />
+          </ComboBox>
+
+          <TextBlock Text="Baked size" Opacity="0.7" Margin="0,6,0,0" />
+          <ComboBox x:Name="SizeBox" SelectedIndex="1" HorizontalAlignment="Stretch"
+                    SelectionChanged="OnRecipeChanged">
+            <ComboBoxItem Content="128" />
+            <ComboBoxItem Content="256" />
+            <ComboBoxItem Content="512" />
+            <ComboBoxItem Content="1024" />
+          </ComboBox>
+
+          <StackPanel x:Name="HardnessRow" Spacing="2" Margin="0,6,0,0">
+            <TextBlock x:Name="HardnessLabel" Text="Hardness" Opacity="0.7" />
+            <Slider x:Name="HardnessSlider" Minimum="0" Maximum="1" Value="0.5"
+                    ValueChanged="OnRecipeChanged" />
+          </StackPanel>
+
+          <StackPanel x:Name="InnerRow" Spacing="2" IsVisible="False">
+            <TextBlock Text="Inner radius" Opacity="0.7" />
+            <Slider x:Name="InnerSlider" Minimum="0" Maximum="0.95" Value="0.7"
+                    ValueChanged="OnRecipeChanged" />
+          </StackPanel>
+
+          <StackPanel x:Name="RoundnessRow" Spacing="2" IsVisible="False">
+            <TextBlock Text="Flatness" Opacity="0.7" />
+            <Slider x:Name="RoundnessSlider" Minimum="0.02" Maximum="1" Value="0.25"
+                    ValueChanged="OnRecipeChanged" />
+          </StackPanel>
+
+          <StackPanel x:Name="HatchRows" Spacing="2" IsVisible="False">
+            <TextBlock Text="Rule spacing" Opacity="0.7" />
+            <Slider x:Name="SpacingSlider" Minimum="3" Maximum="64" Value="16"
+                    ValueChanged="OnRecipeChanged" />
+            <TextBlock Text="Rule width" Opacity="0.7" />
+            <Slider x:Name="LineWidthSlider" Minimum="1" Maximum="24" Value="3"
+                    ValueChanged="OnRecipeChanged" />
+            <CheckBox x:Name="CrossedBox" Content="Cross-hatch" Click="OnRecipeChanged" />
+          </StackPanel>
+
+          <TextBlock Text="Angle" Opacity="0.7" Margin="0,6,0,0" />
+          <Slider x:Name="AngleSlider" Minimum="0" Maximum="180" Value="0"
+                  ValueChanged="OnRecipeChanged" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Spacing="6">
+          <TextBlock Text="Preview" Opacity="0.7" />
+          <Border Width="180" Height="180" Background="#242424" CornerRadius="3">
+            <Image x:Name="GeneratePreview" Stretch="Uniform" Margin="4" />
+          </Border>
+          <TextBlock Text="Baked once when you add it. Nothing here is computed while you draw."
+                     TextWrapping="Wrap" Opacity="0.5" FontSize="11" />
+        </StackPanel>
+      </Grid>
+    </DockPanel>
+
+    <!-- From a scan -->
+    <DockPanel x:Name="ScanPage" Grid.Column="2" Margin="10" IsVisible="False">
+      <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Opacity="0.7" Margin="0,0,0,8"
+                 Text="Ink on white paper, scanned flat at 600 DPI or better. Load a batch and one set of levels is applied to all of them — a series that will be blended has to match exactly." />
+
+      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0"
+                  HorizontalAlignment="Right">
+        <Button Content="Choose images…" Click="OnChooseImages" />
+        <Button x:Name="ScanAddButton" Content="Add to library" Click="OnAddScans" IsEnabled="False" />
+      </StackPanel>
+
+      <Border x:Name="ScanWarning" DockPanel.Dock="Bottom" Background="#4a3320" CornerRadius="4"
+              Padding="10,8" Margin="0,8,0,0" IsVisible="False">
+        <TextBlock x:Name="ScanWarningText" TextWrapping="Wrap" />
+      </Border>
+
+      <Grid ColumnDefinitions="*,12,180">
+        <StackPanel Grid.Column="0" Spacing="6">
+          <TextBlock x:Name="ScanCount" Text="No images loaded." Opacity="0.6" />
+
+          <TextBlock Text="Black point" Opacity="0.7" Margin="0,6,0,0" />
+          <Slider x:Name="BlackSlider" Minimum="0" Maximum="1" Value="0.15" ValueChanged="OnScanChanged" />
+          <TextBlock Text="White point" Opacity="0.7" />
+          <Slider x:Name="WhiteSlider" Minimum="0" Maximum="1" Value="0.85" ValueChanged="OnScanChanged" />
+
+          <CheckBox x:Name="InvertBox" Content="Dark ink on light paper" IsChecked="True"
+                    Click="OnScanChanged" Margin="0,6,0,0" />
+          <CheckBox x:Name="CentreBox" Content="Centre on the mark, not the page" IsChecked="True"
+                    Click="OnScanChanged" />
+
+          <TextBlock Text="Baked size" Opacity="0.7" Margin="0,6,0,0" />
+          <ComboBox x:Name="ScanSizeBox" SelectedIndex="1" HorizontalAlignment="Stretch"
+                    SelectionChanged="OnScanChanged">
+            <ComboBoxItem Content="256" />
+            <ComboBoxItem Content="512" />
+            <ComboBoxItem Content="1024" />
+            <ComboBoxItem Content="2048" />
+          </ComboBox>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Spacing="6">
+          <TextBlock Text="Preview" Opacity="0.7" />
+          <Border Width="180" Height="180" Background="#242424" CornerRadius="3">
+            <Image x:Name="ScanPreview" Stretch="Uniform" Margin="4" />
+          </Border>
+        </StackPanel>
+      </Grid>
+    </DockPanel>
+  </Grid>
+</Window>

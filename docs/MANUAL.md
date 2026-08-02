@@ -364,6 +364,29 @@ simply the mark you drew. How strong the paint is comes from **pigment
 density** — a watercolour is meant to be transparent, so raise that rather than
 the flow if you want a darker wash.
 
+### Brush tips
+
+**Edit ▸ Brush tips…** opens the tip workshop — its own window, like Configure,
+because making a brush is not something you do mid-stroke.
+
+Three pages. **Library** is what you have: your own tips, and the project's
+above them when a project is open. **Generate** bakes a shape — hard or soft
+circle, ring, chisel, hatch — with only the controls that shape actually reads.
+**From a scan** turns a photographed or scanned stamp into a tip: set the black
+and white points once and they apply to every image in the batch, which matters
+because a series that will be blended has to match exactly.
+
+A tip is baked once and then only looked up. Nothing in this window is
+recomputed while you draw.
+
+Two things worth knowing:
+
+- **Painting with a tip copies it into the drawing.** Deleting it from the
+  library afterwards cannot change a picture you have already made.
+- **A scan whose mark runs off the crop is refused, not fixed.** A tip like
+  that stamps a faint box down every stroke. Re-crop with clear paper all the
+  way round.
+
 ### Fast brushes and expressive ones
 
 Brushes come in two kinds, and the picker tells them apart:

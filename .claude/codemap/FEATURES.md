@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1404 tests, derived from the suite itself. Each line is a
+1440 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1223,6 +1223,27 @@ regression even when every test still compiles.
 - Master Switch Writes Into The Stroke Record — `:127`
 - Per Setting Checkboxes Map To The Response Curves — `:141`
 
+## BrushTipsWindowTests
+`tests/Lightbox.App.Tests/TipLibraryTests.cs`
+
+- Generating ATip Puts It In The Library As Pixels — `:168`
+- Only The Controls The Shape Actually Reads Are Shown — `:186`
+- An Empty Library Says So Rather Than Showing Nothing — `:206`
+- The Library Lists What Is In The Store — `:219`
+- The Preview Bakes Small However Big The Output Is — `:238`
+
+## TipLibraryTests
+`tests/Lightbox.App.Tests/TipLibraryTests.cs`
+
+- ALibrary Round Trips — `:30`
+- ACorrupt Library Is Empty Rather Than Fatal — `:44`
+- AProject Tip Comes Before AUser Tip — `:54`
+- With No Project The Library Is Just The Users Own — `:69`
+- Painting With ALibrary Tip Copies It Into The Drawing — `:81`
+- Deleting From The Library Cannot Change ADrawing — `:94`
+- AProject That Never Made ATip Writes No Tips Key — `:110`
+- AProject Tip Survives Save And Reload — `:131`
+
 ## ToolBarAlignmentTests
 `tests/Lightbox.App.Tests/ToolBarAlignmentTests.cs`
 
@@ -2124,3 +2145,34 @@ regression even when every test still compiles.
 - Granulation Is Deterministic And Anchored To The Document — `:82`
 - Paper Texture Commit Does Not Stall The Pen — `:101`
 - Textured Stroke Commit Does Not Stall The Pen — `:121`
+
+## TipFromImageTests
+`tests/Lightbox.Raster.Tests/TipFromImageTests.cs`
+
+- Ink Becomes The Shape And Paper Becomes Nothing — `:42`
+- AMark Touching The Crop Is Rejected Rather Than Faded — `:57`
+- AGood Crop Is Still Feathered At The Border — `:73`
+- The Crop Follows The Mark Rather Than The Page — `:93`
+- Levels Decide What Counts As Paper — `:116`
+- AMask That Is Already White On Black Is Not Inverted Again — `:137`
+- One Set Of Levels Applied To ABatch Gives Matching Tips — `:148`
+- The Pivot Starts At The Inks Own Centre — `:166`
+- ACollapsed Level Range Is Clamped Rather Than Dividing By Zero — `:181`
+
+## TipGeneratorTests
+`tests/Lightbox.Raster.Tests/TipGeneratorTests.cs`
+
+- AGenerated Edge Is Coverage Not AStaircase — `:24`
+- AHard Circle Is Round And Centred — `:42`
+- Hardness Decides How Far The Core Reaches — `:63`
+- ASoft Tip Fades Without ACrease — `:79`
+- ARing Is Hollow — `:105`
+- AChisel Is Flat Across Its Short Axis — `:118`
+- Angle Is Baked Into The Shape — `:130`
+- Hatch Rules Are Drawn As Width Not As Single Pixels — `:145`
+- AHatch Stays Inside The Round Footprint — `:168`
+- Cross Hatch Rules Both Ways — `:182`
+- ABaked Tip Carries Its Shape In Alpha — `:197`
+- The Same Recipe Bakes The Same Tip Every Time — `:211`
+- ARecipe Is Provenance And Travels With The Tip — `:227`
+- An Absurd Size Is Clamped Rather Than Allocated — `:243`
