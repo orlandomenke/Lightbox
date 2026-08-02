@@ -10,7 +10,8 @@ public sealed record InbetweenRequest(
     IReadOnlyList<Stroke> KeyframeA,
     IReadOnlyList<Stroke> KeyframeB,
     IReadOnlyList<double> Ts,
-    Easing Easing);
+    Easing Easing,
+    IReadOnlyList<string>? ReferenceImages = null);
 
 /// <summary>One generated inbetween: its timing parameter and its strokes.</summary>
 public sealed record InbetweenFrameResult(double T, List<Stroke> Strokes);
@@ -18,7 +19,8 @@ public sealed record InbetweenFrameResult(double T, List<Stroke> Strokes);
 public sealed record DrawRequest(
     SceneInfo Scene,
     string Prompt,
-    IReadOnlyList<Stroke> ExistingStrokes);
+    IReadOnlyList<Stroke> ExistingStrokes,
+    IReadOnlyList<string>? ReferenceImages = null);
 
 /// <summary>
 /// The AI drawing counterpart of the deterministic engines. Implementations

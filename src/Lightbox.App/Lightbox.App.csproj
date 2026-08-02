@@ -1,13 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Lightbox.App.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Lightbox.Core\Lightbox.Core.csproj" />
     <ProjectReference Include="..\Lightbox.Raster\Lightbox.Raster.csproj" />
     <ProjectReference Include="..\Lightbox.Ai\Lightbox.Ai.csproj" />
+    <ProjectReference Include="..\Lightbox.Import\Lightbox.Import.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Controls.ColorPicker" Version="12.1.1" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />

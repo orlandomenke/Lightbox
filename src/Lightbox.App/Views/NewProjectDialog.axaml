@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.NewProjectDialog"
+        Title="New project"
+        Width="440" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <StackPanel Margin="16" Spacing="10">
+
+    <DockPanel>
+      <TextBlock Text="Name" Width="110" VerticalAlignment="Center" />
+      <TextBox x:Name="NameBox" Text="Project" />
+    </DockPanel>
+
+    <!--
+      The project's type. Recorded on the manifest and absent unless chosen —
+      the same discipline the camera and the pivot follow, so a project that
+      never declares one writes no type key at all.
+    -->
+    <DockPanel>
+      <TextBlock Text="Type" Width="110" VerticalAlignment="Center" />
+      <ComboBox x:Name="TypeBox" HorizontalAlignment="Stretch"
+                ToolTip.Tip="What this project is for. Tooling and export adapt to it; it can be left unset." />
+    </DockPanel>
+
+    <DockPanel>
+      <TextBlock Text="Panels" Width="110" VerticalAlignment="Center" />
+      <ComboBox x:Name="WorkspaceBox" HorizontalAlignment="Stretch"
+                ToolTip.Tip="Keep the arrangement you are working in, or take this type's defaults" />
+    </DockPanel>
+
+    <TextBlock FontSize="11" Opacity="0.6" Margin="110,0,0,0" TextWrapping="Wrap"
+               Text="Workspaces are saved globally, not in the project — this only chooses which one to start in." />
+
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+      <Button Content="Create" IsDefault="True" Click="OnCreateClicked" MinWidth="80" />
+      <Button Content="Cancel" IsCancel="True" Click="OnCancelClicked" MinWidth="80" />
+    </StackPanel>
+
+  </StackPanel>
+</Window>

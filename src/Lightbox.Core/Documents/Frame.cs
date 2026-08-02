@@ -1,12 +1,26 @@
 namespace Lightbox.Core.Documents;
 
 /// <summary>
+/// The animator's classification of a drawing — key pose, breakdown, or
+/// inbetween. Purely a marker (colors the timeline cell); it never changes
+/// how the frame renders.
+/// </summary>
+public enum FrameRole
+{
+    Key,
+    Breakdown,
+    Inbetween,
+}
+
+/// <summary>
 /// Base of the frame hierarchy. Serialized polymorphically with a "kind"
 /// discriminator ("vector" | "painted") — see Serialization/FrameConverter.
 /// </summary>
 public abstract class Frame
 {
     public string Id { get; set; } = Ids.NewId("f");
+
+    public FrameRole Role { get; set; } = FrameRole.Key;
 }
 
 /// <summary>A frame on a vector layer: strokes are the artwork.</summary>

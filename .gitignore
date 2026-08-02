@@ -1,5 +1,12 @@
 bin/
 obj/
 *.user
-.vs/
-.idea/
+
+# Generated index: the markdown views are committed because their diffs show
+# behaviour changing; the JSON graph and the staleness stamp regenerate in
+# about a second and would otherwise churn in every commit.
+.claude/codemap/map.json
+.claude/codemap/.stamp
+
+# Workflow agents get their own git worktrees under here.
+.claude/worktrees/

@@ -1,0 +1,155 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Lightbox.App.Controls">
+  <!--
+    The density scale from .claude/quality/DESIGN.md, in one place.
+
+    Chrome is measured against the canvas it takes from: a drawing app spends
+    every pixel of panel on something that is not the work. These styles are
+    what stop each view inventing its own height — a control that sets its own
+    size is how a panel drifts away from the ones beside it.
+
+    Set here, not per view. If a control needs to break the scale it says why
+    in a comment at the site.
+  -->
+
+  <!-- Numeric fields: no spinner arrows anywhere.
+
+       The up/down buttons cost ~20px of width and a couple of height, and no
+       one uses them — a value is typed, or dragged on the slider beside it.
+       Removing them keeps the parsing, clamping and formatting NumericUpDown
+       exists for, and loses only the part that was in the way. -->
+  <Style Selector="NumericUpDown">
+    <Setter Property="ShowButtonSpinner" Value="False" />
+    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="Height" Value="22" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <!-- Every numeric field scrubs: press and drag sideways. Set here so it
+         is true of all of them rather than the ones somebody remembered. -->
+    <Setter Property="controls:ValueDrag.Enabled" Value="True" />
+  </Style>
+  <Style Selector="NumericUpDown /template/ TextBox">
+    <Setter Property="Padding" Value="4,0" />
+    <Setter Property="MinHeight" Value="20" />
+  </Style>
+
+  <Style Selector="TextBox">
+    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="Padding" Value="6,2" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Padding" Value="6,0" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- The default for every button: one height, one padding, one font size.
+       Deliberately NO MinWidth here — timeline cels and the stacked reorder
+       arrows are buttons too, and a global minimum width would wreck both. -->
+  <Style Selector="Button">
+    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Text buttons that sit in a row together. MinWidth is what makes
+       "Import…" and "Export…" line up instead of each hugging its own label,
+       which is the single most common way a bar here looked unfinished. -->
+  <Style Selector="Button.text">
+    <Setter Property="MinWidth" Value="70" />
+    <Setter Property="Height" Value="24" />
+  </Style>
+
+  <!-- Icon buttons: square, tight, and all the same. Opt in with Classes="icon". -->
+  <Style Selector="Button.icon">
+    <Setter Property="MinWidth" Value="24" />
+    <Setter Property="MaxWidth" Value="24" />
+    <Setter Property="Width" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="ToggleButton">
+    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ToggleButton.icon">
+    <Setter Property="MinWidth" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="CheckBox">
+    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+
+  <!--
+    Sliders keep a generous TRACK — they are dragged mid-stroke, often without
+    looking, and a thin track is a missed grab — but not a generous thumb. The
+    default Fluent thumb is sized for touch, and at this density it is the
+    single loudest thing in a tool bar full of quiet ones.
+  -->
+  <Style Selector="Slider">
+    <Setter Property="MinHeight" Value="22" />
+    <!--
+      Centre the slider against the label beside it.
+
+      Fluent's slider template reserves room above and below the track for a
+      tick strip nothing here uses, so the track sat high in the space the
+      control was given and read as misaligned next to a centred label. It was.
+    -->
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="Slider:horizontal /template/ Grid#SliderContainer">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="0" />
+  </Style>
+  <Style Selector="Slider:horizontal /template/ Track">
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Slider:horizontal /template/ Thumb">
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+  </Style>
+  <Style Selector="Slider:vertical /template/ Thumb">
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+  </Style>
+
+  <!--
+    A ComboBox declares Height, which in Avalonia stretches the control but
+    leaves its own content wherever the template put it — top, in this theme.
+    Beside a row of centred buttons that reads as a misalignment, and it is.
+  -->
+  <Style Selector="ComboBox">
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ComboBox /template/ ContentControl#ContentPresenter">
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ComboBox /template/ ContentPresenter">
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- Tool buttons are hit while drawing; they keep the larger target. -->
+  <Style Selector="ToggleButton.tool">
+    <Setter Property="MinHeight" Value="30" />
+    <Setter Property="Padding" Value="6,4" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+</Styles>

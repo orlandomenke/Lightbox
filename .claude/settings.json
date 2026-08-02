@@ -1,0 +1,38 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && ((python3 scripts/codemap.py stale >/dev/null 2>&1 || python3 scripts/codemap.py build >/dev/null 2>&1); python3 scripts/roadmap.py sync >/dev/null 2>&1) &",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 scripts/codemap.py refresh >/dev/null 2>&1; python3 scripts/roadmap.py sync >/dev/null 2>&1",
+            "timeout": 90
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python3 scripts/codemap.py:*)",
+      "Bash(python3 scripts/roadmap.py:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet test:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)"
+    ]
+  }
+}

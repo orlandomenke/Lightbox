@@ -36,7 +36,11 @@ public static class Prompts
         "Keep drawings inside the scene bounds.\n" +
         "- Match each keyframe stroke's color, size, hardness, and opacity in " +
         "your inbetween strokes unless the two keys differ, in which case " +
-        "blend them.";
+        "blend them.\n" +
+        "- If character-sheet reference images are attached, they are the " +
+        "authoritative design of the subject: keep every inbetween on-model " +
+        "with them, and use them to draw parts of the subject that motion " +
+        "reveals (e.g. a limb swinging away exposing the body behind it).";
 
     public const string DrawSystem =
         "You are a skilled artist drawing inside a paint application. You " +
@@ -52,7 +56,10 @@ public static class Prompts
         "- Use pressure (0..1) expressively: taper stroke ends with lower " +
         "pressure.\n" +
         "- Give each stroke a short semantic `label` (e.g. \"head-outline\", " +
-        "\"left-ear\") so the strokes can be inbetweened later.";
+        "\"left-ear\") so the strokes can be inbetweened later.\n" +
+        "- If character-sheet reference images are attached, they are the " +
+        "authoritative design of the subject: keep your drawing on-model with " +
+        "them.";
 
     public static string InbetweenUser(InbetweenRequest request)
     {

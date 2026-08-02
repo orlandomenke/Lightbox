@@ -1,5 +1,15 @@
 namespace Lightbox.Core.Documents;
 
+/// <summary>A colored tag on the timeline ruler ("walk starts", "blink", …).</summary>
+public sealed class FrameMarker
+{
+    public int Frame { get; set; }
+
+    public string Label { get; set; } = "";
+
+    public string Color { get; set; } = "#e0a030";
+}
+
 public sealed class Scene
 {
     public string Id { get; set; } = Ids.NewId("scene");
@@ -14,5 +24,106 @@ public sealed class Scene
 
     public int FrameCount { get; set; } = 1;
 
+    /// <summary>
+    /// The paper a document opens on unless told otherwise. Shared with
+    /// <see cref="DocumentFactory"/> and the New-Document dialog so the scene's
+    /// declared paper colour and the layer that actually provides it cannot
+    /// drift apart — they did, and the app opened on a transparent canvas
+    /// while claiming to be white.
+    /// </summary>
+    public const string DefaultBackgroundColor = "#ffffff";
+
+    /// <summary>Paper color composited behind all layers.</summary>
+    public string BackgroundColor { get; set; } = DefaultBackgroundColor;
+
+    /// <summary>Render with no paper at all (transparent PNG exports).</summary>
+    public bool TransparentBackground { get; set; }
+
+    /// <summary>Pixels per inch — metadata for future print/export work.</summary>
+    public int Ppi { get; set; } = 72;
+
     public List<Layer> Layers { get; set; } = [];
+
+    /// <summary>Colored tags on the timeline ruler, at most one per frame.</summary>
+    public List<FrameMarker> Markers { get; set; } = [];
+
+    /// <summary>Layer folders (see <see cref="LayerGroup"/>).</summary>
+    public List<LayerGroup> LayerGroups { get; set; } = [];
+
+    /// <summary>
+    /// Frames pinned as ghosts, shown wherever the playhead is.
+    /// </summary>
+    /// <remarks>
+    /// The drawing equivalent of leaving two sheets on the pegs while you work
+    /// on the one between them. Ordinary onion skin follows the playhead, so
+    /// the extremes disappear the moment you look at the breakdown — which is
+    /// exactly when you need them.
+    /// </remarks>
+    /// <para>
+    /// In the document rather than in settings because a pin names a frame of
+    /// <i>this</i> sequence and means nothing anywhere else, and because
+    /// pinning the extremes is work that spans a session. Null unless used, so
+    /// a document that never pins anything writes no key — the same discipline
+    /// the camera follows. It reaches no pixels and is never exported.
+    /// </para>
+    public List<int>? GhostFrames { get; set; }
+
+    /// <summary>Whether any frame is pinned.</summary>
+    public bool HasGhostFrames => GhostFrames is { Count: > 0 };
+
+    /// <summary>
+    /// Imported animation references laid against this timeline, or null.
+    /// </summary>
+    /// <remarks>
+    /// Null unless one is imported, the same discipline the camera and the
+    /// ghost pins follow: a document that never uses references must serialize
+    /// exactly as it does today. See <see cref="ReferenceStrip"/> for why they
+    /// belong to the document rather than to settings.
+    /// </remarks>
+    public List<ReferenceStrip>? References { get; set; }
+
+    /// <summary>Whether any reference has been imported.</summary>
+    public bool HasReferences => References is { Count: > 0 };
+
+    /// <summary>
+    /// The shot camera, or null — and null is the default and the common case.
+    ///
+    /// The app serves two output targets. A game's character animation has no
+    /// camera at all: the canvas is the sprite. A film shot has one. Absent
+    /// rather than present-and-disabled is the difference between a sprite
+    /// document that saves exactly as it always did and one that carries a
+    /// camera key in every diff forever.
+    /// </summary>
+    public Camera? Camera { get; set; }
+
+    /// <summary>
+    /// The sprite's origin in document coordinates, or null — and null is the
+    /// default, exactly like <see cref="Camera"/>.
+    ///
+    /// This is what a game engine positions the character by: feet centre for
+    /// a walk cycle, and the point every exported offset is measured from. It
+    /// is also what makes trimming safe — offsets are relative to the pivot,
+    /// so tightening the bounds can never shift the character.
+    ///
+    /// A shot document carries no pivot and a sprite document carries no
+    /// camera. Neither pays for the other.
+    /// </summary>
+    public Pivot? Pivot { get; set; }
+
+    /// <summary>A layer's folder, or null.</summary>
+    public LayerGroup? GroupOf(Layer layer) =>
+        layer.GroupId is null ? null : LayerGroups.FirstOrDefault(g => g.Id == layer.GroupId);
+
+    /// <summary>Layer visibility including its folder's (what compositing must use).</summary>
+    public bool IsLayerVisible(Layer layer) =>
+        layer.Visible && GroupOf(layer) is not { Visible: false };
+
+    /// <summary>
+    /// Whether a layer accepts edits: not locked itself, and not inside a
+    /// locked folder. Every path that changes pixels or geometry must ask
+    /// this — the hidden-layer precedent only guarded three of them, which is
+    /// how transform, cel edits and the external writers went unguarded.
+    /// </summary>
+    public bool IsLayerEditable(Layer layer) =>
+        !layer.Locked && GroupOf(layer) is not { Locked: true };
 }

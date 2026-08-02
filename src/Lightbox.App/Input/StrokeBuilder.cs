@@ -17,12 +17,20 @@ public sealed class StrokeBuilder
 
     public Stroke? Current => _stroke;
 
-    public void Begin(ToolKind tool, string color, BrushSettings brush, double x, double y, double pressure)
+    /// <param name="swatchId">
+    /// The palette swatch the artist is painting with, or null for a literal
+    /// colour. <paramref name="color"/> is recorded either way, so a stroke
+    /// whose swatch is later deleted keeps the colour it was drawn in.
+    /// </param>
+    public void Begin(
+        ToolKind tool, string color, BrushSettings brush, double x, double y, double pressure,
+        string? swatchId = null)
     {
         _stroke = new Stroke
         {
             Tool = tool,
             Color = color,
+            SwatchId = swatchId,
             Brush = brush.Clone(),
             Points = [new StrokePoint(x, y, pressure)],
         };

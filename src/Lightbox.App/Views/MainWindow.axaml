@@ -2,71 +2,960 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Lightbox.App.ViewModels"
         xmlns:render="using:Lightbox.App.Rendering"
+        xmlns:controls="using:Lightbox.App.Controls"
+        xmlns:docs="using:Lightbox.Core.Documents"
+        xmlns:docking="using:Lightbox.App.Docking"
         x:Class="Lightbox.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Lightbox"
         Width="1280" Height="800"
         WindowStartupLocation="CenterScreen">
 
+  <Window.Styles>
+    <!-- Project tree: a character reads as a heading, its animations indent under it. -->
+    <Style Selector="DockPanel.characterRow > TextBlock">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="DockPanel.animationRow">
+      <Setter Property="Margin" Value="16,0,0,0" />
+    </Style>
+    <Style Selector="Border.layerRow">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="3" />
+    </Style>
+    <Style Selector="Border.layerRow.active">
+      <Setter Property="Background" Value="#33507a" />
+    </Style>
+    <Style Selector="Border.layerRow.hiddenLayer">
+      <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <Style Selector="Border.layerRow.lockedLayer">
+      <Setter Property="BorderBrush" Value="#8a6a3a" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.groupRow.lockedLayer">
+      <Setter Property="BorderBrush" Value="#8a6a3a" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.groupRow">
+      <Setter Property="Background" Value="#26313e" />
+      <Setter Property="CornerRadius" Value="3" />
+    </Style>
+    <Style Selector="Border.groupRow.hiddenLayer">
+      <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <Style Selector="Border.layerRow.grouped">
+      <Setter Property="Margin" Value="14,0,0,0" />
+    </Style>
+    <Style Selector="Button.cel">
+      <Setter Property="Background" Value="#2a2a2a" />
+    </Style>
+    <!-- Frame-role colors: key (default), breakdown, inbetween -->
+    <Style Selector="Button.cel.breakdown">
+      <Setter Property="Background" Value="#2e4053" />
+    </Style>
+    <Style Selector="Button.cel.tween">
+      <Setter Property="Background" Value="#2f4032" />
+    </Style>
+    <Style Selector="Button.cel.virtualCell">
+      <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <Style Selector="Button.cel.dim">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+    <Style Selector="Button.cel.current">
+      <Setter Property="Background" Value="#4a6ea9" />
+    </Style>
+    <Style Selector="Button.cel.sel">
+      <Setter Property="Background" Value="#3f5a86" />
+    </Style>
+    <Style Selector="GridSplitter">
+      <Setter Property="Background" Value="#141414" />
+    </Style>
+    <!-- Headroom meter: amber once the document is costing the machine real time -->
+    <Style Selector="ProgressBar.strained /template/ Border#PART_Indicator">
+      <Setter Property="Background" Value="#e0a030" />
+    </Style>
+    <Style Selector="Border.docTab">
+      <Setter Property="Background" Value="#242424" />
+      <Setter Property="CornerRadius" Value="4,4,0,0" />
+    </Style>
+    <Style Selector="Border.docTab.active">
+      <Setter Property="Background" Value="#33507a" />
+    </Style>
+    <!-- Toolbar buttons: icon-only tiles by default; the toolbar's "labels"
+         class (set from code-behind at a width threshold) reveals the names. -->
+    <Style Selector="ToggleButton.tool">
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Margin" Value="1" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border#Toolbar.labels ToggleButton.tool">
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="TextBlock.toolname">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Border#Toolbar.labels TextBlock.toolname">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+  </Window.Styles>
+
   <DockPanel>
 
-    <!-- Toolbar -->
+    <!-- Menu bar -->
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_File">
+        <MenuItem Header="_New…" Click="OnNewClicked" />
+        <MenuItem Header="_Open…" Click="OnOpenClicked" />
+        <MenuItem Header="_Save" Click="OnSaveInPlaceClicked" InputGesture="Ctrl+S" />
+        <MenuItem Header="Save _as…" Click="OnSaveClicked" />
+        <Separator />
+        <MenuItem Header="New _project…" Click="OnNewProjectClicked" />
+        <MenuItem Header="Open p_roject…" Click="OnOpenProjectClicked" />
+        <Separator />
+        <MenuItem Header="Export _document…" Click="OnExportDocumentClicked"
+                  ToolTip.Tip="A standalone .lightbox.json with every shared palette and gradient it uses inlined" />
+        <MenuItem Header="_Export PNGs…" Click="OnExportClicked" />
+      </MenuItem>
+      <MenuItem Header="_Edit">
+        <MenuItem Header="_Configure…" Click="OnConfigureClicked" />
+        <Separator />
+        <!-- Autosave. Zero is a real answer, not a mistake — someone working
+             on a network drive may well want it off. -->
+        <MenuItem Header="{Binding AutosaveLabel}">
+          <MenuItem Header="Off" Click="OnAutosaveOff" />
+          <MenuItem Header="Every 30 seconds" Click="OnAutosaveHalfMinute" />
+          <MenuItem Header="Every minute" Click="OnAutosaveMinute" />
+          <MenuItem Header="Every 5 minutes" Click="OnAutosaveFiveMinutes" />
+          <MenuItem Header="Every 15 minutes" Click="OnAutosaveFifteenMinutes" />
+          <Separator />
+          <MenuItem Header="Also write over the file itself" ToggleType="CheckBox"
+                    IsChecked="{Binding AutosaveInPlace, Mode=TwoWay}"
+                    ToolTip.Tip="Off by default: silently rewriting the file you opened takes away closing without saving" />
+        </MenuItem>
+      </MenuItem>
+      <MenuItem Header="_View">
+        <!-- MenuItem.IsChecked binds one-way by default: without Mode=TwoWay the
+             click only flips the checkmark locally and the docker never reopens. -->
+        <MenuItem Header="Project" ToggleType="CheckBox" IsChecked="{Binding Workspace.ProjectPanelVisible, Mode=TwoWay}" />
+        <MenuItem Header="Layers" ToggleType="CheckBox" IsChecked="{Binding Workspace.LayersPanelVisible, Mode=TwoWay}" />
+        <MenuItem Header="Timeline" ToggleType="CheckBox" IsChecked="{Binding TimelineVisible, Mode=TwoWay}" />
+        <MenuItem Header="Color" ToggleType="CheckBox" IsChecked="{Binding ColorDockerVisible, Mode=TwoWay}" />
+        <MenuItem Header="Palette" ToggleType="CheckBox" IsChecked="{Binding PaletteDockerVisible, Mode=TwoWay}" />
+        <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
+        <MenuItem Header="Character sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
+        <MenuItem Header="Reference" ToggleType="CheckBox" IsChecked="{Binding ReferenceDockerVisible, Mode=TwoWay}" />
+        <Separator />
+        <!-- The bars that sit on the canvas. Separate from the panels above
+             because they are a different trade: a panel takes room away from
+             the drawing, a bar sits on top of it. -->
+        <MenuItem Header="View bar" ToggleType="CheckBox"
+                  IsChecked="{Binding Workspace.ViewBarVisible, Mode=TwoWay}"
+                  ToolTip.Tip="Zoom, rotate and mirror, on the canvas" />
+        <MenuItem Header="Shortcut bar" ToggleType="CheckBox"
+                  IsChecked="{Binding Workspace.ShortcutBarVisible, Mode=TwoWay}"
+                  ToolTip.Tip="Onion skin, camera and playback, on the canvas" />
+        <Separator />
+        <!-- Workspaces are global, never stored in a project: a layout is a
+             property of the person, not of the artwork. Opening someone
+             else's file must not rearrange your screen. -->
+        <MenuItem Header="_Workspace">
+          <MenuItem Header="Save current workspace" Click="OnSaveWorkspace"
+                    ToolTip.Tip="Update the selected workspace with the arrangement on screen" />
+          <MenuItem Header="Save as new workspace…" Click="OnSaveWorkspaceAs" />
+          <MenuItem Header="Reset to saved" Click="OnResetWorkspace"
+                    ToolTip.Tip="Discard the changes and go back to what this workspace says" />
+        </MenuItem>
+      </MenuItem>
+    </Menu>
+
+    <!-- Dynamic tool options bar: contents depend on the selected tool -->
     <Border DockPanel.Dock="Top" Padding="8,6" Background="#1f1f1f">
-      <StackPanel Orientation="Horizontal" Spacing="14">
-        <TextBlock Text="Lightbox" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
+      <DockPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="6">
-          <ToggleButton Content="Brush" IsChecked="{Binding !IsEraser}" IsEnabled="{Binding IsEraser}" />
-          <ToggleButton Content="Eraser" IsChecked="{Binding IsEraser}" />
+        <!--
+          Workspace picker, pinned to the right.
+
+          Here rather than buried in a menu because switching workspaces is a
+          thing you do between tasks, several times a session, and a menu two
+          levels deep is where a feature goes to be forgotten. Saved
+          workspaces carry a bin; the built-ins do not, because a built-in is
+          what "reset" falls back to and deleting one would take the fallback
+          with it.
+        -->
+        <ComboBox x:Name="WorkspacePicker" DockPanel.Dock="Right"
+                  ItemsSource="{Binding Workspace.WorkspaceChoices}"
+                  PlaceholderText="{Binding Workspace.CurrentLabel}"
+                  SelectionChanged="OnWorkspacePicked"
+                  MinWidth="150" VerticalAlignment="Center"
+                  ToolTip.Tip="Switch workspace — panel arrangements, saved globally">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:WorkspaceRow">
+              <DockPanel MinWidth="150">
+                <Button DockPanel.Dock="Right" Classes="icon" Content="🗑" FontSize="11"
+                        Background="Transparent" BorderThickness="0"
+                        IsVisible="{Binding CanDelete}"
+                        Click="OnDeleteWorkspace" Tag="{Binding Name}"
+                        ToolTip.Tip="Delete this workspace" />
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+              </DockPanel>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
+      <!--
+        The tool options scroll rather than push. A brush row is wide, and
+        without this the DockPanel gives it everything and crushes the
+        workspace picker beside it into a sliver.
+      -->
+      <!--
+        A fixed height. Each tool contributes a different set of controls, and
+        letting the bar size to whichever is tallest meant the canvas jumped
+        every time you changed tool — the one piece of chrome that must never
+        move, because it is directly above the thing you are aiming at.
+      -->
+      <!--
+        Never scrolls. Whatever does not fit goes into the ▾ at the end — a
+        horizontal scrollbar hides controls behind a gesture nobody tries, and
+        a vertical one changes the bar's height, which moves the canvas.
+      -->
+      <controls:OverflowBar Height="30" Spacing="14" VerticalAlignment="Center">
+
+        <!-- Transform session (Ctrl+T): shown above whatever tool was active -->
+        <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding TransformActive}">
+          <TextBlock Text="Transform" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <ComboBox ItemsSource="{Binding TransformScopeChoices}" SelectedItem="{Binding TransformScope}"
+                    Width="150" VerticalAlignment="Center"
+                    ToolTip.Tip="What the transform applies to: this cel, all layers at this frame, the selected cel range, or the whole animation" />
+          <ComboBox ItemsSource="{Binding TransformSamplingChoices}" SelectedItem="{Binding TransformSampling}"
+                    Width="98" VerticalAlignment="Center"
+                    ToolTip.Tip="Pixel solver for raster baselines: Bilinear (smooth), Nearest (pixel art), Bicubic (highest quality). Strokes are geometry and never resample." />
+          <ToggleButton x:Name="TransformPerspectiveToggle" Content="Perspective" FontSize="12"
+                        Click="OnTransformPerspectiveToggled"
+                        ToolTip.Tip="Drag the four corners freely instead of the affine box" />
+          <Button Content="⇋" FontSize="13" Click="OnTransformMirrorH"
+                  ToolTip.Tip="Mirror horizontally in place (around the pivot)" />
+          <Button Content="⇵" FontSize="13" Click="OnTransformMirrorV"
+                  ToolTip.Tip="Mirror vertically in place (around the pivot)" />
+          <Button Content="Reset" FontSize="12" Click="OnTransformReset"
+                  ToolTip.Tip="Back to the untransformed drawing (session stays open)" />
+          <Button Content="Apply" FontSize="12" FontWeight="SemiBold" Click="OnTransformApply"
+                  ToolTip.Tip="Commit the transform (Enter)" />
+          <Button Content="Cancel" FontSize="12" Click="OnTransformCancel"
+                  ToolTip.Tip="Discard the transform (Esc)" />
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <TextBlock Text="Color" VerticalAlignment="Center" />
-          <TextBox Text="{Binding ColorHex}" Width="80" ToolTip.Tip="Hex color, e.g. #1a1a1a" />
+        <!-- Brush options -->
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsBrushTool}">
+          <ComboBox ItemsSource="{Binding BrushPresetChoices}" SelectedItem="{Binding SelectedBrushPreset}"
+                    Width="130" VerticalAlignment="Center"
+                    ToolTip.Tip="Brush preset (B returns to the last configured brush)" />
+          <!--
+            Foreground over background, the arrangement every painting tool
+            has had for thirty years. One pair, shared by the brush, the fill
+            and the gradient: reaching for the same colour in three tools and
+            finding three answers is what this prevents. X swaps, D resets.
+          -->
+          <Panel Width="32" Height="26" VerticalAlignment="Center"
+                 ToolTip.Tip="Foreground over background — X swaps them, D resets to black over white">
+            <Border Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    CornerRadius="3" BorderBrush="#555" BorderThickness="1"
+                    Background="{Binding BackgroundColorHex}"
+                    PointerPressed="OnBackgroundSwatchPressed" Cursor="Hand" />
+            <Border Width="18" Height="18" HorizontalAlignment="Left" VerticalAlignment="Top"
+                    CornerRadius="3" BorderBrush="#888" BorderThickness="1"
+                    Background="{Binding ColorPicker.SwatchBrush}"
+                    PointerPressed="OnColorSwatchPressed" Cursor="Hand" />
+          </Panel>
+          <Button Classes="icon" Content="⇄" FontSize="10" VerticalAlignment="Center"
+                  Background="Transparent" BorderThickness="0"
+                  Command="{Binding SwapColorsCommand}" ToolTip.Tip="Swap foreground and background (X)" />
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Size" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Width="110" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="500" Increment="1"
+                           FormatString="0.#" Width="68" VerticalAlignment="Center"
+                           ToolTip.Tip="Brush size (type an exact value)" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Hardness" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="72" VerticalAlignment="Center"
+                           ToolTip.Tip="Brush hardness (type an exact value, 0–1)" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Opacity" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="72" VerticalAlignment="Center"
+                           ToolTip.Tip="Brush transparency (0–1)" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Stabilizer" VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding SmoothingChoices}" SelectedItem="{Binding SmoothingMode}"
+                      Width="140" VerticalAlignment="Center"
+                      ToolTip.Tip="Input smoothing: Laplacian = light touch-up, MovingAverage = steady, Ema = low lag, PulledString = lazy mouse, SavitzkyGolay = keeps corners" />
+            <NumericUpDown Value="{Binding SmoothingWindow}" Minimum="3" Maximum="25" Increment="2"
+                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           IsVisible="{Binding IsWindowSmoothing}"
+                           ToolTip.Tip="Window size — higher smooths more" />
+            <NumericUpDown Value="{Binding SmoothingStrength}" Minimum="0" Maximum="0.95" Increment="0.05"
+                           FormatString="0.00" Width="68" VerticalAlignment="Center"
+                           IsVisible="{Binding IsEmaSmoothing}"
+                           ToolTip.Tip="Strength — higher smooths more (slightly laggier)" />
+            <NumericUpDown Value="{Binding LazyRadius}" Minimum="4" Maximum="200" Increment="2"
+                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           IsVisible="{Binding IsPulledStringSmoothing}"
+                           ToolTip.Tip="String length in pixels — the brush trails the cursor by this much" />
+          </StackPanel>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <TextBlock Text="Size" VerticalAlignment="Center" />
-          <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="60" Width="110" VerticalAlignment="Center" />
+        <!--
+          Effect brushes get their own row.
+
+          Smudge and blur rework pixels that are already there, so most of the
+          brush row is beside the point for them — a smudge has no opacity in
+          the usual sense. What you reach for is how hard it bites and how wide
+          an area each dab samples, and those were three clicks deep in the
+          parameters flyout.
+        -->
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                    IsVisible="{Binding ShowsEffectOptions}">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="{Binding EffectStrengthLabel}" VerticalAlignment="Center" />
+            <Slider Value="{Binding EffectStrength}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding EffectStrength}" Minimum="0" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="64" VerticalAlignment="Center"
+                           ToolTip.Tip="How far colour travels before the sample refreshes (smudge), or how much softening (blur)" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Radius" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Width="80" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="64" VerticalAlignment="Center"
+                           ToolTip.Tip="How wide an area each dab samples. Wider blends more and keeps less detail." />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                      IsVisible="{Binding IsSmudgeBrush}">
+            <TextBlock Text="Colour" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Width="70" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="64" VerticalAlignment="Center"
+                           ToolTip.Tip="How much of the brush's own colour it adds while smudging. Zero is a pure blender." />
+            <ComboBox ItemsSource="{Binding SmudgeModeChoices}" SelectedItem="{Binding BrushSmudgeMode}"
+                      Width="110" VerticalAlignment="Center" ToolTip.Tip="How the sample is picked up and laid down" />
+          </StackPanel>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <TextBlock Text="Hardness" VerticalAlignment="Center" />
-          <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+        <!--
+          The gradient tool's own row. The preview IS the editor: click it for
+          the ramp, with opacity markers above and colour markers below.
+
+          A list of rows with position spinners describes a gradient; this is
+          the gradient. Where a change happens is a spatial judgement, and a
+          number is a poor way to make one.
+        -->
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                    IsVisible="{Binding IsGradientTool}">
+          <ComboBox ItemsSource="{Binding GradientDocker.Gradients}"
+                    SelectedItem="{Binding GradientDocker.SelectedGradient}"
+                    Width="130" VerticalAlignment="Center" ToolTip.Tip="Gradient">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="docs:Gradient">
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+
+          <Button x:Name="GradientPreviewButton"
+                  Padding="0" Height="22" Width="90" VerticalAlignment="Center"
+                  BorderBrush="#666" BorderThickness="1"
+                  Background="{Binding GradientDocker.Preview}"
+                  ToolTip.Tip="Edit this gradient — click the ramp to add stops">
+            <Button.Flyout>
+              <Flyout Placement="Bottom">
+                <StackPanel Width="300" Spacing="8">
+                  <controls:GradientRamp x:Name="RampEditor"
+                                         Gradient="{Binding GradientDocker.SelectedGradient}" />
+                  <TextBlock FontSize="10" Opacity="0.55" TextWrapping="Wrap"
+                             Text="Click above the ramp for an opacity stop, below it for a colour stop. Drag to move, middle-click to remove." />
+
+                  <!-- An opacity stop: a number and a slider, nothing else. -->
+                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasAlphaStop}">
+                    <TextBlock Text="Opacity stop" FontSize="10" Opacity="0.6" />
+                    <DockPanel>
+                      <NumericUpDown DockPanel.Dock="Right" Width="56" FontSize="11"
+                                     Value="{Binding GradientDocker.SelectedAlpha}"
+                                     Minimum="0" Maximum="100" Increment="5" FormatString="0" />
+                      <Slider Value="{Binding GradientDocker.SelectedAlpha}"
+                              Minimum="0" Maximum="100" Margin="0,0,4,0" />
+                    </DockPanel>
+                  </StackPanel>
+
+                  <!-- A colour stop: the picker, the same one as everywhere. -->
+                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasStop}">
+                    <TextBlock Text="Colour stop" FontSize="10" Opacity="0.6" />
+                    <controls:ColorField Hex="{Binding GradientDocker.SelectedStop.Color, Mode=TwoWay}"
+                                         HorizontalAlignment="Left" />
+                  </StackPanel>
+
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ComboBox ItemsSource="{Binding GradientDocker.KindChoices}"
+                              SelectedItem="{Binding GradientDocker.Kind}" Width="92" FontSize="11"
+                              ToolTip.Tip="Linear runs along the drag; radial takes the drag as its radius" />
+                    <ComboBox ItemsSource="{Binding GradientDocker.SpreadChoices}"
+                              SelectedItem="{Binding GradientDocker.Spread}" Width="92" FontSize="11"
+                              ToolTip.Tip="What happens beyond the ends of the ramp" />
+                    <Button Classes="icon" Content="＋" FontSize="10"
+                            Command="{Binding GradientDocker.AddGradientCommand}"
+                            ToolTip.Tip="New gradient" />
+                    <Button Classes="icon" Content="✕" FontSize="10"
+                            Command="{Binding GradientDocker.RemoveGradientCommand}"
+                            IsEnabled="{Binding GradientDocker.HasGradient}"
+                            ToolTip.Tip="Delete this gradient" />
+                  </StackPanel>
+                </StackPanel>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
+
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Opacity" VerticalAlignment="Center" />
+            <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Width="80"
+                    VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="64" VerticalAlignment="Center"
+                           ToolTip.Tip="Opacity the gradient tool lays the ramp down at" />
+          </StackPanel>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-          <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
-          <NumericUpDown Value="{Binding OnionDepth}" Minimum="1" Maximum="3" Increment="1"
-                         FormatString="0" Width="100" VerticalAlignment="Center"
-                         ToolTip.Tip="Onion skin depth (frames each side)" />
+        <!-- Full brush parameters (brush + eraser) -->
+        <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="All brush parameters"
+                IsVisible="{Binding IsPaintTool}">
+          <Button.Flyout>
+            <Flyout Placement="Bottom">
+              <Grid Width="470" Height="430" ColumnDefinitions="120,8,*">
+                <ListBox x:Name="BrushCategoryList" Grid.Column="0" SelectedIndex="0"
+                         SelectionChanged="OnBrushCategoryChanged" Background="#1c1c1c">
+                  <ListBoxItem Content="General" />
+                  <ListBoxItem Content="Effects" />
+                  <ListBoxItem Content="Medium" />
+                  <ListBoxItem Content="Pen pressure" />
+                  <ListBoxItem Content="Presets" />
+                </ListBox>
+                <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                  <Panel>
+
+                    <StackPanel x:Name="BrushPageGeneral" Spacing="6">
+                      <TextBlock Text="General" FontWeight="SemiBold" FontSize="12" />
+                      <CheckBox Content="Anti-aliasing (global)" IsChecked="{Binding AntiAliasing}"
+                                ToolTip.Tip="Smooth edges on everything that paints (brush, eraser, fill). Recorded per stroke, so existing art never changes." />
+                      <DockPanel>
+                        <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1"
+                                       Increment="0.05" FormatString="0.00" Width="64" />
+                        <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Margin="4,0" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Flow" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1"
+                                       Increment="0.05" FormatString="0.00" Width="64" />
+                        <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Margin="4,0" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Text="Spacing" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2"
+                                       Increment="0.02" FormatString="0.00" Width="64" />
+                        <Slider Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2" Margin="4,0" />
+                      </DockPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="BrushPageEffects" Spacing="6" IsVisible="False">
+                      <TextBlock Text="Effects" FontWeight="SemiBold" FontSize="12" />
+                      <StackPanel Spacing="6" IsVisible="{Binding IsSmudgeBrush}" Margin="0,0,0,8">
+                        <TextBlock Text="Smudge" FontWeight="SemiBold" FontSize="11" Opacity="0.8" />
+                        <ComboBox ItemsSource="{Binding SmudgeModeChoices}" SelectedItem="{Binding BrushSmudgeMode}"
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip.Tip="Smearing drags a sample along the stroke, so detail streaks. Dulling lays down the colour under the dab, so detail dissolves — that is a blender." />
+                        <DockPanel ToolTip.Tip="How far colour travels before the sample refreshes.">
+                          <TextBlock Text="Length" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="How wide an area each dab samples. Wider blends more and keeps less detail.">
+                          <TextBlock Text="Radius" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="How much of the brush's own colour it adds while smudging. Zero is a pure blender.">
+                          <TextBlock Text="Color rate" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushColorRate}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                      </StackPanel>
+                      <TextBlock Text="Shape Dynamics" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <DockPanel ToolTip.Tip="How much dab diameter varies. This is the biggest single difference between a digital mark and a natural one.">
+                          <TextBlock Text="Size jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="Floor for jittered size. Without it, jitter produces dabs that vanish and the stroke reads as broken rather than varied.">
+                          <TextBlock Text="Minimum size" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="1 is circular; lower squashes the dab into a chisel.">
+                          <TextBlock Text="Roundness" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Roundness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Angle jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                      <CheckBox Content="Angle follows stroke direction" FontSize="12"
+                                IsChecked="{Binding BrushAngleFollowsDirection}"
+                                ToolTip.Tip="Required for any flat or chisel tip to behave like one instead of a repeated stamp." />
+
+                      <TextBlock Text="Scattering" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <DockPanel>
+                          <TextBlock Text="Scatter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                      <TextBlock Text="Texture" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                      <DockPanel ToolTip.Tip="Paper surface multiplied into the stroke. Anchored to the document, so the grain stays put as you paint over it.">
+                        <TextBlock Text="Surface" Width="100" VerticalAlignment="Center" FontSize="12" />
+                        <ComboBox ItemsSource="{Binding TextureSurfaceChoices}" SelectedItem="{Binding BrushTextureSurface}"
+                                  HorizontalAlignment="Stretch" />
+                      </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Grain size" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128"
+                                         Increment="1" FormatString="0" Width="64" />
+                          <Slider Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Depth" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="The flat grain used when no texture surface is chosen.">
+                          <TextBlock Text="Granulation" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Wet edge" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                      <TextBlock Text="Transfer" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <DockPanel ToolTip.Tip="Per-dab paint amount varies, giving wash and build-up variation that pressure alone cannot.">
+                          <TextBlock Text="Flow jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                      <TextBlock Text="Color Dynamics" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                      <DockPanel ToolTip.Tip="Natural media drifts between two chosen colours rather than randomly around one. Leave empty to vary only hue, saturation and brightness.">
+                        <TextBlock Text="Second color" Width="100" VerticalAlignment="Center" FontSize="12" />
+                        <controls:ColorField Hex="{Binding BrushSecondaryColor, Mode=TwoWay}"
+                                             AllowsNone="True" HorizontalAlignment="Left" />
+                      </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Toward second" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Hue jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Saturation jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Brightness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                      </StackPanel>
+
+                    <StackPanel x:Name="BrushPageMedium" Spacing="6" IsVisible="False">
+                      <TextBlock Text="Medium" FontWeight="SemiBold" FontSize="12" />
+                      <TextBlock FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                                 Text="Simulates how real paint moves, settles and layers. Runs when the stroke is committed, over the region the stroke touched." />
+                      <ComboBox ItemsSource="{Binding MediumKindChoices}" SelectedItem="{Binding BrushMedium}"
+                                HorizontalAlignment="Stretch" Margin="0,2,0,6" />
+
+                      <StackPanel Spacing="6" IsVisible="{Binding MediumIsSimulated}">
+                        <TextBlock Text="Fluid" FontWeight="SemiBold" FontSize="11" Opacity="0.8" />
+                        <DockPanel>
+                          <TextBlock Text="Wetness" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumWetness}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumWetness}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Viscosity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumViscosity}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumViscosity}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Drag" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumDrag}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumDrag}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Absorbency" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="Capillary pull toward the wet boundary — this is what darkens the rim.">
+                          <TextBlock Text="Edge pull" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="Simulation iterations. Cost is linear in this — the one control here that can make a stroke commit feel slow.">
+                          <TextBlock Text="Flow steps" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32"
+                                         Increment="1" FormatString="0" Width="64" />
+                          <Slider Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32" Margin="4,0" />
+                        </DockPanel>
+
+                        <TextBlock Text="Pigment" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                        <DockPanel>
+                          <TextBlock Text="Density" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="How readily pigment settles into the paper's valleys.">
+                          <TextBlock Text="Granularity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumGranularity}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumGranularity}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="0 is a transparent glaze, 1 fully hides what is underneath.">
+                          <TextBlock Text="Hiding" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumHiding}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumHiding}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <CheckBox Content="Mix pigment physically (Kubelka–Munk)" FontSize="12"
+                                  IsChecked="{Binding MediumPhysicalMixing}"
+                                  ToolTip.Tip="Layer paint the way pigment layers, not the way film layers. A yellow glaze over blue gives green." />
+
+                        <TextBlock Text="Paper" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                        <DockPanel>
+                          <TextBlock Text="Surface" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <ComboBox ItemsSource="{Binding PaperKindChoices}" SelectedItem="{Binding MediumPaper}"
+                                    HorizontalAlignment="Stretch" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Grain size" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128"
+                                         Increment="1" FormatString="0" Width="64" />
+                          <Slider Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Influence" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                        <TextBlock Text="Interaction" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                        <DockPanel ToolTip.Tip="How much a light touch means water rather than pigment. Raise it and light strokes go paler and bloom further.">
+                          <TextBlock Text="Light = water" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="How much pressure governs mixing with the paint already there. At 1 a light touch barely disturbs it.">
+                          <TextBlock Text="Pressure mix" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="How much this stroke re-wets what is under it. Above zero, earlier paint lifts and travels with the new stroke — wet into wet.">
+                          <TextBlock Text="Re-wetting" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumRewetting}" Minimum="0" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding MediumRewetting}" Minimum="0" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                        <StackPanel Spacing="6" IsVisible="{Binding MediumHasBody}">
+                          <TextBlock Text="Body" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                          <DockPanel>
+                            <TextBlock Text="Thickness" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumBody}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" Width="64" />
+                            <Slider Value="{Binding MediumBody}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="Shades the paint's own height, giving impasto relief.">
+                            <TextBlock Text="Relief" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumRelief}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" Width="64" />
+                            <Slider Value="{Binding MediumRelief}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="Streaking along the stroke, as bristles comb the paint.">
+                            <TextBlock Text="Bristle drag" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumBristleDrag}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" Width="64" />
+                            <Slider Value="{Binding MediumBristleDrag}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="Paint on the brush at the start. Below 1 the brush runs out — that is dry-brush.">
+                            <TextBlock Text="Paint load" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" Width="64" />
+                            <Slider Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="How much of what is already on the canvas the brush picks up and drags.">
+                            <TextBlock Text="Pickup" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPickup}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" Width="64" />
+                            <Slider Value="{Binding MediumPickup}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                        </StackPanel>
+                      </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="BrushPagePressure" Spacing="6" IsVisible="False">
+                      <CheckBox Content="Brush ring follows pen pressure" FontSize="12"
+                                IsChecked="{Binding CursorTracksPressure}"
+                                ToolTip.Tip="On, the ring shows the thickness the stroke is laying down right now. Off, it stays at the brush's full size as a stable target. Hovering always shows the maximum." />
+                      <TextBlock Text="Pen pressure" FontWeight="SemiBold" FontSize="12" />
+                      <TextBlock Text="{Binding PenDiagnostic}" FontSize="11" Foreground="#7fd0ff"
+                                 TextWrapping="Wrap"
+                                 ToolTip.Tip="Live report of what Windows delivers while you draw" />
+                      <TextBlock Text="Seeing Mouse instead of Pen? Enable “Windows Ink” in your Huion/Wacom driver settings, then restart Lightbox."
+                                 FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
+                      <CheckBox Content="Use pen pressure" IsChecked="{Binding BrushPressureEnabled}"
+                                ToolTip.Tip="Master switch for this brush — off ignores the tablet's pressure entirely" />
+                      <StackPanel Spacing="6" IsEnabled="{Binding BrushPressureEnabled}">
+                        <DockPanel>
+                          <CheckBox Content="Size" Width="110" FontSize="12"
+                                    IsChecked="{Binding BrushPressureAffectsSize}"
+                                    ToolTip.Tip="Pressure controls line thickness" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4"
+                                         Increment="0.1" FormatString="0.0" Width="64"
+                                         IsEnabled="{Binding BrushPressureAffectsSize}"
+                                         ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
+                          <Slider Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4" Margin="4,0"
+                                  IsEnabled="{Binding BrushPressureAffectsSize}" />
+                        </DockPanel>
+                        <DockPanel>
+                          <CheckBox Content="Transparency" Width="110" FontSize="12"
+                                    IsChecked="{Binding BrushPressureAffectsFlow}"
+                                    ToolTip.Tip="Pressure controls paint amount (flow) — light pressure paints lighter" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4"
+                                         Increment="0.1" FormatString="0.0" Width="64"
+                                         IsEnabled="{Binding BrushPressureAffectsFlow}"
+                                         ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
+                          <Slider Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4" Margin="4,0"
+                                  IsEnabled="{Binding BrushPressureAffectsFlow}" />
+                        </DockPanel>
+                        <DockPanel>
+                          <CheckBox Content="Hardness" Width="110" FontSize="12"
+                                    IsChecked="{Binding BrushPressureAffectsHardness}"
+                                    ToolTip.Tip="Light pressure gives a softer dab edge" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureHardnessGamma}" Minimum="0" Maximum="4"
+                                         Increment="0.1" FormatString="0.0" Width="64"
+                                         IsEnabled="{Binding BrushPressureAffectsHardness}"
+                                         ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
+                          <Slider Value="{Binding BrushPressureHardnessGamma}" Minimum="0" Maximum="4" Margin="4,0"
+                                  IsEnabled="{Binding BrushPressureAffectsHardness}" />
+                        </DockPanel>
+                      </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="BrushPagePresets" Spacing="6" IsVisible="False">
+                      <TextBlock Text="Presets" FontWeight="SemiBold" FontSize="12" />
+                      <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Save preset" Click="OnSavePresetClicked" />
+                        <TextBox x:Name="PresetNameBox" PlaceholderText="New preset name" Margin="0,0,6,0" />
+                      </DockPanel>
+                      <Button Content="Import brushes… (.abr .gbr .gih .kpp)" Click="OnImportBrushesClicked"
+                              HorizontalAlignment="Stretch"
+                              ToolTip.Tip="Photoshop and Krita/GIMP brushes: tip shapes and basic settings import; engine-specific features do not map 1:1" />
+                    </StackPanel>
+
+                  </Panel>
+                </ScrollViewer>
+              </Grid>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+
+        <!-- Eraser options -->
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsEraserTool}">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Size" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Width="110" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="500" Increment="1"
+                           FormatString="0.#" Width="68" VerticalAlignment="Center"
+                           ToolTip.Tip="Eraser size (type an exact value)" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Hardness" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="72" VerticalAlignment="Center"
+                           ToolTip.Tip="Eraser hardness (type an exact value, 0–1)" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Opacity" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="72" VerticalAlignment="Center"
+                           ToolTip.Tip="Eraser strength (0–1)" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Stabilizer" VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding SmoothingChoices}" SelectedItem="{Binding SmoothingMode}"
+                      Width="140" VerticalAlignment="Center"
+                      ToolTip.Tip="Input smoothing: Laplacian = light touch-up, MovingAverage = steady, Ema = low lag, PulledString = lazy mouse, SavitzkyGolay = keeps corners" />
+            <NumericUpDown Value="{Binding SmoothingWindow}" Minimum="3" Maximum="25" Increment="2"
+                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           IsVisible="{Binding IsWindowSmoothing}"
+                           ToolTip.Tip="Window size — higher smooths more" />
+            <NumericUpDown Value="{Binding SmoothingStrength}" Minimum="0" Maximum="0.95" Increment="0.05"
+                           FormatString="0.00" Width="68" VerticalAlignment="Center"
+                           IsVisible="{Binding IsEmaSmoothing}"
+                           ToolTip.Tip="Strength — higher smooths more (slightly laggier)" />
+            <NumericUpDown Value="{Binding LazyRadius}" Minimum="4" Maximum="200" Increment="2"
+                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           IsVisible="{Binding IsPulledStringSmoothing}"
+                           ToolTip.Tip="String length in pixels — the brush trails the cursor by this much" />
+          </StackPanel>
         </StackPanel>
 
-        <CheckBox Content="Smooth" IsChecked="{Binding SmoothStrokes}" VerticalAlignment="Center"
-                  ToolTip.Tip="Smooth strokes when you finish them" />
-
-        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-          <TextBlock Text="fps" VerticalAlignment="Center" />
-          <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
-                         FormatString="0" Width="100" VerticalAlignment="Center" />
+        <!-- Fill options -->
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsFillTool}">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Tolerance" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding FillTolerance}" Minimum="0" Maximum="255" Increment="4"
+                           FormatString="0" Width="68" VerticalAlignment="Center"
+                           ToolTip.Tip="How different a pixel may be and still count as the same area" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Gap px" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding FillGapPx}" Minimum="0" Maximum="32" Increment="1"
+                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           ToolTip.Tip="Openings up to this many pixels still count as closed" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Grow px" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding FillGrowPx}" Minimum="-16" Maximum="16" Increment="1"
+                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           ToolTip.Tip="Overfill (+) under the line work, or underfill (−) to keep a margin" />
+          </StackPanel>
+          <CheckBox Content="Smart fill" IsChecked="{Binding SmartFill}" VerticalAlignment="Center"
+                    ToolTip.Tip="Sample every visible layer (fill what looks empty) instead of only the active layer" />
+          <CheckBox Content="Below line work" IsChecked="{Binding FillBelowLines}" VerticalAlignment="Center"
+                    ToolTip.Tip="Tuck the fill under the lines (fills about half the line width so no white shows); off = fill on top, preserving lines" />
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <NumericUpDown Value="{Binding TweenCount}" Minimum="1" Maximum="9" Increment="1"
-                         FormatString="0" Width="110" VerticalAlignment="Center"
-                         ToolTip.Tip="Number of inbetween frames to generate" />
-          <ComboBox ItemsSource="{Binding EasingChoices}" SelectedItem="{Binding TweenEasing}" Width="110" />
-          <Button Content="＋ Inbetween" Command="{Binding InsertInbetweensCommand}"
-                  ToolTip.Tip="Insert interpolated frames between this key and the next" />
+        <!-- Selection options -->
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsSelectTool}">
+          <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <RadioButton GroupName="selvar" Content="◌" IsChecked="{Binding IsFreehandVariant, Mode=OneWay}"
+                         Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Freehand}"
+                         ToolTip.Tip="Freehand selection" />
+            <RadioButton GroupName="selvar" Content="⬠" IsChecked="{Binding IsPolygonVariant, Mode=OneWay}"
+                         Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Polygon}"
+                         ToolTip.Tip="Polygon selection (click vertices, double-click to close, Esc cancels)" />
+            <RadioButton GroupName="selvar" Content="▭" IsChecked="{Binding IsBoxVariant, Mode=OneWay}"
+                         Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Box}"
+                         ToolTip.Tip="Box selection" />
+            <RadioButton GroupName="selvar" Content="◯" IsChecked="{Binding IsEllipseVariant, Mode=OneWay}"
+                         Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Ellipse}"
+                         ToolTip.Tip="Circle/ellipse selection" />
+            <RadioButton GroupName="selvar" Content="🪄" IsChecked="{Binding IsWandVariant, Mode=OneWay}"
+                         Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Wand}"
+                         ToolTip.Tip="Magic wand — click to select a connected color region" />
+          </StackPanel>
+          <!-- Wand-only options -->
+          <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsWandVariant}" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <TextBlock Text="Tolerance" VerticalAlignment="Center" />
+              <NumericUpDown Value="{Binding WandTolerance}" Minimum="0" Maximum="255" Increment="4"
+                             FormatString="0" Width="68" VerticalAlignment="Center"
+                             ToolTip.Tip="How different a pixel may be and still join the selection" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <TextBlock Text="Gap px" VerticalAlignment="Center" />
+              <NumericUpDown Value="{Binding WandGapPx}" Minimum="0" Maximum="32" Increment="1"
+                             FormatString="0" Width="64" VerticalAlignment="Center"
+                             ToolTip.Tip="Openings up to this many pixels still count as closed" />
+            </StackPanel>
+            <CheckBox Content="Sample all layers" IsChecked="{Binding WandSampleAllLayers}" VerticalAlignment="Center"
+                      ToolTip.Tip="Select from what you see (all visible layers) instead of only the active layer" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Feather" VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding SelectionFeather}" Minimum="0" Maximum="100" Increment="1"
+                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           ToolTip.Tip="Soften the selection edge by this many pixels" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <NumericUpDown Value="{Binding SelectionAdjustPx}" Minimum="1" Maximum="64" Increment="1"
+                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           ToolTip.Tip="Pixels for Grow/Shrink" />
+            <Button Content="Grow" Command="{Binding GrowSelectionCommand}"
+                    ToolTip.Tip="Enlarge the selection" />
+            <Button Content="Shrink" Command="{Binding ShrinkSelectionCommand}"
+                    ToolTip.Tip="Shrink the selection" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <Button Content="All" Command="{Binding SelectAllCommand}" ToolTip.Tip="Select the whole canvas (Ctrl+A)" />
+            <Button Content="None" Command="{Binding DeselectCommand}" ToolTip.Tip="Deselect (Ctrl+D)" />
+            <Button Content="Invert" Command="{Binding InvertSelectionCommand}" ToolTip.Tip="Invert the selection (Ctrl+Shift+I)" />
+          </StackPanel>
+          <TextBlock Text="Shift adds · Alt subtracts" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
         </StackPanel>
-
-        <StackPanel Orientation="Horizontal" Spacing="6">
-          <Button Content="Open…" Click="OnOpenClicked" />
-          <Button Content="Save…" Click="OnSaveClicked" />
-          <Button Content="Export PNGs…" Click="OnExportClicked"
-                  ToolTip.Tip="Render every frame to a numbered PNG sequence" />
-        </StackPanel>
-      </StackPanel>
+      </controls:OverflowBar>
+      </DockPanel>
     </Border>
 
     <!-- AI bar -->
@@ -77,7 +966,7 @@
                 Command="{Binding AiInbetweenCommand}"
                 IsEnabled="{Binding CanUseAi}"
                 ToolTip.Tip="Ask Claude to draw the inbetweens between this key and the next" />
-        <TextBox Text="{Binding AiPrompt}" Width="320" Watermark="Describe what Claude should draw…"
+        <TextBox Text="{Binding AiPrompt}" Width="320" PlaceholderText="Describe what Claude should draw…"
                  IsEnabled="{Binding CanUseAi}" />
         <Button Content="✦ AI Draw"
                 Command="{Binding AiDrawCommand}"
@@ -90,68 +979,1307 @@
       </StackPanel>
     </Border>
 
-    <!-- Timeline -->
-    <Border DockPanel.Dock="Bottom" Padding="8,6" Background="#1f1f1f">
-      <DockPanel>
-        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="6">
-          <Button Content="▶ / ⏸" Command="{Binding TogglePlaybackCommand}" ToolTip.Tip="Play / pause (Space)" />
-          <Button Content="＋ Frame" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
-          <Button Content="⧉ Dup" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
-          <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
-          <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
-          <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
-          <TextBlock Text="{Binding FrameLabel}" VerticalAlignment="Center" Margin="8,0" />
-          <ComboBox ItemsSource="{Binding LayerChoices}" SelectedIndex="{Binding ActiveLayerIndex}"
-                    Width="110" VerticalAlignment="Center" ToolTip.Tip="Active layer">
-            <ComboBox.ItemTemplate>
-              <DataTemplate>
-                <TextBlock Text="{Binding Name}" />
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
-          <Button Content="＋P" Command="{Binding AddPaintedLayerCommand}" ToolTip.Tip="Add a painted (raster) layer" />
-          <Button Content="＋V" Command="{Binding AddVectorLayerCommand}" ToolTip.Tip="Add a vector layer" />
-          <Button Content="👁" Command="{Binding ToggleActiveLayerVisibleCommand}" ToolTip.Tip="Toggle active layer visibility" />
-        </StackPanel>
+    <!-- Info strip: what the document is, and how much room the machine has left -->
+    <Border DockPanel.Dock="Bottom" Background="#191919" BorderBrush="#2c2c2c" BorderThickness="0,1,0,0"
+            Padding="10,4">
+      <DockPanel LastChildFill="False">
+        <TextBlock DockPanel.Dock="Left" Text="{Binding DocumentSizeLabel}" FontSize="11" Opacity="0.85"
+                   VerticalAlignment="Center" ToolTip.Tip="Canvas size and resolution of the open document" />
+        <TextBlock DockPanel.Dock="Left" Text="·" FontSize="11" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
+        <TextBlock DockPanel.Dock="Left" Text="{Binding DocumentContentLabel}" FontSize="11" Opacity="0.85"
+                   VerticalAlignment="Center" ToolTip.Tip="Layers and distinct drawings in this document" />
+        <TextBlock DockPanel.Dock="Left" Text="·" FontSize="11" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
+        <TextBlock DockPanel.Dock="Left" Text="{Binding MemoryLabel}" FontSize="11" Opacity="0.6"
+                   VerticalAlignment="Center" ToolTip.Tip="Image memory held for cached frames and the canvas buffers" />
 
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-          <ItemsControl ItemsSource="{Binding FrameCells}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Orientation="Horizontal" Spacing="2" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:FrameCell">
-                <Button Width="40" Height="50"
-                        Classes.current="{Binding IsCurrent}"
-                        Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SelectFrameCommand}"
-                        CommandParameter="{Binding}"
-                        Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-                  <Button.Styles>
-                    <Style Selector="Button">
-                      <Setter Property="Background" Value="#2a2a2a" />
-                    </Style>
-                    <Style Selector="Button.current">
-                      <Setter Property="Background" Value="#4a6ea9" />
-                    </Style>
-                  </Button.Styles>
-                  <StackPanel>
-                    <Image Source="{Binding Thumb}" Width="32" Height="18" Stretch="Uniform"
-                           IsVisible="{Binding IsKeyed}" />
-                    <TextBlock Text="{Binding Display}" HorizontalAlignment="Center" FontSize="11" />
-                    <TextBlock Text="—" HorizontalAlignment="Center" FontSize="10" IsVisible="{Binding !IsKeyed}" />
-                  </StackPanel>
-                </Button>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </ScrollViewer>
+        <!-- Performance headroom, measured from real repaint times -->
+        <TextBlock DockPanel.Dock="Right" Text="{Binding Performance.HealthLabel}" FontSize="11"
+                   VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.85" />
+        <ProgressBar DockPanel.Dock="Right" Width="90" Height="8" Minimum="0" Maximum="100"
+                     Value="{Binding Performance.HeadroomPercent}" VerticalAlignment="Center"
+                     Classes.strained="{Binding Performance.NeedsAttention}"
+                     ToolTip.Tip="How much of a 60 fps frame is left after repainting the canvas" />
+        <TextBlock DockPanel.Dock="Right" Text="Headroom" FontSize="11" Opacity="0.6" Margin="0,0,6,0"
+                   VerticalAlignment="Center" />
+        <TextBlock DockPanel.Dock="Right" Text="{Binding Performance.Advice}" FontSize="11"
+                   Foreground="#e0a030" VerticalAlignment="Center" Margin="0,0,14,0"
+                   TextTrimming="CharacterEllipsis" MaxWidth="520"
+                   IsVisible="{Binding Performance.NeedsAttention}" />
       </DockPanel>
     </Border>
 
-    <!-- Canvas -->
-    <render:CanvasControl x:Name="Canvas" />
+    <!-- Open documents: click to switch, ✕ to close, • marks unsaved changes -->
+    <Border DockPanel.Dock="Top" Background="#191919" Padding="4,3,4,0">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <ItemsControl ItemsSource="{Binding Tabs}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="2" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:DocumentTab">
+              <Border Classes="docTab" Classes.active="{Binding IsActive}" Padding="2,2,2,2">
+                <StackPanel Orientation="Horizontal" Spacing="0">
+                  <Button Content="{Binding DisplayTitle}" Background="Transparent" Padding="8,3"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateTabCommand}"
+                          CommandParameter="{Binding}" />
+                  <Button Classes="icon" Content="✕" FontSize="10" Background="Transparent"
+                          Click="OnCloseTabClicked" ToolTip.Tip="Close document" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+
+    <!--
+      Working area: canvas + sidebar share the top row (draggable splitter
+      between them), the timeline owns the bottom row (draggable splitter
+      above it). Grid rows/columns mean dockers can never overlap; min sizes
+      are enforced from code-behind, and overflowing content scrolls inside
+      its own docker.
+    -->
+    <!--
+      The workspace: four dock strips around the canvas, and a pool the panels
+      are parked in.
+
+      The panels are declared once, here, and never rebuilt. Docking moves the
+      same control instance from one strip to another, which is what lets a
+      panel keep its scroll position, its bindings and a half-typed value
+      across a drag. The layout only ever names panels; it never holds one.
+      See src/Lightbox.App/Docking/DockLayout.cs.
+    -->
+    <Grid x:Name="RootGrid">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" MinHeight="220" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="280" MinHeight="140" />
+      </Grid.RowDefinitions>
+
+      <ScrollViewer x:Name="TopHost" Grid.Row="0" Margin="4,4,4,0"
+                    HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <controls:DockStrip x:Name="TopStrip" />
+      </ScrollViewer>
+      <GridSplitter x:Name="TopSplitter" Grid.Row="1" Height="5" ResizeDirection="Rows" />
+
+      <Grid x:Name="WorkArea" Grid.Row="2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="76" MinWidth="40" MaxWidth="220" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" MinWidth="240" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="300" MinWidth="200" />
+        </Grid.ColumnDefinitions>
+
+        <Border x:Name="Toolbar" Grid.Column="0" Background="#1c1c1c" SizeChanged="OnToolbarSizeChanged">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <WrapPanel x:Name="ToolButtons" Margin="3">
+              <ToggleButton Classes="tool" IsChecked="{Binding IsBrushTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Brush}"
+                            ToolTip.Tip="Brush (B)">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="🖌" FontSize="15" />
+                  <TextBlock Text="Brush" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsEraserTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Eraser}"
+                            ToolTip.Tip="Eraser (E)">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="⌫" FontSize="15" />
+                  <TextBlock Text="Eraser" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsFillTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Fill}"
+                            ToolTip.Tip="Fill (F)">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="🪣" FontSize="15" />
+                  <TextBlock Text="Fill" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsPickerTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Picker}"
+                            ToolTip.Tip="Color picker (I on the canvas) — click to pick the color under the cursor">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="💧" FontSize="15" />
+                  <TextBlock Text="Picker" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsGradientTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Gradient}"
+                            ToolTip.Tip="Gradient (G) — drag to set the ramp's direction and length">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="▤" FontSize="15" />
+                  <TextBlock Text="Gradient" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton x:Name="SelectToolButton" Classes="tool" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Select}"
+                            ToolTip.Tip="Select (S — press again to switch variant; hold for the list)">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="{Binding SelectVariantGlyph}" FontSize="15" />
+                  <TextBlock Text="Select" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+                <ToggleButton.ContextFlyout>
+                  <Flyout Placement="RightEdgeAlignedTop">
+                    <StackPanel Spacing="2">
+                      <Button Content="◌ Freehand" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static vm:SelectVariant.Freehand}" HorizontalAlignment="Stretch" />
+                      <Button Content="⬠ Polygon" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static vm:SelectVariant.Polygon}" HorizontalAlignment="Stretch" />
+                      <Button Content="▭ Box" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static vm:SelectVariant.Box}" HorizontalAlignment="Stretch" />
+                      <Button Content="◯ Circle" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static vm:SelectVariant.Ellipse}" HorizontalAlignment="Stretch" />
+                      <Button Content="🪄 Magic wand" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static vm:SelectVariant.Wand}" HorizontalAlignment="Stretch" />
+                    </StackPanel>
+                  </Flyout>
+                </ToggleButton.ContextFlyout>
+              </ToggleButton>
+            </WrapPanel>
+          </ScrollViewer>
+        </Border>
+
+        <GridSplitter Grid.Column="1" Width="5" ResizeDirection="Columns" />
+
+        <ScrollViewer x:Name="LeftHost" Grid.Column="2" Margin="4,0,0,0"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <controls:DockStrip x:Name="LeftStrip" />
+        </ScrollViewer>
+        <GridSplitter x:Name="LeftSplitter" Grid.Column="3" Width="5" ResizeDirection="Columns" />
+
+        <!-- Column 4, the starred one. It was left on 2 when the docking
+             rework renumbered these columns, which put the canvas in the left
+             strip's cell: an Auto column, empty by default, so it sized itself
+             to the zoom bar and the canvas got no width at all. A zero-width
+             canvas draws nothing and takes no pointer events, which reads
+             exactly like a broken renderer. -->
+        <Panel x:Name="CanvasHost" Grid.Column="4">
+          <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}" />
+          <!--
+            Overlay bars. Their edge, position, collapsed and visible state
+            live in the workspace; the window only reads that and places them
+            (see ApplyOverlayLayout). Each stacks along whichever edge it is
+            on, so its icons stay upright — see CanvasOverlayBar.
+          -->
+          <controls:CanvasOverlayBar x:Name="ViewBar" OverlayId="View" Title="View">
+            <StackPanel Spacing="2"
+                        Orientation="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
+              <Button Content="−" Click="OnZoomOut" ToolTip.Tip="Zoom out (mouse wheel)" />
+              <!--
+                The one wide readout. It turns to fit a narrow bar, with its
+                feet towards the canvas, because that is the side you are
+                reading it from.
+              -->
+              <Button x:Name="ZoomLabel" Content="100%" Click="OnResetView"
+                      ToolTip.Tip="Current zoom — click to reset the whole view">
+                <Button.RenderTransform>
+                  <RotateTransform Angle="{Binding ReadoutAngle, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}}" />
+                </Button.RenderTransform>
+              </Button>
+              <Button Content="＋" Click="OnZoomIn" ToolTip.Tip="Zoom in (mouse wheel)" />
+              <Button Content="↺" Click="OnRotateCcw" ToolTip.Tip="Rotate view 15° counter-clockwise (Shift+wheel)" />
+              <Button Content="↻" Click="OnRotateCw" ToolTip.Tip="Rotate view 15° clockwise (Shift+wheel)" />
+              <Button x:Name="MirrorButton" Content="⇋" Click="OnToggleMirror"
+                      ToolTip.Tip="Mirror the view horizontally (M) — a drawing aid, the artwork is untouched" />
+              <Button Content="⌂" Click="OnResetView" ToolTip.Tip="Reset zoom, rotation, mirror and pan (0)" />
+            </StackPanel>
+          </controls:CanvasOverlayBar>
+
+          <!--
+            Shortcuts: what you are looking at, rather than how. Each entry is
+            absent when it would mean nothing — no camera button without a
+            camera, no transport on a document nobody is going to play.
+          -->
+          <controls:CanvasOverlayBar x:Name="ShortcutBar" OverlayId="Shortcuts" Title="Shortcuts">
+            <StackPanel Spacing="2"
+                        Orientation="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
+              <ToggleButton Content="◉" IsChecked="{Binding ActiveLayerOnion}" Padding="6,2"
+                            ToolTip.Tip="Onion skin on the active layer" />
+              <ToggleButton Content="🎥" IsChecked="{Binding ViewThroughCamera}" Padding="6,2"
+                            IsVisible="{Binding HasCamera}"
+                            ToolTip.Tip="View through the camera" />
+              <Button Content="{Binding PlayPauseGlyph}" Padding="6,2"
+                      Command="{Binding TogglePlaybackCommand}"
+                      IsVisible="{Binding ShowsTransport}"
+                      ToolTip.Tip="Play / pause (Space)" />
+            </StackPanel>
+          </controls:CanvasOverlayBar>
+        </Panel>
+
+        <GridSplitter x:Name="RightSplitter" Grid.Column="5" Width="5" ResizeDirection="Columns" />
+        <ScrollViewer x:Name="RightHost" Grid.Column="6" Margin="0,0,4,0"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <controls:DockStrip x:Name="RightStrip" />
+        </ScrollViewer>
+      </Grid>
+
+      <GridSplitter x:Name="BottomSplitter" Grid.Row="3" Height="5" ResizeDirection="Rows" />
+      <ScrollViewer x:Name="BottomHost" Grid.Row="4" Margin="4,0,4,4"
+                    VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Auto">
+        <controls:DockStrip x:Name="BottomStrip" />
+      </ScrollViewer>
+
+      <!-- Where panels wait when they are not in a strip: closed, or in flight
+           during a drag. Never shown. -->
+      <Panel x:Name="PanelPool" IsVisible="False">
+        <!-- Project: characters and the animations under them. Absent unless a
+             project exists — the app is document-first, and a session that
+             never creates one shows no project UI at all. The workspace keeps
+             its slot; ApplyDockLayout leaves it out until there is a project. -->
+        <controls:Docker x:Name="ProjectPanel" PanelId="Project"
+                         Title="{Binding ProjectDocker.ProjectName}"
+                         SwitchTargets="{Binding Workspace.ProjectSwitchTargets}"
+                         CloseCommand="{Binding ToggleProjectPanelCommand}">
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <!--
+                    One ＋, with a menu of what to make. New work inside a
+                    project should not be "create it, then file it" — each
+                    entry lands somewhere specific, under the selected
+                    character or on the project itself.
+                  -->
+                  <DockPanel>
+                    <!-- The project folder, at the far edge: the one path in
+                         the tree that is always there, however little of it
+                         has been created yet. -->
+                    <Button Classes="icon" DockPanel.Dock="Right" Content="🗁"
+                            Command="{Binding ProjectDocker.RevealRootCommand}"
+                            ToolTip.Tip="Show the project folder in the file manager" />
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <Button Classes="text" Content="＋ New ▾" ToolTip.Tip="Create something in this project">
+                        <Button.Flyout>
+                          <!-- Written out rather than generated from
+                               NewItemKinds, and Click rather than Command: a
+                               flyout's items live in a popup, so a
+                               `$parent[Window]` binding has no window to find
+                               and every entry is silently dead. -->
+                          <MenuFlyout>
+                            <MenuItem Header="Animation" Click="OnProjectNewAnimation"
+                                      ToolTip.Tip="A drawing sequence under the selected character" />
+                            <MenuItem Header="Character" Click="OnProjectNewCharacter"
+                                      ToolTip.Tip="A new character, with its own animations and palette" />
+                            <MenuItem Header="Document" Click="OnProjectNewDocument"
+                                      ToolTip.Tip="Belongs to the project, not to any character" />
+                          </MenuFlyout>
+                        </Button.Flyout>
+                      </Button>
+                      <Button Classes="icon" Content="－"
+                              Command="{Binding ProjectDocker.RemoveSelectedCommand}"
+                              IsEnabled="{Binding ProjectDocker.HasSelection}"
+                              ToolTip.Tip="Remove from the project (the file stays on disk)" />
+                    </StackPanel>
+                  </DockPanel>
+                </Border>
+              </controls:Docker.TopBar>
+              <controls:Docker.BottomBar>
+                <Border Classes="dockerBar"
+                        IsVisible="{Binding ProjectDocker.Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                  <TextBlock Text="{Binding ProjectDocker.Status}" FontSize="10" Opacity="0.6" TextWrapping="Wrap" />
+                </Border>
+              </controls:Docker.BottomBar>
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ListBox x:Name="ProjectRows" ItemsSource="{Binding ProjectDocker.Rows}"
+                         SelectedItem="{Binding ProjectDocker.Selected}"
+                         Background="Transparent" BorderThickness="0" Margin="2"
+                         DragDrop.AllowDrop="True"
+                         DragDrop.DragOver="OnProjectRowDragOver"
+                         DragDrop.Drop="OnProjectRowDrop"
+                         DoubleTapped="OnProjectRowActivated">
+                  <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                      <Setter Property="Padding" Value="2,0" />
+                      <Setter Property="MinHeight" Value="22" />
+                    </Style>
+                  </ListBox.Styles>
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ProjectRow">
+                      <!--
+                        A row is a drag source and a drop target: pull a
+                        document onto a character to re-file it, or onto the
+                        project heading to take it out of every character.
+                        Background must be set or the empty part of the row is
+                        not hit-testable and the drop never arrives.
+                      -->
+                      <DockPanel Classes.characterRow="{Binding IsCharacter}"
+                                 Classes.animationRow="{Binding !IsCharacter}" MinHeight="22"
+                                 Background="Transparent"
+                                 PointerPressed="OnProjectRowPressed"
+                                 DragDrop.AllowDrop="True">
+                        <!-- Right-click selects the row first (see
+                             OnProjectRowPressed), so every item here acts on
+                             the row under the pointer rather than on whatever
+                             happened to be selected before. -->
+                        <!--
+                          Click rather than Command. A flyout's items live in a
+                          popup, not in the window's tree, so the
+                          `$parent[Window]` binding the ＋ menu uses resolves to
+                          nothing here and every item is silently dead. The
+                          handlers act on ProjectDocker.Selected, which the
+                          right-click sets before the menu opens.
+                        -->
+                        <DockPanel.ContextFlyout>
+                          <MenuFlyout>
+                            <MenuItem Header="Open" Click="OnProjectOpen"
+                                      ToolTip.Tip="Open as a tab in Lightbox" />
+                            <MenuItem Header="Open with default app…" Click="OnProjectOpenExternally"
+                                      ToolTip.Tip="Hand the file to whatever application the desktop associates with it" />
+                            <MenuItem Header="Show in file manager" Click="OnProjectReveal" />
+                            <MenuItem Header="Copy path" Click="OnProjectCopyPath" />
+                            <Separator />
+                            <MenuItem Header="Duplicate" Click="OnProjectDuplicate"
+                                      ToolTip.Tip="Copy this animation, art and all — a walk into a limp" />
+                            <MenuItem Header="Rename…" Click="OnProjectRowRename" />
+                            <MenuItem Header="Remove from project" Click="OnProjectRemove"
+                                      ToolTip.Tip="Take it out of the index. The file stays on disk." />
+                          </MenuFlyout>
+                        </DockPanel.ContextFlyout>
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="11"
+                                   VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.7" />
+                        <Panel MinHeight="20">
+                          <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}"
+                                     VerticalAlignment="Center" FontSize="11" />
+                          <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                   IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
+                                   FontSize="11" LostFocus="OnProjectNameLostFocus"
+                                   KeyDown="OnProjectNameKeyDown" />
+                        </Panel>
+                      </DockPanel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </ScrollViewer>
+            </controls:Docker>
+
+        <controls:Docker x:Name="LayersDocker" PanelId="Layers" Title="Layers"
+                         SwitchTargets="{Binding Workspace.LayersSwitchTargets}"
+                         CloseCommand="{Binding ToggleLayersPanelCommand}">
+              <controls:Docker.TitleBarExtra>
+                <Button Content="⇄" FontSize="11" Padding="6,2"
+                        Command="{Binding SwitchSidebarSideCommand}"
+                        ToolTip.Tip="Move the sidebar to the other side" />
+              </controls:Docker.TitleBarExtra>
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <StackPanel Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
+                              ToolTip.Tip="Add a new layer of the selected kind" />
+                      <Button Content="🗑" Command="{Binding DeleteActiveLayerCommand}"
+                              ToolTip.Tip="Delete the active layer (Delete inside this docker; Backspace blanks its content)" />
+                      <Button Content="📁" Command="{Binding CreateLayerFolderCommand}"
+                              ToolTip.Tip="New folder containing the active layer" />
+                      <ComboBox ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
+                                Width="110" ToolTip.Tip="Kind of layer the + button creates" />
+                    </StackPanel>
+                    <!-- Compositing controls for the ACTIVE layer (Photoshop-style panel top) -->
+                    <DockPanel>
+                      <ComboBox DockPanel.Dock="Left" ItemsSource="{Binding BlendModeChoices}"
+                                SelectedItem="{Binding ActiveLayerBlendMode}" Width="104" FontSize="12"
+                                ToolTip.Tip="Blend mode of the active layer" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ActiveLayerOpacity}"
+                                     Minimum="0" Maximum="100" Increment="5" FormatString="0"
+                                     Width="86" FontSize="12"
+                                     ToolTip.Tip="Opacity of the active layer (%)" />
+                      <Slider Value="{Binding ActiveLayerOpacity}" Minimum="0" Maximum="100" Margin="6,0"
+                              VerticalAlignment="Center" ToolTip.Tip="Opacity of the active layer" />
+                    </DockPanel>
+                  </StackPanel>
+                </Border>
+              </controls:Docker.TopBar>
+
+              <!-- Topmost layer first: visibility, then the name (double-click to rename) -->
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding LayerPanelItems}" Margin="4">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Vertical" Spacing="2" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.DataTemplates>
+                    <DataTemplate x:DataType="vm:GroupRow">
+                      <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}"
+                              Classes.lockedLayer="{Binding Locked}" Padding="2"
+                              BorderBrush="{Binding ColorBrush}" BorderThickness="4,0,0,0" CornerRadius="3">
+                        <Border.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Rename" Click="OnGroupMenuRename" />
+                            <MenuItem Header="Folder color">
+                              <MenuItem Header="Blue" Tag="#4a6ea9" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#4a6ea9" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                              <MenuItem Header="Green" Tag="#4a9a5e" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#4a9a5e" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                              <MenuItem Header="Orange" Tag="#e0a030" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#e0a030" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                              <MenuItem Header="Red" Tag="#c25050" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#c25050" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                              <MenuItem Header="Purple" Tag="#8a5ac2" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#8a5ac2" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                              <MenuItem Header="Gray" Tag="#6a7280" Click="OnGroupColorClicked">
+                                <MenuItem.Icon><Border Width="14" Height="14" Background="#6a7280" CornerRadius="2" /></MenuItem.Icon>
+                              </MenuItem>
+                            </MenuItem>
+                            <MenuItem Header="Collapse / expand" Click="OnGroupMenuCollapse" />
+                            <Separator />
+                            <MenuItem Header="Add active layer to folder" Click="OnGroupMenuAddActive" />
+                            <MenuItem Header="Dissolve folder (keep layers)" Click="OnGroupMenuDissolve" />
+                          </ContextMenu>
+                        </Border.ContextMenu>
+                        <DockPanel>
+                          <Button Classes="icon" DockPanel.Dock="Left" Content="{Binding CollapseGlyph}" FontSize="11"
+                                  Background="Transparent" Click="OnGroupCollapseClicked"
+                                  ToolTip.Tip="Collapse / expand the folder" />
+                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
+                                        ToolTip.Tip="Folder visibility (gates every layer inside)" />
+                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="🔒" IsChecked="{Binding Locked}"
+                                        ToolTip.Tip="Lock the folder — every layer inside refuses edits, but still renders" />
+                          <Button Classes="icon" DockPanel.Dock="Right" Content="✕" FontSize="10" Background="Transparent"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DissolveGroupCommand}"
+                                  CommandParameter="{Binding}" ToolTip.Tip="Dissolve the folder (layers stay)" />
+                          <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10" Background="Transparent"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).AddActiveLayerToGroupCommand}"
+                                  CommandParameter="{Binding}" ToolTip.Tip="Put the active layer in this folder" />
+                          <Panel Margin="4,0" MinHeight="24">
+                            <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}" FontWeight="SemiBold"
+                                       Background="Transparent" VerticalAlignment="Center"
+                                       DoubleTapped="OnGroupNameDoubleTapped" ToolTip.Tip="Double-click to rename" />
+                            <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
+                                     LostFocus="OnGroupNameLostFocus" KeyDown="OnGroupNameKeyDown" />
+                          </Panel>
+                        </DockPanel>
+                      </Border>
+                    </DataTemplate>
+                    <DataTemplate x:DataType="vm:LayerRow">
+                      <Border Classes="layerRow" Classes.active="{Binding IsActive}" Classes.grouped="{Binding IsGrouped}"
+                              Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}"
+                              Padding="2" Focusable="True"
+                              PointerPressed="OnLayerRowPressed">
+                        <Border.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Rename" Click="OnLayerMenuRename" />
+                            <Separator />
+                            <MenuItem Header="Move up" Click="OnLayerMenuMoveUp" />
+                            <MenuItem Header="Move down" Click="OnLayerMenuMoveDown" />
+                            <Separator />
+                            <MenuItem Header="New folder from layer" Click="OnLayerMenuNewFolder" />
+                            <MenuItem Header="Remove from folder" IsVisible="{Binding IsGrouped}"
+                                      Click="OnLayerMenuRemoveFromFolder" />
+                            <Separator />
+                            <MenuItem Header="Select layer contents" Click="OnLayerMenuSelectAlpha" />
+                            <MenuItem Header="Blank layer content" Click="OnLayerMenuBlank" />
+                            <MenuItem Header="Delete layer" Click="OnLayerMenuDelete" />
+                          </ContextMenu>
+                        </Border.ContextMenu>
+                        <DockPanel>
+                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
+                                        ToolTip.Tip="Layer visibility" />
+                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="🔒" IsChecked="{Binding Locked}"
+                                        ToolTip.Tip="Lock the layer — refuses paint, fill, transform, delete and cel edits. It still renders and still exports." />
+                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="▣" IsChecked="{Binding AlphaLocked}"
+                                        ToolTip.Tip="Lock transparency — paint only lands where the layer already has content, so the silhouette cannot change" />
+                          <Border DockPanel.Dock="Left" Margin="4,0,0,0" BorderBrush="#555" BorderThickness="1"
+                                  CornerRadius="2" Width="38" Height="22" VerticalAlignment="Center"
+                                  Background="#111" PointerPressed="OnLayerThumbPressed"
+                                  ToolTip.Tip="Layer content — Ctrl+click to select its visible pixels (Shift adds, Alt subtracts)">
+                            <Image Source="{Binding Thumb}" Stretch="Uniform" />
+                          </Border>
+                          <Button Classes="icon" DockPanel.Dock="Right" Content="⏏" FontSize="9" Background="Transparent"
+                                  IsVisible="{Binding IsGrouped}"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).RemoveLayerFromGroupCommand}"
+                                  CommandParameter="{Binding}" ToolTip.Tip="Take this layer out of its folder" />
+                          <!-- Stacked reorder arrows: half-height each so the pair
+                               fits one row without setting the row's height. -->
+                          <StackPanel DockPanel.Dock="Right" Orientation="Vertical" Spacing="0" VerticalAlignment="Center">
+                            <Button Content="▲" FontSize="8" Padding="4,0" MinHeight="11" Height="11" Background="Transparent"
+                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveLayerUpCommand}"
+                                    CommandParameter="{Binding}" ToolTip.Tip="Move layer up" />
+                            <Button Content="▼" FontSize="8" Padding="4,0" MinHeight="11" Height="11" Background="Transparent"
+                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveLayerDownCommand}"
+                                    CommandParameter="{Binding}" ToolTip.Tip="Move layer down" />
+                          </StackPanel>
+                          <TextBlock DockPanel.Dock="Right" Text="{Binding KindLabel}" Width="16"
+                                     VerticalAlignment="Center" Opacity="0.5" FontSize="11"
+                                     ToolTip.Tip="R = raster, V = vector" />
+                          <Panel Margin="4,0" MinHeight="24">
+                            <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}"
+                                       Background="Transparent" VerticalAlignment="Center"
+                                       DoubleTapped="OnLayerNameDoubleTapped"
+                                       ToolTip.Tip="Double-click to rename" />
+                            <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
+                                     LostFocus="OnLayerNameLostFocus" KeyDown="OnLayerNameKeyDown" />
+                          </Panel>
+                        </DockPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.DataTemplates>
+                </ItemsControl>
+              </ScrollViewer>
+            </controls:Docker>
+
+        <controls:Docker x:Name="ColorPanel" PanelId="Color" Title="Color"
+                         SwitchTargets="{Binding Workspace.ColorSwitchTargets}"
+                         CloseCommand="{Binding ToggleColorDockerCommand}">
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <ComboBox ItemsSource="{Binding ColorPicker.ModeChoices}" SelectedItem="{Binding ColorPicker.Mode}"
+                            Width="120" ToolTip.Tip="Color picker representation" />
+                </Border>
+              </controls:Docker.TopBar>
+              <controls:Docker.BottomBar>
+                <Border Classes="dockerBar">
+                  <DockPanel>
+                    <!--
+                      The preview is also the readout. Hex and the channel
+                      numbers live behind a click rather than taking a row of
+                      the panel for good: they are what a colour IS, not how
+                      you pick one, and the wheel above is how you pick one.
+                      Dragging the swatch onto the canvas still fills.
+                    -->
+                    <Border x:Name="ColorSwatch" DockPanel.Dock="Left" Width="28" Height="28"
+                            CornerRadius="14" BorderBrush="#555" BorderThickness="1"
+                            Background="{Binding ColorPicker.SwatchBrush}"
+                            PointerPressed="OnColorSwatchPressed"
+                            Cursor="Hand"
+                            ToolTip.Tip="Current colour — click for its values, or drag it onto the canvas to fill">
+                      <FlyoutBase.AttachedFlyout>
+                        <Flyout Placement="Top">
+                          <ContentControl Content="{Binding ColorPicker}"
+                                          ContentTemplate="{StaticResource ColorPickerBody}" />
+                        </Flyout>
+                      </FlyoutBase.AttachedFlyout>
+                    </Border>
+                    <TextBlock Text="{Binding ColorHex}" Margin="8,0,0,0" VerticalAlignment="Center"
+                               FontSize="11" Opacity="0.75" />
+                  </DockPanel>
+                </Border>
+              </controls:Docker.BottomBar>
+
+              <!--
+                No scroll viewer. Exactly one of the groups below is visible at
+                a time, so they all share a single row and the panel is as tall
+                as whichever one is showing — a colour picker you have to scroll
+                to reach is not a colour picker.
+              -->
+              <Grid Margin="8">
+                <!--
+                  Krita-style wheel: hue ring plus a value slider beside it.
+
+                  The slider used to sit under the wheel, which meant a wheel
+                  tall enough to be usable pushed it out of the docker: the one
+                  control you reach for on every stroke was the one that
+                  scrolled away. Side by side, the pair is one row.
+
+                  The Viewbox is what keeps it in view at any panel height. The
+                  ring used to be sized from its own width and clamped at 240,
+                  which is a height the panel does not always have — and the
+                  moment it did not, the wheel grew a scrollbar and pushed
+                  itself off the bottom. Scaling the pair as a unit means the
+                  wheel is always whole, always square, and always the largest
+                  it can be in the room it has.
+                -->
+                <Viewbox Stretch="Uniform" StretchDirection="Both" MinHeight="120" MaxHeight="320"
+                         IsVisible="{Binding ColorPicker.IsWheelMode}">
+                  <Grid ColumnDefinitions="240,8,24" Height="240">
+                    <ColorSpectrum Grid.Column="0" Shape="Ring" Components="HueSaturation"
+                                   HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}" />
+                    <ColorSlider Grid.Column="2" Orientation="Vertical"
+                                 ColorModel="Hsva" ColorComponent="Component3"
+                                 HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}"
+                                 ToolTip.Tip="Value (brightness)" />
+                  </Grid>
+                </Viewbox>
+
+                  <!-- HSV sliders -->
+                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsHsvMode}">
+                    <DockPanel>
+                      <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="S" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HsvSaturation}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.HsvSaturation}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="V" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HsvValue}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.HsvValue}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                  </StackPanel>
+
+                  <!-- HSL sliders -->
+                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsHslMode}">
+                    <DockPanel>
+                      <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="S" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HslSaturation}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.HslSaturation}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="L" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HslLightness}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.HslLightness}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                  </StackPanel>
+
+                  <!-- RGB sliders -->
+                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsRgbMode}">
+                    <DockPanel>
+                      <TextBlock Text="R" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="G" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Green}" Minimum="0" Maximum="255"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.Green}" Minimum="0" Maximum="255" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="B" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Blue}" Minimum="0" Maximum="255"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.Blue}" Minimum="0" Maximum="255" Margin="4,0" />
+                    </DockPanel>
+                  </StackPanel>
+
+                  <!-- CMYK sliders -->
+                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsCmykMode}">
+                    <DockPanel>
+                      <TextBlock Text="C" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="M" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Magenta}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.Magenta}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="Y" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Yellow}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.Yellow}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                    <DockPanel>
+                      <TextBlock Text="K" Width="16" VerticalAlignment="Center" />
+                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Black}" Minimum="0" Maximum="100"
+                                     Increment="1" FormatString="0" Width="64" />
+                      <Slider Value="{Binding ColorPicker.Black}" Minimum="0" Maximum="100" Margin="4,0" />
+                    </DockPanel>
+                  </StackPanel>
+              </Grid>
+            </controls:Docker>
+
+        <controls:Docker x:Name="SheetsPanel" PanelId="Sheets" Title="Character sheets"
+                         SwitchTargets="{Binding Workspace.SheetsSwitchTargets}"
+                         CloseCommand="{Binding ToggleSheetsDockerCommand}">
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <Button Classes="text" Content="＋ Sheet" Click="OnAddReferenceSheet"
+                          ToolTip.Tip="Add a character sheet (reference art, not part of the animation)" />
+                </Border>
+              </controls:Docker.TopBar>
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding ReferenceSheetsView}" Margin="4">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Vertical" Spacing="2" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="docs:ReferenceSheet">
+                      <StackPanel Spacing="1">
+                        <DockPanel>
+                          <Button DockPanel.Dock="Right" Content="＋ view" FontSize="11" Padding="6,2"
+                                  Click="OnAddReferenceView"
+                                  ToolTip.Tip="Add a view (front/side/…) to this sheet" />
+                          <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
+                                   FontWeight="SemiBold" VerticalAlignment="Center"
+                                   LostFocus="OnReferenceRenamed" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding Views}" Margin="14,0,0,4">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Orientation="Vertical" Spacing="1" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="docs:ReferenceView">
+                              <DockPanel>
+                                <Button Classes="icon" DockPanel.Dock="Right" Content="✎" FontSize="11"
+                                        Click="OnOpenReferenceView" ToolTip.Tip="Open this view in a tab" />
+                                <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
+                                         VerticalAlignment="Center" FontSize="12"
+                                         LostFocus="OnReferenceRenamed" />
+                              </DockPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </controls:Docker>
+
+        <controls:Docker x:Name="PalettePanel" PanelId="Palette" Title="Palette"
+                         SwitchTargets="{Binding Workspace.PaletteSwitchTargets}"
+                         CloseCommand="{Binding TogglePaletteDockerCommand}">
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <StackPanel Spacing="4">
+                    <DockPanel>
+                      <Button Classes="icon" DockPanel.Dock="Right" Content="✕" FontSize="10"
+                              Command="{Binding PaletteDocker.RemovePaletteCommand}"
+                              IsEnabled="{Binding PaletteDocker.HasPalette}"
+                              ToolTip.Tip="Delete this palette (art keeps the colours it was drawn in)" />
+                      <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10"
+                              Command="{Binding PaletteDocker.AddPaletteCommand}"
+                              ToolTip.Tip="New palette" />
+                      <ComboBox ItemsSource="{Binding PaletteDocker.Palettes}"
+                                SelectedItem="{Binding PaletteDocker.SelectedPalette}"
+                                HorizontalAlignment="Stretch" ToolTip.Tip="Palette">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate x:DataType="docs:Palette">
+                            <TextBlock Text="{Binding Name}" />
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                    </DockPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <Button Classes="text" Content="＋ Swatch"
+                              Command="{Binding PaletteDocker.AddSwatchCommand}"
+                              IsEnabled="{Binding PaletteDocker.HasPalette}"
+                              ToolTip.Tip="Add the current colour to this palette" />
+                      <Button Classes="icon" Content="－" FontSize="11"
+                              Command="{Binding PaletteDocker.RemoveSwatchCommand}"
+                              IsEnabled="{Binding PaletteDocker.HasSwatch}"
+                              ToolTip.Tip="Remove the selected swatch" />
+                      <Button Classes="text" Content="Import…" Click="OnImportPaletteClicked"
+                              ToolTip.Tip="Import a GIMP .gpl palette" />
+                      <Button Classes="text" Content="Export…" Click="OnExportPaletteClicked"
+                              IsEnabled="{Binding PaletteDocker.HasPalette}"
+                              ToolTip.Tip="Write this palette as a GIMP .gpl" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </controls:Docker.TopBar>
+
+              <controls:Docker.BottomBar>
+                <Border Classes="dockerBar">
+                  <StackPanel Spacing="4">
+                    <CheckBox Content="Edit selected swatch"
+                              IsChecked="{Binding PaletteDocker.EditSelectedSwatch}"
+                              IsEnabled="{Binding PaletteDocker.HasSwatch}"
+                              ToolTip.Tip="The colour picker recolours the selected swatch — and every stroke painted with it — instead of setting the paint colour" />
+                    <DockPanel IsVisible="{Binding PaletteDocker.HasSwatch}">
+                      <controls:ColorField DockPanel.Dock="Right" Margin="4,0,0,0"
+                                           Hex="{Binding PaletteDocker.SelectedSwatch.Color, Mode=TwoWay}" />
+                      <TextBox Text="{Binding PaletteDocker.SelectedSwatch.Name, Mode=TwoWay}"
+                               FontSize="11" Margin="0,0,4,0" PlaceholderText="Swatch name"
+                               ToolTip.Tip="A palette is a vocabulary — “skin shadow”, not “#b07a5e”" />
+                    </DockPanel>
+                    <TextBlock Text="{Binding PaletteDocker.Status}" FontSize="10" Opacity="0.6"
+                               TextWrapping="Wrap" IsVisible="{Binding PaletteDocker.Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  </StackPanel>
+                </Border>
+              </controls:Docker.BottomBar>
+
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ListBox ItemsSource="{Binding PaletteDocker.Swatches}"
+                         SelectedItem="{Binding PaletteDocker.SelectedSwatch}"
+                         Background="Transparent" BorderThickness="0" Margin="4">
+                  <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                  </ListBox.ItemsPanel>
+                  <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                      <Setter Property="Padding" Value="2" />
+                      <Setter Property="Margin" Value="0" />
+                    </Style>
+                  </ListBox.Styles>
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SwatchRow">
+                      <Border Width="26" Height="26" CornerRadius="3" BorderBrush="#666" BorderThickness="1"
+                              Background="{Binding Fill}" ToolTip.Tip="{Binding Label}" />
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </ScrollViewer>
+            </controls:Docker>
+
+        <controls:Docker x:Name="GradientPanel" PanelId="Gradient" Title="Gradient"
+                         SwitchTargets="{Binding Workspace.GradientSwitchTargets}"
+                         CloseCommand="{Binding ToggleGradientDockerCommand}">
+              <controls:Docker.TopBar>
+                <Border Classes="dockerBar">
+                  <StackPanel Spacing="4">
+                    <DockPanel>
+                      <Button Classes="icon" DockPanel.Dock="Right" Content="✕" FontSize="10"
+                              Command="{Binding GradientDocker.RemoveGradientCommand}"
+                              IsEnabled="{Binding GradientDocker.HasGradient}"
+                              ToolTip.Tip="Delete this gradient" />
+                      <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10"
+                              Command="{Binding GradientDocker.AddGradientCommand}"
+                              ToolTip.Tip="New gradient" />
+                      <ComboBox ItemsSource="{Binding GradientDocker.Gradients}"
+                                SelectedItem="{Binding GradientDocker.SelectedGradient}"
+                                HorizontalAlignment="Stretch" ToolTip.Tip="Gradient">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate x:DataType="docs:Gradient">
+                            <TextBlock Text="{Binding Name}" />
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                    </DockPanel>
+                    <!-- The strip is sampled through GradientOps, so it shows
+                         the linear-light ramp the canvas will actually paint. -->
+                    <Border Height="22" CornerRadius="3" BorderBrush="#666" BorderThickness="1"
+                            Background="{Binding GradientDocker.Preview}"
+                            IsVisible="{Binding GradientDocker.HasGradient}"
+                            ToolTip.Tip="Preview of the ramp" />
+                    <StackPanel Orientation="Horizontal" Spacing="4"
+                                IsVisible="{Binding GradientDocker.HasGradient}">
+                      <ComboBox ItemsSource="{Binding GradientDocker.KindChoices}"
+                                SelectedItem="{Binding GradientDocker.Kind}" Width="92" FontSize="11"
+                                ToolTip.Tip="Linear runs along the drag; radial takes the drag as its radius" />
+                      <ComboBox ItemsSource="{Binding GradientDocker.SpreadChoices}"
+                                SelectedItem="{Binding GradientDocker.Spread}" Width="92" FontSize="11"
+                                ToolTip.Tip="What happens beyond the ends of the ramp" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </controls:Docker.TopBar>
+
+              <!--
+                The panel is now the ramp, the same editor the tool options bar
+                offers. A list of rows with position spinners described a
+                gradient; this is the gradient, and where a change happens is a
+                spatial judgement that a number makes awkward.
+              -->
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="6" Spacing="8">
+                  <controls:GradientRamp x:Name="PanelRampEditor"
+                                         Gradient="{Binding GradientDocker.SelectedGradient}"
+                                         IsVisible="{Binding GradientDocker.HasGradient}" />
+                  <TextBlock FontSize="10" Opacity="0.55" TextWrapping="Wrap"
+                             IsVisible="{Binding GradientDocker.HasGradient}"
+                             Text="Click above the ramp for an opacity stop, below it for a colour stop. Drag to move, middle-click to remove." />
+
+                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasAlphaStop}">
+                    <TextBlock Text="Opacity stop" FontSize="10" Opacity="0.6" />
+                    <DockPanel>
+                      <NumericUpDown DockPanel.Dock="Right" Width="56" FontSize="11"
+                                     Value="{Binding GradientDocker.SelectedAlpha}"
+                                     Minimum="0" Maximum="100" Increment="5" FormatString="0" />
+                      <Slider Value="{Binding GradientDocker.SelectedAlpha}"
+                              Minimum="0" Maximum="100" Margin="0,0,4,0" />
+                    </DockPanel>
+                  </StackPanel>
+
+                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasStop}">
+                    <TextBlock Text="Colour stop" FontSize="10" Opacity="0.6" />
+                    <controls:ColorField Hex="{Binding GradientDocker.SelectedStop.Color, Mode=TwoWay}"
+                                         HorizontalAlignment="Left" />
+                  </StackPanel>
+
+                  <DockPanel ToolTip.Tip="Opacity the gradient tool lays the ramp down at">
+                    <TextBlock DockPanel.Dock="Left" Text="Tool" FontSize="11" Width="34"
+                               VerticalAlignment="Center" />
+                    <NumericUpDown DockPanel.Dock="Right" Width="56" FontSize="11"
+                                   Value="{Binding GradientOpacity}" Minimum="0" Maximum="1"
+                                   Increment="0.05" FormatString="0.00" />
+                    <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Margin="4,0" />
+                  </DockPanel>
+                </StackPanel>
+              </ScrollViewer>
+            </controls:Docker>
+
+        <!-- An imported animation reference: a run cycle, a shot, a contact
+             sheet. Never artwork — it is the photograph taped to the lightbox,
+             and it never reaches an exported pixel. -->
+        <controls:Docker x:Name="ReferencePanel" PanelId="Reference" Title="Reference"
+                         SwitchTargets="{Binding Workspace.ReferenceSwitchTargets}"
+                         CloseCommand="{Binding ToggleReferenceDockerCommand}">
+          <controls:Docker.TopBar>
+            <Border Classes="dockerBar">
+              <DockPanel>
+                <Button Classes="icon" DockPanel.Dock="Right" Content="🗑" FontSize="10"
+                        Command="{Binding RemoveReferenceCommand}"
+                        IsEnabled="{Binding HasReferences}"
+                        ToolTip.Tip="Remove this reference" />
+                <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10"
+                        Click="OnImportReferenceClicked"
+                        ToolTip.Tip="Import an image of an animation and lay it against the timeline" />
+                <ComboBox ItemsSource="{Binding References}"
+                          SelectedIndex="{Binding ActiveReferenceIndex}"
+                          HorizontalAlignment="Stretch" IsVisible="{Binding HasReferences}"
+                          ToolTip.Tip="Reference">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="docs:ReferenceStrip">
+                      <TextBlock Text="{Binding Name}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </DockPanel>
+            </Border>
+          </controls:Docker.TopBar>
+
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="6" Spacing="8">
+              <TextBlock Text="{Binding ReferenceSummary}" FontSize="10" Opacity="0.6"
+                         TextWrapping="Wrap" />
+
+              <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+                         IsVisible="{Binding !HasReferences}"
+                         Text="Import a sprite sheet or a strip of frames. Lightbox finds the frames in it and puts one on each frame of the timeline." />
+
+              <StackPanel Spacing="8" IsVisible="{Binding HasReferences}">
+                <TextBlock Text="{Binding ReferenceCellLabel}" FontSize="11" />
+
+                <CheckBox Content="Show on canvas" IsChecked="{Binding ReferenceVisible}" />
+                <CheckBox Content="Follow timeline edits" IsChecked="{Binding ReferenceFollowsTimeline}"
+                          ToolTip.Tip="Insert a frame and the references after it move along with the animation. Off pins the reference to absolute timing — matching a shot frame for frame." />
+
+                <DockPanel ToolTip.Tip="One scale for every frame: a reference whose size varied frame to frame is the one thing a size reference exists to prevent.">
+                  <TextBlock DockPanel.Dock="Left" Text="Scale" Width="52" VerticalAlignment="Center" FontSize="12" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding ReferenceScale}" Minimum="0.05"
+                                 Maximum="8" Increment="0.05" FormatString="0.00" Width="64" />
+                  <Slider Value="{Binding ReferenceScale}" Minimum="0.05" Maximum="4" Margin="4,0" />
+                </DockPanel>
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Left" Text="Opacity" Width="52" VerticalAlignment="Center" FontSize="12" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding ReferenceOpacity}" Minimum="0"
+                                 Maximum="1" Increment="0.05" FormatString="0.00" Width="64" />
+                  <Slider Value="{Binding ReferenceOpacity}" Minimum="0" Maximum="1" Margin="4,0" />
+                </DockPanel>
+
+                <TextBlock Text="Frames" FontWeight="SemiBold" FontSize="11" Margin="0,4,0,0" />
+                <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+                           Text="Detection reads the gaps between the drawings. Two rows that touch have no gap to find — say how many columns and rows instead." />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="Cols" VerticalAlignment="Center" FontSize="11" />
+                  <NumericUpDown Value="{Binding ReferenceColumns}" Minimum="0" Maximum="64"
+                                 Increment="1" FormatString="0" Width="56" />
+                  <TextBlock Text="Rows" VerticalAlignment="Center" FontSize="11" />
+                  <NumericUpDown Value="{Binding ReferenceRows}" Minimum="0" Maximum="64"
+                                 Increment="1" FormatString="0" Width="56" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Button Content="Apply grid" Command="{Binding ApplyReferenceGridCommand}" />
+                  <Button Content="Detect" Command="{Binding DetectReferenceFramesCommand}"
+                          ToolTip.Tip="Find the frames from the image again" />
+                </StackPanel>
+
+                <TextBlock Text="Alignment" FontWeight="SemiBold" FontSize="11" Margin="0,4,0,0" />
+                <ToggleButton Content="Align on canvas" IsChecked="{Binding ReferenceAlignMode}"
+                              HorizontalAlignment="Stretch"
+                              ToolTip.Tip="Drag the canvas to line this frame's reference up. Hold Shift to move the whole sheet instead. A mode rather than a modifier because Shift, Ctrl and Alt are already spoken for on the canvas." />
+                <Grid ColumnDefinitions="52,*,6,20,*" IsVisible="{Binding HasReferenceCell}">
+                  <TextBlock Grid.Column="0" Text="This frame" FontSize="10" VerticalAlignment="Center"
+                             TextWrapping="Wrap" />
+                  <NumericUpDown Grid.Column="1" Value="{Binding ReferenceCellDx}" Increment="1"
+                                 FormatString="0.#" ToolTip.Tip="Horizontal nudge, document pixels" />
+                  <TextBlock Grid.Column="3" Text="Y" FontSize="10" VerticalAlignment="Center"
+                             HorizontalAlignment="Center" />
+                  <NumericUpDown Grid.Column="4" Value="{Binding ReferenceCellDy}" Increment="1"
+                                 FormatString="0.#" ToolTip.Tip="Vertical nudge, document pixels" />
+                </Grid>
+                <Button Content="Clear all alignment" Command="{Binding ClearReferenceAlignmentCommand}"
+                        HorizontalAlignment="Stretch"
+                        ToolTip.Tip="Undo every per-frame nudge on this sheet" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </controls:Docker>
+
+        <!-- The timeline does not move: its row is as long as the animation,
+             so a 300px sidebar is a placement that cannot work. No switcher
+             either, for the same reason. -->
+        <controls:Docker x:Name="TimelineDocker" PanelId="Timeline" Title="Timeline"
+                         ShowSwitcher="False"
+                         CloseCommand="{Binding ToggleTimelineCommand}">
+        <controls:Docker.TopBar>
+          <Border Classes="dockerBar">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Content="＋" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
+              <Button Content="⧉" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
+              <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
+              <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
+              <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
+              <TextBlock Text="{Binding FrameLabel}" VerticalAlignment="Center" Margin="8,0" />
+              <!-- Onion skin: the toggle stays on the bar because it is
+                   flipped constantly; everything that is set once and left
+                   alone goes behind the ⚙, so the bar does not grow a row of
+                   controls nobody touches twice in a session. -->
+              <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
+              <NumericUpDown Value="{Binding OnionBefore}" Minimum="0" Maximum="10" Increment="1"
+                             FormatString="0" Width="60" VerticalAlignment="Center"
+                             ToolTip.Tip="Drawings to ghost before the playhead" />
+              <NumericUpDown Value="{Binding OnionAfter}" Minimum="0" Maximum="10" Increment="1"
+                             FormatString="0" Width="60" VerticalAlignment="Center"
+                             ToolTip.Tip="Drawings to ghost after the playhead" />
+              <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="Onion skin settings">
+                <Button.Flyout>
+                  <!-- Upwards: the timeline is the bottom strip, so a flyout
+                       placed below it opens off the edge of the window. -->
+                  <Flyout Placement="Top">
+                    <StackPanel Width="290" Spacing="8">
+                      <TextBlock Text="Onion skin" FontWeight="SemiBold" FontSize="12" />
+
+                      <ComboBox ItemsSource="{Binding OnionModeChoices}" SelectedItem="{Binding OnionMode}"
+                                HorizontalAlignment="Stretch"
+                                ToolTip.Tip="Frames ghosts this layer's own neighbouring drawings. Light table dims the other layers at this frame instead, as sheets under the one you are drawing on." />
+
+                      <StackPanel Spacing="8" IsVisible="{Binding !IsLightTable}">
+                        <DockPanel ToolTip.Tip="Visibility of the nearest ghost">
+                          <TextBlock Text="Opacity" Width="76" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding OnionOpacity}" Minimum="0.02"
+                                         Maximum="1" Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding OnionOpacity}" Minimum="0.02" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel ToolTip.Tip="What each further ghost is worth. 1 makes them all equally visible — right for checking registration across a sequence; 0.5 halves each one — right when drawing an inbetween.">
+                          <TextBlock Text="Falloff" Width="76" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding OnionFalloff}" Minimum="0.05"
+                                         Maximum="1" Increment="0.05" FormatString="0.00" Width="64" />
+                          <Slider Value="{Binding OnionFalloff}" Minimum="0.05" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+
+                        <CheckBox Content="Keyed drawings only" IsChecked="{Binding OnionKeysOnly}"
+                                  ToolTip.Tip="Step by drawings rather than by frames — what &quot;the drawing before this one&quot; means on 2s or 3s, where the frame before is a hold of the drawing already on screen." />
+                        <CheckBox Content="Draw over the current drawing" IsChecked="{Binding OnionDrawOver}"
+                                  ToolTip.Tip="Under is how a lightbox works and is what you want while drawing. Over is for checking a line you have just made against the one it should match." />
+
+                        <Grid ColumnDefinitions="76,*,8,76,*" RowDefinitions="Auto">
+                          <TextBlock Grid.Column="0" Text="Before" VerticalAlignment="Center" FontSize="12" />
+                          <controls:ColorField Grid.Column="1" Hex="{Binding OnionPreviousTint, Mode=TwoWay}"
+                                               HorizontalAlignment="Left" />
+                          <TextBlock Grid.Column="3" Text="After" VerticalAlignment="Center" FontSize="12" />
+                          <controls:ColorField Grid.Column="4" Hex="{Binding OnionNextTint, Mode=TwoWay}"
+                                               HorizontalAlignment="Left" />
+                        </Grid>
+                      </StackPanel>
+
+                      <TextBlock Text="Ghost poses" FontWeight="SemiBold" FontSize="12" Margin="0,4,0,0" />
+                      <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+                                 Text="A pinned frame stays ghosted from every other frame — the extreme you are animating towards, however far away it is." />
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Content="{Binding GhostPinLabel}" Command="{Binding ToggleGhostFrameCommand}" />
+                        <Button Content="Clear pins" Command="{Binding ClearGhostFramesCommand}"
+                                IsEnabled="{Binding HasGhostFrames}" />
+                      </StackPanel>
+                    </StackPanel>
+                  </Flyout>
+                </Button.Flyout>
+              </Button>
+              <NumericUpDown Value="{Binding TweenCount}" Minimum="1" Maximum="9" Increment="1"
+                             FormatString="0" Width="72" VerticalAlignment="Center"
+                             ToolTip.Tip="Number of inbetween frames to generate" />
+              <ComboBox ItemsSource="{Binding EasingChoices}" SelectedItem="{Binding TweenEasing}" Width="110" />
+              <Button Content="＋ Inbetween" Command="{Binding InsertInbetweensCommand}"
+                      ToolTip.Tip="Insert interpolated frames between this key and the next" />
+
+              <!-- Camera. One button until there is one, then the whole row:
+                   a document that never adds a camera shows no camera UI. -->
+              <Button Content="🎥 Add camera" Command="{Binding AddCameraCommand}"
+                      IsVisible="{Binding !HasCamera}"
+                      ToolTip.Tip="Add a shot camera — keyframed pan, zoom and roll, exported through the framing" />
+              <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding HasCamera}">
+                <TextBlock Text="Camera" VerticalAlignment="Center" Margin="6,0,0,0" />
+                <Button Content="🔑" Command="{Binding SetCameraKeyCommand}"
+                        ToolTip.Tip="Key the current framing at the playhead" />
+                <Button Content="✕key" Command="{Binding ClearCameraKeyCommand}"
+                        ToolTip.Tip="Remove the camera key at the playhead" />
+                <NumericUpDown Value="{Binding CameraZoom}" Minimum="0.05" Maximum="64" Increment="0.1"
+                               FormatString="0.00" Width="72" VerticalAlignment="Center"
+                               ToolTip.Tip="Zoom at the playhead (keys as you edit)" />
+                <NumericUpDown Value="{Binding CameraRotationDeg}" Minimum="-720" Maximum="720" Increment="1"
+                               FormatString="0.#" Width="68" VerticalAlignment="Center"
+                               ToolTip.Tip="Roll at the playhead, degrees" />
+                <NumericUpDown Value="{Binding CameraOutputWidth}" Minimum="1" Maximum="16384" Increment="1"
+                               FormatString="0" Width="68" VerticalAlignment="Center"
+                               ToolTip.Tip="Output width" />
+                <NumericUpDown Value="{Binding CameraOutputHeight}" Minimum="1" Maximum="16384" Increment="1"
+                               FormatString="0" Width="68" VerticalAlignment="Center"
+                               ToolTip.Tip="Output height" />
+                <CheckBox Content="Through camera" IsChecked="{Binding ViewThroughCamera}"
+                          VerticalAlignment="Center"
+                          ToolTip.Tip="Show the canvas as the camera frames it (view only — you still draw in the world)" />
+                <Button Content="🗑" Command="{Binding RemoveCameraCommand}"
+                        ToolTip.Tip="Remove the camera and all its keys" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </controls:Docker.TopBar>
+
+        <controls:Docker.BottomBar>
+          <Border Classes="dockerBar">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="2">
+                <Button Content="⏮" Command="{Binding GoToStartFrameCommand}"
+                        ToolTip.Tip="To start frame (the set start frame, else the first)" />
+                <Button Content="⏪" Command="{Binding PreviousKeyframeCommand}" ToolTip.Tip="Previous keyframe" />
+                <Button Content="◀" Command="{Binding PlayBackwardsCommand}" ToolTip.Tip="Play backwards" />
+                <Button Content="⏸" Command="{Binding PauseCommand}" ToolTip.Tip="Pause" />
+                <Button Content="▶" Command="{Binding PlayCommand}" ToolTip.Tip="Play (Space toggles)" />
+                <Button Content="⏩" Command="{Binding NextKeyframeCommand}" ToolTip.Tip="Next keyframe" />
+                <Button Content="⏭" Command="{Binding GoToEndFrameCommand}"
+                        ToolTip.Tip="To end frame (the set end frame, else the last)" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="fps" VerticalAlignment="Center" />
+                <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
+                               FormatString="0" Width="68" VerticalAlignment="Center" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="Speed %" VerticalAlignment="Center" />
+                <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
+                               FormatString="0" Width="72" VerticalAlignment="Center"
+                               ToolTip.Tip="Playback speed as a percentage of real time" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </controls:Docker.BottomBar>
+
+        <!-- Ruler (scrubbable numbering, range indication) above one row per layer -->
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+          <StackPanel Orientation="Vertical" Spacing="2">
+            <controls:TimelineRuler Height="22" HorizontalAlignment="Left"
+                                    LeadingInset="152" CellWidth="42"
+                                    Extent="{Binding TimelineExtent}"
+                                    MaxFrame="{Binding MaxScrubFrame}"
+                                    CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}"
+                                    RangeStart="{Binding PlaybackStartFrame}"
+                                    RangeEnd="{Binding PlaybackEndFrame}"
+                                    Markers="{Binding MarkersView}" />
+            <ItemsControl ItemsSource="{Binding LayerRows}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Vertical" Spacing="2" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:LayerRow">
+                  <Border Classes="layerRow" Classes.active="{Binding IsActive}"
+                          Classes.hiddenLayer="{Binding !Visible}" Padding="2">
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                      <ToggleButton Content="👁" IsChecked="{Binding Visible}" Width="28" Padding="2"
+                                    ToolTip.Tip="Layer visibility" />
+                      <ToggleButton Content="◉" IsChecked="{Binding OnionEnabled}" Width="28" Padding="2"
+                                    ToolTip.Tip="Onion skinning for this layer" />
+                      <Panel Width="88" Height="44">
+                        <Button Content="{Binding Name}" Width="88" Height="44"
+                                HorizontalContentAlignment="Left"
+                                IsVisible="{Binding !IsRenaming}"
+                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateLayerCommand}"
+                                CommandParameter="{Binding}"
+                                DoubleTapped="OnLayerNameDoubleTapped"
+                                ToolTip.Tip="Click to select, double-click to rename" />
+                        <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
+                                 LostFocus="OnLayerNameLostFocus" KeyDown="OnLayerNameKeyDown" />
+                      </Panel>
+                      <ItemsControl ItemsSource="{Binding Cells}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="2" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:FrameCell">
+                            <Button Width="40" Height="44" Classes="cel"
+                                    Classes.current="{Binding IsCurrent}"
+                                    Classes.breakdown="{Binding IsBreakdown}"
+                                    Classes.tween="{Binding IsInbetween}"
+                                    Classes.virtualCell="{Binding IsVirtual}"
+                                    Classes.dim="{Binding OutOfRange}"
+                                    Classes.sel="{Binding IsSelected}"
+                                    DragDrop.AllowDrop="True"
+                                    PointerMoved="OnCellPointerMoved"
+                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectFrameCommand}"
+                                    CommandParameter="{Binding}"
+                                    Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                              <Image Source="{Binding Thumb}" Width="32" Height="18" Stretch="Uniform"
+                                     IsVisible="{Binding IsKeyed}" />
+                              <Button.ContextMenu>
+                                <ContextMenu>
+                                  <MenuItem Header="Insert frame">
+                                    <MenuItem Header="Insert keyframe" Click="OnInsertKeyframe" />
+                                    <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
+                                    <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
+                                  </MenuItem>
+                                  <Separator />
+                                  <MenuItem Header="Extend exposure (+1 hold)" Click="OnExtendExposure" />
+                                  <MenuItem Header="Reduce exposure (−1 hold)" Click="OnReduceExposure" />
+                                  <MenuItem Header="Clear cel" Click="OnClearCel"
+                                            ToolTip.Tip="Blank the drawing, keep its slot on the timeline" />
+                                  <MenuItem Header="Delete cel" Click="OnDeleteCel"
+                                            ToolTip.Tip="Remove the cel and pull the rest of this layer's row back" />
+                                  <Separator />
+                                  <MenuItem Header="Copy cel" Click="OnCopyCel" />
+                                  <MenuItem Header="Cut cel" Click="OnCutCel" />
+                                  <MenuItem Header="Paste cel" Click="OnPasteCel" />
+                                  <Separator />
+                                  <MenuItem Header="Add/edit marker…" Click="OnEditMarker" />
+                                  <MenuItem Header="Remove marker" Click="OnRemoveMarker" />
+                                  <Separator />
+                                  <MenuItem Header="Set start frame" Click="OnSetStartFrame" />
+                                  <MenuItem Header="Set end frame" Click="OnSetEndFrame" />
+                                  <MenuItem Header="Clear playback range" Click="OnClearPlaybackRange" />
+                                </ContextMenu>
+                              </Button.ContextMenu>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
+      </controls:Docker>
+      </Panel>
+
+      <!-- The drop highlight. Last child so it is over everything, and it takes
+           no pointer input at all — an overlay that did would swallow the very
+           moves it exists to follow. -->
+      <controls:DockDropIndicator x:Name="DropIndicator" Grid.RowSpan="5" />
+    </Grid>
+
 
   </DockPanel>
 </Window>

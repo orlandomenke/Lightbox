@@ -13,9 +13,14 @@ namespace Lightbox.Core.Timeline;
 /// </summary>
 public sealed class DocumentEditor
 {
-    private readonly Stack<Doc> _undo = new();
-    private readonly Stack<Doc> _redo = new();
-    private const int MaxUndo = 64;
+    private readonly Stack<IEditStep> _undo = new();
+    private readonly Stack<IEditStep> _redo = new();
+    /// <summary>
+    /// Undo steps kept. Stroke commits are cheap deltas, but structural edits
+    /// snapshot the whole document, so on a large scene this trades memory
+    /// for history depth.
+    /// </summary>
+    public int MaxUndo { get; set; } = 64;
 
     public Doc Doc { get; private set; }
 
@@ -29,33 +34,62 @@ public sealed class DocumentEditor
     public bool CanUndo => _undo.Count > 0;
     public bool CanRedo => _redo.Count > 0;
 
-    /// <summary>Run a mutation as one undoable step.</summary>
+    /// <summary>Run a mutation as one undoable step (whole-document snapshot).</summary>
     public void Perform(Action<Doc> mutate)
     {
-        PushUndo();
+        PushStep(new SnapshotStep(DocJson.Clone(Doc)));
         mutate(Doc);
         Changed?.Invoke();
     }
 
-    public void Undo()
+    /// <summary>
+    /// Run a mutation as one undoable step WITHOUT snapshotting the document —
+    /// the hot path for stroke commits, where serializing the whole document
+    /// per pen lift caused a visible pause. <paramref name="apply"/> must be
+    /// re-runnable (redo) and <paramref name="revert"/> must exactly undo it.
+    /// <paramref name="affectedFrameId"/> lets undo/redo invalidate only that
+    /// frame instead of every cached bitmap and thumbnail.
+    /// </summary>
+    public void PerformDelta(Action<Doc> apply, Action<Doc> revert, string? affectedFrameId = null)
     {
-        if (_undo.Count == 0) return;
-        _redo.Push(Doc);
-        Doc = _undo.Pop();
+        PushStep(new DeltaStep(apply, revert, affectedFrameId));
+        apply(Doc);
         Changed?.Invoke();
     }
 
-    public void Redo()
+    /// <summary>What an undo/redo touched: nothing, one frame, or the whole document.</summary>
+    public readonly record struct EditScope(bool Any, string? FrameId)
     {
-        if (_redo.Count == 0) return;
-        _undo.Push(Doc);
-        Doc = _redo.Pop();
-        Changed?.Invoke();
+        public bool DocumentWide => Any && FrameId is null;
     }
 
-    private void PushUndo()
+    public void Undo() => UndoScoped();
+
+    public void Redo() => RedoScoped();
+
+    public EditScope UndoScoped()
     {
-        _undo.Push(DocJson.Clone(Doc));
+        if (_undo.Count == 0) return new EditScope(false, null);
+        var step = _undo.Pop();
+        Doc = step.Rollback(Doc);
+        _redo.Push(step);
+        Changed?.Invoke();
+        return new EditScope(true, step.FrameId);
+    }
+
+    public EditScope RedoScoped()
+    {
+        if (_redo.Count == 0) return new EditScope(false, null);
+        var step = _redo.Pop();
+        Doc = step.Apply(Doc);
+        _undo.Push(step);
+        Changed?.Invoke();
+        return new EditScope(true, step.FrameId);
+    }
+
+    private void PushStep(IEditStep step)
+    {
+        _undo.Push(step);
         if (_undo.Count > MaxUndo)
         {
             // Stack has no trim; rebuild without the oldest entry.
@@ -66,9 +100,67 @@ public sealed class DocumentEditor
         _redo.Clear();
     }
 
+    /// <summary>One entry on the undo/redo stacks.</summary>
+    private interface IEditStep
+    {
+        /// <summary>The single frame this step touches, or null for document-wide.</summary>
+        string? FrameId { get; }
+
+        /// <summary>Take the document back to before this step; returns the doc to use.</summary>
+        Doc Rollback(Doc doc);
+
+        /// <summary>Re-apply this step; returns the doc to use.</summary>
+        Doc Apply(Doc doc);
+    }
+
+    /// <summary>Classic whole-document snapshot: rollback/apply swap the doc instance.</summary>
+    private sealed class SnapshotStep(Doc other) : IEditStep
+    {
+        private Doc _other = other;
+
+        public string? FrameId => null; // whole-document
+
+        public Doc Rollback(Doc doc) => Swap(doc);
+
+        public Doc Apply(Doc doc) => Swap(doc);
+
+        private Doc Swap(Doc doc)
+        {
+            var restored = _other;
+            _other = doc;
+            return restored;
+        }
+    }
+
+    /// <summary>Targeted mutation with an exact inverse — no document clone.</summary>
+    private sealed class DeltaStep(Action<Doc> apply, Action<Doc> revert, string? frameId) : IEditStep
+    {
+        public string? FrameId => frameId;
+
+        public Doc Rollback(Doc doc)
+        {
+            revert(doc);
+            return doc;
+        }
+
+        public Doc Apply(Doc doc)
+        {
+            apply(doc);
+            return doc;
+        }
+    }
+
     // ---- Timeline operations ----------------------------------------------
 
-    /// <summary>Insert a new keyed (empty) frame on every layer after index i.</summary>
+    /// <summary>
+    /// Insert a new keyed (empty) frame on every layer after index i — except
+    /// the paper, which <b>holds</b>.
+    ///
+    /// A blank key on a background layer shadows the paper, so adding a second
+    /// frame used to leave it transparent: an empty drawing where the artist
+    /// expects the same sheet of paper they started on. Paper is not animated;
+    /// exposing it as a hold is what a paper layer means.
+    /// </summary>
     public void AddFrameAfter(int i)
     {
         Perform(doc =>
@@ -77,9 +169,10 @@ public sealed class DocumentEditor
             foreach (var layer in doc.Scene.Layers)
             {
                 PadCels(layer, doc.Scene.FrameCount);
-                layer.Cels.Insert(at, new Cel { Frame = NewEmptyFrame(layer) });
+                layer.Cels.Insert(at, new Cel { Frame = layer.IsBackground ? null : NewEmptyFrame(layer) });
             }
             doc.Scene.FrameCount++;
+            RippleReferences(doc.Scene, at, +1);
         });
     }
 
@@ -96,6 +189,7 @@ public sealed class DocumentEditor
                 layer.Cels.Insert(at, new Cel { Frame = CloneFrame(src) });
             }
             doc.Scene.FrameCount++;
+            RippleReferences(doc.Scene, at, +1);
         });
     }
 
@@ -110,7 +204,39 @@ public sealed class DocumentEditor
                 if (i < layer.Cels.Count) layer.Cels.RemoveAt(i);
             }
             doc.Scene.FrameCount--;
+            RippleReferences(doc.Scene, i, -1);
         });
+    }
+
+    /// <summary>
+    /// Move imported references along with a timeline edit.
+    /// </summary>
+    /// <remarks>
+    /// You insert a frame in order to draw an inbetween, so the reference for
+    /// the next extreme belongs <i>after</i> the new frame, not on it — and the
+    /// new frame gets no reference, because there is no reference drawing for
+    /// a drawing that did not exist a moment ago.
+    ///
+    /// A strip with <see cref="ReferenceStrip.FollowsTimeline"/> off is pinned
+    /// to absolute timing and stays where it is; that is the whole point of the
+    /// switch. Nothing here happens at all on a document with no references,
+    /// which is every document until somebody imports one.
+    /// </remarks>
+    private static void RippleReferences(Scene scene, int at, int delta)
+    {
+        if (scene.References is not { Count: > 0 } strips) return;
+        foreach (var strip in strips)
+        {
+            if (!strip.FollowsTimeline) continue;
+            if (delta > 0)
+            {
+                if (at <= strip.Slots.Count) strip.Slots.Insert(at, -1);
+            }
+            else if (at < strip.Slots.Count)
+            {
+                strip.Slots.RemoveAt(at);
+            }
+        }
     }
 
     /// <summary>
@@ -145,9 +271,290 @@ public sealed class DocumentEditor
                     });
                 }
                 doc.Scene.FrameCount++;
+                RippleReferences(doc.Scene, at, +1);
             }
         });
     }
+
+    /// <summary>
+    /// Make the cel at <paramref name="index"/> a drawn frame with the given
+    /// role — creating an empty frame on a hold cel, or re-marking an existing
+    /// one. An index beyond the timeline extends it (holds on every layer).
+    /// One undo step.
+    /// </summary>
+    public void SetKeyAt(string layerId, int index, FrameRole role)
+    {
+        if (index < 0) return;
+        Perform(doc =>
+        {
+            var scene = doc.Scene;
+            if (index >= scene.FrameCount) scene.FrameCount = index + 1;
+            foreach (var layer in scene.Layers) PadCels(layer, scene.FrameCount);
+
+            var target = scene.Layers.First(l => l.Id == layerId);
+            var cel = target.Cels[index];
+            if (cel.Frame is null)
+            {
+                cel.Frame = NewEmptyFrame(target);
+            }
+            cel.Frame.Role = role;
+        });
+    }
+
+    /// <summary>
+    /// Extend the drawing exposed at <paramref name="index"/> by one frame:
+    /// a hold cel is inserted after it on this layer only, shifting the rest
+    /// of the layer right (other layers are untouched — classic X-sheet).
+    /// </summary>
+    public void ExtendExposure(string layerId, int index)
+    {
+        if (index < 0 || FindLayer(layerId) is null) return;
+        Perform(doc =>
+        {
+            var layer = doc.Scene.Layers.First(l => l.Id == layerId);
+            PadCels(layer, doc.Scene.FrameCount);
+            var at = Math.Clamp(index + 1, 0, layer.Cels.Count);
+            layer.Cels.Insert(at, new Cel());
+            if (layer.Cels.Count > doc.Scene.FrameCount) doc.Scene.FrameCount = layer.Cels.Count;
+        });
+    }
+
+    /// <summary>
+    /// Shorten the exposure at <paramref name="index"/> by one frame: the hold
+    /// cel directly after it is removed, pulling the rest of the layer left.
+    /// A drawing is never removed — no-op when the next cel is keyed.
+    /// </summary>
+    public void ReduceExposure(string layerId, int index)
+    {
+        var layer = FindLayer(layerId);
+        if (layer is null || index < 0) return;
+        var next = index + 1;
+        if (next >= layer.Cels.Count || layer.Cels[next].Frame is not null) return;
+        Perform(doc =>
+        {
+            var target = doc.Scene.Layers.First(l => l.Id == layerId);
+            if (next < target.Cels.Count && target.Cels[next].Frame is null) target.Cels.RemoveAt(next);
+        });
+    }
+
+    /// <summary>
+    /// Re-time a range so every drawing in it is held for <paramref name="step"/>
+    /// frames. The range gets longer and no drawing is lost — this is what an
+    /// animator means by "animating on 2s".
+    /// </summary>
+    /// <returns>Frames the range grew by.</returns>
+    public int StretchExposure(string layerId, int from, int to, int step)
+    {
+        if (step < 1 || FindLayer(layerId) is null) return 0;
+        var grew = 0;
+        Perform(doc =>
+        {
+            var layer = doc.Scene.Layers.First(l => l.Id == layerId);
+            PadCels(layer, doc.Scene.FrameCount);
+            var lo = Math.Clamp(Math.Min(from, to), 0, layer.Cels.Count - 1);
+            var hi = Math.Clamp(Math.Max(from, to), 0, layer.Cels.Count - 1);
+
+            // Rebuild the span: each drawing, then step-1 holds behind it.
+            // Holds already in the range are absorbed rather than multiplied,
+            // so stretching to 2s twice does not land on 4s.
+            var rebuilt = new List<Cel>();
+            for (var i = lo; i <= hi; i++)
+            {
+                if (layer.Cels[i].Frame is null) continue; // an existing hold
+                rebuilt.Add(layer.Cels[i]);
+                for (var h = 1; h < step; h++) rebuilt.Add(new Cel());
+            }
+            if (rebuilt.Count == 0) return;
+
+            var original = hi - lo + 1;
+            layer.Cels.RemoveRange(lo, original);
+            layer.Cels.InsertRange(lo, rebuilt);
+            grew = rebuilt.Count - original;
+            if (layer.Cels.Count > doc.Scene.FrameCount) doc.Scene.FrameCount = layer.Cels.Count;
+        });
+        return grew;
+    }
+
+    /// <summary>
+    /// Thin a range to every <paramref name="step"/>-th drawing, keeping the
+    /// range the same length by holding what survives. Destructive: the
+    /// drawings between are discarded.
+    /// </summary>
+    /// <returns>Drawings removed.</returns>
+    public int ReduceToStep(string layerId, int from, int to, int step)
+    {
+        if (step < 2 || FindLayer(layerId) is null) return 0;
+        var dropped = 0;
+        Perform(doc =>
+        {
+            var layer = doc.Scene.Layers.First(l => l.Id == layerId);
+            PadCels(layer, doc.Scene.FrameCount);
+            var lo = Math.Clamp(Math.Min(from, to), 0, layer.Cels.Count - 1);
+            var hi = Math.Clamp(Math.Max(from, to), 0, layer.Cels.Count - 1);
+
+            var kept = 0;
+            for (var i = lo; i <= hi; i++)
+            {
+                if (layer.Cels[i].Frame is null) continue;
+                // Keep every step-th drawing; the rest become holds, so the
+                // range keeps its length and its timing.
+                if (kept % step != 0)
+                {
+                    layer.Cels[i] = new Cel();
+                    dropped++;
+                }
+                kept++;
+            }
+        });
+        return dropped;
+    }
+
+    /// <summary>
+    /// Remove the drawing at exactly <paramref name="index"/> — the cel
+    /// becomes a hold, so the previous drawing shows through. No-op on holds.
+    /// </summary>
+    public void ClearCel(string layerId, int index)
+    {
+        var layer = FindLayer(layerId);
+        if (layer is null || index < 0 || index >= layer.Cels.Count || layer.Cels[index].Frame is null) return;
+        Perform(doc =>
+        {
+            var target = doc.Scene.Layers.First(l => l.Id == layerId);
+            if (index < target.Cels.Count) target.Cels[index].Frame = null;
+        });
+    }
+
+    /// <summary>
+    /// Put a drawing at exactly (layer, index) — the paste half of
+    /// copy/paste. Replaces whatever the cel held; pasting beyond the end
+    /// extends the timeline (holds everywhere else).
+    /// </summary>
+    public void SetFrameAt(string layerId, int index, Frame frame)
+    {
+        if (index < 0 || FindLayer(layerId) is null) return;
+        Perform(doc =>
+        {
+            var scene = doc.Scene;
+            if (index >= scene.FrameCount) scene.FrameCount = index + 1;
+            foreach (var layer in scene.Layers) PadCels(layer, scene.FrameCount);
+            scene.Layers.First(l => l.Id == layerId).Cels[index].Frame = frame;
+        });
+    }
+
+    /// <summary>
+    /// Move (or, with <paramref name="copy"/>, duplicate) the drawing keyed at
+    /// <paramref name="fromIndex"/> to <paramref name="toIndex"/> on the same
+    /// layer — the drag-a-cel operation. Whatever the target cel held is
+    /// replaced; dropping past the end extends the timeline.
+    /// </summary>
+    public void MoveCel(string layerId, int fromIndex, int toIndex, bool copy = false)
+    {
+        var layer = FindLayer(layerId);
+        if (layer is null || fromIndex == toIndex || fromIndex < 0 || toIndex < 0) return;
+        if (fromIndex >= layer.Cels.Count || layer.Cels[fromIndex].Frame is null) return;
+        Perform(doc =>
+        {
+            var scene = doc.Scene;
+            if (toIndex >= scene.FrameCount) scene.FrameCount = toIndex + 1;
+            foreach (var l in scene.Layers) PadCels(l, scene.FrameCount);
+            var target = scene.Layers.First(l => l.Id == layerId);
+            var frame = target.Cels[fromIndex].Frame!;
+            target.Cels[toIndex].Frame = copy ? CloneFrame(frame) : frame;
+            if (!copy) target.Cels[fromIndex].Frame = null;
+        });
+    }
+
+    /// <summary>Clear every drawing in [from, to] on a layer (cels become holds). One undo step.</summary>
+    public void ClearCels(string layerId, int from, int to)
+    {
+        var layer = FindLayer(layerId);
+        if (layer is null) return;
+        (from, to) = (Math.Min(from, to), Math.Max(from, to));
+        if (!Enumerable.Range(from, to - from + 1).Any(i => i < layer.Cels.Count && layer.Cels[i].Frame is not null)) return;
+        Perform(doc =>
+        {
+            var target = doc.Scene.Layers.First(l => l.Id == layerId);
+            for (var i = Math.Max(0, from); i <= to && i < target.Cels.Count; i++)
+            {
+                target.Cels[i].Frame = null;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Remove cels from one layer and pull the rest back — the exposure
+    /// sheet's ripple delete. One undo step.
+    ///
+    /// Distinct from both of its neighbours, and the distinction is the whole
+    /// feature: <see cref="ClearCels"/> blanks a cel and keeps the timing;
+    /// <see cref="DeleteFrame"/> removes a frame from <em>every</em> layer and
+    /// shortens the scene. This shortens one layer's row and pads the tail with
+    /// holds, so the timeline keeps its length while everything after the hole
+    /// moves up — which is what "delete this drawing" means to an animator.
+    /// </summary>
+    public void DeleteCels(string layerId, int from, int to)
+    {
+        var layer = FindLayer(layerId);
+        if (layer is null) return;
+        (from, to) = (Math.Max(0, Math.Min(from, to)), Math.Max(from, to));
+        if (from >= layer.Cels.Count) return;
+
+        Perform(doc =>
+        {
+            var target = doc.Scene.Layers.First(l => l.Id == layerId);
+            var last = Math.Min(to, target.Cels.Count - 1);
+            var count = last - from + 1;
+            if (count <= 0) return;
+            target.Cels.RemoveRange(from, count);
+            // Pad back to the scene's length: the other layers did not change,
+            // and a short row would desynchronise every cel after it.
+            while (target.Cels.Count < doc.Scene.FrameCount) target.Cels.Add(new Cel());
+        });
+    }
+
+    /// <summary>
+    /// Write a sequence of cels starting at <paramref name="start"/> — the
+    /// paste-a-range operation. A null entry makes that cel a hold, exactly as
+    /// it was copied. Extends the timeline as needed. One undo step.
+    /// </summary>
+    public void SetFrameRange(string layerId, int start, IReadOnlyList<Frame?> frames)
+    {
+        if (start < 0 || frames.Count == 0 || FindLayer(layerId) is null) return;
+        Perform(doc =>
+        {
+            var scene = doc.Scene;
+            var end = start + frames.Count - 1;
+            if (end >= scene.FrameCount) scene.FrameCount = end + 1;
+            foreach (var l in scene.Layers) PadCels(l, scene.FrameCount);
+            var target = scene.Layers.First(l => l.Id == layerId);
+            for (var k = 0; k < frames.Count; k++)
+            {
+                target.Cels[start + k].Frame = frames[k];
+            }
+        });
+    }
+
+    /// <summary>
+    /// Move a layer within the stack. <paramref name="delta"/> is in
+    /// Scene.Layers order: +1 moves it up toward the viewer.
+    /// </summary>
+    public void MoveLayer(string layerId, int delta)
+    {
+        var layers = Doc.Scene.Layers;
+        var from = layers.FindIndex(l => l.Id == layerId);
+        var to = from + delta;
+        if (from < 0 || to < 0 || to >= layers.Count || delta == 0) return;
+        Perform(doc =>
+        {
+            var list = doc.Scene.Layers;
+            var i = list.FindIndex(l => l.Id == layerId);
+            var layer = list[i];
+            list.RemoveAt(i);
+            list.Insert(i + delta, layer);
+        });
+    }
+
+    private Layer? FindLayer(string layerId) => Doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId);
 
     private static void PadCels(Layer layer, int frameCount)
     {
@@ -160,12 +567,14 @@ public sealed class DocumentEditor
         _ => new PaintedFrame(),
     };
 
-    private static Frame? CloneFrame(Frame? src) => src switch
+    /// <summary>Deep-clone a frame with a fresh id (ids key the render cache).</summary>
+    public static Frame? CloneFrame(Frame? src) => src switch
     {
         null => null,
-        VectorFrame v => new VectorFrame { Strokes = v.Strokes.Select(s => s.Clone()).ToList() },
+        VectorFrame v => new VectorFrame { Role = v.Role, Strokes = v.Strokes.Select(s => s.Clone()).ToList() },
         PaintedFrame p => new PaintedFrame
         {
+            Role = p.Role,
             PngBase64 = p.PngBase64,
             Strokes = p.Strokes.Select(s => s.Clone()).ToList(),
         },

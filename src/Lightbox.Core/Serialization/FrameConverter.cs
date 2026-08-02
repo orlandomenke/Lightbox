@@ -38,12 +38,14 @@ public sealed class FrameConverter : JsonConverter<Frame>
             case VectorFrame v:
                 writer.WriteString("kind", "vector");
                 writer.WriteString("id", v.Id);
+                WriteRole(writer, v, options);
                 writer.WritePropertyName("strokes");
                 JsonSerializer.Serialize(writer, v.Strokes, options);
                 break;
             case PaintedFrame p:
                 writer.WriteString("kind", "painted");
                 writer.WriteString("id", p.Id);
+                WriteRole(writer, p, options);
                 writer.WriteString("pngBase64", p.PngBase64);
                 writer.WritePropertyName("strokes");
                 JsonSerializer.Serialize(writer, p.Strokes, options);
@@ -52,5 +54,11 @@ public sealed class FrameConverter : JsonConverter<Frame>
                 throw new JsonException($"Unknown frame type {value.GetType().Name}.");
         }
         writer.WriteEndObject();
+    }
+
+    private static void WriteRole(Utf8JsonWriter writer, Frame frame, JsonSerializerOptions options)
+    {
+        writer.WritePropertyName("role");
+        JsonSerializer.Serialize(writer, frame.Role, options);
     }
 }

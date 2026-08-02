@@ -1,8 +1,119 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Lightbox.App.Controls"
+             xmlns:docking="using:Lightbox.App.Docking"
              x:Class="Lightbox.App.App"
              RequestedThemeVariant="Dark">
   <Application.Styles>
     <FluentTheme />
+    <!-- ColorSpectrum/ColorSlider templates live in a separate theme file;
+         without this include they render as nothing at all. -->
+    <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
+
+    <!-- The density scale. See .claude/quality/DESIGN.md for the reasoning;
+         the numbers live in one place so no view invents its own. -->
+    <StyleInclude Source="avares://Lightbox.App/Styles/Density.axaml" />
+
+    <!-- The colour picker's body and the flyout field that reuses it. -->
+    <StyleInclude Source="avares://Lightbox.App/Styles/ColorPicker.axaml" />
+
+    <!-- Docker: title strip, optional top/bottom option bars, content between. -->
+    <Style Selector="controls|Docker">
+      <Setter Property="Background" Value="#242424" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}"
+                  BorderBrush="#383838" BorderThickness="1" CornerRadius="4">
+            <DockPanel>
+              <!--
+                The header is both the panel switcher and the drag grip.
+
+                The switcher is Blender's rule: the header names what this slot
+                shows, and picking another panel trades places with it rather
+                than opening a second copy. It renders as the title until you
+                click it, so a header still reads as a title.
+
+                Everything that is not a control in this strip is grip — press
+                and pull to move the panel. The threshold lives in Docker so a
+                click to focus is not a tear-out.
+              -->
+              <Border x:Name="PART_Header" DockPanel.Dock="Top" Background="#1b1b1b" Padding="8,2">
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
+                    <ContentPresenter Content="{TemplateBinding TitleBarExtra}" VerticalAlignment="Center" />
+                    <Button Content="✕" FontSize="11" Padding="6,2"
+                            Command="{TemplateBinding CloseCommand}"
+                            IsVisible="{TemplateBinding CloseCommand, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            ToolTip.Tip="Close this panel (reopen via the View menu)" />
+                  </StackPanel>
+                  <ComboBox x:Name="PART_Switcher" DockPanel.Dock="Left"
+                            ItemsSource="{TemplateBinding SwitchTargets}"
+                            IsVisible="{TemplateBinding ShowSwitcher}"
+                            PlaceholderText="{TemplateBinding Title}"
+                            MinWidth="0" MinHeight="20" Height="20" FontSize="12" FontWeight="SemiBold"
+                            Background="Transparent" BorderThickness="0" Padding="0,0,2,0"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="Show a different panel here — the two trade places">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="docking:DockPanelInfo">
+                        <TextBlock Text="{Binding Title}" FontWeight="Normal" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <TextBlock Text="{TemplateBinding Title}" FontSize="12" FontWeight="SemiBold"
+                             Opacity="0.9" VerticalAlignment="Center"
+                             IsVisible="{Binding !ShowSwitcher, RelativeSource={RelativeSource TemplatedParent}}" />
+                </DockPanel>
+              </Border>
+              <ContentPresenter DockPanel.Dock="Top" Content="{TemplateBinding TopBar}" />
+              <ContentPresenter DockPanel.Dock="Bottom" Content="{TemplateBinding BottomBar}" />
+              <ContentPresenter Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}" />
+            </DockPanel>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+
+    <!--
+      Canvas overlay bar: a grip, the controls, collapse and close. On a left
+      or right edge it stacks downwards instead of across, so its length runs
+      along the edge and every icon in it stays the right way up.
+    -->
+    <Style Selector="controls|CanvasOverlayBar">
+      <Setter Property="Background" Value="#cc1f1f1f" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="2"
+                  BorderBrush="#3a3a3a" BorderThickness="1">
+            <StackPanel Spacing="2"
+                        Orientation="{Binding IsVertical, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
+              <!-- Grip. Everything else in the bar is a button, so the grip
+                   has to be its own target or a drag would press one. -->
+              <Border x:Name="PART_Grip" Cursor="SizeAll" Background="#00000001"
+                      MinWidth="12" MinHeight="12"
+                      ToolTip.Tip="Drag to any edge of the canvas">
+                <TextBlock Text="⠿" FontSize="12" Opacity="0.55"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <ContentPresenter Content="{TemplateBinding Content}"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                IsVisible="{Binding !Collapsed, RelativeSource={RelativeSource TemplatedParent}}" />
+              <Button x:Name="PART_Collapse" Classes="icon" FontSize="9" Padding="4,2"
+                      Content="{Binding Collapsed, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static docking:OverlayConverters.CollapseGlyph}}"
+                      ToolTip.Tip="Roll the bar up to its grip" />
+              <Button x:Name="PART_Close" Classes="icon" Content="✕" FontSize="9" Padding="4,2"
+                      ToolTip.Tip="Hide this bar (bring it back from the View menu)" />
+            </StackPanel>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+
+    <!-- Shared look for a docker's option bars. -->
+    <Style Selector="Border.dockerBar">
+      <Setter Property="Background" Value="#202020" />
+      <Setter Property="Padding" Value="6,4" />
+    </Style>
   </Application.Styles>
 </Application>

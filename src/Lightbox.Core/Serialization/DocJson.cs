@@ -35,7 +35,29 @@ public static class DocJson
         JsonSerializer.Deserialize<Doc>(json, Options)
         ?? throw new JsonException("Document deserialized to null.");
 
-    public static void Save(Doc doc, string path) => File.WriteAllText(path, Serialize(doc));
+    public static void Save(Doc doc, string path) => WriteAtomic(path, Serialize(doc));
+
+    /// <summary>
+    /// Write to a temporary file and move it into place.
+    /// </summary>
+    /// <remarks>
+    /// A plain <c>WriteAllText</c> truncates the target before it writes, so a
+    /// crash, a full disk or a killed process mid-save leaves a half-written
+    /// document where the artist's work used to be. The move is atomic on every
+    /// platform we ship to, so the file on disk is always either the previous
+    /// version or the complete new one — never a prefix of it.
+    ///
+    /// Shared with <c>ProjectIo</c> rather than duplicated: a project writes
+    /// many files per save, and the one that is not safe is the one that
+    /// eventually eats a scene.
+    /// </remarks>
+    public static void WriteAtomic(string path, string text)
+    {
+        if (Path.GetDirectoryName(path) is { Length: > 0 } dir) Directory.CreateDirectory(dir);
+        var temp = path + ".tmp";
+        File.WriteAllText(temp, text);
+        File.Move(temp, path, overwrite: true);
+    }
 
     public static Doc Load(string path) => Deserialize(File.ReadAllText(path));
 

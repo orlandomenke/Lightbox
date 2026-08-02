@@ -110,6 +110,32 @@ public class RoundTripTests
     }
 
     [Fact]
+    public void OnionEnabled_RoundTrips_AndDefaultsTrueForOlderDocs()
+    {
+        var doc = SampleDoc();
+        doc.Scene.Layers[0].OnionEnabled = false;
+        var restored = DocJson.Deserialize(DocJson.Serialize(doc));
+        Assert.False(restored.Scene.Layers[0].OnionEnabled);
+        Assert.True(restored.Scene.Layers[1].OnionEnabled);
+
+        // Documents saved before the field existed keep onion skinning on.
+        var legacy = """
+        {
+          "version": 1,
+          "scene": {
+            "id": "scene_1", "name": "S", "width": 100, "height": 100,
+            "fps": 12, "frameCount": 1,
+            "layers": [{
+              "id": "layer_1", "name": "L", "kind": "painted", "visible": true, "opacity": 1,
+              "cels": [{ "frame": { "kind": "painted", "id": "f1", "strokes": [] } }]
+            }]
+          }
+        }
+        """;
+        Assert.True(DocJson.Deserialize(legacy).Scene.Layers[0].OnionEnabled);
+    }
+
+    [Fact]
     public void Deserialize_UnknownKind_Throws()
     {
         var json = """{ "version": 1, "scene": { "layers": [{ "cels": [{ "frame": { "kind": "hologram" } }] }] } }""";

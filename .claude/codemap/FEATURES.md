@@ -1,0 +1,1429 @@
+# Behaviour inventory
+
+879 tests, derived from the suite itself. Each line is a
+promise the application currently keeps. Treat this as the regression
+contract: if a change makes one of these statements false, it is a
+regression even when every test still compiles.
+
+## PromptTests
+`tests/Lightbox.Ai.Tests/AiTests.cs`
+
+- Inbetween User Contains Scene Bounds And All Ts — `:168`
+- Draw User Contains Prompt And Context — `:183`
+- System Prompts Mention Core Principles — `:193`
+
+## SchemaTests
+`tests/Lightbox.Ai.Tests/AiTests.cs`
+
+- Schemas Are Valid Json — `:13`
+- Schemas Every Object Forbids Additional Properties — `:23`
+- Schemas Contain No Numeric Range Constraints — `:52`
+
+## WireMappingTests
+`tests/Lightbox.Ai.Tests/AiTests.cs`
+
+- To Wire Resamples Long Strokes And Rounds Coords — `:67`
+- To Wire Keeps Short Strokes Intact — `:86`
+- From Wire Clamps Everything — `:93`
+- From Wire Rejects Unusable Strokes — `:118`
+- From Wire Maps Eraser And Label — `:127`
+- From Wire List Drops Bad Keeps Good — `:147`
+
+## WireRoundTripTests
+`tests/Lightbox.Ai.Tests/AiTests.cs`
+
+- Inbetween Result Dto Parses Model Shaped Json — `:205`
+
+## OllamaTests
+`tests/Lightbox.Ai.Tests/OllamaTests.cs`
+
+- Request Body Carries Model Schema Prompts And Options — `:45`
+- Success Response Parses And Validates — `:69`
+- Connection Refused Maps To Retryable With Hint — `:87`
+- Model Not Found Suggests Pull — `:100`
+- Empty Or Unusable Frames Is Retryable Error — `:115`
+- Draw Parses Strokes — `:127`
+
+## ActiveColorTests
+`tests/Lightbox.App.Tests/ActiveColorTests.cs`
+
+- The App Starts On Black From The Palette Over White — `:17`
+- Swapping Trades The Two Colours — `:30`
+- Swapping Keeps The Palette Link — `:41`
+- Swapping To AColour With No Swatch Drops The Link Rather Than Faking One — `:56`
+- Reset Goes Back To Black Over White And Relinks — `:71`
+- The Colour Painted With Is The Foreground Whichever Tool Is Active — `:85`
+- Every Picker Sees The Documents Palette — `:103`
+- Picking From The Palette Links The Swatch Rather Than Taking Its Value — `:115`
+- APicker Built With No Document Simply Shows No Palette — `:131`
+
+## AiIntegrationTests
+`tests/Lightbox.App.Tests/AiIntegrationTests.cs`
+
+- No Artist Disables Ai — `:54`
+- Ai Inbetween Inserts Frames Through Shared Path — `:63`
+- Ai Inbetween Refusal Surfaces Message No Mutation — `:94`
+- Ai Inbetween Without Second Key Asks For One — `:110`
+- Ai Draw Appends Strokes Undoable — `:120`
+- Ai Draw Empty Prompt Does Nothing — `:143`
+
+## BackgroundLayerTests
+`tests/Lightbox.App.Tests/BackgroundLayerTests.cs`
+
+- ANew Paper Document Gets ALocked Background Layer Below The Paint Layer — `:32`
+- The Paper Colour Comes Out In The Composite — `:48`
+- ATransparent Document Has No Background Layer And Stays Transparent — `:60`
+- The Background Layer Refuses Edits Until Unlocked — `:71`
+- Erasing The Unlocked Background Reveals Real Transparency — `:93`
+- ADocument Saved Before Background Layers Existed Still Opens On Its Paper — `:114`
+- The Paper Is AStroke Record Not Baked Pixels — `:130`
+
+## BrushCursorTests
+`tests/Lightbox.App.Tests/BrushCursorTests.cs`
+
+- With AMouse The Ring Is The Full Brush Width — `:16`
+- Hovering Shows The Maximum Even After ALight Stroke — `:25`
+- The Ring Matches The Radius The Engine Will Stamp — `:39`
+- Turning Tracking Off Pins The Ring To Full Size — `:60`
+- When Pressure Is Disabled For The Brush The Ring Ignores It — `:74`
+
+## BrushPresetTests
+`tests/Lightbox.App.Tests/BrushToolTests.cs`
+
+- Selecting APreset Applies Its Settings To The Stroke Record — `:47`
+- Each Simulated Medium Reaches The Stroke Record With Its Own Physics — `:78`
+- Brush And Eraser Keep Separate Configurations — `:117`
+- Last Configured Brush Survives ANew Session — `:132`
+- Save Current As Preset Persists User Presets — `:156`
+- Imported Brush Becomes APreset And Its Tip Enters The Document — `:206`
+
+## HiddenLayerTests
+`tests/Lightbox.App.Tests/BrushToolTests.cs`
+
+- Painting On AHidden Layer Is Blocked Until Visible Again — `:11`
+- Ai Draw Refuses AHidden Layer — `:31`
+
+## CameraCompositingTests
+`tests/Lightbox.App.Tests/CameraCompositingTests.cs`
+
+- ACamera Centred On AQuadrant Frames That Quadrant — `:52`
+- Zooming Out Shows More Of The Document — `:67`
+- Rolling The Camera Rotates What The Frame Sees — `:83`
+- No Transform Composes Exactly As It Did Before Cameras Existed — `:101`
+- No Transform Still Honours The Uniform Scale Path — `:114`
+- AClip Under ARolling Camera Covers Where The Region Actually Landed — `:123`
+- Device Bounds Without ACamera Is The Mapping The Compositor Always Used — `:141`
+- The Compose Ring Copies Forward Correctly Under ACamera — `:152`
+
+## CameraExportTests
+`tests/Lightbox.App.Tests/CameraExportTests.cs`
+
+- Without ACamera The Export Is Byte For Byte What It Always Was — `:78`
+- Without ACamera The Output Is The Canvas — `:102`
+- The Output Size Comes From The Camera — `:111`
+- APan Produces ADifferent Framing On Each Frame — `:122`
+- AStatic Camera Frames The Same Thing On Every Frame — `:139`
+- ACamera With No Keys Frames The Scene Centre — `:153`
+- APush In Enlarges What The Frame Shows — `:167`
+
+## CameraViewModelTests
+`tests/Lightbox.App.Tests/CameraViewModelTests.cs`
+
+- ANew Document Has No Camera And No Overlay — `:22`
+- Adding ACamera Frames The Whole Canvas At One To One — `:31`
+- Adding ACamera Twice Is Harmless — `:54`
+- Removing The Camera Takes The Overlay With It — `:65`
+- Editing AFraming Keys It At The Playhead — `:79`
+- Scrubbing Between Keys Shows The Interpolated Framing — `:93`
+- Clearing AKey Leaves The Others — `:112`
+- The Ruler Learns Which Frames Carry AKey — `:131`
+- Viewing Through The Camera Drops The Overlay — `:147`
+- Viewing Through The Camera Does Not Touch The Document — `:163`
+- Painting Still Works While Looking Through The Camera — `:183`
+- ACamera With No Keys Still Frames Something — `:203`
+
+## CanvasInputTests
+`tests/Lightbox.App.Tests/CanvasInputTests.cs`
+
+- Mouse Drag Paints AStroke — `:37`
+- Mouse Drag After Wheel Zoom Still Paints — `:50`
+- Mouse Drag After Middle Button Pan Still Paints — `:64`
+- Mouse Drag After Mirror Rotate Zoom Still Paints At Correct Doc Point — `:81`
+
+## CanvasOverlayGeometryTests
+`tests/Lightbox.App.Tests/CanvasOverlayTests.cs`
+
+- ADrop Goes To The Nearest Edge — `:34`
+- The Answer Depends Only On Where The Pointer Is — `:38`
+- How Far Along Is AFraction Of The Edge It Is On — `:54`
+- ABar On ASide Edge Runs Vertically — `:66`
+- ADegenerate Canvas Does Not Divide By Zero — `:75`
+- The Default Puts View Top Right And Shortcuts Down The Side — `:82`
+- ALayout Clones Rather Than Sharing Its Placements — `:94`
+
+## CanvasOverlayTests
+`tests/Lightbox.App.Tests/CanvasOverlayTests.cs`
+
+- Both Bars Are On The Canvas To Start With — `:123`
+- ABar On ASide Edge Stacks Downwards With Its Icons Upright — `:144`
+- ABar Follows The Pointer While It Is Being Dragged — `:170`
+- The Zoom Readout Turns Its Feet Towards The Canvas — `:201`
+- The Onion Toggle Agrees With The Layers Panel — `:222`
+- Closing ABar Hides It And The View Menu Brings It Back — `:241`
+- Collapsing ABar Survives AWorkspace Reset — `:261`
+- The Bars Are Listed Separately From The Panels — `:278`
+- The Onion Toggle Acts On The Layer Being Drawn On — `:294`
+- One Button For Play And Pause — `:305`
+- An Illustration Project Is Not Offered Transport Controls — `:320`
+- The Camera Toggle Is Absent Until There Is ACamera — `:340`
+
+## CanvasViewTests
+`tests/Lightbox.App.Tests/CanvasViewTests.cs`
+
+- Default View Maps View Center To Doc Center At Fit Scale — `:22`
+- Zoom Keeps Anchor Fixed And Scales Mapping — `:35`
+- Mirror Flips Horizontally Around View Center — `:50`
+- Rotate90 Swaps Axes In The Mapping — `:69`
+- Reset View Restores The Default Mapping — `:81`
+- View Transform Never Touches The Document — `:98`
+
+## ColorPickerViewModelTests
+`tests/Lightbox.App.Tests/ColorPickerTests.cs`
+
+- Channel Edits Commit To Brush Color — `:64`
+- External Hex Updates Every Representation — `:74`
+- Hue Persists When Color Turns Black — `:92`
+- Cmyk Edits Produce Expected Color — `:106`
+- Invalid Hex Typed Is Ignored By Picker — `:118`
+- Mode Flags Follow Selection — `:127`
+
+## ColorSpaceTests
+`tests/Lightbox.App.Tests/ColorPickerTests.cs`
+
+- Known Color Red Converts To Every Model — `:10`
+- Every Model Round Trips Through Hex — `:35`
+- Invalid Hex Returns Null — `:53`
+
+## ComposeRingTests
+`tests/Lightbox.App.Tests/ComposeRingTests.cs`
+
+- After ALarge Change The Next Publishes Still Only Repaint Their Own Dirty Rect — `:61`
+- ABuffer Still Holding ASnapshot Is Caught Up Once It Comes Free — `:100`
+- Catching Up Does Not Dispose The Image The Canvas Is Still Showing — `:151`
+- Every Publish Is ACorrect Full Composite — `:172`
+- Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:215`
+
+## DockLayoutTests
+`tests/Lightbox.App.Tests/DockLayoutTests.cs`
+
+- The Default Layout Opens The Sidebar Panels And ATimeline — `:14`
+- Docking Into AStrip Puts The Panel At The Asked For Position — `:31`
+- Orders Are Always Contiguous From Zero — `:43`
+- Moving The Last Panel Out Of An Area Empties It — `:63`
+- Hiding APanel Keeps Where It Was So Showing It Puts It Back — `:76`
+- Swapping Exchanges Two Panels Positions — `:89`
+- Swapping With AHidden Panel Opens It And Closes The Other — `:107`
+- ASidebar Is Capped By Its Panels But An Uncapped Panel Removes The Ceiling — `:119`
+- The Timeline Is Not Draggable — `:133`
+- ALayout Round Trips Through Json — `:142`
+- ACorrupt Layout Falls Back Rather Than Throwing — `:158`
+
+## DockZoneTests
+`tests/Lightbox.App.Tests/DockZoneTests.cs`
+
+- Near An Empty Edge The Whole Area Is Offered — `:19`
+- Each Edge Is Reachable — `:37`
+- The Middle Of The Canvas Is Not ADrop Target — `:43`
+- The Timeline Cannot Be Dropped — `:51`
+- The Upper Half Of APanel Inserts Above It — `:62`
+- The Lower Half Of APanel Inserts Below It — `:72`
+- The Preview Is ABand At The Boundary So The Neighbour Visibly Makes Room — `:78`
+- Dropping APanel Back Where It Already Is Changes Nothing — `:91`
+- Dragging The Only Panel Of AStrip Over Itself Offers Nothing — `:102`
+- AGap Below AShort Stack Appends To It — `:110`
+- ATop Strip Splits Left To Right Rather Than Top To Bottom — `:126`
+
+## LayerRowTests
+`tests/Lightbox.App.Tests/DockerUiTests.cs`
+
+- Rows Show Topmost Layer First And Track Cells — `:13`
+- Rename Through Row Writes To Document And Is Undoable — `:31`
+- Rename To Blank Snaps Back Without An Undo Step — `:46`
+- Visibility Toggle Through Row Is Undoable — `:60`
+- Select Frame On Another Layers Cell Selects That Layer And Frame — `:72`
+- Add Layer Button Follows Kind Dropdown — `:89`
+
+## PerLayerOnionTests
+`tests/Lightbox.App.Tests/DockerUiTests.cs`
+
+- Disabling Layer Onion Removes Its Ghosts From The Snapshot — `:112`
+
+## PlaybackSpeedTests
+`tests/Lightbox.App.Tests/DockerUiTests.cs`
+
+- Speed Percent Clamps To Sane Range — `:141`
+- Clock Interval Scales With Fps And Speed — `:151`
+
+## SidebarTests
+`tests/Lightbox.App.Tests/DockerUiTests.cs`
+
+- Toggle Sidebar Flips Visibility — `:162`
+- Switch Sidebar Side Flips Side — `:173`
+- Toggle Timeline Flips Visibility — `:184`
+
+## BackgroundColorTests
+`tests/Lightbox.App.Tests/DocumentTabTests.cs`
+
+- Scene Background Round Trips And Tints The Snapshot — `:135`
+- Transparent Background Renders Transparent Pixels — `:153`
+
+## ColorWheelFidelityTests
+`tests/Lightbox.App.Tests/DocumentTabTests.cs`
+
+- Wheel Value Is Not Rewritten While Dragging — `:169`
+- Slider Channels Are Not Rewritten While Editing — `:188`
+
+## DocumentTabTests
+`tests/Lightbox.App.Tests/DocumentTabTests.cs`
+
+- Starts With One Clean Untitled Tab — `:12`
+- New Document Adds Tab With Settings And Activates It — `:23`
+- Painting Marks The Tab Dirty Save Clears It — `:40`
+- Switching Tabs Keeps Each Document And Its Undo History — `:58`
+- Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:84`
+- Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:100`
+- Open Document Tab Uses File Name And Keeps Existing Tabs — `:119`
+
+## FileRevealTests
+`tests/Lightbox.App.Tests/FileRevealTests.cs`
+
+- Windows Selects AFile Inside Its Folder — `:15`
+- Windows Opens AFolder Rather Than Selecting It — `:26`
+- Mac Reveals With Dash R — `:34`
+- Linux Opens The Containing Folder Because There Is No Portable Select — `:45`
+- Opening Hands The Path To The Desktop — `:56`
+- APath With No Parent Is Its Own Folder — `:66`
+- Nothing Is Revealed For APath That Is Not There — `:72`
+
+## FillAndBackgroundBugTests
+`tests/Lightbox.App.Tests/FillAndBackgroundBugTests.cs`
+
+- ASecond Fill In ADifferent Colour Replaces The First — `:39`
+- AFill Still Tucks Under The Line Work — `:54`
+- AFill After Erasing Is Not Swallowed By The Eraser — `:74`
+- Erasing Produces Transparency Not Paper — `:103`
+- The Startup Document Opens On Paper — `:121`
+- The Startup Document Lands On APaintable Layer — `:143`
+- ATransparent Document Has No Background Layer — `:151`
+- The Brush Ring Follows The Size Slider — `:163`
+
+## ContextShortcutTests
+`tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
+
+- Same Key Means Different Things Per Context — `:12`
+- Global Bindings Fire In Every Context Unless Shadowed — `:23`
+- Conflicts Only Count When Contexts Overlap — `:36`
+
+## LayerFolderTests
+`tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
+
+- Create Folder Groups The Active Layer And Shows AHeader Row — `:126`
+- Folder Visibility Gates Its Members In Compositing And Painting — `:141`
+- Collapse Hides Member Rows From The Docker Panel Only — `:160`
+- Add And Remove Keep The Folder Contiguous — `:173`
+- Folder Color Is Undoable And Serializes — `:190`
+- Dissolve Ungroups Everything And Folders Serialize — `:208`
+
+## NudgeSelectionTests
+`tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
+
+- Nudge Shifts Every Contour Point By Whole Pixels — `:90`
+- Nudge Without ASelection Is ANo Op — `:103`
+
+## PickerToolTests
+`tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
+
+- Pick Color At Reads The Composited Color And Paper When Empty — `:49`
+- Insert Keyframe At Playhead Keys The Active Cel — `:74`
+
+## FrameBitmapCacheTests
+`tests/Lightbox.App.Tests/FrameBitmapCacheTests.cs`
+
+- The Byte Budget Is Honoured Even When It Cannot Afford The Frame Floor — `:32`
+- The Frame Floor Still Applies When The Budget Can Afford It — `:49`
+- The Same Frame At Two Scales Is Cached Twice Rather Than Thrashing — `:62`
+- The Same Frame At Two Document Sizes Is Also Cached Separately — `:82`
+- Invalidating AFrame Drops Every Render Of It — `:96`
+- Invalidating One Frame Leaves The Others Alone — `:115`
+- Cached Bytes Tracks What Is Actually Held — `:129`
+
+## GradientRampTests
+`tests/Lightbox.App.Tests/GradientRampTests.cs`
+
+- Clicking The Colour Track Adds AStop Where You Clicked — `:24`
+- Dragging AColour Stop Moves It — `:40`
+- The Last Two Colour Stops Cannot Be Removed — `:51`
+- Adding AColour Stop Is Undoable — `:63`
+- AGradient Has No Alpha Track Until You Add One — `:77`
+- The First Opacity Stop Seeds Both Ends So It Does Not Fade Everything — `:85`
+- Editing The Selected Opacity Shows In The Ramp — `:102`
+- Removing Down To One Opacity Stop Drops The Track Entirely — `:115`
+- Opacity And Colour Stops Are Selected Independently — `:130`
+- An Opacity Hole Shows On The Canvas — `:145`
+
+## GradientToolTests
+`tests/Lightbox.App.Tests/GradientToolTests.cs`
+
+- ANew Document Has No Gradients And The Docker Is Hidden — `:42`
+- ANew Gradient Is Black To White And Undoable — `:51`
+- Dragging Lays Down AGradient Stroke With The Drag As Its Axis — `:64`
+- The Ramp Runs Along The Drag — `:78`
+- AClick With No Drag Paints Nothing — `:93`
+- Escape During The Drag Abandons It — `:104`
+- Editing AStop Repaints The Gradient Already Laid Down — `:118`
+- Switching To Radial Changes The Shape Of What Is Painted — `:136`
+- Adding AStop Inserts It Between The Selected One And The Next — `:157`
+- The Last Two Stops Cannot Be Removed — `:171`
+- AGradient Stroke Survives AReload — `:182`
+- Undoing Removes The Gradient Stroke — `:205`
+- The Tool Makes ABlack To White Gradient If There Is None — `:216`
+- ALocked Layer Refuses AGradient — `:233`
+- The Ramp Is Visible While Dragging And Survives The Pen Lift — `:242`
+- Opacity Is Recorded On The Stroke Not Read At Render Time — `:273`
+- Transforming AGradient Moves Its Axis — `:291`
+- ASelection Over AGradient Finds It — `:311`
+- ASelection Elsewhere Still Leaves Ordinary Strokes Alone — `:331`
+
+## IpcTests
+`tests/Lightbox.App.Tests/IpcTests.cs`
+
+- Get Scene Reports Layers And Keys — `:31`
+- Get Frame Strokes Returns Wire Format — `:44`
+- Render Frame Returns Decodable Png — `:56`
+- Insert Inbetweens Validates And Inserts Undoable — `:68`
+- Draw Strokes Appends To Exposed Key — `:110`
+- Bad Requests Fail Cleanly — `:134`
+- Pipe Round Trip Get Scene — `:147`
+
+## LargeCanvasPerformanceTests _Category=Performance_
+`tests/Lightbox.App.Tests/LargeCanvasPerformanceTests.cs`
+
+- Four K Pointer Event During AStroke Repaints Only What Changed — `:69`
+- Four K Whole Stroke Including Commit Has No Pen Lift Stall — `:89`
+- Four K Undo After AStroke Stays Responsive — `:109`
+- Four K The First Events Of AStroke Repaint No More Than The Middle Of One — `:142`
+- Four K Masked Stroke Costs No More Than An Unmasked One — `:198`
+- Four K Wet Media Stroke Stays Within Its Budget — `:230`
+- Four K Frame Cache Stays Within Its Memory Budget — `:271`
+- Headroom Reports Smooth While Painting On Four K — `:291`
+
+## AlphaSelectAndWandTests
+`tests/Lightbox.App.Tests/LayerCompositingTests.cs`
+
+- Select Layer Alpha Selects Only The Painted Pixels — `:152`
+- Select Layer Alpha On An Empty Layer Is ANo Op With AMessage — `:166`
+- Select Layer Alpha Subtract Carves Out Of An Existing Selection — `:175`
+- Wand Selects The Clicked Color Region — `:191`
+- Wand On Empty Canvas Selects The Connected Emptiness — `:203`
+- Fill Inside AWand Selection Stays Inside And Records The Clip — `:215`
+
+## BlendComposeTests
+`tests/Lightbox.App.Tests/LayerCompositingTests.cs`
+
+- Multiply Darkens And Screen Lightens — `:32`
+- Opacity Still Applies Under ABlend Mode — `:44`
+- To Skia Maps Normal To Src Over And Covers Every Mode — `:52`
+
+## CelClipboardTests
+`tests/Lightbox.App.Tests/LayerCompositingTests.cs`
+
+- Copy Paste Deep Clones With Fresh Ids And Extends The Timeline — `:243`
+- Cut Copies Then Clears So The Cel Becomes AHold — `:262`
+- Paste Across Kinds Converts Strokes But Refuses Baseline Pixels Onto Vector — `:275`
+- Exposure Editing From Cells Extends And Clears — `:297`
+
+## LayerPanelTests
+`tests/Lightbox.App.Tests/LayerCompositingTests.cs`
+
+- Active Layer Opacity Writes Through As Percent — `:66`
+- Active Layer Blend Mode Is Undoable — `:75`
+- Move Layer Flips Compositing Order And Follows The Active Layer — `:86`
+- Layer Thumb Renders The Exposed Drawing And Follows The Playhead — `:101`
+
+## LayerDeletionTests
+`tests/Lightbox.App.Tests/LayerDeletionTests.cs`
+
+- Delete Layer Removes It And Keeps AValid Active Index — `:10`
+- Deleting The Last Layer Regrows ABlank One — `:24`
+- Clear Layer Blanks Every Drawing But Keeps The Timing — `:48`
+- Docker Visibility Toggles Round Trip — `:73`
+
+## LayerLockTests
+`tests/Lightbox.App.Tests/LayerLockTests.cs`
+
+- Painting Is Refused With AReason That Names The Layer — `:32`
+- Fill Is Refused — `:47`
+- Transform Is Refused — `:58`
+- Deleting The Layer Is Refused — `:66`
+- External Writers Are Refused — `:76`
+- Visibility Opacity And Blend Mode Stay Available — `:91`
+- ALocked Folder Locks Its Members And Says So — `:107`
+- Locking Is Undoable — `:128`
+- Alpha Lock Is Recorded On The Stroke Not Read Back From The Layer — `:140`
+
+## LiveMaskPixelTests
+`tests/Lightbox.App.Tests/LiveMaskPixelTests.cs`
+
+- Alpha Locked The Live Stroke Is Already Masked — `:81`
+- Alpha Locked Live And Committed Agree Everywhere — `:104`
+- Not Alpha Locked The Stroke Still Covers The Whole Canvas — `:121`
+- Selected The Live Stroke Is Already Clipped — `:135`
+- Alpha Locked And Selected Both Masks Apply Live — `:161`
+
+## LiveMediumPixelTests
+`tests/Lightbox.App.Tests/LiveMediumPixelTests.cs`
+
+- AMedium Stroke Looks The Same Live As Committed — `:121`
+- AWet Edge Is Visible Before The Pen Lifts — `:136`
+- Paper Texture Is Visible Before The Pen Lifts — `:151`
+- AMedium Stroke Is Not Just Flat Dabs — `:167`
+- APlain Brush Does Not Pay For The Post Process — `:191`
+
+## LivePreviewPixelTests
+`tests/Lightbox.App.Tests/LivePreviewPixelTests.cs`
+
+- Mid Stroke The Published Snapshot Shows The Line — `:36`
+- Self Crossing Looks The Same Live And Committed — `:59`
+
+## LivePreviewTests
+`tests/Lightbox.App.Tests/LivePreviewTests.cs`
+
+- Batched Moves Produce One Stroke With All Points — `:10`
+- Committed Pixels Match Direct Rasterization — `:30`
+- Pointer Up Without Down Is Harmless — `:56`
+
+## LiveToolPreviewTests
+`tests/Lightbox.App.Tests/LiveToolPreviewTests.cs`
+
+- Smudge Shows Mid Drag — `:56`
+- The Smudge Preview Matches The Commit — `:84`
+- Blur Shows Mid Drag — `:111`
+- An Abandoned Smudge Leaves No Trace — `:143`
+
+## MainViewModelTests
+`tests/Lightbox.App.Tests/MainViewModelTests.cs`
+
+- Paint Stroke Lands In Document — `:14`
+- Paint On Hold Frame Targets Exposed Key — `:29`
+- Frame Commands Keep Document And Cells Consistent — `:47`
+- Undo Redo Round Trips Paint — `:63`
+- Insert Inbetweens Fills Timeline — `:81`
+- Snapshot Published On Paint And Navigation — `:112`
+- Replace Document Resets State — `:132`
+- Toggle Playback Flips State — `:148`
+- Paint While Playing Is Ignored — `:159`
+
+## MainWindowTests
+`tests/Lightbox.App.Tests/MainViewModelTests.cs`
+
+- Main Window Constructs And Shows — `:173`
+
+## ExportTests
+`tests/Lightbox.App.Tests/Milestone3Tests.cs`
+
+- Export Png Sequence Writes One File Per Frame Resolving Holds — `:125`
+
+## FpsTests
+`tests/Lightbox.App.Tests/Milestone3Tests.cs`
+
+- Fps Clamps And Persists To Scene — `:160`
+
+## LayerTests
+`tests/Lightbox.App.Tests/Milestone3Tests.cs`
+
+- Add Vector Layer Becomes Active Painting Creates Vector Strokes — `:12`
+- Inbetweens On Vector Layer Produce Vector Frames — `:37`
+- New Layer Is Padded To Frame Count And Undoable — `:57`
+
+## SmoothingTests
+`tests/Lightbox.App.Tests/Milestone3Tests.cs`
+
+- Smoothing On Reduces Spikes Preserves Endpoints — `:75`
+- Smoothing Off Keeps Raw Points — `:91`
+
+## ThumbnailTests
+`tests/Lightbox.App.Tests/Milestone3Tests.cs`
+
+- Keyed Cells Get Thumbnails Holds Do Not — `:107`
+
+## DropColorFillTests
+`tests/Lightbox.App.Tests/ModifiersAndDropFillTests.cs`
+
+- Dropping AColour Fills And Adopts It — `:77`
+- It Works Whichever Tool Is Selected — `:94`
+- ALocked Layer Still Refuses It — `:107`
+
+## TemporaryToolModifierTests
+`tests/Lightbox.App.Tests/ModifiersAndDropFillTests.cs`
+
+- Alt Held Erases With The Current Brush Without Switching Tools — `:17`
+- Without Alt The Same Call Paints — `:32`
+- The Eraser Tool Still Erases Even Without Alt — `:42`
+
+## OnionTests
+`tests/Lightbox.App.Tests/OnionTests.cs`
+
+- Onion Settings Survive The Application Closing — `:83`
+- Rearranging The Panels Leaves Onion Skin Alone — `:113`
+- Opening ADocument Does Not Reset How Far Back You Can See — `:134`
+- The Drawing Before This One Shows Through In Its Tint — `:147`
+- Depth Decides How Far Back The Ghosts Reach — `:159`
+- Falloff Makes The Further Ghost Fainter — `:174`
+- Playback Shows The Animation Not The Ghosts — `:196`
+- ACel That Exposes Nothing Still Shows Its Ghosts — `:210`
+- Draw Over Puts The Ghost On Top Of The Current Drawing — `:244`
+- ALight Table Dims The Other Layers And Drops The Time Ghosts — `:273`
+- ALight Table Leaves The Paper Alone — `:300`
+- APinned Frame Ghosts From Anywhere In The Sequence — `:320`
+- APinned Frame Never Ghosts Itself — `:340`
+- Unpinning And Clearing Put The Canvas Back — `:354`
+- ADocument That Pins Nothing Writes No Pin Key — `:386`
+- ALayer With Onion Off Contributes No Ghosts — `:400`
+
+## OverflowBarTests
+`tests/Lightbox.App.Tests/OverflowBarTests.cs`
+
+- Everything Fits When There Is Room — `:15`
+- Exactly Enough Room Still Fits — `:23`
+- The Overflow Button Takes Its Own Room Once It Is Needed — `:31`
+- An Item Too Wide For The Bar At All Is Pushed Into The Menu — `:41`
+- An Empty Bar Overflows Nothing — `:49`
+- The Order Is Kept — `:55`
+
+## PaletteDockerTests
+`tests/Lightbox.App.Tests/PaletteDockerTests.cs`
+
+- ANew Document Starts With Black And White Selected On Black — `:42`
+- Adding ASwatch Takes The Current Colour And Is Undoable — `:60`
+- Selecting ASwatch Paints With It — `:74`
+- Choosing AColour Any Other Way Breaks The Swatch Link — `:98`
+- Recolouring ASwatch Repaints The Art That Used It — `:119`
+- Edit Mode Routes The Picker Into The Selected Swatch — `:142`
+- ARun Of Colour Edits Is One Undo Step — `:157`
+- Undoing AStructural Edit Does Not Swallow An Uncommitted Recolour — `:178`
+- ASwatch Survives Undo With Its Identity — `:196`
+- Removing ASwatch Leaves The Art In The Colour It Was Drawn In — `:220`
+- Switching Documents Switches Palettes — `:243`
+- Palettes Round Trip Through The Document With Their Links — `:263`
+- Imported Gpl Becomes APalette On The Document — `:282`
+- Exported Gpl Reads Back As The Same Palette — `:306`
+- An Unparseable Hex Is Rejected Rather Than Painting Black — `:330`
+
+## ProjectDockerTests
+`tests/Lightbox.App.Tests/ProjectDockerTests.cs`
+
+- The App Opens With No Project — `:31`
+- With No Project ADocument Saves And Loads Exactly As Before — `:44`
+- New Project Adopts The Document Already Open — `:60`
+- The Docker Lists Characters With Their Animations Under Them — `:82`
+- Adding An Animation Opens It As ATab Bound To Its Slot — `:96`
+- Opening An Animation Twice Focuses The Tab Rather Than Duplicating It — `:110`
+- File New Still Makes AStandalone Document With AProject Open — `:127`
+- Two Animations Under One Character Paint From One Palette — `:144`
+- Save Writes The Project Without APicker — `:182`
+- Without AProject Or APath There Is Nothing To Save In Place — `:199`
+- AProject Reopens With Its Characters And Animations — `:207`
+- Removing An Animation Leaves Its File On Disk — `:228`
+- The New Menu Offers Animation Character And ALoose Document — `:248`
+- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:261`
+- ALoose Document Gets Its Own Row With No Character Above It — `:278`
+- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:293`
+- Moving ADocument To The Project Takes It Out Of Every Character — `:318`
+- Moving ADocument Where It Already Is Does Nothing — `:332`
+- AMoved Document Survives ASave And Reopen — `:342`
+- Renaming ARow Writes Through — `:362`
+- Every Row Knows Where It Is On Disk — `:377`
+- With No Project There Is No Path To Show — `:396`
+- Copy Path Gives The Selected Rows File — `:406`
+- Opening Externally Says So When The File Is Not Written Yet — `:419`
+- Duplicating An Animation Copies Its Art Into The Same Character — `:437`
+- Duplicating Writes The Copy On The Next Save — `:470`
+
+## ReferenceAiTests
+`tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
+
+- Render Reference View Produces Decodable Png — `:131`
+- Ai Inbetween Carries Reference Images — `:154`
+- Ipc List And Render Expose Reference Views — `:183`
+
+## ReferenceSheetModelTests
+`tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
+
+- Sheets Round Trip Through Json And Legacy Docs Load Empty — `:12`
+
+## ReferenceTabTests
+`tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
+
+- Add View Opens Reference Tab Timeline Hidden — `:53`
+- Painting In Reference Tab Lands In Owning Document And Dirties Owner — `:69`
+- Save From Reference Tab Serializes The Owning Document — `:92`
+- Closing Owner Tab Closes Its Reference Tabs — `:108`
+- Opening Same View Focuses Existing Tab — `:118`
+
+## ReferenceStripTests
+`tests/Lightbox.App.Tests/ReferenceStripTests.cs`
+
+- Importing ASheet Finds Its Frames — `:91`
+- Importing Extends The Timeline To Fit The Reference — `:101`
+- Asking Not To Add Frames Leaves The Timeline Alone — `:115`
+- An Oversized Sheet Is Scaled To Fit The Canvas — `:126`
+- ASheet That Will Not Decode Is Refused Rather Than Crashing — `:141`
+- ASheet Can Be Cut On ADeclared Grid Instead — `:150`
+- Each Frame Shows Its Own Part Of The Sheet — `:165`
+- The Reference Sits Over The Paper And Under The Drawing — `:180`
+- Hiding The Reference Takes It Off The Canvas — `:197`
+- AFrame With No Reference Shows Nothing — `:208`
+- Nudging ACell Moves That Frame And Only That Frame — `:220`
+- Nudging The Sheet Moves Every Frame Together — `:237`
+- Scale Applies To Every Frame — `:250`
+- Clearing Alignment Undoes Every Nudge — `:271`
+- Alignment Is Undoable — `:285`
+- Adding AFrame Moves The Reference Along With The Animation — `:300`
+- AReference Pinned To Absolute Timing Stays Put — `:314`
+- AReference Is Never Exported — `:329`
+- Removing The Last Reference Leaves The Document With No Key For One — `:345`
+- ADocument With No Reference Composites Exactly As It Always Has — `:358`
+- AReference Survives Saving And Reopening — `:374`
+
+## ShortcutMapTests
+`tests/Lightbox.App.Tests/ShortcutMapTests.cs`
+
+- Defaults Cover The Core Commands Without Duplicates — `:12`
+- Conflict Detection Finds The Other Command — `:29`
+- Assign With Unbind Steals The Gesture — `:41`
+- Overrides Persist And Reload — `:51`
+- Corrupt Store Falls Back To Defaults — `:69`
+
+## DeltaCommitTests
+`tests/Lightbox.App.Tests/SmoothingAndCommitTests.cs`
+
+- Stroke Commit Undo Redo Works Without Snapshots — `:133`
+- Delta And Snapshot Steps Interleave Cleanly — `:149`
+- Stroke Under Selection Undo Removes The Deduped Clip Too — `:178`
+- Global Anti Aliasing Stamps Into Strokes And Fills — `:194`
+
+## SmoothingVmTests
+`tests/Lightbox.App.Tests/SmoothingAndCommitTests.cs`
+
+- Smooth Strokes Compat Maps To The Mode — `:86`
+- Pulled String Records The Smoothed Path Not The Cursor — `:99`
+- Lazy Gizmo Radius Only Shows For Pulled String Paint Tools — `:116`
+
+## StrokeFilterTests
+`tests/Lightbox.App.Tests/SmoothingAndCommitTests.cs`
+
+- Moving Average Filters Tremor And Anchors Endpoints — `:32`
+- Savitzky Golay Smooths But Keeps APeak Better Than Averaging — `:43`
+- Pulled String Has ADead Zone Then Trails The Cursor — `:58`
+- Ema Lags Behind And Converges — `:72`
+
+## SnapshotRetirementTests
+`tests/Lightbox.App.Tests/SnapshotRetirementTests.cs`
+
+- Publishes That Outrun The Renderer Never Free An Image Still In Flight — `:37`
+- Once Rendered The Old Frames Are Still Released — `:77`
+
+## SpriteSheetExportTests
+`tests/Lightbox.App.Tests/SpriteSheetExportTests.cs`
+
+- Trimming Defaults To The Union So Every Cell Is The Same Size And Nothing Jitters — `:63`
+- The Union Covers Every Frames Ink — `:88`
+- Per Frame Trimming Records Where Each Cell Came From — `:103`
+- No Trim Gives Every Cell The Whole Canvas — `:119`
+- The Grid Holds Every Frame And The Sheet Is That Size — `:129`
+- Every Cell Actually Contains Its Frame — `:144`
+- Padding Leaves ATransparent Gutter Without Losing Ink — `:169`
+- Without APivot The Sidecar Carries None — `:182`
+- The Pivot Is Recorded Per Cell So Trimming Cannot Shift The Character — `:191`
+- The Sidecar Is Aseprite Shaped — `:219`
+- An Opaque Background Layer Does Not Defeat Trimming — `:247`
+- An Empty Document Still Produces ASheet — `:260`
+
+## TimelineBugTests
+`tests/Lightbox.App.Tests/TimelineBugTests.cs`
+
+- Onion Ghosts Show Over The Paper — `:38`
+- Adding AFrame Holds The Paper Rather Than Blanking It — `:70`
+- Painting With No Key At The Playhead Creates One — `:90`
+- Filling With No Key At The Playhead Creates One — `:107`
+- Keying By Drawing Is Undoable — `:128`
+- Redrawing ACleared Cel Brings The Thumbnail Back — `:149`
+- Delete Cel Ripples The Rest — `:173`
+- Delete Cel Leaves Other Layers Alone — `:205`
+
+## FrameInsertionTests
+`tests/Lightbox.App.Tests/TimelineExpansionTests.cs`
+
+- Insert On Virtual Cell Extends Timeline Padding All Layers — `:116`
+- Insert Roles Color The Cells And Undo Removes Frame — `:134`
+- Insert On Existing Frame Just Remarks Its Role — `:152`
+- Generated Inbetweens Are Marked As Inbetweens — `:167`
+
+## FrameRoleSerializationTests
+`tests/Lightbox.App.Tests/TimelineExpansionTests.cs`
+
+- Role Survives Save And Load Defaults To Key For Legacy Docs — `:191`
+
+## PlaybackTransportTests
+`tests/Lightbox.App.Tests/TimelineExpansionTests.cs`
+
+- Step Playback Loops Forward Inside Selected Range — `:18`
+- Step Playback Backwards Wraps To Range End — `:34`
+- Go To Start And End Use Range When Set Else Timeline Bounds — `:50`
+- Keyframe Navigation Skips Holds — `:73`
+- Range Selection Greys Out Cells Outside It — `:95`
+
+## CelRangeSelectionTests
+`tests/Lightbox.App.Tests/TimelineRangeAndPressureTests.cs`
+
+- Shift Click Selects ARange And Plain Click Clears It — `:26`
+- Copy Range Preserves Holds And Paste Replays Them — `:44`
+- Cut Range Clears Every Cel In The Range In One Undo Step — `:68`
+- Move Cel Refuses Cross Layer Drops — `:88`
+- Markers Add Edit Remove Are Undoable And Feed The Ruler — `:103`
+
+## PressureVmTests
+`tests/Lightbox.App.Tests/TimelineRangeAndPressureTests.cs`
+
+- Master Switch Writes Into The Stroke Record — `:127`
+- Per Setting Checkboxes Map To The Response Curves — `:141`
+
+## FillToolTests
+`tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`
+
+- Fill At Records AFill Stroke Below The Line Work — `:79`
+- Fill At Above Line Work Appends On Top — `:96`
+- Fill At Under ASelection Stays Inside It And Records The Clip — `:111`
+- Fill At Is Undoable — `:133`
+
+## SelectionTests
+`tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`
+
+- Painting Under ASelection Tags The Stroke And Dedupes The Region — `:150`
+- Selection Combine Ops Add Subtract Replace — `:170`
+- Select All Invert Deselect — `:191`
+- Grow And Shrink Move The Outline — `:210`
+- Polygon Selection Builds From Vertices And Esc Cancels — `:227`
+- Paint Outside The Selection Leaves No Visible Pixels — `:247`
+
+## ToolModelTests
+`tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`
+
+- Select Shortcut Activates Then Cycles Variants — `:10`
+- Is Eraser Compat Tracks The Active Tool — `:39`
+- Non Paint Tools Do Not Produce Brush Strokes — `:54`
+
+## TransformPreviewTests
+`tests/Lightbox.App.Tests/TransformPreviewTests.cs`
+
+- Transform Preview Moves The Pixels — `:50`
+- The Preview Is Not An Edit — `:66`
+- Cancelling Puts The Pixels Back — `:85`
+- What The Preview Showed Is What Apply Produces — `:99`
+- With ASelection Only The Selected Strokes Move — `:116`
+
+## TransformToolTests
+`tests/Lightbox.App.Tests/TransformToolTests.cs`
+
+- Begin Transform Reports The Stroke Bounds And Commit Moves The Points — `:37`
+- Mirror Commit Flips Around The Pivot Without Moving — `:63`
+- Perspective Commit Maps The Corners Exactly — `:77`
+- Degenerate Perspective Is Refused And The Session Survives — `:97`
+- Cel Range Scope Transforms Each Distinct Drawing Once — `:110`
+- Entire Animation Scope Moves Every Layer — `:130`
+- Selection Region Limits The Transform To Strokes Inside It — `:149`
+- Empty Scope Refuses To Start — `:169`
+
+## AutosaveSettingsTests
+`tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
+
+- The Default Is Every Minute To The Recovery Copy Only — `:214`
+- Zero Turns Autosave Off — `:225`
+- An Absurd Interval Is Clamped Rather Than Honoured — `:233`
+- Settings Round Trip And Survive Corruption — `:242`
+
+## WorkspaceStoreTests
+`tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
+
+- Every Project Type Has ABuilt In Workspace — `:15`
+- The Built Ins Differ From Each Other — `:30`
+- Saving Under ANew Name Adds AWorkspace And Selects It — `:43`
+- Saving Over Your Own Workspace Replaces It — `:56`
+- Saving Over ABuilt In Forks It Instead — `:71`
+- Only Your Own Workspaces Can Be Deleted — `:87`
+- Deleting The Selected Workspace Selects Another — `:98`
+- AStore Round Trips And Gains Built Ins It Predates — `:110`
+- ACorrupt Store Falls Back Rather Than Throwing — `:128`
+- Applying AWorkspace Replaces The Layout And Clears The Star — `:138`
+- Reset Goes Back To What The Workspace Says — `:153`
+- Taking AProject Types Defaults Switches Workspace — `:167`
+- Only Saved Workspaces Offer ABin — `:180`
+- The Label Marks AWorkspace The User Has Since Rearranged — `:191`
+
+## WorkspaceTests
+`tests/Lightbox.App.Tests/WorkspaceTests.cs`
+
+- Panels Land In The Strip The Layout Names — `:43`
+- Moving APanel Moves The Control — `:55`
+- An Empty Edge Collapses And AFilled One Opens — `:67`
+- Closing APanel Parks It Rather Than Destroying It — `:89`
+- The Header Switcher Trades Two Panels Places — `:108`
+- Every Panel Except The Timeline Offers ASwitcher — `:124`
+- The Project Panel Appears As Soon As There Is AProject — `:145`
+- The Canvas Gets The Room Left Over By The Strips — `:168`
+- The Project Row Menu Actually Does Something When Clicked — `:192`
+- The New Menu Actually Makes Things — `:239`
+- The Reference Panel Is Absent Until It Is Asked For — `:282`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:298`
+
+## CameraTests
+`tests/Lightbox.Core.Tests/CameraTests.cs`
+
+- No Camera Frames The Whole Scene Dead Centre — `:30`
+- No Keys Frames The Whole Scene Dead Centre — `:37`
+- One Key Is AStatic Framing — `:44`
+- Outside The Authored Range The Camera Holds Rather Than Drifting — `:57`
+- Pan And Roll Interpolate Linearly Between Keys — `:71`
+- Zoom Interpolates Geometrically So APush Holds AConstant Rate — `:80`
+- Each Easing Shapes The Move — `:101`
+- AZero Or Negative Zoom Falls Back To One Rather Than Dividing The Framing Away — `:109`
+- Keys Out Of Order Still Interpolate In Timeline Order — `:116`
+- Set Key Replaces The Key Already On That Frame — `:130`
+- Clear Key Removes Only That Frame — `:144`
+- ANew Scene Has No Camera — `:156`
+- ADocument Without ACamera Serializes With No Camera Key At All — `:163`
+- Adding Then Removing ACamera Returns The Document To Its Original Bytes — `:175`
+- ANew Scene Has No Pivot And The File Has No Pivot Key — `:191`
+- APivot Round Trips And Defaults To Feet Centre — `:199`
+- AShot Document Carries No Pivot And ASprite Document No Camera — `:213`
+- ACamera Round Trips Through Save And Load — `:226`
+
+## CharacterVariantTests
+`tests/Lightbox.Core.Tests/CharacterVariantTests.cs`
+
+- ACharacter Nobody Varied Carries No Variant Keys — `:57`
+- AVariant Copies The Palette Keeping Every Swatch Id — `:71`
+- Recolouring AVariant Leaves The Base Character Alone — `:85`
+- Selecting AVariant Switches Which Palette The Character Paints With — `:97`
+- AVariant Inherits Every Animation It Does Not Override — `:110`
+- An Overridden Animation Replaces Only Itself — `:124`
+- AVariants Own Art Is Saved And Reloaded — `:139`
+- Variants Round Trip With Their Palettes — `:157`
+- Only Asset Library Projects Offer Their Characters — `:176`
+- Scanning Ignores Folders That Are Not Projects — `:192`
+- Importing ACharacter Brings Its Animations And Palette — `:201`
+- An Imported Character Still Paints From Its Palette — `:218`
+- Importing Copies Rather Than Links — `:236`
+- Importing Carries Variants And Rebases Their Overrides — `:253`
+- Importing Twice Gives Two Characters With Distinct Folders — `:277`
+
+## ColorTests
+`tests/Lightbox.Core.Tests/Geometry/GeometryTests.cs`
+
+- Hex To Rgb Parses — `:99`
+- Hex To Rgb Invalid Throws — `:106`
+- Lerp Color Endpoints — `:110`
+
+## GeometryTests
+`tests/Lightbox.Core.Tests/Geometry/GeometryTests.cs`
+
+- Resample Produces Exact Count — `:9`
+- Resample Preserves Endpoints — `:17`
+- Resample Spacing Is Even By Arc Length — `:27`
+- Resample Degenerates — `:39`
+- Resample Is Deterministic — `:54`
+- Path Length Sums Segments — `:65`
+- Centroid Averages Positions — `:72`
+- Smooth Preserves Endpoints And Count — `:80`
+
+## GradientTests
+`tests/Lightbox.Core.Tests/GradientTests.cs`
+
+- The Ends Are The Stops Themselves — `:24`
+- Interpolation Is In Linear Light Not Srgb — `:32`
+- AMulti Stop Ramp Hits Each Stop Exactly — `:43`
+- Coincident Stops Are AHard Edge — `:60`
+- Stops Out Of Order Still Ramp In Position Order — `:79`
+- Spread Decides What Happens Off The Ends — `:101`
+- Alpha Interpolates As Coverage Not As Light — `:109`
+- An Empty Gradient Is Transparent Rather Than ACrash — `:126`
+- Gradients Round Trip Through The Document — `:133`
+- ANew Document Has No Gradients — `:152`
+- With No Alpha Track The Colour Stops Carry Their Own Alpha — `:160`
+- An Alpha Track Overrides The Colour Stops Alpha — `:180`
+- Opacity And Colour Change At Their Own Positions — `:197`
+- One Alpha Stop Holds Its Value Everywhere — `:225`
+- An Alpha Track Round Trips Through The Document — `:234`
+- AGradient With No Alpha Track Writes No Alpha Key — `:250`
+
+## EraserResurrectionTests
+`tests/Lightbox.Core.Tests/Inbetween/CleanerTests.cs`
+
+- Erased Stroke Does Not Appear In Inbetweens — `:71`
+- Tween Output Preserves Paint Order — `:92`
+
+## StrokeRecordCleanerTests
+`tests/Lightbox.Core.Tests/Inbetween/CleanerTests.cs`
+
+- Fully Erased Stroke Is Dropped Erasers Too — `:16`
+- Partially Erased Stroke Is Kept — `:26`
+- Eraser Before Stroke Does Not Affect It — `:37`
+- Untouched Strokes Survive In Order — `:48`
+
+## InbetweenerTests
+`tests/Lightbox.Core.Tests/Inbetween/InbetweenTests.cs`
+
+- Matched Strokes Interpolate — `:141`
+- Unmatched A Fades Out In First Half — `:153`
+- Unmatched B Fades In Second Half — `:167`
+- Easing Shifts Parameter — `:180`
+- Inbetween Series Produces Evenly Spaced Ts — `:191`
+- Easing Functions Pin Endpoints — `:207`
+
+## InterpolateTests
+`tests/Lightbox.Core.Tests/Inbetween/InbetweenTests.cs`
+
+- T0 Matches A T1 Matches B — `:80`
+- Midpoint Is Halfway — `:93`
+- Reversed Stroke B Gets Flipped — `:105`
+- Interpolation Is Structurally Deterministic — `:119`
+
+## MatchTests
+`tests/Lightbox.Core.Tests/Inbetween/InbetweenTests.cs`
+
+- Label Match Beats Proximity — `:16`
+- Greedy Matching Picks Nearest Centroids — `:29`
+- Length Mismatch Inflates Cost — `:42`
+- Unmatched Pair With Null — `:52`
+- Empty Frames Produce Only One Sided Pairs — `:60`
+
+## OnionSkinTests
+`tests/Lightbox.Core.Tests/OnionSkinTests.cs`
+
+- On Ones The Neighbours Are The Frames Either Side — `:41`
+- On Threes The Neighbours Are Still The Drawings Either Side — `:52`
+- ADrawing Is Never Ghosted Against Itself — `:63`
+- The Same Drawing Is Never Ghosted Twice — `:74`
+- Steps Count Drawings Not Frames — `:83`
+- Keys Only Walks Keyed Cels And Ignores Holds — `:96`
+- Keys Only Standing On AHold Finds The Keys Not The Held Drawing — `:104`
+- Before And After Are Asked For Separately — `:114`
+- Zero Depth Ghosts Nothing — `:125`
+- The Ends Of The Sequence Simply Run Out — `:131`
+- Falloff Halves Each Further Ghost — `:141`
+- AFalloff Of One Makes Every Ghost Equally Visible — `:149`
+
+## PaletteTests
+`tests/Lightbox.Core.Tests/PaletteTests.cs`
+
+- Swatches Get Stable Identities — `:27`
+- APalette Round Trips Through The Document — `:36`
+- ANew Document Starts With Black And White — `:55`
+- Gpl Round Trips Names And Colours — `:70`
+- Gpl Writes The Header Other Tools Look For — `:85`
+- Gpl Reading Is Forgiving Of Real Files — `:100`
+- AMulti Word Swatch Name Survives — `:110`
+- Garbage Lines Are Skipped Rather Than Throwing — `:117`
+- Without AColumns Header AReasonable Grid Is Chosen — `:125`
+
+## ProjectTests
+`tests/Lightbox.Core.Tests/ProjectTests.cs`
+
+- AProject Round Trips Through The Folder — `:49`
+- The Layout Is The One Documented — `:63`
+- An Animation On Disk Is An Ordinary Document — `:75`
+- AProject With No Type Writes No Type Key — `:87`
+- ADeclared Type Survives — `:101`
+- Loading AProject Does Not Read Its Documents — `:109`
+- Saving Rewrites Only The Dirty Document — `:125`
+- Saving With No Dirty Set Writes Every Loaded Document — `:144`
+- An Interrupted Write Leaves The Previous File Intact — `:158`
+- Shared Palettes Live On The Project And Round Trip — `:175`
+- ASaved Project Keeps Its Swatch Ids — `:191`
+- Character Folders Are Unique Even When Names Collide — `:218`
+- Slugs Are Always Usable As AFolder Name — `:236`
+- Migrating ALoose Document Gives AOne Character Project — `:240`
+- Flatten Inlines The Swatches The Document Actually Uses — `:265`
+- Flatten Inlines Referenced Gradients — `:287`
+- Flatten Does Not Mutate The Open Document — `:309`
+- An Empty Project Saves And Loads Without Characters — `:326`
+- Loading Something That Is Not AProject Fails — `:335`
+
+## ReferenceStripTests
+`tests/Lightbox.Core.Tests/ReferenceStripTests.cs`
+
+- Each Frame Shows Its Own Cell By Default — `:37`
+- Past The End Of The Reference There Is Nothing — `:46`
+- AReference Can Start Later Than The First Frame — `:58`
+- Any Cell Can Be Assigned To Any Frame — `:70`
+- Assigning Past The End Fills The Gap With Nothing — `:83`
+- Centring Puts The First Cell In The Middle Of The Canvas — `:93`
+- Inserting AFrame Moves The Later References Along — `:106`
+- Duplicating AFrame Moves The Reference Too — `:121`
+- Deleting AFrame Closes The Gap In The Reference — `:132`
+- Inserted Inbetweens Push The Reference Along — `:144`
+- AStrip Pinned To Absolute Timing Stays Where It Is — `:168`
+- Undoing AFrame Insert Puts The Reference Back — `:182`
+- ADocument With No Reference Writes No Key For One — `:200`
+- Editing The Timeline Of ADocument With No Reference Is Untouched — `:212`
+- AReference Round Trips Through Json — `:224`
+
+## MediumSettingsTests
+`tests/Lightbox.Core.Tests/Serialization/MediumSettingsTests.cs`
+
+- Every Medium Parameter Survives ARound Trip — `:29`
+- ADocument Saved Before Media Existed Loads As No Medium — `:68`
+- Clone Deep Copies The Medium So Tweaking APreset Cannot Edit Past Strokes — `:123`
+
+## RoundTripTests
+`tests/Lightbox.Core.Tests/Serialization/RoundTripTests.cs`
+
+- Round Trip Preserves Everything — `:42`
+- Serialize Uses Camel Case And Kind Discriminator — `:72`
+- Deserialize Accepts Kind Anywhere In Object — `:92`
+- Onion Enabled Round Trips And Defaults True For Older Docs — `:113`
+- Deserialize Unknown Kind Throws — `:139`
+- Clone Is Deep And Independent — `:146`
+- Save And Load File Round Trips — `:155`
+
+## StripSlicerTests
+`tests/Lightbox.Core.Tests/StripSlicerTests.cs`
+
+- AStrip Of Frames Is Cut At The Gutters — `:46`
+- The Cells Tile The Sheet With Nothing Left Over — `:57`
+- AFrame Keeps Where Its Drawing Sat On The Sheet — `:75`
+- Uneven Gutters Are Snapped To An Even Grid — `:102`
+- AGrid Is Found In Both Directions — `:121`
+- Reading Order Is Left To Right Then Top To Bottom — `:135`
+- An Empty Sheet Has No Frames — `:146`
+- ASingle Drawing Is One Frame Covering The Sheet — `:154`
+- Asking For Columns Ignores What The Pixels Say — `:166`
+- ADeclared Grid Keeps Its Empty Cells — `:182`
+- ADetected Grid Drops Cells With Nothing In Them — `:196`
+- ADrawing Off Centre In Its Cell Does Not Drag The Cut With It — `:213`
+- AGenuinely Irregular Sheet Falls Back To The Gutters — `:234`
+- Grid Slices Without Looking At The Image At All — `:248`
+- AGrid That Does Not Divide Evenly Still Tiles The Sheet — `:258`
+- Transparent Surround Is Background — `:274`
+- AFlat Opaque Surround Is Background Too — `:289`
+- ASheet With No Flat Surround Is All Content — `:305`
+- Nearly Transparent Noise Is Not Content — `:321`
+
+## CelRangeTests
+`tests/Lightbox.Core.Tests/Timeline/CelRangeTests.cs`
+
+- Move Cel Moves The Drawing And Clears The Source — `:16`
+- Move Cel With Copy Keeps The Source And Clones With AFresh Id — `:30`
+- Move Cel From AHold Is ANo Op — `:45`
+- Clear Cels Clears Every Drawing In The Range — `:57`
+- Set Frame Range Writes The Sequence Holds Included — `:74`
+- Frame Markers Survive Serialization — `:91`
+
+## DocumentEditorTests
+`tests/Lightbox.Core.Tests/Timeline/DocumentEditorTests.cs`
+
+- Add Frame Grows All Layers And Frame Count — `:11`
+- Duplicate Frame Copies Exposed Content — `:26`
+- Delete Frame Refuses Last Frame — `:43`
+- Delete Frame Removes Cel On Every Layer — `:51`
+- Undo Redo Restores State — `:62`
+- Perform Clears Redo Stack — `:80`
+- Undo Stack Trims Oldest Beyond Limit Keeps Newest History — `:91`
+- Insert Inbetweens Replaces Hold Cels Between Keys — `:121`
+- Insert Inbetweens No Gap Inserts New Cels — `:144`
+
+## ExposureEditingTests
+`tests/Lightbox.Core.Tests/Timeline/ExposureEditingTests.cs`
+
+- Extend Exposure Inserts AHold On That Layer Only — `:22`
+- Reduce Exposure Removes Only Holds — `:41`
+- Clear Cel Makes AHold That Shows The Previous Drawing — `:56`
+- Set Frame At Replaces The Cel And Extends The Timeline — `:73`
+- Move Layer Reorders The Stack And Clamps At The Edges — `:87`
+- Clone Frame Deep Clones With AFresh Id — `:100`
+- Layer Blend Mode Survives Serialization — `:115`
+
+## ExposureTests
+`tests/Lightbox.Core.Tests/Timeline/ExposureTests.cs`
+
+- Exposed Frame Walks Holds Backward — `:17`
+- Exposed Frame Past End Uses Last Key — `:28`
+- Exposed Frame Nothing Keyed Returns Null — `:35`
+- Frame At Exact Index Ignores Holds — `:42`
+- Next Key Index Finds Strictly After — `:53`
+- Key Index At Or Before Works — `:62`
+
+## RetimingTests
+`tests/Lightbox.Core.Tests/Timeline/RetimingTests.cs`
+
+- Stretch Holds Each Drawing And Loses None — `:41`
+- Stretch On Threes Holds For Three — `:52`
+- Stretching Twice Does Not Compound — `:60`
+- Reduce Keeps Every Nth And Keeps The Length — `:74`
+- Reduce Is The One That Throws Work Away — `:87`
+- Both Are Undoable As One Step — `:101`
+- AStep Of One Or Less Is ANo Op — `:118`
+
+## AlphaLockTests
+`tests/Lightbox.Raster.Tests/AlphaLockTests.cs`
+
+- Paint Only Lands Where The Layer Already Had Content — `:51`
+- The Silhouette Is Unchanged — `:63`
+- Without The Lock The Same Stroke Spills Outside — `:77`
+- The Flag Survives AClone And ARound Trip — `:85`
+- Re Rendering The Whole Frame Reproduces The Mask Without Storing It — `:98`
+
+## BrushDynamicsTests
+`tests/Lightbox.Raster.Tests/BrushDynamicsTests.cs`
+
+- Size Jitter Varies The Stroke But Minimum Diameter Stops Dabs Vanishing — `:67`
+- Flow Jitter Changes Alpha Without Changing Coverage — `:86`
+- Roundness Squashes The Dab — `:97`
+- Angle Follows Direction Changes AFlat Tip But Not ACircular One — `:109`
+- Color Dynamics Drift Toward The Second Colour — `:132`
+- Texture Bites Into The Stroke And Is Anchored To The Paper — `:154`
+- Every Dynamic Is Deterministic — `:172`
+- ABrush With No Dynamics Set Renders Exactly As Before — `:196`
+
+## BrushEngineV2Tests
+`tests/Lightbox.Raster.Tests/BrushEngineV2Tests.cs`
+
+- Effect Brushes Are Deterministic Across Rerenders — `:21`
+- Flow Builds Up Within AStroke But Opacity Caps It — `:37`
+- Wet Edge Darkens The Rim Relative To The Center — `:57`
+- Granulation Carves Texture Into The Stroke — `:69`
+- Smudge Brush Drags Existing Color And Replays Deterministically — `:84`
+- Blur Brush Softens AHard Edge — `:113`
+- Custom Tip Stamps Its Shape — `:137`
+
+## BrushImportTests
+`tests/Lightbox.Raster.Tests/BrushImportTests.cs`
+
+- Gbr Imports Name Spacing And Tip Alpha — `:29`
+- Gih Imports Multiple Tips — `:43`
+- Abr V2 Imports Sampled Brush — `:62`
+- Abr V6 Imports Raw Sampled Brush — `:94`
+- Kpp Imports Parameter Subset — `:124`
+- Unsupported Extension Throws — `:152`
+
+## AntiAliasTests
+`tests/Lightbox.Raster.Tests/DraftAndAaTests.cs`
+
+- Anti Alias Off Produces Hard Pixel Edges — `:79`
+- Fill Stroke Honors Anti Alias — `:89`
+- Anti Alias Is Per Stroke So Old Art Never Changes — `:105`
+
+## DraftPreviewTests
+`tests/Lightbox.Raster.Tests/DraftAndAaTests.cs`
+
+- Draft Paints The Segment And Nothing Far From It — `:17`
+- Draft Eraser Still Erases — `:31`
+- Exact Render Is Unaffected By The Draft Refactor — `:45`
+
+## FluidLineTests
+`tests/Lightbox.Raster.Tests/DraftAndAaTests.cs`
+
+- Light Pressure Strokes Have No Gaps Along The Centerline — `:181`
+- Pressure Ramp Keeps The Stroke Connected — `:211`
+
+## ScratchPreviewTests
+`tests/Lightbox.Raster.Tests/DraftAndAaTests.cs`
+
+- Scratch Preview Matches Exact Render Where The Stroke Crosses Itself — `:122`
+
+## FillStrokeTests
+`tests/Lightbox.Raster.Tests/FloodFillTests.cs`
+
+- Fill Stroke Renders Its Region With Holes Left Empty — `:157`
+- Fill Stroke Survives Document Serialization Pixel For Pixel — `:169`
+- Clipped Stroke Re Renders Identically From Json Alone — `:187`
+- Feather Softens The Clip Edge — `:223`
+
+## FloodFillTests
+`tests/Lightbox.Raster.Tests/FloodFillTests.cs`
+
+- Fill Stops At Barriers Within Tolerance And Crosses Them Beyond It — `:33`
+- Fill Traces Inner Contours As Holes — `:52`
+- Gap Closing Seals Small Openings But Not Larger Ones — `:72`
+- Grow And Shrink Overfill And Underfill The Region — `:99`
+- Fill Is Deterministic — `:113`
+- Fill Stays Inside ASelection Mask — `:124`
+
+## FluidLatticeTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/FluidLatticeTests.cs`
+
+- Pigment Is Conserved Across Every Channel — `:38`
+- Conservation Holds At Every Parameter Corner — `:66`
+- Deposit Never Exceeds Pigment That Was Seeded — `:86`
+- Run Zero Changes Nothing At All — `:113`
+- Two Runs Are Bit Identical — `:143`
+- Inviscid Undragged Deluge Stays Finite — `:186`
+- Extreme Parameters Do Not Produce Na N — `:221`
+- Edge Pull Concentrates Deposit Near The Wet Boundary — `:244`
+- Granularity Biases Deposit Into The Papers Valleys — `:291`
+- Paper Influence Zero Makes The Paper Irrelevant — `:335`
+- Water Spreads Beyond Where It Was Seeded — `:359`
+- Thin Wash Pins Instead Of Creeping Forever — `:375`
+- Mis Sized Buffers Are Rejected — `:410`
+- Four Hundred Square Twelve Steps Stays Within Budget — `:431`
+
+## LivePaletteTests
+`tests/Lightbox.Raster.Tests/LivePaletteTests.cs`
+
+- Recolouring ASwatch Recolours The Stroke — `:42`
+- One Swatch Drives Every Frame And Every Layer — `:56`
+- Vector And Raster Frames Resolve The Same Swatch — `:71`
+- AStroke With No Swatch Keeps Its Own Colour — `:95`
+- AMissing Swatch Falls Back To The Colour The Artist Last Saw — `:109`
+- AFill Resolves The Swatch Too — `:119`
+- Re Registering APalette Replaces Rather Than Ignores — `:142`
+
+## MediumRenderingTests
+`tests/Lightbox.Raster.Tests/MediumRenderingTests.cs`
+
+- The Four Media Do Not Render Identically — `:89`
+- APlain Brush Is Untouched By Any Of This — `:135`
+- Watercolour Light Pressure Is Paler And Spreads Further — `:148`
+- Oil ASecond Stroke Disturbs The First — `:165`
+- Every Medium Re Renders Identically — `:192`
+
+## OutputScaleTests
+`tests/Lightbox.Raster.Tests/OutputScaleTests.cs`
+
+- AHigher Output Scale Renders The Same Mark — `:141`
+- Scaling The Coordinates Instead Produces ADifferent Mark — `:159`
+- Output Scale One Is Untouched — `:179`
+- AHigher Output Scale Actually Resolves More Detail — `:192`
+- AClipped Stroke Clips To The Same Region At Every Scale — `:225`
+- An Alpha Locked Stroke Stays Inside Existing Paint At Every Scale — `:269`
+
+## PaperFieldScaleTests
+`tests/Lightbox.Raster.Tests/PaperFieldTests.cs`
+
+- Scale Actually Changes The Grain Across The Usable Range — `:343`
+- Below Nyquist The Field Saturates Rather Than Aliasing — `:361`
+
+## PaperFieldTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/PaperFieldTests.cs`
+
+- Rebuilt Tile Is Bit Identical — `:75`
+- Fill Agrees With Height At Exactly — `:100`
+- Tile Wraps Without ASeam — `:124`
+- Height Stays In Range And Centred — `:168`
+- Tooth Depth Separates The Three Papers — `:179`
+- Rough Has The Longer Wavelength — `:194`
+- Canvas Is Directional And Cold Press Is Not — `:207`
+- Scale Sets The Wavelength — `:224`
+- Different Scales Are Different Fields — `:242`
+- Fill Rejects AToo Small Destination — `:252`
+- Fill Is Fast Enough For AFull Frame — `:260`
+- Fill Cost Follows The Region Not The Canvas — `:292`
+
+## PerformanceTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/PerformanceTests.cs`
+
+- Live Preview Effect Brush Segment Is Bounded To The Segment — `:54`
+- Live Preview Plain Brush Segment Stays Cheap — `:72`
+- Stroke Commit Exact Append Is Independent Of Frame Complexity — `:82`
+- Live Preview Large Brush Segment Stays Interactive — `:95`
+- Flood Fill Full Canvas Region Meets Budget — `:108`
+- Flood Fill Inside Region With Hole Meets Budget — `:124`
+
+## PigmentModelTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/PigmentModelTests.cs`
+
+- Over Zero Thickness Returns Backdrop Bit For Bit — `:34`
+- Over Zero Thickness Changes Nothing At All — `:51`
+- Over Laying Paint Down Adds Opacity — `:59`
+- Over Fully Hiding Converges To Mass Tone Whatever Is Underneath — `:92`
+- Over Fully Hiding Is Independent Of Backdrop To The Bit — `:108`
+- Over No Scattering Is Beer Lambert — `:116`
+- Over No Absorption Is Pure Scattering — `:140`
+- Over No Pigment At All Leaves The Backdrop Alone — `:160`
+- Over Denormal Thickness Does Not Produce Garbage — `:169`
+- Over Extreme Inputs Stay In Gamut — `:182`
+- Yellow Glaze Over Blue Is Greener Than Every Possible Alpha Blend — `:212`
+- Yellow Glaze Over Blue Is More Saturated Than Alpha Blending — `:256`
+- Yellow Glaze Over Blue Darkens Rather Than Averaging — `:276`
+- Yellow Glaze Over Pure Blue Goes Black And Says So Honestly — `:286`
+- Over Thicker Glaze Moves Monotonically Away From The Backdrop — `:306`
+- Coverage Rises With Hiding And With Thickness — `:320`
+- From Color Hiding Dial Closes On The Chosen Colour Monotonically — `:338`
+- From Color White With No Hiding Is Invisible — `:360`
+- Mix At The Ends Reproduces The Inputs Exactly — `:371`
+- Mix Is Continuous — `:386`
+- Mix Is Clamped And Symmetric In Its Endpoints — `:429`
+- Mix Yellow And Blue Makes Green — `:439`
+- Over Is Deterministic — `:459`
+- From Coefficients And From Color Agree When They Describe The Same Film — `:482`
+- Srgb Conversion Round Trips Every Single Level — `:492`
+- Srgb Conversion Is The Real Transfer Function Not AGamma Guess — `:499`
+- Srgb Conversion Is Monotonic — `:514`
+- Over Works In Linear Light Not On Encoded Values — `:534`
+- Over Costs Under AMicrosecond Per Pixel — `:548`
+
+## PostProcessDabsTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/PostProcessDabsTests.cs`
+
+- Post Processing Pre Stamped Dabs Matches Rendering From Scratch — `:100`
+- AStroke That Reaches Nothing Reports No Bounds — `:121`
+- The Cost Of APass Does Not Grow With The Length Of The Stroke — `:132`
+
+## PressureTests
+`tests/Lightbox.Raster.Tests/PressureTests.cs`
+
+- Master Switch Off Ignores Pen Pressure Entirely — `:20`
+- Pressure Hardness Softens The Edge At Light Pressure — `:42`
+- Pressure Settings Survive Clone And Serialization — `:60`
+
+## ProjectFlattenTests
+`tests/Lightbox.Raster.Tests/ProjectFlattenTests.cs`
+
+- AFlattened Document Renders Identically With The Project Gone — `:63`
+- Without Flattening The Same Export Would Render Differently — `:88`
+- AFlattened Gradient Renders Identically Too — `:106`
+- ADocument That References Nothing Shared Flattens To Itself — `:137`
+
+## BrushEngineTests
+`tests/Lightbox.Raster.Tests/RasterTests.cs`
+
+- Rasterize Same Strokes Identical Pixels — `:26`
+- Rasterize Marks Pixels Along The Path — `:39`
+- Pressure Controls Dab Radius — `:51`
+- Stroke Opacity Does Not Stack Within AStroke — `:66`
+- Eraser Removes Painted Pixels — `:81`
+- Soft Brush Falls Off Toward The Rim — `:92`
+- Dab Positions Spacing Follows Arc Length — `:108`
+- Dab Positions Spacing Shrinks With Pressure — `:122`
+- Append Matches Batch Rasterization — `:141`
+
+## PngCodecTests
+`tests/Lightbox.Raster.Tests/RasterTests.cs`
+
+- Encode Decode Round Trips Pixels — `:158`
+- Materialize Composites Baseline Plus Strokes — `:172`
+
+## SmudgeFirstDabTests
+`tests/Lightbox.Raster.Tests/TexturedBrushTests.cs`
+
+- ASingle Tap On ABoundary Softens It Rather Than Doing Nothing — `:193`
+- ATap On Flat Colour Changes Nothing — `:213`
+- Smudge Never Deposits The Brush Colour — `:227`
+
+## TexturedBrushTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/TexturedBrushTests.cs`
+
+- Wet Edge Darkens The Outline Not The Interior — `:47`
+- Granulation Is Deterministic And Anchored To The Document — `:81`
+- Paper Texture Commit Does Not Stall The Pen — `:100`
+- Textured Stroke Commit Does Not Stall The Pen — `:131`
