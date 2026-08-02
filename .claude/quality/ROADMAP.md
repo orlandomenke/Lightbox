@@ -195,9 +195,12 @@ reported as outdated and can be acknowledged — reported, never repaired, since
 they already show the current symbol and the fix for an unwanted edit is to
 undo it once in the symbol.
 
-Still open, and deliberately: dragging a tile onto the canvas (Place puts it in
-the middle and the Move tool takes it from there), symbols containing symbols,
-and the three items below that were never in this cut.
+Dragging a tile onto the canvas drops it where the pointer is; Place is the
+keyboard route and puts it in the middle. The staleness report and its
+Acknowledge live in the panel's footer, absent when there is nothing to say.
+
+Still open, and deliberately: symbols containing symbols, and the three items
+below that were never in this cut.
 
 - [x] Shared symbols — the record (design S1–S2) `evidence: Symbol, SymbolPlacement, SymbolRegistry, SymbolRasterizer, SymbolRecordTests, SymbolRenderTests`
 - [x] Linked assets — edit once, update everywhere (S6) `evidence: OpenSymbol, EditingASymbolChangesEveryPlacementOfIt, AnEditBumpsTheVersion`

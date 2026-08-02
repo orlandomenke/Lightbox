@@ -282,6 +282,26 @@ public class SymbolBrowserTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void PlaceGoesToTheMiddleAndADropGoesWhereItWasDropped()
+    {
+        // The two routes are deliberately different, and that difference is the
+        // whole reason dragging exists: Place is the keyboard answer and cannot
+        // know where you wanted it, a drop can. Collapsing them would make the
+        // drag pointless.
+        var vm = WithProject();
+        var sword = Add(vm, "Sword", SymbolKind.Prop);
+        vm.SymbolBrowser.Selected = vm.SymbolBrowser.Rows[0];
+
+        var placed = vm.PlaceSelectedSymbol()!;
+        var dropped = vm.PlaceSymbol(sword.Id, 12, 34)!;
+
+        Assert.Equal(vm.Doc.Scene.Width / 2.0, placed.X);
+        Assert.Equal(vm.Doc.Scene.Height / 2.0, placed.Y);
+        Assert.Equal(12, dropped.X);
+        Assert.Equal(34, dropped.Y);
+    }
+
+    [AvaloniaFact]
     public void PlacingWithNothingSelectedDoesNothing()
     {
         var vm = WithProject();

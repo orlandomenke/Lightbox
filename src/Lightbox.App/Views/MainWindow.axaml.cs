@@ -147,6 +147,8 @@ public partial class MainWindow : Window
         DragDrop.SetAllowDrop(Canvas, true);
         Canvas.AddHandler(DragDrop.DragOverEvent, OnCanvasColorDragOver);
         Canvas.AddHandler(DragDrop.DropEvent, OnCanvasColorDrop);
+        Canvas.AddHandler(DragDrop.DragOverEvent, OnCanvasSymbolDragOver);
+        Canvas.AddHandler(DragDrop.DropEvent, OnCanvasSymbolDrop);
 
         // Two things move a panel in or out of a strip without the layout
         // changing: a project appearing (the project panel is absent until
@@ -608,6 +610,15 @@ public partial class MainWindow : Window
     private void OnDeleteSymbol(object? sender, RoutedEventArgs e)
     {
         if (_vm.SymbolBrowser.Selected is { } row) _vm.DeleteSymbol(row.Model);
+    }
+
+    private void OnAcknowledgeStale(object? sender, RoutedEventArgs e)
+    {
+        var count = _vm.AcknowledgeOutdatedPlacements();
+        if (count > 0)
+        {
+            _vm.AiStatus = $"Marked {count} placement(s) as seen. Nothing about the drawing changed.";
+        }
     }
 
     /// <summary>Double-click a tile to open the symbol, like an animation row.</summary>
@@ -1471,6 +1482,87 @@ public partial class MainWindow : Window
         BrushPageMedium.IsVisible = index == 2;
         BrushPagePressure.IsVisible = index == 3;
         BrushPagePresets.IsVisible = index == 4;
+    }
+
+    // ---- drag a symbol onto the canvas to place it -----------------------------
+
+    private static readonly DataFormat<string> SymbolDragFormat =
+        DataFormat.CreateInProcessFormat<string>("lightbox-symbol");
+
+    /// <summary>
+    /// A tile does two things, told apart by whether the pointer moves: a click
+    /// selects it, a drag carries the symbol to the spot you want it. Same
+    /// shape as the colour swatch next door, and for the same reason — the drag
+    /// API cannot be asked afterwards whether the gesture moved, so the press
+    /// is held and the decision made on the first move.
+    /// </summary>
+    private Point? _tilePress;
+
+    private PointerPressedEventArgs? _tilePressArgs;
+
+    private string? _tileSymbolId;
+
+    private void OnSymbolTilePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(SymbolTiles).Properties.IsLeftButtonPressed) return;
+        if ((e.Source as Control)?.DataContext is not ViewModels.SymbolRow row) return;
+        _tilePress = e.GetPosition(this);
+        _tilePressArgs = e;
+        _tileSymbolId = row.Model.Id;
+        SymbolTiles.PointerMoved += OnSymbolTileMoved;
+        SymbolTiles.PointerReleased += OnSymbolTileReleased;
+    }
+
+    private async void OnSymbolTileMoved(object? sender, PointerEventArgs e)
+    {
+        if (_tilePress is not { } start) return;
+        var now = e.GetPosition(this);
+        if (Math.Abs(now.X - start.X) < 4 && Math.Abs(now.Y - start.Y) < 4) return;
+        var press = _tilePressArgs;
+        var id = _tileSymbolId;
+        EndTileGesture();
+        if (press is null || id is null) return;
+        try
+        {
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(SymbolDragFormat, id));
+            await DragDrop.DoDragDropAsync(press, transfer, DragDropEffects.Copy);
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("symbol-drag", ex);
+        }
+    }
+
+    private void OnSymbolTileReleased(object? sender, PointerReleasedEventArgs e) => EndTileGesture();
+
+    private void EndTileGesture()
+    {
+        SymbolTiles.PointerMoved -= OnSymbolTileMoved;
+        SymbolTiles.PointerReleased -= OnSymbolTileReleased;
+        _tilePress = null;
+        _tilePressArgs = null;
+        _tileSymbolId = null;
+    }
+
+    private static string? DraggedSymbolOf(DragEventArgs e) =>
+        e.DataTransfer is { } transfer ? transfer.TryGetValue(SymbolDragFormat) : null;
+
+    private void OnCanvasSymbolDragOver(object? sender, DragEventArgs e)
+    {
+        if (DraggedSymbolOf(e) is null) return;
+        e.DragEffects = DragDropEffects.Copy;
+        e.Handled = true;
+    }
+
+    private void OnCanvasSymbolDrop(object? sender, DragEventArgs e)
+    {
+        if (DraggedSymbolOf(e) is not { } id) return;
+        var (x, y) = Canvas.ViewToDoc(e.GetPosition(Canvas));
+        // Where the pointer is, not the middle of the canvas: the whole point
+        // of dragging rather than pressing Place is choosing the spot.
+        _vm.PlaceSymbol(id, x, y);
+        e.Handled = true;
     }
 
     // ---- drag a colour onto the canvas to fill --------------------------------

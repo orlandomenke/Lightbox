@@ -940,7 +940,9 @@ mark, in the same position.
 
 ### Placing, moving, and letting go
 
-- **Place** puts the selected symbol on the current drawing.
+- **Place** puts the selected symbol in the middle of the current drawing.
+- **Dragging a tile onto the canvas** puts it where you drop it, which is the
+  point of dragging rather than pressing Place.
 - The **Move tool** drags a placement the way it drags anything else. A placed
   symbol under the cursor is picked up before the drawing underneath it is; the
   symbol itself is not touched, so the other placements of it stay where they
@@ -988,7 +990,9 @@ and saving the project writes it.
 When a symbol is edited, placements made before the edit are marked as such.
 Nothing is broken — they already show the new drawing — but the app can tell
 you *which* of the drawings in front of you changed while you were elsewhere.
-**Acknowledge** clears the marks; it changes nothing about the picture.
+**Acknowledge**, in the Symbols panel, clears the marks; it changes nothing
+about the picture. The bar is not there at all when there is nothing to
+report.
 
 There is deliberately no "put it back the way it was when I placed it". The fix
 for an edit nobody wanted is to undo it in the symbol, once — not to pin two
@@ -1003,9 +1007,7 @@ forty animations is not one anybody could risk.
 **Export document…** writes a standalone file that carries the symbols it uses,
 so an exported animation renders identically somewhere else.
 
-*Not yet: dragging a symbol from the panel onto the canvas — Place puts it in
-the middle of the drawing and the Move tool takes it from there. Symbols cannot
-contain other symbols.*
+*Symbols cannot contain other symbols.*
 
 ## 14. When the canvas feels slow
 

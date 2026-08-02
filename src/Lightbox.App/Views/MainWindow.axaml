@@ -1774,6 +1774,21 @@
                 </Border>
               </controls:Docker.TopBar>
               <controls:Docker.BottomBar>
+                <StackPanel>
+                  <!--
+                    What changed under you. Absent unless there is something to
+                    say — a bar reading "nothing is out of date" on every
+                    drawing would be a row of the panel spent on silence.
+                  -->
+                  <Border Classes="dockerBar"
+                          IsVisible="{Binding StalePlacementReport, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <DockPanel>
+                      <Button DockPanel.Dock="Right" Content="Acknowledge" Click="OnAcknowledgeStale"
+                              ToolTip.Tip="Stop reporting these. Nothing about the drawing changes." />
+                      <TextBlock Text="{Binding StalePlacementReport}" FontSize="10" Opacity="0.7"
+                                 TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    </DockPanel>
+                  </Border>
                 <Border Classes="dockerBar">
                   <!-- Wraps rather than clips: the panel's minimum is 130px and
                        four controls do not fit in it on one line. -->
@@ -1791,6 +1806,7 @@
                             ToolTip.Tip="Delete the symbol from the project" />
                   </WrapPanel>
                 </Border>
+                </StackPanel>
               </controls:Docker.BottomBar>
               <Panel>
                 <TextBlock Text="{Binding SymbolBrowser.EmptyMessage}" Margin="10" FontSize="11"
@@ -1798,6 +1814,7 @@
                            IsVisible="{Binding SymbolBrowser.EmptyMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                   <ListBox x:Name="SymbolTiles" DoubleTapped="OnSymbolTileOpened"
+                           PointerPressed="OnSymbolTilePressed"
                            ItemsSource="{Binding SymbolBrowser.Rows}"
                            SelectedItem="{Binding SymbolBrowser.Selected}"
                            Background="Transparent" BorderThickness="0" Margin="2">

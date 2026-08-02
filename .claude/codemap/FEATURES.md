@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1292 tests, derived from the suite itself. Each line is a
+1293 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1026,11 +1026,12 @@ regression even when every test still compiles.
 - Without AProject There Is Nowhere To Put ASymbol — `:251`
 - An Unnamed Symbol Still Gets AName — `:261`
 - Placing The Selected Symbol Puts It On The Drawing — `:272`
-- Placing With Nothing Selected Does Nothing — `:285`
-- Deleting ASymbol Leaves Its Placements Alone And They Stop Drawing — `:295`
-- Renaming ARow Renames The Symbol — `:316`
-- Renaming Does Not Count As Editing The Drawing — `:327`
-- Tags Edit As One Line — `:341`
+- Place Goes To The Middle And ADrop Goes Where It Was Dropped — `:285`
+- Placing With Nothing Selected Does Nothing — `:305`
+- Deleting ASymbol Leaves Its Placements Alone And They Stop Drawing — `:315`
+- Renaming ARow Renames The Symbol — `:336`
+- Renaming Does Not Count As Editing The Drawing — `:347`
+- Tags Edit As One Line — `:361`
 
 ## SymbolEditingTests
 `tests/Lightbox.App.Tests/SymbolEditingTests.cs`
