@@ -1372,9 +1372,19 @@ public static class BrushEngine
     /// Positions and pressures are interpolated between input points, so
     /// fast strokes with sparse events still produce continuous lines.
     /// </summary>
+    /// <remarks>
+    /// The walk runs over <see cref="GeometryOps.Densify"/>d points rather than
+    /// the raw record. A pen samples at a fixed rate, so a fast stroke arrives
+    /// as widely spaced points, and walking the chords between them puts the
+    /// dabs inside the curve the artist drew — the flat facet that results is
+    /// wider than a thick brush and reads as the tops of individual stamps
+    /// showing through the outside of a bend. The curve passes through every
+    /// recorded point and breaks at deliberate corners, so a drawn rectangle
+    /// keeps its corners and the record still says where the pen was.
+    /// </remarks>
     public static IEnumerable<(SKPoint Pos, double Pressure)> DabPositions(Stroke stroke)
     {
-        var pts = stroke.Points;
+        var pts = GeometryOps.Densify(stroke.Points);
         var brush = stroke.Brush;
         var first = pts[0];
         var firstPressure = Math.Max(first.Pressure, MinPressure);

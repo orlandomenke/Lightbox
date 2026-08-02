@@ -44,6 +44,7 @@ item that a painting app is simply expected to have lives here.
 - [x] Custom brush editor `evidence: BrushPageGeneral, BrushPageEffects, BrushPagePressure`
 - [x] Brush presets and tagging `evidence: BrushPreset, PresetStore, BuiltInPresets, BrushCategoryList`
 - [x] Brush stabilization (lazy mouse, weighted, predictive) `evidence: SmoothingMode, StrokeFilters, SmoothingTests`
+- [x] A fast curve is stamped along the curve, not the chords between pen samples `evidence: Densify, DensifyTests, StampingArcTests, ACurveIsFollowedRatherThanCutAcross, AFastCurveIsInkedRightOutToItsEdge, ADrawnCornerStaysSharp`
 - [x] Texture brushes `evidence: PaperField, PaperKind, TexturedBrushTests`
 - [x] Smudge, blend and mixer brushes `evidence: SmudgeMode, SmudgeFirstDabTests, MediumSettingsTests`
 - [x] Smudge and blur sample all layers, live or frozen `evidence: SampleSource, BakedSample, BakeSample, SampleSourceTests, LiveSampleRebakeTests, ALiveSmudgeFollowsAnEditToTheLayerUnderIt, ABakedStrokeIgnoresABackdropThatChangedUnderIt`

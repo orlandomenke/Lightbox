@@ -86,3 +86,69 @@ Rejected on measurement, not taste: a document-wide "does anything sample?"
 guard in front of the re-bake. It walked every cel and every stroke in the
 scene, which on a long sequence is more work than the loop it protected, and
 it ran on every edit. The per-frame check does the same job at O(layers).
+
+---
+
+## Round 1 — 2026-08-02 — the stroke walks the curve it was drawn as
+
+Found: **M16b** was real and had two independent causes, only one of which is
+worth fixing. Measured on a 180 px arc rendered with a 60 px brush, the outer
+edge of a bend scallops by (a) the *chord error* — the dab walk followed
+straight lines between recorded points, putting the path 2.7 px inside the
+curve at 20° between samples and 6.1 px at 30° — and (b) the *dab envelope*,
+`R − √(R² − (step/2)²)`, which is 0.34 px at the default spacing and 4 px at
+spacing 0.5. Only (a) is a defect: coarse spacing is a spatter brush asking for
+exactly what it gets, and an artist cannot ask their pen to report faster.
+
+Straight strokes measured clean throughout (ripple ≤ 7/255, zero edge wobble),
+which is why this survived — **every brush pixel test in the repository drew a
+straight line.**
+
+Separately, `feature-guard` found the canvas-relief feature had its decision
+tested exhaustively and its effect not at all.
+
+Did:
+- `GeometryOps.Densify` — centripetal Catmull–Rom through the recorded points,
+  subdividing any span over 2 px. Interior chord error 0.685 → 0.007 px at 10°
+  and 2.735 → 0.064 px at 20°. `DensifyTests` (10), `StampingArcTests` (5).
+- Corner detection at a 60° turn, so a drawn rectangle keeps square corners.
+  The tell is *overshoot*, not rounding-in: a cubic through a right angle
+  bulges past the vertex, and the guard pixel goes 0 → 255 without it.
+- A fast path returning the caller's own list when no span needs subdividing,
+  so the live-painting path allocates nothing on an ordinary stroke.
+- `CanvasQualityEffectTests` (4) — Half publishes a smaller surface, the
+  snapshot still reports the document's size, and an export is full resolution
+  whatever the canvas is set to.
+
+Rejected:
+- **Clamping the dab step** so the envelope error stays sub-pixel. It would fix
+  cause (b) and break every spatter and stipple brush, whose coarse spacing is
+  the point. Cause (b) is not a defect.
+- **Reflecting the missing end control** (`p0 = 2·p1 − p2`, the textbook end
+  condition) instead of duplicating it. Measured worse — 2.9 px → 3.8 px on the
+  end spans — because a reflected control puts the tangent on the chord of the
+  wrong side of the vertex. The end spans running straighter is correct: the
+  record does not say how the curve was continuing past its last point.
+- Densifying **inside** `StrokeStabilizer` rather than at the dab walk. The
+  smoothed points are the record; inventing points into it would make the file
+  claim the pen reported places it never did.
+
+Gates: build ✓ tests ✓ (1395 passing, +19) perf ✓ leaks ✓ (G7 CLEAR)
+inventory ✓ roadmap ✓ bugs ✓ · G9 not applicable, no XAML in the diff.
+
+Sharpened: two objectives in `CHARTER.md`, both from defects this round found
+that the gates should have. **O7 — test what a setting does, not that it
+changed**, from canvas relief passing every branch test while nothing read the
+output. **O8 — draw a curve, not just a line**, from M16b hiding in the one
+case where cutting a corner costs nothing.
+
+Bugs: none closed, none newly recorded. B17 and B8 remain open and
+`evidence: manual`.
+Roadmap: "A fast curve is stamped along the curve, not the chords between pen
+samples" added and green; "Smudge and blur sample all layers, live or frozen"
+landed in the previous commit.
+Questions raised: none.
+Next: **B17** (guides invisible over the drawing, P2) is the oldest open thing
+and needs a pair of eyes rather than a test. After that the thin pillars are 4
+(14%), 5 (21%) and 6 (24%) — pillar 4, animation-aware drawing tools, is the
+one that most changes what the app is for.

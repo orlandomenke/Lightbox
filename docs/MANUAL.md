@@ -359,6 +359,17 @@ selection is an entry in the document, referenced by the strokes clipped to it).
 Settings that reach pixels — anti-aliasing, pressure curves — are recorded **on
 each stroke**, so changing a preference never alters art you have already made.
 
+### Drawing fast
+
+A pen reports its position at a fixed rate, so the faster you draw, the further
+apart the points it records. Lightbox lays the brush along the **curve** through
+those points rather than along the straight lines between them, which is why a
+quick arc drawn with a fat brush comes out as an arc instead of a row of flat
+facets with the tops of the stamps showing on the outside of the bend.
+
+Corners you meant are kept: turn sharply enough and the stroke stays sharp
+there, so a drawn rectangle has square corners and a flick still has a point.
+
 ---
 
 ## 6. Colour

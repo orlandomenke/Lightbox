@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1313 tests, derived from the suite itself. Each line is a
+1332 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -200,6 +200,14 @@ regression even when every test still compiles.
 - One Button For Play And Pause — `:305`
 - An Illustration Project Is Not Offered Transport Controls — `:320`
 - The Camera Toggle Is Absent Until There Is ACamera — `:340`
+
+## CanvasQualityEffectTests
+`tests/Lightbox.App.Tests/CanvasQualityEffectTests.cs`
+
+- Half Quality Composites Fewer Pixels Than Full — `:49`
+- The Snapshot Still Describes The Document It Came From — `:68`
+- An Export Is Full Resolution Whatever The Canvas Is Set To — `:90`
+- Full Quality Is Unaffected By What The Screen Can Show — `:109`
 
 ## CanvasReliefTests
 `tests/Lightbox.App.Tests/CanvasReliefTests.cs`
@@ -1306,6 +1314,20 @@ regression even when every test still compiles.
 - Importing Carries Variants And Rebases Their Overrides — `:253`
 - Importing Twice Gives Two Characters With Distinct Folders — `:277`
 
+## DensifyTests
+`tests/Lightbox.Core.Tests/DensifyTests.cs`
+
+- ACurve Is Followed Rather Than Cut Across — `:51`
+- The Ends Are The One Place It Cannot Help — `:67`
+- Every Recorded Point Is Still On The Path — `:80`
+- ADrawn Corner Stays Sharp — `:96`
+- AStraight Line Is Not Bent — `:120`
+- Pressure Rides The Same Curve — `:130`
+- ATwo Point Stroke Is Left Exactly As It Is — `:151`
+- Points Already Closer Than The Chord Are Not Multiplied — `:161`
+- AStalled Pen Does Not Break The Curve — `:179`
+- The Same Points Always Give The Same Path — `:199`
+
 ## FigureFinderTests
 `tests/Lightbox.Core.Tests/FigureFinderTests.cs`
 
@@ -1940,6 +1962,15 @@ regression even when every test still compiles.
 - ABaked Stroke Ignores ABackdrop That Changed Under It — `:188`
 - ABaked Stroke With No Sample Falls Back To Its Layer — `:208`
 - Sampling Reads The Layer Over The Backdrop Not The Backdrop Alone — `:222`
+
+## StampingArcTests
+`tests/Lightbox.Raster.Tests/StampingArcTests.cs`
+
+- AFast Curve Is Inked Right Out To Its Edge — `:86`
+- How Fast It Was Drawn Barely Changes The Mark — `:99`
+- AThick Brush Shows It Worst — `:113`
+- AStraight Stroke Is Untouched — `:125`
+- ADrawn Corner Is Still ACorner — `:154`
 
 ## SymbolFlattenTests
 `tests/Lightbox.Raster.Tests/SymbolFlattenTests.cs`

@@ -56,6 +56,22 @@ report waiting to happen.
 reading goes to `QUESTIONS.md` with the options and a recommendation. The
 loop keeps working on the unambiguous parts meanwhile.
 
+**O7 · Test what a setting does, not that it changed.** A setting is only real
+where it reaches an output. `CanvasReliefTests` covered every branch of the
+decision to drop to half quality — when it fires, that it fires once, that it
+never overrides a chosen default, that it always says so — and not one test
+read the published image. Deleting the wiring from `CanvasQuality` to the
+composite would have left the whole suite green and the feature reduced to a
+status message. The assertion that closes this shape is always downstream:
+the rendered pixels, the written file, the exported bytes.
+
+**O8 · Draw a curve, not just a line.** Every brush pixel test in this
+repository drew a straight stroke, and the arc artifact of M16b lived
+undetected in the dab walk the whole time because a straight path is the one
+case where cutting the corner costs nothing. A render test that only ever goes
+in a straight line cannot see a whole class of defect. Bends, and the corners
+between them, belong in the fixtures.
+
 ## 3. Performance budgets
 
 Measured on the dev container, which is slow; a mid-range desktop is several
