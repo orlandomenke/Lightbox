@@ -59,8 +59,28 @@ loop keeps working on the unambiguous parts meanwhile.
 ## 3. Performance budgets
 
 Measured on the dev container, which is slow; a mid-range desktop is several
-times quicker. Budgets are set roughly 4× above observed medians so a noisy
+times quicker. Budgets are set roughly 4× above the observed cost so a noisy
 shared runner does not produce false alarms.
+
+**How a budget is measured, and why it is not the median.** Every budget
+compares the **fastest** of several runs, through `Bench.FastestMs`. A median
+measures the machine as much as the code: when the scheduler takes cores away,
+half the runs are slow and the median goes with them. That is not theory —
+under six busy threads on four cores the flood-fill median moved from 114 ms to
+179 ms against a 250 ms budget, and budgets in this file had already been
+raised twice, one number at a time, to stop exactly that. The fastest run is
+the least contaminated estimate of what the code costs, and an
+order-of-magnitude regression — the only kind these tests are for — raises the
+floor as surely as it raises the middle.
+
+The trade is real and worth naming: this is blind to a path that is *usually*
+fast and *sometimes* terrible. That belongs to a latency test with percentiles,
+not to a regression budget, and a median contaminated by the scheduler never
+covered it either.
+
+The timing tests also take the `Performance` collection, so they do not run
+beside the rest of their own assembly. A budget measuring wall-clock time while
+three other threads rasterise is measuring the wrong thing.
 
 | Path | Budget | Observed |
 | --- | --- | --- |

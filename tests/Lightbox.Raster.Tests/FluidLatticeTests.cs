@@ -3,6 +3,7 @@ using Lightbox.Raster.Media;
 
 namespace Lightbox.Raster.Tests;
 
+[Collection("Performance")]
 public class FluidLatticeTests
 {
     private static readonly FluidParams Typical = new(
@@ -430,16 +431,19 @@ public class FluidLatticeTests
     [Trait("Category", "Performance")]
     public void FourHundredSquare_TwelveSteps_StaysWithinBudget()
     {
-        var lat = Disc(400, 150, water: 1.2f, pigment: 0.7f);
-        lat.SetPaper(PaperField(400, 400), 0.5);
+        // A fresh lattice for each run: Run mutates it, so timing the same one
+        // twice would be timing two different simulations.
+        FluidLattice? lat = null;
+        var fastest = Bench.FastestMs(
+            3,
+            () => lat!.Run(12, Typical),
+            before: () =>
+            {
+                lat = Disc(400, 150, water: 1.2f, pigment: 0.7f);
+                lat.SetPaper(PaperField(400, 400), 0.5);
+            });
 
-        lat.Run(1, Typical); // jit
-        var sw = Stopwatch.StartNew();
-        lat.Run(12, Typical);
-        sw.Stop();
-
-        Assert.True(sw.ElapsedMilliseconds < 2000,
-            $"400x400 x 12 steps took {sw.ElapsedMilliseconds} ms");
+        Assert.True(fastest < 2000, $"400x400 x 12 steps took {fastest:0} ms (budget 2000 ms)");
     }
 
     /// <summary>A deterministic tooth pattern — no RNG anywhere, including in tests.</summary>

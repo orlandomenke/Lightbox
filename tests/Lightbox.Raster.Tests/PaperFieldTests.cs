@@ -11,6 +11,7 @@ namespace Lightbox.Raster.Tests;
 /// the four sheets are measurably different surfaces, and asking for a
 /// bigger grain actually gets you a bigger grain.
 /// </summary>
+[Collection("Performance")]
 public class PaperFieldTests
 {
     private const double Scale = 12;
@@ -265,25 +266,24 @@ public class PaperFieldTests
         // Cold: the tile has to be built first. This happens once per sheet
         // per process, so it is allowed to be slower — but not slow enough to
         // be felt as a stall on the first dab.
-        EvictCache();
-        var cold = Stopwatch.StartNew();
-        PaperField.Fill(buf, w, h, 0, 0, PaperKind.Rough, 47.3);
-        cold.Stop();
+        // Fastest of three, each with the cache evicted first — the cold path is
+        // the one being measured, so it has to be cold every time.
+        var coldMs = Bench.FastestMs(
+            3,
+            () => PaperField.Fill(buf, w, h, 0, 0, PaperKind.Rough, 47.3),
+            before: EvictCache,
+            warm: false);
         // The cold path builds the tile, which happens once per (kind, scale)
         // per process and never on the drawing path — so this guards against
         // an order-of-magnitude blowup, not drift. It was 200 ms, which is
         // roughly the Debug figure on an idle machine and flaked under load;
         // measured 141 ms in Release and 440 ms in Debug here. The number
         // that actually recurs is the warm fill below, and that stays tight.
-        Assert.True(cold.Elapsed.TotalMilliseconds < 1500,
-            $"cold fill (tile build included) took {cold.Elapsed.TotalMilliseconds:F1} ms");
+        Assert.True(coldMs < 1500, $"cold fill (tile build included) took {coldMs:F1} ms");
 
         // Warm: what every stroke actually pays.
-        var warm = Stopwatch.StartNew();
-        const int reps = 10;
-        for (var i = 0; i < reps; i++) PaperField.Fill(buf, w, h, 37 + i, 91, PaperKind.Rough, 47.3);
-        warm.Stop();
-        var per = warm.Elapsed.TotalMilliseconds / reps;
+        var offset = 0;
+        var per = Bench.FastestMs(10, () => PaperField.Fill(buf, w, h, 37 + offset++, 91, PaperKind.Rough, 47.3));
         Assert.True(per < 25, $"warm 1600x1200 fill took {per:F2} ms");
     }
 

@@ -18,6 +18,7 @@ namespace Lightbox.Raster.Tests;
 /// already has. What these hold is that the result is unchanged and the cost
 /// stops scaling.
 /// </summary>
+[Collection("Performance")]
 public class PostProcessDabsTests(ITestOutputHelper output)
 {
     // Big enough that the difference clears the container's noise floor: at a
@@ -152,12 +153,7 @@ public class PostProcessDabsTests(ITestOutputHelper output)
                 }
             }
 
-            Once();
-            var times = new List<double>();
-            var sw = new Stopwatch();
-            for (var i = 0; i < 5; i++) { sw.Restart(); Once(); sw.Stop(); times.Add(sw.Elapsed.TotalMilliseconds); }
-            times.Sort();
-            return times[times.Count / 2];
+            return Bench.FastestMs(5, Once);
         }
 
         // Warm everything before timing anything. The first medium render in a

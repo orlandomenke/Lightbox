@@ -10,6 +10,7 @@ namespace Lightbox.Raster.Tests;
 /// paint. They used to cost ten seconds on a large stroke, which the artist
 /// felt as the pen sticking to the page at the end of every mark.
 /// </summary>
+[Collection("Performance")]
 public class TexturedBrushTests
 {
     private static Stroke Stroke(double size, double wet, double gran, int points = 40)
@@ -110,20 +111,9 @@ public class TexturedBrushTests
         stroke.Brush.TextureScale = 12;
         stroke.Brush.TextureDepth = 0.7;
 
-        BrushEngine.StampStroke(surface.Canvas, stroke, info); // warm
-        var times = new List<double>();
-        var sw = new Stopwatch();
-        for (var i = 0; i < 5; i++)
-        {
-            sw.Restart();
-            BrushEngine.StampStroke(surface.Canvas, stroke, info);
-            sw.Stop();
-            times.Add(sw.Elapsed.TotalMilliseconds);
-        }
-        times.Sort();
-        var median = times[times.Count / 2];
-        Assert.True(median < 1200,
-            $"textured commit on a 4K canvas took {median:0} ms — the per-pixel path is back");
+        var fastest = Bench.FastestMs(5, () => BrushEngine.StampStroke(surface.Canvas, stroke, info));
+        Assert.True(fastest < 1200,
+            $"textured commit on a 4K canvas took {fastest:0} ms — the per-pixel path is back");
     }
 
     [Fact]

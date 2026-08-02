@@ -3,6 +3,7 @@ using SkiaSharp;
 
 namespace Lightbox.Raster.Tests;
 
+[Collection("Performance")]
 public class PigmentModelTests
 {
     // A real ultramarine and a real cerulean, not the RGB primary. This matters and
@@ -559,19 +560,25 @@ public class PigmentModelTests
         // Warm the JIT before the clock starts.
         for (var i = 0; i < 10_000; i++) p.Over(backdrops[i & 255], 0.5);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        var sw = System.Diagnostics.Stopwatch.StartNew();
         var sink = 0;
-        for (var i = 0; i < 1_000_000; i++)
-            sink += p.Over(backdrops[i & 255], 0.001 + (i & 1023) / 1024.0 * 0.999).Green;
-        sw.Stop();
+        void Million()
+        {
+            for (var i = 0; i < 1_000_000; i++)
+                sink += p.Over(backdrops[i & 255], 0.001 + (i & 1023) / 1024.0 * 0.999).Green;
+        }
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        Million();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Fastest of three. A million calls takes long enough that a scheduler
+        // slice lands inside it on a loaded machine, which is how a budget with
+        // ten times the headroom still went red — see Bench.
+        var fastest = Bench.FastestMs(3, Million, warm: false);
 
         Assert.True(sink > 0);
         Assert.True(allocated < 4096, $"Over allocated {allocated} bytes over a million calls");
-        Assert.True(
-            sw.Elapsed.TotalSeconds < 1.0,
-            $"a million Over calls took {sw.Elapsed.TotalMilliseconds:F0} ms");
+        Assert.True(fastest < 1000, $"a million Over calls took {fastest:F0} ms (budget 1000 ms)");
     }
 
     // --- helpers ---------------------------------------------------------------

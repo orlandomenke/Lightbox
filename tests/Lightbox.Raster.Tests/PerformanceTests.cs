@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Lightbox.Core.Documents;
 using SkiaSharp;
 using Xunit.Abstractions;
@@ -9,10 +8,15 @@ namespace Lightbox.Raster.Tests;
 /// Performance regression budgets for the drawing hot paths, run on every
 /// build. Budgets are deliberately generous (shared CI runners are slow and
 /// noisy) — they exist to catch order-of-magnitude regressions like a live
-/// preview going full-canvas again, not 10% drift. Medians over several
-/// runs keep them stable. Measured times print to the test log for tracking.
+/// preview going full-canvas again, not 10% drift.
 /// </summary>
+/// <remarks>
+/// Each budget compares the <em>fastest</em> of several runs, not the median.
+/// See <see cref="Bench"/> for why: a median measures the machine as much as
+/// the code, and these budgets were flaking on loaded runners because of it.
+/// </remarks>
 [Trait("Category", "Performance")]
+[Collection("Performance")]
 public class PerformanceTests(ITestOutputHelper output)
 {
     private const int W = 960;
@@ -32,23 +36,7 @@ public class PerformanceTests(ITestOutputHelper output)
         Points = Enumerable.Range(0, points).Select(i => new StrokePoint(x0 + i * 3, y, 0.7)).ToList(),
     };
 
-    private double MedianMs(int runs, Action action)
-    {
-        action(); // warm-up (JIT, first surface)
-        var times = new List<double>(runs);
-        var sw = new Stopwatch();
-        for (var i = 0; i < runs; i++)
-        {
-            sw.Restart();
-            action();
-            sw.Stop();
-            times.Add(sw.Elapsed.TotalMilliseconds);
-        }
-        times.Sort();
-        var median = times[times.Count / 2];
-        output.WriteLine($"median {median:0.00} ms over {runs} runs (min {times[0]:0.00}, max {times[^1]:0.00})");
-        return median;
-    }
+    private double FastestMs(int runs, Action action) => Bench.FastestMs(runs, action, log: output);
 
     [Fact]
     public void LivePreview_EffectBrushSegment_IsBoundedToTheSegment()
@@ -60,12 +48,12 @@ public class PerformanceTests(ITestOutputHelper output)
         layer.Erase(SKColors.Transparent);
         var brush = Watercolor;
         var x = 100.0;
-        var median = MedianMs(60, () =>
+        var fastest = FastestMs(60, () =>
         {
             FrameRasterizer.AppendDraft(layer, Segment(brush, x, 200));
             x = x < 800 ? x + 12 : 100;
         });
-        Assert.True(median < 12.0, $"live-preview segment took {median:0.00} ms (budget 12 ms) — is it full-canvas again?");
+        Assert.True(fastest < 12.0, $"live-preview segment took {fastest:0.00} ms (budget 12 ms) — is it full-canvas again?");
     }
 
     [Fact]
@@ -74,8 +62,8 @@ public class PerformanceTests(ITestOutputHelper output)
         using var layer = new SKBitmap(W, H, SKColorType.Rgba8888, SKAlphaType.Premul);
         layer.Erase(SKColors.Transparent);
         var brush = new BrushSettings { Size = 12, Hardness = 0.9 };
-        var median = MedianMs(60, () => FrameRasterizer.AppendDraft(layer, Segment(brush, 300, 260)));
-        Assert.True(median < 10.0, $"plain segment took {median:0.00} ms (budget 10 ms)");
+        var fastest = FastestMs(60, () => FrameRasterizer.AppendDraft(layer, Segment(brush, 300, 260)));
+        Assert.True(fastest < 10.0, $"plain segment took {fastest:0.00} ms (budget 10 ms)");
     }
 
     [Fact]
@@ -87,8 +75,8 @@ public class PerformanceTests(ITestOutputHelper output)
         using var layer = new SKBitmap(W, H, SKColorType.Rgba8888, SKAlphaType.Premul);
         layer.Erase(SKColors.Transparent);
         var brush = Watercolor;
-        var median = MedianMs(30, () => FrameRasterizer.Append(layer, Segment(brush, 200, 300, points: 40)));
-        Assert.True(median < 150.0, $"exact stroke commit took {median:0.00} ms (budget 150 ms)");
+        var fastest = FastestMs(30, () => FrameRasterizer.Append(layer, Segment(brush, 200, 300, points: 40)));
+        Assert.True(fastest < 150.0, $"exact stroke commit took {fastest:0.00} ms (budget 150 ms)");
     }
 
     [Fact]
@@ -100,8 +88,8 @@ public class PerformanceTests(ITestOutputHelper output)
         layer.Erase(SKColors.Transparent);
         var brush = Watercolor;
         brush.Size = 180;
-        var median = MedianMs(30, () => FrameRasterizer.AppendDraft(layer, Segment(brush, 400, 270)));
-        Assert.True(median < 25.0, $"large-brush segment took {median:0.00} ms (budget 25 ms)");
+        var fastest = FastestMs(30, () => FrameRasterizer.AppendDraft(layer, Segment(brush, 400, 270)));
+        Assert.True(fastest < 25.0, $"large-brush segment took {fastest:0.00} ms (budget 25 ms)");
     }
 
     [Fact]
@@ -115,9 +103,9 @@ public class PerformanceTests(ITestOutputHelper output)
             canvas.DrawCircle(W / 2f, H / 2f, 180, paint); // a closed shape to respect
         }
 
-        var median = MedianMs(10, () =>
+        var fastest = FastestMs(10, () =>
             FloodFill.Fill(bmp, 30, 30, new FloodFill.Options(Tolerance: 32, GapPx: 4, GrowPx: 2)));
-        Assert.True(median < 250.0, $"flood fill took {median:0.00} ms (budget 250 ms)");
+        Assert.True(fastest < 250.0, $"flood fill took {fastest:0.00} ms (budget 250 ms)");
     }
 
     [Fact]
@@ -133,8 +121,8 @@ public class PerformanceTests(ITestOutputHelper output)
             paint.BlendMode = SKBlendMode.Src;
             canvas.DrawCircle(W / 2f, H / 2f, 80, paint);
         }
-        var median = MedianMs(10, () =>
+        var fastest = FastestMs(10, () =>
             FloodFill.Fill(bmp, W / 2, H / 2 - 140, new FloodFill.Options(Tolerance: 32)));
-        Assert.True(median < 250.0, $"donut fill took {median:0.00} ms (budget 250 ms)");
+        Assert.True(fastest < 250.0, $"donut fill took {fastest:0.00} ms (budget 250 ms)");
     }
 }
