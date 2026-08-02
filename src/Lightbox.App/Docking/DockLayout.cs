@@ -66,6 +66,29 @@ public sealed class DockLayout
     /// </remarks>
     public CanvasOverlayLayout Overlays { get; set; } = CanvasOverlayLayout.Default();
 
+    /// <summary>
+    /// Rulers along the top and left of the canvas.
+    /// </summary>
+    /// <remarks>
+    /// Off by default. They cost a strip of screen on every side of the canvas
+    /// and most drawing never wants them — but they are how a guide is made,
+    /// so turning them on is also how the whole feature arrives.
+    /// </remarks>
+    public bool Rulers { get; set; }
+
+    /// <summary>Whether guides are drawn. Separate from whether they snap.</summary>
+    public bool GuidesVisible { get; set; } = true;
+
+    /// <summary>
+    /// Whether guides can be dragged on the canvas.
+    /// </summary>
+    /// <remarks>
+    /// Exists because grabbing a guide and drawing along one are the same
+    /// gesture in the same place. Locking is how you say which you meant, and
+    /// it is why the toggle is one keystroke away rather than buried.
+    /// </remarks>
+    public bool GuidesLocked { get; set; }
+
     /// <summary>The layout the app opens with the first time.</summary>
     public static DockLayout Default()
     {

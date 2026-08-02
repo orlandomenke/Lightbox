@@ -152,6 +152,23 @@
                     ToolTip.Tip="Off by default: silently rewriting the file you opened takes away closing without saving" />
         </MenuItem>
         <Separator />
+        <!--
+          Rulers and guides. Under Edit rather than View because these four
+          decide what you can *change* — the rulers are where a guide is made,
+          and the lock is what stops one moving under your hand. What guides
+          there are, and what they do to a stroke, stays under View.
+        -->
+        <MenuItem Header="Show rulers" ToggleType="CheckBox"
+                  IsChecked="{Binding Workspace.RulersVisible, Mode=TwoWay}"
+                  InputGesture="Ctrl+R"
+                  ToolTip.Tip="Drag out of a ruler to place a guide. While they are up, guides can be picked up and moved." />
+        <MenuItem Header="Show guides" ToggleType="CheckBox"
+                  IsChecked="{Binding Workspace.GuidesVisible, Mode=TwoWay}"
+                  ToolTip.Tip="Hiding the rig still leaves it snapping — see View ▸ Guides ▸ Snap to guides" />
+        <MenuItem Header="Lock guides" ToggleType="CheckBox"
+                  IsChecked="{Binding Workspace.GuidesLocked, Mode=TwoWay}"
+                  ToolTip.Tip="Pin them where they are, so working near one cannot nudge it" />
+        <Separator />
         <MenuItem Header="Ask what to open on start-up" ToggleType="CheckBox"
                   IsChecked="{Binding ShowStartScreen, Mode=TwoWay}"
                   ToolTip.Tip="The start screen. Escape on it always drops through to a blank document." />
@@ -1269,6 +1286,24 @@
         <Panel x:Name="CanvasHost" Grid.Column="4">
           <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}" />
           <!--
+            Rulers, on top of the canvas rather than beside it, so turning them
+            on cannot renumber the grid columns the docking rework already got
+            wrong once. The canvas is inset by their thickness instead (see
+            ApplyRulers), which is what makes a strip's own coordinates line up
+            with the canvas's along its axis.
+          -->
+          <controls:RulerStrip x:Name="TopRuler" Orientation="Horizontal" Height="18"
+                               VerticalAlignment="Top" HorizontalAlignment="Stretch"
+                               Margin="18,0,0,0"
+                               IsVisible="{Binding Workspace.RulersVisible}" />
+          <controls:RulerStrip x:Name="LeftRuler" Orientation="Vertical" Width="18"
+                               HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                               Margin="0,18,0,0"
+                               IsVisible="{Binding Workspace.RulersVisible}" />
+          <Border x:Name="RulerCorner" Width="18" Height="18" Background="#1c1c1c"
+                  HorizontalAlignment="Left" VerticalAlignment="Top"
+                  IsVisible="{Binding Workspace.RulersVisible}" />
+          <!--
             Overlay bars. Their edge, position, collapsed and visible state
             live in the workspace; the window only reads that and places them
             (see ApplyOverlayLayout). Each stacks along whichever edge it is
@@ -1325,6 +1360,19 @@
               <ToggleButton Content="⌗" IsChecked="{Binding SnapToGuides}" Padding="6,2"
                             IsVisible="{Binding HasGuides}"
                             ToolTip.Tip="Snap to guides" />
+              <!--
+                Guide visibility and locking, next to the rulers that make
+                them. Only while the rulers are up: they are the switch that
+                says you are arranging the rig rather than drawing over it,
+                and off the rig cannot move, so two buttons about moving it
+                would be two dead buttons.
+              -->
+              <ToggleButton Content="⌐" IsChecked="{Binding Workspace.GuidesVisible}" Padding="6,2"
+                            IsVisible="{Binding Workspace.RulersVisible}"
+                            ToolTip.Tip="Show guides (Ctrl+;) — hidden ones still snap" />
+              <ToggleButton Content="🔒" IsChecked="{Binding Workspace.GuidesLocked}" Padding="6,2"
+                            IsVisible="{Binding Workspace.RulersVisible}"
+                            ToolTip.Tip="Lock guides (Ctrl+Alt+;) — pin them where they are" />
               <ToggleButton Content="⊞" IsChecked="{Binding ReferenceGridEditMode}" Padding="6,2"
                             IsVisible="{Binding HasReferences}"
                             ToolTip.Tip="Edit the reference grid — drag the boxes, drag a corner to resize, right-click for the pivot. Esc leaves." />

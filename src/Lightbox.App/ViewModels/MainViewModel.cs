@@ -199,6 +199,7 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.Changed += OnDocumentChanged;
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
+        _snapTolerance = Settings.SnapTolerance;
         _autosave = new AutosaveService(
             () => SaveTargetTab?.Doc ?? Doc,
             Settings.AutosaveInterval,
@@ -5630,6 +5631,75 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private double _snapTolerance = 12;
 
+    partial void OnSnapToleranceChanged(double value)
+    {
+        if (Math.Abs(Settings.SnapTolerance - value) < 1e-9) return;
+        Settings.SnapTolerance = value;
+        Settings.Save();
+    }
+
+    /// <summary>
+    /// The pitch a new grid is made with, in document pixels.
+    /// </summary>
+    /// <remarks>
+    /// A preference, not document data: once a grid exists, its spacing lives
+    /// on the guide, so changing this never moves a lattice somebody has
+    /// already drawn against.
+    /// </remarks>
+    public double GridSpacing
+    {
+        get => Settings.GridSpacing;
+        set
+        {
+            var clamped = Math.Clamp(value, 1, 4096);
+            if (Math.Abs(Settings.GridSpacing - clamped) < 1e-9) return;
+            Settings.GridSpacing = clamped;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>The grid guides on this document, if any.</summary>
+    public IReadOnlyList<Guide> GridGuides =>
+        Guides.Where(g => g.Kind == GuideKind.Grid).ToList();
+
+    /// <summary>
+    /// Change a placed grid's pitch, as one undoable step.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="GridSpacing"/> on purpose. That is what the
+    /// next grid will be; this reaches into one that exists, and only an
+    /// explicit edit should ever do that.
+    /// </remarks>
+    public void SetGridSpacing(Guide guide, double spacing)
+    {
+        var clamped = Math.Clamp(spacing, 1, 4096);
+        var before = guide.Spacing;
+        if (Math.Abs(before - clamped) < 1e-9) return;
+        _editor.PerformDelta(_ => guide.Spacing = clamped, _ => guide.Spacing = before);
+        NotifyGuides();
+    }
+
+    /// <summary>Change a placed grid's angle, as one undoable step.</summary>
+    public void SetGridAngle(Guide guide, double angle)
+    {
+        var before = guide.Angle;
+        if (Math.Abs(before - angle) < 1e-9) return;
+        _editor.PerformDelta(_ => guide.Angle = angle, _ => guide.Angle = before);
+        NotifyGuides();
+    }
+
+    /// <summary>Turn a placed guide's drawing or snapping on or off, undoably.</summary>
+    public void SetGuideFlags(Guide guide, bool visible, bool snaps)
+    {
+        var before = (guide.Visible, guide.Snaps);
+        if (before == (visible, snaps)) return;
+        _editor.PerformDelta(
+            _ => { guide.Visible = visible; guide.Snaps = snaps; },
+            _ => { guide.Visible = before.Visible; guide.Snaps = before.Snaps; });
+        NotifyGuides();
+    }
+
     /// <summary>The guide the stroke in progress has locked to, if any.</summary>
     private Guide? _lockedGuide;
 
@@ -5705,6 +5775,40 @@ public sealed partial class MainViewModel : ObservableObject
         NotifyGuides();
     }
 
+    private (double X, double Y) _guideDragTotal;
+
+    /// <summary>
+    /// Move a guide while the pointer is still down.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is recorded until the drag ends. A pointer move arrives every
+    /// few milliseconds, so recording each one would bury the last real edit
+    /// under fifty identical nudges and make undoing a drag a job rather than
+    /// a keystroke.
+    /// </remarks>
+    public void DragGuide(Guide guide, double dx, double dy)
+    {
+        if (guide.Locked) return;
+        guide.X += dx;
+        guide.Y += dy;
+        _guideDragTotal = (_guideDragTotal.X + dx, _guideDragTotal.Y + dy);
+        NotifyGuides();
+    }
+
+    /// <summary>Close a guide drag: the whole of it becomes one undo step.</summary>
+    public void EndGuideDrag(Guide guide)
+    {
+        var (dx, dy) = _guideDragTotal;
+        _guideDragTotal = default;
+        if (dx == 0 && dy == 0) return;
+        // Back to where the drag started, then forward again through the
+        // recorded path — so undo returns it to the place it was picked up
+        // from rather than to the last pointer event.
+        guide.X -= dx;
+        guide.Y -= dy;
+        MoveGuide(guide, dx, dy);
+    }
+
     [RelayCommand]
     private void ClearGuides()
     {
@@ -5717,6 +5821,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(Guides));
         OnPropertyChanged(nameof(HasGuides));
+        OnPropertyChanged(nameof(GridGuides));
         GuidesChanged?.Invoke();
         PublishSnapshot();
         MarkDocumentEdited();

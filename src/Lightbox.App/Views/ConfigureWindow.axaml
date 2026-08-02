@@ -13,6 +13,7 @@
              SelectionChanged="OnCategoryChanged">
       <ListBoxItem Content="Shortcuts" />
       <ListBoxItem Content="Performance" />
+      <ListBoxItem Content="Guides and grid" />
     </ListBox>
 
     <Border Grid.Column="1" Background="#141414" />
@@ -109,6 +110,80 @@
                        Text="Rendering runs on the CPU through Skia. There is no GPU switch to throw: the cost that matters is how many pixels are pushed per frame, which is what the quality setting controls." />
           </StackPanel>
         </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!--
+      Content (center): guides and grid.
+
+      Here rather than in a docker because none of it is per-drawing: a grid
+      pitch and a snap radius are how you like to work, and a panel that took
+      a strip of screen away from everybody to hold four numbers you set once
+      would be a bad trade.
+    -->
+    <ScrollViewer x:Name="GuidesPage" Grid.Column="2" Margin="14" IsVisible="False"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16">
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="New grids" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="The pitch a grid is made with, from View ▸ Guides ▸ Add grid. Changing it never touches a grid that already exists — that one's spacing belongs to the document." />
+          <DockPanel>
+            <NumericUpDown DockPanel.Dock="Right" x:Name="GridSpacingBox" Width="120"
+                           Minimum="1" Maximum="4096" Increment="4" FormatString="0"
+                           ValueChanged="OnGridSpacingChanged" />
+            <TextBlock Text="Cell size, in pixels" VerticalAlignment="Center" />
+          </DockPanel>
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Snapping" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="How close a point has to come to a guide before it is pulled onto it. Measured in document pixels, so a zoomed-in artist gets the same guides as a zoomed-out one." />
+          <DockPanel>
+            <NumericUpDown DockPanel.Dock="Right" x:Name="SnapToleranceBox" Width="120"
+                           Minimum="0" Maximum="200" Increment="2" FormatString="0"
+                           ValueChanged="OnSnapToleranceChanged" />
+            <TextBlock Text="Pull distance, in pixels" VerticalAlignment="Center" />
+          </DockPanel>
+        </StackPanel>
+
+        <!-- The grids on this document, if any: the one place their pitch and
+             angle can be changed after the fact. -->
+        <StackPanel Spacing="6">
+          <TextBlock Text="Grids on this document" FontWeight="SemiBold" />
+          <TextBlock x:Name="NoGridsText" TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="None yet. View ▸ Guides ▸ Add grid places one." />
+          <ItemsControl x:Name="GridsHost">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="views:GridRow">
+                <Border Background="#20262c" CornerRadius="4" Padding="10" Margin="0,0,0,6">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" />
+                    <DockPanel>
+                      <NumericUpDown DockPanel.Dock="Right" Width="110"
+                                     Minimum="1" Maximum="4096" Increment="4" FormatString="0"
+                                     Value="{Binding Spacing, Mode=TwoWay}" />
+                      <TextBlock Text="Cell size" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <DockPanel>
+                      <NumericUpDown DockPanel.Dock="Right" Width="110"
+                                     Minimum="-180" Maximum="180" Increment="5" FormatString="0.#"
+                                     Value="{Binding Angle, Mode=TwoWay}" />
+                      <TextBlock Text="Angle, in degrees" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="14">
+                      <CheckBox Content="Draw it" IsChecked="{Binding Visible, Mode=TwoWay}" />
+                      <CheckBox Content="Snap to it" IsChecked="{Binding Snaps, Mode=TwoWay}"
+                                ToolTip.Tip="A hidden grid still snaps unless this is off" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
       </StackPanel>
     </ScrollViewer>
   </Grid>

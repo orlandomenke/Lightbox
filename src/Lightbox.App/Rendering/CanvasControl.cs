@@ -265,7 +265,7 @@ public sealed class CanvasControl : Control
     /// be halfway through editing. Same reason the reference boxes are copied.
     /// </remarks>
     public readonly record struct GuideLine(
-        int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles);
+        string Id, int Kind, float X, float Y, float Spacing, IReadOnlyList<double> Angles);
 
     /// <summary>
     /// The guides to draw, or null for none — in which case nothing
@@ -282,6 +282,118 @@ public sealed class CanvasControl : Control
     }
 
     private IReadOnlyList<GuideLine>? _guides;
+
+    /// <summary>
+    /// A guide being pulled out of a ruler, not yet part of the document.
+    /// </summary>
+    /// <remarks>
+    /// Chrome, not data: it exists for the length of one drag and is never
+    /// written anywhere. Drawing it is the whole point of the gesture — a
+    /// guide you cannot see until you let go is one you place twice.
+    /// </remarks>
+    public GuideLine? DraftGuide
+    {
+        get => _draftGuide;
+        set
+        {
+            _draftGuide = value;
+            InvalidateVisual();
+        }
+    }
+
+    private GuideLine? _draftGuide;
+
+    /// <summary>
+    /// Whether a guide under the pointer can be picked up and moved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Off unless the rulers are showing, and that is the design rather than
+    /// an implementation detail. Grabbing a guide and drawing along one are
+    /// the same gesture in the same place, so something has to say which was
+    /// meant. Photoshop's answer is the Move tool; this app has no move tool,
+    /// so the rulers are the switch: turn them on and you are arranging the
+    /// rig, turn them off and the rig is scenery you draw over. It is one
+    /// toggle instead of a modifier nobody discovers, and it is why the
+    /// guide controls only appear on the shortcut bar when the rulers do.
+    /// </para>
+    /// <para>
+    /// The cursor is the only affordance. No handles float over the artwork —
+    /// an overlay of little buttons sits between the artist and the drawing,
+    /// and it is the thing this design exists to avoid.
+    /// </para>
+    /// </remarks>
+    public bool GuideDragEnabled { get; set; }
+
+    /// <summary>A guide was dragged, by a delta in document pixels.</summary>
+    public event Action<string, double, double>? GuideMoved;
+
+    /// <summary>A guide drag finished, so the move can be closed off.</summary>
+    public event Action? GuideDragEnded;
+
+    private string? _guideDrag;
+
+    private (double X, double Y) _guideDragLast;
+
+    /// <summary>How close, in screen pixels, counts as being on a guide.</summary>
+    private const double GuideGrabPixels = 6;
+
+    /// <summary>
+    /// The guide under a view-space point, or null.
+    /// </summary>
+    /// <remarks>
+    /// A line is grabbed anywhere along it; everything else — grids,
+    /// isometric axes, vanishing points — is grabbed at its anchor. Letting a
+    /// grid be grabbed on any of its lines would mean a grid covers the whole
+    /// canvas in grab targets and nothing else could ever be picked up.
+    /// </remarks>
+    private GuideLine? GuideAt(Point view)
+    {
+        if (_guides is not { Count: > 0 } guides) return null;
+        var scale = FitScale() * _zoom;
+        if (scale <= 0) return null;
+        var reach = GuideGrabPixels / scale;
+        var (x, y) = ViewToDoc(view);
+
+        GuideLine? best = null;
+        var bestDistance = reach;
+        foreach (var guide in guides)
+        {
+            double distance;
+            if (guide.Kind == (int)GuideKindLine && guide.Angles.Count > 0)
+            {
+                var radians = guide.Angles[0] * Math.PI / 180;
+                distance = Math.Abs(
+                    -Math.Sin(radians) * (x - guide.X) + Math.Cos(radians) * (y - guide.Y));
+            }
+            else
+            {
+                distance = Math.Sqrt(
+                    (x - guide.X) * (x - guide.X) + (y - guide.Y) * (y - guide.Y));
+            }
+            if (distance > bestDistance) continue;
+            bestDistance = distance;
+            best = guide;
+        }
+        return best;
+    }
+
+    private const int GuideKindLine = 0;
+
+    /// <summary>The cursor the drawing normally uses: none, so the gizmo is it.</summary>
+    private static readonly Cursor DrawingCursor = new(StandardCursorType.None);
+
+    private static readonly Cursor GuideCursor = new(StandardCursorType.SizeAll);
+
+    private bool _overGuide;
+
+    private void UpdateGuideHoverCursor(Point view)
+    {
+        var over = GuideDragEnabled && GuideAt(view) is not null;
+        if (over == _overGuide) return;
+        _overGuide = over;
+        Cursor = over ? GuideCursor : DrawingCursor;
+    }
 
     /// <summary>The box being drawn by hand right now, in document coordinates.</summary>
     private SKRect? _newBox;
@@ -1050,7 +1162,7 @@ public sealed class CanvasControl : Control
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
-            ReferenceBoxes, _newBox, Guides));
+            ReferenceBoxes, _newBox, Guides, _draftGuide));
     }
 
     // ---- view <-> document transform ---------------------------------------
@@ -1085,6 +1197,41 @@ public sealed class CanvasControl : Control
         var doc = p.Transform(inverse);
         if (!double.IsFinite(doc.X) || !double.IsFinite(doc.Y)) return (0, 0);
         return (doc.X, doc.Y);
+    }
+
+    /// <summary>Map a document point to view space.</summary>
+    public (double X, double Y) DocToView(double x, double y)
+    {
+        var p = new Point(x, y).Transform(ViewMatrix());
+        return (p.X, p.Y);
+    }
+
+    /// <summary>
+    /// Where document zero lands along one screen axis, and how many screen
+    /// pixels a document pixel covers along it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What a ruler needs, and all it needs: two numbers instead of a matrix,
+    /// so the strip has no idea a renderer exists.
+    /// </para>
+    /// <para>
+    /// A mirrored view gives a negative scale, which is right — the ruler
+    /// then reads the way the drawing does. A <i>rotated</i> view does not
+    /// decompose into two axes at all, and the projection here shrinks
+    /// towards zero as the canvas turns; the strip stops drawing rather than
+    /// print numbers that mean nothing. Rulers are for square work, and
+    /// rotating the view is for drawing an arc comfortably; the two are not
+    /// used at the same time.
+    /// </para>
+    /// </remarks>
+    public (double Origin, double Scale) AxisMapping(bool horizontal)
+    {
+        var matrix = ViewMatrix();
+        var zero = new Point(0, 0).Transform(matrix);
+        var unit = (horizontal ? new Point(1, 0) : new Point(0, 1)).Transform(matrix);
+        var origin = horizontal ? zero.X : zero.Y;
+        return (origin, (horizontal ? unit.X : unit.Y) - origin);
     }
 
     private static double PressureOf(PointerPoint pp)
@@ -1250,6 +1397,18 @@ public sealed class CanvasControl : Control
                 return;
             }
 
+            // A guide under the pointer is picked up before any tool sees the
+            // press. Only ever true while the rulers are showing, which is
+            // what keeps this out of the way of drawing — see GuideDragEnabled.
+            if (GuideDragEnabled && GuideAt(pp.Position) is { } grabbed)
+            {
+                _guideDrag = grabbed.Id;
+                _guideDragLast = (x, y);
+                e.Pointer.Capture(this);
+                e.Handled = true;
+                return;
+            }
+
             if (ToolMode == CanvasToolMode.Paint && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
             {
                 // Shift+drag resizes the brush around the anchored cursor.
@@ -1385,6 +1544,22 @@ public sealed class CanvasControl : Control
             // we're in — repaints coalesce, so this is cheap.
             InvalidateVisual();
 
+            if (_guideDrag is { } dragging)
+            {
+                var (gx, gy) = ViewToDoc(e.GetPosition(this));
+                // Incremental, like the reference nudge: an absolute drag
+                // would leave one enormous step in the history.
+                GuideMoved?.Invoke(dragging, gx - _guideDragLast.X, gy - _guideDragLast.Y);
+                _guideDragLast = (gx, gy);
+                e.Handled = true;
+                return;
+            }
+
+            // The cursor is the whole affordance — the pointer changing shape
+            // over a guide is what tells you it can be picked up, instead of a
+            // row of buttons floating over the drawing.
+            UpdateGuideHoverCursor(e.GetPosition(this));
+
             if (_aligningReference)
             {
                 var (ax, ay) = ViewToDoc(e.GetPosition(this));
@@ -1502,6 +1677,14 @@ public sealed class CanvasControl : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_guideDrag is not null)
+        {
+            _guideDrag = null;
+            e.Pointer.Capture(null);
+            GuideDragEnded?.Invoke();
+            e.Handled = true;
+            return;
+        }
         if (_txActive && _txDrag != TxDrag.None)
         {
             _txDrag = TxDrag.None;
@@ -1725,7 +1908,8 @@ public sealed class CanvasControl : Control
         (SKPoint From, SKPoint To)? gradientAxis = null,
         IReadOnlyList<ReferenceBox>? referenceBoxes = null,
         SKRect? newBox = null,
-        IReadOnlyList<GuideLine>? guides = null) : ICustomDrawOperation
+        IReadOnlyList<GuideLine>? guides = null,
+        GuideLine? draftGuide = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -1816,7 +2000,11 @@ public sealed class CanvasControl : Control
         /// </remarks>
         private void DrawGuides(SKCanvas canvas)
         {
-            if (guides is not { Count: > 0 } lines) return;
+            if (guides is not { Count: > 0 } lines)
+            {
+                if (draftGuide is { } only) DrawDraft(canvas, only);
+                return;
+            }
             var scale = Math.Max(0.01f, view.Scale);
             var reach = (view.DocW + view.DocH) * 2f;
 
@@ -1854,6 +2042,30 @@ public sealed class CanvasControl : Control
                 canvas.DrawLine(guide.X - arm, guide.Y, guide.X + arm, guide.Y, mark);
                 canvas.DrawLine(guide.X, guide.Y - arm, guide.X, guide.Y + arm, mark);
             }
+
+            if (draftGuide is { } draft) DrawDraft(canvas, draft);
+        }
+
+        /// <summary>
+        /// The guide being pulled out of a ruler right now.
+        /// </summary>
+        /// <remarks>
+        /// Brighter than a placed guide, because it is the thing you are
+        /// looking at: the whole gesture is aiming a line, and a draft drawn
+        /// in the same faint blue as the rig behind it cannot be aimed.
+        /// </remarks>
+        private void DrawDraft(SKCanvas canvas, GuideLine draft)
+        {
+            var scale = Math.Max(0.01f, view.Scale);
+            using var paint = new SKPaint
+            {
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1f / scale,
+                Color = new SKColor(240, 160, 80, 220),
+                IsAntialias = true,
+            };
+            var reach = (view.DocW + view.DocH) * 2f;
+            foreach (var angle in draft.Angles) Ray(canvas, draft.X, draft.Y, angle, reach, paint);
         }
 
         private const int GuideKindGrid = 1;

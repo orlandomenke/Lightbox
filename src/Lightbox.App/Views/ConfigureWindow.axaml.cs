@@ -28,6 +28,64 @@ public sealed class ShortcutGroup(string name, IEnumerable<ShortcutRow> rows)
 }
 
 /// <summary>
+/// One grid already placed on the document, editable.
+/// </summary>
+/// <remarks>
+/// Every setter goes back through the view model rather than at the guide,
+/// so each change is one undo step and the canvas redraws. A row that wrote
+/// straight to the object would move a grid nobody could put back.
+/// </remarks>
+public sealed partial class GridRow(
+    Lightbox.Core.Documents.Guide guide, ViewModels.MainViewModel vm) : ObservableObject
+{
+    public string Title { get; } = string.IsNullOrWhiteSpace(guide.Name) ? "Grid" : guide.Name;
+
+    public double Spacing
+    {
+        get => guide.Spacing;
+        set
+        {
+            if (Math.Abs(guide.Spacing - value) < 1e-9) return;
+            vm.SetGridSpacing(guide, value);
+            OnPropertyChanged();
+        }
+    }
+
+    public double Angle
+    {
+        get => guide.Angle;
+        set
+        {
+            if (Math.Abs(guide.Angle - value) < 1e-9) return;
+            vm.SetGridAngle(guide, value);
+            OnPropertyChanged();
+        }
+    }
+
+    public bool Visible
+    {
+        get => guide.Visible;
+        set
+        {
+            if (guide.Visible == value) return;
+            vm.SetGuideFlags(guide, value, guide.Snaps);
+            OnPropertyChanged();
+        }
+    }
+
+    public bool Snaps
+    {
+        get => guide.Snaps;
+        set
+        {
+            if (guide.Snaps == value) return;
+            vm.SetGuideFlags(guide, guide.Visible, value);
+            OnPropertyChanged();
+        }
+    }
+}
+
+/// <summary>
 /// Edit → Configure: categories on the left, content in the center. The
 /// Shortcuts page lists every rebindable command grouped by area, searchable
 /// by name or by keys, with a conflict warning before a clashing binding can
@@ -55,6 +113,41 @@ public partial class ConfigureWindow : Window
         RebuildGroups();
         AddHandler(KeyDownEvent, OnCaptureKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         LoadPerformancePage();
+        LoadGuidesPage();
+    }
+
+    // ---- guides and grid page --------------------------------------------------
+
+    private bool _loadingGuides;
+
+    private void LoadGuidesPage()
+    {
+        if (_vm is null) return;
+        _loadingGuides = true;
+        GridSpacingBox.Value = (decimal)_vm.GridSpacing;
+        SnapToleranceBox.Value = (decimal)_vm.SnapTolerance;
+        _loadingGuides = false;
+        RefreshGrids();
+    }
+
+    private void RefreshGrids()
+    {
+        if (_vm is null) return;
+        var rows = _vm.GridGuides.Select(g => new GridRow(g, _vm)).ToList();
+        GridsHost.ItemsSource = rows;
+        NoGridsText.IsVisible = rows.Count == 0;
+    }
+
+    private void OnGridSpacingChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_loadingGuides || _vm is null || e.NewValue is not { } value) return;
+        _vm.GridSpacing = (double)value;
+    }
+
+    private void OnSnapToleranceChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_loadingGuides || _vm is null || e.NewValue is not { } value) return;
+        _vm.SnapTolerance = (double)value;
     }
 
     // ---- performance page -----------------------------------------------------
@@ -94,11 +187,15 @@ public partial class ConfigureWindow : Window
 
     private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (ShortcutsPage is null || PerformancePage is null) return;
-        var performance = CategoryList.SelectedIndex == 1;
-        ShortcutsPage.IsVisible = !performance;
-        PerformancePage.IsVisible = performance;
-        if (performance) RefreshMeasured();
+        if (ShortcutsPage is null || PerformancePage is null || GuidesPage is null) return;
+        var page = CategoryList.SelectedIndex;
+        ShortcutsPage.IsVisible = page == 0;
+        PerformancePage.IsVisible = page == 1;
+        GuidesPage.IsVisible = page == 2;
+        if (page == 1) RefreshMeasured();
+        // Rebuilt on the way in: a grid may have been placed since the window
+        // opened, and the window outlives the drawing that made it.
+        if (page == 2) RefreshGrids();
     }
 
     private void OnQualityChanged(object? sender, SelectionChangedEventArgs e)

@@ -120,7 +120,7 @@ public partial class MainWindow : Window
         };
         _vm.ReferenceChanged += RefreshReferenceBoxes;
         _vm.GuidesChanged += RefreshGuides;
-        RefreshGuides();
+        InitialiseRulers();
 
         // The toggle button eats pointer events, so hook the hold-to-open
         // variant flyout with tunneling handlers.
@@ -1889,6 +1889,15 @@ public partial class MainWindow : Window
             case "canvas.resetView":
                 Canvas.ResetView();
                 break;
+            case "canvas.rulers":
+                _vm.Workspace.RulersVisible = !_vm.Workspace.RulersVisible;
+                break;
+            case "canvas.showGuides":
+                _vm.Workspace.GuidesVisible = !_vm.Workspace.GuidesVisible;
+                break;
+            case "canvas.lockGuides":
+                _vm.Workspace.GuidesLocked = !_vm.Workspace.GuidesLocked;
+                break;
             default:
                 return; // unbound or context-gated: not ours
         }
@@ -2309,7 +2318,10 @@ public partial class MainWindow : Window
     /// </remarks>
     private void RefreshGuides()
     {
-        if (!_vm.HasGuides)
+        // The rulers carry a mark per guide, so they move with them.
+        RefreshRulerMarks();
+
+        if (!_vm.HasGuides || !_vm.Workspace.GuidesVisible)
         {
             Canvas.Guides = null;
             return;
@@ -2322,7 +2334,8 @@ public partial class MainWindow : Window
                 ? Fan()
                 : guide.Angles;
             lines.Add(new Rendering.CanvasControl.GuideLine(
-                (int)guide.Kind, (float)guide.X, (float)guide.Y, (float)guide.Spacing, angles));
+                guide.Id, (int)guide.Kind, (float)guide.X, (float)guide.Y,
+                (float)guide.Spacing, angles));
         }
         Canvas.Guides = lines.Count > 0 ? lines : null;
     }
@@ -2334,6 +2347,175 @@ public partial class MainWindow : Window
         for (var i = 0; i < rays; i++) angles[i] = i * (180.0 / rays);
         return angles;
     }
+
+    // ---- rulers ------------------------------------------------------------------
+
+    /// <summary>
+    /// Hook the two ruler strips up to the canvas.
+    /// </summary>
+    /// <remarks>
+    /// Everything the rulers do runs through here: the mapping they draw
+    /// against, the pointer they track, the guides they mark, and the drag
+    /// that pulls a new guide out of one.
+    /// </remarks>
+    private void InitialiseRulers()
+    {
+        Canvas.ViewChanged += RefreshRulerMapping;
+        CanvasHost.SizeChanged += (_, _) => RefreshRulerMapping();
+
+        // Tracking the pointer is most of what a ruler is for — reading a
+        // tick to work out where you are is slower than glancing at a line
+        // that is already there. Handled events too: every tool marks its
+        // moves handled, and the ruler has to follow all of them.
+        Canvas.AddHandler(
+            PointerMovedEvent,
+            (_, e) => TrackPointer(e.GetPosition(Canvas)),
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
+            handledEventsToo: true);
+        Canvas.PointerExited += (_, _) => TrackPointer(null);
+
+        foreach (var strip in (RulerStrip[])[TopRuler, LeftRuler])
+        {
+            strip.PullStarted += (s, p) => UpdateDraftGuide(s, p);
+            strip.PullMoved += (s, p) => UpdateDraftGuide(s, p);
+            strip.PullEnded += EndPull;
+        }
+
+        Canvas.GuideMoved += (id, dx, dy) =>
+        {
+            if (GuideById(id) is not { } guide) return;
+            // Remembered so the release can close the drag off: the canvas
+            // only knows an id, and by then the guide it names may have been
+            // replaced by an undo.
+            _draggingGuide = guide;
+            _vm.DragGuide(guide, dx, dy);
+        };
+        Canvas.GuideDragEnded += () =>
+        {
+            if (_draggingGuide is { } guide) _vm.EndGuideDrag(guide);
+            _draggingGuide = null;
+        };
+
+        _vm.Workspace.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(WorkspaceViewModel.RulersVisible)
+                or nameof(WorkspaceViewModel.GuidesVisible)
+                or nameof(WorkspaceViewModel.GuidesLocked))
+            {
+                ApplyRulers();
+            }
+        };
+        ApplyRulers();
+    }
+
+    private Guide? _draggingGuide;
+
+    private Guide? GuideById(string id) => _vm.Guides.FirstOrDefault(g => g.Id == id);
+
+    /// <summary>
+    /// Put the rulers on or take them away, and say whether guides can be
+    /// picked up.
+    /// </summary>
+    /// <remarks>
+    /// The canvas is inset by the strips rather than sharing a grid with them,
+    /// so its own coordinates line up with each strip's along that strip's
+    /// axis and the mapping needs no offset. Absent, not disabled: with the
+    /// rulers off the canvas gets its whole cell back.
+    /// </remarks>
+    private void ApplyRulers()
+    {
+        var on = _vm.Workspace.RulersVisible;
+        Canvas.Margin = on
+            ? new Thickness(RulerStrip.Thickness, RulerStrip.Thickness, 0, 0)
+            : default;
+        Canvas.GuideDragEnabled =
+            on && _vm.Workspace.GuidesVisible && !_vm.Workspace.GuidesLocked;
+        RefreshGuides();
+        RefreshRulerMapping();
+    }
+
+    private void RefreshRulerMapping()
+    {
+        if (!_vm.Workspace.RulersVisible) return;
+        TopRuler.Mapping = Canvas.AxisMapping(horizontal: true);
+        LeftRuler.Mapping = Canvas.AxisMapping(horizontal: false);
+    }
+
+    /// <summary>
+    /// Mark each guide on the ruler it crosses.
+    /// </summary>
+    /// <remarks>
+    /// Only the straight ones: a grid crosses the top ruler everywhere and a
+    /// vanishing point is a place on the canvas rather than a position along
+    /// an edge, so marking either would be noise where the marks have to stay
+    /// readable.
+    /// </remarks>
+    private void RefreshRulerMarks()
+    {
+        if (!_vm.Workspace.RulersVisible) return;
+        var horizontal = new List<double>();
+        var vertical = new List<double>();
+        if (_vm.Workspace.GuidesVisible)
+        {
+            foreach (var guide in _vm.Guides)
+            {
+                if (!guide.Visible || guide.Kind != GuideKind.Line) continue;
+                var angle = ((guide.Angle % 180) + 180) % 180;
+                if (angle < 1 || angle > 179) horizontal.Add(guide.Y);
+                else if (Math.Abs(angle - 90) < 1) vertical.Add(guide.X);
+            }
+        }
+        // A horizontal guide crosses the *left* ruler, at its height.
+        TopRuler.Marks = vertical;
+        LeftRuler.Marks = horizontal;
+    }
+
+    private void TrackPointer(Point? view)
+    {
+        if (!_vm.Workspace.RulersVisible) return;
+        if (view is not { } p)
+        {
+            TopRuler.Tracking = null;
+            LeftRuler.Tracking = null;
+            return;
+        }
+        var (x, y) = Canvas.ViewToDoc(p);
+        TopRuler.Tracking = x;
+        LeftRuler.Tracking = y;
+    }
+
+    /// <summary>
+    /// Follow a guide being pulled out of a ruler.
+    /// </summary>
+    /// <remarks>
+    /// The axis that matters is the other one: dragging out of the top ruler
+    /// places a horizontal guide, and where it lands is the pointer's height,
+    /// not its position along the ruler. Which is why the strip hands over a
+    /// raw point and this works in the canvas's coordinates.
+    /// </remarks>
+    private void UpdateDraftGuide(RulerStrip strip, Point inStrip)
+    {
+        var (x, y) = DocOf(strip, inStrip);
+        var horizontal = strip.Orientation == Avalonia.Layout.Orientation.Horizontal;
+        Canvas.DraftGuide = new Rendering.CanvasControl.GuideLine(
+            "draft", (int)GuideKind.Line, (float)x, (float)y, 0,
+            horizontal ? [0d] : [90d]);
+    }
+
+    private void EndPull(RulerStrip strip, Point inStrip, bool onStrip)
+    {
+        Canvas.DraftGuide = null;
+        // Let go back over the ruler and it never existed. That is how
+        // Photoshop throws a guide away, and it doubles as the way out of a
+        // drag you did not mean to start.
+        if (onStrip) return;
+        var (x, y) = DocOf(strip, inStrip);
+        _vm.AddGuide(GuideKind.Line, x, y,
+            angle: strip.Orientation == Avalonia.Layout.Orientation.Horizontal ? 0 : 90);
+    }
+
+    private (double X, double Y) DocOf(RulerStrip strip, Point inStrip) =>
+        Canvas.ViewToDoc(strip.TranslatePoint(inStrip, Canvas) ?? inStrip);
 
 
     /// <summary>
@@ -2361,8 +2543,9 @@ public partial class MainWindow : Window
     private void OnAddGridGuide(object? sender, RoutedEventArgs e) =>
         // From the origin, because a grid is a lattice over the whole canvas
         // and starting it in the middle would put its intersections in
-        // half-cell offsets from every edge.
-        _vm.AddGuide(GuideKind.Grid, 0, 0);
+        // half-cell offsets from every edge. The pitch comes from the
+        // configuration — Edit ▸ Configure ▸ Guides and grid.
+        _vm.AddGuide(GuideKind.Grid, 0, 0, spacing: _vm.GridSpacing);
 
     private void OnAddIsometricGuide(object? sender, RoutedEventArgs e)
     {

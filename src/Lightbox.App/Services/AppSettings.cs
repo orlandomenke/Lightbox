@@ -65,6 +65,21 @@ public sealed class AppSettings
     /// </remarks>
     public bool AutosaveInPlace { get; set; }
 
+    /// <summary>
+    /// The pitch a new grid guide is made with, in document pixels.
+    /// </summary>
+    /// <remarks>
+    /// A preference rather than document data, and the distinction matters:
+    /// once a grid exists its spacing lives on the guide, so changing this
+    /// never moves a lattice somebody already drew against. Invariant 4 is
+    /// about pixels and this never reaches them, but the same reasoning
+    /// applies — a setting must not reach back into finished work.
+    /// </remarks>
+    public double GridSpacing { get; set; } = 32;
+
+    /// <summary>How close a point must be to a guide to be pulled onto it, in document pixels.</summary>
+    public double SnapTolerance { get; set; } = 12;
+
     public static string Path { get; set; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Lightbox", "settings.json");

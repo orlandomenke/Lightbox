@@ -151,6 +151,44 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         set => SetOverlayVisible(OverlayId.Shortcuts, value);
     }
 
+    /// <summary>
+    /// Rulers along the canvas. Part of the workspace, like the overlay bars:
+    /// an arrangement of the screen, belonging to the person rather than the
+    /// artwork, so it saves, resets and switches with everything else.
+    /// </summary>
+    public bool RulersVisible
+    {
+        get => _layout.Rulers;
+        set
+        {
+            if (_layout.Rulers == value) return;
+            Mutate(l => l.Rulers = value);
+            OnPropertyChanged();
+        }
+    }
+
+    public bool GuidesVisible
+    {
+        get => _layout.GuidesVisible;
+        set
+        {
+            if (_layout.GuidesVisible == value) return;
+            Mutate(l => l.GuidesVisible = value);
+            OnPropertyChanged();
+        }
+    }
+
+    public bool GuidesLocked
+    {
+        get => _layout.GuidesLocked;
+        set
+        {
+            if (_layout.GuidesLocked == value) return;
+            Mutate(l => l.GuidesLocked = value);
+            OnPropertyChanged();
+        }
+    }
+
     public void SetOverlayVisible(OverlayId id, bool visible)
     {
         if (_layout.Overlays.IsVisible(id) == visible) return;

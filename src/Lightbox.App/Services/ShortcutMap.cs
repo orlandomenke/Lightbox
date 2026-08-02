@@ -71,6 +71,12 @@ public sealed class ShortcutMap
             new("canvas.redo", "Redo", "Canvas", G(Key.Y, KeyModifiers.Control)),
             new("canvas.transform", "Transform (move/scale/rotate/perspective)", "Tools", G(Key.T, KeyModifiers.Control)),
             new("canvas.mirror", "Mirror view", "Canvas", G(Key.M)),
+            // Photoshop's three, on Photoshop's keys. Rulers are where a guide
+            // is made, so the one that makes them reachable comes first.
+            new("canvas.rulers", "Show rulers", "Canvas", G(Key.R, KeyModifiers.Control)),
+            new("canvas.showGuides", "Show guides", "Canvas", G(Key.OemSemicolon, KeyModifiers.Control)),
+            new("canvas.lockGuides", "Lock guides", "Canvas",
+                G(Key.OemSemicolon, KeyModifiers.Control | KeyModifiers.Alt)),
             new("canvas.resetView", "Reset view", "Canvas", G(Key.D0)),
 
             new("timeline.playPause", "Play / pause", "Timeline", G(Key.Space)),

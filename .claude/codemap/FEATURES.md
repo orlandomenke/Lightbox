@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1089 tests, derived from the suite itself. Each line is a
+1115 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -813,6 +813,36 @@ regression even when every test still compiles.
 - Removing The Last Reference Leaves The Document With No Key For One — `:345`
 - ADocument With No Reference Composites Exactly As It Always Has — `:358`
 - AReference Survives Saving And Reopening — `:374`
+
+## RulerAndGuideEditTests
+`tests/Lightbox.App.Tests/RulerAndGuideEditTests.cs`
+
+- Ticks Stay On Round Numbers At Every Zoom — `:60`
+- Zooming In Gives AFiner Ruler — `:78`
+- AStrip Maps Both Ways Consistently — `:85`
+- AMirrored View Gives ABackwards Ruler Rather Than None — `:94`
+- The Rulers Are Absent Until Asked For — `:107`
+- Turning Them On Insets The Canvas And Back Off Returns It — `:119`
+- Dragging Out Of The Top Ruler Leaves AHorizontal Guide — `:139`
+- Dragging Out Of The Left Ruler Leaves AVertical Guide — `:155`
+- AGuide Lands Where The Pointer Was On The Other Axis — `:168`
+- Letting Go Back On The Ruler Throws The Guide Away — `:188`
+- The Draft Is Drawn While The Guide Is Being Placed — `:207`
+- AGuide Is Only Grabbable While The Rulers Are Up — `:229`
+- Locking Them Stops The Grab Without Hiding Anything — `:246`
+- Hiding Guides Takes Them Off The Canvas And Out Of Reach — `:262`
+- AHidden Guide Still Constrains The Stroke — `:278`
+- AGuide Is Moved By Grabbing It On The Canvas — `:295`
+- AGrab Misses If The Rulers Are Down — `:319`
+- AWhole Drag Of AGuide Is One Undo Step — `:338`
+- ALocked Guide Does Not Budge — `:357`
+- Each Straight Guide Is Marked On The Ruler It Crosses — `:372`
+- AGrid Is Not Marked On The Rulers — `:387`
+- The Rulers Track The Pointer Over The Canvas — `:400`
+- The Configure Window Lists The Grids On The Document — `:420`
+- Changing The Default Pitch Does Not Touch AGrid Already Placed — `:430`
+- Editing APlaced Grid Is Undoable — `:443`
+- Turning AGrids Snapping Off Leaves The Stroke Alone — `:457`
 
 ## SceneDockerTests
 `tests/Lightbox.App.Tests/SceneDockerTests.cs`
