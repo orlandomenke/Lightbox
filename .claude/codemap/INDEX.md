@@ -1,6 +1,6 @@
 # Code index
 
-292 files · 71299 lines · 1397 tests.
+292 files · 71508 lines · 1399 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -288,13 +288,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.Raster/BrushEngine.cs` (1425 ln) · 12 test files
   - BrushEngine:25
-- `src/Lightbox.Raster/Media/FluidLattice.cs` (869 ln) · 1 test files
+- `src/Lightbox.Raster/Media/FluidLattice.cs` (970 ln) · 1 test files
   - FluidLattice:59
 - `src/Lightbox.Raster/FloodFill.cs` (433 ln) · 2 test files
   - FloodFill:13, Options:15, Result:21, ContourTracer:297
 - `src/Lightbox.Raster/Media/PaperField.cs` (406 ln) · 3 test files
   - PaperField:26, Tile:81
-- `src/Lightbox.Raster/Media/PigmentModel.cs` (356 ln) · 2 test files
+- `src/Lightbox.Raster/Media/PigmentModel.cs` (356 ln) · 3 test files
   - Pigment:31
 - `src/Lightbox.Raster/SymbolRasterizer.cs` (305 ln) · 2 test files
   - SymbolRasterizer:39, Rendered:46

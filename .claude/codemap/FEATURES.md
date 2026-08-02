@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1397 tests, derived from the suite itself. Each line is a
+1399 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1897,12 +1897,14 @@ regression even when every test still compiles.
 - Inviscid Undragged Deluge Stays Finite — `:287`
 - Extreme Parameters Do Not Produce Na N — `:322`
 - Edge Pull Concentrates Deposit Near The Wet Boundary — `:345`
-- Granularity Biases Deposit Into The Papers Valleys — `:392`
-- Paper Influence Zero Makes The Paper Irrelevant — `:436`
-- Water Spreads Beyond Where It Was Seeded — `:460`
-- Thin Wash Pins Instead Of Creeping Forever — `:476`
-- Mis Sized Buffers Are Rejected — `:511`
-- Four Hundred Square Twelve Steps Stays Within Budget — `:532`
+- Edge Pull Responds Monotonically — `:453`
+- Edge Pull Builds ARim Instead Of Mottling The Middle — `:481`
+- Granularity Biases Deposit Into The Papers Valleys — `:500`
+- Paper Influence Zero Makes The Paper Irrelevant — `:544`
+- Water Spreads Beyond Where It Was Seeded — `:568`
+- Thin Wash Pins Instead Of Creeping Forever — `:584`
+- Mis Sized Buffers Are Rejected — `:619`
+- Four Hundred Square Twelve Steps Stays Within Budget — `:640`
 
 ## LivePaletteTests
 `tests/Lightbox.Raster.Tests/LivePaletteTests.cs`

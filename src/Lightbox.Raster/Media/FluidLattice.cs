@@ -112,8 +112,16 @@ public sealed class FluidLattice
     /// <summary>Sweeps of Gauss-Seidel on the pressure. Fixed — see <see cref="RelaxDivergence"/>.</summary>
     private const int GaussSeidelSweeps = 4;
 
-    /// <summary>Fraction of a cell's pigment the capillary term can move in one step at EdgePull 1.</summary>
-    private const float EdgeRate = 0.25f;
+    /// <summary>
+    /// Fraction of a cell's pigment the capillary term can move in one step at
+    /// EdgePull 1 in water deep enough to carry it. High on purpose: the term
+    /// advects one cell per step, so this is what sets how far pigment travels
+    /// before it settles, and a rim twenty cells from the middle of a wash
+    /// needs most of a cell's worth of movement per step to be reached at all.
+    /// Mobility and deposition are what hold it back — see
+    /// <see cref="CapillaryPull"/>.
+    /// </summary>
+    private const float EdgeRate = 0.9f;
 
     private const float DepositBase = 0.25f;
     private const float LiftBase = 0.06f;
@@ -154,7 +162,7 @@ public sealed class FluidLattice
 
     private readonly float[] _p;
     private readonly float[] _div;
-    private readonly float[] _pull;
+    private readonly float[] _dist;      // chamfer distance to the dry boundary
     private readonly float[] _scale;     // per-cell outflow limiter
     private readonly float[] _depRate;
     private readonly float[] _liftRate;
@@ -188,7 +196,7 @@ public sealed class FluidLattice
         _vB = new float[width * (height + 1)];
         _p = new float[n];
         _div = new float[n];
-        _pull = new float[n];
+        _dist = new float[n];
         _scale = new float[n];
         _depRate = new float[n];
         _liftRate = new float[n];
@@ -728,15 +736,29 @@ public sealed class FluidLattice
     /// stays. The water makes a round trip and nets out; the pigment does not.
     /// Modelling only the residue is both cheaper and closer to what you see.
     ///
-    /// The potential a cell climbs is the thinness of its own film,
-    /// <c>1/(1+water)</c>, and zero where there is no water at all. Two
-    /// consequences fall out of that choice, and both are the point of it:
-    /// every wet cell whose neighbour holds a thinner film has somewhere to
-    /// send pigment, so the body of the wash feeds the edge and not just the
-    /// ring beside it; and the outermost wet cell has no thinner neighbour —
-    /// dry is not thin, it is nothing — so pigment collects there instead of
-    /// being dragged onto dry paper. A distance-to-boundary field would say
-    /// much the same thing and would cost a smoothing sweep per step to build.
+    /// <b>The potential is the distance to dry paper, not the thinness of the
+    /// film.</b> Thinness was the first reading and it made a mess: the water
+    /// field inside a wash is bumpy — the paper's tooth is in it, and so is
+    /// every eddy the flow left behind — so "climb toward thinner" is local
+    /// gradient ascent on a noisy surface with hundreds of local maxima. Every
+    /// one is a trap. Pigment walked two cells, found a dip, and stopped there,
+    /// so raising EdgePull mottled the interior instead of building a rim:
+    /// measured across a stroke, interior variation went from 5% of the mean at
+    /// EdgePull 0 to 74% at 1, while the edge barely darkened. That is the
+    /// "looks like noise rather than pigment" complaint, in a number.
+    ///
+    /// A chamfer distance field has no local extrema by construction — every
+    /// wet cell has a strictly closer neighbour until the boundary — so pigment
+    /// that starts moving keeps moving until it arrives. It costs two raster
+    /// sweeps, which is less than the smoothing pass the old comment here
+    /// feared, and it is the honest way to say "toward the edge".
+    ///
+    /// Mobility gates the rate, and that is where the water depth went. Deep
+    /// water carries pigment; a film about to dry pins it. So the drift stops
+    /// exactly where the film thins, which is at the rim — the contact-line
+    /// pinning that makes a coffee ring a ring. Dry neighbours are excluded
+    /// outright, because distance says dry paper is the closest thing of all
+    /// and pigment must not be dragged onto it.
     ///
     /// Transfers accumulate into a scratch buffer rather than being applied in
     /// place. In place would still be deterministic, but it would bias the rim
@@ -745,20 +767,15 @@ public sealed class FluidLattice
     /// </summary>
     private void CapillaryPull(float edge)
     {
-        float[] water = _water, pull = _pull;
-
-        for (var i = 0; i < water.Length; i++)
-        {
-            var w = water[i];
-            pull[i] = w > WetEps ? WaterHold / (WaterHold + w) : 0f;
-        }
+        float[] water = _water, dist = _dist;
+        BuildDryDistance();
 
         for (var c = 0; c < 4; c++) Array.Clear(_suspB[c]);
 
         float[] s0 = _susp[0], s1 = _susp[1], s2 = _susp[2], s3 = _susp[3];
         float[] t0 = _suspB[0], t1 = _suspB[1], t2 = _suspB[2], t3 = _suspB[3];
 
-        var frac = Clamped(edge * EdgeRate, 0f, MaxTransfer);
+        var rate = Clamped(edge * EdgeRate, 0f, MaxTransfer);
 
         for (var y = 0; y < _h; y++)
         {
@@ -766,17 +783,20 @@ public sealed class FluidLattice
             for (var x = 0; x < _w; x++)
             {
                 var i = row + x;
-                if (water[i] <= WetEps) continue;
+                var w = water[i];
+                if (w <= WetEps) continue;
 
-                var p0 = pull[i];
-                var gL = x > 0 ? Math.Max(0f, pull[i - 1] - p0) : 0f;
-                var gR = x < _w - 1 ? Math.Max(0f, pull[i + 1] - p0) : 0f;
-                var gU = y > 0 ? Math.Max(0f, pull[i - _w] - p0) : 0f;
-                var gD = y < _h - 1 ? Math.Max(0f, pull[i + _w] - p0) : 0f;
+                // Downhill in distance, and only into cells that are wet.
+                var d0 = dist[i];
+                var gL = x > 0 && water[i - 1] > WetEps ? Math.Max(0f, d0 - dist[i - 1]) : 0f;
+                var gR = x < _w - 1 && water[i + 1] > WetEps ? Math.Max(0f, d0 - dist[i + 1]) : 0f;
+                var gU = y > 0 && water[i - _w] > WetEps ? Math.Max(0f, d0 - dist[i - _w]) : 0f;
+                var gD = y < _h - 1 && water[i + _w] > WetEps ? Math.Max(0f, d0 - dist[i + _w]) : 0f;
 
                 var sum = gL + gR + gU + gD;
                 if (sum <= 0) continue;
 
+                var frac = rate * (w / (w + WaterHold));
                 var norm = frac / sum;
                 var kL = gL * norm;
                 var kR = gR * norm;
@@ -798,6 +818,87 @@ public sealed class FluidLattice
         {
             float[] s = _susp[c], d = _suspB[c];
             for (var i = 0; i < s.Length; i++) s[i] = Clamped(s[i] + d[i], 0f, float.MaxValue);
+        }
+    }
+
+    /// <summary>
+    /// Distance from each wet cell to the nearest dry one, by two raster
+    /// sweeps. Dry cells are 0.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Chamfer 5-7-11 rather than 3-4: the level sets are what set the
+    /// direction pigment travels, and 3-4's are visibly octagonal, which would
+    /// grow a rim with corners on a round wash. Two sweeps, no queue, no
+    /// allocation, and the same answer in the same order every time.
+    /// </para>
+    /// <para>
+    /// The lattice border is <em>not</em> treated as dry. A stroke sizes its
+    /// region to what it can reach, so wet touching the border means the region
+    /// was clipped, not that the wash ended there — seeding distance from it
+    /// would draw a rim along a rectangle that is not in the drawing. An
+    /// entirely wet lattice therefore has no gradient anywhere and this step
+    /// does nothing, which is the right answer for "no boundary exists".
+    /// </para>
+    /// </remarks>
+    private void BuildDryDistance()
+    {
+        const float Orth = 5f, Diag = 7f, Knight = 11f;
+        const float Far = 1e9f;
+
+        float[] water = _water, d = _dist;
+        for (var i = 0; i < d.Length; i++) d[i] = water[i] > WetEps ? Far : 0f;
+
+        for (var y = 0; y < _h; y++)
+        {
+            var row = y * _w;
+            for (var x = 0; x < _w; x++)
+            {
+                var i = row + x;
+                var v = d[i];
+                if (v == 0f) continue;
+                if (y > 1)
+                {
+                    if (x > 0) v = Math.Min(v, d[i - 2 * _w - 1] + Knight);
+                    if (x < _w - 1) v = Math.Min(v, d[i - 2 * _w + 1] + Knight);
+                }
+                if (y > 0)
+                {
+                    if (x > 1) v = Math.Min(v, d[i - _w - 2] + Knight);
+                    if (x > 0) v = Math.Min(v, d[i - _w - 1] + Diag);
+                    v = Math.Min(v, d[i - _w] + Orth);
+                    if (x < _w - 1) v = Math.Min(v, d[i - _w + 1] + Diag);
+                    if (x < _w - 2) v = Math.Min(v, d[i - _w + 2] + Knight);
+                }
+                if (x > 0) v = Math.Min(v, d[i - 1] + Orth);
+                d[i] = v;
+            }
+        }
+
+        for (var y = _h - 1; y >= 0; y--)
+        {
+            var row = y * _w;
+            for (var x = _w - 1; x >= 0; x--)
+            {
+                var i = row + x;
+                var v = d[i];
+                if (v == 0f) continue;
+                if (y < _h - 2)
+                {
+                    if (x > 0) v = Math.Min(v, d[i + 2 * _w - 1] + Knight);
+                    if (x < _w - 1) v = Math.Min(v, d[i + 2 * _w + 1] + Knight);
+                }
+                if (y < _h - 1)
+                {
+                    if (x > 1) v = Math.Min(v, d[i + _w - 2] + Knight);
+                    if (x > 0) v = Math.Min(v, d[i + _w - 1] + Diag);
+                    v = Math.Min(v, d[i + _w] + Orth);
+                    if (x < _w - 1) v = Math.Min(v, d[i + _w + 1] + Diag);
+                    if (x < _w - 2) v = Math.Min(v, d[i + _w + 2] + Knight);
+                }
+                if (x < _w - 1) v = Math.Min(v, d[i + 1] + Orth);
+                d[i] = v;
+            }
         }
     }
 

@@ -341,6 +341,12 @@ the same mark, on reload, after undo, and when the inbetweener replays it.
 That determinism is not a detail. An effect that varies subtly between similar
 strokes looks fine on one image and *boils* at 12 fps.
 
+**Edge pull** is the wet edge: pigment carried out to the rim of the wash as it
+dries, so the mark ends up darker at its border than in the middle. At 0 the
+wash dries flat. Turn it up and the border darkens and the middle pales — the
+paint is being moved, not added, so a strong wet edge is paid for out of the
+centre. That is what a real one costs too.
+
 **Flow steps** decide how far the paint travels, not how much of it there is.
 Turn them down for a mark that stays where you put it, up for one that spreads
 and pools; the stroke carries the same pigment either way, and at zero it is

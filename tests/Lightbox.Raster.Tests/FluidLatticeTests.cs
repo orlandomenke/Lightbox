@@ -388,6 +388,114 @@ public class FluidLatticeTests
             $"EdgePull barely moved the deposit: rim/core {without:F3} -> {with:F3}");
     }
 
+    /// <summary>
+    /// A disc of wash on textured paper, dried, with the rim and the middle
+    /// measured separately and the middle's cell-to-cell scatter alongside.
+    /// </summary>
+    private static (double Rim, double Core, double CoreVariation) Pooling(float edge)
+    {
+        const int Size = 64;
+        const int R = 16;
+
+        var lat = Disc(Size, R, water: 1.0f, pigment: 0.5f);
+        lat.SetPaper(PaperField(Size, Size), 0.7);
+        lat.Run(16, new FluidParams(0.1f, 0.25f, 0.35f, edge, 0.6f));
+        lat.Dry();
+
+        var rgba = DepositOf(lat);
+        var c = Size / 2;
+        double rim = 0, core = 0;
+        int rimN = 0, coreN = 0;
+        var ringSum = new double[Size];
+        var ringN = new int[Size];
+        for (var y = 0; y < Size; y++)
+        for (var x = 0; x < Size; x++)
+        {
+            var dx = x - c;
+            var dy = y - c;
+            var d = Math.Sqrt(dx * dx + dy * dy);
+            var a = rgba[(y * Size + x) * 4 + 3];
+            if (d >= R - 2 && d <= R + 3) { rim += a; rimN++; }
+            else if (d <= R / 4.0) { core += a; coreN++; }
+            var ring = (int)Math.Round(d);
+            if (ring < Size) { ringSum[ring] += a; ringN[ring]++; }
+        }
+
+        rim /= rimN;
+        core /= coreN;
+
+        // Roughness is what is left after the radial shape is taken out. A wash
+        // that fades smoothly from the middle outward is not mottled, however
+        // steep the fade, so measuring plain variance would call a strong rim
+        // "noisy" and pass a blotchy flat wash.
+        double resid = 0;
+        var residN = 0;
+        for (var y = 0; y < Size; y++)
+        for (var x = 0; x < Size; x++)
+        {
+            var dx = x - c;
+            var dy = y - c;
+            var d = Math.Sqrt(dx * dx + dy * dy);
+            if (d > R - 4) continue;
+            var ring = (int)Math.Round(d);
+            var mean = ringSum[ring] / ringN[ring];
+            if (mean <= 0) continue;
+            var e = rgba[(y * Size + x) * 4 + 3] / mean - 1;
+            resid += e * e;
+            residN++;
+        }
+
+        var roughness = residN == 0 ? 0 : Math.Sqrt(resid / residN);
+        return (rim, core, roughness);
+    }
+
+    [Fact]
+    public void EdgePull_RespondsMonotonically()
+    {
+        // B24. Turning a control up must not turn its effect down. The old
+        // capillary term climbed the gradient of film thinness, and inside a
+        // wash that field is bumpy — the paper's tooth is in it — so it was
+        // local gradient ascent on a surface covered in local maxima. Pigment
+        // reached the nearest trap and stopped, and where the traps happened to
+        // fall decided whether the rim got darker or lighter.
+        var pulls = new[] { 0f, 0.2f, 0.4f, 0.6f, 0.8f, 1f };
+        var ratios = pulls.Select(p =>
+        {
+            var (rim, core, _) = Pooling(p);
+            return rim / core;
+        }).ToList();
+
+        for (var i = 1; i < ratios.Count; i++)
+        {
+            Assert.True(ratios[i] >= ratios[i - 1] * 0.98,
+                $"EdgePull {pulls[i - 1]} -> {pulls[i]} made the rim weaker: " +
+                $"{string.Join(", ", ratios.Select(r => r.ToString("F2")))}");
+        }
+
+        Assert.True(ratios[0] < 1.05, $"a wash with no edge pull already had a rim: {ratios[0]:F2}");
+        Assert.True(ratios[^1] > 3,
+            $"EdgePull 1 barely pooled: {string.Join(", ", ratios.Select(r => r.ToString("F2")))}");
+    }
+
+    [Fact]
+    public void EdgePull_BuildsARimInsteadOfMottlingTheMiddle()
+    {
+        // The visible half of the same defect, and the one an artist reported:
+        // "it still only looks like a texture created from noise". Chasing
+        // local thin spots scattered pigment into blotches all through the
+        // wash, so raising EdgePull mostly added grain. Pooling is a shape, not
+        // a texture — the middle has to stay smooth while the edge darkens.
+        var (_, _, calm) = Pooling(0f);
+        var (rim, core, pulled) = Pooling(1f);
+
+        Assert.True(rim / core > 3, $"no rim to speak of: {rim / core:F2}");
+        // Measured: 0.13 -> 0.25 with the distance field, 0.13 -> 2.04 with the
+        // thinness field it replaced. The bound is between the two and nowhere near
+        // either.
+        Assert.True(pulled < calm * 4,
+            $"pooling roughened the middle: roughness {calm:F3} -> {pulled:F3}");
+    }
+
     [Fact]
     public void Granularity_BiasesDepositIntoThePapersValleys()
     {
