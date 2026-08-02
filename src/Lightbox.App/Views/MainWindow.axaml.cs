@@ -26,7 +26,7 @@ public partial class MainWindow : Window
         DataContext = _vm;
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
-        Canvas.PaintStarted += _vm.BeginStroke;  // (x, y, pressure, alt-erases)
+        Canvas.PaintStarted += _vm.BeginStroke;  // (x, y, pressure, alt-erases, shift-joins)
         Canvas.PaintMoved += _vm.MoveStrokeBatch;
         Canvas.PaintEnded += _vm.EndStroke;
 
@@ -39,7 +39,6 @@ public partial class MainWindow : Window
         _vm.SelectionChanged += () => Canvas.SetSelectionOverlay(_vm.SelectionContours, _vm.PolygonInProgress);
         _vm.LazyBrushMoved += (x, y) => Canvas.SetLazyAnchor(x, y);
         _vm.LazyBrushCleared += () => Canvas.SetLazyAnchor(null, null);
-        Canvas.BrushResizeRequested += size => _vm.BrushSize = size;
         Canvas.InputDiagnostic += text => _vm.PenDiagnostic = text;
         // The canvas is the only place that knows how much of the document is
         // actually visible, and how long presenting a frame took.
@@ -126,6 +125,8 @@ public partial class MainWindow : Window
         // variant flyout with tunneling handlers.
         SelectToolButton.AddHandler(PointerPressedEvent, OnSelectToolPressed, RoutingStrategies.Tunnel);
         SelectToolButton.AddHandler(PointerReleasedEvent, OnSelectToolReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
+        ShapeToolButton.AddHandler(PointerPressedEvent, OnShapeToolPressed, RoutingStrategies.Tunnel);
+        ShapeToolButton.AddHandler(PointerReleasedEvent, OnSelectToolReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
 
         // Timeline cel interactions that need modifiers or drag (buttons eat
         // plain pointer events): Shift+click range select, drag-a-cel drop.
@@ -152,6 +153,7 @@ public partial class MainWindow : Window
                 or nameof(MainViewModel.ActiveSelectVariant))
             {
                 SyncCanvasToolMode();
+                RefreshGuideGrab();
             }
         };
         _vm.Workspace.Changed += ApplyDockLayout;
@@ -182,6 +184,9 @@ public partial class MainWindow : Window
             _vm.PublishSnapshot();
             // MCP bridge endpoint (Lightbox.Mcp connects here).
             _ipc ??= new Services.IpcServer(new Services.IpcDocumentApi(_vm));
+            // The backend is only known once a frame has actually been
+            // presented, which is after Loaded on every platform.
+            _vm.NoteGraphicsBackend();
         };
         Closed += async (_, _) =>
         {
@@ -1328,6 +1333,7 @@ public partial class MainWindow : Window
             ToolId.Picker => Rendering.CanvasControl.CanvasToolMode.Pick,
             ToolId.Gradient => Rendering.CanvasControl.CanvasToolMode.Gradient,
             ToolId.Shape => Rendering.CanvasControl.CanvasToolMode.Shape,
+            ToolId.Move => Rendering.CanvasControl.CanvasToolMode.Move,
             ToolId.Select => _vm.ActiveSelectVariant switch
             {
                 SelectVariant.Polygon => Rendering.CanvasControl.CanvasToolMode.SelectPolygon,
@@ -1355,20 +1361,39 @@ public partial class MainWindow : Window
     private Avalonia.Threading.DispatcherTimer? _holdTimer;
     private bool _variantFlyoutOpened;
 
-    private void OnSelectToolPressed(object? sender, PointerPressedEventArgs e)
+    /// <summary>
+    /// Hold a tool button to get its list of variants.
+    /// </summary>
+    /// <remarks>
+    /// One implementation for every tool that has variants, because the
+    /// gesture has to be identical: a hold that works on Select and not on
+    /// Shape is worse than no hold at all — the artist stops trusting it and
+    /// goes to the options bar every time.
+    /// </remarks>
+    private void HoldToOpen(Control button, PointerPressedEventArgs e)
     {
         _variantFlyoutOpened = false;
-        if (!e.GetCurrentPoint(SelectToolButton).Properties.IsLeftButtonPressed) return;
+        _holdButton = null;
+        if (!e.GetCurrentPoint(button).Properties.IsLeftButtonPressed) return;
         _holdTimer?.Stop();
         _holdTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         _holdTimer.Tick += (_, _) =>
         {
             _holdTimer?.Stop();
             _variantFlyoutOpened = true;
-            SelectToolButton.ContextFlyout?.ShowAt(SelectToolButton);
+            _holdButton = button;
+            button.ContextFlyout?.ShowAt(button);
         };
         _holdTimer.Start();
     }
+
+    private Control? _holdButton;
+
+    private void OnSelectToolPressed(object? sender, PointerPressedEventArgs e) =>
+        HoldToOpen(SelectToolButton, e);
+
+    private void OnShapeToolPressed(object? sender, PointerPressedEventArgs e) =>
+        HoldToOpen(ShapeToolButton, e);
 
     private void OnSelectToolReleased(object? sender, PointerReleasedEventArgs e)
     {
@@ -1377,8 +1402,23 @@ public partial class MainWindow : Window
         if (_variantFlyoutOpened) e.Handled = true;
     }
 
-    private void OnVariantChosen(object? sender, RoutedEventArgs e) =>
-        SelectToolButton.ContextFlyout?.Hide();
+    /// <summary>
+    /// Close the hold-list after a variant has been picked.
+    /// </summary>
+    /// <remarks>
+    /// Posted, not called. <c>Button.OnClick</c> raises Click and only then
+    /// runs the command, and closing the flyout from inside the Click handler
+    /// tears the button out of the tree first — its <c>{Binding …Command}</c>
+    /// loses its DataContext, resolves to null, and the command never runs.
+    /// The list closed, nothing changed, and the tool options bar still showed
+    /// the old variant, which is precisely what "the dropdown does nothing"
+    /// looks like. Letting the click finish first fixes it.
+    /// </remarks>
+    private void OnVariantChosen(object? sender, RoutedEventArgs e)
+    {
+        var button = _holdButton ?? SelectToolButton;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => button.ContextFlyout?.Hide());
+    }
 
     /// <summary>Brush-parameter flyout: categories on the left, one page visible at a time.</summary>
     private void OnBrushCategoryChanged(object? sender, SelectionChangedEventArgs e)
@@ -1898,6 +1938,18 @@ public partial class MainWindow : Window
             case "canvas.lockGuides":
                 _vm.Workspace.GuidesLocked = !_vm.Workspace.GuidesLocked;
                 break;
+            case "tool.move":
+                _vm.SelectToolCommand.Execute(ToolId.Move);
+                break;
+            // Sizing by eye used to be Shift+drag on the canvas. Shift is the
+            // constraint key now, everywhere, so the brush keeps the two keys
+            // every other application binds this to.
+            case "brush.smaller":
+                _vm.BrushSize = Math.Max(1, _vm.BrushSize - BrushSizeStep(_vm.BrushSize));
+                break;
+            case "brush.larger":
+                _vm.BrushSize = Math.Min(500, _vm.BrushSize + BrushSizeStep(_vm.BrushSize));
+                break;
             default:
                 return; // unbound or context-gated: not ours
         }
@@ -2381,6 +2433,11 @@ public partial class MainWindow : Window
             strip.PullEnded += EndPull;
         }
 
+        Canvas.ContentMoveStarted += (x, y, wholeLayer) => _vm.BeginMove(x, y, wholeLayer);
+        Canvas.ContentMoveUpdated += (x, y, axisLock) => _vm.UpdateMove(x, y, axisLock);
+        Canvas.ContentMoveEnded += _vm.EndMove;
+        Canvas.ContentMoveCancelled += _vm.CancelMove;
+
         Canvas.GuideMoved += (id, dx, dy) =>
         {
             if (GuideById(id) is not { } guide) return;
@@ -2428,11 +2485,37 @@ public partial class MainWindow : Window
         Canvas.Margin = on
             ? new Thickness(RulerStrip.Thickness, RulerStrip.Thickness, 0, 0)
             : default;
-        Canvas.GuideDragEnabled =
-            on && _vm.Workspace.GuidesVisible && !_vm.Workspace.GuidesLocked;
+        RefreshGuideGrab();
         RefreshGuides();
         RefreshRulerMapping();
     }
+
+    /// <summary>
+    /// Whether a guide under the pointer can be picked up.
+    /// </summary>
+    /// <remarks>
+    /// The Move tool's job, and only its job. The rulers used to carry it,
+    /// which worked but put the switch a long way from the gesture: you had to
+    /// know that showing a strip of numbers was also what made the rig
+    /// draggable. A tool says it plainly, is visible in the palette, and is
+    /// still the answer with the rulers down — which is most of the time.
+    /// Locking or hiding the guides still overrides it, because both of those
+    /// mean "leave the rig alone" whatever tool is in hand.
+    /// </remarks>
+    /// <summary>
+    /// How much one press of <c>[</c> or <c>]</c> moves the brush.
+    /// </summary>
+    /// <remarks>
+    /// Proportional, not a fixed step. One pixel at a time is right at size 3
+    /// and useless at 300, and a flat ten is the other way round; a tenth of
+    /// the current size takes about the same number of presses to double or
+    /// halve wherever you start from.
+    /// </remarks>
+    private static double BrushSizeStep(double size) => Math.Max(1, Math.Round(size / 10));
+
+    private void RefreshGuideGrab() =>
+        Canvas.GuideDragEnabled =
+            _vm.IsMoveTool && _vm.Workspace.GuidesVisible && !_vm.Workspace.GuidesLocked;
 
     private void RefreshRulerMapping()
     {
@@ -2705,7 +2788,7 @@ public partial class MainWindow : Window
 
         if (choice.Document is { } document)
         {
-            _vm.NewDocument(document);
+            _vm.NewDocument(document, choice.ReuseBlank);
             return;
         }
         if (choice.Project is { } project)

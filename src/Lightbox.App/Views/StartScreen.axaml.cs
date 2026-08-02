@@ -28,6 +28,17 @@ public sealed record StartChoice
     /// <summary>Whether to stop offering this screen.</summary>
     public bool DontShowAgain { get; init; }
 
+    /// <summary>
+    /// Apply <see cref="Document"/> to the blank document already open rather
+    /// than adding a tab.
+    /// </summary>
+    /// <remarks>
+    /// Only the start screen sets this, and only it can: it is the one place
+    /// that knows an untouched document is sitting behind it. File ▸ New means
+    /// a new tab and always will.
+    /// </remarks>
+    public bool ReuseBlank { get; init; }
+
     public static StartChoice Nothing => new();
 }
 
@@ -95,12 +106,16 @@ public partial class StartScreen : Window
             Finish(new StartChoice { Open = selected.Path, OpenKind = selected.Kind });
             return;
         }
+        // A project is the one answer that makes something new. A single file
+        // is not: one is already open behind this screen, so Create takes the
+        // form's settings to that document rather than adding a second tab —
+        // which is why Skip is gone. With the fields untouched the two were
+        // always the same outcome; with them changed, this is the one the
+        // artist meant.
         Finish(Tabs.SelectedIndex == 1
             ? new StartChoice { Project = ProjectFields.Collect() }
-            : new StartChoice { Document = DocumentFields.Collect() });
+            : new StartChoice { Document = DocumentFields.Collect(), ReuseBlank = true });
     }
-
-    private void OnSkip(object? sender, RoutedEventArgs e) => Finish(StartChoice.Nothing);
 
     private void OnOpenFile(object? sender, RoutedEventArgs e) =>
         Finish(new StartChoice { Browse = true, OpenKind = RecentKind.Document });

@@ -43,6 +43,25 @@
     <Setter Property="Width" Value="64" />
     <Setter Property="HorizontalContentAlignment" Value="Right" />
   </Style>
+  <!--
+    The canvas overlay bars are a grid of icon tiles, so every tile is the
+    same square.
+
+    They were sizing to their glyph, and glyphs are not the same width: ◉ and
+    ▶ measured 25, an emoji like 🎥 or 🔒 measured more, and the bar's own ▾
+    and ✕ measured 24. Nothing was wrong with any one of them, which is how a
+    ragged column of buttons survives every review that looks at one control
+    at a time. A fixed square is the only thing that makes a tile grid read as
+    a grid.
+  -->
+  <Style Selector="controls|CanvasOverlayBar Button, controls|CanvasOverlayBar ToggleButton">
+    <Setter Property="Width" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
   <Style Selector="Slider.param">
     <Setter Property="Width" Value="96" />
   </Style>
@@ -132,6 +151,22 @@
     -->
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="Padding" Value="0" />
+    <!--
+      A real height, not just a minimum, and this is the one that matters.
+
+      Fluent's slider asks for 44px whatever you set MinHeight to — the tick
+      strip above and below the track is measured even when it is empty. The
+      tool options bar is 30px, so the group holding a slider overflowed it,
+      and an overflowing child cannot be centred: Avalonia pins it to the top
+      and lets it hang out of the bottom. Its label then sat 7px lower than
+      every group without a slider in it, which is exactly the drift that
+      shows up in a screenshot and never in a width check.
+
+      Setting the height makes every group in the bar ask for the same 24, so
+      they all centre on the same line. The track and the 14px thumb both fit
+      inside it with room to spare.
+    -->
+    <Setter Property="Height" Value="24" />
   </Style>
   <Style Selector="Slider:horizontal /template/ Grid#SliderContainer">
     <Setter Property="VerticalAlignment" Value="Center" />

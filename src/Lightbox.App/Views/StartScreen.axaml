@@ -65,9 +65,16 @@
 
     <DockPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,12,0,0">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
-        <Button Content="Create" IsDefault="True" Click="OnCreate" MinWidth="90" />
-        <Button Content="Skip (Esc)" IsCancel="True" Click="OnSkip" MinWidth="90"
-                ToolTip.Tip="Straight to a blank document" />
+        <!--
+          One button. Skip used to sit beside it doing very nearly the same
+          thing: a blank document is already open behind this screen, so
+          "create a single file" and "skip" both land you on one document with
+          nothing in it. Two buttons for one outcome is a decision the artist
+          has to make and cannot get right. Escape still goes straight through,
+          which is what Skip was actually for.
+        -->
+        <Button Content="Create" IsDefault="True" Click="OnCreate" MinWidth="90"
+                ToolTip.Tip="Esc goes straight to the blank document already open" />
       </StackPanel>
       <CheckBox x:Name="DontShowBox" Content="Don't show this again"
                 VerticalAlignment="Center" FontSize="11"

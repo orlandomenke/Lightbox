@@ -231,10 +231,11 @@ public class RulerAndGuideEditTests : BrushStateIsolated
     // ---- moving a guide on the canvas ---------------------------------------------
 
     [AvaloniaFact]
-    public void AGuideIsOnlyGrabbableWhileTheRulersAreUp()
+    public void AGuideIsOnlyGrabbableWithTheMoveTool()
     {
-        // The whole reason the rulers are a switch: grabbing a guide and
-        // drawing along one are the same gesture in the same place.
+        // Grabbing a guide and drawing along one are the same gesture in the
+        // same place, so something has to say which was meant. The rulers used
+        // to; the Move tool does now, and it works with the rulers down.
         var (window, vm) = Open();
         var canvas = CanvasOf(window);
         vm.AddGuide(GuideKind.Line, 0, 100);
@@ -242,9 +243,17 @@ public class RulerAndGuideEditTests : BrushStateIsolated
 
         Assert.False(canvas.GuideDragEnabled);
 
+        vm.ActiveTool = ToolId.Move;
+        Pump(window);
+        Assert.True(canvas.GuideDragEnabled);
+
+        // And the rulers no longer have anything to do with it.
         vm.Workspace.RulersVisible = true;
         Pump(window);
         Assert.True(canvas.GuideDragEnabled);
+        vm.ActiveTool = ToolId.Brush;
+        Pump(window);
+        Assert.False(canvas.GuideDragEnabled);
     }
 
     [AvaloniaFact]
@@ -253,7 +262,7 @@ public class RulerAndGuideEditTests : BrushStateIsolated
         var (window, vm) = Open();
         var canvas = CanvasOf(window);
         vm.AddGuide(GuideKind.Line, 0, 100);
-        vm.Workspace.RulersVisible = true;
+        vm.ActiveTool = ToolId.Move;
         Pump(window);
 
         vm.Workspace.GuidesLocked = true;
@@ -269,7 +278,7 @@ public class RulerAndGuideEditTests : BrushStateIsolated
         var (window, vm) = Open();
         var canvas = CanvasOf(window);
         vm.AddGuide(GuideKind.Line, 0, 100);
-        vm.Workspace.RulersVisible = true;
+        vm.ActiveTool = ToolId.Move;
         Pump(window);
 
         vm.Workspace.GuidesVisible = false;
@@ -302,7 +311,7 @@ public class RulerAndGuideEditTests : BrushStateIsolated
         // The whole design in one gesture: you pick the line up where it is,
         // and there is nothing floating over the drawing to click instead.
         var (window, vm) = Open();
-        vm.Workspace.RulersVisible = true;
+        vm.ActiveTool = ToolId.Move;
         var guide = vm.AddGuide(GuideKind.Line, 0, 200, angle: 0);
         Pump(window);
 
@@ -321,7 +330,7 @@ public class RulerAndGuideEditTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
-    public void AGrabMissesIfTheRulersAreDown()
+    public void AGrabMissesWithADrawingToolInHand()
     {
         // Which is what leaves the same gesture free to draw along the guide.
         var (window, vm) = Open();

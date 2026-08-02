@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1115 tests, derived from the suite itself. Each line is a
+1144 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -630,6 +630,33 @@ regression even when every test still compiles.
 - Without Alt The Same Call Paints — `:32`
 - The Eraser Tool Still Erases Even Without Alt — `:42`
 
+## MoveToolAndModifierTests
+`tests/Lightbox.App.Tests/MoveToolAndModifierTests.cs`
+
+- Moving The Drawing Translates Its Strokes — `:41`
+- Shift Holds The Move To One Axis — `:56`
+- AWhole Move Is One Undo Step — `:71`
+- AClick That Goes Nowhere Is Not An Edit — `:92`
+- Ctrl Moves Every Drawing On The Layer — `:110`
+- Moving One Drawing Leaves The Others Where They Are — `:136`
+- Shift Click With The Brush Runs AStraight Segment From The Last Stroke — `:159`
+- Shift Click Chains Into APolyline — `:177`
+- With Nothing To Join To AShift Click Is An Ordinary Stroke — `:192`
+- An Undo Takes The Join Anchor With It — `:204`
+- Changing Frame Or Layer Takes The Join Anchor With It — `:217`
+- Shift Snaps AGradient To An Angle Without Clamping Its Length — `:229`
+- Shift Snaps ALine Shape To Forty Five Degrees — `:245`
+- An Unconstrained Line Goes Exactly Where It Was Dragged — `:255`
+- Shift Flips The Fills Sampling For One Click Only — `:264`
+- ASoftware Backend Turns The Canvas Quality Down — `:280`
+- AGpu Backend Changes Nothing — `:301`
+- AChosen Quality Is Never Revised — `:319`
+- Picking The Shape Tool Announces It So The Options Can Appear — `:343`
+- Choosing AShape Selects The Shape Tool — `:359`
+- AShape In Progress Is Shown While It Is Being Dragged — `:371`
+- Creating ASingle File Reuses The Blank Document Already Open — `:388`
+- It Never Reuses ADocument Somebody Has Drawn On — `:403`
+
 ## OnionTests
 `tests/Lightbox.App.Tests/OnionTests.cs`
 
@@ -823,26 +850,26 @@ regression even when every test still compiles.
 - AMirrored View Gives ABackwards Ruler Rather Than None — `:94`
 - The Rulers Are Absent Until Asked For — `:107`
 - Turning Them On Insets The Canvas And Back Off Returns It — `:119`
-- Dragging Out Of The Top Ruler Leaves AHorizontal Guide — `:139`
-- Dragging Out Of The Left Ruler Leaves AVertical Guide — `:155`
-- AGuide Lands Where The Pointer Was On The Other Axis — `:168`
-- Letting Go Back On The Ruler Throws The Guide Away — `:188`
-- The Draft Is Drawn While The Guide Is Being Placed — `:207`
-- AGuide Is Only Grabbable While The Rulers Are Up — `:229`
-- Locking Them Stops The Grab Without Hiding Anything — `:246`
-- Hiding Guides Takes Them Off The Canvas And Out Of Reach — `:262`
-- AHidden Guide Still Constrains The Stroke — `:278`
-- AGuide Is Moved By Grabbing It On The Canvas — `:295`
-- AGrab Misses If The Rulers Are Down — `:319`
-- AWhole Drag Of AGuide Is One Undo Step — `:338`
-- ALocked Guide Does Not Budge — `:357`
-- Each Straight Guide Is Marked On The Ruler It Crosses — `:372`
-- AGrid Is Not Marked On The Rulers — `:387`
-- The Rulers Track The Pointer Over The Canvas — `:400`
-- The Configure Window Lists The Grids On The Document — `:420`
-- Changing The Default Pitch Does Not Touch AGrid Already Placed — `:430`
-- Editing APlaced Grid Is Undoable — `:443`
-- Turning AGrids Snapping Off Leaves The Stroke Alone — `:457`
+- Dragging Out Of The Top Ruler Leaves AHorizontal Guide — `:144`
+- Dragging Out Of The Left Ruler Leaves AVertical Guide — `:160`
+- AGuide Lands Where The Pointer Was On The Other Axis — `:173`
+- Letting Go Back On The Ruler Throws The Guide Away — `:193`
+- The Draft Is Drawn While The Guide Is Being Placed — `:212`
+- AGuide Is Only Grabbable With The Move Tool — `:234`
+- Locking Them Stops The Grab Without Hiding Anything — `:260`
+- Hiding Guides Takes Them Off The Canvas And Out Of Reach — `:276`
+- AHidden Guide Still Constrains The Stroke — `:292`
+- AGuide Is Moved By Grabbing It On The Canvas — `:309`
+- AGrab Misses With ADrawing Tool In Hand — `:333`
+- AWhole Drag Of AGuide Is One Undo Step — `:352`
+- ALocked Guide Does Not Budge — `:371`
+- Each Straight Guide Is Marked On The Ruler It Crosses — `:386`
+- AGrid Is Not Marked On The Rulers — `:401`
+- The Rulers Track The Pointer Over The Canvas — `:414`
+- The Configure Window Lists The Grids On The Document — `:434`
+- Changing The Default Pitch Does Not Touch AGrid Already Placed — `:444`
+- Editing APlaced Grid Is Undoable — `:457`
+- Turning AGrids Snapping Off Leaves The Stroke Alone — `:471`
 
 ## SceneDockerTests
 `tests/Lightbox.App.Tests/SceneDockerTests.cs`
@@ -863,6 +890,13 @@ regression even when every test still compiles.
 - Converting Does Not Rearrange The Screen By Itself — `:239`
 - Converting Tells The Artist What Changed — `:257`
 - Converting With No Project Open Does Nothing — `:270`
+
+## SelectionVariantTests
+`tests/Lightbox.App.Tests/SelectionVariantTests.cs`
+
+- The Hold List Switches The Variant — `:37`
+- The Tool Options Bar Follows The Variant — `:65`
+- Clicking ARadio In The Bar Switches The Variant Too — `:91`
 
 ## ShortcutMapTests
 `tests/Lightbox.App.Tests/ShortcutMapTests.cs`
@@ -984,13 +1018,16 @@ regression even when every test still compiles.
 ## ToolBarAlignmentTests
 `tests/Lightbox.App.Tests/ToolBarAlignmentTests.cs`
 
-- Every Value Field In The Bar Is The Same Width — `:32`
-- Every Slider In The Bar Has The Same Track Length — `:50`
-- No Value Field In The Bar Sets AWidth Of Its Own — `:65`
-- The Brush Parameter Flyout Is Not Pinned To One Height — `:81`
-- Deleting The Paper Leaves Transparency Rather Than White — `:98`
-- Putting The Paper Back Is Undo And The Document Is Opaque Again — `:116`
-- Deleting An Ordinary Layer Does Not Touch The Paper — `:130`
+- Every Value Field In The Bar Is The Same Width — `:34`
+- Every Slider In The Bar Has The Same Track Length — `:52`
+- No Value Field In The Bar Sets AWidth Of Its Own — `:67`
+- Every Group In The Bar Shares One Vertical Centre — `:83`
+- Nothing In The Bar Asks For More Height Than The Bar Has — `:104`
+- Every Tile In An Overlay Bar Is The Same Square — `:123`
+- The Brush Parameter Flyout Is Not Pinned To One Height — `:155`
+- Deleting The Paper Leaves Transparency Rather Than White — `:172`
+- Putting The Paper Back Is Undo And The Document Is Opaque Again — `:190`
+- Deleting An Ordinary Layer Does Not Touch The Paper — `:204`
 
 ## FillToolTests
 `tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`

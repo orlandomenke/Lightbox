@@ -49,6 +49,33 @@ Ordered by how often it actually goes wrong here:
    length must size to its content with a `MaxHeight` cap, not declare one
    `Height`. A fixed height gives the short pages dead space and the long ones
    a scrollbar, which is the panel telling you it is the wrong size.
+9. **A row whose columns line up and whose rows do not.** Item 7 is about
+   widths; this is the other axis, and it is the one that survives a width
+   check. In a fixed-height bar, any child that *asks* for more height than the
+   bar has stops being centred — Avalonia pins an overflowing child to the top
+   and lets it hang out of the bottom, so `VerticalAlignment="Center"` becomes
+   a no-op and that group's label sits several pixels below its neighbours'.
+   Fluent's `Slider` is the repeat offender: it measures 44px however low you
+   set `MinHeight`, because the template reserves a tick strip nothing here
+   uses. Check `DesiredSize.Height` against the bar, not the alignment
+   property. `EveryGroupInTheBarSharesOneVerticalCentre` and
+   `NothingInTheBarAsksForMoreHeightThanTheBarHas` guard it.
+10. **Icon tiles that size to their glyph.** Every button in a canvas overlay
+    bar is one square, set by the `CanvasOverlayBar` rule in `Density.axaml`.
+    Left to themselves they measure their content, and glyphs are not the same
+    width — `◉` and `▶` came out 25, an emoji like `🔒` wider, the bar's own
+    `▾` and `✕` 24. Nothing is wrong with any single button, which is exactly
+    why a ragged column survives a review that looks at one control at a time.
+    Flag any width, height or padding declared on a button inside an overlay
+    bar. `EveryTileInAnOverlayBarIsTheSameSquare` guards it.
+11. **A tool with no options and no way to choose a variant.** A tool that has
+    variants needs both an options group in the bar *and* the hold-for-the-list
+    gesture on its palette button — the Select tool set that pattern and a tool
+    that has one but not the other teaches the artist not to trust either. Two
+    things break this silently: an `IsVisible` bound to an `Is…Tool` property
+    that is missing from `ActiveTool`'s `[NotifyPropertyChangedFor]` list (the
+    group then never appears at all), and a hold handler wired to one button
+    and not its neighbour.
 
 ## What you are NOT
 

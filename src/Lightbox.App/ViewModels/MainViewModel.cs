@@ -200,6 +200,10 @@ public sealed partial class MainViewModel : ObservableObject
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
         _snapTolerance = Settings.SnapTolerance;
+        if (Enum.TryParse<CanvasQuality>(Settings.CanvasQuality, out var storedQuality))
+        {
+            _canvasQuality = storedQuality;
+        }
         _autosave = new AutosaveService(
             () => SaveTargetTab?.Doc ?? Doc,
             Settings.AutosaveInterval,
@@ -357,8 +361,32 @@ public sealed partial class MainViewModel : ObservableObject
         doc.Scene.Layers.FindIndex(l => !l.IsBackground) is var i && i >= 0 ? i : 0;
 
     /// <summary>Create a document from the File → New dialog in a new tab.</summary>
-    public void NewDocument(NewDocumentSettings settings)
+    /// <summary>
+    /// Whether the only thing open is an untouched, unsaved, blank document.
+    /// </summary>
+    /// <remarks>
+    /// The start screen sits over one of these, which is what lets Create on
+    /// the document tab reuse it instead of opening a second. Opening the app
+    /// and pressing the default button must not leave two tabs, one of which
+    /// you never asked for.
+    /// </remarks>
+    public bool OnlyAnUntouchedBlankDocument =>
+        Tabs.Count == 1 && Tabs[0].FilePath is null && !Tabs[0].IsDirty;
+
+    public void NewDocument(NewDocumentSettings settings) => NewDocument(settings, reuseBlank: false);
+
+    /// <param name="reuseBlank">
+    /// Apply the settings to the blank document already on screen rather than
+    /// adding a tab, when that is all there is. Only ever true from the start
+    /// screen, where a document tab is already open behind it.
+    /// </param>
+    public void NewDocument(NewDocumentSettings settings, bool reuseBlank)
     {
+        if (reuseBlank && OnlyAnUntouchedBlankDocument)
+        {
+            ReplaceOnlyTab(settings);
+            return;
+        }
         var doc = DocumentFactory.CreateDoc(
             settings.Width, settings.Height, settings.Fps,
             settings.TransparentBackground ? null : settings.BackgroundColor);
@@ -375,6 +403,33 @@ public sealed partial class MainViewModel : ObservableObject
         // The kind of work chosen at creation is a reason to offer that kind's
         // panels — offered, not imposed, which is why it is a choice on the
         // dialog and defaults to leaving the arrangement alone.
+        if (settings.Workspace == WorkspaceChoice.ProjectDefaults)
+        {
+            Workspace.UseDefaultFor(settings.ProjectType);
+        }
+    }
+
+    /// <summary>Make the one open blank document be the one that was asked for.</summary>
+    private void ReplaceOnlyTab(NewDocumentSettings settings)
+    {
+        var doc = DocumentFactory.CreateDoc(
+            settings.Width, settings.Height, settings.Fps,
+            settings.TransparentBackground ? null : settings.BackgroundColor);
+        doc.Scene.Name = settings.Name;
+        doc.Scene.Ppi = settings.Ppi;
+        doc.Scene.BackgroundColor = settings.BackgroundColor;
+        doc.Scene.TransparentBackground = settings.TransparentBackground;
+
+        var tab = Tabs[0];
+        tab.Editor = new DocumentEditor(doc) { MaxUndo = tab.Editor.MaxUndo };
+        tab.Title = settings.Name;
+        tab.SavedLayerIndex = FirstPaintableLayer(doc);
+        // Attached directly, not through ActivateTab: the tab is already the
+        // active one, so the property setter sees no change and the view model
+        // would keep pointing at the editor that was just replaced.
+        AttachEditor(tab.Editor);
+        ActiveLayerIndex = FirstPaintableLayer(doc);
+        CurrentFrameIndex = 0;
         if (settings.Workspace == WorkspaceChoice.ProjectDefaults)
         {
             Workspace.UseDefaultFor(settings.ProjectType);
@@ -1900,6 +1955,11 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsSelectTool))]
     [NotifyPropertyChangedFor(nameof(IsPickerTool))]
     [NotifyPropertyChangedFor(nameof(IsGradientTool))]
+    [NotifyPropertyChangedFor(nameof(IsMoveTool))]
+    // Missing, and it cost the whole shape options group: nothing ever told
+    // the bar the tool had changed, so IsVisible stayed false and there was no
+    // way to pick a shape.
+    [NotifyPropertyChangedFor(nameof(IsShapeTool))]
     [NotifyPropertyChangedFor(nameof(IsPaintTool))]
     private ToolId _activeTool = ToolId.Brush;
 
@@ -1933,6 +1993,8 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsPickerTool => ActiveTool == ToolId.Picker;
 
     public bool IsGradientTool => ActiveTool == ToolId.Gradient;
+
+    public bool IsMoveTool => ActiveTool == ToolId.Move;
 
     /// <summary>Brush or eraser — the tools whose strokes the brush-parameter flyout edits.</summary>
     public bool IsPaintTool => ActiveTool is ToolId.Brush or ToolId.Eraser;
@@ -2128,17 +2190,22 @@ public sealed partial class MainViewModel : ObservableObject
         AiStatus = $"Filled the selection with {ColorHex}.";
     }
 
-    public void FillAt(double x, double y)
+    /// <param name="invertSmart">
+    /// Shift was held. Fill the other way from whatever the option currently
+    /// says — a one-click override, not a setting change, so the option is
+    /// still where it was for the next fill.
+    /// </param>
+    public void FillAt(double x, double y, bool invertSmart = false)
     {
         if (ActiveTool != ToolId.Fill) return;
-        FillAtInternal(x, y);
+        FillAtInternal(x, y, invertSmart);
     }
 
     /// <summary>
     /// The fill itself, without the tool check — a colour dropped on the
     /// canvas fills whatever tool happens to be selected.
     /// </summary>
-    private void FillAtInternal(double x, double y)
+    private void FillAtInternal(double x, double y, bool invertSmart = false)
     {
         if (IsPlaying) return;
         if (!CanEdit(ActiveLayer, "fill on it")) return;
@@ -2148,8 +2215,13 @@ public sealed partial class MainViewModel : ObservableObject
         SKBitmap? owned = null;
         try
         {
+            // Held Shift flips it for this click only. A line-art layer over a
+            // painted background wants smart fill nine times out of ten and
+            // the active layer alone on the tenth; going to the options bar
+            // and back for that one is the interruption worth removing.
+            var smart = SmartFill ^ invertSmart;
             SKBitmap sample;
-            if (SmartFill)
+            if (smart)
             {
                 owned = CompositeVisibleLayers();
                 sample = owned;
@@ -2339,6 +2411,8 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Combine a closed shape into the selection (Shift adds, Alt subtracts).</summary>
+    internal IReadOnlyList<List<StrokePoint>> SelectionContoursForTests => _selectionContours;
+
     public void ApplySelectionShape(List<StrokePoint> contour, bool add, bool subtract)
     {
         if (contour.Count < 3) return;
@@ -2911,6 +2985,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnActiveLayerIndexChanged(int value)
     {
+        // "Carry on from where I stopped" stops being true on another layer.
+        _lastStrokeEnd = null;
         foreach (var row in LayerRows) row.IsActive = row.SceneIndex == value;
         OnPropertyChanged(nameof(FrameCells));
         OnPropertyChanged(nameof(ActiveLayerOnion));
@@ -2946,6 +3022,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnCurrentFrameIndexChanged(int value)
     {
+        _lastStrokeEnd = null;   // and it stops being true on another drawing
         RefreshCellHighlights();
         RefreshLayerThumbs();
         RefreshCamera();
@@ -3083,11 +3160,33 @@ public sealed partial class MainViewModel : ObservableObject
     public void BeginStroke(double x, double y, double pressure) =>
         BeginStroke(x, y, pressure, eraseWithCurrentBrush: false);
 
+    /// <summary>
+    /// Where the last committed stroke on this layer ended, or null.
+    /// </summary>
+    /// <remarks>
+    /// What Shift+click joins to. Kept as a remembered point rather than read
+    /// back off the record at the moment of the click: an undo, a layer change
+    /// or a frame change should all lose the anchor, because "carry on from
+    /// where I was" stops being true the moment any of them happens.
+    /// </remarks>
+    private (double X, double Y)? _lastStrokeEnd;
+
+    internal (double X, double Y)? LastStrokeEndForTests => _lastStrokeEnd;
+
     /// <param name="eraseWithCurrentBrush">
     /// Alt was held. The stroke erases but keeps the brush's own size, shape
     /// and dynamics — unlike switching to the eraser, which brings its own.
     /// </param>
-    public void BeginStroke(double x, double y, double pressure, bool eraseWithCurrentBrush)
+    public void BeginStroke(double x, double y, double pressure, bool eraseWithCurrentBrush) =>
+        BeginStroke(x, y, pressure, eraseWithCurrentBrush, joinFromLast: false);
+
+    /// <param name="joinFromLast">
+    /// Shift was held at the press. The stroke starts at the previous one's
+    /// end and runs straight to here, which is how Photoshop draws a long
+    /// straight without a ruler — and, chained, how a polyline gets drawn.
+    /// </param>
+    public void BeginStroke(
+        double x, double y, double pressure, bool eraseWithCurrentBrush, bool joinFromLast)
     {
         // A mode that has taken the canvas takes it from every tool, not from
         // the ones the canvas control happens to route through itself. Half a
@@ -3112,13 +3211,29 @@ public sealed partial class MainViewModel : ObservableObject
             (x, y) = Snapper.Point(startGuides, x, y, SnapTolerance);
             _strokeAnchor = (x, y);
         }
-        _stabilizer.Begin(x, y);
+        // Shift+click: begin at the end of the last stroke and run straight to
+        // the click. The segment is stamped now rather than on release, so the
+        // mark is complete even if the artist never drags at all — which is
+        // the whole gesture.
+        var join = joinFromLast ? _lastStrokeEnd : null;
+        var startX = join?.X ?? x;
+        var startY = join?.Y ?? y;
+
+        _stabilizer.Begin(startX, startY);
         _strokeBuilder.Begin(
             IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
             ColorHex,
             CurrentToolSettings.Clone(),
-            x, y, pressure,
+            startX, startY, pressure,
             ActiveSwatchId);
+        if (join is not null)
+        {
+            // Straight to the click, past the stabiliser: a segment the artist
+            // asked to be straight must not be rounded off by smoothing.
+            _strokeBuilder.Add(x, y, pressure);
+            _strokeAnchor = (startX, startY);
+            _lockDecided = true;   // it has a direction already; no guide may re-aim it
+        }
         // Live preview clips to the selection too (the registry already knows
         // the region; the document copy is added at commit).
         if (PrepareClipForSelection() is { } liveClip) _strokeBuilder.Current!.ClipId = liveClip.Id;
@@ -3192,6 +3307,23 @@ public sealed partial class MainViewModel : ObservableObject
 
     internal Stroke? LiveGradient => _liveGradient;
 
+    internal Stroke? LiveGradientForTests => _liveGradient;
+
+    internal Stroke? LiveShapeForTests => _liveShape;
+
+    /// <summary>
+    /// Whether anything being dragged right now would actually reach the
+    /// screen.
+    /// </summary>
+    /// <remarks>
+    /// The condition the compositor tests, named once so it can be asserted.
+    /// A tool that renders a preview nothing composites looks correct at every
+    /// call site and shows nothing, which is how the shape tool shipped.
+    /// </remarks>
+    internal bool LivePreviewIsVisible =>
+        _liveScratch is not null
+        && (_liveShape is not null || _liveGradient is not null || _strokeBuilder.IsActive);
+
     public void BeginGradient(double x, double y)
     {
         if (ActiveTool != ToolId.Gradient || IsPlaying) return;
@@ -3227,18 +3359,48 @@ public sealed partial class MainViewModel : ObservableObject
         PublishSnapshot();
     }
 
-    public void MoveGradient(double x, double y)
+    /// <param name="snapAngle">
+    /// Shift. A gradient's angle is the whole of it, and a ramp meant to be
+    /// level almost never lands level by hand.
+    /// </param>
+    public void MoveGradient(double x, double y, bool snapAngle = false)
     {
         if (_liveGradient is not { } stroke) return;
-        stroke.Points[1] = new StrokePoint(x, y, 1);
+        stroke.Points[1] = GradientEnd(stroke, x, y, snapAngle);
         RenderGradientPreview();
         RequestSnapshot();
     }
 
-    public void EndGradient(double x, double y)
+    /// <summary>
+    /// How far apart the snapped angles are, in degrees.
+    /// </summary>
+    /// <remarks>
+    /// Fifteen, so the four squares and the four diagonals are all on it and
+    /// there is still somewhere to put an angle between them. The same number
+    /// the guide lock uses, for the same reason.
+    /// </remarks>
+    public const double GradientSnapDegrees = 15;
+
+    private static StrokePoint GradientEnd(Stroke stroke, double x, double y, bool snapAngle)
+    {
+        if (!snapAngle) return new StrokePoint(x, y, 1);
+        var ax = stroke.Points[0].X;
+        var ay = stroke.Points[0].Y;
+        var dx = x - ax;
+        var dy = y - ay;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        if (length < 1e-9) return new StrokePoint(x, y, 1);
+        // The angle snaps; the length does not. Same division of labour as a
+        // ruler — the guide decides the direction, the hand decides how far.
+        var degrees = Math.Atan2(dy, dx) * 180 / Math.PI;
+        var snapped = Math.Round(degrees / GradientSnapDegrees) * GradientSnapDegrees * Math.PI / 180;
+        return new StrokePoint(ax + Math.Cos(snapped) * length, ay + Math.Sin(snapped) * length, 1);
+    }
+
+    public void EndGradient(double x, double y, bool snapAngle = false)
     {
         if (_liveGradient is not { } stroke) return;
-        stroke.Points[1] = new StrokePoint(x, y, 1);
+        stroke.Points[1] = GradientEnd(stroke, x, y, snapAngle);
         CancelGradient(); // clears the preview; the record gets the stroke below
 
         if (PaintTarget() is not { } target) return;
@@ -3292,6 +3454,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Which shape the shape tool draws.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPolygonShape))]
+    [NotifyPropertyChangedFor(nameof(ShapeGlyph))]
     private ShapeKind _activeShape = ShapeKind.Rectangle;
 
     /// <summary>Corners, when the shape is a polygon.</summary>
@@ -3299,6 +3462,28 @@ public sealed partial class MainViewModel : ObservableObject
     private int _polygonSides = 5;
 
     public bool IsPolygonShape => ActiveShape == ShapeKind.Polygon;
+
+    /// <summary>The tool button's icon, so it says which shape is loaded.</summary>
+    public string ShapeGlyph => ActiveShape switch
+    {
+        ShapeKind.Line => "╱",
+        ShapeKind.Ellipse => "◯",
+        ShapeKind.Polygon => "⬠",
+        _ => "▭",
+    };
+
+    /// <summary>Pick a shape, and make the shape tool active while you are at it.</summary>
+    /// <remarks>
+    /// Same bargain as the select variants: choosing one from the hold-list is
+    /// a statement that you want to draw it, and making you click the tool
+    /// again afterwards is a step with no decision in it.
+    /// </remarks>
+    [RelayCommand]
+    private void SelectShape(ShapeKind kind)
+    {
+        ActiveShape = kind;
+        ActiveTool = ToolId.Shape;
+    }
 
     public IReadOnlyList<ShapeKind> ShapeChoices { get; } =
         [ShapeKind.Line, ShapeKind.Rectangle, ShapeKind.Ellipse, ShapeKind.Polygon];
@@ -3708,6 +3893,12 @@ public sealed partial class MainViewModel : ObservableObject
         _stabilizer.End();
         LazyBrushCleared?.Invoke();
         stroke.Points = _stabilizer.PostProcess(stroke.Points);
+
+        // Remembered for the next Shift+click. The post-processed end, not the
+        // raw one, so the next segment starts exactly where this mark stops.
+        _lastStrokeEnd = stroke.Points.Count > 0
+            ? (stroke.Points[^1].X, stroke.Points[^1].Y)
+            : null;
 
         // A stroke painted under a selection carries it forever (provenance).
         var clip = PrepareClipForSelection();
@@ -4166,7 +4357,13 @@ public sealed partial class MainViewModel : ObservableObject
     public event Action? TransformEnded;
 
     /// <summary>Start (or restart) a transform session over the current scope.</summary>
-    public bool BeginTransform()
+    /// <param name="gizmo">
+    /// Raise <see cref="TransformBegun"/> so the canvas puts a handled box
+    /// round the drawing. The Move tool passes false: it is one drag with no
+    /// handles, and a gizmo appearing under the pointer for the length of a
+    /// nudge is noise.
+    /// </param>
+    public bool BeginTransform(bool gizmo = true)
     {
         if (!CanEdit(ActiveLayer, "transform it")) return false;
         var frames = CollectTransformFrames();
@@ -4189,8 +4386,93 @@ public sealed partial class MainViewModel : ObservableObject
         _transformFilter = filter;
         TransformActive = true;
         var b = bounds.Value;
-        TransformBegun?.Invoke(b.MinX, b.MinY, b.MaxX, b.MaxY);
+        if (gizmo) TransformBegun?.Invoke(b.MinX, b.MinY, b.MaxX, b.MaxY);
         return true;
+    }
+
+    // ---- move tool ---------------------------------------------------------------
+
+    /// <summary>
+    /// A move in progress: where it started and how far it has come.
+    /// </summary>
+    /// <remarks>
+    /// A move is a transform session with the handles left off. That is not a
+    /// shortcut — it is the same operation, so it gets the same live preview
+    /// (composite-time, one matrix, no geometry touched until the release),
+    /// the same selection filter, the same scopes and the same single undo
+    /// step. Re-implementing translation next to it would be a second way for
+    /// the drawing to move, and the two would drift.
+    /// </remarks>
+    private (double X, double Y)? _moveAnchor;
+
+    private (double X, double Y) _moveDelta;
+
+    public bool MoveActive => _moveAnchor is not null;
+
+    /// <summary>
+    /// Pick the drawing up.
+    /// </summary>
+    /// <param name="wholeLayer">
+    /// Move every drawing on the layer by the same amount, rather than the one
+    /// under the playhead. Shifting a finished cycle sideways is a real job
+    /// and doing it a frame at a time is not a job anybody finishes.
+    /// </param>
+    public bool BeginMove(double x, double y, bool wholeLayer)
+    {
+        var scope = wholeLayer ? TransformScope.ActiveLayerAllFrames : TransformScope.ActiveCel;
+        // Assigned before the session starts, so the property's change handler
+        // has no live session to restart and simply records the scope.
+        TransformScope = scope;
+        if (!BeginTransform(gizmo: false)) return false;
+        _moveAnchor = (x, y);
+        _moveDelta = default;
+        AiStatus = wholeLayer
+            ? $"Moving every drawing on {ActiveLayer.Name}"
+            : "Moving this drawing — hold Ctrl to move the whole layer";
+        return true;
+    }
+
+    /// <param name="axisLock">
+    /// Shift: hold the move to one axis, whichever it has gone furthest along.
+    /// The same thing Shift means on every other tool here.
+    /// </param>
+    public void UpdateMove(double x, double y, bool axisLock)
+    {
+        if (_moveAnchor is not { } anchor) return;
+        var dx = x - anchor.X;
+        var dy = y - anchor.Y;
+        if (axisLock)
+        {
+            if (Math.Abs(dx) >= Math.Abs(dy)) dy = 0;
+            else dx = 0;
+        }
+        _moveDelta = (dx, dy);
+        PreviewTransform(SKMatrix.CreateTranslation((float)dx, (float)dy));
+    }
+
+    /// <summary>Put it down. One undo step for the whole drag, or nothing at all.</summary>
+    public void EndMove()
+    {
+        if (_moveAnchor is null) return;
+        var (dx, dy) = _moveDelta;
+        _moveAnchor = null;
+        _moveDelta = default;
+        // A click that went nowhere is a click, not an edit. Committing it
+        // would put an identity transform in the history for every stray tap.
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9)
+        {
+            CancelMove();
+            return;
+        }
+        CommitTransformAffine(0, 0, 1, 1, 0, dx, dy);
+        TransformActive = false;
+    }
+
+    public void CancelMove()
+    {
+        _moveAnchor = null;
+        _moveDelta = default;
+        if (TransformActive) CancelTransform();
     }
 
     partial void OnTransformScopeChanged(TransformScope value)
@@ -4218,6 +4500,9 @@ public sealed partial class MainViewModel : ObservableObject
                 {
                     if (Scene.IsLayerVisible(layer)) Add(ExposureSheet.ExposedFrame(layer, CurrentFrameIndex));
                 }
+                break;
+            case TransformScope.ActiveLayerAllFrames:
+                foreach (var cel in ActiveLayer.Cels) Add(cel.Frame);
                 break;
             case TransformScope.CelRange:
                 if (_celRange is { } r && r.Layer >= 0 && r.Layer < Scene.Layers.Count)
@@ -4671,6 +4956,10 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Undo()
     {
+        // The stroke the next Shift+click would have joined to may be the one
+        // going away. Joining to a mark that is no longer there draws a line
+        // out of nowhere, which is worse than not joining at all.
+        _lastStrokeEnd = null;
         // An uncommitted palette edit is not on the stack yet; undoing before
         // it lands would step over it and then have it reappear.
         CommitSwatchEdit();
@@ -6444,7 +6733,21 @@ public sealed partial class MainViewModel : ObservableObject
             // over the layer here. The layer bitmap is never copied for a
             // preview — a full-canvas copy costs ~1 s at 4K.
             StrokeOverlay? overlay = null;
-            if (_liveScratch is not null && _liveGradient is { } drag && layer.Id == ActiveLayer.Id)
+            // The shape tool's drag preview. It was rendering into the scratch
+            // and never being shown: the overlay only knew about a gradient
+            // drag or a live brush stroke, and a shape is neither — so the
+            // rectangle appeared out of nowhere on release. Same shape of
+            // overlay as the gradient's, for the same reason.
+            if (_liveScratch is not null && _liveShape is { } shaping && layer.Id == ActiveLayer.Id)
+            {
+                overlay = new StrokeOverlay(
+                    _liveScratch,
+                    shaping.Brush.Opacity,
+                    shaping.Tool == ToolKind.Eraser,
+                    shaping.AlphaLocked,
+                    shaping.ClipId is null ? null : ClipRegionRegistry.Resolve(shaping.ClipId));
+            }
+            else if (_liveScratch is not null && _liveGradient is { } drag && layer.Id == ActiveLayer.Id)
             {
                 // The gradient tool's drag preview. Opacity and the alpha lock
                 // ride on the overlay, exactly as they do for a brush stroke,
@@ -6805,11 +7108,52 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnCanvasQualityChanged(CanvasQuality value)
     {
+        Settings.CanvasQuality = value.ToString();
+        Settings.Save();
         InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         Performance.Reset();
         PublishSnapshot();
         RefreshDocumentStats();
+    }
+
+    /// <summary>The artist chose this quality, so nothing may revise it again.</summary>
+    public void ChooseCanvasQuality(CanvasQuality value)
+    {
+        Settings.CanvasQualityChosen = true;
+        CanvasQuality = value;   // its handler saves
+    }
+
+    /// <summary>
+    /// React to finding out the frame is being presented without a GPU.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The label alone was a diagnosis with no treatment. On the software
+    /// rasteriser, presenting the canvas — rescaling the whole document for
+    /// every frame — overtakes editing it as the dominant cost, and
+    /// <see cref="CanvasQuality.Half"/> is the one setting that changes how
+    /// many pixels that is. Turning it down is the difference between a
+    /// laggy canvas and a usable one on exactly the machines that cannot fix
+    /// it any other way.
+    /// </para>
+    /// <para>
+    /// It only ever revises a default. Once somebody has picked a quality
+    /// themselves the app has no business overruling it, however slow the
+    /// machine — the whole point of a preference is that it is theirs. And it
+    /// is announced rather than done quietly: a canvas that silently got
+    /// softer is a bug report.
+    /// </para>
+    /// </remarks>
+    public void NoteGraphicsBackend()
+    {
+        if (Rendering.CanvasControl.SoftwareRendering is not true) return;
+        RefreshDocumentStats();
+        if (Settings.CanvasQualityChosen || CanvasQuality != CanvasQuality.Display) return;
+        CanvasQuality = CanvasQuality.Half;
+        AiStatus =
+            "No GPU here, so the canvas is being drawn in software — quality lowered to Half "
+            + "while you work. Exports are unaffected. Edit ▸ Configure ▸ Performance changes it.";
     }
 
     /// <summary>Undo steps kept. Deltas are cheap; snapshots hold a whole document each.</summary>

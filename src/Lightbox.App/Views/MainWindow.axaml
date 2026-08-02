@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Lightbox.App.ViewModels"
+        xmlns:geo="using:Lightbox.Core.Geometry"
         xmlns:render="using:Lightbox.App.Rendering"
         xmlns:controls="using:Lightbox.App.Controls"
         xmlns:docs="using:Lightbox.Core.Documents"
@@ -1233,12 +1234,37 @@
                   <TextBlock Text="Gradient" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
-              <ToggleButton Classes="tool" IsChecked="{Binding IsShapeTool, Mode=OneWay}"
+              <ToggleButton x:Name="ShapeToolButton" Classes="tool" IsChecked="{Binding IsShapeTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Shape}"
-                            ToolTip.Tip="Shape (U) — drag to draw. Shift squares it, Alt grows it from the centre.">
+                            ToolTip.Tip="Shape (U — hold for the list) — drag to draw. Shift squares it or snaps a line to 45°, Alt grows it from the centre.">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="◻" FontSize="15" />
+                  <TextBlock Text="{Binding ShapeGlyph}" FontSize="15" />
                   <TextBlock Text="Shape" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+                <!-- The same hold-for-variants list the Select tool has. A
+                     gesture that works on one tool and not its neighbour is
+                     one nobody trusts. -->
+                <ToggleButton.ContextFlyout>
+                  <Flyout Placement="RightEdgeAlignedTop">
+                    <StackPanel Spacing="2">
+                      <Button Content="╱ Line" Command="{Binding SelectShapeCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static geo:ShapeKind.Line}" HorizontalAlignment="Stretch" />
+                      <Button Content="▭ Rectangle" Command="{Binding SelectShapeCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static geo:ShapeKind.Rectangle}" HorizontalAlignment="Stretch" />
+                      <Button Content="◯ Ellipse" Command="{Binding SelectShapeCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static geo:ShapeKind.Ellipse}" HorizontalAlignment="Stretch" />
+                      <Button Content="⬠ Polygon" Command="{Binding SelectShapeCommand}" Click="OnVariantChosen"
+                              CommandParameter="{x:Static geo:ShapeKind.Polygon}" HorizontalAlignment="Stretch" />
+                    </StackPanel>
+                  </Flyout>
+                </ToggleButton.ContextFlyout>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsMoveTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Move}"
+                            ToolTip.Tip="Move (V) — drag the drawing. Ctrl moves every drawing on the layer, Shift holds it to one axis. Guides are picked up with this tool.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="✥" FontSize="15" />
+                  <TextBlock Text="Move" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
               <ToggleButton x:Name="SelectToolButton" Classes="tool" IsChecked="{Binding IsSelectTool, Mode=OneWay}"

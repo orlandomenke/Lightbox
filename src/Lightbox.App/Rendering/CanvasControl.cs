@@ -50,16 +50,31 @@ public sealed class CanvasControl : Control
     // The smoothed brush anchor while a live-smoothing stroke is active (doc space).
     private (double X, double Y)? _lazyAnchor;
 
-    // Shift+drag brush sizing (paint modes only — Shift modifies selections elsewhere).
-    private bool _resizingBrush;
-    private Avalonia.Point _resizeStart;
-    private double _resizeStartSize;
-
-    /// <summary>Shift+drag on the canvas asks for a new brush size (document pixels).</summary>
-    public event Action<double>? BrushResizeRequested;
 
     /// <summary>Alt was held when this stroke began, so it erases with the current brush.</summary>
     private bool _erasingThisStroke;
+
+    /// <summary>Shift was held at the press: join to the previous stroke's end.</summary>
+    private bool _straightFromLast;
+
+    /// <summary>Where the stroke in progress began, for the axis lock.</summary>
+    private (double X, double Y) _paintAnchor;
+
+    /// <summary>Shift is down mid-drag: hold the stroke to one axis.</summary>
+    private bool _axisLockedStroke;
+
+    /// <summary>
+    /// A point held to whichever axis the drag has gone furthest along.
+    /// </summary>
+    /// <remarks>
+    /// Measured from the anchor every time rather than accumulated, so
+    /// crossing from the horizontal run to the vertical one snaps cleanly
+    /// instead of leaving the stroke wherever the changeover happened to fall.
+    /// </remarks>
+    private static (double X, double Y) AxisLocked((double X, double Y) anchor, double x, double y) =>
+        Math.Abs(x - anchor.X) >= Math.Abs(y - anchor.Y)
+            ? (x, anchor.Y)
+            : (anchor.X, y);
 
     /// <summary>True while an Alt-held stroke is in progress (drives the cursor).</summary>
     public bool IsTemporaryEraser => _painting && _erasingThisStroke;
@@ -182,10 +197,42 @@ public sealed class CanvasControl : Control
     /// </summary>
     public static string GraphicsBackend { get; private set; } = "unknown";
 
+    /// <summary>
+    /// True once a frame has been presented without a GPU context, null while
+    /// nothing has been drawn yet.
+    /// </summary>
+    /// <remarks>
+    /// Worth a separate flag from the label because something has to act on
+    /// it. A machine on the software rasteriser is not a machine with a
+    /// slightly slower canvas — presenting the frame becomes the dominant
+    /// cost, and the setting that decides how many pixels get presented is the
+    /// only lever that helps.
+    /// </remarks>
+    public static bool? SoftwareRendering { get; private set; }
+
+    /// <summary>Raised the first time the backend is known.</summary>
+    public static event Action? BackendDetected;
+
     private static void RecordBackend(ISkiaSharpApiLease lease)
     {
         if (GraphicsBackend != "unknown") return;
-        GraphicsBackend = lease.GrContext is null ? "CPU (software)" : "GPU";
+        var software = lease.GrContext is null;
+        GraphicsBackend = software ? "CPU (software)" : "GPU";
+        SoftwareRendering = software;
+        BackendDetected?.Invoke();
+    }
+
+    /// <summary>Test seam: pretend the backend came back as software, or as a GPU.</summary>
+    internal static void ForceBackendForTests(bool? software)
+    {
+        SoftwareRendering = software;
+        GraphicsBackend = software switch
+        {
+            true => "CPU (software)",
+            false => "GPU",
+            null => "unknown",
+        };
+        if (software is not null) BackendDetected?.Invoke();
     }
 
     internal static void LogDiag(string context, Exception ex)
@@ -325,6 +372,18 @@ public sealed class CanvasControl : Control
     /// </remarks>
     public bool GuideDragEnabled { get; set; }
 
+    /// <summary>The Move tool picked the drawing up. <c>wholeLayer</c> is Ctrl.</summary>
+    public event Action<double, double, bool>? ContentMoveStarted;
+
+    /// <summary>Absolute position, plus Shift for the axis lock.</summary>
+    public event Action<double, double, bool>? ContentMoveUpdated;
+
+    public event Action? ContentMoveEnded;
+
+    public event Action? ContentMoveCancelled;
+
+    private bool _movingContent;
+
     /// <summary>A guide was dragged, by a delta in document pixels.</summary>
     public event Action<string, double, double>? GuideMoved;
 
@@ -413,10 +472,11 @@ public sealed class CanvasControl : Control
 
     /// <summary>Begin a stroke at a document-space position (pressure 0..1).</summary>
     /// <summary>
-    /// Stroke begun: document x, y, pressure, and whether Alt was held — an
-    /// Alt stroke erases with the current brush rather than switching tools.
+    /// Stroke begun: document x, y, pressure, whether Alt was held — an Alt
+    /// stroke erases with the current brush rather than switching tools — and
+    /// whether Shift was, which joins this stroke to the last one's end.
     /// </summary>
-    public event Action<double, double, double, bool>? PaintStarted;
+    public event Action<double, double, double, bool, bool>? PaintStarted;
 
     /// <summary>
     /// Extend the live stroke with ALL coalesced samples of one pointer event
@@ -442,6 +502,7 @@ public sealed class CanvasControl : Control
         Transform,
         Gradient,
         Shape,
+        Move,
     }
 
     public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
@@ -566,7 +627,7 @@ public sealed class CanvasControl : Control
     private Point _alignLast;
 
     /// <summary>Fill tool click at a document position.</summary>
-    public event Action<double, double>? FillClicked;
+    public event Action<double, double, bool>? FillClicked;
 
     /// <summary>Magic-wand click at a document position (Shift=add, Alt=subtract).</summary>
     public event Action<double, double, bool, bool>? WandClicked;
@@ -577,9 +638,9 @@ public sealed class CanvasControl : Control
     /// <summary>Gradient tool: the drag that defines the ramp's axis.</summary>
     public event Action<double, double>? GradientDragStarted;
 
-    public event Action<double, double>? GradientDragMoved;
+    public event Action<double, double, bool>? GradientDragMoved;
 
-    public event Action<double, double>? GradientDragEnded;
+    public event Action<double, double, bool>? GradientDragEnded;
 
     /// <summary>
     /// A shape drag. The modifiers travel with the move and the end because
@@ -1024,6 +1085,19 @@ public sealed class CanvasControl : Control
     private readonly List<Core.Documents.StrokePoint> _dragShape = [];
     private (double X, double Y)? _dragAnchor;
 
+    /// <summary>
+    /// Whether Shift was already down when a marquee started.
+    /// </summary>
+    /// <remarks>
+    /// Photoshop's disambiguation, and it is the only one that works: Shift
+    /// means <i>add to the selection</i> when it is held before the press, and
+    /// <i>make it square</i> when it comes down during the drag. Both are real
+    /// uses of the same key on the same tool, and the moment it is pressed is
+    /// the only thing that tells them apart. Recorded at press because by the
+    /// release the two are indistinguishable again.
+    /// </remarks>
+    private bool _marqueeAdds;
+
     private bool _painting;
     private bool _panning;
     private Point _panLast;
@@ -1409,17 +1483,6 @@ public sealed class CanvasControl : Control
                 return;
             }
 
-            if (ToolMode == CanvasToolMode.Paint && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
-            {
-                // Shift+drag resizes the brush around the anchored cursor.
-                _resizingBrush = true;
-                _resizeStart = pp.Position;
-                _resizeStartSize = BrushCursorSize;
-                e.Pointer.Capture(this);
-                e.Handled = true;
-                return;
-            }
-
             // Ctrl is a held eyedropper while painting or filling: the colour
             // you want is almost always already on the canvas, and reaching
             // for a tool to fetch it breaks the stroke you were about to make.
@@ -1434,7 +1497,7 @@ public sealed class CanvasControl : Control
             switch (ToolMode)
             {
                 case CanvasToolMode.Fill:
-                    FillClicked?.Invoke(x, y);
+                    FillClicked?.Invoke(x, y, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
                     e.Handled = true;
                     return;
                 case CanvasToolMode.SelectWand:
@@ -1462,6 +1525,7 @@ public sealed class CanvasControl : Control
                     return;
                 case CanvasToolMode.SelectFreehand:
                     e.Pointer.Capture(this);
+                    _marqueeAdds = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
                     _dragShape.Clear();
                     _dragShape.Add(new Core.Documents.StrokePoint(x, y, 1));
                     e.Handled = true;
@@ -1470,6 +1534,7 @@ public sealed class CanvasControl : Control
                 case CanvasToolMode.SelectEllipse:
                     e.Pointer.Capture(this);
                     _dragAnchor = (x, y);
+                    _marqueeAdds = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
                     _dragShape.Clear();
                     e.Handled = true;
                     return;
@@ -1485,6 +1550,14 @@ public sealed class CanvasControl : Control
                     ShapeDragStarted?.Invoke(x, y);
                     e.Handled = true;
                     return;
+                case CanvasToolMode.Move:
+                    // A guide under the pointer was already taken above; this
+                    // is the drawing itself.
+                    e.Pointer.Capture(this);
+                    _movingContent = true;
+                    ContentMoveStarted?.Invoke(x, y, e.KeyModifiers.HasFlag(KeyModifiers.Control));
+                    e.Handled = true;
+                    return;
             }
 
             e.Pointer.Capture(this);
@@ -1494,9 +1567,15 @@ public sealed class CanvasControl : Control
             // is different from E, which switches to the dedicated eraser and
             // its own settings.
             _erasingThisStroke = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+            // Shift at the press is Photoshop's straight segment: the stroke
+            // runs from wherever the last one ended to here, and the drag that
+            // follows carries on from that point. It is how a hard edge or a
+            // long straight is drawn without a ruler.
+            _straightFromLast = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+            _paintAnchor = (x, y);
             ReportInputDiagnostic(e.Pointer.Type, pp.Properties.Pressure);
             ReportCursorPressure(PressureOf(pp), penDown: true);
-            PaintStarted?.Invoke(x, y, PressureOf(pp), _erasingThisStroke);
+            PaintStarted?.Invoke(x, y, PressureOf(pp), _erasingThisStroke, _straightFromLast);
             e.Handled = true;
         }
         catch (Exception ex)
@@ -1526,23 +1605,21 @@ public sealed class CanvasControl : Control
         base.OnPointerMoved(e);
         try
         {
-            if (_resizingBrush)
-            {
-                // Horizontal drag = size, converted to document pixels; the
-                // cursor stays anchored so the growing ring reads clearly.
-                _hoverPoint = _resizeStart;
-                var deltaView = e.GetPosition(this).X - _resizeStart.X;
-                var deltaDoc = deltaView / Math.Max(0.01, FitScale() * _zoom);
-                BrushResizeRequested?.Invoke(Math.Clamp(_resizeStartSize + deltaDoc, 1, 500));
-                InvalidateVisual();
-                e.Handled = true;
-                return;
-            }
-
             _hoverPoint = e.GetPosition(this);
             // The brush cursor must follow the pointer no matter what state
             // we're in — repaints coalesce, so this is cheap.
             InvalidateVisual();
+
+            if (_movingContent)
+            {
+                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                // Absolute rather than incremental: the axis lock has to be
+                // measured from where the drag started, and a sum of clamped
+                // deltas drifts off the axis it is supposed to be holding.
+                ContentMoveUpdated?.Invoke(mx, my, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                e.Handled = true;
+                return;
+            }
 
             if (_guideDrag is { } dragging)
             {
@@ -1627,7 +1704,7 @@ public sealed class CanvasControl : Control
             if (_gradientDragging)
             {
                 var (gx, gy) = ViewToDoc(e.GetPosition(this));
-                GradientDragMoved?.Invoke(gx, gy);
+                GradientDragMoved?.Invoke(gx, gy, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
                 e.Handled = true;
                 return;
             }
@@ -1644,6 +1721,12 @@ public sealed class CanvasControl : Control
             if (_dragAnchor is { } anchor && ToolMode is CanvasToolMode.SelectRect or CanvasToolMode.SelectEllipse)
             {
                 var (dx, dy) = ViewToDoc(e.GetPosition(this));
+                // Square it only when Shift arrived after the press — held
+                // from the start it means "add to the selection" instead.
+                if (!_marqueeAdds && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                {
+                    (dx, dy) = Squared(anchor, dx, dy);
+                }
                 _dragShape.Clear();
                 _dragShape.AddRange(ShapeBetween(anchor, (dx, dy), ToolMode == CanvasToolMode.SelectEllipse));
                 e.Handled = true;
@@ -1651,6 +1734,11 @@ public sealed class CanvasControl : Control
             }
 
             if (!_painting) return;
+            // Shift during a brush drag holds it to one axis, the way it does
+            // in Photoshop. Applied here rather than in the view model because
+            // it is a property of the gesture, not of the mark: the record
+            // stores the points the artist actually asked for.
+            _axisLockedStroke = e.KeyModifiers.HasFlag(KeyModifiers.Shift) && !_straightFromLast;
             // Coalesced high-frequency samples, not just the latest position —
             // delivered as one batch per event.
             var points = e.GetIntermediatePoints(this);
@@ -1658,6 +1746,7 @@ public sealed class CanvasControl : Control
             foreach (var pp in points)
             {
                 var (x, y) = ViewToDoc(pp.Position);
+                if (_axisLockedStroke) (x, y) = AxisLocked(_paintAnchor, x, y);
                 samples.Add(new ViewModels.MainViewModel.PointerSample(x, y, PressureOf(pp)));
                 ReportCursorPressure(PressureOf(pp), penDown: true);
             }
@@ -1677,6 +1766,14 @@ public sealed class CanvasControl : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_movingContent)
+        {
+            _movingContent = false;
+            e.Pointer.Capture(null);
+            ContentMoveEnded?.Invoke();
+            e.Handled = true;
+            return;
+        }
         if (_guideDrag is not null)
         {
             _guideDrag = null;
@@ -1713,13 +1810,6 @@ public sealed class CanvasControl : Control
             e.Handled = true;
             return;
         }
-        if (_resizingBrush)
-        {
-            _resizingBrush = false;
-            e.Pointer.Capture(null);
-            e.Handled = true;
-            return;
-        }
         if (_panning)
         {
             _panning = false;
@@ -1732,7 +1822,7 @@ public sealed class CanvasControl : Control
             _gradientDragging = false;
             e.Pointer.Capture(null);
             var (gx, gy) = ViewToDoc(e.GetPosition(this));
-            GradientDragEnded?.Invoke(gx, gy);
+            GradientDragEnded?.Invoke(gx, gy, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
             e.Handled = true;
             return;
         }
@@ -1756,9 +1846,12 @@ public sealed class CanvasControl : Control
             e.Pointer.Capture(null);
             if (shape.Count >= 3)
             {
+                // The union flag is the one from the press, not from now: a
+                // Shift pressed mid-drag was squaring the marquee, and reading
+                // the live modifier here would silently union as well.
                 SelectionShapeDrawn?.Invoke(
                     shape,
-                    e.KeyModifiers.HasFlag(KeyModifiers.Shift),
+                    _marqueeAdds,
                     e.KeyModifiers.HasFlag(KeyModifiers.Alt));
             }
             InvalidateVisual();
@@ -1771,6 +1864,21 @@ public sealed class CanvasControl : Control
         ReportCursorPressure(1, penDown: false); // back to showing the maximum on hover
         PaintEnded?.Invoke();
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// The far corner, pulled onto the diagonal so the box is square.
+    /// </summary>
+    /// <remarks>
+    /// The larger of the two reaches wins, so the shape follows the hand
+    /// rather than shrinking to whichever axis moved least.
+    /// </remarks>
+    private static (double X, double Y) Squared((double X, double Y) anchor, double x, double y)
+    {
+        var reach = Math.Max(Math.Abs(x - anchor.X), Math.Abs(y - anchor.Y));
+        return (
+            anchor.X + (x < anchor.X ? -reach : reach),
+            anchor.Y + (y < anchor.Y ? -reach : reach));
     }
 
     /// <summary>Rectangle corners or a 48-segment ellipse between two drag points.</summary>
@@ -1800,6 +1908,14 @@ public sealed class CanvasControl : Control
     {
         base.OnPointerCaptureLost(e);
         _panning = false;
+        if (_movingContent)
+        {
+            // Abandon rather than commit, for the gradient's reason: losing
+            // capture is not a decision the artist made.
+            _movingContent = false;
+            ContentMoveCancelled?.Invoke();
+            return;
+        }
         if (_gradientDragging)
         {
             // Abandon rather than commit: losing capture is not a decision the
@@ -1960,7 +2076,6 @@ public sealed class CanvasControl : Control
             canvas.Scale(view.Mirrored ? -view.Scale : view.Scale, view.Scale);
             canvas.Translate(-view.DocW / 2f, -view.DocH / 2f);
             DrawTransparencyCheckerboard(canvas, view);
-            DrawGuides(canvas);
             using (var paint = new SKPaint { IsAntialias = true })
             {
                 canvas.DrawImage(
@@ -1969,6 +2084,7 @@ public sealed class CanvasControl : Control
                     new SKSamplingOptions(SKFilterMode.Linear),
                     paint);
             }
+            DrawGuides(canvas);
             DrawCameraFrame(canvas);
             DrawGradientAxis(canvas);
             DrawAnts(canvas);
@@ -1986,9 +2102,17 @@ public sealed class CanvasControl : Control
         /// </summary>
         /// <remarks>
         /// <para>
-        /// Under the artwork rather than over it, which is the one thing that
-        /// makes them usable: a ruler on paper is something you draw over, and
-        /// a grid painted on top of a drawing hides the drawing.
+        /// <b>Over</b> the artwork. Under it was the first answer and it was
+        /// wrong for a reason worth keeping written down: a new document opens
+        /// with an opaque background layer, so "underneath the drawing" means
+        /// underneath a sheet of white, and the guides could only ever be seen
+        /// off the edge of the canvas. The paper analogy does not survive
+        /// contact with an opaque bottom layer.
+        /// </para>
+        /// <para>
+        /// The thing the analogy was protecting — not hiding the drawing — is
+        /// paid for with alpha instead: every guide is drawn translucent, so
+        /// the rig reads as a rig and the art stays legible through it.
         /// </para>
         /// <para>
         /// Every line is divided by the zoom so it stays a hairline on screen.

@@ -32,6 +32,22 @@ connected to them. Your job is to notice before the user does.
    per-stroke settings, view-only transforms. Check the recent diff
    (`git diff origin/HEAD...HEAD -- '*.cs'`) for violations.
 
+5. **Nothing may be invisible while it is being made.** Every tool that drags
+   — brush, eraser, gradient, shape, selection marquee, transform, move,
+   guide, reference box — has to show its result *during* the drag, not on
+   release. An artist cannot judge a mark they are not being shown, and a
+   shape that appears out of nowhere when the pen lifts is one they place
+   twice.
+
+   This breaks silently and in one specific way, so check it directly: the
+   drag renders into `_liveScratch`, and the compositor decides whether to
+   show that scratch with a chain of `if` tests naming each live thing
+   (`_liveGradient`, `_strokeBuilder.IsActive`, `_liveShape`, …). A new tool
+   that renders a preview nobody composites looks completely correct at every
+   call site and shows nothing on screen — which is exactly how the shape tool
+   shipped. For any tool added or changed in the diff, name the branch in the
+   overlay chain that displays it, or report it as unguarded.
+
 ## Judging severity
 
 - **critical** — a promise in the inventory is now false, or an invariant is

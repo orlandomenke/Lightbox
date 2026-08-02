@@ -9,49 +9,50 @@ file with no tests is the top of this list for a reason.
 
 | File | Risk | Heat | Commits | Fixes | Dependents | Test files |
 | --- | --- | --- | --- | --- | --- | --- |
-| `src/Lightbox.App/Views/MainWindow.axaml` | 0.54 | 0.54 | 52 | 5 | 0 | 0 |
-| `src/Lightbox.App/ViewModels/MainViewModel.cs` | 0.24 | 0.95 | 58 | 7 | 61 | 54 |
-| `src/Lightbox.App/Views/MainWindow.axaml.cs` | 0.16 | 0.64 | 50 | 7 | 6 | 5 |
-| `src/Lightbox.App/Rendering/CanvasControl.cs` | 0.11 | 0.42 | 26 | 5 | 6 | 5 |
+| `src/Lightbox.App/Views/MainWindow.axaml` | 0.54 | 0.54 | 53 | 5 | 0 | 0 |
+| `src/Lightbox.App/ViewModels/MainViewModel.cs` | 0.24 | 0.95 | 59 | 7 | 63 | 56 |
+| `src/Lightbox.App/Views/MainWindow.axaml.cs` | 0.16 | 0.64 | 51 | 7 | 7 | 6 |
+| `src/Lightbox.App/Rendering/CanvasControl.cs` | 0.11 | 0.42 | 27 | 5 | 6 | 5 |
 | `src/Lightbox.App/App.axaml` | 0.09 | 0.09 | 9 | 1 | 0 | 0 |
-| `src/Lightbox.Raster/BrushEngine.cs` | 0.08 | 0.30 | 19 | 3 | 15 | 10 |
+| `src/Lightbox.Raster/BrushEngine.cs` | 0.07 | 0.30 | 19 | 3 | 15 | 10 |
 | `src/Lightbox.App/Services/BrushPresets.cs` | 0.07 | 0.09 | 6 | 1 | 3 | 0 |
-| `src/Lightbox.Core/Documents/Frame.cs` | 0.07 | 0.26 | 2 | 0 | 78 | 55 |
+| `src/Lightbox.Core/Documents/Frame.cs` | 0.07 | 0.26 | 2 | 0 | 79 | 56 |
 | `src/Lightbox.App/ViewModels/LayerRow.cs` | 0.06 | 0.09 | 5 | 1 | 4 | 1 |
+| `src/Lightbox.App/Views/ConfigureWindow.axaml` | 0.06 | 0.06 | 3 | 1 | 0 | 0 |
 | `src/Lightbox.Core/Geometry/GeometryOps.cs` | 0.06 | 0.08 | 2 | 1 | 8 | 1 |
 | `src/Lightbox.Raster/Media/MediumSimulator.cs` | 0.06 | 0.06 | 2 | 1 | 0 | 0 |
 | `src/Lightbox.Raster/Media/PigmentModel.cs` | 0.06 | 0.08 | 3 | 1 | 4 | 1 |
 | `src/Lightbox.App/Views/NewDocumentDialog.axaml` | 0.06 | 0.06 | 3 | 1 | 0 | 0 |
-| `src/Lightbox.App/Views/ConfigureWindow.axaml` | 0.06 | 0.06 | 2 | 1 | 0 | 0 |
-| `src/Lightbox.Core/Documents/Stroke.cs` | 0.05 | 0.22 | 4 | 0 | 61 | 39 |
-| `src/Lightbox.Core/Documents/Scene.cs` | 0.05 | 0.22 | 11 | 2 | 22 | 7 |
+| `src/Lightbox.Core/Documents/Stroke.cs` | 0.05 | 0.22 | 4 | 0 | 62 | 40 |
+| `src/Lightbox.Core/Documents/Scene.cs` | 0.05 | 0.21 | 11 | 2 | 22 | 7 |
+| `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` | 0.05 | 0.07 | 3 | 1 | 2 | 0 |
 | `src/Lightbox.App/Services/IpcDocumentApi.cs` | 0.05 | 0.07 | 3 | 1 | 2 | 1 |
+| `src/Lightbox.App/Services/SpriteSheetExporter.cs` | 0.05 | 0.20 | 1 | 0 | 60 | 35 |
 | `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` | 0.05 | 0.07 | 6 | 0 | 6 | 1 |
-| `src/Lightbox.App/Services/SpriteSheetExporter.cs` | 0.05 | 0.20 | 1 | 0 | 59 | 34 |
-| `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` | 0.05 | 0.07 | 2 | 1 | 2 | 0 |
 
 ## Most active regardless of coverage
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` — heat 0.95, 58 commits (7 fixes), 61 dependents
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` — heat 0.64, 50 commits (7 fixes), 6 dependents
-- `src/Lightbox.App/Views/MainWindow.axaml` — heat 0.54, 52 commits (5 fixes), 0 dependents
-- `src/Lightbox.App/Rendering/CanvasControl.cs` — heat 0.42, 26 commits (5 fixes), 6 dependents
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` — heat 0.95, 59 commits (7 fixes), 63 dependents
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` — heat 0.64, 51 commits (7 fixes), 7 dependents
+- `src/Lightbox.App/Views/MainWindow.axaml` — heat 0.54, 53 commits (5 fixes), 0 dependents
+- `src/Lightbox.App/Rendering/CanvasControl.cs` — heat 0.42, 27 commits (5 fixes), 6 dependents
 - `src/Lightbox.Raster/BrushEngine.cs` — heat 0.30, 19 commits (3 fixes), 15 dependents
-- `src/Lightbox.Core/Documents/Frame.cs` — heat 0.26, 2 commits (0 fixes), 78 dependents
-- `src/Lightbox.Core/Documents/Stroke.cs` — heat 0.22, 4 commits (0 fixes), 61 dependents
-- `src/Lightbox.Core/Documents/Scene.cs` — heat 0.22, 11 commits (2 fixes), 22 dependents
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` — heat 0.20, 1 commits (0 fixes), 59 dependents
-- `src/Lightbox.Core/Documents/BrushSettings.cs` — heat 0.20, 7 commits (1 fixes), 35 dependents
+- `src/Lightbox.Core/Documents/Frame.cs` — heat 0.26, 2 commits (0 fixes), 79 dependents
+- `src/Lightbox.Core/Documents/Stroke.cs` — heat 0.22, 4 commits (0 fixes), 62 dependents
+- `src/Lightbox.Core/Documents/Scene.cs` — heat 0.21, 11 commits (2 fixes), 22 dependents
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` — heat 0.20, 1 commits (0 fixes), 60 dependents
+- `src/Lightbox.Core/Documents/BrushSettings.cs` — heat 0.19, 7 commits (1 fixes), 35 dependents
 
 ## Substantial files with no test reference
 
-- `src/Lightbox.App/Views/MainWindow.axaml` (2537 ln)
+- `src/Lightbox.App/Views/MainWindow.axaml` (2563 ln)
 - `src/Lightbox.Raster/Media/MediumSimulator.cs` (298 ln)
-- `src/Lightbox.App/Views/ConfigureWindow.axaml` (190 ln)
+- `src/Lightbox.App/Styles/Density.axaml` (208 ln)
+- `src/Lightbox.App/Views/ConfigureWindow.axaml` (193 ln)
 - `src/Lightbox.App/Controls/TimelineRuler.cs` (181 ln)
 - `src/Lightbox.App/Styles/ColorPicker.axaml` (174 ln)
-- `src/Lightbox.App/Styles/Density.axaml` (173 ln)
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln)
 - `src/Lightbox.Mcp/LightboxTools.cs` (130 ln)
 - `src/Lightbox.App/App.axaml` (119 ln)
 - `src/Lightbox.App/Controls/DockDropIndicator.cs` (101 ln)
+- `src/Lightbox.App/Views/StartScreen.axaml` (84 ln)

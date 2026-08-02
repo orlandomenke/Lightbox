@@ -1,4 +1,6 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using Lightbox.App.Controls;
@@ -74,6 +76,78 @@ public sealed class ToolBarAlignmentTests : BrushStateIsolated
 
         Assert.Empty(offenders);
     }
+
+    // ---- B18: the bar is one line, not several ---------------------------------
+
+    [AvaloniaFact]
+    public void EveryGroupInTheBarSharesOneVerticalCentre()
+    {
+        // The columns lined up and the rows did not. Fluent's slider asks for
+        // 44px in a 30px bar, so the groups holding one overflowed it — and an
+        // overflowing child cannot be centred, it is pinned to the top. Their
+        // labels then sat 7px below every group without a slider.
+        var window = Open();
+        var bar = OptionsBar(window);
+
+        var centres = VisibleGroups(bar)
+            .Select(g => Math.Round(Centre(g, bar), 1))
+            .Distinct()
+            .ToList();
+
+        Assert.NotEmpty(centres);
+        Assert.True(
+            centres.Max() - centres.Min() < 1.5,
+            $"groups centre at {string.Join(", ", centres)}");
+    }
+
+    [AvaloniaFact]
+    public void NothingInTheBarAsksForMoreHeightThanTheBarHas()
+    {
+        // The condition that produced the drift, named directly: once a child
+        // wants more than the bar gives it, its alignment stops being honoured
+        // and no amount of VerticalAlignment="Center" will save it.
+        var window = Open();
+        var bar = OptionsBar(window);
+
+        var toobig = VisibleGroups(bar)
+            .Where(g => g.DesiredSize.Height > bar.Bounds.Height + 0.5)
+            .Select(g => $"{g.GetType().Name} wants {g.DesiredSize.Height}")
+            .ToList();
+
+        Assert.Empty(toobig);
+    }
+
+    // ---- B19: the overlay bars are a grid of equal tiles -----------------------
+
+    [AvaloniaFact]
+    public void EveryTileInAnOverlayBarIsTheSameSquare()
+    {
+        // They sized to their glyph, and glyphs are not the same width: ◉ and
+        // ▶ came out 25, an emoji wider still, the bar's own ▾ and ✕ 24. A
+        // tile grid only reads as a grid if the tiles match.
+        var window = Open();
+
+        var sizes = window.GetVisualDescendants().OfType<CanvasOverlayBar>()
+            .SelectMany(b => b.GetVisualDescendants().OfType<TemplatedControl>())
+            .Where(c => c is Button or ToggleButton && c.IsVisible && c.Bounds.Width > 0)
+            .Select(c => (c.Bounds.Width, c.Bounds.Height))
+            .Distinct()
+            .ToList();
+
+        Assert.NotEmpty(sizes);
+        Assert.Single(sizes);
+    }
+
+    private static IEnumerable<Control> VisibleGroups(OverflowBar bar) =>
+        bar.GetVisualChildren().OfType<Control>()
+            .Where(c => c.IsVisible && c.Bounds.Width > 0)
+            .SelectMany(c => c.GetVisualChildren().OfType<Control>().Where(g => g.IsVisible))
+            // A group that overflowed the bar is parked off-screen by the
+            // OverflowBar; only what is actually on the row is being judged.
+            .Where(g => g.Bounds.Width > 0);
+
+    private static double Centre(Visual group, Visual bar) =>
+        (group.TranslatePoint(new Point(0, 0), bar)?.Y ?? 0) + group.Bounds.Height / 2;
 
     // ---- B16: the brush flyout is as tall as its page --------------------------
 

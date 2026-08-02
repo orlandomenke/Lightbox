@@ -151,6 +151,12 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Fix: size to the page, with a `MaxHeight` so a very long one cannot run off the screen.
   - Reported from a build. Cost: S
 
+- [ ] **B17** `P2` `canvas` Guides are invisible over the drawing `evidence: manual`
+  - Repro: place any guide on a new document. It shows on the grey surround and vanishes the moment it crosses the canvas.
+  - Cause: mine, and the comment I wrote made it sound deliberate. `DrawGuides` ran before the artwork on the reasoning that "a ruler on paper is something you draw over" — but a new document opens with an opaque background layer, so under the drawing means under a sheet of white. The analogy does not survive an opaque bottom layer.
+  - Fix: draw guides over the artwork, translucent. The thing the old order was protecting — not hiding the drawing — is paid for with alpha instead.
+  - `evidence: manual` because the chrome is drawn by a Skia custom draw op that the headless test platform never leases; the composited snapshot the pixel tests read does not contain it. Verify by eye: a guide must be visible across the canvas, and the art must still read through it. Cost: S
+
 - [ ] **B8** `P3` `ui` Timeline context submenu flickers under a pen `evidence: manual`
   - Repro: right-click a timeline cel with a pen and hover "Insert frame". The submenu flickers and will not stay open. A mouse is fine.
   - Cause: not investigated. Pen hover events arrive as a different device with its own enter/leave pattern; the submenu almost certainly closes on a spurious leave.

@@ -175,6 +175,19 @@ public partial class ConfigureWindow : Window
             $"Compositing an edit: {perf.PublishMs:0.0} ms · " +
             $"Presenting a frame: {perf.FrameMs:0.0} ms · " +
             $"Headroom {perf.HeadroomPercent}% ({perf.HealthLabel})";
+        BackendText.Text = Rendering.CanvasControl.SoftwareRendering switch
+        {
+            true =>
+                "This machine is presenting the canvas in software — no GPU context was available. "
+                + "Rescaling the whole document every frame is then the dominant cost, which is why "
+                + "the quality above starts at Half here. Updating the graphics driver, or running "
+                + "without remote desktop or a virtual machine, is what gets a GPU context back. "
+                + "The document, exports and thumbnails are full resolution either way.",
+            false =>
+                "The canvas is being presented by the GPU. Editing the drawing is the cost that "
+                + "matters on this machine, not showing it.",
+            null => "Nothing has been drawn yet, so the graphics backend is not known.",
+        };
         QualityHint.Text = _vm.CanvasQuality switch
         {
             ViewModels.CanvasQuality.Full =>
@@ -203,7 +216,9 @@ public partial class ConfigureWindow : Window
         if (_loadingPerformance || _vm is null) return;
         if (QualityBox.SelectedItem is ViewModels.CanvasQuality quality)
         {
-            _vm.CanvasQuality = quality;
+            // Through the choosing path: from here it is a decision, and the
+            // software-rendering fallback must never revise it again.
+            _vm.ChooseCanvasQuality(quality);
             RefreshMeasured();
         }
     }

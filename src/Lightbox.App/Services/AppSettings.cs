@@ -80,6 +80,23 @@ public sealed class AppSettings
     /// <summary>How close a point must be to a guide to be pulled onto it, in document pixels.</summary>
     public double SnapTolerance { get; set; } = 12;
 
+    /// <summary>How much detail the canvas composites while you work.</summary>
+    /// <remarks>
+    /// Persisted, which it was not before: somebody who turned it down because
+    /// their machine needed it had to turn it down again every launch.
+    /// </remarks>
+    public string CanvasQuality { get; set; } = "Display";
+
+    /// <summary>
+    /// Whether a human picked the canvas quality.
+    /// </summary>
+    /// <remarks>
+    /// The one thing that lets the app react to a software-rendering machine
+    /// without ever overruling a person. Until this is set, the stored value
+    /// is a default the app is free to revise; after it, it is a decision.
+    /// </remarks>
+    public bool CanvasQualityChosen { get; set; }
+
     public static string Path { get; set; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Lightbox", "settings.json");

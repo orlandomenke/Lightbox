@@ -23,6 +23,19 @@ public enum ToolId
     /// find. Which shape is a tool option, like the select tool's variants.
     /// </remarks>
     Shape,
+
+    /// <summary>
+    /// Drag the drawing itself around, and pick guides up.
+    /// </summary>
+    /// <remarks>
+    /// Photoshop's Move tool, and it exists here for Photoshop's reason:
+    /// grabbing a guide and drawing along one are the same gesture in the
+    /// same place, so something has to say which was meant. A tool says it
+    /// unambiguously, is discoverable in the palette, and — unlike the
+    /// rulers, which used to carry the job — it is still the answer when the
+    /// rulers are down.
+    /// </remarks>
+    Move,
 }
 
 /// <summary>
@@ -50,6 +63,13 @@ public enum TransformScope
 
     /// <summary>Every visible layer's exposed drawing at the playhead.</summary>
     AllLayersAtFrame,
+
+    /// <summary>Every drawing on the active layer, whatever the playhead is on.</summary>
+    /// <remarks>
+    /// What "move the whole cycle over" needs. Distinct from
+    /// <see cref="EntireAnimation"/>, which would take the background with it.
+    /// </remarks>
+    ActiveLayerAllFrames,
 
     /// <summary>The cels marked with the timeline range selection.</summary>
     CelRange,

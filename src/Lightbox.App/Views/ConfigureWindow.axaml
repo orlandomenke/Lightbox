@@ -106,8 +106,11 @@
           <StackPanel Spacing="4">
             <TextBlock Text="Measured now" FontWeight="SemiBold" FontSize="12" />
             <TextBlock x:Name="MeasuredText" FontSize="11" Opacity="0.85" TextWrapping="Wrap" />
-            <TextBlock FontSize="11" Opacity="0.6" TextWrapping="Wrap"
-                       Text="Rendering runs on the CPU through Skia. There is no GPU switch to throw: the cost that matters is how many pixels are pushed per frame, which is what the quality setting controls." />
+            <!-- What the backend actually is, and what to do about it. Saying
+                 "there is no GPU switch to throw" was true of the drawing and
+                 false of the presenting, and it left the machines that fall
+                 back to software with a diagnosis and no treatment. -->
+            <TextBlock x:Name="BackendText" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
           </StackPanel>
         </Border>
       </StackPanel>

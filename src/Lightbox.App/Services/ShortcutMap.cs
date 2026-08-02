@@ -60,6 +60,12 @@ public sealed class ShortcutMap
             new("tool.fill", "Fill", "Tools", G(Key.F)),
             new("tool.gradient", "Gradient", "Tools", G(Key.G)),
             new("tool.select", "Select / next variant", "Tools", G(Key.S)),
+            new("tool.move", "Move (drawing and guides)", "Tools", G(Key.V)),
+            // Brush sizing by eye. It was Shift+drag on the canvas until Shift
+            // became the constraint key on every tool; these are the two keys
+            // every other application uses for it.
+            new("brush.smaller", "Smaller brush", "Tools", G(Key.OemOpenBrackets)),
+            new("brush.larger", "Larger brush", "Tools", G(Key.OemCloseBrackets)),
             new("select.all", "Select all", "Tools", G(Key.A, KeyModifiers.Control)),
             new("select.none", "Deselect", "Tools", G(Key.D, KeyModifiers.Control)),
             new("select.invert", "Invert selection", "Tools", G(Key.I, KeyModifiers.Control | KeyModifiers.Shift)),

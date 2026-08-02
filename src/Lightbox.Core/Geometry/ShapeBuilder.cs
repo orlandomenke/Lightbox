@@ -60,16 +60,23 @@ public static class ShapeBuilder
         double x0, double y0, double x1, double y1,
         bool fromCentre = false, bool regular = false, int sides = 5)
     {
+        // A line is the one shape the centre modifier means nothing for: it has
+        // two ends and you dragged between them — and the one where "regular"
+        // cannot mean a square. It means the angle snaps, which is what Shift
+        // does to a line everywhere else.
+        if (kind == ShapeKind.Line)
+        {
+            return regular
+                ? [At(x0, y0), SnappedEnd(x0, y0, x1, y1)]
+                : [At(x0, y0), At(x1, y1)];
+        }
+
         if (regular)
         {
             var reach = Math.Max(Math.Abs(x1 - x0), Math.Abs(y1 - y0));
             x1 = x0 + Math.Sign(x1 - x0 == 0 ? 1 : x1 - x0) * reach;
             y1 = y0 + Math.Sign(y1 - y0 == 0 ? 1 : y1 - y0) * reach;
         }
-
-        // A line is the one shape the centre modifier means nothing for: it has
-        // two ends and you dragged between them.
-        if (kind == ShapeKind.Line) return [At(x0, y0), At(x1, y1)];
 
         var (left, top, right, bottom) = fromCentre
             ? (x0 - (x1 - x0), y0 - (y1 - y0), x1, y1)
@@ -89,6 +96,33 @@ public static class ShapeBuilder
             ShapeKind.Ellipse => Ellipse(left, top, right, bottom),
             _ => Polygon(left, top, right, bottom, sides),
         };
+    }
+
+    /// <summary>How far apart a constrained line's angles are, in degrees.</summary>
+    /// <remarks>
+    /// The eight compass directions. Finer would make Shift a suggestion
+    /// rather than a constraint, and the two things Shift is actually for on a
+    /// line — level, and true diagonal — are both in this set.
+    /// </remarks>
+    public const double LineSnapDegrees = 45;
+
+    /// <summary>
+    /// The far end of a line, rotated onto the nearest snapped angle.
+    /// </summary>
+    /// <remarks>
+    /// The angle snaps and the length does not, so the line still reaches
+    /// where the hand went. Clamping the length as well is the version that
+    /// feels like the tool is arguing with you.
+    /// </remarks>
+    private static StrokePoint SnappedEnd(double x0, double y0, double x1, double y1)
+    {
+        var dx = x1 - x0;
+        var dy = y1 - y0;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        if (length < 1e-9) return At(x1, y1);
+        var degrees = Math.Atan2(dy, dx) * 180 / Math.PI;
+        var snapped = Math.Round(degrees / LineSnapDegrees) * LineSnapDegrees * Math.PI / 180;
+        return At(x0 + Math.Cos(snapped) * length, y0 + Math.Sin(snapped) * length);
     }
 
     private static List<StrokePoint> Ellipse(double left, double top, double right, double bottom)
