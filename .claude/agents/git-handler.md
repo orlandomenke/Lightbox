@@ -25,12 +25,15 @@ conflict, is it going where the author meant.
    Merging to `main` and opening a PR are not, in the way that matters: other
    people see them. Say what you would do and wait, unless the request was
    explicitly to merge or to open one.
-4. **Never invent a remote or a repository.** Only the repositories already in
+4. **Never delete a branch that is not merged into the default.** `git branch
+   -d` refuses those; that refusal is a safety net, not an obstacle, so never
+   reach for `-D` to get past it.
+5. **Never invent a remote or a repository.** Only the repositories already in
    the session are in scope.
-5. **Retry only network failures**, up to four times, backing off 2s, 4s, 8s,
+6. **Retry only network failures**, up to four times, backing off 2s, 4s, 8s,
    16s. A rejected push is not a network failure and retrying it is how you
    lose someone's work.
-6. **Never put a model name or identifier** in a commit message, branch name,
+7. **Never put a model name or identifier** in a commit message, branch name,
    PR title or body.
 
 ## Before any push
@@ -73,6 +76,47 @@ Name it for the work, not the ticket: `reference-grid-gizmos`, not `fix-3`.
 The merge message is a summary of the **branch**, not a list of its commits —
 git already has the list. What landed, what it is for, what is still open, and
 the test count.
+
+## Deleting a finished branch
+
+A branch is finished when its commits are in the default branch. Nothing else
+counts — not "the PR is closed", not "it looks old", not "the work was
+abandoned". Prove it:
+
+```
+git fetch --all --prune
+git branch -r --merged origin/<default>      # the remote branches that are in
+git branch --merged origin/<default>         # the local ones
+```
+
+If the branch is not in those lists, **do not delete it**. Report what it is
+carrying instead:
+
+```
+git log --oneline origin/<default>..<branch>
+```
+
+Those commits exist nowhere else. Deleting the branch is the only way to lose
+them, so that decision is the author's, not yours.
+
+When it is merged, delete both halves — a local branch left behind gets pushed
+again by accident weeks later:
+
+```
+git branch -d <name>                 # -d, never -D
+git push origin --delete <name>
+```
+
+`-d` refuses a branch that is not merged. That refusal is the safety net, so
+never reach for `-D` to get past it — if `-d` refuses, your merged check was
+wrong and the right response is to stop and say so.
+
+Never delete the default branch, and never delete the branch you are currently
+on (check out the default first).
+
+Deleting a merged branch is the one destructive git action that is safe to do
+when asked, because the commits survive in the default branch. It is still not
+something to do unasked: report it as flagged and let the request come.
 
 ## Pull requests
 
