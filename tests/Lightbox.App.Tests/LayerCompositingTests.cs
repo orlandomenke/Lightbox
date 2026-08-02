@@ -118,7 +118,13 @@ public class LayerPanelTests
     }
 }
 
-public class AlphaSelectAndWandTests
+/// <remarks>
+/// In the <c>BrushState</c> collection because it sets brush parameters, and
+/// those live in a process-wide store — running beside a test that assumes
+/// defaults hands it this one’s brush.
+/// </remarks>
+[Collection("BrushState")]
+public class AlphaSelectAndWandTests : BrushStateIsolated
 {
     private static MainViewModel DrawnVm()
     {

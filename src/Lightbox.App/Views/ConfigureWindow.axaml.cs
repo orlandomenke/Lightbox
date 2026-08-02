@@ -114,6 +114,59 @@ public partial class ConfigureWindow : Window
         AddHandler(KeyDownEvent, OnCaptureKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         LoadPerformancePage();
         LoadGuidesPage();
+        LoadTimelinePage();
+    }
+
+    // ---- timeline page -----------------------------------------------------------
+
+    private bool _loadingTimeline;
+
+    private void LoadTimelinePage()
+    {
+        if (_vm is null) return;
+        _loadingTimeline = true;
+        HoldBox.ItemsSource = _vm.HoldDrawingChoices;
+        HoldBox.SelectedItem = _vm.DrawingOnAHold;
+        LoopBox.IsChecked = _vm.LoopPlayback;
+        FrameWidthBox.Value = (decimal)_vm.TimelineFrameWidth;
+        _loadingTimeline = false;
+        RefreshHoldHint();
+    }
+
+    private void RefreshHoldHint()
+    {
+        if (_vm is null) return;
+        HoldHint.Text = _vm.DrawingOnAHold switch
+        {
+            ViewModels.HoldDrawing.EditTheHeldDrawing =>
+                "The mark joins the drawing being held, so it appears on every frame holding it. "
+                + "Right for touching up a held pose without breaking the hold.",
+            _ =>
+                "The cel becomes a drawing of its own and the mark lands on it. What every animation "
+                + "tool does, and what makes the timeline show a drawing where you made one.",
+        };
+    }
+
+    private void OnHoldDrawingChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingTimeline || _vm is null) return;
+        if (HoldBox.SelectedItem is ViewModels.HoldDrawing choice)
+        {
+            _vm.DrawingOnAHold = choice;
+            RefreshHoldHint();
+        }
+    }
+
+    private void OnLoopChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingTimeline || _vm is null || LoopBox.IsChecked is not { } on) return;
+        _vm.LoopPlayback = on;
+    }
+
+    private void OnFrameWidthChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_loadingTimeline || _vm is null || e.NewValue is not { } value) return;
+        _vm.TimelineFrameWidth = (double)value;
     }
 
     // ---- guides and grid page --------------------------------------------------
@@ -200,15 +253,21 @@ public partial class ConfigureWindow : Window
 
     private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (ShortcutsPage is null || PerformancePage is null || GuidesPage is null) return;
+        if (ShortcutsPage is null || PerformancePage is null
+            || GuidesPage is null || TimelinePage is null)
+        {
+            return;
+        }
         var page = CategoryList.SelectedIndex;
         ShortcutsPage.IsVisible = page == 0;
         PerformancePage.IsVisible = page == 1;
         GuidesPage.IsVisible = page == 2;
+        TimelinePage.IsVisible = page == 3;
         if (page == 1) RefreshMeasured();
         // Rebuilt on the way in: a grid may have been placed since the window
         // opened, and the window outlives the drawing that made it.
         if (page == 2) RefreshGrids();
+        if (page == 3) LoadTimelinePage();
     }
 
     private void OnQualityChanged(object? sender, SelectionChangedEventArgs e)

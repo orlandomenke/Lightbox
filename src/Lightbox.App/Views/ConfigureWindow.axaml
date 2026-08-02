@@ -14,6 +14,7 @@
       <ListBoxItem Content="Shortcuts" />
       <ListBoxItem Content="Performance" />
       <ListBoxItem Content="Guides and grid" />
+      <ListBoxItem Content="Timeline" />
     </ListBox>
 
     <Border Grid.Column="1" Background="#141414" />
@@ -186,6 +187,40 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+    <!-- Content (center): timeline -->
+    <ScrollViewer x:Name="TimelinePage" Grid.Column="2" Margin="14" IsVisible="False"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16">
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Drawing on a held cel" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="A cel that holds an earlier drawing is not a drawing of its own, so a mark on one has two honest readings. Which you mean depends on how you work." />
+          <ComboBox x:Name="HoldBox" Width="260" SelectionChanged="OnHoldDrawingChanged" />
+          <TextBlock x:Name="HoldHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Playback" FontWeight="SemiBold" />
+          <CheckBox x:Name="LoopBox" Content="Loop" IsCheckedChanged="OnLoopChanged"
+                    ToolTip.Tip="Off plays the range once and stops on its last frame" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="On by default: a cycle is usually what you are watching, and stopping after one pass means reaching for the button every time." />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Frame width" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="How wide one frame is on the timeline. Also on the timeline's own bar, where it is quicker to reach." />
+          <DockPanel>
+            <NumericUpDown DockPanel.Dock="Right" x:Name="FrameWidthBox" Width="120"
+                           Minimum="14" Maximum="72" Increment="2" FormatString="0"
+                           ValueChanged="OnFrameWidthChanged" />
+            <TextBlock Text="Pixels per frame" VerticalAlignment="Center" />
+          </DockPanel>
         </StackPanel>
       </StackPanel>
     </ScrollViewer>

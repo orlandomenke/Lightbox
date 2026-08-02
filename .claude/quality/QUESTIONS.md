@@ -56,9 +56,22 @@ different brushes.
 - **(c)** Global by default, overridable per document.
 
 **Recommend (a)** — it is the convention, and the only real cost is test
-discipline, which is now in place. Worth asking because (b) has a genuine
-pull for a character-based workflow, where a character's brush set is part of
-the character.
+discipline. Worth asking because (b) has a genuine pull for a character-based
+workflow, where a character's brush set is part of the character.
+
+**Update, 2026-08-02.** "Test discipline is now in place" was optimistic, and
+CI proved it: nine test classes set brush parameters from outside the
+`BrushState` collection, and one of them raced `LivePreviewPixelTests` on a
+loaded runner. The pixel check went red on CI and green on every local run —
+which is the failure mode this whole arrangement exists to prevent, arriving
+anyway because the rule is a convention a reviewer has to notice rather than
+something the compiler can hold.
+
+They are all in the collection now, but that is a patch on the symptom. The
+argument for **(b)** or **(c)** is stronger than it was: process-wide mutable
+state that only a naming convention protects will keep leaking, and each leak
+looks like a flake until somebody spends an afternoon on it. Still (a) on the
+product merits; the test cost is higher than this entry originally claimed.
 
 ---
 

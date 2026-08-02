@@ -8,7 +8,13 @@ namespace Lightbox.App.Tests;
 /// Modifiers that change what the brush in your hand does, without making
 /// you swap tools and swap back.
 /// </summary>
-public class TemporaryToolModifierTests
+/// <remarks>
+/// In the <c>BrushState</c> collection because it sets brush parameters, and
+/// those live in a process-wide store — running beside a test that assumes
+/// defaults hands it this one’s brush.
+/// </remarks>
+[Collection("BrushState")]
+public class TemporaryToolModifierTests : BrushStateIsolated
 {
     private static List<Stroke> Strokes(MainViewModel vm) =>
         ((PaintedFrame)vm.Doc.Scene.Layers.First(l => !l.IsBackground).Cels[0].Frame!).Strokes;
@@ -54,7 +60,13 @@ public class TemporaryToolModifierTests
 /// Dragging the colour swatch onto the canvas fills — the shortest path from
 /// choosing a colour to seeing a shape in it.
 /// </summary>
-public class DropColorFillTests
+/// <remarks>
+/// In the <c>BrushState</c> collection because it sets brush parameters, and
+/// those live in a process-wide store — running beside a test that assumes
+/// defaults hands it this one’s brush.
+/// </remarks>
+[Collection("BrushState")]
+public class DropColorFillTests : BrushStateIsolated
 {
     private static MainViewModel Painted()
     {

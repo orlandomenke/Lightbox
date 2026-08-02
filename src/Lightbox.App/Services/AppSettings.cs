@@ -97,6 +97,15 @@ public sealed class AppSettings
     /// </remarks>
     public bool CanvasQualityChosen { get; set; }
 
+    /// <summary>What a mark on a held cel does. See <c>HoldDrawing</c>.</summary>
+    public string DrawingOnAHold { get; set; } = "StartANewDrawing";
+
+    /// <summary>Whether playback wraps at the end of the range.</summary>
+    public bool LoopPlayback { get; set; } = true;
+
+    /// <summary>How wide one timeline frame cell is, in pixels.</summary>
+    public double TimelineFrameWidth { get; set; } = 28;
+
     public static string Path { get; set; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Lightbox", "settings.json");

@@ -10,7 +10,15 @@ namespace Lightbox.App.Tests;
 /// ring that disagrees with the mark is worse than no ring, because the
 /// artist aims with it.
 /// </summary>
-public class BrushCursorTests
+/// <remarks>
+/// In the <c>BrushState</c> collection because it sets brush parameters, and
+/// those live in a process-wide store: running beside a test that assumes
+/// defaults hands it this one’s brush. It opted out until a CI run caught
+/// it — the live-preview pixel check went red on a loaded machine and was
+/// green on every local run, which is what this collection exists to stop.
+/// </remarks>
+[Collection("BrushState")]
+public class BrushCursorTests : BrushStateIsolated
 {
     [AvaloniaFact]
     public void WithAMouse_TheRingIsTheFullBrushWidth()

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1144 tests, derived from the suite itself. Each line is a
+1159 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -94,32 +94,32 @@ regression even when every test still compiles.
 ## BackgroundLayerTests
 `tests/Lightbox.App.Tests/BackgroundLayerTests.cs`
 
-- ANew Paper Document Gets ALocked Background Layer Below The Paint Layer — `:32`
-- The Paper Colour Comes Out In The Composite — `:48`
-- ATransparent Document Has No Background Layer And Stays Transparent — `:60`
-- The Background Layer Refuses Edits Until Unlocked — `:71`
-- Erasing The Unlocked Background Reveals Real Transparency — `:93`
-- ADocument Saved Before Background Layers Existed Still Opens On Its Paper — `:114`
-- The Paper Is AStroke Record Not Baked Pixels — `:130`
+- ANew Paper Document Gets ALocked Background Layer Below The Paint Layer — `:39`
+- The Paper Colour Comes Out In The Composite — `:55`
+- ATransparent Document Has No Background Layer And Stays Transparent — `:67`
+- The Background Layer Refuses Edits Until Unlocked — `:78`
+- Erasing The Unlocked Background Reveals Real Transparency — `:100`
+- ADocument Saved Before Background Layers Existed Still Opens On Its Paper — `:121`
+- The Paper Is AStroke Record Not Baked Pixels — `:137`
 
 ## BrushCursorTests
 `tests/Lightbox.App.Tests/BrushCursorTests.cs`
 
-- With AMouse The Ring Is The Full Brush Width — `:16`
-- Hovering Shows The Maximum Even After ALight Stroke — `:25`
-- The Ring Matches The Radius The Engine Will Stamp — `:39`
-- Turning Tracking Off Pins The Ring To Full Size — `:60`
-- When Pressure Is Disabled For The Brush The Ring Ignores It — `:74`
+- With AMouse The Ring Is The Full Brush Width — `:23`
+- Hovering Shows The Maximum Even After ALight Stroke — `:32`
+- The Ring Matches The Radius The Engine Will Stamp — `:46`
+- Turning Tracking Off Pins The Ring To Full Size — `:67`
+- When Pressure Is Disabled For The Brush The Ring Ignores It — `:81`
 
 ## BrushPresetTests
 `tests/Lightbox.App.Tests/BrushToolTests.cs`
 
-- Selecting APreset Applies Its Settings To The Stroke Record — `:47`
-- Each Simulated Medium Reaches The Stroke Record With Its Own Physics — `:78`
-- Brush And Eraser Keep Separate Configurations — `:117`
-- Last Configured Brush Survives ANew Session — `:132`
-- Save Current As Preset Persists User Presets — `:156`
-- Imported Brush Becomes APreset And Its Tip Enters The Document — `:206`
+- Selecting APreset Applies Its Settings To The Stroke Record — `:53`
+- Each Simulated Medium Reaches The Stroke Record With Its Own Physics — `:84`
+- Brush And Eraser Keep Separate Configurations — `:123`
+- Last Configured Brush Survives ANew Session — `:138`
+- Save Current As Preset Persists User Presets — `:162`
+- Imported Brush Becomes APreset And Its Tip Enters The Document — `:212`
 
 ## HiddenLayerTests
 `tests/Lightbox.App.Tests/BrushToolTests.cs`
@@ -365,24 +365,24 @@ regression even when every test still compiles.
 ## LayerFolderTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Create Folder Groups The Active Layer And Shows AHeader Row — `:126`
-- Folder Visibility Gates Its Members In Compositing And Painting — `:141`
-- Collapse Hides Member Rows From The Docker Panel Only — `:160`
-- Add And Remove Keep The Folder Contiguous — `:173`
-- Folder Color Is Undoable And Serializes — `:190`
-- Dissolve Ungroups Everything And Folders Serialize — `:208`
+- Create Folder Groups The Active Layer And Shows AHeader Row — `:132`
+- Folder Visibility Gates Its Members In Compositing And Painting — `:147`
+- Collapse Hides Member Rows From The Docker Panel Only — `:166`
+- Add And Remove Keep The Folder Contiguous — `:179`
+- Folder Color Is Undoable And Serializes — `:196`
+- Dissolve Ungroups Everything And Folders Serialize — `:214`
 
 ## NudgeSelectionTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Nudge Shifts Every Contour Point By Whole Pixels — `:90`
-- Nudge Without ASelection Is ANo Op — `:103`
+- Nudge Shifts Every Contour Point By Whole Pixels — `:96`
+- Nudge Without ASelection Is ANo Op — `:109`
 
 ## PickerToolTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Pick Color At Reads The Composited Color And Paper When Empty — `:49`
-- Insert Keyframe At Playhead Keys The Active Cel — `:74`
+- Pick Color At Reads The Composited Color And Paper When Empty — `:55`
+- Insert Keyframe At Playhead Keys The Active Cel — `:80`
 
 ## FrameBitmapCacheTests
 `tests/Lightbox.App.Tests/FrameBitmapCacheTests.cs`
@@ -480,12 +480,12 @@ regression even when every test still compiles.
 ## AlphaSelectAndWandTests
 `tests/Lightbox.App.Tests/LayerCompositingTests.cs`
 
-- Select Layer Alpha Selects Only The Painted Pixels — `:152`
-- Select Layer Alpha On An Empty Layer Is ANo Op With AMessage — `:166`
-- Select Layer Alpha Subtract Carves Out Of An Existing Selection — `:175`
-- Wand Selects The Clicked Color Region — `:191`
-- Wand On Empty Canvas Selects The Connected Emptiness — `:203`
-- Fill Inside AWand Selection Stays Inside And Records The Clip — `:215`
+- Select Layer Alpha Selects Only The Painted Pixels — `:158`
+- Select Layer Alpha On An Empty Layer Is ANo Op With AMessage — `:172`
+- Select Layer Alpha Subtract Carves Out Of An Existing Selection — `:181`
+- Wand Selects The Clicked Color Region — `:197`
+- Wand On Empty Canvas Selects The Connected Emptiness — `:209`
+- Fill Inside AWand Selection Stays Inside And Records The Clip — `:221`
 
 ## BlendComposeTests
 `tests/Lightbox.App.Tests/LayerCompositingTests.cs`
@@ -497,10 +497,10 @@ regression even when every test still compiles.
 ## CelClipboardTests
 `tests/Lightbox.App.Tests/LayerCompositingTests.cs`
 
-- Copy Paste Deep Clones With Fresh Ids And Extends The Timeline — `:243`
-- Cut Copies Then Clears So The Cel Becomes AHold — `:262`
-- Paste Across Kinds Converts Strokes But Refuses Baseline Pixels Onto Vector — `:275`
-- Exposure Editing From Cells Extends And Clears — `:297`
+- Copy Paste Deep Clones With Fresh Ids And Extends The Timeline — `:249`
+- Cut Copies Then Clears So The Cel Becomes AHold — `:268`
+- Paste Across Kinds Converts Strokes But Refuses Baseline Pixels Onto Vector — `:281`
+- Exposure Editing From Cells Extends And Clears — `:303`
 
 ## LayerPanelTests
 `tests/Lightbox.App.Tests/LayerCompositingTests.cs`
@@ -552,8 +552,8 @@ regression even when every test still compiles.
 ## LivePreviewPixelTests
 `tests/Lightbox.App.Tests/LivePreviewPixelTests.cs`
 
-- Mid Stroke The Published Snapshot Shows The Line — `:36`
-- Self Crossing Looks The Same Live And Committed — `:59`
+- Mid Stroke The Published Snapshot Shows The Line — `:43`
+- Self Crossing Looks The Same Live And Committed — `:66`
 
 ## LivePreviewTests
 `tests/Lightbox.App.Tests/LivePreviewTests.cs`
@@ -574,19 +574,20 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/MainViewModelTests.cs`
 
 - Paint Stroke Lands In Document — `:14`
-- Paint On Hold Frame Targets Exposed Key — `:29`
-- Frame Commands Keep Document And Cells Consistent — `:47`
-- Undo Redo Round Trips Paint — `:63`
-- Insert Inbetweens Fills Timeline — `:81`
-- Snapshot Published On Paint And Navigation — `:112`
-- Replace Document Resets State — `:132`
-- Toggle Playback Flips State — `:148`
-- Paint While Playing Is Ignored — `:159`
+- Paint On AHold Starts ANew Drawing — `:29`
+- Paint On AHold Can Still Edit The Held Drawing — `:53`
+- Frame Commands Keep Document And Cells Consistent — `:80`
+- Undo Redo Round Trips Paint — `:96`
+- Insert Inbetweens Fills Timeline — `:114`
+- Snapshot Published On Paint And Navigation — `:145`
+- Replace Document Resets State — `:165`
+- Toggle Playback Flips State — `:181`
+- Paint While Playing Is Ignored — `:192`
 
 ## MainWindowTests
 `tests/Lightbox.App.Tests/MainViewModelTests.cs`
 
-- Main Window Constructs And Shows — `:173`
+- Main Window Constructs And Shows — `:206`
 
 ## ExportTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
@@ -619,16 +620,16 @@ regression even when every test still compiles.
 ## DropColorFillTests
 `tests/Lightbox.App.Tests/ModifiersAndDropFillTests.cs`
 
-- Dropping AColour Fills And Adopts It — `:77`
-- It Works Whichever Tool Is Selected — `:94`
-- ALocked Layer Still Refuses It — `:107`
+- Dropping AColour Fills And Adopts It — `:89`
+- It Works Whichever Tool Is Selected — `:106`
+- ALocked Layer Still Refuses It — `:119`
 
 ## TemporaryToolModifierTests
 `tests/Lightbox.App.Tests/ModifiersAndDropFillTests.cs`
 
-- Alt Held Erases With The Current Brush Without Switching Tools — `:17`
-- Without Alt The Same Call Paints — `:32`
-- The Eraser Tool Still Erases Even Without Alt — `:42`
+- Alt Held Erases With The Current Brush Without Switching Tools — `:23`
+- Without Alt The Same Call Paints — `:38`
+- The Eraser Tool Still Erases Even Without Alt — `:48`
 
 ## MoveToolAndModifierTests
 `tests/Lightbox.App.Tests/MoveToolAndModifierTests.cs`
@@ -690,21 +691,21 @@ regression even when every test still compiles.
 ## PaletteDockerTests
 `tests/Lightbox.App.Tests/PaletteDockerTests.cs`
 
-- ANew Document Starts With Black And White Selected On Black — `:42`
-- Adding ASwatch Takes The Current Colour And Is Undoable — `:60`
-- Selecting ASwatch Paints With It — `:74`
-- Choosing AColour Any Other Way Breaks The Swatch Link — `:98`
-- Recolouring ASwatch Repaints The Art That Used It — `:119`
-- Edit Mode Routes The Picker Into The Selected Swatch — `:142`
-- ARun Of Colour Edits Is One Undo Step — `:157`
-- Undoing AStructural Edit Does Not Swallow An Uncommitted Recolour — `:178`
-- ASwatch Survives Undo With Its Identity — `:196`
-- Removing ASwatch Leaves The Art In The Colour It Was Drawn In — `:220`
-- Switching Documents Switches Palettes — `:243`
-- Palettes Round Trip Through The Document With Their Links — `:263`
-- Imported Gpl Becomes APalette On The Document — `:282`
-- Exported Gpl Reads Back As The Same Palette — `:306`
-- An Unparseable Hex Is Rejected Rather Than Painting Black — `:330`
+- ANew Document Starts With Black And White Selected On Black — `:49`
+- Adding ASwatch Takes The Current Colour And Is Undoable — `:67`
+- Selecting ASwatch Paints With It — `:81`
+- Choosing AColour Any Other Way Breaks The Swatch Link — `:105`
+- Recolouring ASwatch Repaints The Art That Used It — `:126`
+- Edit Mode Routes The Picker Into The Selected Swatch — `:149`
+- ARun Of Colour Edits Is One Undo Step — `:164`
+- Undoing AStructural Edit Does Not Swallow An Uncommitted Recolour — `:185`
+- ASwatch Survives Undo With Its Identity — `:203`
+- Removing ASwatch Leaves The Art In The Colour It Was Drawn In — `:227`
+- Switching Documents Switches Palettes — `:250`
+- Palettes Round Trip Through The Document With Their Links — `:270`
+- Imported Gpl Becomes APalette On The Document — `:289`
+- Exported Gpl Reads Back As The Same Palette — `:313`
+- An Unparseable Hex Is Rejected Rather Than Painting Black — `:337`
 
 ## PaletteHierarchyTests
 `tests/Lightbox.App.Tests/PaletteHierarchyTests.cs`
@@ -891,6 +892,16 @@ regression even when every test still compiles.
 - Converting Tells The Artist What Changed — `:257`
 - Converting With No Project Open Does Nothing — `:270`
 
+## SelectionAdjustTests
+`tests/Lightbox.App.Tests/SelectionAdjustTests.cs`
+
+- Shrinking The Whole Canvas Pulls In From All Four Edges — `:54`
+- An Edge Touching Selection Shrinks On The Edge It Touches — `:74`
+- Shrink And Grow Leave The Selection Where It Was — `:93`
+- ACircle Shrinks By The Same Amount On Every Side — `:113`
+- Growing Pushes Out On Every Side Too — `:129`
+- Shrinking Past Nothing Leaves No Selection Rather Than An Inside Out One — `:145`
+
 ## SelectionVariantTests
 `tests/Lightbox.App.Tests/SelectionVariantTests.cs`
 
@@ -1000,6 +1011,18 @@ regression even when every test still compiles.
 - Keyframe Navigation Skips Holds — `:73`
 - Range Selection Greys Out Cells Outside It — `:95`
 
+## TimelineHoldTests
+`tests/Lightbox.App.Tests/TimelineHoldTests.cs`
+
+- AFilled Hold Becomes ADrawing Of Its Own — `:23`
+- The Held Drawing Is Left Alone — `:40`
+- Keying Is ASeparate Undo Step From The Mark — `:54`
+- An Ordinary Keyed Cel Is Still Drawn On Directly — `:74`
+- Playback Wraps By Default — `:88`
+- With Looping Off It Stops On The Last Frame — `:101`
+- The Ruler Pitch Follows The Frame Width — `:127`
+- The Frame Width Stays Within Readable Bounds — `:141`
+
 ## CelRangeSelectionTests
 `tests/Lightbox.App.Tests/TimelineRangeAndPressureTests.cs`
 
@@ -1066,14 +1089,14 @@ regression even when every test still compiles.
 ## TransformToolTests
 `tests/Lightbox.App.Tests/TransformToolTests.cs`
 
-- Begin Transform Reports The Stroke Bounds And Commit Moves The Points — `:37`
-- Mirror Commit Flips Around The Pivot Without Moving — `:63`
-- Perspective Commit Maps The Corners Exactly — `:77`
-- Degenerate Perspective Is Refused And The Session Survives — `:97`
-- Cel Range Scope Transforms Each Distinct Drawing Once — `:110`
-- Entire Animation Scope Moves Every Layer — `:130`
-- Selection Region Limits The Transform To Strokes Inside It — `:149`
-- Empty Scope Refuses To Start — `:169`
+- Begin Transform Reports The Stroke Bounds And Commit Moves The Points — `:44`
+- Mirror Commit Flips Around The Pivot Without Moving — `:70`
+- Perspective Commit Maps The Corners Exactly — `:84`
+- Degenerate Perspective Is Refused And The Session Survives — `:104`
+- Cel Range Scope Transforms Each Distinct Drawing Once — `:117`
+- Entire Animation Scope Moves Every Layer — `:137`
+- Selection Region Limits The Transform To Strokes Inside It — `:156`
+- Empty Scope Refuses To Start — `:176`
 
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`

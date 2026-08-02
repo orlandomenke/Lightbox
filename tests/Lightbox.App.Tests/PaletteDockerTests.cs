@@ -9,7 +9,15 @@ namespace Lightbox.App.Tests;
 /// The palette docker end to end: a swatch is a colour you can paint with and
 /// a colour you can change afterwards, and changing it has to reach the art.
 /// </summary>
-public class PaletteDockerTests
+/// <remarks>
+/// In the <c>BrushState</c> collection because it sets brush parameters, and
+/// those live in a process-wide store: running beside a test that assumes
+/// defaults hands it this one’s brush. It opted out until a CI run caught
+/// it — the live-preview pixel check went red on a loaded machine and was
+/// green on every local run, which is what this collection exists to stop.
+/// </remarks>
+[Collection("BrushState")]
+public class PaletteDockerTests : BrushStateIsolated
 {
     /// <summary>
     /// A view model whose document has no palette. Every document now starts

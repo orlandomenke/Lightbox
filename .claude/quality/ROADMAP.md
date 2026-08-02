@@ -156,24 +156,30 @@ within five minutes.
 Reusable assets with real identity: edit the sword once, every animation
 holding it updates.
 
-- [?] Asset browser
-- [?] Asset tagging
-- [?] Smart asset search
-- [?] Shared symbols
-- [?] Symbol editing
-- [?] Linked assets — edit once, update everywhere
-- [?] Dependency graph
-- [?] Asset versioning
-- [?] Pose library
-- [?] Expression library
-- [?] Hand library
-- [?] Face library
-- [?] Prop library
-- [?] FX library
-- [?] Animation library
-- [?] Reusable backgrounds
-- [?] Reusable animation presets
-- [?] Animation templates
+**Designed, not started.** `docs/DESIGN-symbols.md` settles the one decision
+the whole pillar rests on — an asset is a *live symbol referenced by id*, not a
+copy with a link back — and breaks it into seven commits. Most of the items
+below are one step of that design rather than separate features: the six
+libraries are `SymbolKind` values plus a browser filter and land together.
+
+- [?] Shared symbols — the record (design S1–S2)
+- [?] Linked assets — edit once, update everywhere (S6)
+- [?] Symbol editing (S6)
+- [?] Asset versioning (S7)
+- [?] Asset browser (S5)
+- [?] Asset tagging (S5)
+- [?] Smart asset search (S5)
+- [?] Pose library (S5 — a `SymbolKind` and a browser filter)
+- [?] Expression library (S5)
+- [?] Hand library (S5)
+- [?] Face library (S5)
+- [?] Prop library (S5)
+- [?] FX library (S5)
+- [?] Reusable backgrounds (S5)
+- [?] Animation library (S5)
+- [?] Dependency graph — out of the first cut, needs nesting first
+- [?] Reusable animation presets — out of the first cut
+- [?] Animation templates — out of the first cut
 
 ## Pillar 4 — Animation-aware drawing tools
 

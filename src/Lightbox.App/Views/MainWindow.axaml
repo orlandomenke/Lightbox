@@ -2441,6 +2441,17 @@
                 <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
                                FormatString="0" Width="68" VerticalAlignment="Center" />
               </StackPanel>
+              <!-- How many frames fit on screen. Narrow to read the timing of
+                   a long scene, wide to read the thumbnails of a short one. -->
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="Frames" VerticalAlignment="Center" />
+                <Slider Value="{Binding TimelineFrameWidth}" Minimum="14" Maximum="72"
+                        Classes="param" VerticalAlignment="Center"
+                        ToolTip.Tip="How wide a frame is on the timeline" />
+              </StackPanel>
+              <ToggleButton Content="🔁" IsChecked="{Binding LoopPlayback}" Padding="6,2"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="Loop playback. Off plays once and stops on the last frame." />
               <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                 <TextBlock Text="Speed %" VerticalAlignment="Center" />
                 <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
@@ -2455,7 +2466,8 @@
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
           <StackPanel Orientation="Vertical" Spacing="2">
             <controls:TimelineRuler Height="22" HorizontalAlignment="Left"
-                                    LeadingInset="152" CellWidth="42"
+                                    LeadingInset="152"
+                                    CellWidth="{Binding TimelineRulerCellWidth}"
                                     Extent="{Binding TimelineExtent}"
                                     MaxFrame="{Binding MaxScrubFrame}"
                                     CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}"
@@ -2477,8 +2489,9 @@
                                     ToolTip.Tip="Layer visibility" />
                       <ToggleButton Content="◉" IsChecked="{Binding OnionEnabled}" Width="28" Padding="2"
                                     ToolTip.Tip="Onion skinning for this layer" />
-                      <Panel Width="88" Height="44">
-                        <Button Content="{Binding Name}" Width="88" Height="44"
+                      <Panel Width="88" Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineRowHeight}">
+                        <Button Content="{Binding Name}" Width="88"
+                                Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineRowHeight}"
                                 HorizontalContentAlignment="Left"
                                 IsVisible="{Binding !IsRenaming}"
                                 Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateLayerCommand}"
@@ -2497,7 +2510,9 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:FrameCell">
-                            <Button Width="40" Height="44" Classes="cel"
+                            <Button Classes="cel"
+                                    Width="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineFrameWidth}"
+                                    Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineRowHeight}"
                                     Classes.current="{Binding IsCurrent}"
                                     Classes.breakdown="{Binding IsBreakdown}"
                                     Classes.tween="{Binding IsInbetween}"
@@ -2509,7 +2524,9 @@
                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectFrameCommand}"
                                     CommandParameter="{Binding}"
                                     Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-                              <Image Source="{Binding Thumb}" Width="32" Height="18" Stretch="Uniform"
+                              <Image Source="{Binding Thumb}" Stretch="Uniform"
+                                     Width="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineThumbWidth}"
+                                     Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineThumbHeight}"
                                      IsVisible="{Binding IsKeyed}" />
                               <Button.ContextMenu>
                                 <ContextMenu>

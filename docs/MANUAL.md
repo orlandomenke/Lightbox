@@ -609,6 +609,40 @@ Changing the default cell size never touches a grid that already exists. Once a
 grid is placed its spacing belongs to the document, and a preference must not
 reach back into work you have already done against it.
 
+### Drawing on a hold
+
+A cel that holds an earlier drawing is not a drawing of its own, so a mark on
+one has two honest readings — and which you mean depends on how you work.
+
+By default the cel **becomes a drawing of its own** and the mark lands on it.
+That is what every animation tool does, and it is what makes the timeline show
+a drawing where you made one. The alternative silently edits the frame being
+held, so your stroke turns up on the earlier frame too and the cel you drew on
+stays empty and dark.
+
+**Edit → Configure → Timeline** switches it to *Edit the held drawing*, which
+is right when the hold is deliberate and you are still working on that one
+pose — touching it up without breaking the hold.
+
+Keying is a separate undo step from the mark that prompted it: one undo takes
+the stroke back and leaves the new drawing, a second takes the drawing away and
+restores the hold.
+
+### The timeline's size
+
+**Frames** on the timeline's own bar sets how wide a frame cell is. Narrow
+enough to see the shape of the timing on a two-hundred-frame scene, wide enough
+to read the thumbnails on a twelve-drawing cycle — it depends entirely on what
+you are doing, so it is a slider rather than a constant. The same number is in
+Edit → Configure → Timeline.
+
+### Looping
+
+Playback loops, because a cycle is usually what you are watching and stopping
+after one pass means reaching for the button every time. **🔁** on the
+timeline bar turns it off, and it then plays the range once and stops on its
+last frame.
+
 ### Shapes
 
 The **Shape** tool draws a line, rectangle, ellipse or polygon: pick the shape

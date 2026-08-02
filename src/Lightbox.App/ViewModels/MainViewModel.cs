@@ -2014,6 +2014,31 @@ public sealed partial class MainViewModel : ObservableObject
         ColorHex = $"#{color.Red:x2}{color.Green:x2}{color.Blue:x2}";
     }
 
+    /// <summary>
+    /// What marking on a held cel does.
+    /// </summary>
+    /// <remarks>
+    /// A preference, not document data, and the default is the animator's
+    /// answer: a hold is somebody else's drawing shown again, and drawing on
+    /// it silently rewrites the frame you were holding — every mark you make
+    /// at frame 4 appears at frame 3 as well, which is a very confusing way to
+    /// ruin a hold. Keying first means the timeline shows a new drawing where
+    /// you made one.
+    /// </remarks>
+    public HoldDrawing DrawingOnAHold
+    {
+        get => Enum.TryParse<HoldDrawing>(Settings.DrawingOnAHold, out var v) ? v : HoldDrawing.StartANewDrawing;
+        set
+        {
+            if (DrawingOnAHold == value) return;
+            Settings.DrawingOnAHold = value.ToString();
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public IReadOnlyList<HoldDrawing> HoldDrawingChoices { get; } = Enum.GetValues<HoldDrawing>();
+
     /// <summary>Timeline-context shortcut: key the active layer's cel at the playhead.</summary>
     public void InsertKeyframeAtPlayhead() =>
         _editor.SetKeyAt(ActiveLayer.Id, CurrentFrameIndex, FrameRole.Key);
@@ -2551,7 +2576,10 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (!HasSelection || Math.Abs(px) < 0.5) return;
         int w = Scene.Width, h = Scene.Height;
-        var mask = MaskFromContours(_selectionContours, w, h);
+        // Boundary included: these contours were traced off a mask, and
+        // without their own boundary ring back the shape walks into its
+        // top-left corner a little on every adjustment.
+        var mask = MaskFromContours(_selectionContours, w, h, includeBoundary: true);
         var r = (int)Math.Round(Math.Abs(px));
         mask = px > 0 ? FloodFill.Dilate(mask, w, h, r) : FloodFill.Erode(mask, w, h, r);
         SetSelectionFromMask(mask, w, h);
@@ -2564,7 +2592,29 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Rasterize contours (even-odd) to a boolean mask.</summary>
-    private static bool[] MaskFromContours(IReadOnlyList<List<StrokePoint>> contours, int w, int h)
+    /// <param name="includeBoundary">
+    /// Also paint the boundary pixels the contour runs through.
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// Off for an ordinary mask: a contour drawn by hand is a geometric
+    /// outline and filling it is exactly right.
+    /// </para>
+    /// <para>
+    /// On when the contour <i>came from</i> a mask. <c>TraceBoundary</c> walks
+    /// pixel centres, so the polygon it returns runs down the middle of the
+    /// boundary ring rather than around the outside of it; filling that back
+    /// keeps only the pixels whose centres are strictly inside, and Skia's
+    /// fill rule resolves the exact-half case towards the bottom right. The
+    /// top and left rings are therefore lost on every round trip, and Shrink
+    /// followed by Grow walked a selection two pixels into its own top-left
+    /// corner each time. Stroking the same path with a one-pixel pen puts the
+    /// ring back, which makes the round trip stable — the property Grow and
+    /// Shrink actually need.
+    /// </para>
+    /// </remarks>
+    private static bool[] MaskFromContours(
+        IReadOnlyList<List<StrokePoint>> contours, int w, int h, bool includeBoundary = false)
     {
         var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var surface = SKSurface.Create(info)
@@ -2574,6 +2624,12 @@ public sealed partial class MainViewModel : ObservableObject
         using (var paint = new SKPaint { Color = SkiaSharp.SKColors.White, IsAntialias = false })
         {
             surface.Canvas.DrawPath(path, paint);
+            if (includeBoundary)
+            {
+                paint.Style = SKPaintStyle.Stroke;
+                paint.StrokeWidth = 1;
+                surface.Canvas.DrawPath(path, paint);
+            }
         }
         using var image = surface.Snapshot();
         using var bmp = SKBitmap.FromImage(image);
@@ -3010,6 +3066,60 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<FrameCell> FrameCells =>
         LayerRows[LayerRows.Count - 1 - Math.Clamp(ActiveLayerIndex, 0, LayerRows.Count - 1)].Cells;
 
+    // ---- how big the timeline is ---------------------------------------------
+
+    /// <summary>
+    /// How wide one frame's cell is, in pixels.
+    /// </summary>
+    /// <remarks>
+    /// Adjustable, because how many frames you want on screen at once depends
+    /// entirely on what you are doing: laying out a two-hundred-frame scene
+    /// wants them narrow enough to see the shape of the timing, and working a
+    /// twelve-drawing cycle wants them wide enough to read the thumbnails. A
+    /// preference rather than document data — it is how you are looking at the
+    /// animation, not something about it.
+    /// </remarks>
+    public double TimelineFrameWidth
+    {
+        get => Math.Clamp(Settings.TimelineFrameWidth, 14, 72);
+        set
+        {
+            var clamped = Math.Clamp(value, 14, 72);
+            if (Math.Abs(TimelineFrameWidth - clamped) < 0.5) return;
+            Settings.TimelineFrameWidth = clamped;
+            Settings.Save();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TimelineRulerCellWidth));
+            OnPropertyChanged(nameof(TimelineThumbWidth));
+        }
+    }
+
+    /// <summary>
+    /// The ruler's pitch: a cell plus the gap after it.
+    /// </summary>
+    /// <remarks>
+    /// Derived rather than set twice. The ruler numbers have to sit over the
+    /// cells they name, and two independent constants is how they stop doing
+    /// that the first time either one moves.
+    /// </remarks>
+    public double TimelineRulerCellWidth => TimelineFrameWidth + CellGap;
+
+    private const double CellGap = 2;
+
+    /// <summary>
+    /// How tall a timeline row is.
+    /// </summary>
+    /// <remarks>
+    /// Matched to the layer rows beside it. They were 44 against the Layers
+    /// docker's shorter rows, which made the two lists of the same layers read
+    /// as two unrelated things.
+    /// </remarks>
+    public double TimelineRowHeight => 28;
+
+    public double TimelineThumbWidth => Math.Max(12, TimelineFrameWidth - 8);
+
+    public double TimelineThumbHeight => 16;
+
     /// <summary>Cells shown per row: the real frames plus empty tail cells to insert into.</summary>
     public int TimelineExtent => Scene.FrameCount + VirtualTail;
 
@@ -3061,10 +3171,18 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private Frame? PaintTargetOrKey()
     {
-        if (PaintTarget() is { } existing) return existing;
         if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
-
-        var index = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
+        var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
+        // A cel that holds an earlier drawing is not a drawing of its own. What
+        // happens when you mark on one is the single most consequential
+        // decision the timeline makes, so it is a setting rather than a
+        // hard-coded answer — see DrawingOnAHold.
+        var holding = layer.Cels[here].Frame is null;
+        if (!holding || DrawingOnAHold == HoldDrawing.EditTheHeldDrawing)
+        {
+            if (PaintTarget() is { } existing) return existing;
+        }
+        var index = here;
         var layerId = layer.Id;
         Frame fresh = layer.Kind == LayerKind.Vector ? new VectorFrame() : new PaintedFrame();
         _editor.PerformDelta(
@@ -4065,14 +4183,48 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Whether playback wraps at the end of the range.
+    /// </summary>
+    /// <remarks>
+    /// On, because a cycle is the thing you are usually looking at and
+    /// stopping after one pass means reaching for the button every time. Off
+    /// is for watching a shot end, which is the other half of the job — and a
+    /// preference rather than a document property, because it is how you are
+    /// reviewing right now, not something about the animation.
+    /// </remarks>
+    public bool LoopPlayback
+    {
+        get => Settings.LoopPlayback;
+        set
+        {
+            if (Settings.LoopPlayback == value) return;
+            Settings.LoopPlayback = value;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>One playback tick: advance in the play direction, looping inside the selected range.</summary>
     public void StepPlayback()
     {
         var start = EffectiveStartFrame;
         var end = EffectiveEndFrame;
         var next = CurrentFrameIndex + _playDirection;
-        if (next > end) next = start;
-        else if (next < start) next = end;
+        if (next > end || next < start)
+        {
+            if (!LoopPlayback)
+            {
+                // Stop on the last frame of the range rather than wrapping —
+                // and stop, rather than sitting there still "playing", so the
+                // transport button says what is true.
+                CurrentFrameIndex = Math.Clamp(
+                    _playDirection >= 0 ? end : start, 0, Math.Max(0, Scene.FrameCount - 1));
+                Pause();
+                return;
+            }
+            next = next > end ? start : end;
+        }
         CurrentFrameIndex = Math.Clamp(next, 0, Math.Max(0, Scene.FrameCount - 1));
     }
 

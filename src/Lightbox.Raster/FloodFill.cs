@@ -184,21 +184,38 @@ public static class FloodFill
 
     // ---- morphology ------------------------------------------------------------
 
-    public static bool[] Dilate(bool[] mask, int w, int h, int radius)
+    /// <param name="outside">
+    /// What lies beyond the bitmap. False for a dilate — a shape does not grow
+    /// out of thin air at the edge — and true for the inverted pass inside
+    /// <see cref="Erode"/>, where "outside the canvas" means "not selected".
+    /// </param>
+    public static bool[] Dilate(bool[] mask, int w, int h, int radius, bool outside = false)
     {
         var result = mask;
-        for (var step = 0; step < radius; step++) result = Dilate1(result, w, h);
+        for (var step = 0; step < radius; step++) result = Dilate1(result, w, h, outside);
         return result;
     }
 
+    /// <summary>
+    /// Shrink a mask by <paramref name="radius"/> pixels on every side.
+    /// </summary>
+    /// <remarks>
+    /// Erosion is a dilation of the complement, and the complement includes
+    /// everything off the edge of the bitmap. That is what the
+    /// <c>outside: true</c> is for, and leaving it out was a real bug rather
+    /// than a nicety: a selection touching the canvas border did not shrink on
+    /// that side at all, and Select All followed by Shrink did nothing
+    /// whatsoever — the complement was empty, so there was nothing to grow
+    /// inward from.
+    /// </remarks>
     public static bool[] Erode(bool[] mask, int w, int h, int radius)
     {
         var inverted = mask.Select(v => !v).ToArray();
-        inverted = Dilate(inverted, w, h, radius);
+        inverted = Dilate(inverted, w, h, radius, outside: true);
         return inverted.Select(v => !v).ToArray();
     }
 
-    private static bool[] Dilate1(bool[] mask, int w, int h)
+    private static bool[] Dilate1(bool[] mask, int w, int h, bool outside)
     {
         var result = new bool[mask.Length];
         for (var y = 0; y < h; y++)
@@ -207,8 +224,8 @@ public static class FloodFill
             {
                 var i = y * w + x;
                 if (mask[i]
-                    || (x > 0 && mask[i - 1]) || (x < w - 1 && mask[i + 1])
-                    || (y > 0 && mask[i - w]) || (y < h - 1 && mask[i + w]))
+                    || (x > 0 ? mask[i - 1] : outside) || (x < w - 1 ? mask[i + 1] : outside)
+                    || (y > 0 ? mask[i - w] : outside) || (y < h - 1 ? mask[i + w] : outside))
                 {
                     result[i] = true;
                 }
@@ -223,7 +240,7 @@ public static class FloodFill
         var result = mask;
         for (var step = 0; step < radius; step++)
         {
-            var grown = Dilate1(result, w, h);
+            var grown = Dilate1(result, w, h, outside: false);
             for (var i = 0; i < grown.Length; i++)
             {
                 if (barrier[i]) grown[i] = result[i];

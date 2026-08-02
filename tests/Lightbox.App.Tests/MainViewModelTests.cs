@@ -26,21 +26,54 @@ public class MainViewModelTests
     }
 
     [AvaloniaFact]
-    public void PaintOnHoldFrame_TargetsExposedKey()
+    public void PaintOnAHoldStartsANewDrawing()
     {
+        // The default, and the animator's answer. This test used to assert the
+        // opposite — that the mark went onto the drawing being held — which is
+        // true to the exposure sheet and wrong to look at: the stroke appeared
+        // on the earlier frame too, and the cel you drew on stayed empty and
+        // dark. Changed deliberately, on request.
         var vm = NewVm();
         vm.AddFrameCommand.Execute(null); // frame 2 keyed
-        // Make frame 2 a hold.
         var layer = vm.PaintLayer();
-        layer.Cels[1].Frame = null;
+        layer.Cels[1].Frame = null;       // make frame 2 a hold
         vm.CurrentFrameIndex = 1;
 
         vm.BeginStroke(5, 5, 0.5);
         vm.MoveStroke(20, 20, 0.5);
         vm.EndStroke();
 
-        var key = (PaintedFrame)layer.Cels[0].Frame!;
-        Assert.Single(key.Strokes);
+        Assert.NotNull(layer.Cels[1].Frame);
+        Assert.Single(((PaintedFrame)layer.Cels[1].Frame!).Strokes);
+        // And the drawing that was being held is untouched.
+        Assert.Empty(((PaintedFrame)layer.Cels[0].Frame!).Strokes);
+    }
+
+    [AvaloniaFact]
+    public void PaintOnAHoldCanStillEditTheHeldDrawing()
+    {
+        // The other honest reading, for touching up a held pose without
+        // breaking the hold. Edit ▸ Configure ▸ Timeline.
+        var vm = NewVm();
+        vm.DrawingOnAHold = HoldDrawing.EditTheHeldDrawing;
+        try
+        {
+            vm.AddFrameCommand.Execute(null);
+            var layer = vm.PaintLayer();
+            layer.Cels[1].Frame = null;
+            vm.CurrentFrameIndex = 1;
+
+            vm.BeginStroke(5, 5, 0.5);
+            vm.MoveStroke(20, 20, 0.5);
+            vm.EndStroke();
+
+            Assert.Null(layer.Cels[1].Frame);     // still a hold
+            Assert.Single(((PaintedFrame)layer.Cels[0].Frame!).Strokes);
+        }
+        finally
+        {
+            vm.DrawingOnAHold = HoldDrawing.StartANewDrawing;
+        }
     }
 
     [AvaloniaFact]

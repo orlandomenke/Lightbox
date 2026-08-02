@@ -5,7 +5,15 @@ using Lightbox.Core.Geometry;
 
 namespace Lightbox.App.Tests;
 
-public class TransformToolTests
+/// <remarks>
+/// In the <c>BrushState</c> collection because it sets brush parameters, and
+/// those live in a process-wide store: running beside a test that assumes
+/// defaults hands it this one’s brush. It opted out until a CI run caught
+/// it — the live-preview pixel check went red on a loaded machine and was
+/// green on every local run, which is what this collection exists to stop.
+/// </remarks>
+[Collection("BrushState")]
+public class TransformToolTests : BrushStateIsolated
 {
     /// <summary>
     /// Bare — one drawing layer, no paper. Transform scopes are addressed by

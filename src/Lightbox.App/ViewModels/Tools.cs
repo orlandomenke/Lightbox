@@ -105,3 +105,33 @@ public enum SelectVariant
     /// <summary>Magic wand: click to select a connected color region (flood fill).</summary>
     Wand,
 }
+
+/// <summary>
+/// What a mark on a held cel does.
+/// </summary>
+/// <remarks>
+/// The two honest readings of the same gesture, and which one an artist means
+/// depends on how they work rather than on what the app prefers. Hence a
+/// setting, in Edit ▸ Configure ▸ Timeline.
+/// </remarks>
+public enum HoldDrawing
+{
+    /// <summary>
+    /// Key the cel and draw on a new drawing. The default.
+    /// </summary>
+    /// <remarks>
+    /// What every animation tool does, and what the timeline then shows: a
+    /// drawing appears where you made one. The alternative silently edits the
+    /// frame being held, so the mark shows up on the earlier frame too.
+    /// </remarks>
+    StartANewDrawing,
+
+    /// <summary>
+    /// Add the mark to the drawing being held, on every frame that holds it.
+    /// </summary>
+    /// <remarks>
+    /// Right when the hold is deliberate and you are still working on that one
+    /// drawing — touching up a held pose without breaking the hold.
+    /// </remarks>
+    EditTheHeldDrawing,
+}
