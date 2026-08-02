@@ -172,6 +172,7 @@ public sealed class DocumentEditor
                 layer.Cels.Insert(at, new Cel { Frame = layer.IsBackground ? null : NewEmptyFrame(layer) });
             }
             doc.Scene.FrameCount++;
+            RippleReferences(doc.Scene, at, +1);
         });
     }
 
@@ -188,6 +189,7 @@ public sealed class DocumentEditor
                 layer.Cels.Insert(at, new Cel { Frame = CloneFrame(src) });
             }
             doc.Scene.FrameCount++;
+            RippleReferences(doc.Scene, at, +1);
         });
     }
 
@@ -202,7 +204,39 @@ public sealed class DocumentEditor
                 if (i < layer.Cels.Count) layer.Cels.RemoveAt(i);
             }
             doc.Scene.FrameCount--;
+            RippleReferences(doc.Scene, i, -1);
         });
+    }
+
+    /// <summary>
+    /// Move imported references along with a timeline edit.
+    /// </summary>
+    /// <remarks>
+    /// You insert a frame in order to draw an inbetween, so the reference for
+    /// the next extreme belongs <i>after</i> the new frame, not on it — and the
+    /// new frame gets no reference, because there is no reference drawing for
+    /// a drawing that did not exist a moment ago.
+    ///
+    /// A strip with <see cref="ReferenceStrip.FollowsTimeline"/> off is pinned
+    /// to absolute timing and stays where it is; that is the whole point of the
+    /// switch. Nothing here happens at all on a document with no references,
+    /// which is every document until somebody imports one.
+    /// </remarks>
+    private static void RippleReferences(Scene scene, int at, int delta)
+    {
+        if (scene.References is not { Count: > 0 } strips) return;
+        foreach (var strip in strips)
+        {
+            if (!strip.FollowsTimeline) continue;
+            if (delta > 0)
+            {
+                if (at <= strip.Slots.Count) strip.Slots.Insert(at, -1);
+            }
+            else if (at < strip.Slots.Count)
+            {
+                strip.Slots.RemoveAt(at);
+            }
+        }
     }
 
     /// <summary>
@@ -237,6 +271,7 @@ public sealed class DocumentEditor
                     });
                 }
                 doc.Scene.FrameCount++;
+                RippleReferences(doc.Scene, at, +1);
             }
         });
     }

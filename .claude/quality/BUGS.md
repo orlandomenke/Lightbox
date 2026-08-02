@@ -121,6 +121,12 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Fix: relay `ProjectViewModel.PropertyChanged` for `HasProject` directly.
   - Reported from a build. Cost: S
 
+- [x] **B12** `P1` `ui` The canvas is not rendered at all `evidence: TheCanvasGetsTheRoomLeftOverByTheStrips`
+  - Repro: open the app, or make a new file. The canvas area is empty and hovering it does not show the brush ring, even in brush mode.
+  - Cause: `CanvasHost` was still on `Grid.Column="2"` after the docking rework renumbered the work area's columns to seven. Column 2 is the *left dock strip's* cell — `Auto`, and empty by default — so it sized itself to the zoom bar floating on top of the canvas and the canvas got no width. Column 4 (`*`, `MinWidth=240`) held the space open and empty, which is why it read as a dead renderer rather than a missing control.
+  - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
+  - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
+
 - [ ] **B8** `P3` `ui` Timeline context submenu flickers under a pen `evidence: manual`
   - Repro: right-click a timeline cel with a pen and hover "Insert frame". The submenu flickers and will not stay open. A mouse is fine.
   - Cause: not investigated. Pen hover events arrive as a different device with its own enter/leave pattern; the submenu almost certainly closes on a spurious leave.

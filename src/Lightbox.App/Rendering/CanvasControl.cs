@@ -283,6 +283,35 @@ public sealed class CanvasControl : Control
         set => SetValue(ToolModeProperty, value);
     }
 
+    /// <summary>
+    /// Dragging on the canvas lines the imported reference up instead of
+    /// drawing.
+    /// </summary>
+    /// <remarks>
+    /// A mode rather than a modifier chord. Shift, Ctrl and Alt are all
+    /// already spoken for on the canvas — brush resize, held eyedropper, held
+    /// eraser — and a fourth meaning for one of them would be a chord nobody
+    /// finds and everybody triggers by accident. This is switched on from the
+    /// Reference panel, where you already are when you want it.
+    /// </remarks>
+    public static readonly StyledProperty<bool> ReferenceAlignModeProperty =
+        AvaloniaProperty.Register<CanvasControl, bool>(nameof(ReferenceAlignMode));
+
+    public bool ReferenceAlignMode
+    {
+        get => GetValue(ReferenceAlignModeProperty);
+        set => SetValue(ReferenceAlignModeProperty, value);
+    }
+
+    /// <summary>
+    /// The reference was dragged by this much in document pixels. The flag is
+    /// Shift: move the whole sheet rather than this one frame.
+    /// </summary>
+    public event Action<double, double, bool>? ReferenceDragged;
+
+    private bool _aligningReference;
+    private Point _alignLast;
+
     /// <summary>Fill tool click at a document position.</summary>
     public event Action<double, double>? FillClicked;
 
@@ -1034,6 +1063,19 @@ public sealed class CanvasControl : Control
 
             var (x, y) = ViewToDoc(pp.Position);
 
+            // Aligning the reference comes before every tool: while the mode is
+            // on, the canvas is a place to push a photograph around, not a
+            // place to draw. Half-drawing during alignment would be a mark you
+            // then have to find and undo.
+            if (ReferenceAlignMode)
+            {
+                _aligningReference = true;
+                _alignLast = new Point(x, y);
+                e.Pointer.Capture(this);
+                e.Handled = true;
+                return;
+            }
+
             if (_txActive && ToolMode == CanvasToolMode.Transform)
             {
                 (_txDrag, _txHandle) = TxHitTest(x, y);
@@ -1174,6 +1216,19 @@ public sealed class CanvasControl : Control
             // we're in — repaints coalesce, so this is cheap.
             InvalidateVisual();
 
+            if (_aligningReference)
+            {
+                var (ax, ay) = ViewToDoc(e.GetPosition(this));
+                // Incremental, not "start plus total": the reference is nudged
+                // through an undoable delta each event, and an absolute drag
+                // would leave one enormous step in the history.
+                ReferenceDragged?.Invoke(
+                    ax - _alignLast.X, ay - _alignLast.Y, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                _alignLast = new Point(ax, ay);
+                e.Handled = true;
+                return;
+            }
+
             if (_txActive && _txDrag != TxDrag.None)
             {
                 var (tx, ty) = ViewToDoc(e.GetPosition(this));
@@ -1246,6 +1301,13 @@ public sealed class CanvasControl : Control
         if (_txActive && _txDrag != TxDrag.None)
         {
             _txDrag = TxDrag.None;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+        if (_aligningReference)
+        {
+            _aligningReference = false;
             e.Pointer.Capture(null);
             e.Handled = true;
             return;

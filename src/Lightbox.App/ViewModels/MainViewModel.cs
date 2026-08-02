@@ -896,6 +896,12 @@ public sealed partial class MainViewModel : ObservableObject
         _paletteSwatches = resolved.SelectMany(p => p.Swatches).ToList();
         ColorPickerViewModel.PaletteSource = () => _paletteSwatches;
         ColorPicker.RefreshPalette();
+
+        if (Scene.References is { Count: > 0 } strips)
+        {
+            Lightbox.Raster.ReferenceStripRegistry.Register(
+                strips.Select(s => (s.Id, s.Png)));
+        }
     }
 
     private IReadOnlyList<Swatch> _paletteSwatches = [];
@@ -2611,6 +2617,15 @@ public sealed partial class MainViewModel : ObservableObject
         set => Workspace.GradientDockerVisible = value;
     }
 
+    public bool ReferenceDockerVisible
+    {
+        get => Workspace.ReferenceDockerVisible;
+        set => Workspace.ReferenceDockerVisible = value;
+    }
+
+    [RelayCommand]
+    private void ToggleReferenceDocker() => ReferenceDockerVisible = !ReferenceDockerVisible;
+
     [RelayCommand]
     private void TogglePaletteDocker() => PaletteDockerVisible = !PaletteDockerVisible;
 
@@ -2735,6 +2750,9 @@ public sealed partial class MainViewModel : ObservableObject
         // button has to say which way it will go.
         OnPropertyChanged(nameof(CurrentFrameIsGhost));
         OnPropertyChanged(nameof(GhostPinLabel));
+        // Which reference frame is showing, and therefore which cell the
+        // alignment fields are editing, is a property of the playhead.
+        NotifyReference();
         PublishSnapshot();
     }
 
@@ -5132,6 +5150,343 @@ public sealed partial class MainViewModel : ObservableObject
     private IReadOnlyList<int> PinnedGhostIndices(Scene scene) =>
         scene.GhostFrames is { Count: > 0 } pinned ? pinned : [];
 
+    // ---- imported references ------------------------------------------------------
+
+    /// <summary>
+    /// The reference cells showing at the playhead — usually none, sometimes
+    /// one, more only if several sheets are loaded at once.
+    /// </summary>
+    /// <remarks>
+    /// Cheap on the ordinary path: a document with no references returns an
+    /// empty list without touching the registry, and one with references does
+    /// a dictionary lookup and builds a translate matrix. Nothing is decoded,
+    /// copied or scaled here — the cell is cut out of the sheet by the
+    /// compositor, which is doing a blit either way.
+    /// </remarks>
+    private List<RenderPass> ReferencePasses(Scene scene)
+    {
+        var passes = new List<RenderPass>();
+        if (scene.References is not { Count: > 0 } strips) return passes;
+
+        foreach (var strip in strips)
+        {
+            if (!strip.Visible || strip.Opacity <= 0) continue;
+            if (strip.CellAt(CurrentFrameIndex) is not { } cell) continue;
+            if (Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id) is not { } sheet) continue;
+
+            var scale = (float)Math.Max(0.01, strip.Scale);
+            var matrix = SKMatrix.CreateScaleTranslation(
+                scale, scale,
+                (float)(strip.OffsetX + cell.Dx),
+                (float)(strip.OffsetY + cell.Dy));
+            passes.Add(new RenderPass(
+                sheet, null, strip.Opacity, SKBlendMode.SrcOver, null, matrix,
+                SKRectI.Create(cell.X, cell.Y, cell.Width, cell.Height)));
+        }
+        return passes;
+    }
+
+    /// <summary>The references on this document, or an empty list.</summary>
+    public IReadOnlyList<ReferenceStrip> References =>
+        Scene.References is { } strips ? strips : [];
+
+    public bool HasReferences => Scene.HasReferences;
+
+    /// <summary>
+    /// The reference being edited. Index rather than the object, so the
+    /// selection survives an undo — which replaces the whole document.
+    /// </summary>
+    [ObservableProperty]
+    private int _activeReferenceIndex;
+
+    public ReferenceStrip? ActiveReference =>
+        Scene.References is { } strips && ActiveReferenceIndex >= 0 && ActiveReferenceIndex < strips.Count
+            ? strips[ActiveReferenceIndex]
+            : null;
+
+    partial void OnActiveReferenceIndexChanged(int value) => NotifyReference();
+
+    /// <summary>The cell of the active reference showing at the playhead, or null.</summary>
+    public ReferenceCell? ActiveReferenceCell => ActiveReference?.CellAt(CurrentFrameIndex);
+
+    public bool HasReferenceCell => ActiveReferenceCell is not null;
+
+    /// <summary>
+    /// Import a sheet, slice it, and lay it against the timeline from the
+    /// playhead.
+    /// </summary>
+    /// <param name="addFrames">
+    /// Extend the timeline to fit the reference. On by default because it is
+    /// what importing a run cycle means: you are here to draw those frames,
+    /// and being handed a twelve-frame reference on a one-frame document with
+    /// eleven of it invisible is not a state anybody asked for.
+    /// </param>
+    public ReferenceStrip? ImportReference(
+        string name, string pngBase64, SliceOptions options = default, bool addFrames = true)
+    {
+        SKBitmap sheet;
+        try
+        {
+            sheet = Lightbox.Raster.PngCodec.Decode(pngBase64);
+        }
+        catch (Exception e) when (e is FormatException or InvalidOperationException)
+        {
+            return null;
+        }
+
+        var strip = new ReferenceStrip
+        {
+            Name = name,
+            Png = pngBase64,
+            SheetWidth = sheet.Width,
+            SheetHeight = sheet.Height,
+            Cells = SliceSheet(sheet, options),
+        };
+        sheet.Dispose();
+        if (strip.Cells.Count == 0) return null;
+
+        strip.LayOutFrom(CurrentFrameIndex);
+        strip.Scale = FitScale(strip, Scene);
+        strip.CentreOn(Scene.Width, Scene.Height);
+
+        var index = 0;
+        _editor.Perform(doc =>
+        {
+            doc.Scene.References ??= [];
+            index = doc.Scene.References.Count;
+            doc.Scene.References.Add(strip);
+            if (addFrames && strip.Slots.Count > doc.Scene.FrameCount)
+            {
+                doc.Scene.FrameCount = strip.Slots.Count;
+            }
+        });
+
+        Lightbox.Raster.ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+        ActiveReferenceIndex = index;
+        AfterReferenceChange();
+        return strip;
+    }
+
+    private static List<ReferenceCell> SliceSheet(SKBitmap sheet, SliceOptions options)
+    {
+        // Grid mode never reads a pixel, so a sheet the artist has described
+        // does not pay for the scan.
+        if (options.Columns > 0 && options.Rows > 0)
+        {
+            return StripSlicer.Grid(sheet.Width, sheet.Height, options.Columns, options.Rows);
+        }
+
+        using var rgba = sheet.ColorType == SKColorType.Rgba8888
+            ? null
+            : sheet.Copy(SKColorType.Rgba8888);
+        var source = rgba ?? sheet;
+        using var pixmap = source.PeekPixels();
+        var occupied = pixmap is null
+            ? new bool[source.Width * source.Height]
+            : StripSlicer.Occupancy(pixmap.GetPixelSpan(), source.Width, source.Height, options);
+        return StripSlicer.Slice(occupied, source.Width, source.Height, options);
+    }
+
+    /// <summary>
+    /// Shrink an oversized sheet to fit the canvas. A reference bigger than
+    /// the document is the common case — a 2000px sprite sheet against a 960px
+    /// scene — and landing at 1:1 puts the character off screen with no
+    /// obvious way back.
+    /// </summary>
+    private static double FitScale(ReferenceStrip strip, Scene scene)
+    {
+        var cell = strip.Cells[0];
+        if (cell.Width <= 0 || cell.Height <= 0) return 1;
+        var fit = Math.Min(scene.Width / (double)cell.Width, scene.Height / (double)cell.Height);
+        return fit >= 1 ? 1 : Math.Round(fit, 3);
+    }
+
+    /// <summary>
+    /// Columns and rows for the grid override. Zero on both means "work it
+    /// out from the pixels", which is what <c>Detect</c> restores.
+    /// </summary>
+    [ObservableProperty]
+    private int _referenceColumns;
+
+    [ObservableProperty]
+    private int _referenceRows;
+
+    /// <summary>Dragging on the canvas lines the reference up instead of drawing.</summary>
+    [ObservableProperty]
+    private bool _referenceAlignMode;
+
+    [RelayCommand]
+    private void ApplyReferenceGrid() =>
+        ResliceReference(new SliceOptions(Math.Max(0, ReferenceColumns), Math.Max(0, ReferenceRows)));
+
+    [RelayCommand]
+    private void DetectReferenceFrames()
+    {
+        ReferenceColumns = 0;
+        ReferenceRows = 0;
+        ResliceReference(default);
+    }
+
+    /// <summary>Cut the active sheet up again — a different grid, or auto-detect.</summary>
+    public void ResliceReference(SliceOptions options)
+    {
+        if (ActiveReference is not { } strip) return;
+        if (Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id) is not { } sheet) return;
+
+        var first = strip.Slots.FindIndex(s => s >= 0);
+        _editor.Perform(doc =>
+        {
+            var live = doc.Scene.References![ActiveReferenceIndex];
+            live.Cells = SliceSheet(sheet, options);
+            live.LayOutFrom(Math.Max(0, first));
+        });
+        AfterReferenceChange();
+    }
+
+    [RelayCommand]
+    private void RemoveReference()
+    {
+        if (ActiveReference is not { } strip) return;
+        var id = strip.Id;
+        _editor.Perform(doc =>
+        {
+            doc.Scene.References?.RemoveAt(ActiveReferenceIndex);
+            // Absent, not empty: a document whose last reference is removed
+            // goes back to writing no key at all.
+            if (doc.Scene.References is { Count: 0 }) doc.Scene.References = null;
+        });
+        Lightbox.Raster.ReferenceStripRegistry.Forget(id);
+        ActiveReferenceIndex = Math.Max(0, ActiveReferenceIndex - 1);
+        AfterReferenceChange();
+    }
+
+    /// <summary>Move the cell showing at the playhead, in document pixels.</summary>
+    public void NudgeReferenceCell(double dx, double dy)
+    {
+        if (ActiveReferenceCell is not { } cell) return;
+        _editor.PerformDelta(
+            _ => { cell.Dx += dx; cell.Dy += dy; },
+            _ => { cell.Dx -= dx; cell.Dy -= dy; });
+        AfterReferenceChange();
+    }
+
+    /// <summary>Move the whole sheet, every frame together.</summary>
+    public void NudgeReference(double dx, double dy)
+    {
+        if (ActiveReference is not { } strip) return;
+        _editor.PerformDelta(
+            _ => { strip.OffsetX += dx; strip.OffsetY += dy; },
+            _ => { strip.OffsetX -= dx; strip.OffsetY -= dy; });
+        AfterReferenceChange();
+    }
+
+    /// <summary>Undo every per-frame nudge on the active sheet.</summary>
+    [RelayCommand]
+    private void ClearReferenceAlignment()
+    {
+        if (ActiveReference is not { } strip) return;
+        var before = strip.Cells.ConvertAll(c => (c.Dx, c.Dy));
+        _editor.PerformDelta(
+            _ => { foreach (var c in strip.Cells) (c.Dx, c.Dy) = (0, 0); },
+            _ =>
+            {
+                for (var i = 0; i < strip.Cells.Count && i < before.Count; i++)
+                {
+                    (strip.Cells[i].Dx, strip.Cells[i].Dy) = before[i];
+                }
+            });
+        AfterReferenceChange();
+    }
+
+    public double ReferenceScale
+    {
+        get => ActiveReference?.Scale ?? 1;
+        set => SetReference(Math.Clamp(value, 0.05, 8), (s, v) => s.Scale = v, ActiveReference?.Scale ?? 1);
+    }
+
+    public double ReferenceOpacity
+    {
+        get => ActiveReference?.Opacity ?? 0.5;
+        set => SetReference(Math.Clamp(value, 0, 1), (s, v) => s.Opacity = v, ActiveReference?.Opacity ?? 0.5);
+    }
+
+    public bool ReferenceVisible
+    {
+        get => ActiveReference?.Visible ?? false;
+        set => SetReference(value, (s, v) => s.Visible = v, ActiveReference?.Visible ?? false);
+    }
+
+    public bool ReferenceFollowsTimeline
+    {
+        get => ActiveReference?.FollowsTimeline ?? true;
+        set => SetReference(value, (s, v) => s.FollowsTimeline = v, ActiveReference?.FollowsTimeline ?? true);
+    }
+
+    public double ReferenceCellDx
+    {
+        get => ActiveReferenceCell?.Dx ?? 0;
+        set => NudgeReferenceCell(value - (ActiveReferenceCell?.Dx ?? 0), 0);
+    }
+
+    public double ReferenceCellDy
+    {
+        get => ActiveReferenceCell?.Dy ?? 0;
+        set => NudgeReferenceCell(0, value - (ActiveReferenceCell?.Dy ?? 0));
+    }
+
+    /// <summary>Which frame of the sheet the playhead is on, for the panel's label.</summary>
+    public string ReferenceCellLabel
+    {
+        get
+        {
+            if (ActiveReference is not { } strip) return "";
+            var slot = CurrentFrameIndex < strip.Slots.Count ? strip.Slots[CurrentFrameIndex] : -1;
+            return slot < 0 ? "no reference on this frame" : $"reference frame {slot + 1} of {strip.Cells.Count}";
+        }
+    }
+
+    private void SetReference<T>(T value, Action<ReferenceStrip, T> apply, T current,
+        [System.Runtime.CompilerServices.CallerMemberName] string? property = null)
+    {
+        if (ActiveReference is not { } strip || EqualityComparer<T>.Default.Equals(value, current)) return;
+        // A view setting, not an edit to the artwork: no undo entry, the same
+        // treatment layer visibility gets.
+        apply(strip, value);
+        OnPropertyChanged(property);
+        AfterReferenceChange();
+    }
+
+    private void AfterReferenceChange()
+    {
+        NotifyReference();
+        PublishSnapshot();
+        MarkDocumentEdited();
+    }
+
+    private void NotifyReference()
+    {
+        OnPropertyChanged(nameof(References));
+        OnPropertyChanged(nameof(HasReferences));
+        OnPropertyChanged(nameof(ActiveReference));
+        OnPropertyChanged(nameof(ActiveReferenceCell));
+        OnPropertyChanged(nameof(HasReferenceCell));
+        OnPropertyChanged(nameof(ReferenceScale));
+        OnPropertyChanged(nameof(ReferenceOpacity));
+        OnPropertyChanged(nameof(ReferenceVisible));
+        OnPropertyChanged(nameof(ReferenceFollowsTimeline));
+        OnPropertyChanged(nameof(ReferenceCellDx));
+        OnPropertyChanged(nameof(ReferenceCellDy));
+        OnPropertyChanged(nameof(ReferenceCellLabel));
+        OnPropertyChanged(nameof(ReferenceSummary));
+        RemoveReferenceCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>"Run — 12 frames, 240×160" for the panel's subtitle.</summary>
+    public string ReferenceSummary =>
+        ActiveReference is not { } strip
+            ? "No reference imported."
+            : $"{strip.Cells.Count} frames · {strip.SheetWidth}×{strip.SheetHeight} sheet";
+
     /// <summary>
     /// The document region the last publish actually recomposited (null = the
     /// whole canvas). What the artist feels as a stutter is this rect growing,
@@ -5146,9 +5501,21 @@ public sealed partial class MainViewModel : ObservableObject
         var scene = Scene;
         var passes = new List<RenderPass>();
 
+        var referencesQueued = false;
         foreach (var layer in scene.Layers)
         {
             if (!scene.IsLayerVisible(layer)) continue;
+
+            // An imported reference goes over the paper and under every
+            // drawing — the same place as the photograph you would tape to the
+            // lightbox. Over the paper because the paper is opaque and would
+            // hide it; under the drawings because it is what you are drawing
+            // against, not something you are drawing on top of.
+            if (!referencesQueued && !layer.IsBackground)
+            {
+                passes.AddRange(ReferencePasses(scene));
+                referencesQueued = true;
+            }
 
             // Ghosts go directly beneath the layer they belong to, not beneath
             // the whole stack. Queuing them all first was invisible while every
@@ -5261,6 +5628,11 @@ public sealed partial class MainViewModel : ObservableObject
             // comparing it to.
             if (Onion.DrawOver) passes.AddRange(ghosts);
         }
+
+        // A document with nothing but paper in it still shows its reference —
+        // that is the state you are in when you have imported one and have not
+        // drawn anything yet, which is every time you start.
+        if (!referencesQueued) passes.AddRange(ReferencePasses(scene));
 
         // Compose at the resolution the canvas can actually show. A 4K document
         // in a laptop window is displayed at roughly 40%, and handing the

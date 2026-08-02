@@ -272,6 +272,7 @@ timeline, review, versioning, collaboration.
 - [?] Pin any frame as reference
 - [?] Floating reference windows
 - [?] Pose references
+- [x] Imported animation reference, sliced into frames and laid against the timeline `evidence: ReferenceStrip, StripSlicer, StripSlicerTests, ReferenceStripTests`
 
 ### Camera and scene
 

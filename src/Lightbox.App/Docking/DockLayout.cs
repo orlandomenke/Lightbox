@@ -69,6 +69,7 @@ public sealed class DockLayout
         // deliberately; empty, they are sidebar height the layers could use.
         layout.Place(DockPanelId.Palette).Side = DockSide.Hidden;
         layout.Place(DockPanelId.Gradient).Side = DockSide.Hidden;
+        layout.Place(DockPanelId.Reference).Side = DockSide.Hidden;
         layout.AreaExtents[DockSide.Right] = 300;
         layout.AreaExtents[DockSide.Bottom] = 280;
         return layout;

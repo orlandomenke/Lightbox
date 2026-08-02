@@ -84,6 +84,15 @@ public partial class MainWindow : Window
         Canvas.GradientDragCancelled += _vm.CancelGradient;
         _vm.GradientAxisChanged += Canvas.SetGradientAxis;
 
+        Canvas.ReferenceDragged += (dx, dy, wholeSheet) =>
+        {
+            if (wholeSheet) _vm.NudgeReference(dx, dy);
+            else _vm.NudgeReferenceCell(dx, dy);
+        };
+        Canvas.Bind(
+            Rendering.CanvasControl.ReferenceAlignModeProperty,
+            new Avalonia.Data.Binding(nameof(ViewModels.MainViewModel.ReferenceAlignMode)) { Source = _vm });
+
         // The toggle button eats pointer events, so hook the hold-to-open
         // variant flyout with tunneling handlers.
         SelectToolButton.AddHandler(PointerPressedEvent, OnSelectToolPressed, RoutingStrategies.Tunnel);
@@ -1125,6 +1134,39 @@ public partial class MainWindow : Window
     {
         Patterns = ["*.gpl"],
     };
+
+    private async void OnImportReferenceClicked(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import reference",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Images") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"] },
+            ],
+        });
+        if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path) return;
+
+        // Everything becomes PNG on the way in. The document carries the image
+        // itself rather than a path — a reference that broke when the file
+        // moved would break silently, and you would not notice until you were
+        // drawing against nothing.
+        string png;
+        try
+        {
+            using var decoded = SkiaSharp.SKBitmap.Decode(path);
+            if (decoded is null) return;
+            png = Lightbox.Raster.PngCodec.Encode(decoded);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        _vm.ImportReference(Path.GetFileNameWithoutExtension(path), png);
+        _vm.ReferenceDockerVisible = true;
+    }
 
     private async void OnImportPaletteClicked(object? sender, RoutedEventArgs e)
     {

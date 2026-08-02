@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-782 tests, derived from the suite itself. Each line is a
+839 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -616,6 +616,31 @@ regression even when every test still compiles.
 - Closing Owner Tab Closes Its Reference Tabs — `:108`
 - Opening Same View Focuses Existing Tab — `:118`
 
+## ReferenceStripTests
+`tests/Lightbox.App.Tests/ReferenceStripTests.cs`
+
+- Importing ASheet Finds Its Frames — `:91`
+- Importing Extends The Timeline To Fit The Reference — `:101`
+- Asking Not To Add Frames Leaves The Timeline Alone — `:115`
+- An Oversized Sheet Is Scaled To Fit The Canvas — `:126`
+- ASheet That Will Not Decode Is Refused Rather Than Crashing — `:141`
+- ASheet Can Be Cut On ADeclared Grid Instead — `:150`
+- Each Frame Shows Its Own Part Of The Sheet — `:165`
+- The Reference Sits Over The Paper And Under The Drawing — `:180`
+- Hiding The Reference Takes It Off The Canvas — `:197`
+- AFrame With No Reference Shows Nothing — `:208`
+- Nudging ACell Moves That Frame And Only That Frame — `:220`
+- Nudging The Sheet Moves Every Frame Together — `:237`
+- Scale Applies To Every Frame — `:250`
+- Clearing Alignment Undoes Every Nudge — `:271`
+- Alignment Is Undoable — `:285`
+- Adding AFrame Moves The Reference Along With The Animation — `:300`
+- AReference Pinned To Absolute Timing Stays Put — `:314`
+- AReference Is Never Exported — `:329`
+- Removing The Last Reference Leaves The Document With No Key For One — `:345`
+- ADocument With No Reference Composites Exactly As It Always Has — `:358`
+- AReference Survives Saving And Reopening — `:374`
+
 ## ShortcutMapTests
 `tests/Lightbox.App.Tests/ShortcutMapTests.cs`
 
@@ -801,7 +826,9 @@ regression even when every test still compiles.
 - The Header Switcher Trades Two Panels Places — `:107`
 - Every Panel Except The Timeline Offers ASwitcher — `:123`
 - The Project Panel Appears As Soon As There Is AProject — `:144`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:167`
+- The Canvas Gets The Room Left Over By The Strips — `:167`
+- The Reference Panel Is Absent Until It Is Asked For — `:191`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:207`
 
 ## CameraTests
 `tests/Lightbox.Core.Tests/CameraTests.cs`
@@ -976,6 +1003,25 @@ regression even when every test still compiles.
 - An Empty Project Saves And Loads Without Characters — `:326`
 - Loading Something That Is Not AProject Fails — `:335`
 
+## ReferenceStripTests
+`tests/Lightbox.Core.Tests/ReferenceStripTests.cs`
+
+- Each Frame Shows Its Own Cell By Default — `:37`
+- Past The End Of The Reference There Is Nothing — `:46`
+- AReference Can Start Later Than The First Frame — `:58`
+- Any Cell Can Be Assigned To Any Frame — `:70`
+- Assigning Past The End Fills The Gap With Nothing — `:83`
+- Centring Puts The First Cell In The Middle Of The Canvas — `:93`
+- Inserting AFrame Moves The Later References Along — `:106`
+- Duplicating AFrame Moves The Reference Too — `:121`
+- Deleting AFrame Closes The Gap In The Reference — `:132`
+- Inserted Inbetweens Push The Reference Along — `:144`
+- AStrip Pinned To Absolute Timing Stays Where It Is — `:168`
+- Undoing AFrame Insert Puts The Reference Back — `:182`
+- ADocument With No Reference Writes No Key For One — `:200`
+- Editing The Timeline Of ADocument With No Reference Is Untouched — `:212`
+- AReference Round Trips Through Json — `:224`
+
 ## MediumSettingsTests
 `tests/Lightbox.Core.Tests/Serialization/MediumSettingsTests.cs`
 
@@ -993,6 +1039,29 @@ regression even when every test still compiles.
 - Deserialize Unknown Kind Throws — `:139`
 - Clone Is Deep And Independent — `:146`
 - Save And Load File Round Trips — `:155`
+
+## StripSlicerTests
+`tests/Lightbox.Core.Tests/StripSlicerTests.cs`
+
+- AStrip Of Frames Is Cut At The Gutters — `:46`
+- The Cells Tile The Sheet With Nothing Left Over — `:57`
+- AFrame Keeps Where Its Drawing Sat On The Sheet — `:75`
+- Uneven Gutters Are Snapped To An Even Grid — `:102`
+- AGrid Is Found In Both Directions — `:121`
+- Reading Order Is Left To Right Then Top To Bottom — `:135`
+- An Empty Sheet Has No Frames — `:146`
+- ASingle Drawing Is One Frame Covering The Sheet — `:154`
+- Asking For Columns Ignores What The Pixels Say — `:166`
+- ADeclared Grid Keeps Its Empty Cells — `:182`
+- ADetected Grid Drops Cells With Nothing In Them — `:196`
+- ADrawing Off Centre In Its Cell Does Not Drag The Cut With It — `:213`
+- AGenuinely Irregular Sheet Falls Back To The Gutters — `:234`
+- Grid Slices Without Looking At The Image At All — `:248`
+- AGrid That Does Not Divide Evenly Still Tiles The Sheet — `:258`
+- Transparent Surround Is Background — `:274`
+- AFlat Opaque Surround Is Background Too — `:289`
+- ASheet With No Flat Surround Is All Content — `:305`
+- Nearly Transparent Noise Is Not Content — `:321`
 
 ## CelRangeTests
 `tests/Lightbox.Core.Tests/Timeline/CelRangeTests.cs`

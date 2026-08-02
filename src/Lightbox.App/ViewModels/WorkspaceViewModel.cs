@@ -124,6 +124,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         set => SetVisible(DockPanelId.Gradient, value);
     }
 
+    public bool ReferenceDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.Reference);
+        set => SetVisible(DockPanelId.Reference, value);
+    }
+
     public bool TimelineVisible
     {
         get => _layout.IsVisible(DockPanelId.Timeline);
@@ -138,6 +144,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         DockPanelId.Sheets => nameof(SheetsDockerVisible),
         DockPanelId.Palette => nameof(PaletteDockerVisible),
         DockPanelId.Gradient => nameof(GradientDockerVisible),
+        DockPanelId.Reference => nameof(ReferenceDockerVisible),
         _ => nameof(TimelineVisible),
     };
 
@@ -165,6 +172,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleGradientDocker() => SetVisible(DockPanelId.Gradient, !GradientDockerVisible);
+
+    [RelayCommand]
+    private void ToggleReferenceDocker() => SetVisible(DockPanelId.Reference, !ReferenceDockerVisible);
 
     [RelayCommand]
     private void ToggleTimeline() => SetVisible(DockPanelId.Timeline, !TimelineVisible);
@@ -287,6 +297,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     public IReadOnlyList<DockPanelInfo> PaletteSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Palette);
 
     public IReadOnlyList<DockPanelInfo> GradientSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Gradient);
+
+    public IReadOnlyList<DockPanelInfo> ReferenceSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Reference);
 }
 
 /// <summary>

@@ -72,6 +72,20 @@ public sealed class Scene
     public bool HasGhostFrames => GhostFrames is { Count: > 0 };
 
     /// <summary>
+    /// Imported animation references laid against this timeline, or null.
+    /// </summary>
+    /// <remarks>
+    /// Null unless one is imported, the same discipline the camera and the
+    /// ghost pins follow: a document that never uses references must serialize
+    /// exactly as it does today. See <see cref="ReferenceStrip"/> for why they
+    /// belong to the document rather than to settings.
+    /// </remarks>
+    public List<ReferenceStrip>? References { get; set; }
+
+    /// <summary>Whether any reference has been imported.</summary>
+    public bool HasReferences => References is { Count: > 0 };
+
+    /// <summary>
     /// The shot camera, or null — and null is the default and the common case.
     ///
     /// The app serves two output targets. A game's character animation has no

@@ -16,6 +16,7 @@ public enum DockPanelId
     Sheets,
     Palette,
     Gradient,
+    Reference,
     Timeline,
 }
 
@@ -67,6 +68,7 @@ public static class DockPanels
         new(DockPanelId.Sheets, "Character sheets", MaxExtent: 320, DefaultExtent: 150, MinExtent: 80),
         new(DockPanelId.Palette, "Palette", MaxExtent: 320, DefaultExtent: 220, MinExtent: 110),
         new(DockPanelId.Gradient, "Gradient", MaxExtent: 320, DefaultExtent: 240, MinExtent: 120),
+        new(DockPanelId.Reference, "Reference", MaxExtent: 320, DefaultExtent: 300, MinExtent: 140),
         new(DockPanelId.Timeline, "Timeline", MaxExtent: null, DefaultExtent: 280, MinExtent: 140, Movable: false),
     ];
 

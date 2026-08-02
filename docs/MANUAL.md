@@ -41,7 +41,7 @@ named or configured first.
 
 That is deliberate, and it is the rule the whole application follows:
 **optional means absent, not disabled.** A project, a camera, a palette, a
-gradient and five of the seven panels do not exist until you ask for them, and
+gradient and six of the eight panels do not exist until you ask for them, and
 until then they cost you no screen, no keys and no thinking.
 
 ---
@@ -61,8 +61,9 @@ From the top:
 
 ### Panels
 
-Seven panels: **Project**, **Layers**, **Color**, **Character sheets**,
-**Palette**, **Gradient**, **Timeline**. Open and close them from **View**.
+Eight panels: **Project**, **Layers**, **Color**, **Character sheets**,
+**Palette**, **Gradient**, **Reference**, **Timeline**. Open and close them
+from **View**.
 
 Each panel's header is three things at once:
 
@@ -442,6 +443,47 @@ anything stores nothing for it.
 Onion settings belong to you, not to the artwork: they are kept across sessions,
 survive rearranging or switching workspaces, and opening another document does
 not reset them.
+
+### Animation references
+
+**View → Reference** opens a panel for importing an image of an animation — a
+sprite sheet, a strip of frames, a contact sheet, a run cycle you photographed
+off paper — and laying it against the timeline. The **＋** in the panel's header
+picks the file.
+
+Lightbox finds the frames in it by reading the gaps between the drawings, and
+puts the first on the frame you are on, the second on the next, and so on. The
+timeline grows to fit if it is shorter than the reference. If the document has
+no drawing on those frames yet, that is the point: they are what you are about
+to draw.
+
+The frames it finds are **windows onto the sheet**, not crops of the drawing
+inside each one. A runner who travels across their cell still travels when you
+step through the reference — cropping each frame to its own artwork would put
+the character in the same place every time and delete the animation.
+
+| Setting | What it does |
+| --- | --- |
+| Show on canvas | The reference sits over the paper and under every drawing, like a photograph taped to a lightbox. It is never exported, and it is never in the artwork. |
+| Follow timeline edits | On, inserting a frame moves the later references along with the animation, and the new frame gets no reference — you are drawing an inbetween, and there is no reference drawing for it. Off pins the reference to absolute timing, for matching a shot frame for frame. |
+| Scale | One scale for every frame. Per-frame scale would put the character at a different size on each drawing, which is the one thing a size reference exists to prevent. |
+| Opacity | How strongly it reads under your drawing. |
+
+**When detection cannot find the frames.** It reads the gaps, so an arrangement
+with no gap to read cannot be found — two rows of a sheet that touch, most
+often. Set **Cols** and **Rows** and press **Apply grid** and the pixels are not
+consulted at all. **Detect** goes back to reading the image.
+
+**Alignment.** **Align on canvas** turns dragging into lining the reference up
+rather than drawing: drag to move *this frame's* reference, hold **Shift** to
+move the whole sheet. The **This frame X / Y** fields do the same numerically,
+and they drag horizontally like every other numeric field. Alignment is per
+reference frame, because it is a property of that drawing — a frame shown twice
+is lined up the same way both times. **Clear all alignment** undoes every nudge
+on the sheet. Nudges are undoable.
+
+Each reference is saved inside the document, image and all, so it cannot break
+by having a file move out from under it.
 
 ### Playback
 

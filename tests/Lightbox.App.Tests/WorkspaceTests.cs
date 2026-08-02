@@ -164,6 +164,46 @@ public sealed class WorkspaceTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void TheCanvasGetsTheRoomLeftOverByTheStrips()
+    {
+        // It did not. The canvas host was left in the left strip's grid column
+        // when the docking rework renumbered them — an Auto column, empty by
+        // default, so it collapsed to the width of the zoom bar floating on
+        // top of it. The canvas had no width, so it drew nothing and took no
+        // pointer events, and the app opened on what looked like a dead
+        // renderer.
+        var (w, _) = Open();
+        var canvas = w.FindControl<Panel>("CanvasHost")!;
+        var left = w.FindControl<ScrollViewer>("LeftHost")!;
+        var right = w.FindControl<ScrollViewer>("RightHost")!;
+
+        Assert.NotEqual(Grid.GetColumn(left), Grid.GetColumn(canvas));
+        Assert.NotEqual(Grid.GetColumn(right), Grid.GetColumn(canvas));
+        // The starred column: whatever the strips leave, and never less than
+        // its declared minimum.
+        Assert.True(canvas.Bounds.Width >= 240,
+            $"the canvas needs the leftover room, got {canvas.Bounds.Width}");
+        Assert.True(canvas.Bounds.Height >= 100,
+            $"the canvas needs the leftover height, got {canvas.Bounds.Height}");
+    }
+
+    [AvaloniaFact]
+    public void TheReferencePanelIsAbsentUntilItIsAskedFor()
+    {
+        // Same rule as the palette and the gradient: an animation reference is
+        // something you set up deliberately, and empty it is sidebar height
+        // the layers could be using.
+        var (w, vm) = Open();
+        Assert.DoesNotContain(DockPanelId.Reference, Shown(w, DockSide.Right));
+        Assert.False(vm.ReferenceDockerVisible);
+
+        vm.ToggleReferenceDockerCommand.Execute(null);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.Contains(DockPanelId.Reference, Shown(w, DockSide.Right));
+    }
+
+    [AvaloniaFact]
     public void ACappedStripIsNoWiderThanItsPanelsCanUse()
     {
         // A sidebar of fixed-size controls widened past its cap is just

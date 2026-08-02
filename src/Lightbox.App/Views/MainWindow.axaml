@@ -147,6 +147,7 @@
         <MenuItem Header="Palette" ToggleType="CheckBox" IsChecked="{Binding PaletteDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Character sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
+        <MenuItem Header="Reference" ToggleType="CheckBox" IsChecked="{Binding ReferenceDockerVisible, Mode=TwoWay}" />
         <Separator />
         <!-- Workspaces are global, never stored in a project: a layout is a
              property of the person, not of the artwork. Opening someone
@@ -1141,7 +1142,13 @@
         </ScrollViewer>
         <GridSplitter x:Name="LeftSplitter" Grid.Column="3" Width="5" ResizeDirection="Columns" />
 
-        <Panel x:Name="CanvasHost" Grid.Column="2">
+        <!-- Column 4, the starred one. It was left on 2 when the docking
+             rework renumbered these columns, which put the canvas in the left
+             strip's cell: an Auto column, empty by default, so it sized itself
+             to the zoom bar and the canvas got no width at all. A zero-width
+             canvas draws nothing and takes no pointer events, which reads
+             exactly like a broken renderer. -->
+        <Panel x:Name="CanvasHost" Grid.Column="4">
           <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}" />
           <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
                   Background="#cc1f1f1f" CornerRadius="4" Padding="3">
@@ -1817,6 +1824,104 @@
                 </StackPanel>
               </ScrollViewer>
             </controls:Docker>
+
+        <!-- An imported animation reference: a run cycle, a shot, a contact
+             sheet. Never artwork — it is the photograph taped to the lightbox,
+             and it never reaches an exported pixel. -->
+        <controls:Docker x:Name="ReferencePanel" PanelId="Reference" Title="Reference"
+                         SwitchTargets="{Binding Workspace.ReferenceSwitchTargets}"
+                         CloseCommand="{Binding ToggleReferenceDockerCommand}">
+          <controls:Docker.TopBar>
+            <Border Classes="dockerBar">
+              <DockPanel>
+                <Button Classes="icon" DockPanel.Dock="Right" Content="🗑" FontSize="10"
+                        Command="{Binding RemoveReferenceCommand}"
+                        IsEnabled="{Binding HasReferences}"
+                        ToolTip.Tip="Remove this reference" />
+                <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10"
+                        Click="OnImportReferenceClicked"
+                        ToolTip.Tip="Import an image of an animation and lay it against the timeline" />
+                <ComboBox ItemsSource="{Binding References}"
+                          SelectedIndex="{Binding ActiveReferenceIndex}"
+                          HorizontalAlignment="Stretch" IsVisible="{Binding HasReferences}"
+                          ToolTip.Tip="Reference">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="docs:ReferenceStrip">
+                      <TextBlock Text="{Binding Name}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </DockPanel>
+            </Border>
+          </controls:Docker.TopBar>
+
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="6" Spacing="8">
+              <TextBlock Text="{Binding ReferenceSummary}" FontSize="10" Opacity="0.6"
+                         TextWrapping="Wrap" />
+
+              <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+                         IsVisible="{Binding !HasReferences}"
+                         Text="Import a sprite sheet or a strip of frames. Lightbox finds the frames in it and puts one on each frame of the timeline." />
+
+              <StackPanel Spacing="8" IsVisible="{Binding HasReferences}">
+                <TextBlock Text="{Binding ReferenceCellLabel}" FontSize="11" />
+
+                <CheckBox Content="Show on canvas" IsChecked="{Binding ReferenceVisible}" />
+                <CheckBox Content="Follow timeline edits" IsChecked="{Binding ReferenceFollowsTimeline}"
+                          ToolTip.Tip="Insert a frame and the references after it move along with the animation. Off pins the reference to absolute timing — matching a shot frame for frame." />
+
+                <DockPanel ToolTip.Tip="One scale for every frame: a reference whose size varied frame to frame is the one thing a size reference exists to prevent.">
+                  <TextBlock DockPanel.Dock="Left" Text="Scale" Width="52" VerticalAlignment="Center" FontSize="12" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding ReferenceScale}" Minimum="0.05"
+                                 Maximum="8" Increment="0.05" FormatString="0.00" Width="64" />
+                  <Slider Value="{Binding ReferenceScale}" Minimum="0.05" Maximum="4" Margin="4,0" />
+                </DockPanel>
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Left" Text="Opacity" Width="52" VerticalAlignment="Center" FontSize="12" />
+                  <NumericUpDown DockPanel.Dock="Right" Value="{Binding ReferenceOpacity}" Minimum="0"
+                                 Maximum="1" Increment="0.05" FormatString="0.00" Width="64" />
+                  <Slider Value="{Binding ReferenceOpacity}" Minimum="0" Maximum="1" Margin="4,0" />
+                </DockPanel>
+
+                <TextBlock Text="Frames" FontWeight="SemiBold" FontSize="11" Margin="0,4,0,0" />
+                <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+                           Text="Detection reads the gaps between the drawings. Two rows that touch have no gap to find — say how many columns and rows instead." />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="Cols" VerticalAlignment="Center" FontSize="11" />
+                  <NumericUpDown Value="{Binding ReferenceColumns}" Minimum="0" Maximum="64"
+                                 Increment="1" FormatString="0" Width="56" />
+                  <TextBlock Text="Rows" VerticalAlignment="Center" FontSize="11" />
+                  <NumericUpDown Value="{Binding ReferenceRows}" Minimum="0" Maximum="64"
+                                 Increment="1" FormatString="0" Width="56" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Button Content="Apply grid" Command="{Binding ApplyReferenceGridCommand}" />
+                  <Button Content="Detect" Command="{Binding DetectReferenceFramesCommand}"
+                          ToolTip.Tip="Find the frames from the image again" />
+                </StackPanel>
+
+                <TextBlock Text="Alignment" FontWeight="SemiBold" FontSize="11" Margin="0,4,0,0" />
+                <ToggleButton Content="Align on canvas" IsChecked="{Binding ReferenceAlignMode}"
+                              HorizontalAlignment="Stretch"
+                              ToolTip.Tip="Drag the canvas to line this frame's reference up. Hold Shift to move the whole sheet instead. A mode rather than a modifier because Shift, Ctrl and Alt are already spoken for on the canvas." />
+                <Grid ColumnDefinitions="52,*,6,20,*" IsVisible="{Binding HasReferenceCell}">
+                  <TextBlock Grid.Column="0" Text="This frame" FontSize="10" VerticalAlignment="Center"
+                             TextWrapping="Wrap" />
+                  <NumericUpDown Grid.Column="1" Value="{Binding ReferenceCellDx}" Increment="1"
+                                 FormatString="0.#" ToolTip.Tip="Horizontal nudge, document pixels" />
+                  <TextBlock Grid.Column="3" Text="Y" FontSize="10" VerticalAlignment="Center"
+                             HorizontalAlignment="Center" />
+                  <NumericUpDown Grid.Column="4" Value="{Binding ReferenceCellDy}" Increment="1"
+                                 FormatString="0.#" ToolTip.Tip="Vertical nudge, document pixels" />
+                </Grid>
+                <Button Content="Clear all alignment" Command="{Binding ClearReferenceAlignmentCommand}"
+                        HorizontalAlignment="Stretch"
+                        ToolTip.Tip="Undo every per-frame nudge on this sheet" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </controls:Docker>
 
         <!-- The timeline does not move: its row is as long as the animation,
              so a 300px sidebar is a placement that cannot work. No switcher

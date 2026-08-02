@@ -40,13 +40,20 @@ public sealed record StrokeOverlay(
 /// on every pointer event. The record is only ever touched on apply, so
 /// invariant 1 is untouched; this is a preview, not an edit.
 /// </param>
+/// <param name="Source">
+/// Draw only this rectangle of the bitmap, at the origin, or null to draw all
+/// of it. An imported reference sheet holds every frame of a run cycle in one
+/// image; cutting the cell out here means one decoded bitmap for the whole
+/// sheet rather than one per frame, and no copy on the composite path.
+/// </param>
 public sealed record RenderPass(
     SKBitmap Bitmap,
     SKColor? Tint,
     double Opacity,
     SKBlendMode Blend = SKBlendMode.SrcOver,
     StrokeOverlay? Overlay = null,
-    SKMatrix? Matrix = null);
+    SKMatrix? Matrix = null,
+    SKRectI? Source = null);
 
 /// <summary>
 /// Pure SkiaSharp scene compositing: white paper, then passes in order
@@ -144,6 +151,19 @@ public static class SceneRenderer
         if (pass.Tint is { } tint)
         {
             paint.ColorFilter = SKColorFilter.CreateBlendMode(tint, SKBlendMode.SrcIn);
+        }
+
+        // A windowed pass is a reference cell: no overlay, no blend, nothing
+        // to isolate — just the part of the sheet this frame is showing.
+        if (pass.Source is { } window)
+        {
+            using var sheet = SKImage.FromBitmap(pass.Bitmap);
+            if (sheet is not null)
+            {
+                canvas.DrawImage(
+                    sheet, window, SKRect.Create(window.Width, window.Height), Downscale, paint);
+            }
+            return;
         }
 
         if (pass.Overlay is not { } overlay)
