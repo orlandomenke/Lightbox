@@ -86,22 +86,57 @@ public static class AnimationSweeps
         return scene;
     }
 
+    /// <summary>
+    /// The surface every sweep composites into, held for the life of a value
+    /// rather than made per call.
+    /// </summary>
+    /// <remarks>
+    /// <b>This started as a bug in the harness and is worth the comment.</b>
+    /// The first run created a fresh surface inside the timed region and
+    /// reported that compositing <em>one</em> cached layer missed a 16 ms
+    /// frame budget — which is not a fact about compositing, it is the cost of
+    /// allocating and zeroing eight megabytes. The application does not do
+    /// that: <c>ComposeRing</c> holds its surfaces across repaints, and that is
+    /// the whole reason it exists. A harness that allocates where the app
+    /// reuses is measuring the harness.
+    /// </remarks>
+    private sealed class Target(int w, int h) : IDisposable
+    {
+        public SKSurface Surface { get; } =
+            SKSurface.Create(new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Premul))!;
+
+        public void Dispose() => Surface.Dispose();
+    }
+
     /// <summary>Composite one frame of a scene the way the canvas does.</summary>
-    private static void Composite(Scene scene, FrameBitmapCache cache, int index)
+    private static void Composite(Target target, Scene scene, FrameBitmapCache cache, int index)
     {
         int w = scene.Width, h = scene.Height;
-        var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Premul);
-        using var surface = SKSurface.Create(info)!;
-        surface.Canvas.Clear(SKColors.White);
+        var canvas = target.Surface.Canvas;
+        canvas.Clear(SKColors.White);
         foreach (var layer in scene.Layers)
         {
             if (!layer.Visible) continue;
             if (ExposureSheet.ExposedFrame(layer, index) is not { } frame) continue;
             var bmp = cache.Get(frame, w, h);
             using var paint = new SKPaint { Color = SKColors.White.WithAlpha((byte)(layer.Opacity * 255)) };
-            surface.Canvas.DrawBitmap(bmp, 0, 0, paint);
+            canvas.DrawBitmap(bmp, 0, 0, paint);
         }
-        surface.Canvas.Flush();
+        canvas.Flush();
+    }
+
+    /// <summary>A cache and a surface, disposed together when a value is done.</summary>
+    private sealed class Rig(int w, int h) : IDisposable
+    {
+        public FrameBitmapCache Cache { get; } = new();
+
+        public Target Target { get; } = new(w, h);
+
+        public void Dispose()
+        {
+            Cache.Dispose();
+            Target.Dispose();
+        }
     }
 
     public static IEnumerable<Scenario> All()
@@ -119,7 +154,7 @@ public static class AnimationSweeps
     private static Scenario Layers()
     {
         Scene? scene = null;
-        FrameBitmapCache? cache = null;
+        Rig? rig = null;
 
         return new Scenario(
             "Composite one frame",
@@ -129,14 +164,14 @@ public static class AnimationSweeps
             Setup: n =>
             {
                 scene = SceneOf(n, frames: 4, strokesPerFrame: 40);
-                cache = new FrameBitmapCache();
-                Composite(scene, cache, 0); // warm the cache: this measures compositing, not rasterising
-                return cache;
+                rig = new Rig(W, H);
+                Composite(rig.Target, scene, rig.Cache, 0); // warm: this measures blending, not rasterising
+                return rig;
             },
-            Work: _ => Composite(scene!, cache!, 0),
-            Note: "Cache warm, so this is the per-layer blend and nothing else.")
+            Work: _ => Composite(rig!.Target, scene!, rig.Cache, 0),
+            Note: "Cache warm and the surface reused, so this is the per-layer blend and nothing else.")
         {
-            Gauge = () => cache?.CachedBytes ?? 0,
+            Gauge = () => rig?.Cache.CachedBytes ?? 0,
             GaugeUnit = "cache MB",
         };
     }
@@ -146,7 +181,7 @@ public static class AnimationSweeps
     private static Scenario OnionDepth()
     {
         Scene? scene = null;
-        FrameBitmapCache? cache = null;
+        Rig? rig = null;
 
         return new Scenario(
             "Draw a frame with onion skin",
@@ -156,35 +191,33 @@ public static class AnimationSweeps
             Setup: n =>
             {
                 scene = SceneOf(layers: 3, frames: 20, strokesPerFrame: 40);
-                cache = new FrameBitmapCache();
-                for (var i = 0; i < 20; i++) Composite(scene, cache, i);
-                return cache;
+                rig = new Rig(W, H);
+                for (var i = 0; i < 20; i++) Composite(rig.Target, scene, rig.Cache, i);
+                return rig;
             },
             Work: n =>
             {
-                var info = new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Premul);
-                using var surface = SKSurface.Create(info)!;
-                surface.Canvas.Clear(SKColors.White);
+                var canvas = rig!.Target.Surface.Canvas;
+                canvas.Clear(SKColors.White);
 
                 foreach (var layer in scene!.Layers)
                 {
                     foreach (var ghost in OnionSkin.Ghosts(layer, 10, n, n, keysOnly: false))
                     {
                         var alpha = OnionSkin.OpacityAt(ghost.Steps, 0.5, 0.6);
-                        var bmp = cache!.Get(ghost.Frame, W, H);
+                        var bmp = rig.Cache.Get(ghost.Frame, W, H);
                         using var paint = new SKPaint
                         {
                             Color = SKColors.White.WithAlpha((byte)(alpha * 255)),
                         };
-                        surface.Canvas.DrawBitmap(bmp, 0, 0, paint);
+                        canvas.DrawBitmap(bmp, 0, 0, paint);
                     }
                 }
-                Composite(scene, cache!, 10);
-                surface.Canvas.Flush();
+                Composite(rig.Target, scene, rig.Cache, 10);
             },
             Note: "3 layers, so the ghost count is 3× the depth on each side. The multiplier nobody had measured.")
         {
-            Gauge = () => cache?.CachedBytes ?? 0,
+            Gauge = () => rig?.Cache.CachedBytes ?? 0,
             GaugeUnit = "cache MB",
         };
     }
@@ -217,7 +250,7 @@ public static class AnimationSweeps
     private static Scenario SceneLength()
     {
         Scene? scene = null;
-        FrameBitmapCache? cache = null;
+        Rig? rig = null;
 
         return new Scenario(
             "Hold a whole scene in the frame cache",
@@ -227,16 +260,16 @@ public static class AnimationSweeps
             Setup: n =>
             {
                 scene = SceneOf(3, n, 20, SeqW, SeqH);
-                cache = new FrameBitmapCache();
-                return cache;
+                rig = new Rig(SeqW, SeqH);
+                return rig;
             },
             Work: n =>
             {
-                for (var i = 0; i < n; i++) Composite(scene!, cache!, i);
+                for (var i = 0; i < n; i++) Composite(rig!.Target, scene!, rig.Cache, i);
             },
             Note: "720p, 3 layers, 20 strokes a frame. Cold once, then warm — the memory gauge is the number to watch here, not the time.")
         {
-            Gauge = () => cache?.CachedBytes ?? 0,
+            Gauge = () => rig?.Cache.CachedBytes ?? 0,
             GaugeUnit = "cache MB",
             Iterations = 4,
             Warmup = 1,
@@ -248,7 +281,7 @@ public static class AnimationSweeps
     private static Scenario Playback()
     {
         Scene? scene = null;
-        FrameBitmapCache? cache = null;
+        Rig? rig = null;
         var at = 0;
 
         return new Scenario(
@@ -259,15 +292,15 @@ public static class AnimationSweeps
             Setup: n =>
             {
                 scene = SceneOf(3, n, 20, SeqW, SeqH);
-                cache = new FrameBitmapCache();
-                for (var i = 0; i < n; i++) Composite(scene, cache, i); // one pass round, as playback would
+                rig = new Rig(SeqW, SeqH);
+                for (var i = 0; i < n; i++) Composite(rig.Target, scene, rig.Cache, i); // one pass round
                 at = 0;
-                return cache;
+                return rig;
             },
-            Work: n => Composite(scene!, cache!, at++ % n),
+            Work: n => Composite(rig!.Target, scene!, rig.Cache, at++ % n),
             Note: "720p. Second time round the loop — past the point where the cache stops fitting, this is where it shows.")
         {
-            Gauge = () => cache?.CachedBytes ?? 0,
+            Gauge = () => rig?.Cache.CachedBytes ?? 0,
             GaugeUnit = "cache MB",
         };
     }
@@ -277,7 +310,7 @@ public static class AnimationSweeps
     private static Scenario Scrubbing()
     {
         Scene? scene = null;
-        FrameBitmapCache? cache = null;
+        Rig? rig = null;
         var step = 0;
 
         return new Scenario(
@@ -288,18 +321,18 @@ public static class AnimationSweeps
             Setup: n =>
             {
                 scene = SceneOf(3, n, 20, SeqW, SeqH);
-                cache = new FrameBitmapCache();
-                for (var i = 0; i < n; i++) Composite(scene, cache, i);
+                rig = new Rig(SeqW, SeqH);
+                for (var i = 0; i < n; i++) Composite(rig.Target, scene, rig.Cache, i);
                 step = 0;
-                return cache;
+                return rig;
             },
             // A large stride, so consecutive scrubs land far apart and a cache
             // that has begun evicting is caught. Scrubbing to the next frame
             // would hit warm every time and measure nothing.
-            Work: n => Composite(scene!, cache!, step++ * 7 % n),
+            Work: n => Composite(rig!.Target, scene!, rig.Cache, step++ * 7 % n),
             Note: "720p. Dragging the playhead — a miss here is felt directly, so it takes the drawing budget.")
         {
-            Gauge = () => cache?.CachedBytes ?? 0,
+            Gauge = () => rig?.Cache.CachedBytes ?? 0,
             GaugeUnit = "cache MB",
         };
     }
