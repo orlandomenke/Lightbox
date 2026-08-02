@@ -341,6 +341,31 @@ the same mark, on reload, after undo, and when the inbetweener replays it.
 That determinism is not a detail. An effect that varies subtly between similar
 strokes looks fine on one image and *boils* at 12 fps.
 
+### Fast brushes and expressive ones
+
+Brushes come in two kinds, and the picker tells them apart:
+
+- **Fast** — stamps dabs and stops. Predictable cost at any canvas size, and
+  what almost every brush is. Pencil, ink, soft round, airbrush.
+- **Expressive ◈** — reads the canvas back, simulates a medium, or blends the
+  layers underneath. The mark behaves like a material instead of like paint
+  being placed. Slower, particularly on a large canvas.
+
+The **◈** marks the expressive ones, and the list is grouped so the two kinds
+sit apart. Hover a brush and the tooltip names what it is paying for — "reads
+the canvas back as it goes", "simulates gouache" — because that is the thing
+you can turn off if you want the speed back.
+
+It is a price tag, not a warning. These brushes exist because the coupling is
+what makes a mark expressive, and an artist reaching for one has decided the
+trade is worth it. The badge is so that decision is made knowingly rather than
+discovered at frame 180.
+
+Nothing about a brush *declares* which kind it is — it is worked out from the
+brush's own settings, so turning the medium off moves it to the fast group and
+turning it on moves it back. Every simulated medium also has a **(flat)**
+counterpart that gets close to the look for none of the cost.
+
 ### Brush importers
 
 **.abr** (Photoshop), **.gbr** / **.gih** (GIMP) and **.kpp** (Krita) import

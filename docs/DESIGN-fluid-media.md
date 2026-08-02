@@ -12,6 +12,41 @@ into a constraint the rest has to satisfy, and which turns out to cost the
 record nothing. One prediction the original note made has since been tested and
 was wrong; it is kept below rather than quietly removed.
 
+## What we are actually aiming at
+
+Stated before the five pieces, because it is the thing that decides how far
+each one goes.
+
+**This is a drawing application, not a physics paper.** We are not recreating
+watercolour. We are giving an artist the part of watercolour that makes a mark
+say something — the pooling at an edge, the drag of a loaded brush, the tear
+when it runs out — and stopping there. Where a cheap approximation and an
+accurate simulation look the same to a person, the cheap one is correct and the
+accurate one is a defect that costs frames.
+
+**Performance is a constraint on this work, not a consideration after it.** The
+budgets in `CHARTER.md` are the ceiling; a piece that cannot meet them is not
+shipped in a slower form, it is redesigned or dropped. Realism is worth nothing
+if the canvas stutters, because the thing being defended is the artist's
+attention.
+
+**Visual variation, never logical randomness.** Marks should differ the way
+real media differ — because of where they are, what they are on, how fast the
+hand moved — and never because of a die roll. That is invariant 2 read from the
+artist's side rather than a rule fighting them, and it is also what makes the
+variety reproducible.
+
+**Where the edge is.** Krita's brush engine pushes further than most and still
+leaves this on the table. The advantage is in expression, not fidelity — so
+spending the frame budget chasing accuracy spends the advantage rather than
+earning it.
+
+The consequence for everything below: these are **opt-in options on presets**.
+Most brushes do not use them and must not start to. The picker badges the ones
+that do, derived from the settings rather than declared, and every simulated
+medium ships a fast counterpart — a medium nobody can afford is a trap rather
+than a feature.
+
 ## The problem it names
 
 Our wet media vary the mark with noise: opacity jitter, scatter, granulation,
@@ -199,18 +234,24 @@ is exactly what (b) could not promise — there, an edit anywhere invalidated
 everything after it. The frame cache and the scoped-edit path both have to know
 this before any of the five pieces below ship.
 
-### Still open, and worth deciding before the spike
+### The two it did not settle, now settled
 
 Two things the answer does not settle. Both are in `QUESTIONS.md`.
 
-- **What counts as the same sheet of paper** (Q13) — whether the window
-  crosses frames and layers. A cel is a separate drawing and a layer is not
-  paper, so the likely answer is "neither", but a held cel and the inbetweener
-  both complicate it.
-- **What a non-painting stroke does to wet paint** (Q14) — an eraser dragged
-  through a wet mark is a physically different act from erasing a dry one, and
-  it is not obvious whether it should spend a stroke of the window, remove the
-  moisture, or be ignored by it.
+Both now answered.
+
+- **Q13 — what counts as the same sheet of paper: (c).** The window is per
+  frame and per layer, and **generated strokes never carry wetness** — the
+  inbetweener and the MCP surface write `WetStrokes = 0` whatever the source
+  said. The first half matches Q6; the second is a determinism guard, because
+  an inbetween whose look depended on how many strokes the generator emitted
+  would diverge between runs.
+- **Q14 — what an eraser does: (a).** An eraser is a stroke like any other. It
+  spends one of the window's `N` and removes pigment, and the moisture goes
+  with the pigment it belonged to. An eraser that *smears* wet paint is the
+  physical answer and is a brush somebody builds later on the advection loop —
+  **if that turns out to matter, the fix is a new brush, not a change to the
+  eraser.**
 
 ## Where to start
 

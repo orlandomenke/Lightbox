@@ -2137,6 +2137,17 @@ public sealed partial class MainViewModel : ObservableObject
         return (added, failed);
     }
 
+    /// <summary>
+    /// Presets grouped by what they cost, stably within each group.
+    /// </summary>
+    /// <remarks>
+    /// <c>OrderBy</c> is a stable sort in LINQ, so a brush never moves
+    /// relative to its neighbours of the same cost — the list an artist has
+    /// learned the shape of stays learnable.
+    /// </remarks>
+    private static IEnumerable<BrushPreset> Ordered(IEnumerable<BrushPreset> presets) =>
+        presets.OrderBy(p => p.Cost);
+
     private void PersistBrushState()
     {
         PresetStore.Save(new PresetStore.State
@@ -2154,11 +2165,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void LoadBrushState()
     {
-        foreach (var preset in BuiltInPresets.Create()) BrushPresetChoices.Add(preset);
         var state = PresetStore.Load(BrushStorePath);
-        foreach (var preset in state.UserPresets)
+        foreach (var preset in state.UserPresets) _userPresets.Add(preset);
+        // Fast brushes first, expressive ones after, each group keeping the
+        // order it was declared in. The badge marks them individually; the
+        // grouping is what makes the two kinds legible as kinds — an artist
+        // scanning for something cheap should not have to read every row.
+        foreach (var preset in Ordered([.. BuiltInPresets.Create(), .. state.UserPresets]))
         {
-            _userPresets.Add(preset);
             BrushPresetChoices.Add(preset);
         }
         if (state.LastBrush is not null) _brushWork = state.LastBrush.Clone();

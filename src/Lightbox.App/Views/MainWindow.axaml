@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Lightbox.App.ViewModels"
+        xmlns:services="using:Lightbox.App.Services"
         xmlns:geo="using:Lightbox.Core.Geometry"
         xmlns:render="using:Lightbox.App.Rendering"
         xmlns:controls="using:Lightbox.App.Controls"
@@ -306,9 +307,27 @@
 
         <!-- Brush options -->
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsBrushTool}">
+          <!--
+            The badge is the whole point of the list being ordered the way it
+            is: fast brushes first, expressive ones after, so the two kinds are
+            contiguous rather than interleaved. ◈ marks a brush that reads the
+            canvas, simulates a medium or blends the layers underneath — not a
+            warning, a price tag, and the tooltip names what you are paying
+            for. Derived from the settings, so editing a brush moves it.
+          -->
           <ComboBox ItemsSource="{Binding BrushPresetChoices}" SelectedItem="{Binding SelectedBrushPreset}"
                     Width="130" VerticalAlignment="Center"
-                    ToolTip.Tip="Brush preset (B returns to the last configured brush)" />
+                    ToolTip.Tip="Brush preset (B returns to the last configured brush). ◈ marks an expressive brush — richer mark, more cost.">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="services:BrushPreset">
+                <DockPanel ToolTip.Tip="{Binding CostTip}">
+                  <TextBlock DockPanel.Dock="Right" Text="{Binding CostBadge}" Foreground="#d9a05b"
+                             FontSize="11" VerticalAlignment="Center" Margin="6,0,0,0" />
+                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
           <!--
             Foreground over background, the arrangement every painting tool
             has had for thirty years. One pair, shared by the brush, the fill

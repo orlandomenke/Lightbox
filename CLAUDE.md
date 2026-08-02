@@ -52,6 +52,27 @@ examples, so the reasoning is reusable:
 - *"Is flicker acceptable?"* — no. An effect that varies subtly between
   similar strokes looks fine on one image and boils at 12 fps. Anything
   stochastic must be seeded from geometry, not from an index or a clock.
+- *"How far do we go simulating a medium?"* — **as far as the expression goes,
+  and not one step further.** This is a drawing application, not a physics
+  paper: we are not recreating watercolour, we are giving an artist the part
+  of watercolour that makes a mark say something. Where a cheap approximation
+  and an accurate simulation look the same to a person, the cheap one is
+  correct and the accurate one is a defect. Krita's engine pushes further than
+  most and still leaves this on the table; the edge is in the *expression*
+  rather than in the fidelity, and chasing fidelity at the cost of a frame
+  budget spends the advantage rather than earning it.
+- *"Should this expensive brush option exist at all?"* — yes, if an artist
+  would reach for it deliberately, and **no if it becomes the default**. The
+  costly options are opt-in, they live on presets, and the picker badges them
+  (`BrushCostOf`, derived from the settings so it cannot lie) so the trade is
+  made knowingly. Every simulated medium also ships a fast counterpart — a
+  medium nobody can afford is a trap, not a feature.
+
+Two things that read as the same word and are not: **visual variation** is
+wanted, **logical randomness** is forbidden. Marks should differ the way real
+media differ — because of where they are, what they are on and how fast the
+hand moved. That is invariant 2 restated from the artist's side rather than a
+constraint fighting it.
 
 When a request genuinely does not resolve against these, it belongs in
 `.claude/quality/QUESTIONS.md` rather than in a guess.

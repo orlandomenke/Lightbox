@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1375 tests, derived from the suite itself. Each line is a
+1391 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -101,6 +101,19 @@ regression even when every test still compiles.
 - Erasing The Unlocked Background Reveals Real Transparency — `:101`
 - ADocument Saved Before Background Layers Existed Still Opens On Its Paper — `:122`
 - The Paper Is AStroke Record Not Baked Pixels — `:138`
+
+## BrushCatalogueTests
+`tests/Lightbox.App.Tests/BrushCatalogueTests.cs`
+
+- You Can Draw AWhole Picture Without Touching An Expressive Brush — `:28`
+- Every Simulated Medium Has AFast Counterpart — `:50`
+- The Expressive Ones Are Only Media And Effect Tools — `:66`
+- The Picker Groups Fast Brushes Before Expressive Ones — `:86`
+- An Expressive User Preset Joins The Expressive Group — `:107`
+- Grouping Keeps Each Kind In Its Declared Order — `:125`
+- Only The Expressive Ones Carry ABadge — `:145`
+- ABadged Brush Says What It Is Paying For — `:154`
+- Cost Is Not Written Into The Saved Preset — `:170`
 
 ## BrushCursorTests
 `tests/Lightbox.App.Tests/BrushCursorTests.cs`
@@ -1311,6 +1324,17 @@ regression even when every test still compiles.
 - The New Menu Actually Makes Things — `:239`
 - The Reference Panel Is Absent Until It Is Asked For — `:282`
 - ACapped Strip Is No Wider Than Its Panels Can Use — `:298`
+
+## BrushCostTests
+`tests/Lightbox.Core.Tests/BrushCostTests.cs`
+
+- An Ordinary Brush Is Fast — `:18`
+- ASimulated Medium Is Expressive — `:26`
+- Smudge And Blur Are Expressive — `:35`
+- Sampling Other Layers Is Expressive — `:44`
+- Jitter And Scatter And Texture Are Not Expensive — `:53`
+- Turning The Medium Off Makes It Fast Again — `:80`
+- The Reason Names Every Cause So It Can Be Acted On — `:92`
 
 ## BrushScopeTests
 `tests/Lightbox.Core.Tests/BrushScopeTests.cs`

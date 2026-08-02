@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Lightbox.Core.Documents;
 
 namespace Lightbox.App.Services;
@@ -16,6 +17,33 @@ public sealed class BrushPreset
 
     /// <summary>Custom tip carried by the preset (alpha-mask PNG, base64); copied into a document on first use.</summary>
     public string? TipPng { get; set; }
+
+    /// <summary>
+    /// What this preset costs to draw with. Derived from its settings, never
+    /// stored — see <see cref="BrushCostOf"/> for why a written-down answer
+    /// would go wrong the first time somebody edited the brush.
+    /// </summary>
+    [JsonIgnore]
+    public BrushCost Cost => BrushCostOf.Settings(Settings);
+
+    /// <summary>Whether the picker should badge this one.</summary>
+    [JsonIgnore]
+    public bool IsExpressive => Cost == BrushCost.Expressive;
+
+    /// <summary>The badge glyph, or empty for an ordinary brush.</summary>
+    /// <remarks>
+    /// A glyph rather than a colour on its own: a dot that only differs by
+    /// hue is invisible to a good share of people, and the picker is how you
+    /// choose a brush.
+    /// </remarks>
+    [JsonIgnore]
+    public string CostBadge => IsExpressive ? "◈" : "";
+
+    /// <summary>Why it is badged, phrased for a tooltip.</summary>
+    [JsonIgnore]
+    public string CostTip => BrushCostOf.Why(Settings) is { } why
+        ? $"Expressive — {why}. Slower on a large canvas; worth it when the mark matters."
+        : "Stamps dabs and stops. Predictable cost at any canvas size.";
 
     public override string ToString() => Name;
 }
@@ -81,6 +109,29 @@ public static class BuiltInPresets
             {
                 Size = 18, Hardness = 0.75, Opacity = 0.95, Flow = 0.9, Spacing = 0.12,
                 WetEdge = 0.15, Granulation = 0.25,
+            },
+        },
+
+        new()
+        {
+            Id = "builtin-oil-flat",
+            Name = "Oil (flat)",
+            // Oil's character without oil's price: a broad, opaque, slightly
+            // broken mark from spacing and jitter alone. Every simulated
+            // medium wants one of these, because a medium with no affordable
+            // version leaves an artist who cannot run it with nothing — which
+            // is how an expressive feature turns into a trap. Watercolour,
+            // gouache and ink all had a counterpart; oil, the most expensive
+            // of the four, did not.
+            Settings = new BrushSettings
+            {
+                Size = 34, Hardness = 0.6, Opacity = 1, Flow = 0.92, Spacing = 0.06,
+                // Standing in for bristle drag and paint running out: a little
+                // size and flow variation along the stroke, both seeded from
+                // position so the mark is the same on every re-render.
+                SizeJitter = 0.12, FlowJitter = 0.18, MinimumDiameter = 0.75,
+                TextureSurface = PaperKind.Canvas,
+                AngleFollowsDirection = true, Roundness = 0.85,
             },
         },
 
