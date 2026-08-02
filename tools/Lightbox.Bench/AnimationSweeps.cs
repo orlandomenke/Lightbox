@@ -191,13 +191,17 @@ public static class AnimationSweeps
         return new Scenario(
             "Draw a frame with onion skin",
             "ghosts each side",
-            [0, 1, 2, 3, 4, 6, 8],
+            [0, 1, 2, 3, 4, 5],
             Cadence.WhileDrawing,
             Setup: n =>
             {
-                scene = SceneOf(layers: 3, frames: 20, strokesPerFrame: 40);
+                // 12 frames x 3 layers at 1080p is 299 MB, comfortably inside the
+                // 512 MB cache. 20 sat exactly on the ceiling, and the sweep spent
+                // its time re-measuring B28 rather than onion depth — one variable
+                // at a time, or the curve belongs to whichever effect is louder.
+                scene = SceneOf(layers: 3, frames: 12, strokesPerFrame: 40);
                 rig = new Rig(W, H);
-                for (var i = 0; i < 20; i++) Composite(rig.Target, scene, rig.Cache, i);
+                for (var i = 0; i < 12; i++) Composite(rig.Target, scene, rig.Cache, i);
                 return rig;
             },
             Work: n =>
@@ -207,7 +211,7 @@ public static class AnimationSweeps
 
                 foreach (var layer in scene!.Layers)
                 {
-                    foreach (var ghost in OnionSkin.Ghosts(layer, 10, n, n, keysOnly: false))
+                    foreach (var ghost in OnionSkin.Ghosts(layer, 6, n, n, keysOnly: false))
                     {
                         var alpha = OnionSkin.OpacityAt(ghost.Steps, 0.5, 0.6);
                         var bmp = rig.Cache.Get(ghost.Frame, W, H);
@@ -218,7 +222,7 @@ public static class AnimationSweeps
                         canvas.DrawBitmap(bmp, 0, 0, paint);
                     }
                 }
-                Composite(rig.Target, scene, rig.Cache, 10);
+                Composite(rig.Target, scene, rig.Cache, 6);
             },
             Note: "3 layers, so the ghost count is 3× the depth on each side. The multiplier nobody had measured.")
         {
