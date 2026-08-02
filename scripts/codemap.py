@@ -11,6 +11,11 @@ queryable index instead:
     HOTSPOTS.md   where change is risky: heavily edited, widely depended on,
                   thinly tested
 
+INDEX.md and FEATURES.md are committed; map.json and HOTSPOTS.md are not, and
+the line between them is whether the artefact depends on git history. Anything
+that does is wrong the moment it is committed, because committing it is
+another commit. See .gitignore.
+
 Usage
     codemap.py build              rebuild all artefacts
     codemap.py find <term>        symbols/files matching a term, with line
@@ -425,8 +430,14 @@ def write_index(data: dict) -> None:
     out = [
         "# Code index",
         "",
-        f"Generated from `{data['generated_from_commit']}` · {data['file_count']} files · "
-        f"{data['total_loc']} lines · {data['test_count']} tests.",
+        # Deliberately no commit stamp. This file is committed, so writing the
+        # HEAD it was built from into it is self-defeating: committing the file
+        # changes HEAD, the stamp is immediately one behind, and rebuilding to
+        # fix it produces another commit that invalidates it again. Everything
+        # below is derived from file contents, so it stays true across commits
+        # and a rebuild after an unrelated commit is a no-op.
+        f"{data['file_count']} files · {data['total_loc']} lines · "
+        f"{data['test_count']} tests.",
         "",
         "Read this before searching. Each entry lists the types a file declares and",
         "the line they start on, so you can open the exact region instead of the",
@@ -528,12 +539,22 @@ def write_features(data: dict) -> None:
 
 
 def fingerprint() -> str:
-    """Cheap staleness key: HEAD plus the mtimes of all indexed files."""
-    head = run(["git", "rev-parse", "HEAD"]).strip()
+    """
+    Cheap staleness key: how many files there are and the newest mtime among
+    them.
+
+    HEAD used to be part of this, which meant every commit marked the index
+    stale even when not one indexed file had changed — so the session hook
+    rebuilt, the rebuild differed only in its own commit stamp, and that
+    became a commit of its own. Staleness is about the source having moved,
+    not about a commit having happened.
+    """
     newest = 0.0
+    count = 0
     for path in collect_files():
         newest = max(newest, path.stat().st_mtime)
-    return f"{head}:{newest:.0f}"
+        count += 1
+    return f"{count}:{newest:.0f}"
 
 
 def load() -> dict:

@@ -67,7 +67,7 @@ session start when it is stale.
 | Where does X live? | `python3 scripts/codemap.py find X` |
 | What is in this file, who uses it, what tests it? | `python3 scripts/codemap.py file <path>` |
 | What is the shape of the codebase? | read `.claude/codemap/INDEX.md` |
-| What is risky to change? | read `.claude/codemap/HOTSPOTS.md` |
+| What is risky to change? | read `.claude/codemap/HOTSPOTS.md` (generated, not committed — build if absent) |
 | What behaviour is promised today? | read `.claude/codemap/FEATURES.md` |
 | What are we building, and how far along? | read `.claude/quality/ROADMAP.md` |
 | What is known broken? | `python3 scripts/bugs.py next` |

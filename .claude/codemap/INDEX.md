@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `92c8bb2` · 282 files · 69446 lines · 1341 tests.
+282 files · 69446 lines · 1341 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the

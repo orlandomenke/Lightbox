@@ -2,11 +2,19 @@ bin/
 obj/
 *.user
 
-# Generated index: the markdown views are committed because their diffs show
-# behaviour changing; the JSON graph and the staleness stamp regenerate in
-# about a second and would otherwise churn in every commit.
+# Generated index. INDEX.md and FEATURES.md are committed, because their
+# diffs show behaviour changing and they are derived purely from file
+# contents — rebuild after an unrelated commit and nothing moves.
+#
+# The rest is not committed, and the test is the same one every time: does
+# the artefact change when nothing about the source did? map.json is a 350 KB
+# graph that regenerates in a second. HOTSPOTS.md ranks files by commit churn,
+# so every commit changes it by construction — committing it meant the file
+# was wrong the instant it landed, and the rebuild that fixed it was another
+# commit that made it wrong again. The session hook builds both.
 .claude/codemap/map.json
 .claude/codemap/.stamp
+.claude/codemap/HOTSPOTS.md
 
 # Workflow agents get their own git worktrees under here.
 .claude/worktrees/
