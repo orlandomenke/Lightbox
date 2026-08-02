@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `4430350` · 274 files · 67157 lines · 1293 tests.
+Generated from `299260b` · 275 files · 67385 lines · 1297 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -53,7 +53,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ColorMode:9, ColorPickerViewModel:25
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` (347 ln) · 5 test files
   - StrokeOverlay:23, RenderPass:49, SceneRenderer:64
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 43 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 44 test files
   - SpriteTrim:11, SpriteSheetOptions:35, SpriteSheetResult:46, SpriteSheetExporter:69, SheetDocument:275, SheetFrame:281, SheetMeta:295, Box:310 …
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 6 indirect only
   - RampTrack:10, GradientRamp:41
@@ -154,7 +154,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
-- `src/Lightbox.App/App.axaml.cs` (25 ln) · 47 indirect only
+- `src/Lightbox.App/App.axaml.cs` (25 ln) · 48 indirect only
   - App:8
 - `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 6 indirect only
   - NewProjectDialog:10
@@ -179,7 +179,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (242 ln) · 32 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (242 ln) · 33 test files
   - SmudgeMode:8, BrushKind:25, BrushSettings:44
 - `src/Lightbox.Core/Geometry/TransformOps.cs` (234 ln) · 1 test files
   - TransformOps:12
@@ -219,7 +219,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GuideKind:4, Guide:60
 - `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 26 test files
   - DocumentFactory:3
-- `src/Lightbox.Core/Documents/Stroke.cs` (96 ln) · 47 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (96 ln) · 48 test files
   - Stroke:9
 - `src/Lightbox.Core/Inbetween/Inbetweener.cs` (94 ln) · 2 test files
   - Inbetweener:19
@@ -253,7 +253,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Easing:3, EasingOps:11
 - `src/Lightbox.Core/Documents/Pivot.cs` (16 ln) · 2 test files
   - Pivot:7
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 91 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 92 indirect only
   - Ids:3
 
 ## Lightbox.Import
@@ -276,7 +276,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Raster
 
-- `src/Lightbox.Raster/BrushEngine.cs` (1259 ln) · 10 test files
+- `src/Lightbox.Raster/BrushEngine.cs` (1288 ln) · 10 test files
   - BrushEngine:25
 - `src/Lightbox.Raster/Media/FluidLattice.cs` (820 ln) · 1 test files
   - FluidLattice:59
@@ -290,17 +290,17 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolRasterizer:39, Rendered:46
 - `src/Lightbox.Raster/Media/MediumSimulator.cs` (298 ln) · **no tests**
   - MediumSimulator:22
-- `src/Lightbox.Raster/FrameRasterizer.cs` (114 ln) · 16 test files
+- `src/Lightbox.Raster/FrameRasterizer.cs` (114 ln) · 17 test files
   - FrameRasterizer:10
 - `src/Lightbox.Raster/SymbolRegistry.cs` (95 ln) · 7 test files
   - SymbolRegistry:24
 - `src/Lightbox.Raster/PaletteRegistry.cs` (79 ln) · 6 test files
   - PaletteRegistry:25
+- `src/Lightbox.Raster/BrushTipRegistry.cs` (51 ln) · 2 test files
+  - BrushTipRegistry:12
 - `src/Lightbox.Raster/ReferenceStripRegistry.cs` (50 ln) · **no tests**
   - ReferenceStripRegistry:22
-- `src/Lightbox.Raster/BrushTipRegistry.cs` (34 ln) · 1 test files
-  - BrushTipRegistry:12
 - `src/Lightbox.Raster/ClipRegionRegistry.cs` (27 ln) · 3 test files
   - ClipRegionRegistry:12
-- `src/Lightbox.Raster/PngCodec.cs` (22 ln) · 3 test files
+- `src/Lightbox.Raster/PngCodec.cs` (22 ln) · 4 test files
   - PngCodec:6

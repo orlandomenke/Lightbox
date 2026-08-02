@@ -13,6 +13,18 @@ public static class BrushTipRegistry
 {
     private static readonly ConcurrentDictionary<string, SKBitmap> Tips = new();
 
+    /// <summary>
+    /// The same tips as images, which is what stamping actually draws.
+    /// </summary>
+    /// <remarks>
+    /// Held rather than made per dab, and that is the whole reason this exists.
+    /// A stroke stamps hundreds of dabs; wrapping the bitmap each time would
+    /// allocate an <see cref="SKImage"/> per dab in the hot path, and it would
+    /// also throw away the mipmap chain Skia builds for a downscale — so every
+    /// dab would pay to build it again, or go without.
+    /// </remarks>
+    private static readonly ConcurrentDictionary<string, SKImage> Images = new();
+
     public static void Register(IReadOnlyDictionary<string, string> tips)
     {
         foreach (var (id, png) in tips)
@@ -20,7 +32,9 @@ public static class BrushTipRegistry
             if (Tips.ContainsKey(id)) continue;
             try
             {
-                Tips[id] = PngCodec.Decode(png);
+                var bitmap = PngCodec.Decode(png);
+                Tips[id] = bitmap;
+                if (SKImage.FromBitmap(bitmap) is { } image) Images[id] = image;
             }
             catch
             {
@@ -31,4 +45,7 @@ public static class BrushTipRegistry
     }
 
     public static SKBitmap? Resolve(string id) => Tips.GetValueOrDefault(id);
+
+    /// <summary>The tip as a drawable image, or null.</summary>
+    public static SKImage? ResolveImage(string id) => Images.GetValueOrDefault(id);
 }

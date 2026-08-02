@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1293 tests, derived from the suite itself. Each line is a
+1297 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1711,6 +1711,14 @@ regression even when every test still compiles.
 - Abr V6 Imports Raw Sampled Brush — `:94`
 - Kpp Imports Parameter Subset — `:124`
 - Unsupported Extension Throws — `:152`
+
+## BrushTipSamplingTests
+`tests/Lightbox.Raster.Tests/BrushTipSamplingTests.cs`
+
+- AMinified Tip Is Averaged Not Point Sampled — `:91`
+- Point Sampling Is What That Rules Out — `:109`
+- AHeavily Minified Tip Keeps The Ink Density It Actually Has — `:148`
+- An Enlarged Tip Is Smoothed Rather Than Blocky — `:171`
 
 ## AntiAliasTests
 `tests/Lightbox.Raster.Tests/DraftAndAaTests.cs`

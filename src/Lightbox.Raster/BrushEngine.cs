@@ -486,6 +486,7 @@ public static class BrushEngine
         var brush = stroke.Brush;
         var color = StrokeColor(stroke);
         var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
+        var tipImage = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
 
         // Direction comes from consecutive dab centres rather than from the
         // source points, so it follows the path the dabs actually took —
@@ -501,7 +502,7 @@ public static class BrushEngine
                 // zero-length step would snap the tip to zero degrees.
                 if (dx * dx + dy * dy > 0.0001f) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
             }
-            StampDab(canvas, pos, pressure, brush, color, tip, heading);
+            StampDab(canvas, pos, pressure, brush, color, tip, heading, tipImage);
             previous = pos;
         }
     }
@@ -643,9 +644,13 @@ public static class BrushEngine
         if (region is not null) target.Restore();
     }
 
+    /// <summary>How a bitmap tip is resampled. See the note in <see cref="StampDab"/>.</summary>
+    private static readonly SKSamplingOptions TipSampling =
+        new(SKFilterMode.Linear, SKMipmapMode.Linear);
+
     private static void StampDab(
         SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color,
-        SKBitmap? tip, double directionDeg = double.NaN)
+        SKBitmap? tip, double directionDeg = double.NaN, SKImage? tipImage = null)
     {
         var radius = (float)(RadiusAt(brush, pressure));
         if (radius <= 0) return;
@@ -711,7 +716,31 @@ public static class BrushEngine
                 IsAntialias = brush.AntiAlias,
                 ColorFilter = SKColorFilter.CreateBlendMode(dabColor, SKBlendMode.SrcIn),
             };
-            canvas.DrawBitmap(tip, -tip.Width / 2f, -tip.Height / 2f, paint);
+            // DrawBitmap with no sampling options is nearest-neighbour, and
+            // IsAntialias does not change that — it smooths the edge of the
+            // drawn shape, not the resampling of what is inside it. So an
+            // imported tip came out blocky enlarged and gritty reduced, which
+            // is most of what a 512px .abr tip stamped at 20px ever is.
+            //
+            // Mipmaps are the half that matters at small brush sizes, and what
+            // they fix is ink density rather than aliasing. Linear samples four
+            // texels; on a sparse tip — spatter, stipple, a dry-brush scan —
+            // minifying 256 to 12 means those four texels are nowhere near a
+            // fair sample of the 21x21 region they stand for, and a window that
+            // clips one dot reports a quarter of full alpha for it. Measured on
+            // a tip with 1.6% coverage, that came out 2.3x too dark: the brush
+            // was heavier at small sizes than at large ones, which is the
+            // opposite of what the artist asked for. The chain is built once
+            // because the image is held by the registry rather than wrapped per
+            // dab.
+            if (tipImage is not null)
+            {
+                canvas.DrawImage(tipImage, -tip.Width / 2f, -tip.Height / 2f, TipSampling, paint);
+            }
+            else
+            {
+                canvas.DrawBitmap(tip, -tip.Width / 2f, -tip.Height / 2f, paint);
+            }
             canvas.Restore();
             return;
         }
