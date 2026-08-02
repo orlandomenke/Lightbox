@@ -83,7 +83,29 @@ public sealed class Scene
     public List<ReferenceStrip>? References { get; set; }
 
     /// <summary>Whether any reference has been imported.</summary>
+    /// <remarks>
+    /// Ignored by the serializer. It is derived from <see cref="References"/>
+    /// and has no setter, so writing it put a key in every document that
+    /// nothing ever read — and one that said "hasReferences: false" on the
+    /// documents whose whole point is that they carry no reference machinery.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool HasReferences => References is { Count: > 0 };
+
+    /// <summary>
+    /// Rulers, grids and vanishing points placed on this scene, or null.
+    /// </summary>
+    /// <remarks>
+    /// Null until one is placed — the camera's rule again. A guide is authored
+    /// and saved like a camera, and like a camera it never reaches a pixel: it
+    /// changes where the artist's input lands, and the snapped result is what
+    /// the stroke records. See <see cref="Guide"/>.
+    /// </remarks>
+    public List<Guide>? Guides { get; set; }
+
+    /// <summary>Whether any guide has been placed. Derived; see <see cref="HasReferences"/>.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasGuides => Guides is { Count: > 0 };
 
     /// <summary>
     /// The shot camera, or null — and null is the default and the common case.

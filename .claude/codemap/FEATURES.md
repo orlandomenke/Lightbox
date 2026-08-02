@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1040 tests, derived from the suite itself. Each line is a
+1071 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1126,6 +1126,30 @@ regression even when every test still compiles.
 - An Alpha Track Round Trips Through The Document — `:234`
 - AGradient With No Alpha Track Writes No Alpha Key — `:250`
 
+## GuideTests
+`tests/Lightbox.Core.Tests/GuideTests.cs`
+
+- AGrid Pulls To Its Intersections — `:35`
+- APoint Outside Tolerance Is Left Alone — `:46`
+- ATilted Grid Still Snaps — `:56`
+- ALine Pulls Perpendicularly Onto Itself — `:70`
+- AVanishing Point Pulls To Itself — `:79`
+- AGuide That Does Not Snap Is Ignored — `:89`
+- AHidden Guide Still Snaps — `:100`
+- The Nearest Guide Wins When Two Are In Range — `:114`
+- AStroke Does Not Lock Until It Has Committed To ADirection — `:125`
+- AStroke Locks To The Guide It Is Heading Along — `:136`
+- Drawing Backwards Along ARuler Is Still Drawing Along It — `:146`
+- AStroke Across Every Guide Locks To None — `:156`
+- An Isometric Guide Offers Three Axes — `:164`
+- AConstrained Stroke Keeps Its Length And Loses Its Wobble — `:179`
+- AVanishing Points Direction Depends On Where You Are Standing — `:190`
+- AStroke Is Held On The Ray From The Vanishing Point — `:202`
+- An Isometric Stroke Is Held On Whichever Axis It Meant — `:215`
+- ADocument With No Guides Writes No Guide Key — `:232`
+- Guides Survive ASave And Reload — `:242`
+- No Guides Means No Snapping — `:264`
+
 ## EraserResurrectionTests
 `tests/Lightbox.Core.Tests/Inbetween/CleanerTests.cs`
 
@@ -1300,6 +1324,21 @@ regression even when every test still compiles.
 - Deserialize Unknown Kind Throws — `:139`
 - Clone Is Deep And Independent — `:146`
 - Save And Load File Round Trips — `:155`
+
+## ShapeBuilderTests
+`tests/Lightbox.Core.Tests/ShapeBuilderTests.cs`
+
+- ALine Is Its Two Ends — `:20`
+- AClosed Shape Repeats Its First Point — `:30`
+- ARectangle Is Its Four Corners Whichever Way You Dragged — `:43`
+- Dragging From The Centre Grows Both Ways — `:54`
+- Holding It Regular Squares It Up — `:65`
+- An Ellipse Fits Its Box And Closes — `:74`
+- ABig Ellipse Gets More Segments Than ASmall One — `:87`
+- APolygon Starts At The Top — `:100`
+- APolygon Cannot Have Fewer Than Three Sides — `:112`
+- The Same Corners Always Give The Same Points — `:120`
+- Every Point Is At Full Pressure — `:133`
 
 ## StripSlicerTests
 `tests/Lightbox.Core.Tests/StripSlicerTests.cs`
