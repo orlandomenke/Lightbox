@@ -51,6 +51,27 @@ public sealed class Scene
     public List<LayerGroup> LayerGroups { get; set; } = [];
 
     /// <summary>
+    /// Frames pinned as ghosts, shown wherever the playhead is.
+    /// </summary>
+    /// <remarks>
+    /// The drawing equivalent of leaving two sheets on the pegs while you work
+    /// on the one between them. Ordinary onion skin follows the playhead, so
+    /// the extremes disappear the moment you look at the breakdown — which is
+    /// exactly when you need them.
+    /// </remarks>
+    /// <para>
+    /// In the document rather than in settings because a pin names a frame of
+    /// <i>this</i> sequence and means nothing anywhere else, and because
+    /// pinning the extremes is work that spans a session. Null unless used, so
+    /// a document that never pins anything writes no key — the same discipline
+    /// the camera follows. It reaches no pixels and is never exported.
+    /// </para>
+    public List<int>? GhostFrames { get; set; }
+
+    /// <summary>Whether any frame is pinned.</summary>
+    public bool HasGhostFrames => GhostFrames is { Count: > 0 };
+
+    /// <summary>
     /// The shot camera, or null — and null is the default and the common case.
     ///
     /// The app serves two output targets. A game's character animation has no

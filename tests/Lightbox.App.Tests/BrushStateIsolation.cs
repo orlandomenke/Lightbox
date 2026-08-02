@@ -17,22 +17,38 @@ namespace Lightbox.App.Tests;
 [CollectionDefinition("BrushState", DisableParallelization = true)]
 public class BrushStateCollection;
 
-/// <summary>Restores the brush store around a test that mutates brush settings.</summary>
+/// <summary>
+/// Restores the process-wide state a test may mutate: the brush store, and the
+/// application settings.
+/// </summary>
+/// <remarks>
+/// Settings are here for the same reason brushes are. Onion skin persists
+/// across sessions by design, which means a test that turns draw-over on hands
+/// draw-over to every view model constructed afterwards. Each test gets its
+/// own file so "persists" can be asserted without "persists into the next
+/// test" coming with it.
+/// </remarks>
 public abstract class BrushStateIsolated : IDisposable
 {
-    private readonly string _previous = MainViewModel.BrushStorePath ?? "";
+    private readonly string _previousBrushes = MainViewModel.BrushStorePath ?? "";
+    private readonly string _previousSettings = Lightbox.App.Services.AppSettings.Path;
 
     protected BrushStateIsolated()
     {
         MainViewModel.BrushStorePath = Path.Combine(
             Path.GetTempPath(), $"lightbox-brushes-{Guid.NewGuid():N}.json");
+        Lightbox.App.Services.AppSettings.Path = Path.Combine(
+            Path.GetTempPath(), $"lightbox-settings-{Guid.NewGuid():N}.json");
     }
 
     public void Dispose()
     {
         var mine = MainViewModel.BrushStorePath;
-        MainViewModel.BrushStorePath = _previous;
+        var mySettings = Lightbox.App.Services.AppSettings.Path;
+        MainViewModel.BrushStorePath = _previousBrushes;
+        Lightbox.App.Services.AppSettings.Path = _previousSettings;
         if (mine is not null && File.Exists(mine)) File.Delete(mine);
+        if (File.Exists(mySettings)) File.Delete(mySettings);
         GC.SuppressFinalize(this);
     }
 }

@@ -2328,11 +2328,163 @@ public sealed partial class MainViewModel : ObservableObject
         return (id, region);
     }
 
-    [ObservableProperty]
-    private bool _onionSkin = true;
+    // Onion skin's settings live in AppSettings, not here and not in the
+    // document: it is a drawing aid that never reaches pixels, and an
+    // animator's depth and falloff are how they work rather than a property of
+    // each scene. These forward, so the views and the existing tests keep the
+    // names they had.
 
-    [ObservableProperty]
-    private int _onionDepth = 1;
+    public bool OnionSkin
+    {
+        get => Onion.Enabled;
+        set => SetOnion(value, v => Onion.Enabled = v, Onion.Enabled);
+    }
+
+    /// <summary>Drawings shown behind and ahead. One number sets both.</summary>
+    public int OnionDepth
+    {
+        get => Math.Max(Onion.Before, Onion.After);
+        set
+        {
+            var depth = Math.Clamp(value, 0, 10);
+            if (Onion.Before == depth && Onion.After == depth) return;
+            Onion.Before = Onion.After = depth;
+            AfterOnionChange();
+            OnPropertyChanged(nameof(OnionBefore));
+            OnPropertyChanged(nameof(OnionAfter));
+        }
+    }
+
+    public int OnionBefore
+    {
+        get => Onion.Before;
+        set => SetOnion(Math.Clamp(value, 0, 10), v => Onion.Before = v, Onion.Before, nameof(OnionDepth));
+    }
+
+    public int OnionAfter
+    {
+        get => Onion.After;
+        set => SetOnion(Math.Clamp(value, 0, 10), v => Onion.After = v, Onion.After, nameof(OnionDepth));
+    }
+
+    public double OnionOpacity
+    {
+        get => Onion.Opacity;
+        set => SetOnion(Math.Clamp(value, 0.02, 1), v => Onion.Opacity = v, Onion.Opacity);
+    }
+
+    public double OnionFalloff
+    {
+        get => Onion.Falloff;
+        set => SetOnion(Math.Clamp(value, 0.05, 1), v => Onion.Falloff = v, Onion.Falloff);
+    }
+
+    public bool OnionKeysOnly
+    {
+        get => Onion.KeysOnly;
+        set => SetOnion(value, v => Onion.KeysOnly = v, Onion.KeysOnly);
+    }
+
+    public bool OnionDrawOver
+    {
+        get => Onion.DrawOver;
+        set => SetOnion(value, v => Onion.DrawOver = v, Onion.DrawOver);
+    }
+
+    public string OnionPreviousTint
+    {
+        get => Onion.PreviousTint;
+        set => SetOnion(value, v => Onion.PreviousTint = v, Onion.PreviousTint);
+    }
+
+    public string OnionNextTint
+    {
+        get => Onion.NextTint;
+        set => SetOnion(value, v => Onion.NextTint = v, Onion.NextTint);
+    }
+
+    public IReadOnlyList<Services.OnionMode> OnionModeChoices { get; } =
+        Enum.GetValues<Services.OnionMode>();
+
+    public Services.OnionMode OnionMode
+    {
+        get => Onion.Mode;
+        set => SetOnion(value, v => Onion.Mode = v, Onion.Mode, nameof(IsLightTable));
+    }
+
+    /// <summary>
+    /// A light table shows the other layers at this instant rather than this
+    /// layer's own neighbours in time — a genuinely different question, and
+    /// the reason it is a mode rather than another depth.
+    /// </summary>
+    public bool IsLightTable => Onion.Mode == Services.OnionMode.LightTable;
+
+    private void SetOnion<T>(T value, Action<T> apply, T current, string? also = null,
+        [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(current, value)) return;
+        apply(value);
+        OnPropertyChanged(name);
+        if (also is not null) OnPropertyChanged(also);
+        AfterOnionChange();
+    }
+
+    /// <summary>
+    /// Repaint, and remember. Onion settings persist across sessions because
+    /// setting them up again every morning is the kind of small friction that
+    /// makes a tool feel like it is not paying attention.
+    /// </summary>
+    private void AfterOnionChange()
+    {
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+        Settings.Save();
+    }
+
+    // ---- pinned ghosts ------------------------------------------------------
+
+    /// <summary>Whether the playhead's frame is pinned as a ghost.</summary>
+    public bool CurrentFrameIsGhost =>
+        Scene.GhostFrames?.Contains(CurrentFrameIndex) == true;
+
+    public string GhostPinLabel => CurrentFrameIsGhost ? "Unpin ghost" : "Pin as ghost";
+
+    /// <summary>
+    /// Pin or unpin the playhead's frame, so it stays ghosted wherever the
+    /// playhead goes — the two sheets you leave on the pegs while drawing the
+    /// breakdown between them.
+    /// </summary>
+    [RelayCommand]
+    public void ToggleGhostFrame()
+    {
+        var index = CurrentFrameIndex;
+        var scene = Scene;
+        var pinned = scene.GhostFrames ?? [];
+        if (!pinned.Remove(index)) pinned.Add(index);
+        // Absent unless used, so a document that never pins writes no key.
+        scene.GhostFrames = pinned.Count > 0 ? pinned : null;
+        NotifyGhostPins();
+    }
+
+    [RelayCommand]
+    public void ClearGhostFrames()
+    {
+        if (Scene.GhostFrames is null) return;
+        Scene.GhostFrames = null;
+        NotifyGhostPins();
+    }
+
+    private void NotifyGhostPins()
+    {
+        OnPropertyChanged(nameof(CurrentFrameIsGhost));
+        OnPropertyChanged(nameof(GhostPinLabel));
+        OnPropertyChanged(nameof(HasGhostFrames));
+        MarkDocumentEdited();
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+    }
+
+    public bool HasGhostFrames => Scene.HasGhostFrames;
 
     // ---- stroke stabilizer (input smoothing) -----------------------------------
 
@@ -2539,7 +2691,6 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    partial void OnOnionDepthChanged(int value) => PublishSnapshot();
 
     partial void OnActiveLayerIndexChanged(int value)
     {
@@ -2580,10 +2731,13 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshCellHighlights();
         RefreshLayerThumbs();
         RefreshCamera();
+        // Whether THIS frame is pinned changes with the playhead, and the pin
+        // button has to say which way it will go.
+        OnPropertyChanged(nameof(CurrentFrameIsGhost));
+        OnPropertyChanged(nameof(GhostPinLabel));
         PublishSnapshot();
     }
 
-    partial void OnOnionSkinChanged(bool value) => PublishSnapshot();
 
     // ---- painting -----------------------------------------------------------
 
@@ -4920,6 +5074,64 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    // ---- onion skin -------------------------------------------------------------
+
+    /// <summary>Onion skin as the artist has set it up. Global, not per document.</summary>
+    public Services.OnionSettings Onion => Settings.Onion;
+
+    /// <summary>
+    /// The ghost passes for one layer: the drawings around the playhead, the
+    /// frames pinned as ghosts, or — in light-table mode — nothing, because
+    /// that mode ghosts other layers rather than other frames.
+    /// </summary>
+    private List<RenderPass> GhostPassesFor(Layer layer, Scene scene)
+    {
+        var passes = new List<RenderPass>();
+        // Ghosts are a drawing aid. During playback they are noise, and the
+        // one thing playback has to show is the animation.
+        if (!Onion.Enabled || IsPlaying || !layer.OnionEnabled) return passes;
+
+        var previous = SceneRenderer.ParseTint(Onion.PreviousTint, SceneRenderer.OnionPrevTint);
+        var next = SceneRenderer.ParseTint(Onion.NextTint, SceneRenderer.OnionNextTint);
+
+        if (Onion.Mode == Services.OnionMode.LightTable)
+        {
+            // A light table shows the sheets under this one, not this sheet's
+            // own history. The other layers are already composited in their
+            // own right, so there is nothing to add here — the mode's effect
+            // is that the time-based ghosts are absent.
+            return passes;
+        }
+
+        // Pinned first, so they sit furthest back: they are the reference the
+        // near ghosts and the current drawing are being placed against.
+        foreach (var index in PinnedGhostIndices(scene))
+        {
+            if (index == CurrentFrameIndex) continue;
+            if (ExposureSheet.ExposedFrame(layer, index) is not { } pinned) continue;
+            passes.Add(new RenderPass(
+                _cache.Get(pinned, scene.Width, scene.Height),
+                index < CurrentFrameIndex ? previous : next,
+                Onion.Opacity));
+        }
+
+        // Furthest first so the nearest ghost ends up on top of the others,
+        // which is the order their opacities assume.
+        var around = Lightbox.Core.Timeline.OnionSkin.Ghosts(
+            layer, CurrentFrameIndex, Onion.Before, Onion.After, Onion.KeysOnly);
+        foreach (var ghost in around.OrderByDescending(g => g.Steps))
+        {
+            passes.Add(new RenderPass(
+                _cache.Get(ghost.Frame, scene.Width, scene.Height),
+                ghost.Before ? previous : next,
+                Lightbox.Core.Timeline.OnionSkin.OpacityAt(ghost.Steps, Onion.Opacity, Onion.Falloff)));
+        }
+        return passes;
+    }
+
+    private IReadOnlyList<int> PinnedGhostIndices(Scene scene) =>
+        scene.GhostFrames is { Count: > 0 } pinned ? pinned : [];
+
     /// <summary>
     /// The document region the last publish actually recomposited (null = the
     /// whole canvas). What the artist feels as a stutter is this rect growing,
@@ -4944,21 +5156,19 @@ public sealed partial class MainViewModel : ObservableObject
             // paper, the paper painted over every ghost. Interleaving is also
             // what makes multi-layer onion read correctly — a layer's ghosts
             // sit under it, exactly as its own earlier frames would.
-            if (OnionSkin && !IsPlaying && layer.OnionEnabled)
-            {
-                for (var d = Math.Max(1, OnionDepth); d >= 1; d--)
-                {
-                    var prev = ExposureSheet.FrameAtExactIndex(layer, CurrentFrameIndex - d);
-                    if (prev is not null)
-                        passes.Add(new RenderPass(_cache.Get(prev, scene.Width, scene.Height), SceneRenderer.OnionPrevTint, 0.25 / d));
-                    var next = ExposureSheet.FrameAtExactIndex(layer, CurrentFrameIndex + d);
-                    if (next is not null)
-                        passes.Add(new RenderPass(_cache.Get(next, scene.Width, scene.Height), SceneRenderer.OnionNextTint, 0.25 / d));
-                }
-            }
+            var ghosts = GhostPassesFor(layer, scene);
+            if (!Onion.DrawOver) passes.AddRange(ghosts);
 
             var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
-            if (frame is null) continue;
+            if (frame is null)
+            {
+                // An empty cel is exactly when onion skin earns its keep: you
+                // are looking at the gap you are about to draw the inbetween
+                // into. The ghosts still show — there is simply no drawing of
+                // this layer's own to put them under or over.
+                if (Onion.DrawOver) passes.AddRange(ghosts);
+                continue;
+            }
 
             var bmp = _cache.Get(frame, scene.Width, scene.Height);
 
@@ -5027,11 +5237,29 @@ public sealed partial class MainViewModel : ObservableObject
                 passes.Add(new RenderPass(
                     parts.Moving, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
                     overlay, preview));
+                if (Onion.DrawOver) passes.AddRange(ghosts);
                 continue;
             }
 
+            // A light table makes the sheet you are drawing on the crisp one and
+            // the sheets under it faint. Untinted, because they are the same
+            // drawing seen through paper, not a different moment in time.
+            //
+            // The paper is exempt: it is the desk the sheets lie on, not one of
+            // them. Dimming it would punch the checkerboard through an opaque
+            // document the moment the mode was switched on.
+            var opacity = IsLightTable && !IsPlaying
+                && !layer.IsBackground && layer.Id != ActiveLayer.Id
+                ? layer.Opacity * Onion.Opacity
+                : layer.Opacity;
             passes.Add(new RenderPass(
-                bmp, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode), overlay));
+                bmp, null, opacity, SceneRenderer.ToSkia(layer.BlendMode), overlay));
+
+            // Draw-over puts them above instead. Under is how a lightbox works
+            // and is what you want while drawing; over is for checking, when a
+            // line you have just made would otherwise hide the one you are
+            // comparing it to.
+            if (Onion.DrawOver) passes.AddRange(ghosts);
         }
 
         // Compose at the resolution the canvas can actually show. A 4K document

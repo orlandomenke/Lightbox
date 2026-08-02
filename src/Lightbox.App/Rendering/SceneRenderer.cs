@@ -295,6 +295,13 @@ public static class SceneRenderer
     private static readonly SKSamplingOptions Downscale = new(SKFilterMode.Linear);
 
     public static readonly SKColor OnionPrevTint = new(0xd0, 0x40, 0x40);
+
+    /// <summary>
+    /// A tint from settings, falling back rather than throwing. A colour the
+    /// user has half-typed must not stop the canvas from drawing.
+    /// </summary>
+    public static SKColor ParseTint(string? hex, SKColor fallback) =>
+        SKColor.TryParse(hex, out var parsed) ? parsed : fallback;
     public static readonly SKColor OnionNextTint = new(0x30, 0x60, 0xc0);
 
     /// <summary>Photoshop-style layer blend modes map 1:1 onto Skia's.</summary>

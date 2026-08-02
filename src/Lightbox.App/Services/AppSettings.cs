@@ -25,6 +25,19 @@ public sealed class AppSettings
     public double AutosaveMinutes { get; set; } = 1;
 
     /// <summary>
+    /// Onion skin, which is a property of the artist, not of the artwork.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in the document because onion skin never touches
+    /// pixels — it is a drawing aid, on the view-only side of invariant 5 —
+    /// and because an animator's depth and falloff are how *they* work, not
+    /// something each scene should be asked again. Here rather than in the
+    /// workspace for the same reason: rearranging panels must not change how
+    /// far back you can see.
+    /// </remarks>
+    public OnionSettings Onion { get; set; } = new();
+
+    /// <summary>
     /// Whether to autosave over the document's own file once it has one,
     /// rather than only to the recovery copy.
     /// </summary>

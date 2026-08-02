@@ -55,7 +55,10 @@ MEMBER_DECL = re.compile(
     r"^\s*(?:\[[^\]]*\]\s*)*"
     r"(?P<mods>(?:public|internal|protected)\s+)"
     r"(?:(?:static|virtual|override|sealed|abstract|async|partial|readonly|extern|new|unsafe)\s+)*"
-    r"(?P<sig>[\w<>\[\],\?\.\(\) ]+?)\s*(?P<tail>[\{=;\(])",
+    # The tail may be end-of-line: Allman braces put the `{` of a property or
+    # method on the next line, and without this every block-bodied property in
+    # the codebase — most of the view model's API — is invisible to the index.
+    r"(?P<sig>[\w<>\[\],\?\.\(\) ]+?)\s*(?P<tail>[\{=;\(]|$)",
 )
 
 # CommunityToolkit.Mvvm source generators. The attribute sits on its own line

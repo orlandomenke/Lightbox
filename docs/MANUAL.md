@@ -410,9 +410,38 @@ exposure changes to all of it at once.
 
 ### Onion skin
 
-Previous frames tint red, next frames blue. Adjustable depth, per-layer opt-out,
-and off during playback. Ghosts sit directly under the layer they belong to, so
-multi-layer onion reads correctly.
+Previous drawings tint red, next drawings blue. The checkbox on the timeline bar
+turns it on; the two number fields beside it are how many drawings to show
+**before** and **after** the playhead, asked separately because working forwards
+usually means two behind and none ahead. Ghosts sit directly under the layer they
+belong to, so multi-layer onion reads correctly, and they are off during
+playback — the one thing playback has to show is the animation.
+
+Everything else is behind the **⚙** next to those fields:
+
+| Setting | What it does |
+| --- | --- |
+| Mode | **Frames** ghosts this layer's other drawings. **Light table** instead dims the *other layers* at this frame, as sheets under the one you are drawing on. The paper is left alone. |
+| Opacity | How visible the nearest ghost is. |
+| Falloff | What each further ghost is worth. At **1** they are all equally visible — right for checking registration across a sequence. At **0.5** each is half the one before — right when you are drawing an inbetween. |
+| Keyed drawings only | Step by drawings rather than by frames. On 2s or 3s the frame before is a hold of the drawing already on screen; this walks to the real one. |
+| Draw over the current drawing | Ghosts on top instead of underneath. Under is how a lightbox works and is what you want while drawing; over is for checking a line you have just made against the one it should match. |
+| Before / After tint | The two ghost colours. Red and blue by convention. |
+
+A ghost counts **drawings, not frames**: on 3s the drawing three frames back is
+still the *first* ghost, and gets the strongest opacity.
+
+Per-layer, the **◉** in the Layers panel opts a layer out of ghosting entirely.
+
+**Ghost poses.** *Pin as ghost* keeps the current frame ghosted from everywhere
+else in the sequence — the extreme you are animating towards, however far away it
+is. Depth cannot express that, because the distance is the point. *Clear pins*
+removes them all. Pins are saved with the document; a document that never pins
+anything stores nothing for it.
+
+Onion settings belong to you, not to the artwork: they are kept across sessions,
+survive rearranging or switching workspaces, and opening another document does
+not reset them.
 
 ### Playback
 
@@ -545,8 +574,7 @@ Not built. Listed so the gap is visible rather than implied.
 - Liquify, clone stamp, healing brush
 
 **Animation**
-- Persistent onion-skin settings across sessions
-- Onion skin from keyframes only
+- A pose library, and reusable animation cycles
 
 **Interop**
 - PSD import and export

@@ -137,16 +137,16 @@ Cheap to state, and the thing frame-by-frame animators evaluate a tool on
 within five minutes.
 
 - [x] Onion skin, on/off `evidence: OnionSkin, OnionPrevTint, OnionNextTint`
-- [x] Adjustable depth `evidence: OnionDepth`
+- [x] Adjustable depth `evidence: OnionDepth, OnionBefore, OnionAfter, OnionSkin`
 - [x] Per-layer onion skin `evidence: OnionEnabled, PerLayerOnionTests`
 - [x] Colour-coded onion skin `evidence: OnionPrevTint, OnionNextTint`
-- [?] Persistent onion-skin settings across sessions
-- [?] Onion skin from keyframes only
-- [?] Per-frame opacity falloff curve
-- [?] Light table mode
-- [?] Draw-over mode
-- [?] Ghost poses
-- [?] Onion skin that survives a workspace switch
+- [x] Persistent onion-skin settings across sessions `evidence: OnionSettings, AppSettings, OnionTests`
+- [x] Onion skin from keyframes only `evidence: OnionSkin, OnionKeysOnly, OnionSkinTests`
+- [x] Per-frame opacity falloff curve `evidence: OnionSkin, OnionFalloff, OnionSkinTests`
+- [x] Light table mode `evidence: OnionMode, IsLightTable, OnionTests`
+- [x] Draw-over mode `evidence: OnionSettings, OnionDrawOver, OnionTests`
+- [x] Ghost poses `evidence: GhostFrames, HasGhostFrames, OnionTests`
+- [x] Onion skin that survives a workspace switch `evidence: AppSettings, OnionSettings, OnionTests`
 
 ## Pillar 3 — Pose, expression and animation libraries
 

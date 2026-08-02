@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-754 tests, derived from the suite itself. Each line is a
+782 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -532,6 +532,26 @@ regression even when every test still compiles.
 - Without Alt The Same Call Paints — `:32`
 - The Eraser Tool Still Erases Even Without Alt — `:42`
 
+## OnionTests
+`tests/Lightbox.App.Tests/OnionTests.cs`
+
+- Onion Settings Survive The Application Closing — `:83`
+- Rearranging The Panels Leaves Onion Skin Alone — `:113`
+- Opening ADocument Does Not Reset How Far Back You Can See — `:134`
+- The Drawing Before This One Shows Through In Its Tint — `:147`
+- Depth Decides How Far Back The Ghosts Reach — `:159`
+- Falloff Makes The Further Ghost Fainter — `:174`
+- Playback Shows The Animation Not The Ghosts — `:196`
+- ACel That Exposes Nothing Still Shows Its Ghosts — `:210`
+- Draw Over Puts The Ghost On Top Of The Current Drawing — `:244`
+- ALight Table Dims The Other Layers And Drops The Time Ghosts — `:273`
+- ALight Table Leaves The Paper Alone — `:300`
+- APinned Frame Ghosts From Anywhere In The Sequence — `:320`
+- APinned Frame Never Ghosts Itself — `:340`
+- Unpinning And Clearing Put The Canvas Back — `:354`
+- ADocument That Pins Nothing Writes No Pin Key — `:386`
+- ALayer With Onion Off Contributes No Ghosts — `:400`
+
 ## PaletteDockerTests
 `tests/Lightbox.App.Tests/PaletteDockerTests.cs`
 
@@ -903,6 +923,22 @@ regression even when every test still compiles.
 - Length Mismatch Inflates Cost — `:42`
 - Unmatched Pair With Null — `:52`
 - Empty Frames Produce Only One Sided Pairs — `:60`
+
+## OnionSkinTests
+`tests/Lightbox.Core.Tests/OnionSkinTests.cs`
+
+- On Ones The Neighbours Are The Frames Either Side — `:41`
+- On Threes The Neighbours Are Still The Drawings Either Side — `:52`
+- ADrawing Is Never Ghosted Against Itself — `:63`
+- The Same Drawing Is Never Ghosted Twice — `:74`
+- Steps Count Drawings Not Frames — `:83`
+- Keys Only Walks Keyed Cels And Ignores Holds — `:96`
+- Keys Only Standing On AHold Finds The Keys Not The Held Drawing — `:104`
+- Before And After Are Asked For Separately — `:114`
+- Zero Depth Ghosts Nothing — `:125`
+- The Ends Of The Sequence Simply Run Out — `:131`
+- Falloff Halves Each Further Ghost — `:141`
+- AFalloff Of One Makes Every Ghost Equally Visible — `:149`
 
 ## PaletteTests
 `tests/Lightbox.Core.Tests/PaletteTests.cs`
