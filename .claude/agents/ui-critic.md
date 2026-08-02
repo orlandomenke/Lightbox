@@ -34,6 +34,21 @@ Ordered by how often it actually goes wrong here:
    generous. Shrinking them to save pixels is a regression, not a win.
 6. **Labels that do not align.** Rows in a group must share a label column
    width, or the group reads as a list of unrelated controls.
+7. **A horizontal bar whose columns do not line up.** In the tool options bar
+   every group is `label · slider · value`, repeated. Those three parts must
+   be the same size in every group — the widths are set once by the
+   `Slider.param` and `NumericUpDown.value` classes in `Density.axaml`, and a
+   control that declares a `Width` of its own has opted out of them. This is
+   the commonest way the bar drifts: sizing each pair to taste gave boxes of
+   64, 68 and 72 for three numbers of the same shape, so the row started and
+   ended somewhere different every time the tool changed. Flag any `Slider` or
+   `NumericUpDown` in that bar with an inline `Width`, and any group that is
+   missing one of the three parts. `ToolBarAlignmentTests` guards it; if you
+   are proposing a new group, say which class each part takes.
+8. **A flyout pinned to a fixed height.** A flyout whose pages differ in
+   length must size to its content with a `MaxHeight` cap, not declare one
+   `Height`. A fixed height gives the short pages dead space and the long ones
+   a scrollbar, which is the panel telling you it is the wrong size.
 
 ## What you are NOT
 

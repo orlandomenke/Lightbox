@@ -320,23 +320,23 @@
                   Command="{Binding SwapColorsCommand}" ToolTip.Tip="Swap foreground and background (X)" />
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Size" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Width="110" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="500" Increment="1"
-                           FormatString="0.#" Width="68" VerticalAlignment="Center"
+                           FormatString="0.#" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Brush size (type an exact value)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Hardness" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Increment="0.05"
-                           FormatString="0.00" Width="72" VerticalAlignment="Center"
+                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Brush hardness (type an exact value, 0–1)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Opacity" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Increment="0.05"
-                           FormatString="0.00" Width="72" VerticalAlignment="Center"
+                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Brush transparency (0–1)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -345,15 +345,15 @@
                       Width="140" VerticalAlignment="Center"
                       ToolTip.Tip="Input smoothing: Laplacian = light touch-up, MovingAverage = steady, Ema = low lag, PulledString = lazy mouse, SavitzkyGolay = keeps corners" />
             <NumericUpDown Value="{Binding SmoothingWindow}" Minimum="3" Maximum="25" Increment="2"
-                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           FormatString="0" Classes="value" VerticalAlignment="Center"
                            IsVisible="{Binding IsWindowSmoothing}"
                            ToolTip.Tip="Window size — higher smooths more" />
             <NumericUpDown Value="{Binding SmoothingStrength}" Minimum="0" Maximum="0.95" Increment="0.05"
-                           FormatString="0.00" Width="68" VerticalAlignment="Center"
+                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            IsVisible="{Binding IsEmaSmoothing}"
                            ToolTip.Tip="Strength — higher smooths more (slightly laggier)" />
             <NumericUpDown Value="{Binding LazyRadius}" Minimum="4" Maximum="200" Increment="2"
-                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           FormatString="0" Classes="value" VerticalAlignment="Center"
                            IsVisible="{Binding IsPulledStringSmoothing}"
                            ToolTip.Tip="String length in pixels — the brush trails the cursor by this much" />
           </StackPanel>
@@ -372,24 +372,24 @@
                     IsVisible="{Binding ShowsEffectOptions}">
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="{Binding EffectStrengthLabel}" VerticalAlignment="Center" />
-            <Slider Value="{Binding EffectStrength}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <Slider Value="{Binding EffectStrength}" Minimum="0" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding EffectStrength}" Minimum="0" Maximum="1" Increment="0.05"
-                           FormatString="0.00" Width="64" VerticalAlignment="Center"
+                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="How far colour travels before the sample refreshes (smudge), or how much softening (blur)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Radius" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Width="80" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Increment="0.05"
-                           FormatString="0.00" Width="64" VerticalAlignment="Center"
+                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="How wide an area each dab samples. Wider blends more and keeps less detail." />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                       IsVisible="{Binding IsSmudgeBrush}">
             <TextBlock Text="Colour" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Width="70" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Increment="0.05"
-                           FormatString="0.00" Width="64" VerticalAlignment="Center"
+                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="How much of the brush's own colour it adds while smudging. Zero is a pure blender." />
             <ComboBox ItemsSource="{Binding SmudgeModeChoices}" SelectedItem="{Binding BrushSmudgeMode}"
                       Width="110" VerticalAlignment="Center" ToolTip.Tip="How the sample is picked up and laid down" />
@@ -433,7 +433,7 @@
                   <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasAlphaStop}">
                     <TextBlock Text="Opacity stop" FontSize="10" Opacity="0.6" />
                     <DockPanel>
-                      <NumericUpDown DockPanel.Dock="Right" Width="56" FontSize="11"
+                      <NumericUpDown DockPanel.Dock="Right" Classes="value" FontSize="11"
                                      Value="{Binding GradientDocker.SelectedAlpha}"
                                      Minimum="0" Maximum="100" Increment="5" FormatString="0" />
                       <Slider Value="{Binding GradientDocker.SelectedAlpha}"
@@ -470,10 +470,10 @@
 
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Opacity" VerticalAlignment="Center" />
-            <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Width="80"
+            <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Classes="param"
                     VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Increment="0.05"
-                           FormatString="0.00" Width="64" VerticalAlignment="Center"
+                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Opacity the gradient tool lays the ramp down at" />
           </StackPanel>
         </StackPanel>
@@ -483,7 +483,13 @@
                 IsVisible="{Binding IsPaintTool}">
           <Button.Flyout>
             <Flyout Placement="Bottom">
-              <Grid Width="470" Height="430" ColumnDefinitions="120,8,*">
+              <!--
+                Sized to the page, not to the tallest page. A fixed height gave
+                the short pages empty space and the long ones a scrollbar; the
+                MaxHeight is only there so a very long page cannot run off the
+                bottom of the screen.
+              -->
+              <Grid Width="470" MinHeight="240" MaxHeight="760" ColumnDefinitions="120,8,*">
                 <ListBox x:Name="BrushCategoryList" Grid.Column="0" SelectedIndex="0"
                          SelectionChanged="OnBrushCategoryChanged" Background="#1c1c1c">
                   <ListBoxItem Content="General" />
@@ -875,23 +881,23 @@
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsEraserTool}">
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Size" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Width="110" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding BrushSize}" Minimum="1" Maximum="500" Increment="1"
-                           FormatString="0.#" Width="68" VerticalAlignment="Center"
+                           FormatString="0.#" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Eraser size (type an exact value)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Hardness" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Increment="0.05"
-                           FormatString="0.00" Width="72" VerticalAlignment="Center"
+                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Eraser hardness (type an exact value, 0–1)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Opacity" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Width="90" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Increment="0.05"
-                           FormatString="0.00" Width="72" VerticalAlignment="Center"
+                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Eraser strength (0–1)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -900,15 +906,15 @@
                       Width="140" VerticalAlignment="Center"
                       ToolTip.Tip="Input smoothing: Laplacian = light touch-up, MovingAverage = steady, Ema = low lag, PulledString = lazy mouse, SavitzkyGolay = keeps corners" />
             <NumericUpDown Value="{Binding SmoothingWindow}" Minimum="3" Maximum="25" Increment="2"
-                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           FormatString="0" Classes="value" VerticalAlignment="Center"
                            IsVisible="{Binding IsWindowSmoothing}"
                            ToolTip.Tip="Window size — higher smooths more" />
             <NumericUpDown Value="{Binding SmoothingStrength}" Minimum="0" Maximum="0.95" Increment="0.05"
-                           FormatString="0.00" Width="68" VerticalAlignment="Center"
+                           FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            IsVisible="{Binding IsEmaSmoothing}"
                            ToolTip.Tip="Strength — higher smooths more (slightly laggier)" />
             <NumericUpDown Value="{Binding LazyRadius}" Minimum="4" Maximum="200" Increment="2"
-                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           FormatString="0" Classes="value" VerticalAlignment="Center"
                            IsVisible="{Binding IsPulledStringSmoothing}"
                            ToolTip.Tip="String length in pixels — the brush trails the cursor by this much" />
           </StackPanel>
@@ -919,19 +925,19 @@
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Tolerance" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding FillTolerance}" Minimum="0" Maximum="255" Increment="4"
-                           FormatString="0" Width="68" VerticalAlignment="Center"
+                           FormatString="0" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="How different a pixel may be and still count as the same area" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Gap px" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding FillGapPx}" Minimum="0" Maximum="32" Increment="1"
-                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           FormatString="0" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Openings up to this many pixels still count as closed" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Grow px" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding FillGrowPx}" Minimum="-16" Maximum="16" Increment="1"
-                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           FormatString="0" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Overfill (+) under the line work, or underfill (−) to keep a margin" />
           </StackPanel>
           <CheckBox Content="Smart fill" IsChecked="{Binding SmartFill}" VerticalAlignment="Center"
@@ -964,13 +970,13 @@
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
               <TextBlock Text="Tolerance" VerticalAlignment="Center" />
               <NumericUpDown Value="{Binding WandTolerance}" Minimum="0" Maximum="255" Increment="4"
-                             FormatString="0" Width="68" VerticalAlignment="Center"
+                             FormatString="0" Classes="value" VerticalAlignment="Center"
                              ToolTip.Tip="How different a pixel may be and still join the selection" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
               <TextBlock Text="Gap px" VerticalAlignment="Center" />
               <NumericUpDown Value="{Binding WandGapPx}" Minimum="0" Maximum="32" Increment="1"
-                             FormatString="0" Width="64" VerticalAlignment="Center"
+                             FormatString="0" Classes="value" VerticalAlignment="Center"
                              ToolTip.Tip="Openings up to this many pixels still count as closed" />
             </StackPanel>
             <CheckBox Content="Sample all layers" IsChecked="{Binding WandSampleAllLayers}" VerticalAlignment="Center"
@@ -979,12 +985,12 @@
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Feather" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding SelectionFeather}" Minimum="0" Maximum="100" Increment="1"
-                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           FormatString="0" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Soften the selection edge by this many pixels" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <NumericUpDown Value="{Binding SelectionAdjustPx}" Minimum="1" Maximum="64" Increment="1"
-                           FormatString="0" Width="64" VerticalAlignment="Center"
+                           FormatString="0" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Pixels for Grow/Shrink" />
             <Button Content="Grow" Command="{Binding GrowSelectionCommand}"
                     ToolTip.Tip="Enlarge the selection" />
@@ -1841,11 +1847,17 @@
                               IsChecked="{Binding PaletteDocker.EditSelectedSwatch}"
                               IsEnabled="{Binding PaletteDocker.HasSwatch}"
                               ToolTip.Tip="The colour picker recolours the selected swatch — and every stroke painted with it — instead of setting the paint colour" />
+                    <!--
+                      Colour first, then the name. Changing the colour is the
+                      thing you come here to do; naming it is what you do once,
+                      afterwards, and putting the rarer field in the reading
+                      position made the common one the second thing you found.
+                    -->
                     <DockPanel IsVisible="{Binding PaletteDocker.HasSwatch}">
-                      <controls:ColorField DockPanel.Dock="Right" Margin="4,0,0,0"
+                      <controls:ColorField DockPanel.Dock="Left" Margin="0,0,4,0"
                                            Hex="{Binding PaletteDocker.SelectedSwatch.Color, Mode=TwoWay}" />
                       <TextBox Text="{Binding PaletteDocker.SelectedSwatch.Name, Mode=TwoWay}"
-                               FontSize="11" Margin="0,0,4,0" PlaceholderText="Swatch name"
+                               FontSize="11" PlaceholderText="Swatch name"
                                ToolTip.Tip="A palette is a vocabulary — “skin shadow”, not “#b07a5e”" />
                     </DockPanel>
                     <TextBlock Text="{Binding PaletteDocker.Status}" FontSize="10" Opacity="0.6"
@@ -1919,7 +1931,11 @@
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="vm:SwatchRow">
                         <Border Width="26" Height="26" CornerRadius="3" BorderBrush="#666" BorderThickness="1"
-                                Background="{Binding Fill}" ToolTip.Tip="{Binding Label}" />
+                                Background="{Binding Fill}"
+                                PointerPressed="OnSwatchPressed"
+                                PointerMoved="OnSwatchMoved"
+                                PointerReleased="OnSwatchReleased"
+                                ToolTip.Tip="{Binding Label}" />
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>

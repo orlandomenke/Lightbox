@@ -258,6 +258,9 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
     /// <summary>Every folder a node could be assigned to, flattened with its path.</summary>
     public ObservableCollection<PaletteAssignTarget> AssignTargets { get; } = [];
 
+    /// <summary>Every palette a colour could be added to, flattened with its path.</summary>
+    public ObservableCollection<PaletteTarget> PaletteTargets { get; } = [];
+
     [ObservableProperty]
     private PaletteNode? _selectedNode;
 
@@ -326,8 +329,10 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
     private void RebuildAssignTargets()
     {
         AssignTargets.Clear();
+        PaletteTargets.Clear();
         foreach (var scope in Scopes)
         {
+            var prefix = Scopes.Length == 1 ? "" : $"{ScopeName(scope)} / ";
             AssignTargets.Add(new PaletteAssignTarget
             {
                 Scope = scope,
@@ -343,7 +348,51 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
                     Label = PaletteTree.PathOf(FoldersOf(scope), folder.Id),
                 });
             }
+            foreach (var palette in PalettesOf(scope))
+            {
+                var path = PaletteTree.PathOf(FoldersOf(scope), palette.FolderId);
+                PaletteTargets.Add(new PaletteTarget
+                {
+                    Id = palette.Id,
+                    Scope = scope,
+                    Label = path.Length > 0
+                        ? $"{prefix}{path} / {palette.Name}"
+                        : $"{prefix}{palette.Name}",
+                });
+            }
         }
+    }
+
+    /// <summary>
+    /// Move a swatch into another palette.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A move, not a copy: the swatch keeps its id, so every stroke painted
+    /// with it follows it into its new home and still recolours. Copying would
+    /// mint a new id and quietly cut the art loose from the colour — the same
+    /// failure that made project palettes stop working when they were stored
+    /// as <c>.gpl</c>.
+    /// </para>
+    /// <para>
+    /// Across scopes is refused, for the reason a palette cannot cross either:
+    /// a document palette travels with its file and a project palette does not,
+    /// so a swatch that moved between them would resolve in one document and
+    /// not in the next.
+    /// </para>
+    /// </remarks>
+    public bool MoveSwatch(SwatchRow? row, Palette? into)
+    {
+        if (row is null || into is null || SelectedPalette is not { } from) return false;
+        if (from.Id == into.Id) return false;
+        if (ScopeOf(from) != ScopeOf(into)) return false;
+
+        var swatchId = row.Id;
+        var model = row.Model;
+        EditPalette(from, source => source.Swatches.RemoveAll(s => s.Id == swatchId));
+        EditPalette(into, target => target.Swatches.Add(model));
+        if (_doc is not null) Load(_doc);
+        return true;
     }
 
     private void Fill(IList<PaletteNode> into, PaletteScope scope, string? parentId)
@@ -631,11 +680,13 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
     /// whose colour it was and does the linking.
     /// </para>
     /// </remarks>
-    public Swatch? AddColor(string hex)
+    public Swatch? AddColor(string hex, string? paletteId = null)
     {
         if (_doc is null) return null;
         var swatch = new Swatch { Color = hex };
-        if (SelectedPalette is { } selected)
+        // A named target wins over the selection: the artist said where.
+        var named = paletteId is null ? null : Palettes.FirstOrDefault(p => p.Id == paletteId);
+        if ((named ?? SelectedPalette) is { } selected)
         {
             EditPalette(selected, target => target.Swatches.Add(swatch));
             return swatch;

@@ -116,6 +116,33 @@
             keep a colour was to go and make somewhere to keep it first.
           -->
           <DockPanel>
+            <!--
+              A ▾ beside the ＋, not instead of it. The common case is "into
+              the one I am looking at", and making that a two-step choice to
+              serve the rarer one would tax every use of the button.
+            -->
+            <Button DockPanel.Dock="Right" Classes="icon" Content="▾" FontSize="9"
+                    Padding="3,0" Background="Transparent" BorderThickness="0"
+                    IsVisible="{Binding HasPalette}"
+                    ToolTip.Tip="Add it to a particular palette">
+              <Button.Flyout>
+                <MenuFlyout ItemsSource="{Binding PaletteTargets}">
+                  <MenuFlyout.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PaletteTarget">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </MenuFlyout.ItemTemplate>
+                  <MenuFlyout.ItemContainerTheme>
+                    <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                                  x:DataType="vm:PaletteTarget">
+                      <Setter Property="Command"
+                              Value="{Binding $parent[ItemsControl].((vm:ColorPickerViewModel)DataContext).AddToNamedPaletteCommand}" />
+                      <Setter Property="CommandParameter" Value="{Binding}" />
+                    </ControlTheme>
+                  </MenuFlyout.ItemContainerTheme>
+                </MenuFlyout>
+              </Button.Flyout>
+            </Button>
             <Button DockPanel.Dock="Right" Classes="icon" Content="＋" FontSize="10"
                     Padding="4,0" Background="Transparent" BorderThickness="0"
                     Command="{Binding AddToPaletteCommand}"

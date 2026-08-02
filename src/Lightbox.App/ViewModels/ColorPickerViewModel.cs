@@ -80,7 +80,24 @@ public sealed partial class ColorPickerViewModel : ObservableObject
     /// whoever owns it. Null when the colour could not be kept — no document.
     /// </para>
     /// </remarks>
-    public static Func<string, Swatch?>? PaletteSink { get; set; }
+    public static Func<string, string?, Swatch?>? PaletteSink { get; set; }
+
+    /// <summary>
+    /// Every palette a colour could go into, each labelled with its folder
+    /// path. The mirror of <see cref="PaletteSink"/>'s optional target.
+    /// </summary>
+    public static Func<IReadOnlyList<PaletteTarget>>? PaletteTargetSource { get; set; }
+
+    /// <summary>
+    /// Where else this colour could go: every palette in the document and the
+    /// project, by path.
+    /// </summary>
+    /// <remarks>
+    /// Offered beside the ＋ rather than instead of it. The common case is
+    /// "into the one I am looking at", and making that a two-step choice to
+    /// serve the rarer one would tax every use of the button.
+    /// </remarks>
+    public IReadOnlyList<PaletteTarget> PaletteTargets => PaletteTargetSource?.Invoke() ?? [];
 
     public IReadOnlyList<Swatch> PaletteSwatches => PaletteSource?.Invoke() ?? [];
 
@@ -102,6 +119,7 @@ public sealed partial class ColorPickerViewModel : ObservableObject
         OnPropertyChanged(nameof(PaletteSwatches));
         OnPropertyChanged(nameof(HasPalette));
         OnPropertyChanged(nameof(CanAddToPalette));
+        OnPropertyChanged(nameof(PaletteTargets));
     }
 
     [RelayCommand]
@@ -125,9 +143,18 @@ public sealed partial class ColorPickerViewModel : ObservableObject
     /// palette edit could not reach.
     /// </remarks>
     [RelayCommand]
-    private void AddToPalette()
+    private void AddToPalette() => Keep(null);
+
+    /// <summary>Add the colour to a named palette rather than the selected one.</summary>
+    [RelayCommand]
+    private void AddToNamedPalette(PaletteTarget? target)
     {
-        if (PaletteSink?.Invoke(Hex) is not { } swatch) return;
+        if (target is not null) Keep(target.Id);
+    }
+
+    private void Keep(string? paletteId)
+    {
+        if (PaletteSink?.Invoke(Hex, paletteId) is not { } swatch) return;
         RefreshPalette();
         SwatchPicked?.Invoke(swatch.Id);
     }

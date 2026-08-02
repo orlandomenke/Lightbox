@@ -146,6 +146,82 @@ public class AddToPaletteTests
         Assert.Equal(DocumentFactory.BlackSwatchId, vm.ActiveSwatchId);
     }
 
+    // ---- choosing where it goes -----------------------------------------------
+
+    [AvaloniaFact]
+    public void EveryPaletteIsOfferedByItsPath()
+    {
+        // A flat list of bare names in a document that has been filed is a
+        // list of guesses.
+        var vm = Empty();
+        vm.PaletteDocker.AddFolderCommand.Execute(null);
+        vm.PaletteDocker.SelectedNode!.Name = "Characters";
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        vm.PaletteDocker.SelectedPalette!.Name = "Armour";
+        vm.PaletteDocker.Load(vm.Doc);
+
+        Assert.Contains(vm.ColorPicker.PaletteTargets, t => t.Label == "Characters / Armour");
+    }
+
+    [AvaloniaFact]
+    public void ANamedTargetBeatsTheSelection()
+    {
+        var vm = Empty();
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        var first = vm.PaletteDocker.SelectedPalette!;
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        var second = vm.PaletteDocker.SelectedPalette!;
+
+        vm.ColorPicker.SetHex("#3070b0");
+        var target = vm.ColorPicker.PaletteTargets.First(t => t.Id == first.Id);
+        vm.ColorPicker.AddToNamedPaletteCommand.Execute(target);
+
+        Assert.Single(vm.Doc.Palettes.Single(p => p.Id == first.Id).Swatches);
+        Assert.Empty(vm.Doc.Palettes.Single(p => p.Id == second.Id).Swatches);
+    }
+
+    // ---- moving a swatch between palettes ---------------------------------------
+
+    [AvaloniaFact]
+    public void ASwatchDraggedToAnotherPaletteKeepsItsIdAndTheArtFollowsIt()
+    {
+        // A move, not a copy. Minting a new id would cut every stroke painted
+        // with the swatch loose from the colour, silently.
+        var vm = Empty();
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        var from = vm.PaletteDocker.SelectedPalette!;
+        vm.ColorHex = "#3070b0";
+        vm.PaletteDocker.AddSwatchCommand.Execute(null);
+        var row = vm.PaletteDocker.Swatches[^1];
+        var id = row.Id;
+
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        var into = vm.PaletteDocker.SelectedPalette!;
+        vm.PaletteDocker.SelectedPalette = vm.PaletteDocker.Palettes.First(p => p.Id == from.Id);
+        row = vm.PaletteDocker.Swatches.First(s => s.Id == id);
+
+        Assert.True(vm.PaletteDocker.MoveSwatch(row, into));
+
+        Assert.Empty(vm.Doc.Palettes.Single(p => p.Id == from.Id).Swatches);
+        var moved = Assert.Single(vm.Doc.Palettes.Single(p => p.Id == into.Id).Swatches);
+        Assert.Equal(id, moved.Id);
+        Assert.Equal("#3070b0", moved.Color);
+    }
+
+    [AvaloniaFact]
+    public void ASwatchDroppedOnItsOwnPaletteChangesNothing()
+    {
+        var vm = Empty();
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        var palette = vm.PaletteDocker.SelectedPalette!;
+        vm.ColorHex = "#3070b0";
+        vm.PaletteDocker.AddSwatchCommand.Execute(null);
+
+        Assert.False(vm.PaletteDocker.MoveSwatch(vm.PaletteDocker.Swatches[^1], palette));
+
+        Assert.Single(vm.Doc.Palettes.Single(p => p.Id == palette.Id).Swatches);
+    }
+
     [AvaloniaFact]
     public void APickerWithNoDocumentBehindItSimplyCannotAddOne()
     {

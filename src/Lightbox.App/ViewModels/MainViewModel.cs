@@ -1024,6 +1024,7 @@ public sealed partial class MainViewModel : ObservableObject
         // palette, and they all mean the same palette — the one the docker has
         // selected — because there is one document.
         ColorPickerViewModel.PaletteSink = PaletteDocker.AddColor;
+        ColorPickerViewModel.PaletteTargetSource = () => PaletteDocker.PaletteTargets;
         ColorPicker.RefreshPalette();
         // The source is static, so both halves of the pair see the new list —
         // but each has to be told to look again, or the background picker keeps
@@ -4671,7 +4672,16 @@ public sealed partial class MainViewModel : ObservableObject
             var scene = doc.Scene;
             var index = scene.Layers.FindIndex(l => l.Id == layer.Id);
             if (index < 0) return;
+            var wasPaper = scene.Layers[index].IsBackground;
             scene.Layers.RemoveAt(index);
+            // Deleting the paper means there is no paper. Without this the
+            // composite falls back to clearing to the scene's colour, so the
+            // canvas goes opaque white and the deletion looks like it did
+            // nothing — the one thing it must not look like.
+            if (wasPaper && !scene.Layers.Exists(l => l.IsBackground))
+            {
+                scene.TransparentBackground = true;
+            }
             // Regrow when nothing PAINTABLE is left, not merely when nothing is
             // left: a document down to its locked paper has layers and still
             // nowhere to draw.

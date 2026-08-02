@@ -153,3 +153,23 @@ public sealed class PaletteAssignTarget
 
     public override string ToString() => Label;
 }
+
+/// <summary>
+/// One palette a colour can be added to, labelled with where it lives.
+/// </summary>
+/// <remarks>
+/// The label carries the folder path — "Characters / Knight / Armour" — for
+/// the same reason <see cref="PaletteAssignTarget"/> does: it is what tells
+/// two palettes with the same name apart, and a flat list of bare names in a
+/// document that has been filed is a list of guesses.
+/// </remarks>
+public sealed class PaletteTarget
+{
+    public required string Id { get; init; }
+
+    public required PaletteScope Scope { get; init; }
+
+    public required string Label { get; init; }
+
+    public override string ToString() => Label;
+}

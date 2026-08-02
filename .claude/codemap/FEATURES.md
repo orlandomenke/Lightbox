@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-967 tests, derived from the suite itself. Each line is a
+978 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -67,7 +67,11 @@ regression even when every test still compiles.
 - Adding The Background Colour Does Not Change What The Brush Is Loaded With — `:98`
 - It Goes To The Selected Palette And Not Simply The First One — `:115`
 - Every Picker Can Keep AColour Not Only The One In The Panel — `:132`
-- APicker With No Document Behind It Simply Cannot Add One — `:150`
+- Every Palette Is Offered By Its Path — `:152`
+- ANamed Target Beats The Selection — `:167`
+- ASwatch Dragged To Another Palette Keeps Its Id And The Art Follows It — `:186`
+- ASwatch Dropped On Its Own Palette Changes Nothing — `:212`
+- APicker With No Document Behind It Simply Cannot Add One — `:226`
 
 ## AiIntegrationTests
 `tests/Lightbox.App.Tests/AiIntegrationTests.cs`
@@ -873,6 +877,17 @@ regression even when every test still compiles.
 
 - Master Switch Writes Into The Stroke Record — `:127`
 - Per Setting Checkboxes Map To The Response Curves — `:141`
+
+## ToolBarAlignmentTests
+`tests/Lightbox.App.Tests/ToolBarAlignmentTests.cs`
+
+- Every Value Field In The Bar Is The Same Width — `:32`
+- Every Slider In The Bar Has The Same Track Length — `:50`
+- No Value Field In The Bar Sets AWidth Of Its Own — `:65`
+- The Brush Parameter Flyout Is Not Pinned To One Height — `:81`
+- Deleting The Paper Leaves Transparency Rather Than White — `:98`
+- Putting The Paper Back Is Undo And The Document Is Opaque Again — `:116`
+- Deleting An Ordinary Layer Does Not Touch The Paper — `:130`
 
 ## FillToolTests
 `tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`

@@ -1549,6 +1549,12 @@ public partial class MainWindow : Window
         // The cursor says no before the drop does. A move that silently does
         // nothing on release reads as a bug in the drag, not as a refusal.
         var onto = NodeOf(sender);
+        if (DraggedSwatch(e) is not null)
+        {
+            e.DragEffects = onto is { IsPalette: true } ? DragDropEffects.Move : DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
         var source = DraggedNode(e);
         var allowed = source is not null && onto is not null
             && !ReferenceEquals(source, onto) && source.Scope == onto.Scope;
@@ -1558,10 +1564,63 @@ public partial class MainWindow : Window
 
     private void OnPaletteNodeDrop(object? sender, DragEventArgs e)
     {
+        if (DraggedSwatch(e) is { } swatch)
+        {
+            _vm.PaletteDocker.MoveSwatch(swatch, NodeOf(sender)?.Palette);
+            e.Handled = true;
+            return;
+        }
         if (DraggedNode(e) is not { } source) return;
         _vm.PaletteDocker.Drop(source, NodeOf(sender));
         e.Handled = true;
     }
+
+    // ---- dragging a swatch into another palette --------------------------------
+
+    private static readonly DataFormat<string> SwatchDragFormat =
+        DataFormat.CreateInProcessFormat<string>("lightbox-swatch");
+
+    private (SwatchRow Row, Point At, PointerPressedEventArgs Args)? _swatchDrag;
+
+    /// <summary>
+    /// The swatch a drag is carrying, resolved back from its id.
+    /// </summary>
+    /// <remarks>
+    /// By id rather than by object, so a drop that lands after the grid has
+    /// been rebuilt still finds the row it means. Only the palette on screen
+    /// is searched — a swatch can only be dragged out of the one you can see.
+    /// </remarks>
+    private SwatchRow? DraggedSwatch(DragEventArgs e) =>
+        e.DataTransfer?.TryGetValue(SwatchDragFormat) is { } id
+            ? _vm.PaletteDocker.Swatches.FirstOrDefault(s => s.Id == id)
+            : null;
+
+    private void OnSwatchPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is not SwatchRow row) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        _swatchDrag = (row, e.GetPosition(this), e);
+    }
+
+    private async void OnSwatchMoved(object? sender, PointerEventArgs e)
+    {
+        if (_swatchDrag is not { } drag) return;
+        var now = e.GetPosition(this);
+        if (Math.Abs(now.X - drag.At.X) < 4 && Math.Abs(now.Y - drag.At.Y) < 4) return;
+        _swatchDrag = null;
+        try
+        {
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(SwatchDragFormat, drag.Row.Id));
+            await DragDrop.DoDragDropAsync(drag.Args, transfer, DragDropEffects.Move);
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("swatch-drag", ex);
+        }
+    }
+
+    private void OnSwatchReleased(object? sender, PointerReleasedEventArgs e) => _swatchDrag = null;
 
     /// <summary>
     /// The right-click menu, built here rather than declared in the template.
