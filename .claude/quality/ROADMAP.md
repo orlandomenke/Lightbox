@@ -162,13 +162,18 @@ id*, not a copy with a link back — and breaks it into seven commits. Most of
 the items below are one step of that design rather than separate features: the
 six libraries are `SymbolKind` values plus a browser filter and land together.
 
-S1 is in: `Symbol`, `SymbolPlacement`, `SymbolKind`, a nullable `Placements` on
-`PaintedFrame`, and project-scoped storage in `assets/symbols.json`
-(`SymbolRecordTests`). Nothing resolves or renders a placement yet, so the
-first item below stays open until S2 — a green box for half a step is the one
-thing this file must not say.
+S1 and S2 are in: the record (`Symbol`, `SymbolPlacement`, `SymbolKind`, a
+nullable `Placements` on `PaintedFrame`, project-scoped storage in
+`assets/symbols.json`) and the render pass that resolves a placement by id and
+draws it. A placement is rasterised in symbol space and transformed onto the
+canvas, so the same symbol placed twice is the same mark twice rather than two
+rolls of the same dice — the property invariant 2 makes non-negotiable.
 
-- [?] Shared symbols — the record (design S1–S2)
+Nothing places a symbol yet: there is no browser, no drag onto the canvas and
+no symbol editor, so the remaining items below stay open. What exists is the
+machinery a placement made by hand or by an agent renders through.
+
+- [x] Shared symbols — the record (design S1–S2) `evidence: Symbol, SymbolPlacement, SymbolRegistry, SymbolRasterizer, SymbolRecordTests, SymbolRenderTests`
 - [?] Linked assets — edit once, update everywhere (S6)
 - [?] Symbol editing (S6)
 - [?] Asset versioning (S7)

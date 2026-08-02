@@ -38,7 +38,7 @@ public static class SequenceExporter
                 if (!scene.IsLayerVisible(layer)) continue;
                 var frame = ExposureSheet.ExposedFrame(layer, i);
                 if (frame is null) continue;
-                passes.Add(new RenderPass(cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+                passes.Add(new RenderPass(cache.Get(frame, scene.Width, scene.Height, celIndex: i), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
             }
 
             SKMatrix? transform = camera is null

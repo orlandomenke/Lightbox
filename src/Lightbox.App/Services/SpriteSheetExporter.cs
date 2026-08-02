@@ -233,7 +233,7 @@ public static class SpriteSheetExporter
             var frame = ExposureSheet.ExposedFrame(layer, index);
             if (frame is null) continue;
             passes.Add(new RenderPass(
-                cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity,
+                cache.Get(frame, scene.Width, scene.Height, celIndex: index), null, layer.Opacity,
                 SceneRenderer.ToSkia(layer.BlendMode)));
         }
         return SceneRenderer.Compose(scene.Width, scene.Height, passes, SKColors.Transparent);

@@ -72,8 +72,13 @@ public static class FrameRasterizer
     /// stroke record stamped on top, in order. Strokes are never baked into
     /// the baseline, so this is repeatable and always current.
     /// </summary>
+    /// <param name="celIndex">
+    /// Where on the timeline this cel sits. Only read by the symbol pass, and
+    /// only when the frame places one — it is what makes a placed cycle advance
+    /// with the sequence instead of freezing on its first drawing.
+    /// </param>
     public static SKBitmap Materialize(
-        PaintedFrame frame, int width, int height, double outputScale = 1.0)
+        PaintedFrame frame, int width, int height, double outputScale = 1.0, int celIndex = 0)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         var scaled = Scaled(info, outputScale);
@@ -98,6 +103,11 @@ public static class FrameRasterizer
         {
             BrushEngine.StampStroke(canvas, stroke, info, bitmap, outputScale: outputScale);
         }
+        // Placements last, over the strokes. A placement is a drawing put on
+        // top of this cel, not one mixed into it — and the ordering has to be
+        // fixed, because "over" is the only answer that stays true when the
+        // symbol is edited later.
+        SymbolRasterizer.StampPlacements(canvas, frame, info, celIndex, outputScale);
         canvas.Flush();
         return bitmap;
     }

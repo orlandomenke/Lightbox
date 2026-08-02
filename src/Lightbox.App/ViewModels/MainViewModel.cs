@@ -1117,6 +1117,14 @@ public sealed partial class MainViewModel : ObservableObject
         }
         var resolved = palettes.ToList();
         PaletteRegistry.Reset(resolved, gradients);
+        // Symbols are project-scoped only — a document has none of its own,
+        // because the point of a symbol is that it lives above the animations
+        // that hold it. With no project open the registry resolves nothing,
+        // which is the correct answer rather than a degraded one.
+        SymbolRegistry.Reset(
+            ProjectDocker.Project?.Symbols
+            ?? (IReadOnlyDictionary<string, Lightbox.Core.Documents.Symbol>)
+                new Dictionary<string, Lightbox.Core.Documents.Symbol>());
         // Every colour picker in the app — the panel's and every flyout's —
         // offers the same swatches, because they are all looking at the same
         // document.
@@ -2342,7 +2350,7 @@ public sealed partial class MainViewModel : ObservableObject
             var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
             if (frame is null) continue;
             passes.Add(new RenderPass(
-                _cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity,
+                _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex), null, layer.Opacity,
                 SceneRenderer.ToSkia(layer.BlendMode)));
         }
         using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SkiaSharp.SKColors.Transparent);
@@ -5720,7 +5728,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (!scene.IsLayerVisible(layer)) continue;
             var frame = ExposureSheet.ExposedFrame(layer, frameIndex);
             if (frame is null) continue;
-            passes.Add(new RenderPass(_cache.Get(frame, scene.Width, scene.Height), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+            passes.Add(new RenderPass(_cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
         }
         using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
         using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
@@ -5909,7 +5917,7 @@ public sealed partial class MainViewModel : ObservableObject
                             || _dirtyThumbIds.Contains(frame.Id);
                 if (!stale && cell.Thumb is not null) continue;
 
-                var bmp = _cache.Get(frame, Scene.Width, Scene.Height);
+                var bmp = _cache.Get(frame, Scene.Width, Scene.Height, celIndex: cell.Index);
                 cell.Thumb = ThumbnailRenderer.Render(bmp);
                 cell.ThumbFrameId = frame.Id;
             }
@@ -5941,7 +5949,7 @@ public sealed partial class MainViewModel : ObservableObject
                         || _dirtyThumbIds.Contains(frame.Id);
             if (!stale && row.Thumb is not null) continue;
 
-            var bmp = _cache.Get(frame, Scene.Width, Scene.Height);
+            var bmp = _cache.Get(frame, Scene.Width, Scene.Height, celIndex: CurrentFrameIndex);
             row.Thumb = ThumbnailRenderer.RenderChecker(bmp, 44, 26);
             row.ThumbFrameId = frame.Id;
         }
@@ -6866,7 +6874,7 @@ public sealed partial class MainViewModel : ObservableObject
                 continue;
             }
 
-            var bmp = _cache.Get(frame, scene.Width, scene.Height);
+            var bmp = _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex);
 
             // Blur and smudge REPLACE the layer rather than overlaying it.
             //

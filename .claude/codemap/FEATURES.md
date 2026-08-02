@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1184 tests, derived from the suite itself. Each line is a
+1206 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -993,6 +993,14 @@ regression even when every test still compiles.
 - Clearing The List Empties It On Disk As Well — `:182`
 - Only What Is Still On Disk Is Offered — `:205`
 
+## SymbolScopeTests
+`tests/Lightbox.App.Tests/SymbolScopeTests.cs`
+
+- With No Project Open Nothing Resolves — `:32`
+- AProjects Symbols Resolve Once The Project Is Open — `:46`
+- Closing AProject Stops Its Symbols Resolving — `:60`
+- Deleting ASymbol Stops It Resolving — `:78`
+
 ## TimelineBugTests
 `tests/Lightbox.App.Tests/TimelineBugTests.cs`
 
@@ -1801,6 +1809,28 @@ regression even when every test still compiles.
 
 - Encode Decode Round Trips Pixels — `:158`
 - Materialize Composites Baseline Plus Strokes — `:172`
+
+## SymbolRenderTests
+`tests/Lightbox.Raster.Tests/SymbolRenderTests.cs`
+
+- Registering ASymbol Makes It Resolvable — `:122`
+- Reset Drops What The Last Project Had — `:132`
+- APlaced Symbol Reaches The Pixels — `:147`
+- APlacement Lands Its Pivot Where It Was Put — `:158`
+- AFrame With No Placements Renders Exactly As It Always Did — `:184`
+- An Unresolved Symbol Draws Nothing And Says So — `:197`
+- AZero Opacity Placement Draws Nothing — `:208`
+- The Same Symbol Placed Twice Is Pixel Identical — `:222`
+- Two Placements On One Cel Are The Same Mark Twice — `:238`
+- Editing The Symbol Changes Every Placement Of It — `:255`
+- An Edit That Forgets To Bump The Version Serves The Old Drawing — `:272`
+- Scaling APlacement Does Not Rewrite Its Geometry — `:292`
+- Rendering At Twice The Output Scale Is The Same Placement Sharper — `:310`
+- Scales That Differ By Noise Share One Cached Render — `:329`
+- The Render Cache Stays Bounded — `:351`
+- APlaced Cycle Advances With The Cel Index — `:374`
+- An Offset Placement Runs The Same Cycle Out Of Step — `:393`
+- AProp Shows Its One Drawing On Every Cel — `:407`
 
 ## SmudgeFirstDabTests
 `tests/Lightbox.Raster.Tests/TexturedBrushTests.cs`

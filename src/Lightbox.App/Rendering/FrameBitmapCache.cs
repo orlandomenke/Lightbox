@@ -43,14 +43,31 @@ public sealed class FrameBitmapCache : IDisposable
     /// and an export render at 2x evicted each other on every access — each
     /// one re-materializing the frame the other had just built.
     /// </summary>
-    private static string KeyOf(Frame frame, int width, int height, double outputScale) =>
-        string.Create(
+    /// <remarks>
+    /// The cel index joins the key only when the frame places a symbol. A
+    /// placement is the one thing that renders differently depending on where
+    /// the cel sits — a placed cycle advances with the sequence — and every
+    /// other frame in the application is the same picture at every index.
+    /// Keying on it unconditionally would give a held drawing one cached
+    /// bitmap per exposure, which is the cache doing the opposite of its job.
+    /// </remarks>
+    private static string KeyOf(Frame frame, int width, int height, double outputScale, int celIndex)
+    {
+        var key = string.Create(
             CultureInfo.InvariantCulture,
             $"{frame.Id}|{width}x{height}@{outputScale:0.####}");
+        return frame is PaintedFrame { HasPlacements: true }
+            ? string.Create(CultureInfo.InvariantCulture, $"{key}#{celIndex}")
+            : key;
+    }
 
-    public SKBitmap Get(Frame frame, int width, int height, double outputScale = 1.0)
+    /// <param name="celIndex">
+    /// Where on the timeline this cel is being shown. Only matters to a frame
+    /// that places a symbol; see <see cref="KeyOf"/>.
+    /// </param>
+    public SKBitmap Get(Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0)
     {
-        var key = KeyOf(frame, width, height, outputScale);
+        var key = KeyOf(frame, width, height, outputScale, celIndex);
         if (_map.TryGetValue(key, out var node))
         {
             _lru.Remove(node);
@@ -60,7 +77,7 @@ public sealed class FrameBitmapCache : IDisposable
 
         var bmp = frame switch
         {
-            PaintedFrame p => FrameRasterizer.Materialize(p, width, height, outputScale),
+            PaintedFrame p => FrameRasterizer.Materialize(p, width, height, outputScale, celIndex),
             VectorFrame v => FrameRasterizer.Rasterize(v.Strokes, width, height, outputScale),
             _ => throw new InvalidOperationException($"Unknown frame type {frame.GetType().Name}"),
         };
