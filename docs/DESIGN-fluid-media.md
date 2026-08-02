@@ -315,10 +315,16 @@ measured against the existing budgets in an afternoon. If a peaked alpha curve
 does not make a wash read better, that is worth knowing before building three
 buffers to find out.
 
-**Then (5), velocity-dependent deposition**, for the same reason: the stroke
-already carries the timestamps, spacing already varies, and what is missing is
-one coupling. Dry-brush tearing that comes from drawing fast is a real gain and
-it does not touch the record.
+**Then (5), velocity-dependent deposition** — with one correction to what this
+paragraph used to say. It claimed the stroke already carries the timestamps.
+**It does not.** `StrokePoint` is `(X, Y, Pressure)`, so there is no time
+anywhere and speed can only be inferred from point spacing — which after
+`Densify` and the smoothing filters is a resampling artifact rather than a
+speed. So (5) *does* touch the record, and it touches it in the same place and
+in the same way as tilt: see the widening problem in
+`docs/DESIGN-brush-tips.md`, which is the reason the two should land together.
+Dry-brush tearing that comes from drawing fast is still a real gain; it is just
+not free.
 
 Only then (1), and with it (3) and (4), which are the ones that need the
 channels and the wet window and the invalidation rule. That is the expensive

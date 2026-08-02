@@ -52,12 +52,33 @@ item that a painting app is simply expected to have lives here.
 - [x] Eraser variants `evidence: ToolKind, BrushKind, EraserResurrectionTests`
 - [?] Pixel-perfect mode
 - [x] Pressure curve editor `evidence: BrushPagePressure, PressureVmTests, PressureTests`
-- [x] Brush rotation and tilt support `evidence: BrushSettings, BrushDynamicsTests, AngleFollowsDirection`
+- [x] Brush rotation, base and per-dab `evidence: BrushSettings, BrushDynamicsTests, AngleFollowsDirection, TipRotationDeg, RotationJitter`
+- [ ] Tilt and speed reach the stroke record `evidence: StrokePointTiltTests, AMouseStrokeStoresNoTilt, AnOldFileWithoutTiltStillLoads, TiltIsReplayedNotResampled`
+  - Was ticked as part of rotation and is not built: `StrokePoint` is `(X, Y, Pressure)`, no device reads tilt, and nothing stores time — so speed can only be inferred from point spacing, which after `Densify` is a resampling artifact rather than a speed. Optional, absent by default: a mouse has no tilt and 0 means perpendicular, so the two must not be the same value. See `docs/DESIGN-brush-tips.md`.
 - [?] Brush symmetry options
 - [x] Brush scripting/API `evidence: LightboxTools, IpcDocumentApi`
 - [x] Brush importers — .abr / .gbr / .gih / .kpp `evidence: AbrReader, GbrReader, GihReader, KppReader, BrushImportTests`
 - [x] Physical media simulation (watercolour, gouache, oil, ink) `evidence: MediumSimulator, FluidLattice, Pigment, MediumRenderingTests`
 - [x] Expensive brushes are marked as such before you pick one `evidence: BrushCost, BrushCostOf, BrushCostTests, BrushCatalogueTests, JitterAndScatterAndTextureAreNotExpensive, EverySimulatedMediumHasAFastCounterpart`
+
+#### Brush tips — a generated library
+
+Design: `docs/DESIGN-brush-tips.md`. A tip is an asset, generated once and then
+only looked up; nothing about one is computed while a stroke is being drawn.
+The runtime half — caching, bilinear sampling, mipmaps, rotation, dual texture,
+the art-tool importers — is already built and the design doc says which parts
+not to rebuild. What is missing is everything that *makes* a tip.
+
+- [x] Tips are cached as rasters and sampled properly, never rebuilt per dab `evidence: BrushTipRegistry, BrushTipSamplingTests, AnEnlargedTipIsSmoothedRatherThanBlocky, AMinifiedTipIsAveraged_NotPointSampled`
+- [ ] A tip library, scoped like palettes: project, user, and inlined on export `evidence: BrushTip, BrushTipLibrary, BrushTipLibraryTests, ADocumentCarriesOnlyTheTipsItUses, AProjectTipIsSharedByEveryDocumentUnderIt`
+  - The record adds `Pivot` — where the pen touches, which is not the centre of an angled mark. It is what stops multi-capture blending from ghosting, and making it a field rather than a cropping discipline is the point.
+- [ ] Procedural tip generator — circle, soft circle, ring, chisel, hatch `evidence: TipGenerator, TipRecipe, TipGeneratorTests, AGeneratedEdgeIsCoverageNotAStaircase, ASoftTipMatchesTheRoundDabAtTheSameHardness`
+  - Every threshold is anti-aliased as pixel coverage. A binary `d <= Radius` stair-steps, and a stair that shifts phase between frames boils at 12 fps.
+- [ ] Scans become tips: levels, invert, square, centre, edge mask `evidence: TipFromImage, TipImagePipelineTests, TheSameLevelsAreAppliedToAWholeCaptureBatch, AMarkTouchingTheCropIsRejectedRatherThanFaded`
+  - The edge mask is enforced, not requested: a tip whose mark was cut by the crop stamps box edges down the whole stroke, and it is trivially detectable.
+- [ ] Tips panel, absent until there is a library to show `evidence: TipsPanel, TipsPanelViewModel, TipsPanelTests`
+- [ ] Multi-capture tip sets blended by tilt and speed `evidence: BrushTipSet, TipSetBlend, TipSetTests, BlendingHappensAtTheSizeBeingDrawn, ASteadyTiltBlendsOnceAndReusesIt`
+  - Needs tilt and speed in the record first. Blend at the mipmap level the dab samples, quantise the blend factor and cache by it — otherwise it is a million lerps per dab, and a tilt that wobbles a degree makes the mark shimmer.
 
 ### Canvas
 
