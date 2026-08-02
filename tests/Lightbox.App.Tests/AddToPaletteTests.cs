@@ -180,6 +180,162 @@ public class AddToPaletteTests
         Assert.Empty(vm.Doc.Palettes.Single(p => p.Id == second.Id).Swatches);
     }
 
+    // ---- duplicates ---------------------------------------------------------------
+
+    [AvaloniaFact]
+    public void AnAnonymousPickerRefusesAColourThePaletteAlreadyHas()
+    {
+        // A palette full of near-identical entries is a palette nobody can
+        // use, and the same colour arriving twice is almost always a slip.
+        var vm = Empty();
+        var flyout = new ColorPickerViewModel();   // a gradient stop, say
+        Assert.Equal(PaletteAddIntent.Deduplicate, flyout.AddIntent);
+        flyout.SetHex("#3070b0");
+        flyout.AddToPaletteCommand.Execute(null);
+        var palette = vm.PaletteDocker.SelectedPalette!;
+        Assert.Single(palette.Swatches);
+
+        flyout.AddToPaletteCommand.Execute(null);
+
+        Assert.Single(palette.Swatches);
+    }
+
+    [AvaloniaFact]
+    public void RefusingSaysSoRatherThanDoingNothing()
+    {
+        // A button that does nothing is indistinguishable from a button that
+        // is broken, and this one is refusing on purpose.
+        var vm = Empty();
+        var flyout = new ColorPickerViewModel();
+        flyout.SetHex("#3070b0");
+        flyout.AddToPaletteCommand.Execute(null);
+
+        flyout.AddToPaletteCommand.Execute(null);
+
+        Assert.Contains("already", vm.PaletteDocker.Status);
+        // And in the status bar too — the docker's own line is easy to miss
+        // with the wheel open over the canvas.
+        Assert.Contains("already", vm.AiStatus);
+        Assert.Contains("Duplicate", vm.PaletteDocker.Status);
+    }
+
+    [AvaloniaFact]
+    public void TheWheelInThePalettePanelIsTakenAtFaceValue()
+    {
+        // Somebody working in the palette who asks for a second copy wants
+        // one, usually to file the two under different folders.
+        var vm = Empty();
+        var inPanel = new ColorPickerViewModel { AddIntent = PaletteAddIntent.Allow };
+        inPanel.SetHex("#3070b0");
+        inPanel.AddToPaletteCommand.Execute(null);
+
+        inPanel.AddToPaletteCommand.Execute(null);
+
+        Assert.Equal(2, vm.PaletteDocker.SelectedPalette!.Swatches.Count);
+    }
+
+    [AvaloniaFact]
+    public void TheForegroundPickerAdoptsTheSwatchThatIsAlreadyThere()
+    {
+        // The point of adding is to start painting with a live colour, and the
+        // swatch already in the palette does that. A second one would hand
+        // back the literal you were trying to get away from.
+        var vm = new MainViewModel(null);
+        var black = vm.PaletteDocker.SelectedPalette!.Swatches
+            .First(s => s.Id == DocumentFactory.BlackSwatchId);
+        var before = vm.PaletteDocker.SelectedPalette.Swatches.Count;
+        vm.ColorHex = "#3070b0";                 // link dropped
+        Assert.Null(vm.ActiveSwatchId);
+        vm.ColorPicker.SetHex(black.Color);
+
+        vm.ColorPicker.AddToPaletteCommand.Execute(null);
+
+        Assert.Equal(before, vm.PaletteDocker.SelectedPalette.Swatches.Count);
+        Assert.Equal(black.Id, vm.ActiveSwatchId);
+        Assert.Contains("selected it instead", vm.AiStatus);
+    }
+
+    [AvaloniaFact]
+    public void TheAdoptedSwatchIsLiveSoRecolouringReachesTheArt()
+    {
+        // The whole reason adopting beats refusing: the stroke that follows
+        // references the swatch, so a later palette edit repaints it.
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var black = vm.PaletteDocker.SelectedPalette!.Swatches
+            .First(s => s.Id == DocumentFactory.BlackSwatchId);
+        vm.ColorHex = "#3070b0";
+        vm.ColorPicker.SetHex(black.Color);
+        vm.ColorPicker.AddToPaletteCommand.Execute(null);
+
+        vm.BeginStroke(20, 20, 1);
+        vm.MoveStroke(60, 60, 1);
+        vm.EndStroke();
+
+        Assert.Equal(black.Id, ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1].SwatchId);
+    }
+
+    [AvaloniaFact]
+    public void TheBackgroundPickerAdoptsToo()
+    {
+        var vm = new MainViewModel(null);
+        var white = vm.PaletteDocker.SelectedPalette!.Swatches
+            .First(s => s.Id == DocumentFactory.WhiteSwatchId);
+        var before = vm.PaletteDocker.SelectedPalette.Swatches.Count;
+        vm.BackgroundPicker.SetHex(white.Color);
+
+        vm.BackgroundPicker.AddToPaletteCommand.Execute(null);
+
+        Assert.Equal(before, vm.PaletteDocker.SelectedPalette.Swatches.Count);
+        // And swapping brings the link forward, which is what makes it live.
+        vm.SwapColorsCommand.Execute(null);
+        Assert.Equal(white.Id, vm.ActiveSwatchId);
+    }
+
+    [AvaloniaFact]
+    public void ADuplicateIsJudgedAgainstTheTargetPaletteOnly()
+    {
+        // Two palettes are allowed the same colour; it is two entries in one
+        // palette that nobody can tell apart.
+        var vm = Empty();
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        var first = vm.PaletteDocker.SelectedPalette!;
+        vm.ColorHex = "#3070b0";
+        vm.PaletteDocker.AddSwatchCommand.Execute(null);
+
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        var second = vm.PaletteDocker.SelectedPalette!;
+        var flyout = new ColorPickerViewModel();
+        flyout.SetHex("#3070b0");
+        flyout.AddToPaletteCommand.Execute(null);
+
+        Assert.Single(vm.Doc.Palettes.Single(p => p.Id == first.Id).Swatches);
+        Assert.Single(vm.Doc.Palettes.Single(p => p.Id == second.Id).Swatches);
+    }
+
+    [AvaloniaFact]
+    public void DuplicateSwatchMakesAnIndependentCopy()
+    {
+        // The deliberate path, and what lets the wheel refuse. A new id, so
+        // recolouring the copy leaves art painted with the original alone —
+        // which is the whole point of wanting two.
+        var vm = Empty();
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        vm.ColorHex = "#3070b0";
+        vm.PaletteDocker.AddSwatchCommand.Execute(null);
+        var original = vm.PaletteDocker.Swatches[^1];
+        original.Name = "Sky";
+
+        vm.PaletteDocker.DuplicateSwatchCommand.Execute(null);
+
+        var swatches = vm.PaletteDocker.SelectedPalette!.Swatches;
+        Assert.Equal(2, swatches.Count);
+        Assert.NotEqual(swatches[0].Id, swatches[1].Id);
+        Assert.Equal(swatches[0].Color, swatches[1].Color);
+        Assert.Equal("Sky copy", swatches[1].Name);
+        // And the copy is what is selected, so it can be renamed straight away.
+        Assert.Equal(swatches[1].Id, vm.PaletteDocker.SelectedSwatch!.Id);
+    }
+
     // ---- moving a swatch between palettes ---------------------------------------
 
     [AvaloniaFact]

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-997 tests, derived from the suite itself. Each line is a
+1005 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -69,9 +69,17 @@ regression even when every test still compiles.
 - Every Picker Can Keep AColour Not Only The One In The Panel — `:132`
 - Every Palette Is Offered By Its Path — `:152`
 - ANamed Target Beats The Selection — `:167`
-- ASwatch Dragged To Another Palette Keeps Its Id And The Art Follows It — `:186`
-- ASwatch Dropped On Its Own Palette Changes Nothing — `:212`
-- APicker With No Document Behind It Simply Cannot Add One — `:226`
+- An Anonymous Picker Refuses AColour The Palette Already Has — `:186`
+- Refusing Says So Rather Than Doing Nothing — `:204`
+- The Wheel In The Palette Panel Is Taken At Face Value — `:223`
+- The Foreground Picker Adopts The Swatch That Is Already There — `:238`
+- The Adopted Swatch Is Live So Recolouring Reaches The Art — `:259`
+- The Background Picker Adopts Too — `:278`
+- ADuplicate Is Judged Against The Target Palette Only — `:295`
+- Duplicate Swatch Makes An Independent Copy — `:316`
+- ASwatch Dragged To Another Palette Keeps Its Id And The Art Follows It — `:342`
+- ASwatch Dropped On Its Own Palette Changes Nothing — `:368`
+- APicker With No Document Behind It Simply Cannot Add One — `:382`
 
 ## AiIntegrationTests
 `tests/Lightbox.App.Tests/AiIntegrationTests.cs`

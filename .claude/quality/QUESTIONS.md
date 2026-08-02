@@ -62,6 +62,40 @@ the character.
 
 ---
 
+## Q10 · Does wet paint survive between strokes
+
+**Blocks:** the whole fluid-media pass. See `docs/DESIGN-fluid-media.md` for
+what that pass is; this is the decision that has to come before any of it.
+
+Real wet media let the *next* stroke pick up what the last one left: that is
+what "wet" means to an artist, and it is why a smudge over drying gouache
+behaves differently from a smudge over dry gouache. It is also what puts
+simulation state into the document, because invariant 1 says a reload must
+render the same image. A moisture buffer that persists between strokes and is
+not saved makes a reload a different painting.
+
+- **(a)** Paint dries between strokes. Moisture, pigment and height buffers
+  live for one stroke and are discarded. Everything in the fluid pass still
+  works *within* a stroke — wet edges, advection, pooling, dry-brush tearing —
+  and the record stays exactly what it is today. Cheapest by a wide margin, and
+  bounded by construction.
+- **(b)** Paint stays wet, and the wet state is part of the document. Strokes
+  interact the way they do on paper. The record grows a per-frame fluid buffer
+  that has to serialize, and every stroke's result now depends on the complete
+  history before it — so an edit in the middle of a frame re-renders everything
+  after it.
+- **(c)** Paint stays wet for a bounded window — the last N strokes, or until
+  the frame changes — with the window saved so a reload reproduces it.
+
+**Recommend (a) to start**, because it delivers most of the visible difference
+— the flat noise look is a *within-stroke* problem — at none of the record
+cost, and because (b) can be built on top of it later without the intermediate
+work being wasted. Worth asking rather than assuming: an oil painter would say
+(a) is not wet media at all, and this app has digital painting as a first-class
+purpose, not a hobby attached to the animation.
+
+---
+
 ## Answered
 
 ### Q5 · What "animate on 2s" does — **both, as separate commands**, 2026-08-01

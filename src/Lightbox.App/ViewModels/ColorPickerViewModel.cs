@@ -80,7 +80,18 @@ public sealed partial class ColorPickerViewModel : ObservableObject
     /// whoever owns it. Null when the colour could not be kept — no document.
     /// </para>
     /// </remarks>
-    public static Func<string, string?, Swatch?>? PaletteSink { get; set; }
+    public static Func<PaletteAddRequest, PaletteAddOutcome>? PaletteSink { get; set; }
+
+    /// <summary>
+    /// What a duplicate colour means from <i>this</i> picker.
+    /// </summary>
+    /// <remarks>
+    /// Set by whoever owns the picker, because the same colour arriving twice
+    /// means different things depending on where from: a slip of the wheel, a
+    /// deliberate second copy, or "I want to paint with the one that is
+    /// already there". See <see cref="PaletteAddIntent"/>.
+    /// </remarks>
+    public PaletteAddIntent AddIntent { get; set; } = PaletteAddIntent.Deduplicate;
 
     /// <summary>
     /// Every palette a colour could go into, each labelled with its folder
@@ -154,9 +165,13 @@ public sealed partial class ColorPickerViewModel : ObservableObject
 
     private void Keep(string? paletteId)
     {
-        if (PaletteSink?.Invoke(Hex, paletteId) is not { } swatch) return;
+        if (PaletteSink is not { } sink) return;
+        var outcome = sink(new PaletteAddRequest(Hex, paletteId, AddIntent));
         RefreshPalette();
-        SwatchPicked?.Invoke(swatch.Id);
+        // A swatch comes back whether it was made or found. Linking to it is
+        // the same act either way: the point of keeping a colour is that the
+        // next stroke references it rather than copying it.
+        if (outcome.Swatch is { } swatch) SwatchPicked?.Invoke(swatch.Id);
     }
 
     [ObservableProperty]

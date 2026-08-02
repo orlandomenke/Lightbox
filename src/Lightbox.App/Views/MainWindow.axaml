@@ -1838,6 +1838,16 @@
                               Command="{Binding PaletteDocker.RemoveSwatchCommand}"
                               IsEnabled="{Binding PaletteDocker.HasSwatch}"
                               ToolTip.Tip="Remove the selected swatch" />
+                      <!--
+                        The deliberate way to get two of a colour. It is what
+                        lets the colour wheel refuse duplicates: an accidental
+                        second copy is almost always a slip, and a palette full
+                        of near-identical entries is a palette nobody can use.
+                      -->
+                      <Button Classes="text" Content="Duplicate"
+                              Command="{Binding PaletteDocker.DuplicateSwatchCommand}"
+                              IsEnabled="{Binding PaletteDocker.HasSwatch}"
+                              ToolTip.Tip="A second, independent copy of this swatch — for filing the same colour in two places" />
                       <Button Classes="text" Content="Import…" Click="OnImportPaletteClicked"
                               ToolTip.Tip="Import a GIMP .gpl palette" />
                       <Button Classes="text" Content="Export…" Click="OnExportPaletteClicked"
@@ -1862,7 +1872,7 @@
                       position made the common one the second thing you found.
                     -->
                     <DockPanel IsVisible="{Binding PaletteDocker.HasSwatch}">
-                      <controls:ColorField DockPanel.Dock="Left" Margin="0,0,4,0"
+                      <controls:ColorField x:Name="PaletteSwatchField" DockPanel.Dock="Left" Margin="0,0,4,0"
                                            Hex="{Binding PaletteDocker.SelectedSwatch.Color, Mode=TwoWay}" />
                       <TextBox Text="{Binding PaletteDocker.SelectedSwatch.Name, Mode=TwoWay}"
                                FontSize="11" PlaceholderText="Swatch name"

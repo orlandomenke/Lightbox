@@ -173,3 +173,53 @@ public sealed class PaletteTarget
 
     public override string ToString() => Label;
 }
+
+/// <summary>
+/// Why a colour is being added to a palette, and therefore what a duplicate
+/// means.
+/// </summary>
+/// <remarks>
+/// A colour arriving twice is almost always a slip — the wheel moved a little
+/// and came back, or the same swatch was picked and re-added — and a palette
+/// full of near-identical entries is a palette nobody can use. But not every
+/// path means the same thing, so the caller says which it is rather than the
+/// docker guessing from the colour alone.
+/// </remarks>
+public enum PaletteAddIntent
+{
+    /// <summary>
+    /// Refuse a duplicate and say so. The default, and what an anonymous
+    /// picker — a gradient stop, a brush's secondary colour — gets.
+    /// </summary>
+    Deduplicate,
+
+    /// <summary>
+    /// Add it anyway. The wheel inside the palette docker: somebody working in
+    /// the palette who asks for a second copy of a colour wants one, usually
+    /// to file the two under different folders.
+    /// </summary>
+    Allow,
+
+    /// <summary>
+    /// Select the existing swatch instead of making another. The foreground
+    /// and background pair: the point of adding is to start painting with a
+    /// live colour, and the swatch that is already there does that.
+    /// </summary>
+    Adopt,
+}
+
+/// <summary>A picker asking for its colour to be kept.</summary>
+public sealed record PaletteAddRequest(string Hex, string? PaletteId, PaletteAddIntent Intent);
+
+/// <summary>
+/// What came of it.
+/// </summary>
+/// <param name="Swatch">
+/// The swatch to link to, new or existing, or null when nothing was added.
+/// </param>
+/// <param name="Existing">True when this is a swatch that was already there.</param>
+/// <param name="Message">What to tell the artist, or empty when there is nothing to say.</param>
+public sealed record PaletteAddOutcome(Swatch? Swatch, bool Existing, string Message)
+{
+    public static readonly PaletteAddOutcome Nothing = new(null, false, "");
+}

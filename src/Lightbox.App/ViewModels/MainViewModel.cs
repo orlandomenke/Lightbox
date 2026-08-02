@@ -214,12 +214,17 @@ public sealed partial class MainViewModel : ObservableObject
         // reaches the art. Without this the palette inside a picker would be
         // a convenient list of colours and nothing more.
         ColorPicker.SwatchPicked += PaintWithSwatch;
+        // The pair adopts rather than duplicates. Adding a colour that is
+        // already in the palette is a request to paint with a live colour, and
+        // the swatch that is already there does that — making a second one
+        // would give you the literal you were trying to get away from.
+        ColorPicker.AddIntent = PaletteAddIntent.Adopt;
         // The other half of the pair gets a picker of its own rather than a
         // hex field. Reaching for the background colour is the same act as
         // reaching for the foreground one, and offering a wheel for one and a
         // text box for the other is the kind of asymmetry you notice every
         // single time.
-        BackgroundPicker = new ColorPickerViewModel();
+        BackgroundPicker = new ColorPickerViewModel { AddIntent = PaletteAddIntent.Adopt };
         BackgroundPicker.SetHex(BackgroundColorHex);
         BackgroundPicker.HexCommitted += hex =>
         {
@@ -1023,7 +1028,14 @@ public sealed partial class MainViewModel : ObservableObject
         // The way back. Every picker in the app can put its colour in the
         // palette, and they all mean the same palette — the one the docker has
         // selected — because there is one document.
-        ColorPickerViewModel.PaletteSink = PaletteDocker.AddColor;
+        ColorPickerViewModel.PaletteSink = request =>
+        {
+            var outcome = PaletteDocker.AddColor(request);
+            // The docker's own status line is easy to miss when the wheel is
+            // open over the canvas, so a refusal says so in the status bar too.
+            if (outcome.Message is { Length: > 0 } message) AiStatus = message;
+            return outcome;
+        };
         ColorPickerViewModel.PaletteTargetSource = () => PaletteDocker.PaletteTargets;
         ColorPicker.RefreshPalette();
         // The source is static, so both halves of the pair see the new list —

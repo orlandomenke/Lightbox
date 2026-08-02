@@ -93,6 +93,12 @@ public partial class MainWindow : Window
             Rendering.CanvasControl.ReferenceAlignModeProperty,
             new Avalonia.Data.Binding(nameof(ViewModels.MainViewModel.ReferenceAlignMode)) { Source = _vm });
 
+        // The wheel inside the palette panel is the one place a duplicate is
+        // taken at face value: somebody working in the palette who asks for a
+        // second copy of a colour wants one, usually to file the two under
+        // different folders.
+        PaletteSwatchField.Picker.AddIntent = ViewModels.PaletteAddIntent.Allow;
+
         // The grid gizmos. The canvas owns the gesture — which corner, which
         // box, how far — and the view model owns what it means to the document.
         Canvas.ReferenceBoxPicked += index => _vm.SelectedReferenceCell = index;

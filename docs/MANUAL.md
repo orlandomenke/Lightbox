@@ -378,6 +378,24 @@ otherwise be the one colour in the drawing a later palette edit could not
 reach. Adding the background colour, or a gradient stop's colour, leaves the
 brush where it was.
 
+**A colour already in the palette is not added twice.** The same colour arriving
+twice is almost always a slip — the wheel moved a little and came back — and a
+palette full of near-identical entries is a palette nobody can use. What happens
+next depends on which wheel you used:
+
+- **Foreground or background** — the swatch already there is *selected* instead.
+  That is the useful answer: the point of adding was to paint with a live
+  colour, and that swatch already is one.
+- **Anywhere else** — nothing is added, and it says which swatch already holds
+  the colour.
+- **The wheel in the Palette panel** — the copy is made. Somebody working in the
+  palette who asks for a second copy wants one.
+
+When you do want two of a colour — the same grey filed under two characters, say
+— use **Duplicate** in the Palette panel. It makes an independent swatch with a
+new identity, so recolouring the copy leaves art painted with the original
+alone. That is the whole reason to have two.
+
 ### Palettes
 
 Every document starts with a palette holding **pure black and pure white**,

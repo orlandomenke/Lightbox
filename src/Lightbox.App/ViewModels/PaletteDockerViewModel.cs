@@ -680,16 +680,43 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
     /// whose colour it was and does the linking.
     /// </para>
     /// </remarks>
-    public Swatch? AddColor(string hex, string? paletteId = null)
+    public PaletteAddOutcome AddColor(PaletteAddRequest request)
     {
-        if (_doc is null) return null;
-        var swatch = new Swatch { Color = hex };
+        if (_doc is null) return PaletteAddOutcome.Nothing;
+        var hex = HexColor.Normalize(request.Hex);
+        if (hex is null) return PaletteAddOutcome.Nothing;
+
         // A named target wins over the selection: the artist said where.
-        var named = paletteId is null ? null : Palettes.FirstOrDefault(p => p.Id == paletteId);
-        if ((named ?? SelectedPalette) is { } selected)
+        var named = request.PaletteId is null
+            ? null
+            : Palettes.FirstOrDefault(p => p.Id == request.PaletteId);
+        var target = named ?? SelectedPalette;
+
+        if (target is not null && request.Intent != PaletteAddIntent.Allow
+            && Duplicate(target, hex) is { } already)
         {
-            EditPalette(selected, target => target.Swatches.Add(swatch));
-            return swatch;
+            // Not silence. A button that does nothing is indistinguishable
+            // from a button that is broken, and this one is refusing on
+            // purpose.
+            var where = already.Name is { Length: > 0 } name ? $"“{name}”" : hex;
+            if (request.Intent == PaletteAddIntent.Adopt)
+            {
+                SelectedPalette = target;
+                SelectedSwatch = Swatches.FirstOrDefault(s => s.Id == already.Id);
+                Status = $"{hex} is already in {target.Name} as {where} — selected it instead.";
+                return new PaletteAddOutcome(already, Existing: true, Status);
+            }
+            Status = $"{hex} is already in {target.Name} as {where}. "
+                + "Use Duplicate swatch in the palette panel if you want a second copy.";
+            return new PaletteAddOutcome(null, Existing: true, Status);
+        }
+
+        var swatch = new Swatch { Color = hex };
+        if (target is not null)
+        {
+            EditPalette(target, palette => palette.Swatches.Add(swatch));
+            Status = "";
+            return new PaletteAddOutcome(swatch, Existing: false, "");
         }
         // Nothing selected: the document gets a palette, because that is the
         // scope that always exists.
@@ -699,7 +726,42 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
             palette.Swatches.Add(swatch);
             d.Palettes.Add(palette);
         });
-        return swatch;
+        Status = "";
+        return new PaletteAddOutcome(swatch, Existing: false, "");
+    }
+
+    /// <summary>
+    /// The swatch in this palette already holding that colour, if there is one.
+    /// </summary>
+    /// <remarks>
+    /// Exact match on the normalised hex rather than a perceptual distance.
+    /// "Near enough" needs a threshold, and any threshold either lets through
+    /// the accidental duplicates this exists to stop or refuses two shades an
+    /// artist deliberately separated.
+    /// </remarks>
+    private static Swatch? Duplicate(Palette palette, string hex) =>
+        palette.Swatches.FirstOrDefault(
+            s => string.Equals(s.Color, hex, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// A second copy of the selected swatch, on purpose.
+    /// </summary>
+    /// <remarks>
+    /// The deliberate path that lets the wheel refuse duplicates. A new id, so
+    /// the two are independent: recolouring the copy leaves the art painted
+    /// with the original alone, which is the whole point of wanting two.
+    /// </remarks>
+    [RelayCommand]
+    private void DuplicateSwatch()
+    {
+        if (SelectedPalette is not { } palette || SelectedSwatch is not { } row) return;
+        var copy = new Swatch
+        {
+            Color = row.Color,
+            Name = row.Model.Name is { Length: > 0 } name ? $"{name} copy" : null,
+        };
+        EditPalette(palette, target => target.Swatches.Add(copy));
+        SelectedSwatch = Swatches.FirstOrDefault(s => s.Id == copy.Id);
     }
 
     /// <summary>

@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `d9694e6` · 243 files · 54894 lines · 997 tests.
+Generated from `2c56082` · 243 files · 55205 lines · 1005 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -27,24 +27,24 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (6435 ln) · 51 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:2810, TransformParts:4062
-- `src/Lightbox.App/Views/MainWindow.axaml` (2396 ln) · **no tests**
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (6447 ln) · 51 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:2822, TransformParts:4074
+- `src/Lightbox.App/Views/MainWindow.axaml` (2406 ln) · **no tests**
   - BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushPageEffects, BrushPageGeneral, BrushPageMedium …
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (2391 ln) · 5 test files
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (2397 ln) · 5 test files
   - MainWindow:17
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2085 ln) · 5 test files
   - CanvasControl:28, CanvasToolMode:293, GridGesture:347, TxDrag:481, DrawOp:1651
-- `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (754 ln) · 1 test files
+- `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
 - `src/Lightbox.App/ViewModels/GradientDockerViewModel.cs` (467 ln) · 1 test files
   - GradientStopRow:16, GradientDockerViewModel:89, HexColor:452
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (407 ln) · 1 test files
   - ProjectRow:10, ProjectViewModel:66, NewItemKind:181
+- `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (367 ln) · 4 test files
+  - ColorMode:9, ColorPickerViewModel:25
 - `src/Lightbox.App/ViewModels/WorkspaceViewModel.cs` (367 ln) · 1 test files
   - WorkspaceViewModel:20, WorkspaceRow:362
-- `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (352 ln) · 4 test files
-  - ColorMode:9, ColorPickerViewModel:25
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` (347 ln) · 5 test files
   - StrokeOverlay:23, RenderPass:49, SceneRenderer:64
 - `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 33 test files
@@ -59,6 +59,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Workspace:13, WorkspaceStore:51
 - `src/Lightbox.App/Docking/DockLayout.cs` (253 ln) · 3 test files
   - DockPlacement:7, DockLayout:51
+- `src/Lightbox.App/ViewModels/PaletteNode.cs` (225 ln) · 2 test files
+  - PaletteScope:16, PaletteNodeKind:22, PaletteNode:39, PaletteAssignTarget:145, PaletteTarget:166, PaletteAddIntent:188, PaletteAddRequest:212, PaletteAddOutcome:222
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (211 ln) · 5 indirect only
   - ShortcutRow:11, ShortcutGroup:23, ConfigureWindow:36
 - `src/Lightbox.App/Services/ShortcutMap.cs` (199 ln) · 2 test files
@@ -75,8 +77,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PerformanceMonitor:14
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 1 test files
   - CanvasOverlayBar:28
-- `src/Lightbox.App/ViewModels/PaletteNode.cs` (175 ln) · 1 test files
-  - PaletteScope:16, PaletteNodeKind:22, PaletteNode:39, PaletteAssignTarget:145, PaletteTarget:166
 - `src/Lightbox.App/Styles/ColorPicker.axaml` (174 ln) · **no tests**
   - PART_Clear, PART_Swatch
 - `src/Lightbox.App/Controls/OverflowBar.cs` (173 ln) · 2 test files
