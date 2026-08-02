@@ -64,6 +64,7 @@ public partial class MainWindow : Window
         // what makes the drawing move with the box instead of after it.
         Canvas.TransformGizmoChanged += () => _vm.PreviewTransform(Canvas.TransformMatrix);
         Canvas.TransformMenuRequested += ShowTransformMenu;
+        WireGradientRamp();
         SyncCanvasToolMode();
 
         // The camera frame is view-only chrome, so it crosses to the canvas the
@@ -374,6 +375,58 @@ public partial class MainWindow : Window
     private void OnAutosaveFiveMinutes(object? sender, RoutedEventArgs e) => _vm.AutosaveMinutes = 5;
 
     private void OnAutosaveFifteenMinutes(object? sender, RoutedEventArgs e) => _vm.AutosaveMinutes = 15;
+
+    // ---- the gradient ramp editor ------------------------------------------------
+
+    /// <summary>
+    /// The ramp draws and reports; every edit it reports lands in the view
+    /// model, and therefore in the undo history. A control that mutated the
+    /// document directly would make dragging a stop the one change Ctrl+Z
+    /// could not reach.
+    /// </summary>
+    /// <remarks>
+    /// Found by name at first use rather than wired at construction: the ramp
+    /// lives inside a Flyout, and a flyout's content is not built until it is
+    /// first opened.
+    /// </remarks>
+
+    private void WireGradientRamp()
+    {
+        // The panel's copy exists from the start; the toolbar's lives in a
+        // flyout, whose content is not built until it is first opened.
+        Bind(PanelRampEditor);
+        if (GradientPreviewButton.Flyout is Flyout flyout)
+        {
+            flyout.Opened += (_, _) =>
+            {
+                if (flyout.Content is Control content
+                    && content.FindControl<GradientRamp>("RampEditor") is { } ramp)
+                {
+                    Bind(ramp);
+                }
+            };
+        }
+    }
+
+    private readonly HashSet<GradientRamp> _wiredRamps = [];
+
+    private void Bind(GradientRamp? ramp)
+    {
+        if (ramp is null || !_wiredRamps.Add(ramp)) return;
+        var gradients = _vm.GradientDocker;
+        ramp.StopAdded += (track, at) => gradients.AddStopAt(track == RampTrack.Alpha, at);
+        ramp.StopMoved += (stop, at) =>
+            gradients.MoveStop(stop.Track == RampTrack.Alpha, stop.Index, at);
+        ramp.SelectionChanged += stop =>
+        {
+            if (stop is { } s) gradients.Select(s.Track == RampTrack.Alpha, s.Index);
+        };
+        ramp.StopRemoved += stop =>
+        {
+            gradients.RemoveStopAt(stop.Track == RampTrack.Alpha, stop.Index);
+            ramp.Selection = null;
+        };
+    }
 
     // ---- workspace commands ----------------------------------------------------
 

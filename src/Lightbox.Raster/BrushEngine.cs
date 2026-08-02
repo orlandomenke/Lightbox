@@ -183,16 +183,26 @@ public static class BrushEngine
         var canvas = scratch.Canvas;
         canvas.Clear(SKColors.Transparent);
 
-        var stops = GradientOps.Ordered(gradient);
+        // Both tracks. Building the shader from the colour stops alone drops
+        // every opacity stop that sits between two of them — which is most of
+        // them, since the whole reason opacity has its own track is that it
+        // changes in different places.
+        var marks = GradientOps.Ordered(gradient).Select(s => s.Position);
+        if (gradient.AlphaStops is { } alphas) marks = marks.Concat(alphas.Select(s => s.Position));
+        var stops = marks
+            .Select(p => Math.Clamp(p, 0, 1))
+            .Distinct()
+            .OrderBy(p => p)
+            .ToList();
         if (stops.Count == 0) return;
 
         var colors = new SKColor[stops.Count];
         var positions = new float[stops.Count];
         for (var i = 0; i < stops.Count; i++)
         {
-            var (r, g, b, a) = GradientOps.Sample(gradient, stops[i].Position);
+            var (r, g, b, a) = GradientOps.Sample(gradient, stops[i]);
             colors[i] = new SKColor(r, g, b, a);
-            positions[i] = (float)Math.Clamp(stops[i].Position, 0, 1);
+            positions[i] = (float)stops[i];
         }
 
         var tile = gradient.Spread switch

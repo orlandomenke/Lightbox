@@ -271,6 +271,16 @@ The swatch at the bottom does two things, told apart by whether you move:
 - **Click** it for the numbers — hex, HSV and RGB — in a flyout.
 - **Drag** it onto the canvas to fill with that colour.
 
+### Foreground and background
+
+Two colours, shown one over the other in the tool options bar, shared by the
+brush, the fill and the gradient. **X** swaps them; **D** resets to black over
+white. They are global on purpose — reaching for the same colour in three tools
+and finding three different answers is what this prevents.
+
+The swatch link travels with the swap, so trading to a palette colour and back
+leaves your strokes still following that swatch.
+
 ### Choosing a colour anywhere else
 
 Every other place a colour is set — a palette swatch, a gradient stop, the
@@ -288,6 +298,18 @@ a ✕ to get back to it.
 
 ### Palettes
 
+Every document starts with a palette holding **pure black and pure white**,
+with black selected.
+
+This is the one place the "absent unless asked for" rule does not apply, and
+deliberately. A swatch is not a feature you opt into — it is the difference
+between a stroke that carries a colour and one that carries a *reference*, and
+only the second can be recoloured later. Starting empty would mean the first
+hour of work is painted in literals that can never follow a palette edit.
+
+The palette appears in **every** colour picker, not just the panel. Picking
+from it links the swatch, so the recolour still reaches the art.
+
 The **Palette** panel manages named palettes. Import and export **.gpl** (GIMP)
 files.
 
@@ -304,13 +326,37 @@ paint from the same one.
 
 ### Gradients
 
-The **Gradient** panel edits gradients — stops, linear or radial, pad/repeat/
-mirror. Drag on the canvas with the gradient tool to lay one down; the drag sets
-the axis (or the centre and radius, for radial). If you have no gradient yet,
-picking the tool makes a black-to-white one.
+Pick the gradient tool and its options appear in the bar, with the ramp itself
+as the preview. **Click the ramp** to edit it.
 
-Gradients are live in the same way palettes are: edit the definition and the art
-follows.
+The editor has two rows of markers, and they are independent:
+
+- **Above the ramp: opacity.** Click to add a stop, drag to move it, select one
+  to set its value.
+- **Below the ramp: colour.** Same, and selecting one gives you the colour
+  picker.
+
+Middle-click a marker to remove it. A colour ramp always keeps two stops; an
+opacity track keeps two or none, because one stop holds its value everywhere
+and that is a flat opacity wearing the costume of a gradient.
+
+The two rows exist because opacity genuinely changes in different places from
+colour. A sky fading out at the top while going orange in the middle needs two
+stops in one place and one in another, and tying them together would force you
+to author a colour you did not want in order to place an opacity you did.
+
+A gradient with no separate opacity track is the ordinary case and writes
+nothing extra to the file.
+
+Drag on the canvas to lay one down; the drag sets the axis, or the centre and
+radius for a radial. If you have no gradient yet, picking the tool makes a
+black-to-white one.
+
+Gradients are live in the same way palettes are: edit the definition and the
+art follows.
+
+The **Gradient** panel shows the same editor, for when you want it open
+permanently rather than behind a click.
 
 ---
 
@@ -456,6 +502,7 @@ canvas, the timeline and the Layers panel.
 | Ctrl+A / Ctrl+D / Ctrl+Shift+I | Select all, deselect, invert |
 | Space | Play / pause |
 | ← / → | Previous, next frame |
+| X / D | Swap foreground and background / reset to black over white |
 | M | Mirror the view |
 | 0 | Reset zoom, rotation, mirror and pan |
 | Shift + drag | Resize the brush |

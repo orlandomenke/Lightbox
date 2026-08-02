@@ -336,6 +336,88 @@
           </StackPanel>
         </StackPanel>
 
+        <!--
+          The gradient tool's own row. The preview IS the editor: click it for
+          the ramp, with opacity markers above and colour markers below.
+
+          A list of rows with position spinners describes a gradient; this is
+          the gradient. Where a change happens is a spatial judgement, and a
+          number is a poor way to make one.
+        -->
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                    IsVisible="{Binding IsGradientTool}">
+          <ComboBox ItemsSource="{Binding GradientDocker.Gradients}"
+                    SelectedItem="{Binding GradientDocker.SelectedGradient}"
+                    Width="130" VerticalAlignment="Center" ToolTip.Tip="Gradient">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="docs:Gradient">
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+
+          <Button x:Name="GradientPreviewButton"
+                  Padding="0" Height="22" Width="90" VerticalAlignment="Center"
+                  BorderBrush="#666" BorderThickness="1"
+                  Background="{Binding GradientDocker.Preview}"
+                  ToolTip.Tip="Edit this gradient — click the ramp to add stops">
+            <Button.Flyout>
+              <Flyout Placement="Bottom">
+                <StackPanel Width="300" Spacing="8">
+                  <controls:GradientRamp x:Name="RampEditor"
+                                         Gradient="{Binding GradientDocker.SelectedGradient}" />
+                  <TextBlock FontSize="10" Opacity="0.55" TextWrapping="Wrap"
+                             Text="Click above the ramp for an opacity stop, below it for a colour stop. Drag to move, middle-click to remove." />
+
+                  <!-- An opacity stop: a number and a slider, nothing else. -->
+                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasAlphaStop}">
+                    <TextBlock Text="Opacity stop" FontSize="10" Opacity="0.6" />
+                    <DockPanel>
+                      <NumericUpDown DockPanel.Dock="Right" Width="56" FontSize="11"
+                                     Value="{Binding GradientDocker.SelectedAlpha}"
+                                     Minimum="0" Maximum="100" Increment="5" FormatString="0" />
+                      <Slider Value="{Binding GradientDocker.SelectedAlpha}"
+                              Minimum="0" Maximum="100" Margin="0,0,4,0" />
+                    </DockPanel>
+                  </StackPanel>
+
+                  <!-- A colour stop: the picker, the same one as everywhere. -->
+                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasStop}">
+                    <TextBlock Text="Colour stop" FontSize="10" Opacity="0.6" />
+                    <controls:ColorField Hex="{Binding GradientDocker.SelectedStop.Color, Mode=TwoWay}"
+                                         HorizontalAlignment="Left" />
+                  </StackPanel>
+
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ComboBox ItemsSource="{Binding GradientDocker.KindChoices}"
+                              SelectedItem="{Binding GradientDocker.Kind}" Width="92" FontSize="11"
+                              ToolTip.Tip="Linear runs along the drag; radial takes the drag as its radius" />
+                    <ComboBox ItemsSource="{Binding GradientDocker.SpreadChoices}"
+                              SelectedItem="{Binding GradientDocker.Spread}" Width="92" FontSize="11"
+                              ToolTip.Tip="What happens beyond the ends of the ramp" />
+                    <Button Classes="icon" Content="＋" FontSize="10"
+                            Command="{Binding GradientDocker.AddGradientCommand}"
+                            ToolTip.Tip="New gradient" />
+                    <Button Classes="icon" Content="✕" FontSize="10"
+                            Command="{Binding GradientDocker.RemoveGradientCommand}"
+                            IsEnabled="{Binding GradientDocker.HasGradient}"
+                            ToolTip.Tip="Delete this gradient" />
+                  </StackPanel>
+                </StackPanel>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
+
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Opacity" VerticalAlignment="Center" />
+            <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Width="80"
+                    VerticalAlignment="Center" />
+            <NumericUpDown Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Increment="0.05"
+                           FormatString="0.00" Width="64" VerticalAlignment="Center"
+                           ToolTip.Tip="Opacity the gradient tool lays the ramp down at" />
+          </StackPanel>
+        </StackPanel>
+
         <!-- Full brush parameters (brush + eraser) -->
         <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="All brush parameters"
                 IsVisible="{Binding IsPaintTool}">
@@ -1692,50 +1774,47 @@
                 </Border>
               </controls:Docker.TopBar>
 
-              <controls:Docker.BottomBar>
-                <Border Classes="dockerBar">
-                  <StackPanel Spacing="4">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                      <Button Classes="text" Content="＋ Stop"
-                              Command="{Binding GradientDocker.AddStopCommand}"
-                              IsEnabled="{Binding GradientDocker.HasGradient}"
-                              ToolTip.Tip="Insert a stop after the selected one" />
-                      <Button Classes="icon" Content="－" FontSize="11"
-                              Command="{Binding GradientDocker.RemoveStopCommand}"
-                              IsEnabled="{Binding GradientDocker.HasStop}"
-                              ToolTip.Tip="Remove the selected stop (two are always kept)" />
-                    </StackPanel>
-                    <DockPanel ToolTip.Tip="Opacity the gradient tool lays the ramp down at">
-                      <TextBlock DockPanel.Dock="Left" Text="Opacity" FontSize="11" Width="52"
-                                 VerticalAlignment="Center" />
+              <!--
+                The panel is now the ramp, the same editor the tool options bar
+                offers. A list of rows with position spinners described a
+                gradient; this is the gradient, and where a change happens is a
+                spatial judgement that a number makes awkward.
+              -->
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="6" Spacing="8">
+                  <controls:GradientRamp x:Name="PanelRampEditor"
+                                         Gradient="{Binding GradientDocker.SelectedGradient}"
+                                         IsVisible="{Binding GradientDocker.HasGradient}" />
+                  <TextBlock FontSize="10" Opacity="0.55" TextWrapping="Wrap"
+                             IsVisible="{Binding GradientDocker.HasGradient}"
+                             Text="Click above the ramp for an opacity stop, below it for a colour stop. Drag to move, middle-click to remove." />
+
+                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasAlphaStop}">
+                    <TextBlock Text="Opacity stop" FontSize="10" Opacity="0.6" />
+                    <DockPanel>
                       <NumericUpDown DockPanel.Dock="Right" Width="56" FontSize="11"
-                                     Value="{Binding GradientOpacity}" Minimum="0" Maximum="1"
-                                     Increment="0.05" FormatString="0.00" />
-                      <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Margin="4,0" />
+                                     Value="{Binding GradientDocker.SelectedAlpha}"
+                                     Minimum="0" Maximum="100" Increment="5" FormatString="0" />
+                      <Slider Value="{Binding GradientDocker.SelectedAlpha}"
+                              Minimum="0" Maximum="100" Margin="0,0,4,0" />
                     </DockPanel>
                   </StackPanel>
-                </Border>
-              </controls:Docker.BottomBar>
 
-              <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ListBox ItemsSource="{Binding GradientDocker.Stops}"
-                         SelectedItem="{Binding GradientDocker.SelectedStop}"
-                         Background="Transparent" BorderThickness="0" Margin="2">
-                  <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:GradientStopRow">
-                      <DockPanel>
-                        <controls:ColorField DockPanel.Dock="Left" Margin="0,0,4,0"
-                                             Hex="{Binding Color, Mode=TwoWay}" />
-                        <NumericUpDown DockPanel.Dock="Right" Width="60" FontSize="11" Margin="0,0,4,0"
-                                       Value="{Binding Alpha}" Minimum="0" Maximum="100"
-                                       Increment="5" FormatString="0" ToolTip.Tip="Opacity %" />
-                        <NumericUpDown Width="60" FontSize="11" Margin="0,0,4,0"
-                                       Value="{Binding Position}" Minimum="0" Maximum="100"
-                                       Increment="1" FormatString="0" ToolTip.Tip="Position along the ramp, %" />
-                      </DockPanel>
-                    </DataTemplate>
-                  </ListBox.ItemTemplate>
-                </ListBox>
+                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasStop}">
+                    <TextBlock Text="Colour stop" FontSize="10" Opacity="0.6" />
+                    <controls:ColorField Hex="{Binding GradientDocker.SelectedStop.Color, Mode=TwoWay}"
+                                         HorizontalAlignment="Left" />
+                  </StackPanel>
+
+                  <DockPanel ToolTip.Tip="Opacity the gradient tool lays the ramp down at">
+                    <TextBlock DockPanel.Dock="Left" Text="Tool" FontSize="11" Width="34"
+                               VerticalAlignment="Center" />
+                    <NumericUpDown DockPanel.Dock="Right" Width="56" FontSize="11"
+                                   Value="{Binding GradientOpacity}" Minimum="0" Maximum="1"
+                                   Increment="0.05" FormatString="0.00" />
+                    <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Margin="4,0" />
+                  </DockPanel>
+                </StackPanel>
               </ScrollViewer>
             </controls:Docker>
 

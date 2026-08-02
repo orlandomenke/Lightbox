@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-744 tests, derived from the suite itself. Each line is a
+754 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -318,6 +318,20 @@ regression even when every test still compiles.
 - Invalidating AFrame Drops Every Render Of It — `:96`
 - Invalidating One Frame Leaves The Others Alone — `:115`
 - Cached Bytes Tracks What Is Actually Held — `:129`
+
+## GradientRampTests
+`tests/Lightbox.App.Tests/GradientRampTests.cs`
+
+- Clicking The Colour Track Adds AStop Where You Clicked — `:24`
+- Dragging AColour Stop Moves It — `:40`
+- The Last Two Colour Stops Cannot Be Removed — `:51`
+- Adding AColour Stop Is Undoable — `:63`
+- AGradient Has No Alpha Track Until You Add One — `:77`
+- The First Opacity Stop Seeds Both Ends So It Does Not Fade Everything — `:85`
+- Editing The Selected Opacity Shows In The Ramp — `:102`
+- Removing Down To One Opacity Stop Drops The Track Entirely — `:115`
+- Opacity And Colour Stops Are Selected Independently — `:130`
+- An Opacity Hole Shows On The Canvas — `:145`
 
 ## GradientToolTests
 `tests/Lightbox.App.Tests/GradientToolTests.cs`

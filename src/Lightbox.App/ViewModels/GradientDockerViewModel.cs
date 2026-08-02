@@ -285,6 +285,167 @@ public sealed partial class GradientDockerViewModel : ObservableObject
     {
         if (SelectedStop is { } row) row.Color = hex;
     }
+
+    // ---- what the ramp editor drives -----------------------------------------
+    //
+    // The ramp control draws and reports; every edit lands here, so it goes
+    // through the same _edit closure as everything else and therefore into the
+    // undo history. A control that mutated the document directly would make
+    // dragging a stop the one change Ctrl+Z could not reach.
+
+    /// <summary>The alpha stop being edited, or null when a colour stop is.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAlphaStop))]
+    [NotifyPropertyChangedFor(nameof(SelectedAlpha))]
+    private GradientAlphaStop? _selectedAlphaStop;
+
+    public bool HasAlphaStop => SelectedAlphaStop is not null;
+
+    /// <summary>Opacity of the selected alpha stop, as a percentage.</summary>
+    public double SelectedAlpha
+    {
+        get => (SelectedAlphaStop?.Alpha ?? 1) * 100;
+        set
+        {
+            if (SelectedAlphaStop is not { } stop) return;
+            var alpha = Math.Clamp(value, 0, 100) / 100.0;
+            if (Math.Abs(stop.Alpha - alpha) < 1e-9) return;
+            stop.Alpha = alpha;
+            OnPropertyChanged();
+            NotifyEdited();
+        }
+    }
+
+    /// <summary>Add a stop to a track at a position the artist pointed at.</summary>
+    public void AddStopAt(bool alphaTrack, double position)
+    {
+        if (SelectedGradient is not { } gradient) return;
+        var id = gradient.Id;
+        position = Math.Clamp(position, 0, 1);
+
+        if (alphaTrack)
+        {
+            // The new stop takes the opacity that was already there, so
+            // placing one changes nothing until you move it. Adding a stop
+            // should never be a visible edit by itself.
+            var alpha = (gradient.HasAlphaTrack
+                ? GradientOps.SampleAlpha(gradient.AlphaStops!, position)
+                : GradientOps.Sample(gradient, position).A) / 255.0;
+            GradientAlphaStop? added = null;
+            _edit(d =>
+            {
+                if (!d.Gradients.TryGetValue(id, out var target)) return;
+                var track = target.EnsureAlphaTrack();
+                // The first stop the artist places would otherwise be the only
+                // one, and a single stop holds its value everywhere — turning
+                // "make this bit fade" into "fade everything". Seed the ends.
+                if (track.Count == 0)
+                {
+                    track.Add(new GradientAlphaStop { Position = 0, Alpha = 1 });
+                    track.Add(new GradientAlphaStop { Position = 1, Alpha = 1 });
+                }
+                added = new GradientAlphaStop { Position = position, Alpha = alpha };
+                track.Add(added);
+            });
+            SelectedStop = null;
+            SelectedAlphaStop = added;
+            RefreshRamp();
+            return;
+        }
+
+        var (r, g, b, _) = GradientOps.Sample(gradient, position);
+        _edit(d =>
+        {
+            if (!d.Gradients.TryGetValue(id, out var target)) return;
+            target.Stops.Add(new DocStop { Position = position, Color = $"#{r:x2}{g:x2}{b:x2}" });
+        });
+        SelectedAlphaStop = null;
+        SelectedStop = Stops.FirstOrDefault(s => Math.Abs(s.Model.Position - position) < 1e-9);
+        RefreshRamp();
+    }
+
+    /// <summary>Slide a stop along its track.</summary>
+    public void MoveStop(bool alphaTrack, int index, double position)
+    {
+        if (SelectedGradient is not { } gradient) return;
+        position = Math.Clamp(position, 0, 1);
+
+        if (alphaTrack)
+        {
+            if (gradient.AlphaStops is not { } track || index < 0 || index >= track.Count) return;
+            if (Math.Abs(track[index].Position - position) < 1e-9) return;
+            track[index].Position = position;
+        }
+        else
+        {
+            if (index < 0 || index >= gradient.Stops.Count) return;
+            if (Math.Abs(gradient.Stops[index].Position - position) < 1e-9) return;
+            gradient.Stops[index].Position = position;
+        }
+        NotifyEdited();
+        RefreshRamp();
+    }
+
+    /// <summary>Point the editor at a stop the artist clicked.</summary>
+    public void Select(bool alphaTrack, int index)
+    {
+        if (SelectedGradient is not { } gradient) return;
+        if (alphaTrack)
+        {
+            SelectedStop = null;
+            SelectedAlphaStop = gradient.AlphaStops is { } track && index >= 0 && index < track.Count
+                ? track[index]
+                : null;
+            return;
+        }
+        SelectedAlphaStop = null;
+        if (index < 0 || index >= gradient.Stops.Count) return;
+        var model = gradient.Stops[index];
+        SelectedStop = Stops.FirstOrDefault(s => ReferenceEquals(s.Model, model));
+    }
+
+    /// <summary>
+    /// Remove a stop. A colour ramp needs two, and an alpha track needs two or
+    /// none — one stop holds its value everywhere, which is a flat opacity
+    /// wearing the costume of a gradient.
+    /// </summary>
+    public void RemoveStopAt(bool alphaTrack, int index)
+    {
+        if (SelectedGradient is not { } gradient) return;
+        var id = gradient.Id;
+
+        if (alphaTrack)
+        {
+            if (gradient.AlphaStops is not { } track || index < 0 || index >= track.Count) return;
+            var stop = track[index];
+            _edit(d =>
+            {
+                if (!d.Gradients.TryGetValue(id, out var target) || target.AlphaStops is not { } t) return;
+                t.Remove(stop);
+                // Down to one means no track at all: back to the colour stops'
+                // own alpha, which is where a gradient starts.
+                if (t.Count < 2) target.AlphaStops = null;
+            });
+            SelectedAlphaStop = null;
+            RefreshRamp();
+            return;
+        }
+
+        if (gradient.Stops.Count <= 2 || index < 0 || index >= gradient.Stops.Count) return;
+        var colour = gradient.Stops[index];
+        _edit(d =>
+        {
+            if (d.Gradients.TryGetValue(id, out var target)) target.Stops.Remove(colour);
+        });
+        RefreshRamp();
+    }
+
+    /// <summary>Nudge the ramp control and the preview after a structural edit.</summary>
+    private void RefreshRamp()
+    {
+        OnPropertyChanged(nameof(SelectedGradient));
+        OnPropertyChanged(nameof(Preview));
+    }
 }
 
 /// <summary>Shared hex parsing for the palette and gradient editors.</summary>
