@@ -172,6 +172,38 @@ public sealed class ReferenceStrip
         for (var i = 0; i < Cells.Count; i++) Slots.Add(i);
     }
 
+    /// <summary>
+    /// Line every cell up on its pivot.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The registration an animator does on a peg bar: pick the point that
+    /// should not move — the contact foot, the hips — and slide each drawing
+    /// until it sits at the same place. Everything is measured against the
+    /// first cell, so aligning twice changes nothing and the sheet does not
+    /// wander off the canvas.
+    /// </para>
+    /// <para>
+    /// This is the opposite of what tiling the sheet does, and both are
+    /// wanted. Tiling keeps a runner travelling across their cell, which is
+    /// the motion; aligning on the pivot takes the travel out so the animator
+    /// can see the pose change underneath it. Which one you want depends on
+    /// whether you are matching the walk or the drawing, so it is a button
+    /// rather than a rule.
+    /// </para>
+    /// </remarks>
+    public void AlignByPivot()
+    {
+        if (Cells.Count == 0) return;
+        var (originX, originY) = Cells[0].Pivot;
+        foreach (var cell in Cells)
+        {
+            var (x, y) = cell.Pivot;
+            cell.Dx = (originX - x) * Scale;
+            cell.Dy = (originY - y) * Scale;
+        }
+    }
+
     /// <summary>Centre the sheet's first cell on a canvas of this size.</summary>
     public void CentreOn(int width, int height)
     {

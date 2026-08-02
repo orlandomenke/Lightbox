@@ -3035,6 +3035,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// </param>
     public void BeginStroke(double x, double y, double pressure, bool eraseWithCurrentBrush)
     {
+        // A mode that has taken the canvas takes it from every tool, not from
+        // the ones the canvas control happens to route through itself. Half a
+        // mark made while adjusting a grid is one you then have to find.
+        if (SuppressesPainting) return;
         if (ActiveTool is not (ToolId.Brush or ToolId.Eraser)) return;
         if (IsPlaying) return;
         if (!CanEdit(ActiveLayer, "draw on it")) return;
@@ -5563,6 +5567,234 @@ public sealed partial class MainViewModel : ObservableObject
         AfterReferenceChange();
     }
 
+    // ---- editing the grid by hand ---------------------------------------------
+
+    /// <summary>
+    /// The grid gizmos are showing and everything else is off.
+    /// </summary>
+    /// <remarks>
+    /// A mode rather than a tool. While it is on, every box on the sheet is
+    /// editable at once and the canvas is not a place to draw — the same
+    /// bargain <see cref="ReferenceAlignMode"/> makes, for the same reason: a
+    /// half-drawn mark made while adjusting a grid is one you then have to
+    /// find and undo. Escape leaves it.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SuppressesPainting))]
+    private bool _referenceGridEditMode;
+
+    partial void OnReferenceGridEditModeChanged(bool value)
+    {
+        if (!value) SelectedReferenceCell = -1;
+        PublishSnapshot();
+    }
+
+    /// <summary>Whether some mode has taken the canvas away from the tools.</summary>
+    public bool SuppressesPainting => ReferenceGridEditMode;
+
+    /// <summary>Which box the gizmos have selected, or -1.</summary>
+    [ObservableProperty]
+    private int _selectedReferenceCell = -1;
+
+    /// <summary>
+    /// Where a cell lands on the canvas, in document pixels.
+    /// </summary>
+    /// <remarks>
+    /// The same arithmetic the compositor does in <see cref="ReferencePasses"/>,
+    /// exposed so the gizmos can be drawn and hit-tested against exactly what
+    /// is on screen. Two copies of this would drift and the boxes would stop
+    /// sitting on the drawings they describe.
+    /// </remarks>
+    public (double X, double Y, double W, double H) CellRect(ReferenceStrip strip, ReferenceCell cell)
+    {
+        var scale = Math.Max(0.01, strip.Scale);
+        return (
+            strip.OffsetX + cell.Dx + cell.X * scale,
+            strip.OffsetY + cell.Dy + cell.Y * scale,
+            cell.Width * scale,
+            cell.Height * scale);
+    }
+
+    /// <summary>A document point in the active sheet's own pixels.</summary>
+    public (double X, double Y) DocToSheet(ReferenceStrip strip, ReferenceCell cell, double x, double y)
+    {
+        var scale = Math.Max(0.01, strip.Scale);
+        return ((x - strip.OffsetX - cell.Dx) / scale, (y - strip.OffsetY - cell.Dy) / scale);
+    }
+
+    /// <summary>The box under a document point, or -1.</summary>
+    public int ReferenceCellAt(double x, double y)
+    {
+        if (ActiveReference is not { } strip) return -1;
+        // Backwards, so the box drawn last — the one on top — wins.
+        for (var i = strip.Cells.Count - 1; i >= 0; i--)
+        {
+            var (cx, cy, w, h) = CellRect(strip, strip.Cells[i]);
+            if (x >= cx && x <= cx + w && y >= cy && y <= cy + h) return i;
+        }
+        return -1;
+    }
+
+    /// <summary>Move one box, in document pixels.</summary>
+    public void MoveReferenceCell(int index, double dx, double dy)
+    {
+        if (ActiveReference is not { } strip) return;
+        if (index < 0 || index >= strip.Cells.Count) return;
+        var cell = strip.Cells[index];
+        _editor.PerformDelta(
+            _ => { cell.Dx += dx; cell.Dy += dy; },
+            _ => { cell.Dx -= dx; cell.Dy -= dy; });
+        AfterReferenceChange();
+    }
+
+    /// <summary>
+    /// Resize one box by dragging a corner, in document pixels.
+    /// </summary>
+    /// <remarks>
+    /// The window onto the sheet changes, not the nudge: growing a box shows
+    /// more of the drawing rather than scaling it. A box that scaled its
+    /// contents would be a second zoom control with no way to tell it from the
+    /// first.
+    /// </remarks>
+    public void ResizeReferenceCell(int index, bool left, bool top, double dx, double dy)
+    {
+        if (ActiveReference is not { } strip) return;
+        if (index < 0 || index >= strip.Cells.Count) return;
+        var scale = Math.Max(0.01, strip.Scale);
+        var cell = strip.Cells[index];
+        var before = cell.Clone();
+
+        var sx = (int)Math.Round(dx / scale);
+        var sy = (int)Math.Round(dy / scale);
+        var x = left ? cell.X + sx : cell.X;
+        var y = top ? cell.Y + sy : cell.Y;
+        var w = left ? cell.Width - sx : cell.Width + sx;
+        var h = top ? cell.Height - sy : cell.Height + sy;
+        // A box with no area is a box you cannot get hold of again.
+        if (w < 4 || h < 4) return;
+
+        _editor.PerformDelta(
+            _ => { cell.X = x; cell.Y = y; cell.Width = w; cell.Height = h; },
+            _ =>
+            {
+                cell.X = before.X;
+                cell.Y = before.Y;
+                cell.Width = before.Width;
+                cell.Height = before.Height;
+            });
+        AfterReferenceChange();
+    }
+
+    /// <summary>
+    /// Put a box's pivot at a document point.
+    /// </summary>
+    /// <remarks>
+    /// Recorded in sheet pixels, so it stays on the same part of the drawing
+    /// when the sheet is nudged or rescaled afterwards.
+    /// </remarks>
+    public void SetReferencePivot(int index, double docX, double docY)
+    {
+        if (ActiveReference is not { } strip) return;
+        if (index < 0 || index >= strip.Cells.Count) return;
+        var cell = strip.Cells[index];
+        var (x, y) = DocToSheet(strip, cell, docX, docY);
+        var (beforeX, beforeY) = (cell.PivotX, cell.PivotY);
+        _editor.PerformDelta(
+            _ => { cell.PivotX = x; cell.PivotY = y; },
+            _ => { cell.PivotX = beforeX; cell.PivotY = beforeY; });
+        AfterReferenceChange();
+    }
+
+    /// <summary>Remove one box. The sheet is untouched; only the window goes.</summary>
+    public void DeleteReferenceCell(int index)
+    {
+        if (ActiveReference is not { } strip) return;
+        if (index < 0 || index >= strip.Cells.Count) return;
+        var first = strip.Slots.FindIndex(s => s >= 0);
+        _editor.Perform(doc =>
+        {
+            var live = doc.Scene.References![ActiveReferenceIndex];
+            live.Cells.RemoveAt(index);
+            live.LayOutFrom(Math.Max(0, first));
+        });
+        SelectedReferenceCell = -1;
+        AfterReferenceChange();
+    }
+
+    /// <summary>
+    /// Draw a box by hand, from a rectangle in document pixels.
+    /// </summary>
+    /// <remarks>
+    /// The escape hatch from detection. A sheet whose figures overlap, or
+    /// whose rows have no gutter, cannot be found from the pixels — no amount
+    /// of looking finds a boundary that is not there — so the answer is to let
+    /// the artist draw it rather than to guess.
+    /// </remarks>
+    public void AddReferenceCell(double x, double y, double w, double h)
+    {
+        if (ActiveReference is not { } strip) return;
+        if (w < 4 || h < 4) return;
+        var scale = Math.Max(0.01, strip.Scale);
+        var sheetX = (int)Math.Round((x - strip.OffsetX) / scale);
+        var sheetY = (int)Math.Round((y - strip.OffsetY) / scale);
+        var cell = new ReferenceCell
+        {
+            X = sheetX,
+            Y = sheetY,
+            Width = (int)Math.Round(w / scale),
+            Height = (int)Math.Round(h / scale),
+        };
+        var first = strip.Slots.FindIndex(s => s >= 0);
+        _editor.Perform(doc =>
+        {
+            var live = doc.Scene.References![ActiveReferenceIndex];
+            live.Cells.Add(cell);
+            live.LayOutFrom(Math.Max(0, first));
+        });
+        SelectedReferenceCell = strip.Cells.Count - 1;
+        AfterReferenceChange();
+    }
+
+    /// <summary>Whether the timeline is short of frames for the boxes found.</summary>
+    public bool ReferenceNeedsKeyframes =>
+        ActiveReference is { Cells.Count: > 0 } strip && strip.Cells.Count > Scene.FrameCount;
+
+    /// <summary>
+    /// One keyframe per box, lined up on the pivots.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two things at once, because they are one intention: the timeline grows
+    /// to hold the reference, and the cells are registered so the pivot sits
+    /// still. Being handed an eight-frame reference on a one-frame document is
+    /// not a state anybody asked for, and neither is a run cycle that has to
+    /// be nudged into place eight times.
+    /// </para>
+    /// <para>
+    /// Alignment is separable — <see cref="ReferenceStrip.AlignByPivot"/> is
+    /// its own call — because someone matching a walk wants the travel left in
+    /// and someone matching a drawing does not.
+    /// </para>
+    /// </remarks>
+    [RelayCommand]
+    public void GenerateReferenceKeyframes()
+    {
+        if (ActiveReference is not { Cells.Count: > 0 } strip) return;
+        var wanted = strip.Cells.Count;
+        var first = Math.Max(0, strip.Slots.FindIndex(s => s >= 0));
+
+        _editor.Perform(doc =>
+        {
+            var scene = doc.Scene;
+            while (scene.FrameCount < first + wanted) DocumentEditor.AppendFrame(scene);
+            var live = scene.References![ActiveReferenceIndex];
+            live.LayOutFrom(first);
+            live.AlignByPivot();
+        });
+        AfterReferenceChange();
+        AiStatus = $"{wanted} frames from “{strip.Name}”, aligned on their pivots.";
+    }
+
     /// <summary>Move the cell showing at the playhead, in document pixels.</summary>
     public void NudgeReferenceCell(double dx, double dy)
     {
@@ -5659,11 +5891,18 @@ public sealed partial class MainViewModel : ObservableObject
         AfterReferenceChange();
     }
 
+    /// <summary>
+    /// A reference or one of its cells changed. The window redraws the grid
+    /// gizmos from this — they are a snapshot, so nothing else would tell it.
+    /// </summary>
+    public event Action? ReferenceChanged;
+
     private void AfterReferenceChange()
     {
         NotifyReference();
         PublishSnapshot();
         MarkDocumentEdited();
+        ReferenceChanged?.Invoke();
     }
 
     private void NotifyReference()

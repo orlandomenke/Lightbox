@@ -556,6 +556,26 @@ public sealed class DocumentEditor
 
     private Layer? FindLayer(string layerId) => Doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId);
 
+    /// <summary>
+    /// Add one frame at the end, without the ripple.
+    /// </summary>
+    /// <remarks>
+    /// For growing a document to fit something that already has a length — a
+    /// reference sheet's worth of frames. <see cref="AddFrameAfter"/> is the
+    /// wrong shape for that: it is an insertion, so it ripples every reference
+    /// slot after it, and doing that once per frame while appending would
+    /// shuffle the very strip being made room for.
+    /// </remarks>
+    public static void AppendFrame(Scene scene)
+    {
+        foreach (var layer in scene.Layers)
+        {
+            PadCels(layer, scene.FrameCount);
+            layer.Cels.Add(new Cel { Frame = layer.IsBackground ? null : NewEmptyFrame(layer) });
+        }
+        scene.FrameCount++;
+    }
+
     private static void PadCels(Layer layer, int frameCount)
     {
         while (layer.Cels.Count < frameCount) layer.Cels.Add(new Cel());

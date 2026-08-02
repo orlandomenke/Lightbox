@@ -93,6 +93,24 @@ public partial class MainWindow : Window
             Rendering.CanvasControl.ReferenceAlignModeProperty,
             new Avalonia.Data.Binding(nameof(ViewModels.MainViewModel.ReferenceAlignMode)) { Source = _vm });
 
+        // The grid gizmos. The canvas owns the gesture — which corner, which
+        // box, how far — and the view model owns what it means to the document.
+        Canvas.ReferenceBoxPicked += index => _vm.SelectedReferenceCell = index;
+        Canvas.ReferenceBoxMoved += (index, dx, dy) => _vm.MoveReferenceCell(index, dx, dy);
+        Canvas.ReferenceBoxResized += (index, left, top, dx, dy) =>
+            _vm.ResizeReferenceCell(index, left, top, dx, dy);
+        Canvas.ReferenceBoxDrawn += (x, y, w, h) => _vm.AddReferenceCell(x, y, w, h);
+        _vm.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(MainViewModel.ReferenceGridEditMode)
+                or nameof(MainViewModel.SelectedReferenceCell)
+                or nameof(MainViewModel.ActiveReferenceIndex))
+            {
+                RefreshReferenceBoxes();
+            }
+        };
+        _vm.ReferenceChanged += RefreshReferenceBoxes;
+
         // The toggle button eats pointer events, so hook the hold-to-open
         // variant flyout with tunneling handlers.
         SelectToolButton.AddHandler(PointerPressedEvent, OnSelectToolPressed, RoutingStrategies.Tunnel);
@@ -1475,6 +1493,37 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Hand the canvas the boxes to draw, or null when the mode is off.
+    /// </summary>
+    /// <remarks>
+    /// A snapshot in document coordinates rather than the cells themselves.
+    /// The renderer runs on another thread and must never read a document
+    /// object the UI thread may be halfway through editing.
+    /// </remarks>
+    private void RefreshReferenceBoxes()
+    {
+        if (!_vm.ReferenceGridEditMode || _vm.ActiveReference is not { } strip)
+        {
+            Canvas.ReferenceBoxes = null;
+            return;
+        }
+        var boxes = new List<Rendering.CanvasControl.ReferenceBox>(strip.Cells.Count);
+        for (var i = 0; i < strip.Cells.Count; i++)
+        {
+            var cell = strip.Cells[i];
+            var (x, y, w, h) = _vm.CellRect(strip, cell);
+            var (px, py) = cell.Pivot;
+            var scale = Math.Max(0.01, strip.Scale);
+            boxes.Add(new Rendering.CanvasControl.ReferenceBox(
+                (float)x, (float)y, (float)w, (float)h,
+                (float)(strip.OffsetX + cell.Dx + px * scale),
+                (float)(strip.OffsetY + cell.Dy + py * scale),
+                i == _vm.SelectedReferenceCell));
+        }
+        Canvas.ReferenceBoxes = boxes;
+    }
+
     // ---- the palette hierarchy ------------------------------------------------
 
     private static readonly DataFormat<string> PaletteNodeDragFormat =
@@ -1693,6 +1742,15 @@ public partial class MainWindow : Window
     {
         // Don't hijack keys while the user is typing (layer rename, color hex, AI prompt).
         if (e.Source is TextBox) return;
+
+        // Grid editing owns Escape: it is a mode, and a mode you cannot leave
+        // with the key everybody tries first is a mode you are stuck in.
+        if (_vm.ReferenceGridEditMode && e.Key == Key.Escape)
+        {
+            _vm.ReferenceGridEditMode = false;
+            e.Handled = true;
+            return;
+        }
 
         // An active transform session owns Enter/Escape outright.
         if (_vm.TransformActive)

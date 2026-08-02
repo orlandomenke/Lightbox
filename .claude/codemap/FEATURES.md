@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-978 tests, derived from the suite itself. Each line is a
+997 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -714,6 +714,29 @@ regression even when every test still compiles.
 - Only The Entries Still On Disk Are Offered — `:121`
 - AProject Is AFolder And ADocument Is AFile — `:148`
 - The List Survives Being Written And Read Back — `:173`
+
+## ReferenceGridEditTests
+`tests/Lightbox.App.Tests/ReferenceGridEditTests.cs`
+
+- The Grid Mode Takes The Canvas Away From The Tools — `:48`
+- Leaving The Mode Gives The Canvas Back And Drops The Selection — `:65`
+- ABox Is Where The Compositor Puts It — `:85`
+- Clicking Inside ABox Finds It — `:101`
+- Moving ABox Moves Only That One — `:113`
+- Resizing ABox Shows More Of The Sheet Rather Than Scaling It — `:128`
+- Dragging The Other Corner Moves The Origin Too — `:145`
+- ABox Cannot Be Shrunk To Nothing — `:159`
+- Deleting ABox Leaves The Sheet Alone And Relays The Rest — `:171`
+- ABox Can Be Drawn By Hand — `:185`
+- APivot Is Placed In Sheet Pixels So The Sheet Can Move Under It — `:205`
+- Placing APivot Is Undoable — `:224`
+- Generating Keyframes Grows The Timeline To Fit The Sheet — `:237`
+- Generating Keyframes Registers The Cells On Their Pivots — `:255`
+- Aligning Twice Changes Nothing — `:282`
+- The Gizmos Are Absent Until The Mode Is On — `:302`
+- AGizmo Sits Where Its Drawing Is — `:328`
+- An Unplaced Pivot Still Gets AMark — `:354`
+- Generating Keyframes Is One Undo Step — `:376`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`

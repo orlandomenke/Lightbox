@@ -576,10 +576,52 @@ the character in the same place every time and delete the animation.
 | Scale | One scale for every frame. Per-frame scale would put the character at a different size on each drawing, which is the one thing a size reference exists to prevent. |
 | Opacity | How strongly it reads under your drawing. |
 
-**When detection cannot find the frames.** It reads the gaps, so an arrangement
-with no gap to read cannot be found — two rows of a sheet that touch, most
-often. Set **Cols** and **Rows** and press **Apply grid** and the pixels are not
-consulted at all. **Detect** goes back to reading the image.
+**What detection actually looks for.** Not gaps in the whole image — the
+drawings themselves. It finds every connected mark on the sheet and then throws
+away what is not a drawing: specks and watermarks go because they are tiny next
+to a figure, and a title banner goes because a line of text is a fraction of the
+height of a row of figures. What survives is grouped into rows, and each row is
+cut into cells of equal width. So a page with a heading and a signature on it
+works, not only a clean sprite atlas.
+
+**When detection cannot find the frames.** Two rows that touch have no boundary
+in the pixels, and no amount of looking finds one that is not there. Set **Cols**
+and **Rows** and press **Apply grid** and the image is not consulted at all.
+**Detect** goes back to reading it. Or edit the boxes by hand — see below.
+
+### Editing the grid by hand
+
+The **⊞** in the shortcut bar turns on grid editing. Every box on the sheet
+appears at once, the canvas stops being a place to draw, and **Esc** leaves.
+The mode is only there when a reference has been imported.
+
+- **Drag inside a box** to move it.
+- **Drag a corner** of the selected box to resize it. The box is a window onto
+  the sheet, so growing it shows more of the drawing rather than scaling it.
+- **Drag on empty canvas** to draw a box of your own — the way out when
+  detection cannot see a boundary.
+- **Delete** removes the selected box. The sheet is untouched; only the window
+  goes.
+
+Every box carries a **pivot**, drawn as a red cross: the point that should sit
+still from frame to frame — the contact foot, the hips. Until you place one it
+sits at the middle of the box's foot, which is where a standing figure's contact
+point usually is. It is recorded on the sheet, so nudging or rescaling the
+reference afterwards leaves it on the same part of the drawing.
+
+**Generate keyframes** does two things at once, because they are one intention:
+the timeline grows until every box on the sheet has a frame, and the boxes are
+registered so their pivots land at the same place. An eight-frame reference on a
+one-frame document is not a state anybody asked for, and neither is a run cycle
+that has to be nudged into place eight times. Pressing it twice changes nothing —
+everything is measured against the first box, so the sheet cannot wander off the
+canvas one press at a time.
+
+Registering on the pivot takes the travel *out* of a cycle, which is the
+opposite of what tiling the sheet does, and both are wanted: tiling keeps a
+runner travelling, and aligning lets you see the pose change underneath. Which
+you want depends on whether you are matching the walk or the drawing, so it is a
+button rather than a rule.
 
 **Alignment.** **Align on canvas** turns dragging into lining the reference up
 rather than drawing: drag to move *this frame's* reference, hold **Shift** to

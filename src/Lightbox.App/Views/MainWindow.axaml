@@ -1261,6 +1261,14 @@
                       Command="{Binding TogglePlaybackCommand}"
                       IsVisible="{Binding ShowsTransport}"
                       ToolTip.Tip="Play / pause (Space)" />
+              <!--
+                Absent unless there is a reference to edit. A document with no
+                sheet imported has nothing for this to switch on, and a toggle
+                that cannot change anything is worse than no toggle.
+              -->
+              <ToggleButton Content="⊞" IsChecked="{Binding ReferenceGridEditMode}" Padding="6,2"
+                            IsVisible="{Binding HasReferences}"
+                            ToolTip.Tip="Edit the reference grid — drag the boxes, drag a corner to resize, right-click for the pivot. Esc leaves." />
             </StackPanel>
           </controls:CanvasOverlayBar>
         </Panel>

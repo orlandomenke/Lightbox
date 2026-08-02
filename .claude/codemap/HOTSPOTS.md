@@ -9,10 +9,10 @@ file with no tests is the top of this list for a reason.
 
 | File | Risk | Heat | Commits | Fixes | Dependents | Test files |
 | --- | --- | --- | --- | --- | --- | --- |
-| `src/Lightbox.App/Views/MainWindow.axaml` | 0.54 | 0.54 | 47 | 5 | 0 | 0 |
-| `src/Lightbox.App/ViewModels/MainViewModel.cs` | 0.23 | 0.94 | 53 | 7 | 57 | 50 |
-| `src/Lightbox.App/Views/MainWindow.axaml.cs` | 0.16 | 0.63 | 45 | 7 | 6 | 5 |
-| `src/Lightbox.App/Rendering/CanvasControl.cs` | 0.10 | 0.41 | 24 | 5 | 6 | 5 |
+| `src/Lightbox.App/Views/MainWindow.axaml` | 0.54 | 0.54 | 48 | 5 | 0 | 0 |
+| `src/Lightbox.App/ViewModels/MainViewModel.cs` | 0.24 | 0.94 | 54 | 7 | 58 | 51 |
+| `src/Lightbox.App/Views/MainWindow.axaml.cs` | 0.16 | 0.63 | 46 | 7 | 6 | 5 |
+| `src/Lightbox.App/Rendering/CanvasControl.cs` | 0.10 | 0.42 | 24 | 5 | 6 | 5 |
 | `src/Lightbox.App/App.axaml` | 0.10 | 0.10 | 9 | 1 | 0 | 0 |
 | `src/Lightbox.Raster/BrushEngine.cs` | 0.08 | 0.31 | 19 | 3 | 14 | 10 |
 | `src/Lightbox.App/Services/BrushPresets.cs` | 0.07 | 0.09 | 6 | 1 | 3 | 0 |
@@ -32,10 +32,10 @@ file with no tests is the top of this list for a reason.
 
 ## Most active regardless of coverage
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` — heat 0.94, 53 commits (7 fixes), 57 dependents
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` — heat 0.63, 45 commits (7 fixes), 6 dependents
-- `src/Lightbox.App/Views/MainWindow.axaml` — heat 0.54, 47 commits (5 fixes), 0 dependents
-- `src/Lightbox.App/Rendering/CanvasControl.cs` — heat 0.41, 24 commits (5 fixes), 6 dependents
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` — heat 0.94, 54 commits (7 fixes), 58 dependents
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` — heat 0.63, 46 commits (7 fixes), 6 dependents
+- `src/Lightbox.App/Views/MainWindow.axaml` — heat 0.54, 48 commits (5 fixes), 0 dependents
+- `src/Lightbox.App/Rendering/CanvasControl.cs` — heat 0.42, 24 commits (5 fixes), 6 dependents
 - `src/Lightbox.Raster/BrushEngine.cs` — heat 0.31, 19 commits (3 fixes), 14 dependents
 - `src/Lightbox.Core/Documents/Frame.cs` — heat 0.26, 2 commits (0 fixes), 75 dependents
 - `src/Lightbox.Core/Documents/Stroke.cs` — heat 0.22, 4 commits (0 fixes), 60 dependents
@@ -45,7 +45,7 @@ file with no tests is the top of this list for a reason.
 
 ## Substantial files with no test reference
 
-- `src/Lightbox.App/Views/MainWindow.axaml` (2388 ln)
+- `src/Lightbox.App/Views/MainWindow.axaml` (2396 ln)
 - `src/Lightbox.Raster/Media/MediumSimulator.cs` (298 ln)
 - `src/Lightbox.App/Controls/TimelineRuler.cs` (181 ln)
 - `src/Lightbox.App/Styles/ColorPicker.axaml` (174 ln)
