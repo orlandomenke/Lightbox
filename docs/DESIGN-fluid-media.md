@@ -253,6 +253,58 @@ Both now answered.
   **if that turns out to matter, the fix is a new brush, not a change to the
   eraser.**
 
+## Measured, 2026-08-02: what is actually wrong today
+
+An artist's report — "ink wash and watercolour have no pooling spots, gouache
+and oil have no height nor edges that catch light, it still looks like texture
+made from noise, and nothing spreads or drags like a wet medium" — turned into
+numbers. Every part of it was right, and two parts are worse than the report
+suggested. Logged as **B23**, **B24** and **B25**.
+
+| Claim | Measurement | Verdict |
+| --- | --- | --- |
+| No height, no light-catching edges | `Body`/`Relief`/`BristleDrag`/`Pickup` at 0 versus 1: **0 of 41 600 pixels differ** | Not implemented at all |
+| No pooling | Rim/interior density by `EdgePull`: 0.0 → 1.22, 0.4 → **1.83**, 0.8 → 0.68, 1.0 → 0.65. Watercolor ships **0.7** | Implemented, but the response inverts above ~0.5 and the preset is past it |
+| Looks like noise | Interior density 0.66 without a medium, **0.13–0.25** with one | The pigment is mostly gone, so texture is all that is left |
+| Nothing spreads | Mark height 45 px flat, 50 px at 24 flow steps | ~10% — effectively no bleed |
+
+Two things this changes about the plan below.
+
+**The five pieces are not all unbuilt, and not all built.** `FluidLattice` is a
+real Curtis-style shallow-water model and it does run. What is missing is
+narrower and more fixable than "build a simulation": conserve the pigment
+(B25), make the capillary term monotonic (B24), and implement the four settings
+that already have controls (B23). Piece (1) — the channels — is what B23's
+height half needs; the rest is repair.
+
+**Impasto may not need the buffer.** Piece (4) assumes a height channel from
+piece (1), but a first pass can take normals from the stroke's own alpha
+coverage, which already exists. That gets a light-catching edge on gouache and
+oil without the memory, and it is worth trying before committing to the buffer.
+
+### On brush tip textures
+
+Raised as a possible answer, and it is a partial one — worth being precise
+about which part.
+
+**What tip textures do reach:** the shape of a mark, its transparency
+variation, and — with a directional tip and `AngleFollowsDirection`, both of
+which exist — a convincing bristle streak. That is `BristleDrag` in appearance
+if not in mechanism, and it is much cheaper than the advection loop. They are
+also the honest answer to "it looks like noise": a scanned bristle or spatter
+tip is structured where `Hash01` is not, and structure is what reads as a tool
+rather than as grain.
+
+**What they cannot reach**, and the reason they are not a substitute for the
+pass: edge pooling, flow, surface tension and pickup are all *couplings* —
+each depends on what is already on the paper — and a tip is a stamp that knows
+nothing about the canvas. Neither can they produce relief, which needs
+shading from a surface normal rather than a shape.
+
+So: tip textures are a cheap, real improvement to two of the four complaints
+and no help at all with the other two. Worth doing early for that reason,
+provided the doc does not then claim the medium problem is solved.
+
 ## Where to start
 
 Not with the channels, despite (1) being what the other four depend on.
