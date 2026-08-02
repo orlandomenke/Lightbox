@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1391 tests, derived from the suite itself. Each line is a
+1397 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1888,17 +1888,21 @@ regression even when every test still compiles.
 - Pigment Is Conserved Across Every Channel — `:39`
 - Conservation Holds At Every Parameter Corner — `:67`
 - Deposit Never Exceeds Pigment That Was Seeded — `:87`
-- Run Zero Changes Nothing At All — `:114`
-- Two Runs Are Bit Identical — `:144`
-- Inviscid Undragged Deluge Stays Finite — `:187`
-- Extreme Parameters Do Not Produce Na N — `:222`
-- Edge Pull Concentrates Deposit Near The Wet Boundary — `:245`
-- Granularity Biases Deposit Into The Papers Valleys — `:292`
-- Paper Influence Zero Makes The Paper Irrelevant — `:336`
-- Water Spreads Beyond Where It Was Seeded — `:360`
-- Thin Wash Pins Instead Of Creeping Forever — `:376`
-- Mis Sized Buffers Are Rejected — `:411`
-- Four Hundred Square Twelve Steps Stays Within Budget — `:432`
+- Drying Puts Every Grain On The Paper — `:114`
+- How Long The Solver Runs Does Not Decide How Much Paint Lands — `:145`
+- Drying AMark That Never Flowed Leaves It Exactly Where It Was Stamped — `:172`
+- Dry Paper Stays Dry However Often It Is Dried — `:189`
+- Run Zero Changes Nothing At All — `:214`
+- Two Runs Are Bit Identical — `:244`
+- Inviscid Undragged Deluge Stays Finite — `:287`
+- Extreme Parameters Do Not Produce Na N — `:322`
+- Edge Pull Concentrates Deposit Near The Wet Boundary — `:345`
+- Granularity Biases Deposit Into The Papers Valleys — `:392`
+- Paper Influence Zero Makes The Paper Irrelevant — `:436`
+- Water Spreads Beyond Where It Was Seeded — `:460`
+- Thin Wash Pins Instead Of Creeping Forever — `:476`
+- Mis Sized Buffers Are Rejected — `:511`
+- Four Hundred Square Twelve Steps Stays Within Budget — `:532`
 
 ## LivePaletteTests
 `tests/Lightbox.Raster.Tests/LivePaletteTests.cs`
@@ -1918,7 +1922,9 @@ regression even when every test still compiles.
 - APlain Brush Is Untouched By Any Of This — `:135`
 - Watercolour Light Pressure Is Paler And Spreads Further — `:148`
 - Oil ASecond Stroke Disturbs The First — `:165`
-- Every Medium Re Renders Identically — `:192`
+- Flow Steps Decide Where The Paint Goes Not How Much Of It There Is — `:199`
+- AMedium That Never Flows Still Paints The Stroke — `:228`
+- Every Medium Re Renders Identically — `:245`
 
 ## OutputScaleTests
 `tests/Lightbox.Raster.Tests/OutputScaleTests.cs`

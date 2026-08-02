@@ -188,6 +188,59 @@ public class MediumRenderingTests(ITestOutputHelper output)
             "an oil stroke crossing another should disturb it, not just sit on top");
     }
 
+    /// <summary>Pigment on the paper, in whole opaque pixels' worth.</summary>
+    private static double Mass(SKBitmap bmp)
+    {
+        var s = Stats(bmp);
+        return s.Ink * s.MeanAlpha / 255.0;
+    }
+
+    [Fact]
+    public void FlowStepsDecideWhereThePaintGoes_NotHowMuchOfItThereIs()
+    {
+        // B25. Deposition binds a fraction of the suspension per step and the
+        // readback saw only what was bound, so the leftover — most of it, at
+        // the step counts the presets ship with — was thrown away. A flow
+        // control was secretly an opacity control: the same watercolour brush
+        // read 0.06 interior alpha at 2 steps and 0.29 at 24.
+        //
+        // Mass, not mean alpha, because spreading is exactly what flow steps
+        // ARE allowed to change. The same paint over more paper is thinner and
+        // correct; less paint is the bug.
+        var few = Watercolour();
+        few.FlowSteps = 2;
+        var many = Watercolour();
+        many.FlowSteps = 24;
+
+        using var brief = Render(Stroke(few));
+        using var long_ = Render(Stroke(many));
+        double a = Mass(brief), b = Mass(long_);
+        output.WriteLine($"2 steps {a:0} · 24 steps {b:0}");
+
+        Assert.True(a > 0);
+        // Not exact: paint carried out past the visibility threshold on the
+        // faint fringe stops being counted. An eighth is that tail; a fifth was
+        // the defect.
+        Assert.True(Math.Abs(b - a) <= a * 0.15, $"2 steps put down {a:0}, 24 steps {b:0}");
+    }
+
+    [Fact]
+    public void AMediumThatNeverFlows_StillPaintsTheStroke()
+    {
+        // The same defect at its limit: at 0 flow steps nothing had had a
+        // chance to bind, so the stroke rendered as an empty rectangle. Zero
+        // flow means the pigment stays where the brush put it.
+        var still = Watercolour();
+        still.FlowSteps = 0;
+
+        using var bmp = Render(Stroke(still));
+        using var flowing = Render(Stroke(Watercolour()));
+
+        Assert.True(Stats(bmp).Ink > 0, "a medium with no flow rendered nothing at all");
+        Assert.True(Mass(bmp) >= Mass(flowing) * 0.85,
+            "standing still should not cost paint");
+    }
+
     [Fact]
     public void EveryMediumReRendersIdentically()
     {

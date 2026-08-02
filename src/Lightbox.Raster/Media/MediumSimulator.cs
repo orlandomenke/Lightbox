@@ -119,6 +119,12 @@ public static class MediumSimulator
             (float)Math.Clamp(medium.EdgePull, 0, 1),
             (float)Math.Clamp(medium.Granularity, 0, 1)));
 
+        // The stroke is finished, so the wash is finished: what the brush
+        // carried is on the paper, and the flow steps above decided only where.
+        // Leaving the suspension behind made a mark's strength depend on how
+        // long the solver ran, which is not something a flow control should say.
+        lattice.Dry();
+
         var deposit = new float[w * h * 4];
         lattice.ReadDeposit(deposit);
         WriteBack(scratch, deposit, existing, strokeColor, medium, rect, w, h, step);

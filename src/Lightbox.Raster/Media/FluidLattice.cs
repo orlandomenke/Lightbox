@@ -272,6 +272,55 @@ public sealed class FluidLattice
     }
 
     /// <summary>
+    /// End the wash. The water is gone and every grain still in suspension is
+    /// left on the paper where it stands.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Without this, how dark a mark is depends on how long the solver ran.
+    /// <see cref="Deposit"/> binds a fraction of the suspension per step, and
+    /// <see cref="ReadDeposit"/> reports only what is bound — so the same brush
+    /// at 4 flow steps painted a fifth of what it painted at 24, and at 0 steps
+    /// painted nothing at all. Flow steps are a statement about how far pigment
+    /// travels. They were also, silently, a statement about how much of it
+    /// existed.
+    /// </para>
+    /// <para>
+    /// Drying is the step that separates the two. What the brush carried is
+    /// what ends up on the paper; the solver only decides where. That is also
+    /// what really happens — a wash does not stop half-settled, it dries, and
+    /// the residue is left behind.
+    /// </para>
+    /// <para>
+    /// It binds in place rather than running the solver down to dryness,
+    /// because a cell with no water has no velocity: the extra steps would move
+    /// nothing and cost a full sweep each. The redistribution drying does in a
+    /// real wash — the film retreating into the tooth, the contact line
+    /// dragging pigment out to the rim — is <see cref="Deposit"/>'s granulation
+    /// term and <see cref="CapillaryPull"/>, and both have already run.
+    /// </para>
+    /// <para>
+    /// Idempotent, and safe to call on a lattice that was never run.
+    /// </para>
+    /// </remarks>
+    public void Dry()
+    {
+        for (var c = 0; c < 4; c++)
+        {
+            float[] s = _susp[c], d = _dep[c];
+            for (var i = 0; i < s.Length; i++)
+            {
+                d[i] += s[i];
+                s[i] = 0f;
+            }
+        }
+
+        Array.Clear(_water);
+        Array.Clear(_u);
+        Array.Clear(_v);
+    }
+
+    /// <summary>
     /// Pigment deposited on the paper, premultiplied linear RGBA, row-major,
     /// length width*height*4. Values are raw accumulated mass and can exceed 1
     /// where a caller seeded heavily; tone-mapping is the compositor's call,

@@ -108,6 +108,106 @@ public class FluidLatticeTests
         Assert.True(alpha <= seeded * (1 + 1e-4), $"{alpha} deposited from {seeded} seeded");
     }
 
+    // ---- drying -------------------------------------------------------------
+
+    [Fact]
+    public void Drying_PutsEveryGrainOnThePaper()
+    {
+        // Conservation the whole way to the readback. TotalPigment already
+        // counted suspension, so it stayed flat while the pixels an artist
+        // actually sees lost most of the pigment — the sum was right and the
+        // picture was wrong. This is the assertion that closes that gap.
+        var lat = Disc(40, 10, water: 1.5f, pigment: 0.9f);
+        var seeded = new double[4];
+        for (var c = 0; c < 4; c++) seeded[c] = lat.TotalPigment(c);
+
+        lat.Run(8, Typical);
+        lat.Dry();
+
+        var rgba = DepositOf(lat);
+        var onPaper = new double[4];
+        for (var i = 0; i < lat.Width * lat.Height; i++)
+        {
+            var o = i * 4;
+            onPaper[0] += rgba[o + 3];
+            for (var c = 1; c < 4; c++) onPaper[c] += rgba[o + c - 1];
+        }
+
+        Assert.True(seeded[0] > 100, $"test would be vacuous: only {seeded[0]} pigment seeded");
+        for (var c = 0; c < 4; c++)
+        {
+            Assert.True(Math.Abs(onPaper[c] - seeded[c]) <= seeded[c] * 1e-3,
+                $"channel {c}: {seeded[c]} seeded, {onPaper[c]} reached the paper");
+        }
+    }
+
+    [Fact]
+    public void HowLongTheSolverRuns_DoesNotDecideHowMuchPaintLands()
+    {
+        // The defect behind B25, stated as behaviour rather than as a sum.
+        // Deposition binds a fraction of the suspension per step and the
+        // readback saw only what was bound, so FlowSteps — a control over how
+        // far pigment TRAVELS — was silently also a control over how much of it
+        // EXISTED. Four steps painted a fifth of what twenty-four did.
+        double Landed(int steps)
+        {
+            var lat = Disc(40, 10, water: 1.5f, pigment: 0.9f);
+            lat.Run(steps, Typical);
+            lat.Dry();
+            var rgba = DepositOf(lat);
+            double total = 0;
+            for (var i = 3; i < rgba.Length; i += 4) total += rgba[i];
+            return total;
+        }
+
+        var brief = Landed(2);
+        var long_ = Landed(24);
+
+        Assert.True(brief > 0);
+        Assert.True(Math.Abs(long_ - brief) <= brief * 1e-3,
+            $"2 steps put down {brief} and 24 steps put down {long_}");
+    }
+
+    [Fact]
+    public void DryingAMarkThatNeverFlowed_LeavesItExactlyWhereItWasStamped()
+    {
+        // FlowSteps 0 rendered nothing at all, because nothing had had a chance
+        // to bind. Zero flow means the pigment does not move — not that it
+        // evaporates.
+        var lat = new FluidLattice(16, 16);
+        lat.Seed(5, 6, water: 1f, pigment: 0.4f, r: 1f, g: 0.5f, b: 0.25f);
+
+        lat.Run(0, Typical);
+        lat.Dry();
+
+        Assert.Equal(0.4f, lat.DepositAt(5, 6), 1e-5f);
+        Assert.Equal(0f, lat.SuspendedAt(5, 6));
+        Assert.Equal(0f, lat.DepositAt(6, 6));
+    }
+
+    [Fact]
+    public void DryPaperStaysDry_HoweverOftenItIsDried()
+    {
+        // Idempotent, because MediumSimulator dries once per stroke and a
+        // second stroke over the same region builds a fresh lattice — but a
+        // caller reusing one must not be able to double what it holds.
+        var lat = Disc(24, 7, water: 1f, pigment: 0.5f);
+        lat.Run(5, Typical);
+        lat.Dry();
+        var once = DepositOf(lat);
+
+        lat.Dry();
+        lat.Dry();
+        var thrice = DepositOf(lat);
+
+        for (var i = 0; i < once.Length; i++)
+        {
+            Assert.Equal(BitConverter.SingleToInt32Bits(once[i]),
+                         BitConverter.SingleToInt32Bits(thrice[i]));
+        }
+        Assert.Equal(0d, lat.TotalWater());
+    }
+
     // ---- no-op and determinism ---------------------------------------------
 
     [Fact]

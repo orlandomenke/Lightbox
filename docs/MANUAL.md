@@ -341,6 +341,13 @@ the same mark, on reload, after undo, and when the inbetweener replays it.
 That determinism is not a detail. An effect that varies subtly between similar
 strokes looks fine on one image and *boils* at 12 fps.
 
+**Flow steps** decide how far the paint travels, not how much of it there is.
+Turn them down for a mark that stays where you put it, up for one that spreads
+and pools; the stroke carries the same pigment either way, and at zero it is
+simply the mark you drew. How strong the paint is comes from **pigment
+density** — a watercolour is meant to be transparent, so raise that rather than
+the flow if you want a darker wash.
+
 ### Fast brushes and expressive ones
 
 Brushes come in two kinds, and the picker tells them apart:
