@@ -406,6 +406,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         ProjectDocker.Adopt(project);
         SaveProject(everything: true);
+        Remember(root, RecentKind.Project);
         if (workspace == WorkspaceChoice.ProjectDefaults) Workspace.UseDefaultFor(type);
         AiStatus = $"Created project “{name}”.";
     }
@@ -424,6 +425,7 @@ public sealed partial class MainViewModel : ObservableObject
                 OpenProjectDocument(first, doc);
             }
             OnProjectChanged();
+            Remember(root, RecentKind.Project);
             AiStatus = $"Opened project “{project.Name}”.";
         }
         catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
@@ -507,6 +509,75 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var title = filePath is null ? NextUntitledName() : TitleFromPath(filePath);
         AddTab(new DocumentTab(new DocumentEditor(doc), title) { FilePath = filePath });
+        if (filePath is not null) Remember(filePath, RecentKind.Document);
+    }
+
+    // ---- what you had open last -----------------------------------------------
+
+    /// <summary>
+    /// Record that something was opened or saved.
+    /// </summary>
+    /// <remarks>
+    /// Saved as well as opened: a document written for the first time is one
+    /// you have every reason to come back to, and leaving it out means the
+    /// entry only appears the second time you use it.
+    /// </remarks>
+    public void Remember(string path, RecentKind kind)
+    {
+        Settings.Recent.Add(path, "", kind, DateTimeOffset.Now);
+        Settings.Save();
+        OnPropertyChanged(nameof(RecentEntries));
+        OnPropertyChanged(nameof(HasRecents));
+    }
+
+    /// <summary>The recents that are still on disk, newest first.</summary>
+    public IReadOnlyList<RecentItem> RecentEntries => Settings.Recent.Existing();
+
+    public bool HasRecents => RecentEntries.Count > 0;
+
+    [RelayCommand]
+    public void ForgetRecents()
+    {
+        Settings.Recent.Clear();
+        Settings.Save();
+        OnPropertyChanged(nameof(RecentEntries));
+        OnPropertyChanged(nameof(HasRecents));
+    }
+
+    /// <summary>
+    /// Open something from the recents list, whichever kind it is.
+    /// </summary>
+    /// <remarks>
+    /// One entry point so the menu, the start screen and a double-click all
+    /// take the same route — including the part where a file that has since
+    /// been moved says so instead of doing nothing.
+    /// </remarks>
+    public void OpenRecent(RecentItem? item)
+    {
+        if (item is null) return;
+        if (item.Kind == RecentKind.Project)
+        {
+            if (!Directory.Exists(item.Path))
+            {
+                AiStatus = $"“{item.Name}” is no longer at {item.Path}.";
+                return;
+            }
+            OpenProject(item.Path);
+            return;
+        }
+        if (!File.Exists(item.Path))
+        {
+            AiStatus = $"“{item.Name}” is no longer at {item.Path}.";
+            return;
+        }
+        try
+        {
+            OpenDocumentTab(DocJson.Load(item.Path), item.Path);
+        }
+        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+        {
+            AiStatus = $"Could not open {item.Name}: {ex.Message}";
+        }
     }
 
     /// <summary>Close a tab. The view confirms unsaved changes before calling this.</summary>
@@ -534,6 +605,7 @@ public sealed partial class MainViewModel : ObservableObject
         tab.FilePath = filePath;
         tab.Title = TitleFromPath(filePath);
         tab.IsDirty = false;
+        Remember(filePath, RecentKind.Document);
     }
 
     private void AddTab(DocumentTab tab)
@@ -842,6 +914,26 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Also write over the document's own file, once it has one.</summary>
+    /// <summary>
+    /// Whether the start screen is offered when the application opens.
+    /// </summary>
+    /// <remarks>
+    /// The screen has a "don't show this again" of its own, which is where it
+    /// gets turned off. This is the way back — a setting you can only switch
+    /// off from a screen you no longer see is a setting you cannot switch on.
+    /// </remarks>
+    public bool ShowStartScreen
+    {
+        get => Settings.ShowStartScreen;
+        set
+        {
+            if (Settings.ShowStartScreen == value) return;
+            Settings.ShowStartScreen = value;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
     public bool AutosaveInPlace
     {
         get => Settings.AutosaveInPlace;

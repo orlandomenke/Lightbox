@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-943 tests, derived from the suite itself. Each line is a
+953 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -810,6 +810,20 @@ regression even when every test still compiles.
 - The Sidecar Is Aseprite Shaped — `:219`
 - An Opaque Background Layer Does Not Defeat Trimming — `:247`
 - An Empty Document Still Produces ASheet — `:260`
+
+## StartScreenTests
+`tests/Lightbox.App.Tests/StartScreenTests.cs`
+
+- Escape Leaves ABlank Document Rather Than Nothing — `:36`
+- Dont Show Again Is Remembered And Can Be Turned Back On — `:51`
+- Offering The Screen Does Nothing When It Is Turned Off — `:66`
+- New File Uses The Values The Screen Collected — `:80`
+- Opening ARecent Document Opens It — `:97`
+- AFile That Has Moved Says So Rather Than Doing Nothing — `:118`
+- Opening ADocument Puts It In The Recents — `:136`
+- Saving Somewhere New Records It Too — `:159`
+- Clearing The List Empties It On Disk As Well — `:182`
+- Only What Is Still On Disk Is Offered — `:205`
 
 ## TimelineBugTests
 `tests/Lightbox.App.Tests/TimelineBugTests.cs`

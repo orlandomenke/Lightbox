@@ -111,6 +111,13 @@
       <MenuItem Header="_File">
         <MenuItem Header="_New…" Click="OnNewClicked" />
         <MenuItem Header="_Open…" Click="OnOpenClicked" />
+        <!--
+          Files and projects in one list, newest first, because "what was I
+          working on" does not sort itself by kind. The items are built on
+          open: a menu declared here would need bindings that a popup cannot
+          resolve, and the list changes every time anything is opened anyway.
+        -->
+        <MenuItem x:Name="RecentMenu" Header="Open _recent" />
         <MenuItem Header="_Save" Click="OnSaveInPlaceClicked" InputGesture="Ctrl+S" />
         <MenuItem Header="Save _as…" Click="OnSaveClicked" />
         <Separator />
@@ -137,6 +144,10 @@
                     IsChecked="{Binding AutosaveInPlace, Mode=TwoWay}"
                     ToolTip.Tip="Off by default: silently rewriting the file you opened takes away closing without saving" />
         </MenuItem>
+        <Separator />
+        <MenuItem Header="Ask what to open on start-up" ToggleType="CheckBox"
+                  IsChecked="{Binding ShowStartScreen, Mode=TwoWay}"
+                  ToolTip.Tip="The start screen. Escape on it always drops through to a blank document." />
       </MenuItem>
       <MenuItem Header="_View">
         <!-- MenuItem.IsChecked binds one-way by default: without Mode=TwoWay the

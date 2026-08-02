@@ -39,7 +39,21 @@ Lightbox opens on an untitled document — 960 × 540 at 12 fps, on white paper 
 with a brush selected. You can draw immediately. Nothing has to be created,
 named or configured first.
 
-That is deliberate, and it is the rule the whole application follows:
+A **start screen** appears over that document offering three things: the New
+file fields, the New project fields, and what you had open last. It is asked
+over the blank page rather than instead of it, which is what makes **Escape**
+a complete answer — press it and you are on the blank page you would have had
+anyway. *Don't show this again* turns it off, and *Edit → Ask what to open on
+start-up* turns it back on.
+
+Double-click a recent entry to open it, or select one and press Create. Recent
+holds files and projects together, newest first — "what was I working on" does
+not sort itself by kind. The same list is under **File → Open recent**, with
+*Clear the list* at the bottom. Anything you open or save for the first time
+joins it; anything that has since moved is simply not offered.
+
+The blank-page start is deliberate, and it is the rule the whole application
+follows:
 **optional means absent, not disabled.** A project, a camera, a palette, a
 gradient and six of the eight panels do not exist until you ask for them, and
 until then they cost you no screen, no keys and no thinking.

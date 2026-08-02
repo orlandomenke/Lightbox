@@ -146,6 +146,7 @@ public partial class MainWindow : Window
 
         _shortcuts.Load();
         KeyDown += OnKeyDown;
+        RecentMenu.SubmenuOpened += (_, _) => RefreshRecentMenu();
         Loaded += (_, _) =>
         {
             _vm.PublishSnapshot();
@@ -1931,15 +1932,28 @@ public partial class MainWindow : Window
 
     private async void OnNewProjectClicked(object? sender, RoutedEventArgs e)
     {
+        var suggested = _vm.ActiveTab?.Title is { Length: > 0 } t && !t.StartsWith("Untitled") ? t : "Project";
+        if (await new NewProjectDialog(suggested).ShowDialog<NewProjectSettings?>(this) is not { } settings) return;
+        await CreateProjectAsync(settings);
+    }
+
+    /// <summary>
+    /// Ask where the folder goes, then make the project.
+    /// </summary>
+    /// <remarks>
+    /// After the settings rather than before them, because the picker is the
+    /// part someone might back out of and there is no sense collecting a name
+    /// and a type first only to throw them away. Shared with the start screen,
+    /// which collects the same settings without a dialog.
+    /// </remarks>
+    private async Task CreateProjectAsync(NewProjectSettings settings)
+    {
         var folder = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             Title = "Choose where the project folder goes",
             AllowMultiple = false,
         });
         if (folder.Count == 0 || folder[0].TryGetLocalPath() is not { } parent) return;
-
-        var suggested = _vm.ActiveTab?.Title is { Length: > 0 } t && !t.StartsWith("Untitled") ? t : "Project";
-        if (await new NewProjectDialog(suggested).ShowDialog<NewProjectSettings?>(this) is not { } settings) return;
 
         var root = Path.Combine(parent, settings.Name + Lightbox.Core.Projects.ProjectIo.Extension);
         _vm.NewProject(root, settings.Name, settings.Type, settings.Workspace);
@@ -2143,6 +2157,104 @@ public partial class MainWindow : Window
         if (dir is null) return;
         var written = await Task.Run(() => Services.SequenceExporter.ExportPngSequence(_vm.Doc, dir));
         _vm.AiStatus = $"Exported {written.Count} PNG frame(s).";
+    }
+
+    // ---- the start screen ------------------------------------------------------
+
+    /// <summary>
+    /// Ask what to open, once, on the way in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Over the untitled document the window already opened with, not instead
+    /// of it. Escape is therefore a complete answer rather than a cancelled
+    /// one: the screen closes and the blank page is already there. That is
+    /// what keeps "open it and draw" a keystroke instead of a setting somebody
+    /// has to go and find.
+    /// </para>
+    /// <para>
+    /// Public and returning a task so a test can drive it without waiting for
+    /// a real Loaded.
+    /// </para>
+    /// </remarks>
+    public async Task OfferStartScreenAsync()
+    {
+        if (!_vm.Settings.ShowStartScreen) return;
+        var screen = new StartScreen(_vm.Settings.Recent);
+        await screen.ShowDialog(this);
+        await ApplyStartChoiceAsync(screen.Answer);
+    }
+
+    /// <summary>Act on what the start screen was answered with.</summary>
+    public async Task ApplyStartChoiceAsync(StartChoice choice)
+    {
+        if (choice.DontShowAgain && _vm.Settings.ShowStartScreen)
+        {
+            _vm.Settings.ShowStartScreen = false;
+            _vm.Settings.Save();
+        }
+
+        if (choice.Document is { } document)
+        {
+            _vm.NewDocument(document);
+            return;
+        }
+        if (choice.Project is { } project)
+        {
+            await CreateProjectAsync(project);
+            return;
+        }
+        if (choice.Open is { } path)
+        {
+            _vm.OpenRecent(new Services.RecentItem
+            {
+                Path = path,
+                Name = Services.RecentItems.DisplayNameOf(path),
+                Kind = choice.OpenKind,
+            });
+            return;
+        }
+        if (!choice.Browse) return;
+        if (choice.OpenKind == Services.RecentKind.Project) OnOpenProjectClicked(this, new RoutedEventArgs());
+        else OnOpenClicked(this, new RoutedEventArgs());
+    }
+
+    // ---- recents ---------------------------------------------------------------
+
+    /// <summary>
+    /// Fill the Open recent submenu. Built each time it opens, in code.
+    /// </summary>
+    /// <remarks>
+    /// In code because a menu declared in the template lives in a popup, where
+    /// the bindings that would reach the view model resolve to nothing — items
+    /// that look right and do nothing. Each time because the list changes
+    /// whenever anything is opened or saved.
+    /// </remarks>
+    private void RefreshRecentMenu()
+    {
+        RecentMenu.Items.Clear();
+        var entries = _vm.RecentEntries;
+        if (entries.Count == 0)
+        {
+            RecentMenu.Items.Add(new MenuItem { Header = "Nothing yet", IsEnabled = false });
+            return;
+        }
+        foreach (var entry in entries)
+        {
+            var item = new MenuItem
+            {
+                Header = $"{entry.Glyph}  {entry.Name}",
+                // The folder, because two characters can both have a "walk".
+                [ToolTip.TipProperty] = entry.Path,
+            };
+            var target = entry;
+            item.Click += (_, _) => _vm.OpenRecent(target);
+            RecentMenu.Items.Add(item);
+        }
+        RecentMenu.Items.Add(new Separator());
+        var clear = new MenuItem { Header = "Clear the list" };
+        clear.Click += (_, _) => _vm.ForgetRecentsCommand.Execute(null);
+        RecentMenu.Items.Add(clear);
     }
 
     private async void OnOpenClicked(object? sender, RoutedEventArgs e)

@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:Lightbox.App.Views"
         x:Class="Lightbox.App.Views.NewDocumentDialog"
         Title="New document"
         Width="420" SizeToContent="Height"
@@ -7,71 +8,10 @@
         WindowStartupLocation="CenterOwner">
 
   <StackPanel Margin="16" Spacing="10">
-
-    <DockPanel>
-      <TextBlock Text="Name" Width="110" VerticalAlignment="Center" />
-      <TextBox x:Name="NameBox" Text="Untitled" />
-    </DockPanel>
-
-    <!--
-      What kind of work this is. "None" is first and is the default: the app is
-      document-first, and a picture that never becomes a project must not be
-      made to carry one. Everything below it only decides which panels you get
-      and, if a project is created later, what type it is recorded as.
-    -->
-    <DockPanel>
-      <TextBlock Text="For" Width="110" VerticalAlignment="Center" />
-      <ComboBox x:Name="TypeBox" SelectionChanged="OnTypeChanged" HorizontalAlignment="Stretch"
-                ToolTip.Tip="None makes a single file with no project structure" />
-    </DockPanel>
-
-    <DockPanel x:Name="WorkspaceRow" IsVisible="False">
-      <TextBlock Text="Panels" Width="110" VerticalAlignment="Center" />
-      <ComboBox x:Name="WorkspaceBox" HorizontalAlignment="Stretch"
-                ToolTip.Tip="Keep the arrangement you are working in, or take this type's defaults" />
-    </DockPanel>
-
-    <DockPanel>
-      <TextBlock Text="Preset" Width="110" VerticalAlignment="Center" />
-      <ComboBox x:Name="PresetBox" SelectionChanged="OnPresetChanged" HorizontalAlignment="Stretch" />
-    </DockPanel>
-
-    <DockPanel>
-      <TextBlock Text="Width (px)" Width="110" VerticalAlignment="Center" />
-      <NumericUpDown x:Name="WidthBox" Minimum="16" Maximum="8192" Increment="10" FormatString="0" Value="1920" />
-    </DockPanel>
-
-    <DockPanel>
-      <TextBlock Text="Height (px)" Width="110" VerticalAlignment="Center" />
-      <NumericUpDown x:Name="HeightBox" Minimum="16" Maximum="8192" Increment="10" FormatString="0" Value="1080" />
-    </DockPanel>
-
-    <DockPanel>
-      <TextBlock Text="Frame rate (fps)" Width="110" VerticalAlignment="Center" />
-      <NumericUpDown x:Name="FpsBox" Minimum="1" Maximum="60" Increment="1" FormatString="0" Value="12" />
-    </DockPanel>
-
-    <DockPanel>
-      <TextBlock Text="Resolution (ppi)" Width="110" VerticalAlignment="Center"
-                 ToolTip.Tip="Metadata only for now — relevant when print/export sizing arrives" />
-      <NumericUpDown x:Name="PpiBox" Minimum="36" Maximum="1200" Increment="1" FormatString="0" Value="72" />
-    </DockPanel>
-
-    <DockPanel>
-      <TextBlock Text="Background" Width="110" VerticalAlignment="Center" />
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <TextBox x:Name="BackgroundBox" Text="#ffffff" Width="90" ToolTip.Tip="Paper color (hex)" />
-        <CheckBox x:Name="TransparentBox" Content="Transparent" VerticalAlignment="Center"
-                  ToolTip.Tip="No paper at all — PNG exports keep transparency" />
-      </StackPanel>
-    </DockPanel>
-
-    <TextBlock Text="Color mode: RGB · 8-bit (fixed for now)" FontSize="11" Opacity="0.6" Margin="110,0,0,0" />
-
+    <views:NewDocumentPanel x:Name="Fields" />
     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
       <Button Content="Create" IsDefault="True" Click="OnCreateClicked" MinWidth="80" />
       <Button Content="Cancel" IsCancel="True" Click="OnCancelClicked" MinWidth="80" />
     </StackPanel>
-
   </StackPanel>
 </Window>

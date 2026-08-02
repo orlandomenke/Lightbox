@@ -1,0 +1,77 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:Lightbox.App.Views"
+        xmlns:svc="using:Lightbox.App.Services"
+        x:Class="Lightbox.App.Views.StartScreen"
+        Title="Lightbox"
+        Width="720" Height="520"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    What to open, asked once.
+
+    Over an already-open untitled document rather than instead of one, so
+    Escape is a complete answer: it closes this and leaves a blank page. The
+    fast path stays a keystroke rather than a preference somebody has to find.
+  -->
+  <Grid ColumnDefinitions="*,Auto,240" RowDefinitions="*,Auto" Margin="16">
+
+    <TabControl Grid.Row="0" Grid.Column="0" x:Name="Tabs">
+      <TabItem Header="New file">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <views:NewDocumentPanel x:Name="DocumentFields" Margin="4,10,10,4" />
+        </ScrollViewer>
+      </TabItem>
+      <TabItem Header="New project">
+        <StackPanel Margin="4,10,10,4" Spacing="10">
+          <views:NewProjectPanel x:Name="ProjectFields" />
+          <TextBlock FontSize="11" Opacity="0.6" TextWrapping="Wrap"
+                     Text="You will be asked where to put the project folder." />
+        </StackPanel>
+      </TabItem>
+    </TabControl>
+
+    <Border Grid.Row="0" Grid.Column="1" Width="1" Margin="12,0" Background="#333" />
+
+    <DockPanel Grid.Row="0" Grid.Column="2">
+      <TextBlock DockPanel.Dock="Top" Text="Recent" FontSize="11" Opacity="0.6" Margin="0,0,0,6" />
+
+      <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,10,0,0">
+        <Button Content="Open file…" HorizontalAlignment="Stretch" Click="OnOpenFile" />
+        <Button Content="Open project…" HorizontalAlignment="Stretch" Click="OnOpenProject" />
+      </StackPanel>
+
+      <TextBlock x:Name="NoRecents" DockPanel.Dock="Top" FontSize="11" Opacity="0.5"
+                 TextWrapping="Wrap" IsVisible="False"
+                 Text="Nothing yet. What you open will show up here." />
+
+      <ListBox x:Name="RecentList" Background="Transparent" BorderThickness="0"
+               DoubleTapped="OnRecentActivated">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="svc:RecentItem">
+            <StackPanel Spacing="1" ToolTip.Tip="{Binding Path}">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <TextBlock Text="{Binding Glyph}" FontSize="11" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" />
+              </StackPanel>
+              <TextBlock Text="{Binding Where}" FontSize="10" Opacity="0.5"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+
+    <DockPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,12,0,0">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+        <Button Content="Create" IsDefault="True" Click="OnCreate" MinWidth="90" />
+        <Button Content="Skip (Esc)" IsCancel="True" Click="OnSkip" MinWidth="90"
+                ToolTip.Tip="Straight to a blank document" />
+      </StackPanel>
+      <CheckBox x:Name="DontShowBox" Content="Don't show this again"
+                VerticalAlignment="Center" FontSize="11"
+                ToolTip.Tip="You can turn it back on in Edit → Configure" />
+    </DockPanel>
+  </Grid>
+</Window>

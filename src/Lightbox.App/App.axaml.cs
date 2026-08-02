@@ -13,7 +13,12 @@ public sealed class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow();
+            var window = new MainWindow();
+            desktop.MainWindow = window;
+            // The start screen is offered from here rather than from the window
+            // itself, so that a window built directly — every headless test —
+            // never has a modal dialog appear over it.
+            window.Opened += (_, _) => _ = window.OfferStartScreenAsync();
         }
         base.OnFrameworkInitializationCompleted();
     }
