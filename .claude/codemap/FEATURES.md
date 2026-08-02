@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1005 tests, derived from the suite itself. Each line is a
+1040 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -693,20 +693,20 @@ regression even when every test still compiles.
 - Without AProject Or APath There Is Nothing To Save In Place — `:199`
 - AProject Reopens With Its Characters And Animations — `:207`
 - Removing An Animation Leaves Its File On Disk — `:228`
-- The New Menu Offers Animation Character And ALoose Document — `:248`
-- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:261`
-- ALoose Document Gets Its Own Row With No Character Above It — `:278`
-- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:293`
-- Moving ADocument To The Project Takes It Out Of Every Character — `:318`
-- Moving ADocument Where It Already Is Does Nothing — `:332`
-- AMoved Document Survives ASave And Reopen — `:342`
-- Renaming ARow Writes Through — `:362`
-- Every Row Knows Where It Is On Disk — `:377`
-- With No Project There Is No Path To Show — `:396`
-- Copy Path Gives The Selected Rows File — `:406`
-- Opening Externally Says So When The File Is Not Written Yet — `:419`
-- Duplicating An Animation Copies Its Art Into The Same Character — `:437`
-- Duplicating Writes The Copy On The Next Save — `:470`
+- The New Menu Offers One Entry Per Place Work Can Land — `:248`
+- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:265`
+- ALoose Document Gets Its Own Row With No Character Above It — `:282`
+- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:297`
+- Moving ADocument To The Project Takes It Out Of Every Character — `:322`
+- Moving ADocument Where It Already Is Does Nothing — `:336`
+- AMoved Document Survives ASave And Reopen — `:346`
+- Renaming ARow Writes Through — `:366`
+- Every Row Knows Where It Is On Disk — `:381`
+- With No Project There Is No Path To Show — `:400`
+- Copy Path Gives The Selected Rows File — `:410`
+- Opening Externally Says So When The File Is Not Written Yet — `:423`
+- Duplicating An Animation Copies Its Art Into The Same Character — `:441`
+- Duplicating Writes The Copy On The Next Save — `:474`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
@@ -791,6 +791,26 @@ regression even when every test still compiles.
 - Removing The Last Reference Leaves The Document With No Key For One — `:345`
 - ADocument With No Reference Composites Exactly As It Always Has — `:358`
 - AReference Survives Saving And Reopening — `:374`
+
+## SceneDockerTests
+`tests/Lightbox.App.Tests/SceneDockerTests.cs`
+
+- AProject With No Scenes Shows No Scene Machinery — `:42`
+- The First Scene Brings The Machinery With It — `:56`
+- Shots Are Indented Under Their Scene — `:71`
+- Characters And Scenes Are Both Headings And Both Appear — `:85`
+- Adding AShot With No Scene Makes The First One — `:101`
+- AShot Opens As ATab — `:113`
+- AScene Row Shows How Long It Runs — `:126`
+- An Empty Scene Says Nothing Rather Than Zero — `:141`
+- Scenes Move Up And Down And The Selection Follows — `:154`
+- Shots Move Within Their Scene — `:171`
+- Reordering ACharacter Row Does Nothing — `:186`
+- Deleting AScene Keeps Its Shots As Loose Documents — `:203`
+- Converting Changes The Type And Recreates No Artwork — `:221`
+- Converting Does Not Rearrange The Screen By Itself — `:239`
+- Converting Tells The Artist What Changed — `:257`
+- Converting With No Project Open Does Nothing — `:270`
 
 ## ShortcutMapTests
 `tests/Lightbox.App.Tests/ShortcutMapTests.cs`
@@ -1239,6 +1259,29 @@ regression even when every test still compiles.
 - ADocument With No Reference Writes No Key For One — `:200`
 - Editing The Timeline Of ADocument With No Reference Is Untouched — `:212`
 - AReference Round Trips Through Json — `:224`
+
+## SceneAndConversionTests
+`tests/Lightbox.Core.Tests/SceneAndConversionTests.cs`
+
+- AProject With No Scenes Writes No Scene Key — `:36`
+- Deleting The Last Scene Takes The Scene List With It — `:51`
+- AShot Is ADocument Like Any Other — `:66`
+- AFilm Survives ASave And Reload — `:83`
+- Two Scenes With The Same Name Get Different Folders — `:101`
+- Two Shots With The Same Name In One Scene Do Not Overwrite Each Other — `:116`
+- Scenes And Shots Can Be Reordered — `:129`
+- An Impossible Move Changes Nothing — `:146`
+- AShot Can Move To Another Scene — `:158`
+- AScene Knows How Long It Runs — `:178`
+- AShot Of Unknown Length Makes The Running Time Unknown Rather Than Short — `:192`
+- The Length Hint Is Refreshed When The Document Is Written — `:207`
+- Deleting AScene Keeps Its Shots — `:227`
+- Converting Recreates No Artwork — `:246`
+- Converting Away From Animation Keeps The Camera And The Scenes — `:267`
+- Converting To No Type Takes The Key Out Of The File — `:286`
+- Converting Reports What The Artist Should Know — `:301`
+- Converting To The Type It Already Is Says So And Does Nothing — `:318`
+- Conversion Survives ASave And Reload — `:331`
 
 ## MediumSettingsTests
 `tests/Lightbox.Core.Tests/Serialization/MediumSettingsTests.cs`

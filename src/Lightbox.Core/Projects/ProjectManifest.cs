@@ -34,6 +34,32 @@ public sealed class DocumentRef
 
     /// <summary>Path relative to the project root, with forward slashes.</summary>
     public string Path { get; set; } = "";
+
+    /// <summary>
+    /// How long the document is, refreshed whenever it is written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Derived data in an index, which is normally a smell — but a scene list
+    /// has to show a running time, and computing it honestly would mean
+    /// loading every document in the project. That is the one thing the folder
+    /// layout exists to avoid.
+    /// </para>
+    /// <para>
+    /// So it is a <b>hint</b>, written at the only moment it can be right: the
+    /// save that produced the file. Zero means "not known" rather than "empty",
+    /// and a scene containing an unknown shot reports its duration as unknown
+    /// instead of guessing low. Nothing reads this to render; it exists to put
+    /// a number next to a row.
+    /// </para>
+    /// </remarks>
+    public int Frames { get; set; }
+
+    /// <summary>Frame rate at the last save. Zero means not known.</summary>
+    public int Fps { get; set; }
+
+    /// <summary>Seconds this shot runs, or null when the hint is not filled in.</summary>
+    public double? Seconds => Frames > 0 && Fps > 0 ? Frames / (double)Fps : null;
 }
 
 /// <summary>
@@ -123,6 +149,51 @@ public sealed class Character
 }
 
 /// <summary>
+/// A scene: a run of shots that belong together in a film or a show.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The second axis of a project, and deliberately not the first. A
+/// <see cref="Character"/> groups drawings by <i>who</i>; a scene groups them
+/// by <i>when</i>. They cross: one scene holds several characters, and one
+/// character appears in several scenes, which is exactly why neither can be a
+/// folder inside the other.
+/// </para>
+/// <para>
+/// Named for the shots output target in the charter — a sequence for a film,
+/// where the canvas is a world and a camera frames part of it. A project
+/// making sprite sheets has no use for scenes and, following the camera's
+/// rule, gets none: <see cref="ProjectManifest.Scenes"/> is null until one is
+/// made.
+/// </para>
+/// <para>
+/// Called <c>ProjectScene</c> rather than <c>Scene</c> because
+/// <see cref="Lightbox.Core.Documents.Scene"/> already means the canvas world
+/// inside one document. Two types called Scene in one solution is a bug
+/// waiting for someone to write the wrong <c>using</c>.
+/// </para>
+/// </remarks>
+public sealed class ProjectScene
+{
+    public string Id { get; set; } = Ids.NewId("scn");
+
+    public string Name { get; set; } = "Scene";
+
+    /// <summary>Folder name under <c>scenes/</c>. Kept stable across renames.</summary>
+    public string Slug { get; set; } = "scene";
+
+    /// <summary>The shots, in the order they play.</summary>
+    public List<DocumentRef> Shots { get; set; } = [];
+
+    /// <summary>
+    /// What the scene is, in the director's words. Absent unless written —
+    /// a scene list with an empty note on every row is a scene list with a
+    /// column of nothing in it.
+    /// </summary>
+    public string? Notes { get; set; }
+}
+
+/// <summary>
 /// The serialized root of a project — <c>project.json</c>. Everything here is
 /// an index; the artwork lives in the documents it points at.
 /// </summary>
@@ -144,6 +215,12 @@ public sealed class ProjectManifest
     /// backgrounds, tests, a one-off illustration.
     /// </summary>
     public List<DocumentRef> Documents { get; set; } = [];
+
+    /// <summary>
+    /// The scenes, in running order. Null until one is made, so a project that
+    /// is a bag of sprites writes no scene key at all.
+    /// </summary>
+    public List<ProjectScene>? Scenes { get; set; }
 
     /// <summary>
     /// Palettes shared by everything in the project, as paths to <c>.gpl</c>

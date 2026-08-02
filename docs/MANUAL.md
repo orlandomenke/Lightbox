@@ -175,6 +175,45 @@ loose file *is* an animation, and a project is readable with a text editor.
 A project opens by reading its index only. A character with forty animations
 opens without loading forty documents; each is read when you open it.
 
+### Scenes
+
+A character groups drawings by **who**; a scene groups them by **when**. They
+cross — one scene holds several characters, one character appears in several
+scenes — so neither is a folder inside the other, and the Project panel shows
+both, characters first.
+
+**＋ New → Scene** makes one; **Shot** adds a drawing under the selected scene,
+making the first scene if there is none. Scenes are for the *shots* output
+target: a film or a show, where the canvas is a world and a camera frames part
+of it. A project making sprite sheets never needs one and, until you make one,
+has no scene rows, no running order and no reorder buttons.
+
+Each scene row shows how long it runs — `0:04.5 · 108f` — summed from its shots.
+The lengths are recorded when each shot is saved, so a shot you have never saved
+shows nothing rather than zero: a running time that quietly counts unmeasured
+shots as empty is the number somebody schedules against. **↑** and **↓** move
+the selected scene or shot in the running order.
+
+Deleting a scene keeps its shots — they become project documents. Reorganising
+a film must not be the fastest way to delete it, and the files on disk are never
+touched either way.
+
+### Changing what a project is for
+
+**File → Project type** converts an open project between Illustration,
+Animation, Game art, Storyboard, Comic, Asset library and unset.
+
+It is a change of intent, not a migration. **No artwork is read, rewritten or
+recreated** — an illustration that becomes an animation is the same file, byte
+for byte — and nothing already authored is dropped. A camera keyframed under
+Animation is still there under Game art: the new type ignores it, it does not
+erase it, so converting back finds everything where you left it.
+
+Afterwards you are told what changed and offered the new type's panels. Offered,
+not applied: which panels you want is a preference, converting is a decision
+about the project, and rearranging your screen as a side effect of a menu item
+is not something a tool should do.
+
 **The Project panel** lists characters with their animations underneath, and
 below them any documents that belong to the project rather than to a character.
 Double-click one to open it as a tab.

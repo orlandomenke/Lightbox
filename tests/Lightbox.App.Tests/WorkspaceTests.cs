@@ -256,7 +256,7 @@ public sealed class WorkspaceTests : BrushStateIsolated
             var items = flyout.Items.OfType<MenuItem>().ToList();
             flyout.Hide();
 
-            Assert.Equal(["Animation", "Character", "Document"],
+            Assert.Equal(["Animation", "Character", "Scene", "Shot", "Document"],
                 items.Select(i => i.Header?.ToString()).ToList());
 
             Click(items, "Animation");

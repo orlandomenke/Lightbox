@@ -171,6 +171,7 @@ public partial class MainWindow : Window
         _shortcuts.Load();
         KeyDown += OnKeyDown;
         RecentMenu.SubmenuOpened += (_, _) => RefreshRecentMenu();
+        ConvertProjectMenu.SubmenuOpened += (_, _) => RefreshConvertMenu();
         Loaded += (_, _) =>
         {
             _vm.PublishSnapshot();
@@ -2149,6 +2150,12 @@ public partial class MainWindow : Window
     private void OnProjectNewCharacter(object? sender, RoutedEventArgs e) =>
         _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewCharacterItem);
 
+    private void OnProjectNewScene(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewSceneItem);
+
+    private void OnProjectNewShot(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewShotItem);
+
     private void OnProjectNewDocument(object? sender, RoutedEventArgs e) =>
         _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewLooseDocument);
 
@@ -2280,6 +2287,112 @@ public partial class MainWindow : Window
         if (dir is null) return;
         var written = await Task.Run(() => Services.SequenceExporter.ExportPngSequence(_vm.Doc, dir));
         _vm.AiStatus = $"Exported {written.Count} PNG frame(s).";
+    }
+
+    // ---- converting a project ---------------------------------------------------
+
+    private static readonly (string Label, ProjectType? Type)[] ProjectTypeChoices =
+    [
+        ("Unset", null),
+        ("Illustration", ProjectType.Illustration),
+        ("Animation", ProjectType.Animation),
+        ("Game art", ProjectType.GameArt),
+        ("Storyboard", ProjectType.Storyboard),
+        ("Comic", ProjectType.Comic),
+        ("Asset library", ProjectType.AssetLibrary),
+    ];
+
+    /// <summary>
+    /// Fill the convert submenu, in code for the usual reason: a menu declared
+    /// in the template lives in a popup where its bindings resolve to nothing.
+    /// Rebuilt each time so the tick follows the current type.
+    /// </summary>
+    private void RefreshConvertMenu()
+    {
+        ConvertProjectMenu.Items.Clear();
+        var current = _vm.ProjectDocker.Project?.Manifest.Type;
+        foreach (var (label, type) in ProjectTypeChoices)
+        {
+            var item = new MenuItem
+            {
+                Header = label,
+                ToggleType = MenuItemToggleType.Radio,
+                IsChecked = type == current,
+            };
+            var target = type;
+            item.Click += async (_, _) => await ConvertAsync(target);
+            ConvertProjectMenu.Items.Add(item);
+        }
+    }
+
+    /// <summary>
+    /// Convert, then report — and offer the new type's panels as a separate
+    /// question.
+    /// </summary>
+    /// <remarks>
+    /// Separate because rearranging somebody's screen as a side effect of a
+    /// menu item is how a tool loses trust. The conversion has already
+    /// happened and cannot fail; declining only means keeping the panels.
+    /// </remarks>
+    private async Task ConvertAsync(ProjectType? to)
+    {
+        if (_vm.ProjectDocker.Project?.Manifest.Type == to) return;
+        if (_vm.ConvertProject(to) is not { } report) return;
+        if (to is not null && await ConfirmWorkspaceAsync(report))
+        {
+            _vm.TakeProjectTypeWorkspace();
+        }
+    }
+
+    private async Task<bool> ConfirmWorkspaceAsync(ProjectIo.ConversionReport report)
+    {
+        var take = false;
+        var dialog = new Window
+        {
+            Title = "Project converted",
+            Width = 460,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        var notes = new StackPanel { Spacing = 6 };
+        foreach (var note in report.Notes)
+        {
+            notes.Children.Add(new TextBlock
+            {
+                Text = "• " + note,
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                FontSize = 12,
+            });
+        }
+        var useDefaults = new Button { Content = "Use this type's panels", MinWidth = 150 };
+        var keep = new Button { Content = "Keep my panels", MinWidth = 120, IsCancel = true };
+        useDefaults.Click += (_, _) => { take = true; dialog.Close(); };
+        keep.Click += (_, _) => dialog.Close();
+        dialog.Content = new StackPanel
+        {
+            Margin = new Avalonia.Thickness(16),
+            Spacing = 12,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = $"Now a {report.To} project. Nothing was rewritten.",
+                    FontWeight = Avalonia.Media.FontWeight.SemiBold,
+                    TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                },
+                notes,
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    Spacing = 8,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    Children = { useDefaults, keep },
+                },
+            },
+        };
+        await dialog.ShowDialog(this);
+        return take;
     }
 
     // ---- the start screen ------------------------------------------------------

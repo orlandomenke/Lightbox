@@ -64,6 +64,124 @@ public static class ProjectIo
         return character;
     }
 
+    // ---- scenes ---------------------------------------------------------------
+
+    private const string ScenesDir = "scenes";
+
+    private const string ShotsDir = "shots";
+
+    /// <summary>
+    /// Add a scene. The first one brings the scene list into being.
+    /// </summary>
+    /// <remarks>
+    /// The list is null until now, so a project that never plans a film writes
+    /// no scene key — the camera's rule, applied to the second axis.
+    /// </remarks>
+    public static ProjectScene AddScene(Project project, string name)
+    {
+        var manifest = project.Manifest;
+        manifest.Scenes ??= [];
+        var taken = manifest.Scenes.Select(s => s.Slug).ToHashSet();
+        var wanted = Slug(name);
+        var slug = wanted;
+        for (var n = 2; taken.Contains(slug); n++) slug = $"{wanted}-{n}";
+
+        var scene = new ProjectScene { Name = name, Slug = slug };
+        manifest.Scenes.Add(scene);
+        return scene;
+    }
+
+    /// <summary>Register a shot in a scene and cache its document.</summary>
+    public static DocumentRef AddShot(Project project, ProjectScene scene, string name, Doc doc)
+    {
+        var taken = scene.Shots
+            .Select(s => System.IO.Path.GetFileName(s.Path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var wanted = Slug(name);
+        var slug = wanted;
+        for (var n = 2; taken.Contains($"{slug}.lightbox.json"); n++) slug = $"{wanted}-{n}";
+
+        var reference = new DocumentRef
+        {
+            Name = name,
+            Path = $"{ScenesDir}/{scene.Slug}/{ShotsDir}/{slug}.lightbox.json",
+            Frames = doc.Scene.FrameCount,
+            Fps = doc.Scene.Fps,
+        };
+        scene.Shots.Add(reference);
+        project.Loaded[reference.Id] = doc;
+        return reference;
+    }
+
+    /// <summary>
+    /// Delete a scene, keeping its shots.
+    /// </summary>
+    /// <remarks>
+    /// The shots become loose documents rather than going with it, for the same
+    /// reason deleting a palette folder keeps the palettes: reorganising a film
+    /// must not be the fastest way to delete it. The files are never touched
+    /// either way — only the index changes.
+    /// </remarks>
+    public static void RemoveScene(Project project, ProjectScene scene)
+    {
+        if (project.Manifest.Scenes is not { } scenes) return;
+        if (!scenes.Remove(scene)) return;
+        project.Manifest.Documents.AddRange(scene.Shots);
+        // Back to absent once the last one goes.
+        if (scenes.Count == 0) project.Manifest.Scenes = null;
+    }
+
+    /// <summary>Move a scene in the running order. Out-of-range indices do nothing.</summary>
+    public static bool MoveScene(Project project, int from, int to) =>
+        Reorder(project.Manifest.Scenes, from, to);
+
+    /// <summary>Move a shot within its scene.</summary>
+    public static bool MoveShot(ProjectScene scene, int from, int to) =>
+        Reorder(scene.Shots, from, to);
+
+    /// <summary>Move a shot from one scene to another, at the end.</summary>
+    public static bool MoveShotToScene(ProjectScene from, ProjectScene to, DocumentRef shot)
+    {
+        if (ReferenceEquals(from, to) || !from.Shots.Remove(shot)) return false;
+        to.Shots.Add(shot);
+        return true;
+    }
+
+    private static bool Reorder<T>(List<T>? items, int from, int to)
+    {
+        if (items is null) return false;
+        if (from < 0 || from >= items.Count || to < 0 || to >= items.Count || from == to) return false;
+        var item = items[from];
+        items.RemoveAt(from);
+        items.Insert(to, item);
+        return true;
+    }
+
+    /// <summary>
+    /// How long a scene runs: total frames, and seconds when every shot's
+    /// length is known.
+    /// </summary>
+    /// <remarks>
+    /// Null seconds rather than a low number when a shot has no hint yet.
+    /// A running time that silently omits the shots it could not measure is
+    /// worse than no running time, because it is the number somebody schedules
+    /// against.
+    /// </remarks>
+    public static (int Frames, double? Seconds) SceneDuration(ProjectScene scene)
+    {
+        if (scene.Shots.Count == 0) return (0, 0);
+        var frames = 0;
+        double seconds = 0;
+        var known = true;
+        foreach (var shot in scene.Shots)
+        {
+            frames += shot.Frames;
+            if (shot.Seconds is { } s) seconds += s;
+            else known = false;
+        }
+        return (frames, known ? seconds : null);
+    }
+
     /// <summary>
     /// Register a new animation under a character and put its document in the
     /// loaded cache, so the caller can open it immediately without a round trip
@@ -283,6 +401,16 @@ public static class ProjectIo
         // the manifest has to be written after, not twice.
         SaveResources(project);
 
+        // Duration hints next, and for the same reason: they live on the
+        // manifest, so refreshing them inside the document loop below would
+        // update them after the manifest had already been written and the
+        // scene list would report yesterday's lengths for ever.
+        foreach (var reference in DocumentsToWrite(project, dirty))
+        {
+            reference.Frames = project.Loaded[reference.Id].Scene.FrameCount;
+            reference.Fps = project.Loaded[reference.Id].Scene.Fps;
+        }
+
         DocJson.WriteAtomic(
             Path.Combine(project.Root, ManifestName),
             JsonSerializer.Serialize(project.Manifest, DocJson.Options));
@@ -294,13 +422,25 @@ public static class ProjectIo
                 JsonSerializer.Serialize(character, DocJson.Options));
         }
 
-        foreach (var reference in project.AllDocuments)
+        foreach (var reference in DocumentsToWrite(project, dirty))
         {
-            if (dirty is not null && !dirty.Contains(reference.Id)) continue;
-            if (!project.Loaded.TryGetValue(reference.Id, out var doc)) continue;
-            DocJson.Save(doc, project.PathOf(reference));
+            DocJson.Save(project.Loaded[reference.Id], project.PathOf(reference));
         }
     }
+
+    /// <summary>
+    /// The documents this save will actually write: loaded, and dirty when a
+    /// dirty set was given.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the hint pass and the write pass so the two cannot disagree
+    /// about which files are being produced — a hint recorded for a file that
+    /// was not written is a length that never existed.
+    /// </remarks>
+    private static List<DocumentRef> DocumentsToWrite(Project project, IReadOnlySet<string>? dirty) =>
+        project.AllDocuments
+            .Where(r => (dirty is null || dirty.Contains(r.Id)) && project.Loaded.ContainsKey(r.Id))
+            .ToList();
 
     /// <summary>
     /// Palettes and gradients, as JSON.
@@ -345,6 +485,99 @@ public static class ProjectIo
         DocJson.WriteAtomic(
             Path.Combine(project.Root, GradientsFile.Replace('/', Path.DirectorySeparatorChar)),
             JsonSerializer.Serialize(project.Gradients, DocJson.Options));
+    }
+
+    // ---- conversion -----------------------------------------------------------
+
+    /// <summary>
+    /// What changed, and what the artist should know about it.
+    /// </summary>
+    /// <param name="Notes">
+    /// Plain sentences, not warnings. Nothing here is a problem — conversion
+    /// cannot break anything — but the tooling around the work changes, and
+    /// finding that out by noticing an export looks different is worse than
+    /// being told.
+    /// </param>
+    public sealed record ConversionReport(ProjectType? From, ProjectType? To, IReadOnlyList<string> Notes);
+
+    /// <summary>
+    /// Change what a project is for, without touching a single drawing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The type is a statement about intent that tooling and export read; it is
+    /// not a format. So conversion is exactly a change of that statement, and
+    /// the guarantee worth making — the one the tests hold — is the negative
+    /// one: <b>no document is read, rewritten or recreated</b>. An illustration
+    /// that becomes an animation is the same file, byte for byte.
+    /// </para>
+    /// <para>
+    /// Nothing authored is dropped either, even when the new type has no use
+    /// for it. A camera keyframed under Animation survives conversion to Game
+    /// art, because a conversion that quietly deleted the shot work would make
+    /// the operation one nobody could risk. What the new type ignores, it
+    /// ignores; it does not erase.
+    /// </para>
+    /// <para>
+    /// The workspace is deliberately <i>not</i> switched here. Which panels
+    /// somebody wants is a preference, converting a project is a decision about
+    /// the project, and rearranging the screen as a side effect of a menu item
+    /// is how a tool loses trust. The caller offers it.
+    /// </para>
+    /// </remarks>
+    public static ConversionReport Convert(Project project, ProjectType? to)
+    {
+        var from = project.Manifest.Type;
+        project.Manifest.Type = to;
+        return new ConversionReport(from, to, ConversionNotes(project, from, to));
+    }
+
+    private static List<string> ConversionNotes(Project project, ProjectType? from, ProjectType? to)
+    {
+        var notes = new List<string>();
+        if (from == to)
+        {
+            notes.Add("Already that type — nothing changed.");
+            return notes;
+        }
+
+        var documents = project.AllDocuments.ToList();
+        notes.Add(documents.Count == 1
+            ? "1 document kept as it is. Conversion never rewrites artwork."
+            : $"{documents.Count} documents kept as they are. Conversion never rewrites artwork.");
+
+        switch (to)
+        {
+            case ProjectType.Animation or ProjectType.Storyboard:
+                notes.Add("The timeline and the camera apply now; scenes can be added to plan shots.");
+                break;
+            case ProjectType.GameArt:
+                // The pivot is what asset export registers frames on, so its
+                // absence is the one thing genuinely worth mentioning.
+                var without = project.Manifest.Characters.Count(c => c.Pivot is null);
+                notes.Add(without == 0
+                    ? "Export packs sprite sheets, registered on each character's pivot."
+                    : $"Export packs sprite sheets. {without} character(s) have no pivot yet, "
+                        + "so their frames register on the canvas instead.");
+                break;
+            case ProjectType.Illustration or ProjectType.Comic:
+                notes.Add("Playback and camera tooling stop being offered. Nothing already authored is removed.");
+                break;
+            case ProjectType.AssetLibrary:
+                notes.Add("Other projects can import these characters, bringing their animations and palette.");
+                break;
+            case null:
+                notes.Add("No declared type. Every panel stays available and the type key leaves the file.");
+                break;
+        }
+
+        if (from is ProjectType.Animation or ProjectType.Storyboard
+            && to is ProjectType.GameArt or ProjectType.Illustration or ProjectType.AssetLibrary)
+        {
+            notes.Add("Cameras and scenes are kept but no longer used by export — "
+                + "convert back and they are where you left them.");
+        }
+        return notes;
     }
 
     // ---- migration ----------------------------------------------------------

@@ -961,6 +961,47 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Whether any project UI should exist at all.</summary>
     public bool HasProject => ProjectDocker.HasProject;
 
+    /// <summary>
+    /// Change what the open project is for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not a migration: the type is a statement about intent that tooling and
+    /// export read, so converting is exactly a change of that statement. No
+    /// document is read, rewritten or recreated, and nothing already authored
+    /// is dropped — a camera keyframed under Animation is still there under
+    /// Game art, ignored rather than erased.
+    /// </para>
+    /// <para>
+    /// The workspace is left alone. Which panels somebody wants is a
+    /// preference and converting a project is a decision about the project;
+    /// rearranging the screen as a side effect of a menu item is how a tool
+    /// loses trust. <see cref="TakeProjectTypeWorkspace"/> is the separate,
+    /// asked-for move.
+    /// </para>
+    /// </remarks>
+    public ProjectIo.ConversionReport? ConvertProject(ProjectType? to)
+    {
+        if (ProjectDocker.Project is not { } project) return null;
+        var report = ProjectIo.Convert(project, to);
+        SaveProject();
+        OnProjectChanged();
+        OnPropertyChanged(nameof(ProjectTypeLabel));
+        AiStatus = string.Join("  ", report.Notes);
+        return report;
+    }
+
+    /// <summary>Switch to the current project type's default panels, when asked.</summary>
+    public void TakeProjectTypeWorkspace()
+    {
+        if (ProjectDocker.Project?.Manifest.Type is { } type) Workspace.UseDefaultFor(type);
+    }
+
+    /// <summary>What the project is for, for a menu header.</summary>
+    public string ProjectTypeLabel => ProjectDocker.Project?.Manifest.Type is { } type
+        ? $"Project type — {type}"
+        : "Project type — unset";
+
     private void OnProjectChanged()
     {
         OnPropertyChanged(nameof(HasProject));

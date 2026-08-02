@@ -245,15 +245,19 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
     // ---- making things inside the project -----------------------------------
 
     [AvaloniaFact]
-    public void TheNewMenuOffersAnimationCharacterAndALooseDocument()
+    public void TheNewMenuOffersOneEntryPerPlaceWorkCanLand()
     {
         // Each lands somewhere specific. Creating work inside a project should
         // not be "make it, then file it".
+        //
+        // The order is the two axes then the loose case: a character and its
+        // animations, a scene and its shots, and last the document that
+        // belongs to neither.
         var vm = Vm();
         vm.NewProject(_root, "Knight");
 
         Assert.Equal(
-            ["Animation", "Character", "Document"],
+            ["Animation", "Character", "Scene", "Shot", "Document"],
             vm.ProjectDocker.NewItemKinds.Select(k => k.Label));
     }
 

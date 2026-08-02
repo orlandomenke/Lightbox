@@ -63,7 +63,20 @@ public sealed class Project
             .Concat(Manifest.Characters
                 .SelectMany(c => c.Variants)
                 .SelectMany(v => v.AnimationOverrides.Values))
+            // Shots are documents like any other. Leaving them out here is how
+            // a save would quietly skip every drawing in the film.
+            .Concat(Scenes.SelectMany(s => s.Shots))
             .Concat(Manifest.Documents);
+
+    /// <summary>The scenes, or an empty list. Null on the manifest means none.</summary>
+    public IReadOnlyList<ProjectScene> Scenes => Manifest.Scenes ?? [];
+
+    /// <summary>Whether any scene UI should exist at all.</summary>
+    public bool HasScenes => Manifest.Scenes is { Count: > 0 };
+
+    /// <summary>The scene a shot belongs to, or null for a document that is not one.</summary>
+    public ProjectScene? SceneOf(DocumentRef reference) =>
+        Scenes.FirstOrDefault(s => s.Shots.Any(shot => shot.Id == reference.Id));
 
     /// <summary>
     /// The variant being viewed, per character id.

@@ -123,6 +123,13 @@
         <Separator />
         <MenuItem Header="New _project…" Click="OnNewProjectClicked" />
         <MenuItem Header="Open p_roject…" Click="OnOpenProjectClicked" />
+        <!--
+          Conversion is a change of intent, not a migration: no document is
+          read, rewritten or recreated. Absent unless a project is open, since
+          there is nothing to convert otherwise.
+        -->
+        <MenuItem x:Name="ConvertProjectMenu" Header="{Binding ProjectTypeLabel}"
+                  IsVisible="{Binding HasProject}" />
         <Separator />
         <MenuItem Header="Export _document…" Click="OnExportDocumentClicked"
                   ToolTip.Tip="A standalone .lightbox.json with every shared palette and gradient it uses inlined" />
@@ -1325,6 +1332,10 @@
                                       ToolTip.Tip="A drawing sequence under the selected character" />
                             <MenuItem Header="Character" Click="OnProjectNewCharacter"
                                       ToolTip.Tip="A new character, with its own animations and palette" />
+                            <MenuItem Header="Scene" Click="OnProjectNewScene"
+                                      ToolTip.Tip="A run of shots — the film's second axis, alongside the characters" />
+                            <MenuItem Header="Shot" Click="OnProjectNewShot"
+                                      ToolTip.Tip="A drawing under the selected scene" />
                             <MenuItem Header="Document" Click="OnProjectNewDocument"
                                       ToolTip.Tip="Belongs to the project, not to any character" />
                           </MenuFlyout>
@@ -1334,6 +1345,18 @@
                               Command="{Binding ProjectDocker.RemoveSelectedCommand}"
                               IsEnabled="{Binding ProjectDocker.HasSelection}"
                               ToolTip.Tip="Remove from the project (the file stays on disk)" />
+                      <!--
+                        Absent until there are scenes. The order of a
+                        character's animations is alphabetical housekeeping;
+                        the order of a film's shots is the film, which is the
+                        only place these mean anything.
+                      -->
+                      <Button Classes="icon" Content="↑" IsVisible="{Binding ProjectDocker.HasScenes}"
+                              Command="{Binding ProjectDocker.MoveSelectedUpCommand}"
+                              ToolTip.Tip="Earlier in the running order" />
+                      <Button Classes="icon" Content="↓" IsVisible="{Binding ProjectDocker.HasScenes}"
+                              Command="{Binding ProjectDocker.MoveSelectedDownCommand}"
+                              ToolTip.Tip="Later in the running order" />
                     </StackPanel>
                   </DockPanel>
                 </Border>
@@ -1367,8 +1390,8 @@
                         Background must be set or the empty part of the row is
                         not hit-testable and the drop never arrives.
                       -->
-                      <DockPanel Classes.characterRow="{Binding IsCharacter}"
-                                 Classes.animationRow="{Binding !IsCharacter}" MinHeight="22"
+                      <DockPanel Classes.characterRow="{Binding IsHeading}"
+                                 Classes.animationRow="{Binding !IsHeading}" MinHeight="22"
                                  Background="Transparent"
                                  PointerPressed="OnProjectRowPressed"
                                  DragDrop.AllowDrop="True">
@@ -1402,6 +1425,14 @@
                         </DockPanel.ContextFlyout>
                         <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.7" />
+                        <!-- Running time, right-aligned so the column reads
+                             down. Absent when nothing knows the length rather
+                             than showing a zero somebody might schedule
+                             against. -->
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Duration}"
+                                   IsVisible="{Binding HasDuration}"
+                                   FontSize="10" Opacity="0.55" Margin="6,0,2,0"
+                                   VerticalAlignment="Center" />
                         <Panel MinHeight="20">
                           <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}"
                                      VerticalAlignment="Center" FontSize="11" />
