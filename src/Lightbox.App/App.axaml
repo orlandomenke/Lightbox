@@ -76,9 +76,9 @@
     </Style>
 
     <!--
-      Canvas overlay bar: a grip, the controls, collapse and close. Laid out
-      horizontally; the host turns the whole control a quarter turn on a left
-      or right edge, which is why nothing in here assumes a direction.
+      Canvas overlay bar: a grip, the controls, collapse and close. On a left
+      or right edge it stacks downwards instead of across, so its length runs
+      along the edge and every icon in it stays the right way up.
     -->
     <Style Selector="controls|CanvasOverlayBar">
       <Setter Property="Background" Value="#cc1f1f1f" />
@@ -86,19 +86,18 @@
         <ControlTemplate>
           <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="2"
                   BorderBrush="#3a3a3a" BorderThickness="1">
-            <StackPanel Orientation="Horizontal" Spacing="2">
+            <StackPanel Spacing="2"
+                        Orientation="{Binding IsVertical, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
               <!-- Grip. Everything else in the bar is a button, so the grip
                    has to be its own target or a drag would press one. -->
-              <Border x:Name="PART_Grip" Width="12" Cursor="SizeAll" Background="#00000001"
+              <Border x:Name="PART_Grip" Cursor="SizeAll" Background="#00000001"
+                      MinWidth="12" MinHeight="12"
                       ToolTip.Tip="Drag to any edge of the canvas">
                 <TextBlock Text="⠿" FontSize="12" Opacity="0.55"
-                           HorizontalAlignment="Center" VerticalAlignment="Center">
-                  <TextBlock.RenderTransform>
-                    <RotateTransform Angle="{Binding IsVertical, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static docking:OverlayConverters.VerticalToCounterAngle}}" />
-                  </TextBlock.RenderTransform>
-                </TextBlock>
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
               </Border>
-              <ContentPresenter Content="{TemplateBinding Content}" VerticalAlignment="Center"
+              <ContentPresenter Content="{TemplateBinding Content}"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                 IsVisible="{Binding !Collapsed, RelativeSource={RelativeSource TemplatedParent}}" />
               <Button x:Name="PART_Collapse" Classes="icon" FontSize="9" Padding="4,2"
                       Content="{Binding Collapsed, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static docking:OverlayConverters.CollapseGlyph}}"

@@ -53,7 +53,7 @@ From the top:
 | Strip | What it is |
 | --- | --- |
 | Menu | File, Edit, View |
-| Tool options | Controls for the tool you have selected. Changes with the tool; never changes height. On the right, the workspace picker. |
+| Tool options | Controls for the tool you have selected. Changes with the tool; never changes height, and never scrolls — anything that does not fit goes into the **▾** at the end. On the right, the workspace picker. |
 | AI bar | Inbetween, a prompt box, and AI Draw |
 | Tabs | One per open document |
 | Work area | Tool column, canvas, and whatever panels you have docked |
@@ -104,11 +104,13 @@ Both are listed under **View** separately from the panels, because they are a
 different trade: a panel takes room away from the drawing, a bar sits on top of
 it. Somebody who wants no panels at all may still want the zoom readout.
 
-**Drag a bar by its ⠿ grip** to any edge of the canvas. It goes to whichever
-edge the pointer is nearest and stays where you left it along that edge, as a
-fraction, so resizing the window does not send it wandering. On a left or right
-edge the whole bar turns a quarter turn so its length runs *along* the edge
-instead of jutting out over the drawing.
+**Drag a bar by its ⠿ grip** to any edge of the canvas. It follows the pointer
+as you drag, goes to whichever edge you are nearest, and stays where you left
+it along that edge as a fraction, so resizing the window does not send it
+wandering. On a left or right edge it stacks downwards so its length runs
+*along* the edge instead of jutting out over the drawing — the icons stay the
+right way up. The zoom readout is the one thing that turns, because "100%" does
+not fit across a narrow bar; it turns so its feet face the canvas.
 
 **▾** rolls a bar up to its grip. **✕** hides it; View brings it back. Edge,
 position, collapsed and hidden are all part of the workspace, so they save,

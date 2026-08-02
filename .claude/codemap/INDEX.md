@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `b779c2c` · 222 files · 49273 lines · 870 tests.
+Generated from `bc92e77` · 224 files · 49670 lines · 879 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -27,11 +27,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (6022 ln) · 45 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:2663, TransformParts:3911
-- `src/Lightbox.App/Views/MainWindow.axaml` (2275 ln) · **no tests**
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (6044 ln) · 45 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:2676, TransformParts:3924
+- `src/Lightbox.App/Views/MainWindow.axaml` (2285 ln) · **no tests**
   - BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushPageEffects, BrushPageGeneral, BrushPageMedium, BrushPagePresets …
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (2007 ln) · 2 test files
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (2011 ln) · 2 test files
   - MainWindow:17
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (1840 ln) · 5 test files
   - CanvasControl:28, CanvasToolMode:263, TxDrag:368, DrawOp:1490
@@ -43,7 +43,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - WorkspaceViewModel:20, WorkspaceRow:362
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` (347 ln) · 4 test files
   - StrokeOverlay:23, RenderPass:49, SceneRenderer:64
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 30 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 31 test files
   - SpriteTrim:11, SpriteSheetOptions:35, SpriteSheetResult:46, SpriteSheetExporter:69, SheetDocument:275, SheetFrame:281, SheetMeta:295, Box:310 …
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 2 indirect only
   - RampTrack:10, GradientRamp:41
@@ -73,6 +73,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TimelineRuler:17
 - `src/Lightbox.App/Services/PerformanceMonitor.cs` (180 ln) · 45 indirect only
   - PerformanceMonitor:14
+- `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 1 test files
+  - CanvasOverlayBar:28
+- `src/Lightbox.App/Controls/OverflowBar.cs` (173 ln) · 1 test files
+  - OverflowBar:25
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln) · **no tests**
   - ColorField:29
 - `src/Lightbox.App/Docking/DockZones.cs` (159 ln) · 1 test files
@@ -82,8 +86,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PART_Clear, PART_Swatch
 - `src/Lightbox.App/Controls/DockStrip.cs` (132 ln) · 1 test files
   - DockStrip:24
-- `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (131 ln) · 1 test files
-  - CanvasOverlayBar:28
 - `src/Lightbox.App/Controls/ValueDrag.cs` (126 ln) · 45 indirect only
   - ValueDrag:27, Session:43
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (126 ln) · 1 test files
@@ -92,7 +94,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Desktop:7, FileReveal:35
 - `src/Lightbox.App/Docking/CanvasOverlays.cs` (123 ln) · 1 test files
   - OverlayId:12, CanvasEdge:21, OverlayPlacement:30, CanvasOverlayLayout:54
-- `src/Lightbox.App/App.axaml` (120 ln) · **no tests**
+- `src/Lightbox.App/App.axaml` (119 ln) · **no tests**
   - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Switcher
 - `src/Lightbox.App/Services/IpcServer.cs` (115 ln) · 1 test files
   - IpcServer:13
@@ -140,7 +142,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Rendering/RenderSnapshot.cs` (24 ln) · 12 test files
   - RenderSnapshot:16
-- `src/Lightbox.App/Docking/OverlayConverters.cs` (22 ln) · **no tests**
+- `src/Lightbox.App/Docking/OverlayConverters.cs` (23 ln) · **no tests**
   - OverlayConverters:7
 - `src/Lightbox.App/App.axaml.cs` (20 ln) · 71 indirect only
   - App:8

@@ -1211,6 +1211,18 @@ public sealed partial class MainViewModel : ObservableObject
         GetBrushValue(s => s.Kind) is BrushKind.Smudge or BrushKind.Blur;
 
     /// <summary>
+    /// Whether the effect row belongs in the tool options bar right now.
+    /// </summary>
+    /// <remarks>
+    /// The brush kind and the active tool are different questions, and the bar
+    /// was only asking the first. Pick the smudge brush, then switch to the
+    /// selection tool, and Strength and Radius were still sitting there —
+    /// controls for a brush you are not currently holding, taking room from
+    /// the ones you are.
+    /// </remarks>
+    public bool ShowsEffectOptions => IsBrushTool && IsEffectBrush;
+
+    /// <summary>
     /// How hard the effect bites, in the term each tool uses for it: how far
     /// colour travels for a smudge, how much softening for a blur.
     /// </summary>
@@ -1486,7 +1498,7 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(BrushTextureSurface), nameof(BrushTextureScale), nameof(BrushTextureDepth),
         nameof(BrushSecondaryColor), nameof(BrushColorJitter), nameof(BrushHueJitter),
         nameof(BrushSaturationJitter), nameof(BrushBrightnessJitter),
-        nameof(IsSmudgeBrush), nameof(IsEffectBrush), nameof(EffectStrength),
+        nameof(IsSmudgeBrush), nameof(IsEffectBrush), nameof(ShowsEffectOptions), nameof(EffectStrength),
         nameof(EffectStrengthLabel), nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
         nameof(BrushSmudgeRadius), nameof(BrushColorRate),
         nameof(BrushMedium), nameof(MediumIsSimulated), nameof(MediumHasBody),
@@ -1693,6 +1705,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsEraser))]
+    [NotifyPropertyChangedFor(nameof(ShowsEffectOptions))]
     [NotifyPropertyChangedFor(nameof(IsBrushTool))]
     [NotifyPropertyChangedFor(nameof(IsEraserTool))]
     [NotifyPropertyChangedFor(nameof(IsFillTool))]
@@ -4456,6 +4469,15 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (layer.OnionEnabled == enabled) return;
         layer.OnionEnabled = enabled;
+        // The same switch exists in two places — the Layers panel's ◉ and the
+        // shortcut bar's — and they have to agree. The row does not read the
+        // layer except when it is rebuilt, so pushing the value across is what
+        // stops one of them showing yesterday's answer.
+        if (LayerRows.FirstOrDefault(r => r.Layer.Id == layer.Id) is { } row)
+        {
+            row.OnionEnabled = enabled;
+        }
+        if (layer.Id == ActiveLayer.Id) OnPropertyChanged(nameof(ActiveLayerOnion));
         MarkDocumentEdited();
         PublishSnapshot();
     }

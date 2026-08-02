@@ -237,18 +237,23 @@ public partial class MainWindow : Window
 
     // ---- the bars on the canvas -----------------------------------------------
 
-    private IEnumerable<(OverlayId Id, LayoutTransformControl Host, CanvasOverlayBar Bar)> OverlayBars() =>
+    private IEnumerable<(OverlayId Id, CanvasOverlayBar Bar)> OverlayBars() =>
     [
-        (OverlayId.View, ViewBarHost, ViewBar),
-        (OverlayId.Shortcuts, ShortcutBarHost, ShortcutBar),
+        (OverlayId.View, ViewBar),
+        (OverlayId.Shortcuts, ShortcutBar),
     ];
 
     private void InitialiseOverlays()
     {
-        foreach (var (_, _, bar) in OverlayBars())
+        foreach (var (_, bar) in OverlayBars())
         {
             bar.DragHost = CanvasHost;
-            bar.Dropped += OnOverlayDropped;
+            // Live, not just on release. A bar that only jumps when you let go
+            // makes you drop it to find out where it would land, which is not
+            // a drag — it is a guess followed by an undo.
+            bar.Dragging += (b, at) => PositionOverlay(b, EdgeAt(at), AlongAt(at));
+            bar.Dropped += (b, at) =>
+                _vm.Workspace.PlaceOverlay(b.OverlayId, EdgeAt(at), AlongAt(at));
             bar.CloseRequested += b => _vm.Workspace.SetOverlayVisible(b.OverlayId, false);
             bar.PropertyChanged += (_, e) =>
             {
@@ -260,62 +265,61 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnOverlayDropped(CanvasOverlayBar bar, Point at)
-    {
-        var width = CanvasHost.Bounds.Width;
-        var height = CanvasHost.Bounds.Height;
-        var edge = CanvasOverlayLayout.NearestEdge(at.X, at.Y, width, height);
-        _vm.Workspace.PlaceOverlay(bar.OverlayId, edge, CanvasOverlayLayout.AlongFor(edge, at.X, at.Y, width, height));
-    }
+    private CanvasEdge EdgeAt(Point at) =>
+        CanvasOverlayLayout.NearestEdge(at.X, at.Y, CanvasHost.Bounds.Width, CanvasHost.Bounds.Height);
 
-    /// <summary>
-    /// Put each bar on its edge.
-    /// </summary>
-    /// <remarks>
-    /// Alignment pins it to the edge; the alignment on the other axis is
-    /// Stretch with a margin, which is how a fraction along the edge becomes a
-    /// position without measuring the bar. A side edge rotates the whole
-    /// control a quarter turn through a LayoutTransformControl, so the bar
-    /// measures as tall and thin and genuinely occupies the edge rather than
-    /// jutting out over the drawing.
-    /// </remarks>
+    private double AlongAt(Point at) =>
+        CanvasOverlayLayout.AlongFor(
+            EdgeAt(at), at.X, at.Y, CanvasHost.Bounds.Width, CanvasHost.Bounds.Height);
+
+    /// <summary>Read the workspace and put every bar where it says.</summary>
     private void ApplyOverlayLayout()
     {
         var overlays = _vm.Workspace.Layout.Overlays;
-        foreach (var (id, host, bar) in OverlayBars())
+        foreach (var (id, bar) in OverlayBars())
         {
             var placement = overlays.Place(id);
-            host.IsVisible = placement.Visible;
+            bar.IsVisible = placement.Visible;
             if (!placement.Visible) continue;
-
             bar.Collapsed = placement.Collapsed;
-            var vertical = CanvasOverlayLayout.IsVertical(placement.Edge);
-            bar.IsVertical = vertical;
-            host.LayoutTransform = vertical ? new Avalonia.Media.RotateTransform(90) : null;
-
-            host.HorizontalAlignment = placement.Edge switch
-            {
-                CanvasEdge.Left => Avalonia.Layout.HorizontalAlignment.Left,
-                CanvasEdge.Right => Avalonia.Layout.HorizontalAlignment.Right,
-                _ => Avalonia.Layout.HorizontalAlignment.Left,
-            };
-            host.VerticalAlignment = placement.Edge switch
-            {
-                CanvasEdge.Top => Avalonia.Layout.VerticalAlignment.Top,
-                CanvasEdge.Bottom => Avalonia.Layout.VerticalAlignment.Bottom,
-                _ => Avalonia.Layout.VerticalAlignment.Top,
-            };
-
-            // The free axis is expressed as a lopsided margin: 0.25 along a
-            // horizontal edge is a left margin of a quarter of the width, and
-            // the bar's own size takes care of the rest.
-            var along = Math.Clamp(placement.Along, 0, 1);
-            const double Gap = 8;
-            host.Margin = vertical
-                ? new Thickness(Gap, Gap + along * Math.Max(0, CanvasHost.Bounds.Height - 2 * Gap - bar.Bounds.Width), Gap, Gap)
-                : new Thickness(Gap + along * Math.Max(0, CanvasHost.Bounds.Width - 2 * Gap - bar.Bounds.Width), Gap, Gap, Gap);
-
+            PositionOverlay(bar, placement.Edge, placement.Along);
         }
+    }
+
+    /// <summary>
+    /// Put one bar on an edge without touching the workspace — the live half
+    /// of a drag, and the mechanism the committed placement uses too.
+    /// </summary>
+    /// <remarks>
+    /// Alignment pins the bar to its edge. The other axis is a lopsided
+    /// margin: a fraction of the room left over once the bar's own size is
+    /// taken out, which is what turns "0.25 along the top" into a position
+    /// without the bar ever hanging off the end.
+    /// </remarks>
+    private void PositionOverlay(CanvasOverlayBar bar, CanvasEdge edge, double along)
+    {
+        bar.Edge = edge;
+        var vertical = CanvasOverlayLayout.IsVertical(edge);
+        const double Gap = 8;
+
+        bar.HorizontalAlignment = edge switch
+        {
+            CanvasEdge.Right => Avalonia.Layout.HorizontalAlignment.Right,
+            _ => Avalonia.Layout.HorizontalAlignment.Left,
+        };
+        bar.VerticalAlignment = edge switch
+        {
+            CanvasEdge.Bottom => Avalonia.Layout.VerticalAlignment.Bottom,
+            _ => Avalonia.Layout.VerticalAlignment.Top,
+        };
+
+        var slack = vertical
+            ? Math.Max(0, CanvasHost.Bounds.Height - 2 * Gap - bar.Bounds.Height)
+            : Math.Max(0, CanvasHost.Bounds.Width - 2 * Gap - bar.Bounds.Width);
+        var offset = Gap + Math.Clamp(along, 0, 1) * slack;
+        bar.Margin = vertical
+            ? new Thickness(Gap, offset, Gap, Gap)
+            : new Thickness(offset, Gap, Gap, Gap);
     }
 
     /// <summary>

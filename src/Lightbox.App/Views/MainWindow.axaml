@@ -4,6 +4,7 @@
         xmlns:render="using:Lightbox.App.Rendering"
         xmlns:controls="using:Lightbox.App.Controls"
         xmlns:docs="using:Lightbox.Core.Documents"
+        xmlns:docking="using:Lightbox.App.Docking"
         x:Class="Lightbox.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Lightbox"
@@ -217,8 +218,12 @@
         every time you changed tool — the one piece of chrome that must never
         move, because it is directly above the thing you are aiming at.
       -->
-      <ScrollViewer Height="30" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-      <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+      <!--
+        Never scrolls. Whatever does not fit goes into the ▾ at the end — a
+        horizontal scrollbar hides controls behind a gesture nobody tries, and
+        a vertical one changes the bar's height, which moves the canvas.
+      -->
+      <controls:OverflowBar Height="30" Spacing="14" VerticalAlignment="Center">
 
         <!-- Transform session (Ctrl+T): shown above whatever tool was active -->
         <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding TransformActive}">
@@ -320,7 +325,7 @@
           parameters flyout.
         -->
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
-                    IsVisible="{Binding IsEffectBrush}">
+                    IsVisible="{Binding ShowsEffectOptions}">
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="{Binding EffectStrengthLabel}" VerticalAlignment="Center" />
             <Slider Value="{Binding EffectStrength}" Minimum="0" Maximum="1" Width="90" VerticalAlignment="Center" />
@@ -949,8 +954,7 @@
           </StackPanel>
           <TextBlock Text="Shift adds · Alt subtracts" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
         </StackPanel>
-      </StackPanel>
-      </ScrollViewer>
+      </controls:OverflowBar>
       </DockPanel>
     </Border>
 
@@ -1163,46 +1167,52 @@
           <!--
             Overlay bars. Their edge, position, collapsed and visible state
             live in the workspace; the window only reads that and places them
-            (see ApplyOverlayLayout). A LayoutTransformControl rather than a
-            RenderTransform, so a rotated bar actually measures as a tall thin
-            one and the edge it is pinned to is the edge it occupies.
+            (see ApplyOverlayLayout). Each stacks along whichever edge it is
+            on, so its icons stay upright — see CanvasOverlayBar.
           -->
-          <LayoutTransformControl x:Name="ViewBarHost" Margin="8">
-            <controls:CanvasOverlayBar x:Name="ViewBar" OverlayId="View" Title="View">
-              <StackPanel Orientation="Horizontal" Spacing="2">
-                <Button Content="−" Click="OnZoomOut" ToolTip.Tip="Zoom out (mouse wheel)" />
-                <Button x:Name="ZoomLabel" Content="100%" MinWidth="52" Click="OnResetView"
-                        ToolTip.Tip="Current zoom — click to reset the whole view" />
-                <Button Content="＋" Click="OnZoomIn" ToolTip.Tip="Zoom in (mouse wheel)" />
-                <Button Content="↺" Click="OnRotateCcw" ToolTip.Tip="Rotate view 15° counter-clockwise (Shift+wheel)" />
-                <Button Content="↻" Click="OnRotateCw" ToolTip.Tip="Rotate view 15° clockwise (Shift+wheel)" />
-                <Button x:Name="MirrorButton" Content="⇋" Click="OnToggleMirror"
-                        ToolTip.Tip="Mirror the view horizontally (M) — a drawing aid, the artwork is untouched" />
-                <Button Content="⌂" Click="OnResetView" ToolTip.Tip="Reset zoom, rotation, mirror and pan (0)" />
-              </StackPanel>
-            </controls:CanvasOverlayBar>
-          </LayoutTransformControl>
+          <controls:CanvasOverlayBar x:Name="ViewBar" OverlayId="View" Title="View">
+            <StackPanel Spacing="2"
+                        Orientation="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
+              <Button Content="−" Click="OnZoomOut" ToolTip.Tip="Zoom out (mouse wheel)" />
+              <!--
+                The one wide readout. It turns to fit a narrow bar, with its
+                feet towards the canvas, because that is the side you are
+                reading it from.
+              -->
+              <Button x:Name="ZoomLabel" Content="100%" Click="OnResetView"
+                      ToolTip.Tip="Current zoom — click to reset the whole view">
+                <Button.RenderTransform>
+                  <RotateTransform Angle="{Binding ReadoutAngle, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}}" />
+                </Button.RenderTransform>
+              </Button>
+              <Button Content="＋" Click="OnZoomIn" ToolTip.Tip="Zoom in (mouse wheel)" />
+              <Button Content="↺" Click="OnRotateCcw" ToolTip.Tip="Rotate view 15° counter-clockwise (Shift+wheel)" />
+              <Button Content="↻" Click="OnRotateCw" ToolTip.Tip="Rotate view 15° clockwise (Shift+wheel)" />
+              <Button x:Name="MirrorButton" Content="⇋" Click="OnToggleMirror"
+                      ToolTip.Tip="Mirror the view horizontally (M) — a drawing aid, the artwork is untouched" />
+              <Button Content="⌂" Click="OnResetView" ToolTip.Tip="Reset zoom, rotation, mirror and pan (0)" />
+            </StackPanel>
+          </controls:CanvasOverlayBar>
 
           <!--
             Shortcuts: what you are looking at, rather than how. Each entry is
             absent when it would mean nothing — no camera button without a
             camera, no transport on a document nobody is going to play.
           -->
-          <LayoutTransformControl x:Name="ShortcutBarHost" Margin="8">
-            <controls:CanvasOverlayBar x:Name="ShortcutBar" OverlayId="Shortcuts" Title="Shortcuts">
-              <StackPanel Orientation="Horizontal" Spacing="2">
-                <ToggleButton Content="◉" IsChecked="{Binding ActiveLayerOnion}" Padding="6,2"
-                              ToolTip.Tip="Onion skin on the active layer" />
-                <ToggleButton Content="🎥" IsChecked="{Binding ViewThroughCamera}" Padding="6,2"
-                              IsVisible="{Binding HasCamera}"
-                              ToolTip.Tip="View through the camera" />
-                <Button Content="{Binding PlayPauseGlyph}" Padding="6,2"
-                        Command="{Binding TogglePlaybackCommand}"
-                        IsVisible="{Binding ShowsTransport}"
-                        ToolTip.Tip="Play / pause (Space)" />
-              </StackPanel>
-            </controls:CanvasOverlayBar>
-          </LayoutTransformControl>
+          <controls:CanvasOverlayBar x:Name="ShortcutBar" OverlayId="Shortcuts" Title="Shortcuts">
+            <StackPanel Spacing="2"
+                        Orientation="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
+              <ToggleButton Content="◉" IsChecked="{Binding ActiveLayerOnion}" Padding="6,2"
+                            ToolTip.Tip="Onion skin on the active layer" />
+              <ToggleButton Content="🎥" IsChecked="{Binding ViewThroughCamera}" Padding="6,2"
+                            IsVisible="{Binding HasCamera}"
+                            ToolTip.Tip="View through the camera" />
+              <Button Content="{Binding PlayPauseGlyph}" Padding="6,2"
+                      Command="{Binding TogglePlaybackCommand}"
+                      IsVisible="{Binding ShowsTransport}"
+                      ToolTip.Tip="Play / pause (Space)" />
+            </StackPanel>
+          </controls:CanvasOverlayBar>
         </Panel>
 
         <GridSplitter x:Name="RightSplitter" Grid.Column="5" Width="5" ResizeDirection="Columns" />

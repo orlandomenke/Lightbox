@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-870 tests, derived from the suite itself. Each line is a
+879 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -153,26 +153,29 @@ regression even when every test still compiles.
 ## CanvasOverlayGeometryTests
 `tests/Lightbox.App.Tests/CanvasOverlayTests.cs`
 
-- ADrop Goes To The Nearest Edge — `:32`
-- The Answer Depends Only On Where The Pointer Is — `:36`
-- How Far Along Is AFraction Of The Edge It Is On — `:52`
-- ABar On ASide Edge Runs Vertically — `:64`
-- ADegenerate Canvas Does Not Divide By Zero — `:73`
-- The Default Puts View Top Right And Shortcuts Down The Side — `:80`
-- ALayout Clones Rather Than Sharing Its Placements — `:92`
+- ADrop Goes To The Nearest Edge — `:34`
+- The Answer Depends Only On Where The Pointer Is — `:38`
+- How Far Along Is AFraction Of The Edge It Is On — `:54`
+- ABar On ASide Edge Runs Vertically — `:66`
+- ADegenerate Canvas Does Not Divide By Zero — `:75`
+- The Default Puts View Top Right And Shortcuts Down The Side — `:82`
+- ALayout Clones Rather Than Sharing Its Placements — `:94`
 
 ## CanvasOverlayTests
 `tests/Lightbox.App.Tests/CanvasOverlayTests.cs`
 
-- Both Bars Are On The Canvas To Start With — `:121`
-- Moving ABar To ASide Edge Turns It AQuarter Turn — `:142`
-- Closing ABar Hides It And The View Menu Brings It Back — `:165`
-- Collapsing ABar Survives AWorkspace Reset — `:185`
-- The Bars Are Listed Separately From The Panels — `:202`
-- The Onion Toggle Acts On The Layer Being Drawn On — `:218`
-- One Button For Play And Pause — `:229`
-- An Illustration Project Is Not Offered Transport Controls — `:244`
-- The Camera Toggle Is Absent Until There Is ACamera — `:264`
+- Both Bars Are On The Canvas To Start With — `:123`
+- ABar On ASide Edge Stacks Downwards With Its Icons Upright — `:144`
+- ABar Follows The Pointer While It Is Being Dragged — `:170`
+- The Zoom Readout Turns Its Feet Towards The Canvas — `:201`
+- The Onion Toggle Agrees With The Layers Panel — `:222`
+- Closing ABar Hides It And The View Menu Brings It Back — `:241`
+- Collapsing ABar Survives AWorkspace Reset — `:261`
+- The Bars Are Listed Separately From The Panels — `:278`
+- The Onion Toggle Acts On The Layer Being Drawn On — `:294`
+- One Button For Play And Pause — `:305`
+- An Illustration Project Is Not Offered Transport Controls — `:320`
+- The Camera Toggle Is Absent Until There Is ACamera — `:340`
 
 ## CanvasViewTests
 `tests/Lightbox.App.Tests/CanvasViewTests.cs`
@@ -586,6 +589,16 @@ regression even when every test still compiles.
 - Unpinning And Clearing Put The Canvas Back — `:354`
 - ADocument That Pins Nothing Writes No Pin Key — `:386`
 - ALayer With Onion Off Contributes No Ghosts — `:400`
+
+## OverflowBarTests
+`tests/Lightbox.App.Tests/OverflowBarTests.cs`
+
+- Everything Fits When There Is Room — `:15`
+- Exactly Enough Room Still Fits — `:23`
+- The Overflow Button Takes Its Own Room Once It Is Needed — `:31`
+- An Item Too Wide For The Bar At All Is Pushed Into The Menu — `:41`
+- An Empty Bar Overflows Nothing — `:49`
+- The Order Is Kept — `:55`
 
 ## PaletteDockerTests
 `tests/Lightbox.App.Tests/PaletteDockerTests.cs`

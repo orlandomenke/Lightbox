@@ -7,15 +7,16 @@ namespace Lightbox.App.Docking;
 public static class OverlayConverters
 {
     /// <summary>
-    /// Turn the grip glyph back the other way when the bar has been rotated.
+    /// A side-edge bar stacks downwards.
     /// </summary>
     /// <remarks>
-    /// The bar as a whole is rotated a quarter turn on a side edge so its
-    /// length runs along the edge. The grip is the one thing that should not
-    /// come with it: a rotated ⠿ reads as a different symbol.
+    /// Stacking rather than rotating the whole control. Rotating put the bar
+    /// in the right shape and every glyph in it on its side — an icon read at
+    /// a glance is the whole reason these are icons.
     /// </remarks>
-    public static readonly IValueConverter VerticalToCounterAngle =
-        new FuncValueConverter<bool, double>(vertical => vertical ? -90d : 0d);
+    public static readonly IValueConverter VerticalToOrientation =
+        new FuncValueConverter<bool, Avalonia.Layout.Orientation>(
+            vertical => vertical ? Avalonia.Layout.Orientation.Vertical : Avalonia.Layout.Orientation.Horizontal);
 
     public static readonly IValueConverter CollapseGlyph =
         new FuncValueConverter<bool, string>(collapsed => collapsed ? "▸" : "▾");

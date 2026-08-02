@@ -36,12 +36,57 @@ public class CanvasOverlayBar : ContentControl
     public static readonly StyledProperty<bool> CollapsedProperty =
         AvaloniaProperty.Register<CanvasOverlayBar, bool>(nameof(Collapsed));
 
+    /// <summary>Which edge the bar is on. Everything about its shape follows from this.</summary>
+    public static readonly StyledProperty<CanvasEdge> EdgeProperty =
+        AvaloniaProperty.Register<CanvasOverlayBar, CanvasEdge>(nameof(Edge));
+
     /// <summary>
-    /// True when the bar has been turned a quarter turn for a side edge. The
-    /// template rotates the grip glyph back so it still reads as a grip.
+    /// True on a left or right edge: the bar stacks downwards so its length
+    /// runs along the edge.
     /// </summary>
+    /// <remarks>
+    /// This used to be done by rotating the whole control a quarter turn,
+    /// which put the bar in the right shape and every glyph in it on its side.
+    /// Stacking gets the same footprint and leaves the icons upright, which is
+    /// what an icon is for.
+    /// </remarks>
     public static readonly StyledProperty<bool> IsVerticalProperty =
         AvaloniaProperty.Register<CanvasOverlayBar, bool>(nameof(IsVertical));
+
+    /// <summary>
+    /// How far to turn a wide readout so it fits a narrow bar, with its
+    /// baseline towards the canvas.
+    /// </summary>
+    /// <remarks>
+    /// "100%" does not fit across a vertical bar, so it is the one thing that
+    /// does turn. Which way depends on the edge: the canvas is to the right of
+    /// a left-edge bar and to the left of a right-edge one, and text is easiest
+    /// to read when its feet are on the side you are looking from.
+    /// </remarks>
+    public static readonly StyledProperty<double> ReadoutAngleProperty =
+        AvaloniaProperty.Register<CanvasOverlayBar, double>(nameof(ReadoutAngle));
+
+    public CanvasEdge Edge
+    {
+        get => GetValue(EdgeProperty);
+        set
+        {
+            SetValue(EdgeProperty, value);
+            IsVertical = CanvasOverlayLayout.IsVertical(value);
+            ReadoutAngle = value switch
+            {
+                CanvasEdge.Left => -90,   // feet to the right, towards the canvas
+                CanvasEdge.Right => 90,   // feet to the left, towards the canvas
+                _ => 0,
+            };
+        }
+    }
+
+    public double ReadoutAngle
+    {
+        get => GetValue(ReadoutAngleProperty);
+        set => SetValue(ReadoutAngleProperty, value);
+    }
 
     public string? Title
     {

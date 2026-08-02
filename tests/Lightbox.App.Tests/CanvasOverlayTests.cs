@@ -1,3 +1,5 @@
+using Avalonia;
+using Avalonia.Headless;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Layout;
@@ -114,8 +116,8 @@ public sealed class CanvasOverlayTests : BrushStateIsolated
         return (window, (MainViewModel)window.DataContext!);
     }
 
-    private static LayoutTransformControl Host(MainWindow w, OverlayId id) =>
-        w.FindControl<LayoutTransformControl>(id == OverlayId.View ? "ViewBarHost" : "ShortcutBarHost")!;
+    private static CanvasOverlayBar Host(MainWindow w, OverlayId id) =>
+        w.FindControl<CanvasOverlayBar>(id == OverlayId.View ? "ViewBar" : "ShortcutBar")!;
 
     [AvaloniaFact]
     public void BothBarsAreOnTheCanvasToStartWith()
@@ -139,26 +141,100 @@ public sealed class CanvasOverlayTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
-    public void MovingABarToASideEdgeTurnsItAQuarterTurn()
+    public void ABarOnASideEdgeStacksDownwardsWithItsIconsUpright()
     {
-        // So its length runs along the edge rather than jutting out over the
-        // drawing. A rotation that only changed the look would leave the bar
-        // occupying a wide, short rectangle on a tall, thin edge.
+        // It used to rotate the whole control a quarter turn, which got the
+        // shape right and put every glyph in it on its side. Stacking gets the
+        // same footprint and leaves the icons the right way up.
         var (w, vm) = Open();
-        var host = Host(w, OverlayId.View);
-        Assert.Null(host.LayoutTransform);
+        var bar = Host(w, OverlayId.View);
+        Assert.False(bar.IsVertical);
+        Assert.Equal(0, bar.ReadoutAngle, 5);
 
         vm.Workspace.PlaceOverlay(OverlayId.View, CanvasEdge.Left, 0.5);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        var rotation = Assert.IsType<Avalonia.Media.RotateTransform>(host.LayoutTransform);
-        Assert.Equal(90, rotation.Angle, 5);
-        Assert.Equal(HorizontalAlignment.Left, host.HorizontalAlignment);
+        Assert.True(bar.IsVertical);
+        Assert.Equal(CanvasEdge.Left, bar.Edge);
+        Assert.Equal(HorizontalAlignment.Left, bar.HorizontalAlignment);
+        // Nothing is rotated: the bar changed shape, not orientation.
+        Assert.Null(bar.RenderTransform);
 
         vm.Workspace.PlaceOverlay(OverlayId.View, CanvasEdge.Bottom, 0.5);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-        Assert.Null(host.LayoutTransform);
-        Assert.Equal(VerticalAlignment.Bottom, host.VerticalAlignment);
+        Assert.False(bar.IsVertical);
+        Assert.Equal(VerticalAlignment.Bottom, bar.VerticalAlignment);
+    }
+
+    [AvaloniaFact]
+    public void ABarFollowsThePointerWhileItIsBeingDragged()
+    {
+        // Not only on release. A bar that jumps when you let go makes you drop
+        // it to find out where it would land, which is a guess followed by an
+        // undo rather than a drag.
+        var (w, vm) = Open();
+        var bar = Host(w, OverlayId.View);
+        var canvas = w.FindControl<Panel>("CanvasHost")!;
+        var grip = bar.GetVisualDescendants().OfType<Border>()
+            .First(b => b.Name == "PART_Grip");
+
+        var from = grip.TranslatePoint(new Point(4, 4), w)!.Value;
+        w.MouseDown(from, Avalonia.Input.MouseButton.Left);
+        // Towards the bottom edge, but do not release.
+        var target = canvas.TranslatePoint(new Point(canvas.Bounds.Width / 2, canvas.Bounds.Height - 4), w)!.Value;
+        w.MouseMove(target);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // Moved on screen…
+        Assert.Equal(CanvasEdge.Bottom, bar.Edge);
+        Assert.Equal(VerticalAlignment.Bottom, bar.VerticalAlignment);
+        // …but nothing has been written down yet. A drag in progress is not an
+        // edit to the workspace; letting go is.
+        Assert.Equal(CanvasEdge.Top, vm.Workspace.Layout.Overlays.Place(OverlayId.View).Edge);
+
+        w.MouseUp(target, Avalonia.Input.MouseButton.Left);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Equal(CanvasEdge.Bottom, vm.Workspace.Layout.Overlays.Place(OverlayId.View).Edge);
+    }
+
+    [AvaloniaFact]
+    public void TheZoomReadoutTurnsItsFeetTowardsTheCanvas()
+    {
+        // The one wide thing in the bar, and the only thing that turns. Which
+        // way depends on the edge: you read it from the canvas side.
+        var (w, vm) = Open();
+        var bar = Host(w, OverlayId.View);
+
+        vm.Workspace.PlaceOverlay(OverlayId.View, CanvasEdge.Left, 0.5);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Equal(-90, bar.ReadoutAngle, 5);   // feet to the right
+
+        vm.Workspace.PlaceOverlay(OverlayId.View, CanvasEdge.Right, 0.5);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Equal(90, bar.ReadoutAngle, 5);    // feet to the left
+
+        vm.Workspace.PlaceOverlay(OverlayId.View, CanvasEdge.Top, 0.5);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0, bar.ReadoutAngle, 5);
+    }
+
+    [AvaloniaFact]
+    public void TheOnionToggleAgreesWithTheLayersPanel()
+    {
+        // The same switch in two places. Flipping the one on the canvas has to
+        // move the ◉ in the Layers panel, or one of them is showing yesterday's
+        // answer.
+        var (_, vm) = Open();
+        var row = vm.LayerRows.First(r => r.SceneIndex == vm.ActiveLayerIndex);
+        Assert.True(row.OnionEnabled);
+
+        vm.ActiveLayerOnion = false;
+
+        Assert.False(row.OnionEnabled);
+
+        // And the other way round.
+        row.OnionEnabled = true;
+        Assert.True(vm.ActiveLayerOnion);
     }
 
     [AvaloniaFact]
