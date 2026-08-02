@@ -111,6 +111,110 @@ public static class StripSlicer
         return occupied;
     }
 
+    /// <summary>
+    /// Find the drawings on a sheet that is a page rather than an atlas.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="Slice"/> projects occupancy onto the axes, which is exactly
+    /// right for a clean sprite sheet and hopeless for a page with a title
+    /// banner across the top: the banner is content in every column, the
+    /// column projection never returns to zero, and the whole sheet reads as
+    /// one cell. This finds the figures first (see <see cref="FigureFinder"/>),
+    /// discards the furniture, and only then decides where the cuts go.
+    /// </para>
+    /// <para>
+    /// Each row of figures becomes its own band of cells, all sharing the
+    /// band's top and height. That is what keeps a figure's vertical position
+    /// inside its cell — the thing tight-cropping would destroy — while
+    /// letting a sheet whose rows are different heights still work.
+    /// </para>
+    /// </remarks>
+    public static List<ReferenceCell> Detect(
+        ReadOnlySpan<bool> occupied, int width, int height, SliceOptions options = default)
+    {
+        var figures = FigureFinder.Figures(occupied, width, height);
+        if (figures.Count == 0) return [];
+
+        var cells = new List<ReferenceCell>();
+        foreach (var band in BandsOf(figures))
+        {
+            var top = band.Min(f => f.Y);
+            var bottom = band.Max(f => f.Bottom);
+            foreach (var (x, right) in ColumnCuts(band, width))
+            {
+                cells.Add(new ReferenceCell { X = x, Y = top, Width = right - x, Height = bottom - top });
+            }
+        }
+        return cells;
+    }
+
+    /// <summary>Rows of figures, by vertical overlap. Same rule as the finder's.</summary>
+    private static List<List<Box>> BandsOf(List<Box> figures)
+    {
+        var order = figures.OrderBy(f => f.Y).ToList();
+        var bands = new List<List<Box>>();
+        var current = new List<Box> { order[0] };
+        var bottom = order[0].Bottom;
+        foreach (var figure in order.Skip(1))
+        {
+            if (figure.Y < bottom)
+            {
+                current.Add(figure);
+                bottom = Math.Max(bottom, figure.Bottom);
+                continue;
+            }
+            bands.Add(current);
+            current = [figure];
+            bottom = figure.Bottom;
+        }
+        bands.Add(current);
+        return bands;
+    }
+
+    /// <summary>
+    /// Where to cut one row into cells, best answer first.
+    /// </summary>
+    /// <remarks>
+    /// Three hypotheses, each checked rather than assumed:
+    /// <list type="number">
+    /// <item>The row divides the whole sheet evenly — a clean atlas, and the
+    /// answer that preserves each drawing's position exactly.</item>
+    /// <item>It divides the figures' own extent evenly — an atlas with a
+    /// margin round the outside.</item>
+    /// <item>Neither: a hand-cut page, so cut at the midpoints of the gaps.
+    /// This is the answer that drifts (see <see cref="EvenGridHolds"/>), taken
+    /// only when there is genuinely no grid to find.</item>
+    /// </list>
+    /// </remarks>
+    private static List<(int Start, int End)> ColumnCuts(List<Box> band, int sheetWidth)
+    {
+        var order = band.OrderBy(f => f.X).ToList();
+        var runs = order.ConvertAll(f => (Start: f.X, End: f.Right - 1));
+
+        if (EvenGridHolds(runs, sheetWidth)) return Pairs(EvenCuts(sheetWidth, runs.Count));
+
+        var start = order[0].X;
+        var end = order[^1].Right;
+        var shifted = runs.ConvertAll(r => (Start: r.Start - start, End: r.End - start));
+        if (EvenGridHolds(shifted, end - start))
+        {
+            return Pairs(EvenCuts(end - start, runs.Count).ConvertAll(c => c + start));
+        }
+
+        var cuts = new List<int> { start };
+        for (var i = 1; i < runs.Count; i++) cuts.Add((runs[i - 1].End + runs[i].Start + 1) / 2);
+        cuts.Add(end);
+        return Pairs(cuts);
+    }
+
+    private static List<(int Start, int End)> Pairs(List<int> cuts)
+    {
+        var pairs = new List<(int, int)>();
+        for (var i = 0; i + 1 < cuts.Count; i++) pairs.Add((cuts[i], cuts[i + 1]));
+        return pairs;
+    }
+
     /// <summary>An exact grid, ignoring the pixels entirely.</summary>
     public static List<ReferenceCell> Grid(int width, int height, int columns, int rows)
     {

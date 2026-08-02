@@ -5468,7 +5468,16 @@ public sealed partial class MainViewModel : ObservableObject
         var occupied = pixmap is null
             ? new bool[source.Width * source.Height]
             : StripSlicer.Occupancy(pixmap.GetPixelSpan(), source.Width, source.Height, options);
-        return StripSlicer.Slice(occupied, source.Width, source.Height, options);
+        // Detect finds the drawings and discards the furniture — a title
+        // banner, a watermark, a signature. Slice projects occupancy onto the
+        // axes, which is exact for a clean atlas and hopeless for a page: the
+        // banner is content in every column, so the projection never returns
+        // to zero and the whole sheet reads as one cell. Fall back to Slice
+        // only when nothing looked like a drawing.
+        var found = StripSlicer.Detect(occupied, source.Width, source.Height, options);
+        return found.Count > 0
+            ? found
+            : StripSlicer.Slice(occupied, source.Width, source.Height, options);
     }
 
     /// <summary>

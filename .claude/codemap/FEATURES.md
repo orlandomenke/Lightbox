@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-953 tests, derived from the suite itself. Each line is a
+967 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1002,6 +1002,24 @@ regression even when every test still compiles.
 - Importing Copies Rather Than Links — `:236`
 - Importing Carries Variants And Rebases Their Overrides — `:253`
 - Importing Twice Gives Two Characters With Distinct Folders — `:277`
+
+## FigureFinderTests
+`tests/Lightbox.Core.Tests/FigureFinderTests.cs`
+
+- Touching Diagonally Is Still One Thing — `:49`
+- ABlob Is Bounded By What It Actually Covers — `:62`
+- AWatermark Is Too Small To Be ADrawing — `:77`
+- ATitle Banner Is Not ARow Of Frames — `:95`
+- AFigure Drawn In Several Pieces Counts Once — `:113`
+- APiece Separated From Every Other Row Becomes Its Own Row — `:137`
+- ASheet With Only One Row Keeps It — `:158`
+- An Empty Sheet Finds Nothing Rather Than One Huge Frame — `:170`
+- Detection Cuts An Even Atlas Into Equal Cells — `:178`
+- The Banner Is Gone From The Cells Too — `:192`
+- Two Rows Become Two Bands Of Cells — `:211`
+- Cells In ARow Share Their Top And Height Even When The Poses Do Not — `:226`
+- ACell With No Pivot Assumes The Middle Of Its Foot — `:244`
+- APlaced Pivot Is Absolute So Resizing The Cell Does Not Move It — `:255`
 
 ## ColorTests
 `tests/Lightbox.Core.Tests/Geometry/GeometryTests.cs`

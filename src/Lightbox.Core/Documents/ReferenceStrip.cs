@@ -35,6 +35,35 @@ public sealed class ReferenceCell
 
     public double Dy { get; set; }
 
+    /// <summary>
+    /// The point in the cell that should sit at the same place every frame —
+    /// the contact foot, the hips, whatever the animator is registering on.
+    /// Sheet pixels, absolute. Null means "not decided".
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Absolute rather than relative to the cell so that nudging or resizing a
+    /// cell does not silently move the pivot: the pivot is a mark on the
+    /// drawing, and the cell is a window that happens to contain it.
+    /// </para>
+    /// <para>
+    /// Null until set, and written only then — a sheet nobody has registered
+    /// carries no pivot keys. <see cref="Pivot"/> is what to use when drawing:
+    /// it falls back to the middle of the cell's bottom edge, which is where a
+    /// standing figure's contact point usually is.
+    /// </para>
+    /// </remarks>
+    public double? PivotX { get; set; }
+
+    public double? PivotY { get; set; }
+
+    /// <summary>Where the pivot is, decided or not.</summary>
+    public (double X, double Y) Pivot =>
+        (PivotX ?? X + Width / 2.0, PivotY ?? Y + Height);
+
+    /// <summary>Whether the pivot was placed by hand rather than assumed.</summary>
+    public bool HasPivot => PivotX is not null || PivotY is not null;
+
     public ReferenceCell Clone() => (ReferenceCell)MemberwiseClone();
 }
 
