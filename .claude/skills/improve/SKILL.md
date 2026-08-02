@@ -22,11 +22,20 @@ python3 scripts/roadmap.py check
 python3 scripts/bugs.py check
 python3 scripts/bugs.py next           # what is known broken, worst first
 python3 scripts/roadmap.py next        # candidates, nearest-first
+python3 scripts/bench.py should-run    # is the performance map worth re-running
 ```
 
 `BUGS.md` comes before `ROADMAP.md` for the same reason a broken promise
 outranks a new feature: the roadmap is what we intend, the ledger is what is
 already wrong.
+
+**If `bench.py should-run` exits 0**, hand the sweep to **perf-warden** as part
+of this round. It takes minutes, so it is asked here rather than per build —
+and it is asked *here*, at the start of a round, rather than on a nightly
+timer, because a sweep produces a decision and a decision needs a decider. A
+verdict that lands at 3 a.m. and is read on Thursday has cost the same and
+bought less. `should-run` is a git diff against the watched paths, so it costs
+nothing on a round that never touches rendering.
 
 Read `.claude/quality/LOOP.md` for what previous rounds already tried, so you
 do not re-litigate settled decisions or re-report known gaps.

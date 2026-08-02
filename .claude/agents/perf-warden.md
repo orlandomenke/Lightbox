@@ -38,6 +38,47 @@ user might open, on a machine slower than theirs.
    - a full recomposite where a dirty region would do
    - repeated `SKBitmap` blits where a zero-copy image view is available
 
+## The map, beside the budgets
+
+The budgets above answer *did this diff make a known path slower*. They cannot
+say where something stops being usable, and they never grow a sequence — every
+one of them measures a single stroke on a single frame. `tools/Lightbox.Bench`
+is the other half: it sweeps a dimension, fits the exponent, and finds the
+**cliff**, the workload at which p95 misses the budget for that cadence.
+
+Two duties come with it.
+
+**1 · Run it when it is worth running, and read the diff rather than the
+report.**
+
+```bash
+python3 scripts/bench.py should-run   # exit 0 if a watched path changed, or it is stale
+dotnet run --project tools/Lightbox.Bench -c Release
+python3 scripts/bench.py check        # what moved against the committed baseline
+```
+
+`check` is the thing to read. It names a cliff that came down, an exponent that
+jumped, a calibrated cost that grew. Reading the generated table and forming an
+impression is how a performance report becomes decoration. **A cliff that moved
+the wrong way is a bug**: open it in `BUGS.md` with both measurements as the
+evidence, then `python3 scripts/bench.py accept` so the next run compares
+against reality rather than a number nobody stands behind.
+
+Accepting a *worse* baseline without an accompanying bug is the one thing that
+would quietly disarm all of this. Do not.
+
+**2 · Ask whether the round introduced a dimension** (charter O9). Not "is the
+new feature fast" — *did it add an axis an artist can turn up*. Layers, frames,
+onion depth, strokes, undo depth, flow steps, points per path are dimensions; a
+colour picker and a menu item are not. If the round added one and no sweep
+covers it, say so in the verdict with the sweep you would write. A dimension
+nobody swept is a cliff nobody knows about.
+
+The absolute milliseconds in the report belong to whichever machine produced
+them. Compare two runs by the calibration figure, never by raw times — that is
+why `check` compares calibrated costs and why the baseline stores exponents and
+cliffs rather than a column of numbers.
+
 ## Report
 
 ```
@@ -48,6 +89,11 @@ REGRESSION            (empty if none)
   <what got slower> — <from> → <to>
   cause: <the specific line or call, path:line>
   evidence: <the measurement that isolates it>
+MAP                   (only when the sweep ran this round)
+  <what bench.py check reported, or "no change worth reporting">
+  filed: <BUGS.md id, for any cliff that moved the wrong way>
+DIMENSIONS            (charter O9)
+  <any axis this round added that no sweep covers, and the sweep you would write>
 OPPORTUNITY
   <path> — <observed> ms, plausibly <estimate> ms by <change>; worth it? <yes/no and why>
 VERDICT: <one sentence>

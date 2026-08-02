@@ -65,6 +65,18 @@ composite would have left the whole suite green and the feature reduced to a
 status message. The assertion that closes this shape is always downstream:
 the rendered pixels, the written file, the exported bytes.
 
+**O9 · A new dimension gets a sweep.** The budgets guard paths we already know
+about; the map (`tools/Lightbox.Bench`) is what finds cliffs on paths nobody
+has walked. So the question to ask of any landed feature is not "is it fast"
+but **"did it introduce something that can grow"** — a new axis an artist can
+turn up. Layers, frames, onion depth, strokes, undo depth and flow steps are
+all dimensions; a colour picker and a menu item are not. A feature that adds
+one adds a sweep in the same commit, or records in the roadmap item why it
+does not need one. This is the same discipline as evidence anchors, pointed at
+scale instead of behaviour: a dimension nobody swept is a cliff nobody knows
+about, and every one found so far was found by looking rather than by an
+artist reporting it.
+
 **O8 · Draw a curve, not just a line.** Every brush pixel test in this
 repository drew a straight stroke, and the arc artifact of M16b lived
 undetected in the dab walk the whole time because a straight path is the one
@@ -163,6 +175,30 @@ Two differences from the budgets are deliberate rather than accidental:
   media come first — they are the largest numbers here — and they are paid once
   per stroke on a brush the picker badges as expensive, so that ranking is
   wrong.
+
+### When it runs, and who reads it
+
+Not per build, and not by the clock either. `python3 scripts/bench.py
+should-run` answers the only question worth asking — *has anything changed
+that could move a curve* — by diffing the watched paths against the SHA the
+baseline was taken at, with a seven-day floor so drift somewhere nobody is
+working still surfaces.
+
+The trigger is **the start of an improvement round**, because the sweep
+produces a decision and a decision needs a decider. A nightly job whose verdict
+sits unread for three days is worse than a run that happens when an agent is
+present to open the bug. `should-run` is cheap enough to ask every round.
+
+What gets read afterwards is not the report — it is
+`python3 scripts/bench.py check`, which diffs the run against the committed
+baseline and names what moved: a cliff that came down, an exponent that jumped,
+a calibrated cost that grew. Reading a table of numbers and forming an
+impression is how a performance report becomes decoration.
+
+The baseline is committed and the report is not. A cliff and an exponent are
+facts about the code; a column of milliseconds is a fact about whichever
+machine produced it, and would be a merge conflict every time two people ran
+it.
 
 **A cliff that moves the wrong way is a bug in `BUGS.md`**, with the two
 measurements as its evidence — not a gate, and not a note in a report. A gate

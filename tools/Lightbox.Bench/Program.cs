@@ -36,7 +36,15 @@ var report = Report(curves, calibration);
 if (outPath is not null)
 {
     File.WriteAllText(outPath, report);
-    Console.WriteLine($"\nWrote {outPath}");
+
+    // The markdown is for a person; this is what scripts/bench.py diffs. Only
+    // the machine-independent parts are worth comparing across runs — the
+    // exponent, the cliff (a dimension value, not a time), and times divided
+    // by the calibration figure. Raw milliseconds from two different machines
+    // compare to nothing.
+    var json = Path.ChangeExtension(outPath, ".json");
+    File.WriteAllText(json, Json(curves, calibration));
+    Console.WriteLine($"\nWrote {outPath}\n      {json}");
 }
 else
 {
@@ -49,6 +57,33 @@ string? Args(string name)
 {
     var i = Array.IndexOf(args, name);
     return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+}
+
+static string Json(List<Curve> curves, double calibration)
+{
+    var sb = new StringBuilder();
+    sb.AppendLine("{");
+    sb.AppendLine($"  \"calibrationMs\": {calibration:F1},");
+    sb.AppendLine("  \"scenarios\": [");
+    for (var i = 0; i < curves.Count; i++)
+    {
+        var c = curves[i];
+        var worst = c.Samples.Count == 0 ? 0 : c.Samples.Max(s => s.P95);
+        sb.AppendLine("    {");
+        sb.AppendLine($"      \"name\": \"{c.Scenario.Name}\",");
+        sb.AppendLine($"      \"dimension\": \"{c.Scenario.Dimension}\",");
+        sb.AppendLine($"      \"cadence\": \"{c.Scenario.Cadence}\",");
+        sb.AppendLine($"      \"budgetMs\": {Budgets.Ms(c.Scenario.Cadence):F1},");
+        sb.AppendLine($"      \"exponent\": {(double.IsNaN(c.Exponent) ? "null" : c.Exponent.ToString("F2"))},");
+        sb.AppendLine($"      \"cliff\": {(c.Cliff is { } cl ? cl.ToString() : "null")},");
+        sb.AppendLine($"      \"worstP95Calibrated\": {worst / calibration:F3},");
+        sb.AppendLine($"      \"maxSwept\": {(c.Scenario.Values.Length == 0 ? 0 : c.Scenario.Values[^1])}");
+        sb.Append("    }");
+        sb.AppendLine(i == curves.Count - 1 ? "" : ",");
+    }
+    sb.AppendLine("  ]");
+    sb.AppendLine("}");
+    return sb.ToString();
 }
 
 static string? FindReportPath()
