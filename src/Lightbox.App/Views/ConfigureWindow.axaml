@@ -15,6 +15,7 @@
       <ListBoxItem Content="Performance" />
       <ListBoxItem Content="Guides and grid" />
       <ListBoxItem Content="Timeline" />
+      <ListBoxItem Content="Drawing" />
     </ListBox>
 
     <Border Grid.Column="1" Background="#141414" />
@@ -191,6 +192,25 @@
       </StackPanel>
     </ScrollViewer>
     <!-- Content (center): timeline -->
+    <!--
+      Drawing: preferences about how a mark is made. They are stamped into each
+      stroke at paint time rather than read at render time, so nothing here can
+      change art that already exists — which is what lets them live in a
+      settings window instead of taking a row of the tool options bar.
+    -->
+    <ScrollViewer x:Name="DrawingPage" Grid.Column="2" Margin="14" IsVisible="False"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16">
+        <StackPanel Spacing="6">
+          <TextBlock Text="What smudge and blur read" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Smudge and blur move pixels that are already there. This decides which pixels: only the layer you are painting on, or everything you can see through it." />
+          <ComboBox x:Name="SampleBox" Width="260" SelectionChanged="OnSampleSourceChanged" />
+          <TextBlock x:Name="SampleHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
     <ScrollViewer x:Name="TimelinePage" Grid.Column="2" Margin="14" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="16">

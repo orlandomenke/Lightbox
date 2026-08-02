@@ -134,6 +134,62 @@ public sealed partial class MainViewModel : ObservableObject
     public bool ActiveLayerBlocked =>
         ActiveLayer is { } layer && (!Scene.IsLayerVisible(layer) || !Scene.IsLayerEditable(layer));
 
+    /// <summary>
+    /// Give a smudge or blur that samples all layers the pixels it sampled.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Called once, at the moment the stroke is committed, and it is what makes
+    /// the feature affordable: the stroke carries what it read, so every render
+    /// path afterwards reproduces it without knowing anything about the layer
+    /// stack. Canvas, PNG render, sequence export and sprite-sheet export agree
+    /// by construction rather than by four call sites staying in step.
+    /// </para>
+    /// <para>
+    /// <b>Live is not finished.</b> It freezes here exactly as Baked does, so
+    /// it renders correctly and consistently — but it does not yet re-freeze
+    /// when a layer underneath is repainted, which is the entire difference
+    /// between the two. Until it does, choosing Live gets you Baked. Written
+    /// here rather than left for somebody to find.
+    /// </para>
+    /// </remarks>
+    private void FreezeSampledBackdrop(Stroke stroke)
+    {
+        if (stroke.Brush.SampleSource == SampleSource.ThisLayer) return;
+        using var beneath = CompositeBelowActiveLayer();
+        if (beneath is null) return;
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        stroke.Baked = BrushEngine.BakeSample(stroke, beneath, info);
+    }
+
+    /// <summary>
+    /// Everything visible below the layer being painted on, at the playhead, or
+    /// null when there is nothing there.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than a transparent bitmap for the bottom layer, so a smudge
+    /// there costs nothing and behaves exactly as it always did.
+    /// </remarks>
+    private SKBitmap? CompositeBelowActiveLayer()
+    {
+        var scene = Scene;
+        var active = ActiveLayer;
+        var passes = new List<RenderPass>();
+        foreach (var layer in scene.Layers)
+        {
+            if (ReferenceEquals(layer, active)) break;
+            if (!scene.IsLayerVisible(layer)) continue;
+            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
+            passes.Add(new RenderPass(
+                _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex),
+                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
+        }
+        if (passes.Count == 0) return null;
+        using var image = SceneRenderer.Compose(
+            scene.Width, scene.Height, passes, SKColors.Transparent);
+        return SKBitmap.FromImage(image);
+    }
+
     /// <summary>Frame times measured on the render thread.</summary>
     /// <remarks>
     /// The one place a frame cost arrives, so it is also where the app notices
@@ -1306,6 +1362,31 @@ public sealed partial class MainViewModel : ObservableObject
             if (_brushWork.AntiAlias == value) return;
             _brushWork.AntiAlias = value;
             _eraserWork.AntiAlias = value;
+            OnPropertyChanged();
+            if (!_applyingPreset) PersistBrushState();
+        }
+    }
+
+    public IReadOnlyList<SampleSource> SampleSourceChoices { get; } = Enum.GetValues<SampleSource>();
+
+    /// <summary>
+    /// What a smudge or blur reads: its own layer, or everything under it.
+    /// </summary>
+    /// <remarks>
+    /// Set here and stamped into each stroke at paint time, exactly like
+    /// <see cref="AntiAliasing"/> — so changing it never alters a mark already
+    /// made. That is invariant 4, and it is the reason a preference like this
+    /// can live in a settings window at all: the window sets what the next
+    /// stroke will be, not what every past stroke becomes.
+    /// </remarks>
+    public SampleSource SmudgeSampleSource
+    {
+        get => _brushWork.SampleSource;
+        set
+        {
+            if (_brushWork.SampleSource == value) return;
+            _brushWork.SampleSource = value;
+            _eraserWork.SampleSource = value;
             OnPropertyChanged();
             if (!_applyingPreset) PersistBrushState();
         }
@@ -3584,6 +3665,7 @@ public sealed partial class MainViewModel : ObservableObject
         var clip = PrepareClipForSelection();
         if (clip is not null) stroke.ClipId = clip.Value.Id;
 
+        FreezeSampledBackdrop(stroke);
         FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
 
         var frameId = target.Id;
@@ -3735,6 +3817,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         var clip = PrepareClipForSelection();
         if (clip is not null) stroke.ClipId = clip.Value.Id;
+        FreezeSampledBackdrop(stroke);
         FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
 
         var frameId = target.Id;

@@ -115,6 +115,7 @@ public partial class ConfigureWindow : Window
         LoadPerformancePage();
         LoadGuidesPage();
         LoadTimelinePage();
+        LoadDrawingPage();
     }
 
     // ---- timeline page -----------------------------------------------------------
@@ -251,10 +252,47 @@ public partial class ConfigureWindow : Window
         };
     }
 
+    private bool _loadingDrawing;
+
+    private void LoadDrawingPage()
+    {
+        if (_vm is null || SampleBox is null) return;
+        _loadingDrawing = true;
+        SampleBox.ItemsSource = _vm.SampleSourceChoices;
+        SampleBox.SelectedItem = _vm.SmudgeSampleSource;
+        _loadingDrawing = false;
+        RefreshSampleHint();
+    }
+
+    private void OnSampleSourceChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingDrawing || _vm is null) return;
+        if (SampleBox.SelectedItem is Lightbox.Core.Documents.SampleSource source) _vm.SmudgeSampleSource = source;
+        RefreshSampleHint();
+    }
+
+    private void RefreshSampleHint()
+    {
+        if (SampleHint is null || _vm is null) return;
+        SampleHint.Text = _vm.SmudgeSampleSource switch
+        {
+            Lightbox.Core.Documents.SampleSource.AllLayersLive =>
+                "Blends what you can see, and keeps following it — repaint a layer underneath and the "
+                + "smudge above changes with it. Frames holding one cannot be cached, so a scene full of "
+                + "them redraws more often.",
+            Lightbox.Core.Documents.SampleSource.AllLayersBaked =>
+                "Blends what you can see at the moment you make the mark, and then keeps it. Costs "
+                + "nothing to redraw; the stroke carries a copy of what it blended, so the file grows.",
+            _ =>
+                "Only the layer you are painting on. The default, and the cheapest — a layer stays a "
+                + "picture of itself.",
+        };
+    }
+
     private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (ShortcutsPage is null || PerformancePage is null
-            || GuidesPage is null || TimelinePage is null)
+            || GuidesPage is null || TimelinePage is null || DrawingPage is null)
         {
             return;
         }
@@ -263,11 +301,13 @@ public partial class ConfigureWindow : Window
         PerformancePage.IsVisible = page == 1;
         GuidesPage.IsVisible = page == 2;
         TimelinePage.IsVisible = page == 3;
+        DrawingPage.IsVisible = page == 4;
         if (page == 1) RefreshMeasured();
         // Rebuilt on the way in: a grid may have been placed since the window
         // opened, and the window outlives the drawing that made it.
         if (page == 2) RefreshGrids();
         if (page == 3) LoadTimelinePage();
+        if (page == 4) LoadDrawingPage();
     }
 
     private void OnQualityChanged(object? sender, SelectionChangedEventArgs e)

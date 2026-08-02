@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `9389166` · 276 files · 67906 lines · 1307 tests.
+Generated from `e97adf8` · 276 files · 68049 lines · 1307 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -27,8 +27,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (7509 ln) · 2 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:3043, TransformParts:4795
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (7592 ln) · 2 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:3124, TransformParts:4878
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (2999 ln) · 6 test files
   - MainWindow:17
 - `src/Lightbox.App/Views/MainWindow.axaml` (2678 ln) · **no tests**
@@ -43,10 +43,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectRow:19, ProjectViewModel:112, NewItemKind:274
 - `src/Lightbox.App/ViewModels/GradientDockerViewModel.cs` (467 ln) · 1 test files
   - GradientStopRow:16, GradientDockerViewModel:89, HexColor:452
+- `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (422 ln) · 6 indirect only
+  - ShortcutRow:11, ShortcutGroup:23, GridRow:38, ConfigureWindow:94
 - `src/Lightbox.App/ViewModels/WorkspaceViewModel.cs` (414 ln) · 1 test files
   - WorkspaceViewModel:20, WorkspaceRow:409
-- `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (382 ln) · 6 indirect only
-  - ShortcutRow:11, ShortcutGroup:23, GridRow:38, ConfigureWindow:94
 - `src/Lightbox.App/Controls/TimelineRuler.cs` (367 ln) · 1 test files
   - TimelineRuler:17, Handle:101
 - `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (367 ln) · 4 test files
@@ -67,8 +67,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Workspace:13, WorkspaceStore:51
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
-- `src/Lightbox.App/Views/ConfigureWindow.axaml` (228 ln) · **no tests**
-  - BackendText, CacheBudgetBox, CategoryList, ConflictBar, ConflictText, FrameWidthBox, GridSpacingBox, GridsHost …
+- `src/Lightbox.App/Views/ConfigureWindow.axaml` (248 ln) · **no tests**
+  - BackendText, CacheBudgetBox, CategoryList, ConflictBar, ConflictText, DrawingPage, FrameWidthBox, GridSpacingBox …
 - `src/Lightbox.App/ViewModels/PaletteNode.cs` (225 ln) · 2 test files
   - PaletteScope:16, PaletteNodeKind:22, PaletteNode:39, PaletteAssignTarget:145, PaletteTarget:166, PaletteAddIntent:188, PaletteAddRequest:212, PaletteAddOutcome:222
 - `src/Lightbox.App/Services/ShortcutMap.cs` (211 ln) · 2 test files

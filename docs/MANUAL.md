@@ -1009,6 +1009,24 @@ so an exported animation renders identically somewhere else.
 
 *Symbols cannot contain other symbols.*
 
+### What smudge and blur read
+
+Smudge and blur move pixels that are already there rather than laying down
+colour. **Edit → Configure → Drawing** decides which pixels:
+
+| | |
+| --- | --- |
+| **This layer** | Only the layer you are painting on. The default. |
+| **All layers (baked)** | Everything you can see, frozen as it was when you made the mark. |
+| **All layers (live)** | Everything you can see, and it keeps following. |
+
+The setting applies to the *next* mark. Every stroke remembers what it was made
+with, so changing this never alters something already drawn.
+
+*All layers (live) currently behaves as baked — it blends what is underneath at
+the moment you draw, but does not yet re-blend when you repaint a layer below
+it.*
+
 ## 14. When the canvas feels slow
 
 The info strip along the bottom reports what the app is actually doing:
