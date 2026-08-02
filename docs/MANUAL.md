@@ -1023,9 +1023,14 @@ colour. **Edit → Configure → Drawing** decides which pixels:
 The setting applies to the *next* mark. Every stroke remembers what it was made
 with, so changing this never alters something already drawn.
 
-*All layers (live) currently behaves as baked — it blends what is underneath at
-the moment you draw, but does not yet re-blend when you repaint a layer below
-it.*
+The difference between the two shows up later. Repaint the background under a
+**live** smudge and the smudge re-blends against the new background; a **baked**
+one keeps the colours it picked up when you made it. Baked is what you want once
+a mark is finished and you would rather nothing touched it again; live is what
+you want while a painting is still moving underneath you.
+
+A live smudge on the bottom layer has nothing to follow, so it reads its own
+layer, exactly as **This layer** would.
 
 ## 14. When the canvas feels slow
 

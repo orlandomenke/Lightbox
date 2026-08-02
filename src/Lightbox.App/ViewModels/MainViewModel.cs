@@ -146,11 +146,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// by construction rather than by four call sites staying in step.
     /// </para>
     /// <para>
-    /// <b>Live is not finished.</b> It freezes here exactly as Baked does, so
-    /// it renders correctly and consistently — but it does not yet re-freeze
-    /// when a layer underneath is repainted, which is the entire difference
-    /// between the two. Until it does, choosing Live gets you Baked. Written
-    /// here rather than left for somebody to find.
+    /// Live freezes here too, and that is not a contradiction: the difference
+    /// between the two is not whether a sample is taken but whether it is
+    /// retaken. A Live stroke is re-frozen by <see cref="RebakeLiveSamples"/>
+    /// on every subsequent edit; a Baked one keeps what it got here forever.
     /// </para>
     /// </remarks>
     private void FreezeSampledBackdrop(Stroke stroke)
@@ -794,6 +793,84 @@ public sealed partial class MainViewModel : ObservableObject
                 tab.IsDirty = true;
                 break;
         }
+        RebakeLiveSamples();
+    }
+
+    /// <summary>
+    /// Re-freeze the all-layers-live strokes at the playhead, because something
+    /// underneath them may have just moved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is what makes Live live. The alternative was handing a backdrop to
+    /// every render path at render time; this hands it to the stroke once per
+    /// edit instead, so there is one place that can be wrong rather than four,
+    /// and canvas and export cannot disagree.
+    /// </para>
+    /// <para>
+    /// Not an undo step, on purpose. The bake is derived from the layers below
+    /// and the stroke that owns it, not something anybody authored, and an undo
+    /// history with a "the background moved" entry between every real edit
+    /// would be unusable. Undo re-enters here anyway — it goes through the same
+    /// funnel — so the sample follows the document back.
+    /// </para>
+    /// <para>
+    /// Only the playhead's frames, and that is exact rather than a shortcut: an
+    /// edit happens at the playhead, so the strokes it can invalidate are the
+    /// ones exposed there. The one case it does not cover is a held cel shown
+    /// across a range whose backdrop differs along it — a frame carries one
+    /// sample and can only answer for one index.
+    /// </para>
+    /// </remarks>
+    private void RebakeLiveSamples()
+    {
+        var scene = Scene;
+        // Nothing is rendered until a live stroke is actually found, so the
+        // cost on an ordinary document is the exposure lookups plus a scan of
+        // the strokes on the playhead's frames — no compose, no materialize.
+        //
+        // There was a document-wide "does anything sample?" guard in front of
+        // this. It was removed on measurement grounds rather than taste: it
+        // walked every cel of every layer and every stroke of every frame,
+        // which on a long scene is more work than the loop it was protecting,
+        // and it ran on every edit.
+        var below = new List<(Layer Layer, Frame Frame)>();
+        foreach (var layer in scene.Layers)
+        {
+            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } exposed) continue;
+            if (exposed is PaintedFrame painted && LiveStrokes(painted) is { Count: > 0 } live)
+            {
+                Rebake(live, below, scene.Width, scene.Height);
+                _cache.Invalidate(painted.Id);
+                _dirtyThumbIds.Add(painted.Id);
+            }
+            if (scene.IsLayerVisible(layer)) below.Add((layer, exposed));
+        }
+    }
+
+    private static List<Stroke> LiveStrokes(PaintedFrame frame) =>
+        [.. frame.Strokes.Where(s => s.Brush.SampleSource == SampleSource.AllLayersLive)];
+
+    /// <summary>Re-freeze one frame's live strokes against the stack beneath it.</summary>
+    private void Rebake(List<Stroke> live, List<(Layer Layer, Frame Frame)> below, int width, int height)
+    {
+        if (below.Count == 0)
+        {
+            // Nothing underneath: there is no backdrop to follow, so the stroke
+            // reverts to reading its own layer rather than keeping a stale one.
+            foreach (var stroke in live) stroke.Baked = null;
+            return;
+        }
+
+        var passes = below
+            .Select(b => new RenderPass(
+                _cache.Get(b.Frame, width, height, celIndex: CurrentFrameIndex),
+                null, b.Layer.Opacity, SceneRenderer.ToSkia(b.Layer.BlendMode)))
+            .ToList();
+        var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var image = SceneRenderer.Compose(width, height, passes, SKColors.Transparent);
+        using var beneath = SKBitmap.FromImage(image);
+        foreach (var stroke in live) stroke.Baked = BrushEngine.BakeSample(stroke, beneath, info);
     }
 
     // ---- character sheets -----------------------------------------------------

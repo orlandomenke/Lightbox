@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1307 tests, derived from the suite itself. Each line is a
+1313 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -575,6 +575,16 @@ regression even when every test still compiles.
 - Batched Moves Produce One Stroke With All Points — `:10`
 - Committed Pixels Match Direct Rasterization — `:30`
 - Pointer Up Without Down Is Harmless — `:56`
+
+## LiveSampleRebakeTests
+`tests/Lightbox.App.Tests/LiveSampleRebakeTests.cs`
+
+- ALive Smudge Follows An Edit To The Layer Under It — `:91`
+- That Changes What The Layer Renders As — `:108`
+- ABaked Smudge Does Not Follow — `:122`
+- An Ordinary Document Is Not Touched — `:138`
+- With Nothing Underneath The Sample Is Dropped Rather Than Kept Stale — `:156`
+- Rebaking Is Not An Undo Step — `:178`
 
 ## LiveToolPreviewTests
 `tests/Lightbox.App.Tests/LiveToolPreviewTests.cs`

@@ -125,16 +125,25 @@ public static class BrushEngine
         // No ThisLayer fast path: neither branch below matches it, so an early
         // return would be a line no test could distinguish from its absence.
         var source = stroke.Brush.SampleSource;
+        if (source == SampleSource.ThisLayer) return null;
+
         SKBitmap? beneath = null;
         var owned = false;
-        if (source == SampleSource.AllLayersBaked && stroke.Baked is { PngBase64.Length: > 0 } baked)
+        if (source == SampleSource.AllLayersLive && backdrop is not null)
         {
+            // A caller that can hand over the stack at render time wins.
+            beneath = backdrop;
+        }
+        else if (stroke.Baked is { PngBase64.Length: > 0 } baked)
+        {
+            // Otherwise the stroke's own frozen sample, and that is the normal
+            // path for BOTH modes. Live is kept current by re-freezing it
+            // whenever a layer beneath changes rather than by re-reading the
+            // stack on every render — one place that can be wrong instead of
+            // one per render path. The difference between the two modes is
+            // therefore when the sample is refreshed, not how it is read.
             beneath = BakedBackdrop(baked, layer.Width, layer.Height);
             owned = true;
-        }
-        else if (source == SampleSource.AllLayersLive)
-        {
-            beneath = backdrop;
         }
         if (beneath is null) return null;
 
