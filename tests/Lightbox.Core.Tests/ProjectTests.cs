@@ -337,4 +337,66 @@ public sealed class ProjectTests : IDisposable
         Directory.CreateDirectory(_root);
         Assert.Throws<FileNotFoundException>(() => ProjectIo.Load(_root));
     }
+
+    // ---- the palette hierarchy, project-wide ----------------------------------
+
+    [Fact]
+    public void ThePaletteHierarchySurvivesAProjectSaveAndReload()
+    {
+        // A project is the scope with enough palettes in it to need filing, so
+        // this is where the hierarchy has to hold rather than in a lone file.
+        var project = ProjectIo.Create("Knight", _root);
+        var characters = new PaletteFolder { Name = "Characters" };
+        var knight = new PaletteFolder { Name = "Knight", ParentId = characters.Id };
+        project.PaletteFolders.AddRange([characters, knight]);
+        project.Palettes.Add(new Palette { Name = "Armour", FolderId = knight.Id });
+        ProjectIo.Save(project);
+
+        var back = ProjectIo.Load(_root);
+
+        Assert.Equal(2, back.PaletteFolders.Count);
+        Assert.Equal(characters.Id, back.PaletteFolders.Single(f => f.Name == "Knight").ParentId);
+        Assert.Equal(knight.Id, back.Palettes.Single().FolderId);
+    }
+
+    [Fact]
+    public void AProjectWithNoFoldersWritesNoFolderFile()
+    {
+        // Optional means absent. A project that never files anything must be
+        // byte-identical to one written before folders existed.
+        var project = ProjectIo.Create("Knight", _root);
+        project.Palettes.Add(new Palette { Name = "Armour" });
+        ProjectIo.Save(project);
+
+        Assert.False(File.Exists(Path.Combine(_root, "palettes", "folders.json")));
+    }
+
+    [Fact]
+    public void DeletingTheLastFolderReachesTheDisk()
+    {
+        // Otherwise reopening the project brings the filing system back.
+        var project = ProjectIo.Create("Knight", _root);
+        project.PaletteFolders.Add(new PaletteFolder { Name = "Characters" });
+        project.Palettes.Add(new Palette { Name = "Armour" });
+        ProjectIo.Save(project);
+        Assert.True(File.Exists(Path.Combine(_root, "palettes", "folders.json")));
+
+        project.PaletteFolders.Clear();
+        ProjectIo.Save(project);
+
+        Assert.False(File.Exists(Path.Combine(_root, "palettes", "folders.json")));
+        Assert.Empty(ProjectIo.Load(_root).PaletteFolders);
+    }
+
+    [Fact]
+    public void APaletteFiledUnderAMissingFolderStillShowsUpOnLoad()
+    {
+        var project = ProjectIo.Create("Knight", _root);
+        project.Palettes.Add(new Palette { Name = "Armour", FolderId = "pf_gone" });
+        ProjectIo.Save(project);
+
+        var back = ProjectIo.Load(_root);
+
+        Assert.Null(back.Palettes.Single().FolderId);
+    }
 }

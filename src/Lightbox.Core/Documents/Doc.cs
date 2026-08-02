@@ -36,6 +36,16 @@ public sealed class Doc
     public List<Palette> Palettes { get; set; } = [];
 
     /// <summary>
+    /// The folders those palettes are filed under, once there are any.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than empty, and absent from the file until a folder is
+    /// made — the same rule the camera follows. A document with three palettes
+    /// and no filing system should not carry the machinery for one.
+    /// </remarks>
+    public List<PaletteFolder>? PaletteFolders { get; set; }
+
+    /// <summary>
     /// Gradients referenced by <see cref="Stroke.GradientId"/>, keyed by id —
     /// the same arrangement as clip regions and brush tips, so a reload
     /// re-renders from the document alone.

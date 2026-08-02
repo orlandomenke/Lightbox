@@ -3,6 +3,7 @@ using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.App.ViewModels;
 
@@ -179,11 +180,18 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
         _loading = true;
         try
         {
+            // A palette filed under a folder that is no longer there has to
+            // appear somewhere, or it colours the art from a place nobody can
+            // find in the panel.
+            if (doc.PaletteFolders is { } folders) PaletteTree.Prune(folders, doc.Palettes);
+
             Palettes.Clear();
             foreach (var palette in doc.Palettes) Palettes.Add(palette);
+            foreach (var palette in ProjectPalettes) Palettes.Add(palette);
             SelectedPalette = Palettes.FirstOrDefault(p => p.Id == keepPalette) ?? Palettes.FirstOrDefault();
             RebuildSwatches();
             SelectedSwatch = Swatches.FirstOrDefault(s => s.Id == keepSwatch);
+            RebuildTree();
         }
         finally
         {
@@ -213,23 +221,379 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
         return true;
     }
 
+    // ---- the hierarchy --------------------------------------------------------
+
+    /// <summary>
+    /// The open project, if there is one.
+    /// </summary>
+    /// <remarks>
+    /// Properties rather than constructor arguments so that a docker built
+    /// without a project — which is every test that is not about one, and the
+    /// ordinary single-file case — needs no ceremony to say so.
+    /// </remarks>
+    public Func<Project?>? ProjectSource { get; set; }
+
+    /// <summary>Called when a project palette or folder changed and wants saving.</summary>
+    public Action? ProjectEdited { get; set; }
+
+    private Project? Project => ProjectSource?.Invoke();
+
+    private IReadOnlyList<Palette> ProjectPalettes => Project?.Palettes ?? [];
+
+    private IReadOnlyList<PaletteFolder> FoldersOf(PaletteScope scope) => scope == PaletteScope.Project
+        ? Project?.PaletteFolders ?? []
+        : _doc?.PaletteFolders ?? [];
+
+    private IReadOnlyList<Palette> PalettesOf(PaletteScope scope) => scope == PaletteScope.Project
+        ? ProjectPalettes
+        : _doc?.Palettes ?? [];
+
+    /// <summary>Which store a palette lives in.</summary>
+    public PaletteScope ScopeOf(Palette palette) =>
+        ProjectPalettes.Any(p => p.Id == palette.Id) ? PaletteScope.Project : PaletteScope.Document;
+
+    /// <summary>The palette hierarchy, as rows.</summary>
+    public ObservableCollection<PaletteNode> Tree { get; } = [];
+
+    /// <summary>Every folder a node could be assigned to, flattened with its path.</summary>
+    public ObservableCollection<PaletteAssignTarget> AssignTargets { get; } = [];
+
+    [ObservableProperty]
+    private PaletteNode? _selectedNode;
+
+    partial void OnSelectedNodeChanged(PaletteNode? oldValue, PaletteNode? newValue)
+    {
+        if (oldValue is not null) oldValue.IsSelected = false;
+        if (newValue is null) return;
+        newValue.IsSelected = true;
+        // Clicking a palette in the tree is how you select it. Clicking a
+        // folder is not: a folder has no colours, and clearing the swatch grid
+        // to open one would make the tree a worse way to reach a palette than
+        // the list it replaced.
+        if (newValue.Palette is { } palette) SelectedPalette = palette;
+    }
+
+    /// <summary>
+    /// Rebuild the tree from the two stores.
+    /// </summary>
+    /// <remarks>
+    /// The scope headings only appear when a project is open. Without one there
+    /// is a single set of palettes, and a "Document" heading above all of them
+    /// would be a row that says nothing and costs an indent — the camera's rule
+    /// again: optional means absent, not present and empty.
+    /// </remarks>
+    private void RebuildTree()
+    {
+        // A rename changes no row's place, so rebuilding for one would swap
+        // every node for a new object mid-edit: the text box the artist is
+        // typing into is gone, and so is which folders were open.
+        if (_renaming) return;
+
+        var keep = SelectedNode is { } node
+            ? node.Palette?.Id ?? node.Folder?.Id
+            : SelectedPalette?.Id;
+
+        Tree.Clear();
+
+        foreach (var scope in Scopes)
+        {
+            var host = Scopes.Length == 1
+                ? null
+                : PaletteNode.ForScope(scope, ScopeName(scope));
+            if (host is not null) Tree.Add(host);
+            Fill(host?.Children ?? Tree, scope, null);
+        }
+
+        RebuildAssignTargets();
+        SelectedNode = keep is null ? null : Find(Tree, keep);
+    }
+
+    private PaletteScope[] Scopes => Project is null
+        ? [PaletteScope.Document]
+        : [PaletteScope.Document, PaletteScope.Project];
+
+    private static string ScopeName(PaletteScope scope) =>
+        scope == PaletteScope.Project ? "Project" : "Document";
+
+    /// <summary>
+    /// The "Assign to ▸" entries, rebuilt separately from the rows.
+    /// </summary>
+    /// <remarks>
+    /// Separately because a rename changes no row's place but does change what
+    /// the menu should say. Rebuilding the tree for it would swap every node
+    /// mid-edit; leaving the menu alone would offer the folder's old name.
+    /// </remarks>
+    private void RebuildAssignTargets()
+    {
+        AssignTargets.Clear();
+        foreach (var scope in Scopes)
+        {
+            AssignTargets.Add(new PaletteAssignTarget
+            {
+                Scope = scope,
+                FolderId = null,
+                Label = Scopes.Length == 1 ? "(top level)" : $"{ScopeName(scope)} — (top level)",
+            });
+            foreach (var folder in FoldersOf(scope))
+            {
+                AssignTargets.Add(new PaletteAssignTarget
+                {
+                    Scope = scope,
+                    FolderId = folder.Id,
+                    Label = PaletteTree.PathOf(FoldersOf(scope), folder.Id),
+                });
+            }
+        }
+    }
+
+    private void Fill(IList<PaletteNode> into, PaletteScope scope, string? parentId)
+    {
+        foreach (var folder in PaletteTree.FoldersIn(FoldersOf(scope), parentId))
+        {
+            var node = PaletteNode.ForFolder(scope, folder, OnNodeRenamed);
+            into.Add(node);
+            Fill(node.Children, scope, folder.Id);
+        }
+        foreach (var palette in PaletteTree.PalettesIn(PalettesOf(scope), parentId))
+        {
+            into.Add(PaletteNode.ForPalette(scope, palette, OnNodeRenamed));
+        }
+    }
+
+    private static PaletteNode? Find(IEnumerable<PaletteNode> nodes, string id)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.Palette?.Id == id || node.Folder?.Id == id) return node;
+            if (Find(node.Children, id) is { } hit) return hit;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Run a change against whichever store the scope names.
+    /// </summary>
+    /// <remarks>
+    /// The document's goes through the undo stack; the project's does not,
+    /// because a project spans documents and there is no single history for it
+    /// to land in. That asymmetry is real and worth being explicit about rather
+    /// than pretending both are undoable.
+    /// </remarks>
+    private void InScope(PaletteScope scope, Action<Doc> onDocument, Action onProject)
+    {
+        if (scope == PaletteScope.Project)
+        {
+            if (Project is null) return;
+            onProject();
+            ProjectEdited?.Invoke();
+            if (_doc is not null) Load(_doc);
+            return;
+        }
+        _edit(onDocument);
+    }
+
+    /// <summary>
+    /// Change one palette, wherever it lives. Looked up by id inside the edit
+    /// rather than captured, because the document the change lands on is the
+    /// one the undo stack hands back, not necessarily the object we started
+    /// from.
+    /// </summary>
+    private void EditPalette(Palette palette, Action<Palette> mutate)
+    {
+        var id = palette.Id;
+        InScope(
+            ScopeOf(palette),
+            d =>
+            {
+                if (d.Palettes.FirstOrDefault(p => p.Id == id) is { } target) mutate(target);
+            },
+            () =>
+            {
+                if (Project!.Palettes.FirstOrDefault(p => p.Id == id) is { } target) mutate(target);
+            });
+    }
+
+    private bool _renaming;
+
+    private void OnNodeRenamed(PaletteNode node, string name)
+    {
+        _renaming = true;
+        try
+        {
+            if (node.Folder is { } folder)
+            {
+                InScope(node.Scope, _ => folder.Name = name, () => folder.Name = name);
+            }
+            else if (node.Palette is { } palette)
+            {
+                InScope(node.Scope, _ => palette.Name = name, () => palette.Name = name);
+            }
+        }
+        finally
+        {
+            _renaming = false;
+        }
+        // The rows did not move, but the menu now says the wrong name.
+        RebuildAssignTargets();
+    }
+
+    /// <summary>
+    /// A new folder, inside whatever is selected.
+    /// </summary>
+    /// <remarks>
+    /// Inside the selected folder, or beside the selected palette — the two
+    /// readings of "here" that a file manager gives, and the ones that mean
+    /// the new folder appears where the artist was looking rather than at the
+    /// bottom of the panel.
+    /// </remarks>
+    [RelayCommand]
+    private void AddFolder()
+    {
+        if (_doc is null) return;
+        var scope = SelectedNode?.Scope ?? PaletteScope.Document;
+        var parent = SelectedNode?.Kind switch
+        {
+            PaletteNodeKind.Folder => SelectedNode.Folder!.Id,
+            PaletteNodeKind.Palette => SelectedNode.Palette!.FolderId,
+            _ => null,
+        };
+        var folder = new PaletteFolder
+        {
+            Name = $"Folder {FoldersOf(scope).Count + 1}",
+            ParentId = parent,
+        };
+        InScope(
+            scope,
+            d => (d.PaletteFolders ??= []).Add(folder),
+            () => Project!.PaletteFolders.Add(folder));
+        SelectedNode = Find(Tree, folder.Id);
+    }
+
+    /// <summary>
+    /// File a palette or a folder somewhere else. Used by both the drag and the
+    /// "Assign to ▸" menu, so the two can never disagree.
+    /// </summary>
+    public bool Assign(PaletteNode? node, PaletteAssignTarget? target)
+    {
+        if (node is null || target is null || !CanAssign(node, target)) return false;
+
+        if (node.Folder is { } folder)
+        {
+            var folders = FoldersOf(node.Scope);
+            InScope(
+                node.Scope,
+                _ => PaletteTree.Reparent(folders, folder.Id, target.FolderId),
+                () => PaletteTree.Reparent(folders, folder.Id, target.FolderId));
+            return true;
+        }
+        if (node.Palette is { } palette)
+        {
+            var to = target.FolderId;
+            InScope(node.Scope, _ => palette.FolderId = to, () => palette.FolderId = to);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a move is allowed.
+    /// </summary>
+    /// <remarks>
+    /// Two refusals. A folder cannot go inside itself or its own descendant —
+    /// the pair would still reference each other, so nothing reads as corrupt,
+    /// and both would simply stop appearing. And nothing crosses between the
+    /// document and the project: that is not filing, it is a change of
+    /// ownership, and it would re-point or orphan every stroke that references
+    /// the palette.
+    /// </remarks>
+    public bool CanAssign(PaletteNode? node, PaletteAssignTarget? target)
+    {
+        if (node is null || target is null || node.Kind == PaletteNodeKind.Scope) return false;
+        if (node.Scope != target.Scope) return false;
+        if (node.Folder is not { } folder) return true;
+        return target.FolderId is not { } to
+            || !PaletteTree.IsSelfOrDescendant(FoldersOf(node.Scope), to, folder.Id);
+    }
+
+    /// <summary>Drop one row onto another. A palette row means "beside it".</summary>
+    public bool Drop(PaletteNode? source, PaletteNode? onto)
+    {
+        if (source is null || onto is null || ReferenceEquals(source, onto)) return false;
+        var folderId = onto.Kind switch
+        {
+            PaletteNodeKind.Folder => onto.Folder!.Id,
+            PaletteNodeKind.Palette => onto.Palette!.FolderId,
+            _ => null,
+        };
+        return Assign(source, new PaletteAssignTarget
+        {
+            Scope = onto.Scope,
+            FolderId = folderId,
+            Label = "",
+        });
+    }
+
     // ---- commands -----------------------------------------------------------
 
     [RelayCommand]
     private void AddPalette()
     {
         if (_doc is null) return;
-        var palette = new Palette { Name = $"Palette {_doc.Palettes.Count + 1}" };
-        _edit(d => d.Palettes.Add(palette));
+        var scope = SelectedNode?.Scope ?? PaletteScope.Document;
+        var folderId = SelectedNode?.Kind switch
+        {
+            PaletteNodeKind.Folder => SelectedNode.Folder!.Id,
+            PaletteNodeKind.Palette => SelectedNode.Palette!.FolderId,
+            _ => null,
+        };
+        var palette = new Palette
+        {
+            Name = $"Palette {PalettesOf(scope).Count + 1}",
+            FolderId = folderId,
+        };
+        InScope(scope, d => d.Palettes.Add(palette), () => Project!.Palettes.Add(palette));
         SelectedPalette = Palettes.FirstOrDefault(p => p.Id == palette.Id);
     }
 
     [RelayCommand]
     private void RemovePalette()
     {
+        // The tree's ✕ removes whatever is selected — a folder is as much a
+        // thing you made by mistake as a palette is.
+        if (SelectedNode is { Kind: PaletteNodeKind.Folder } node)
+        {
+            RemoveFolder(node);
+            return;
+        }
         if (SelectedPalette is not { } palette) return;
         var id = palette.Id;
-        _edit(d => d.Palettes.RemoveAll(p => p.Id == id));
+        InScope(
+            ScopeOf(palette),
+            d => d.Palettes.RemoveAll(p => p.Id == id),
+            () => Project!.Palettes.RemoveAll(p => p.Id == id));
+    }
+
+    /// <summary>
+    /// Delete a folder. The palettes inside it survive, one level up.
+    /// </summary>
+    /// <remarks>
+    /// Tidying up must not be the fastest way to lose an afternoon's work —
+    /// every stroke painted with one of those swatches would go dead with it.
+    /// </remarks>
+    private void RemoveFolder(PaletteNode node)
+    {
+        if (node.Folder is not { } folder) return;
+        InScope(
+            node.Scope,
+            d =>
+            {
+                if (d.PaletteFolders is not { } folders) return;
+                PaletteTree.RemoveFolder(folders, d.Palettes, folder.Id);
+                // Back to absent once the last one goes, so a document that
+                // ends up with no folders writes no folder key again.
+                if (folders.Count == 0) d.PaletteFolders = null;
+            },
+            () => PaletteTree.RemoveFolder(Project!.PaletteFolders, Project!.Palettes, folder.Id));
     }
 
     /// <summary>Add the colour currently in the picker as a new swatch.</summary>
@@ -237,12 +601,8 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
     private void AddSwatch()
     {
         if (SelectedPalette is not { } palette) return;
-        var id = palette.Id;
         var swatch = new Swatch { Color = _currentColor() };
-        _edit(d =>
-        {
-            if (d.Palettes.FirstOrDefault(p => p.Id == id) is { } target) target.Swatches.Add(swatch);
-        });
+        EditPalette(palette, target => target.Swatches.Add(swatch));
         SelectedSwatch = Swatches.FirstOrDefault(s => s.Id == swatch.Id);
     }
 
@@ -275,16 +635,18 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
     {
         if (_doc is null) return null;
         var swatch = new Swatch { Color = hex };
-        var target = SelectedPalette?.Id;
+        if (SelectedPalette is { } selected)
+        {
+            EditPalette(selected, target => target.Swatches.Add(swatch));
+            return swatch;
+        }
+        // Nothing selected: the document gets a palette, because that is the
+        // scope that always exists.
         _edit(d =>
         {
-            var palette = target is null ? null : d.Palettes.FirstOrDefault(p => p.Id == target);
-            if (palette is null)
-            {
-                palette = new Palette { Name = $"Palette {d.Palettes.Count + 1}" };
-                d.Palettes.Add(palette);
-            }
+            var palette = new Palette { Name = $"Palette {d.Palettes.Count + 1}" };
             palette.Swatches.Add(swatch);
+            d.Palettes.Add(palette);
         });
         return swatch;
     }
@@ -298,15 +660,8 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
     private void RemoveSwatch()
     {
         if (SelectedPalette is not { } palette || SelectedSwatch is not { } row) return;
-        var paletteId = palette.Id;
         var swatchId = row.Id;
-        _edit(d =>
-        {
-            if (d.Palettes.FirstOrDefault(p => p.Id == paletteId) is { } target)
-            {
-                target.Swatches.RemoveAll(s => s.Id == swatchId);
-            }
-        });
+        EditPalette(palette, target => target.Swatches.RemoveAll(s => s.Id == swatchId));
     }
 
     public void ImportGpl(string path)
@@ -315,6 +670,13 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
         try
         {
             var palette = GimpPalette.Read(File.ReadAllText(path), Path.GetFileNameWithoutExtension(path));
+            // Filed where the artist was looking, the same as a new palette.
+            // An import that always lands at the top level is an import you
+            // then have to go and put away.
+            if (SelectedNode is { Scope: PaletteScope.Document } node)
+            {
+                palette.FolderId = node.Folder?.Id ?? node.Palette?.FolderId;
+            }
             _edit(d => d.Palettes.Add(palette));
             SelectedPalette = Palettes.FirstOrDefault(p => p.Id == palette.Id);
             Status = $"Imported {palette.Swatches.Count} swatches from {Path.GetFileName(path)}.";

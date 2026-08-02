@@ -37,6 +37,13 @@ public static class ProjectIo
     private const string AnimationsDir = "animations";
     private const string DocumentsDir = "documents";
     private const string PalettesFile = "palettes/palettes.json";
+
+    /// <summary>
+    /// The palette folders, in their own file rather than alongside the
+    /// palettes. A project that never makes a folder then writes nothing new,
+    /// and reads byte-identically to one written before folders existed.
+    /// </summary>
+    private const string PaletteFoldersFile = "palettes/folders.json";
     private const string GradientsFile = "gradients/gradients.json";
 
     // ---- create -------------------------------------------------------------
@@ -227,6 +234,18 @@ public static class ProjectIo
             project.Palettes.AddRange(stored ?? []);
         }
 
+        var folders = Path.Combine(project.Root, PaletteFoldersFile.Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(folders))
+        {
+            var stored = JsonSerializer.Deserialize<List<PaletteFolder>>(
+                File.ReadAllText(folders), DocJson.Options);
+            project.PaletteFolders.AddRange(stored ?? []);
+        }
+
+        // A palette filed under a folder that is no longer in the file has to
+        // appear somewhere, or it colours the art from a place nobody can find.
+        PaletteTree.Prune(project.PaletteFolders, project.Palettes);
+
         var gradients = Path.Combine(project.Root, GradientsFile.Replace('/', Path.DirectorySeparatorChar));
         if (!File.Exists(gradients)) return;
         var read = JsonSerializer.Deserialize<Dictionary<string, Gradient>>(
@@ -306,6 +325,20 @@ public static class ProjectIo
             DocJson.WriteAtomic(
                 Path.Combine(project.Root, PalettesFile.Replace('/', Path.DirectorySeparatorChar)),
                 JsonSerializer.Serialize(project.Palettes, DocJson.Options));
+        }
+
+        var folderPath = Path.Combine(
+            project.Root, PaletteFoldersFile.Replace('/', Path.DirectorySeparatorChar));
+        if (project.PaletteFolders.Count > 0)
+        {
+            DocJson.WriteAtomic(
+                folderPath, JsonSerializer.Serialize(project.PaletteFolders, DocJson.Options));
+        }
+        else if (File.Exists(folderPath))
+        {
+            // Deleting the last folder has to reach the disk too, or reopening
+            // the project brings the filing system back.
+            File.Delete(folderPath);
         }
 
         if (project.Gradients.Count == 0) return;

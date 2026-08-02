@@ -234,6 +234,12 @@ public sealed partial class MainViewModel : ObservableObject
         PaletteDocker = new PaletteDockerViewModel(
             OnSwatchRecoloured, PerformPaletteEdit, PaintWithSwatch, () => ColorHex);
         PaletteDocker.SwatchEditRunEnded += CommitSwatchEdit;
+        // The docker shows both scopes once a project is open. Set through
+        // properties rather than the constructor because the project docker is
+        // built below this one, and because a docker with no project should
+        // need no ceremony to say so.
+        PaletteDocker.ProjectSource = () => ProjectDocker?.Project;
+        PaletteDocker.ProjectEdited = OnProjectChanged;
         GradientDocker = new GradientDockerViewModel(OnGradientEdited, PerformGradientEdit);
         ProjectDocker = new ProjectViewModel(NewAnimationDoc, OpenProjectDocument, OnProjectChanged);
         // HasProject is a forwarding property, so it has no notification of its

@@ -392,6 +392,32 @@ colour picked off the canvas is a colour, not a palette entry.
 In a project, palettes belong to the project, so all of a character's animations
 paint from the same one.
 
+### Filing palettes
+
+The Palette panel's top half is a tree. **🗀** makes a folder, **＋** makes a
+palette, and both land inside whatever is selected — where you were looking,
+not at the bottom of the list. **✕** deletes whichever is selected.
+
+Move things by **dragging** a row onto a folder, or by **right-clicking** it and
+choosing *Assign to*. The two do the same thing; the menu lists every folder by
+its full path, which is what tells two folders called "Knight" apart. Right-click
+also has *Rename* and *Delete*.
+
+Deleting a folder keeps the palettes in it — they come back one level up. A
+folder can hold folders, and can sit empty: filing before there is anything to
+file is the normal way round.
+
+With a project open the tree has two headings, **Document** and **Project**, and
+nothing moves between them. A document palette travels with its file and a
+project palette is shared by every animation in the project, so dragging one
+into the other is not filing — it is a change of ownership, and it would leave
+the strokes that reference the palette pointing at nothing. Without a project
+there are no headings at all, only the document's palettes.
+
+A project's hierarchy is saved with the project, so a project you filed last
+week opens filed. A document that has never had a folder carries no filing
+system in its file.
+
 ### Gradients
 
 Pick the gradient tool and its options appear in the bar, with the ramp itself

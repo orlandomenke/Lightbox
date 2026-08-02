@@ -36,6 +36,13 @@ public sealed class Palette
     /// <summary>Preferred grid width when shown as swatches. GIMP records it; so do we.</summary>
     public int Columns { get; set; } = 8;
 
+    /// <summary>
+    /// The <see cref="PaletteFolder"/> this palette is filed under, or null for
+    /// the top level. Absent by default, so a document that never makes a
+    /// folder serializes exactly as it did before there were any.
+    /// </summary>
+    public string? FolderId { get; set; }
+
     public List<Swatch> Swatches { get; set; } = [];
 }
 

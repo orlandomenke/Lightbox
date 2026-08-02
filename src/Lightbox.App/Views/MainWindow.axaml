@@ -1795,19 +1795,14 @@
                       <Button Classes="icon" DockPanel.Dock="Right" Content="✕" FontSize="10"
                               Command="{Binding PaletteDocker.RemovePaletteCommand}"
                               IsEnabled="{Binding PaletteDocker.HasPalette}"
-                              ToolTip.Tip="Delete this palette (art keeps the colours it was drawn in)" />
+                              ToolTip.Tip="Delete the selected palette or folder (art keeps the colours it was drawn in)" />
+                      <Button Classes="icon" DockPanel.Dock="Right" Content="🗀" FontSize="10"
+                              Command="{Binding PaletteDocker.AddFolderCommand}"
+                              ToolTip.Tip="New folder, inside whatever is selected" />
                       <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10"
                               Command="{Binding PaletteDocker.AddPaletteCommand}"
-                              ToolTip.Tip="New palette" />
-                      <ComboBox ItemsSource="{Binding PaletteDocker.Palettes}"
-                                SelectedItem="{Binding PaletteDocker.SelectedPalette}"
-                                HorizontalAlignment="Stretch" ToolTip.Tip="Palette">
-                        <ComboBox.ItemTemplate>
-                          <DataTemplate x:DataType="docs:Palette">
-                            <TextBlock Text="{Binding Name}" />
-                          </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                      </ComboBox>
+                              ToolTip.Tip="New palette, inside whatever is selected" />
+                      <TextBlock Text="Palettes" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
                     </DockPanel>
                     <StackPanel Orientation="Horizontal" Spacing="4">
                       <Button Classes="text" Content="＋ Swatch"
@@ -1848,29 +1843,77 @@
                 </Border>
               </controls:Docker.BottomBar>
 
-              <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ListBox ItemsSource="{Binding PaletteDocker.Swatches}"
-                         SelectedItem="{Binding PaletteDocker.SelectedSwatch}"
-                         Background="Transparent" BorderThickness="0" Margin="4">
-                  <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                      <WrapPanel Orientation="Horizontal" />
-                    </ItemsPanelTemplate>
-                  </ListBox.ItemsPanel>
-                  <ListBox.Styles>
-                    <Style Selector="ListBoxItem">
-                      <Setter Property="Padding" Value="2" />
-                      <Setter Property="Margin" Value="0" />
-                    </Style>
-                  </ListBox.Styles>
-                  <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:SwatchRow">
-                      <Border Width="26" Height="26" CornerRadius="3" BorderBrush="#666" BorderThickness="1"
-                              Background="{Binding Fill}" ToolTip.Tip="{Binding Label}" />
-                    </DataTemplate>
-                  </ListBox.ItemTemplate>
-                </ListBox>
-              </ScrollViewer>
+              <!--
+                The hierarchy above, the selected palette's colours below.
+
+                Two panes rather than a folder tree in a dropdown: filing is
+                something you do while looking at the colours, and a tree you
+                have to open to see is a tree you stop using. The splitter is
+                there because how much room each half deserves depends on
+                whether you are organising or painting.
+              -->
+              <Grid RowDefinitions="Auto,Auto,*">
+                <TreeView x:Name="PaletteTree" Grid.Row="0"
+                          ItemsSource="{Binding PaletteDocker.Tree}"
+                          SelectedItem="{Binding PaletteDocker.SelectedNode, Mode=TwoWay}"
+                          Height="128" Background="Transparent" BorderThickness="0"
+                          DragDrop.AllowDrop="True">
+                  <TreeView.ItemTemplate>
+                    <TreeDataTemplate x:DataType="vm:PaletteNode" ItemsSource="{Binding Children}">
+                      <!--
+                        The context menu is built in code rather than declared
+                        here. A menu declared inside a template lives in a
+                        popup, outside the tree it came from, and the bindings
+                        that would reach the docker from there resolve to
+                        nothing — items that look right and are silently dead.
+                      -->
+                      <Border Background="Transparent" Padding="1"
+                              PointerPressed="OnPaletteNodePressed"
+                              PointerMoved="OnPaletteNodeMoved"
+                              PointerReleased="OnPaletteNodeReleased"
+                              DragDrop.AllowDrop="True"
+                              DragDrop.DragOver="OnPaletteNodeDragOver" DragDrop.Drop="OnPaletteNodeDrop"
+                              ToolTip.Tip="Drag onto a folder to file it, or right-click to assign">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                          <TextBlock Text="{Binding Glyph}" FontSize="11" VerticalAlignment="Center" />
+                          <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center"
+                                     IsVisible="{Binding !IsRenaming}" />
+                          <TextBox Text="{Binding Name, Mode=TwoWay}" FontSize="11" MinWidth="90"
+                                   IsVisible="{Binding IsRenaming}"
+                                   LostFocus="OnPaletteNameCommitted" KeyDown="OnPaletteNameKey" />
+                        </StackPanel>
+                      </Border>
+                    </TreeDataTemplate>
+                  </TreeView.ItemTemplate>
+                </TreeView>
+
+                <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch"
+                              Background="Transparent" ResizeDirection="Rows" />
+
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                  <ListBox ItemsSource="{Binding PaletteDocker.Swatches}"
+                           SelectedItem="{Binding PaletteDocker.SelectedSwatch}"
+                           Background="Transparent" BorderThickness="0" Margin="4">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.Styles>
+                      <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="2" />
+                        <Setter Property="Margin" Value="0" />
+                      </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:SwatchRow">
+                        <Border Width="26" Height="26" CornerRadius="3" BorderBrush="#666" BorderThickness="1"
+                                Background="{Binding Fill}" ToolTip.Tip="{Binding Label}" />
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </ScrollViewer>
+              </Grid>
             </controls:Docker>
 
         <controls:Docker x:Name="GradientPanel" PanelId="Gradient" Title="Gradient"

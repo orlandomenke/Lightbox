@@ -1474,6 +1474,145 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    // ---- the palette hierarchy ------------------------------------------------
+
+    private static readonly DataFormat<string> PaletteNodeDragFormat =
+        DataFormat.CreateInProcessFormat<string>("lightbox-palette-node");
+
+    /// <summary>
+    /// The row a drag started on, and where. Held for the same reason the
+    /// colour swatch holds its press: <c>DoDragDropAsync</c> wants the event
+    /// that began the gesture, and by the time we know this is a drag rather
+    /// than a click that event has been and gone.
+    /// </summary>
+    private (PaletteNode Node, Point At, PointerPressedEventArgs Args)? _paletteDrag;
+
+    private static PaletteNode? NodeOf(object? sender) =>
+        (sender as Control)?.DataContext as PaletteNode;
+
+    private void OnPaletteNodePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (NodeOf(sender) is not { } node) return;
+        var point = e.GetCurrentPoint(this).Properties;
+        if (point.IsRightButtonPressed)
+        {
+            _vm.PaletteDocker.SelectedNode = node;
+            ShowPaletteNodeMenu((Control)sender!, node);
+            e.Handled = true;
+            return;
+        }
+        if (!point.IsLeftButtonPressed || !node.IsDraggable) return;
+        _paletteDrag = (node, e.GetPosition(this), e);
+    }
+
+    private async void OnPaletteNodeMoved(object? sender, PointerEventArgs e)
+    {
+        if (_paletteDrag is not { } drag) return;
+        var now = e.GetPosition(this);
+        if (Math.Abs(now.X - drag.At.X) < 4 && Math.Abs(now.Y - drag.At.Y) < 4) return;
+        _paletteDrag = null;
+        try
+        {
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(
+                PaletteNodeDragFormat, drag.Node.Palette?.Id ?? drag.Node.Folder!.Id));
+            await DragDrop.DoDragDropAsync(drag.Args, transfer, DragDropEffects.Move);
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("palette-drag", ex);
+        }
+    }
+
+    private void OnPaletteNodeReleased(object? sender, PointerReleasedEventArgs e) =>
+        _paletteDrag = null;
+
+    /// <summary>The row a drag is carrying, resolved back from its id.</summary>
+    private PaletteNode? DraggedNode(DragEventArgs e) =>
+        e.DataTransfer?.TryGetValue(PaletteNodeDragFormat) is { } id
+            ? FindPaletteNode(_vm.PaletteDocker.Tree, id)
+            : null;
+
+    private static PaletteNode? FindPaletteNode(IEnumerable<PaletteNode> nodes, string id)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.Palette?.Id == id || node.Folder?.Id == id) return node;
+            if (FindPaletteNode(node.Children, id) is { } hit) return hit;
+        }
+        return null;
+    }
+
+    private void OnPaletteNodeDragOver(object? sender, DragEventArgs e)
+    {
+        // The cursor says no before the drop does. A move that silently does
+        // nothing on release reads as a bug in the drag, not as a refusal.
+        var onto = NodeOf(sender);
+        var source = DraggedNode(e);
+        var allowed = source is not null && onto is not null
+            && !ReferenceEquals(source, onto) && source.Scope == onto.Scope;
+        e.DragEffects = allowed ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnPaletteNodeDrop(object? sender, DragEventArgs e)
+    {
+        if (DraggedNode(e) is not { } source) return;
+        _vm.PaletteDocker.Drop(source, NodeOf(sender));
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// The right-click menu, built here rather than declared in the template.
+    /// </summary>
+    /// <remarks>
+    /// A menu declared inside a template lives in a popup, outside the tree it
+    /// came from, and the bindings that would reach the docker resolve to
+    /// nothing there — the items look right and do nothing at all. Handlers
+    /// close over the view model instead, which cannot go quiet.
+    /// </remarks>
+    private void ShowPaletteNodeMenu(Control anchor, PaletteNode node)
+    {
+        var docker = _vm.PaletteDocker;
+        var assign = new MenuItem { Header = "Assign to" };
+        foreach (var target in docker.AssignTargets)
+        {
+            if (!docker.CanAssign(node, target)) continue;
+            var item = new MenuItem { Header = target.Label };
+            var to = target;
+            item.Click += (_, _) => docker.Assign(node, to);
+            assign.Items.Add(item);
+        }
+
+        var rename = new MenuItem { Header = "Rename" };
+        rename.Click += (_, _) => node.IsRenaming = true;
+
+        var remove = new MenuItem { Header = node.IsFolder ? "Delete folder" : "Delete palette" };
+        remove.Click += (_, _) =>
+        {
+            docker.SelectedNode = node;
+            docker.RemovePaletteCommand.Execute(null);
+        };
+
+        var menu = new MenuFlyout();
+        if (assign.Items.Count > 0) menu.Items.Add(assign);
+        menu.Items.Add(rename);
+        menu.Items.Add(remove);
+        menu.ShowAt(anchor, showAtPointer: true);
+    }
+
+    private void OnPaletteNameCommitted(object? sender, RoutedEventArgs e)
+    {
+        if (NodeOf(sender) is { } node) node.IsRenaming = false;
+    }
+
+    private void OnPaletteNameKey(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Enter or Key.Escape)) return;
+        if (NodeOf(sender) is { } node) node.IsRenaming = false;
+        e.Handled = true;
+    }
+
     // ---- canvas view tools (view-only: never touch the document) -------------
 
     private void OnZoomIn(object? sender, RoutedEventArgs e) => Canvas.ZoomIn();

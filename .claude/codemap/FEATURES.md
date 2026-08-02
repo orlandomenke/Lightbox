@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-908 tests, derived from the suite itself. Each line is a
+943 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -645,6 +645,27 @@ regression even when every test still compiles.
 - Exported Gpl Reads Back As The Same Palette — `:306`
 - An Unparseable Hex Is Rejected Rather Than Painting Black — `:330`
 
+## PaletteHierarchyTests
+`tests/Lightbox.App.Tests/PaletteHierarchyTests.cs`
+
+- ADocument With No Folders Has No Folder Machinery — `:69`
+- Deleting The Last Folder Puts The Document Back To Having None — `:83`
+- ANew Folder Lands Inside Whatever Is Selected — `:98`
+- ANew Palette Lands In The Selected Folder — `:113`
+- An Empty Folder Stays In The Tree — `:123`
+- Renaming ARow Renames The Model — `:136`
+- Dragging APalette Onto AFolder Files It — `:153`
+- Dropping Onto APalette Means Beside It — `:167`
+- AFolder Cannot Be Dropped Into Itself — `:181`
+- Assign To Offers The Top Level And Every Folder By Its Path — `:195`
+- Assign And Drag Agree Because They Are The Same Call — `:211`
+- Deleting AFolder Keeps The Palettes In It — `:228`
+- With AProject Open Both Scopes Get AHeading — `:254`
+- The Project Opens With Its Hierarchy Already In Place — `:267`
+- Nothing Crosses Between The Document And The Project — `:288`
+- AFolder Made With AProject Row Selected Belongs To The Project — `:312`
+- ASwatch Added To AProject Palette Lands In The Project — `:326`
+
 ## ProjectDockerTests
 `tests/Lightbox.App.Tests/ProjectDockerTests.cs`
 
@@ -1077,6 +1098,24 @@ regression even when every test still compiles.
 - Garbage Lines Are Skipped Rather Than Throwing — `:117`
 - Without AColumns Header AReasonable Grid Is Chosen — `:125`
 
+## PaletteTreeTests
+`tests/Lightbox.Core.Tests/PaletteTreeTests.cs`
+
+- AFolder Holds Folders And Palettes And The Top Level Is Just Null — `:20`
+- AFolder Can Be Empty And Stays There — `:38`
+- The Path Reads From The Top Down — `:49`
+- AFolder Can Be Moved Under Another — `:63`
+- AFolder Cannot Be Dropped Into Its Own Descendant — `:75`
+- Moving To AFolder That Is Not There Changes Nothing — `:92`
+- Moving To The Top Level Is Always Allowed — `:103`
+- Deleting AFolder Keeps The Colours And Lifts Them One Level — `:117`
+- Deleting AFolder Takes The Folders Beneath It Too — `:135`
+- The Subtree Finds AGrandchild Listed Before Its Parent — `:154`
+- APalette Filed Under AFolder That Is Gone Comes Back To The Top Level — `:168`
+- ACycle In The File Is Broken Rather Than Looped Over — `:182`
+- ADocument With No Folders Writes No Folder Keys — `:201`
+- The Hierarchy Survives ASave And AReload — `:214`
+
 ## ProjectTests
 `tests/Lightbox.Core.Tests/ProjectTests.cs`
 
@@ -1099,6 +1138,10 @@ regression even when every test still compiles.
 - Flatten Does Not Mutate The Open Document — `:309`
 - An Empty Project Saves And Loads Without Characters — `:326`
 - Loading Something That Is Not AProject Fails — `:335`
+- The Palette Hierarchy Survives AProject Save And Reload — `:344`
+- AProject With No Folders Writes No Folder File — `:363`
+- Deleting The Last Folder Reaches The Disk — `:375`
+- APalette Filed Under AMissing Folder Still Shows Up On Load — `:392`
 
 ## ReferenceStripTests
 `tests/Lightbox.Core.Tests/ReferenceStripTests.cs`

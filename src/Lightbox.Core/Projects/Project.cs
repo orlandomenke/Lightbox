@@ -32,6 +32,17 @@ public sealed class Project
     /// </summary>
     public List<Palette> Palettes { get; } = [];
 
+    /// <summary>
+    /// The folders those shared palettes are filed under.
+    /// </summary>
+    /// <remarks>
+    /// A project is where a hierarchy earns its keep — it is the scope with
+    /// enough palettes in it to need one. Stored in its own file so a project
+    /// that never makes a folder is byte-identical to one written before there
+    /// were any.
+    /// </remarks>
+    public List<PaletteFolder> PaletteFolders { get; } = [];
+
     /// <summary>Gradients shared the same way, keyed by id.</summary>
     public Dictionary<string, Gradient> Gradients { get; } = [];
 
