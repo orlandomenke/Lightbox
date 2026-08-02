@@ -46,6 +46,17 @@ public sealed class Project
     /// <summary>Gradients shared the same way, keyed by id.</summary>
     public Dictionary<string, Gradient> Gradients { get; } = [];
 
+    /// <summary>
+    /// Symbols shared by everything in the project, keyed by id.
+    /// </summary>
+    /// <remarks>
+    /// The same scope as the palettes and for the same reason. Pillar 3's
+    /// promise — edit the sword once, every animation holding it updates —
+    /// is only true if the sword lives above the animations that hold it.
+    /// A per-document symbol would be a copy with extra steps.
+    /// </remarks>
+    public Dictionary<string, Symbol> Symbols { get; } = [];
+
     /// <summary>Documents read so far, by <see cref="DocumentRef.Id"/>.</summary>
     public Dictionary<string, Doc> Loaded { get; } = [];
 

@@ -156,11 +156,17 @@ within five minutes.
 Reusable assets with real identity: edit the sword once, every animation
 holding it updates.
 
-**Designed, not started.** `docs/DESIGN-symbols.md` settles the one decision
-the whole pillar rests on — an asset is a *live symbol referenced by id*, not a
-copy with a link back — and breaks it into seven commits. Most of the items
-below are one step of that design rather than separate features: the six
-libraries are `SymbolKind` values plus a browser filter and land together.
+**Designed; the record has landed.** `docs/DESIGN-symbols.md` settles the one
+decision the whole pillar rests on — an asset is a *live symbol referenced by
+id*, not a copy with a link back — and breaks it into seven commits. Most of
+the items below are one step of that design rather than separate features: the
+six libraries are `SymbolKind` values plus a browser filter and land together.
+
+S1 is in: `Symbol`, `SymbolPlacement`, `SymbolKind`, a nullable `Placements` on
+`PaintedFrame`, and project-scoped storage in `assets/symbols.json`
+(`SymbolRecordTests`). Nothing resolves or renders a placement yet, so the
+first item below stays open until S2 — a green box for half a step is the one
+thing this file must not say.
 
 - [?] Shared symbols — the record (design S1–S2)
 - [?] Linked assets — edit once, update everywhere (S6)

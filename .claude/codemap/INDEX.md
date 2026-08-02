@@ -1,6 +1,6 @@
 # Code index
 
-Generated from `de69365` · 258 files · 62494 lines · 1171 tests.
+Generated from `5cc12f3` · 260 files · 63027 lines · 1184 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -169,8 +169,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Core
 
-- `src/Lightbox.Core/Projects/ProjectIo.cs` (715 ln) · 6 test files
-  - ProjectIo:31, ConversionReport:501
+- `src/Lightbox.Core/Projects/ProjectIo.cs` (758 ln) · 7 test files
+  - ProjectIo:31, ConversionReport:544
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (603 ln) · 6 test files
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
@@ -193,6 +193,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ShapeKind:5, ShapeBuilder:38
 - `src/Lightbox.Core/Documents/MediumSettings.cs` (191 ln) · 8 test files
   - MediumKind:10, PaperKind:29, MediumSettings:54
+- `src/Lightbox.Core/Documents/Symbol.cs` (179 ln) · 1 test files
+  - SymbolKind:11, Symbol:42, SymbolPlacement:120
 - `src/Lightbox.Core/Documents/PaletteFolder.cs` (178 ln) · 3 test files
   - PaletteFolder:20, PaletteTree:40
 - `src/Lightbox.Core/Projects/CharacterLibrary.cs` (153 ln) · 1 test files
@@ -205,12 +207,12 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Swatch:8, Palette:30, GimpPalette:55
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (130 ln) · 1 test files
   - GeometryOps:5
-- `src/Lightbox.Core/Documents/Layer.cs` (115 ln) · 14 test files
+- `src/Lightbox.Core/Projects/Project.cs` (120 ln) · 5 test files
+  - Project:15
+- `src/Lightbox.Core/Documents/Layer.cs` (115 ln) · 15 test files
   - LayerKind:3, LayerBlendMode:14, Cel:38, LayerGroup:49, Layer:67
 - `src/Lightbox.Core/Documents/Guide.cs` (114 ln) · 3 test files
   - GuideKind:4, Guide:60
-- `src/Lightbox.Core/Projects/Project.cs` (109 ln) · 5 test files
-  - Project:15
 - `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 25 test files
   - DocumentFactory:3
 - `src/Lightbox.Core/Inbetween/Inbetweener.cs` (94 ln) · 2 test files
@@ -219,24 +221,24 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - OnionSkin:27
 - `src/Lightbox.Core/Inbetween/StrokeRecordCleaner.cs` (87 ln) · 1 test files
   - StrokeRecordCleaner:20
-- `src/Lightbox.Core/Documents/Stroke.cs` (81 ln) · 40 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (81 ln) · 41 test files
   - Stroke:9
 - `src/Lightbox.Core/Geometry/StrokeFilters.cs` (80 ln) · 1 test files
   - StrokeFilters:10
 - `src/Lightbox.Core/Inbetween/StrokeMatcher.cs` (73 ln) · 1 test files
   - StrokePair:6, StrokeMatcher:13
-- `src/Lightbox.Core/Serialization/DocJson.cs` (66 ln) · 14 test files
-  - DocJson:11
-- `src/Lightbox.Core/Serialization/FrameConverter.cs` (64 ln) · 61 indirect only
+- `src/Lightbox.Core/Serialization/FrameConverter.cs` (73 ln) · 62 indirect only
   - FrameConverter:14
-- `src/Lightbox.Core/Documents/Doc.cs` (63 ln) · 14 test files
+- `src/Lightbox.Core/Serialization/DocJson.cs` (66 ln) · 15 test files
+  - DocJson:11
+- `src/Lightbox.Core/Documents/Doc.cs` (63 ln) · 15 test files
   - Doc:8, ClipRegion:57
+- `src/Lightbox.Core/Documents/Frame.cs` (62 ln) · 58 test files
+  - FrameRole:8, Frame:19, VectorFrame:27, PaintedFrame:40
 - `src/Lightbox.Core/Documents/ReferenceSheet.cs` (50 ln) · 1 test files
   - ReferenceSheet:11, ReferenceView:21
 - `src/Lightbox.Core/Timeline/ExposureSheet.cs` (50 ln) · 2 test files
   - ExposureSheet:8
-- `src/Lightbox.Core/Documents/Frame.cs` (47 ln) · 57 test files
-  - FrameRole:8, Frame:19, VectorFrame:27, PaintedFrame:40
 - `src/Lightbox.Core/Inbetween/StrokeInterpolator.cs` (43 ln) · 1 test files
   - StrokeInterpolator:6
 - `src/Lightbox.Core/Geometry/ColorOps.cs` (29 ln) · 1 test files
@@ -247,7 +249,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Easing:3, EasingOps:11
 - `src/Lightbox.Core/Documents/Pivot.cs` (16 ln) · 2 test files
   - Pivot:7
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 99 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 100 indirect only
   - Ids:3
 
 ## Lightbox.Import

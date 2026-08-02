@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1171 tests, derived from the suite itself. Each line is a
+1184 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1490,6 +1490,23 @@ regression even when every test still compiles.
 - AFlat Opaque Surround Is Background Too — `:289`
 - ASheet With No Flat Surround Is All Content — `:305`
 - Nearly Transparent Noise Is Not Content — `:321`
+
+## SymbolRecordTests
+`tests/Lightbox.Core.Tests/SymbolRecordTests.cs`
+
+- ADocument With No Placements Writes No Placement Key — `:57`
+- AFresh Painted Frame Has No Placements — `:74`
+- AProject With No Symbols Writes No Symbol File — `:83`
+- APlacement Survives ASave And Reload — `:102`
+- Symbols Survive ASave And Reload Of The Project — `:133`
+- Deleting The Last Symbol Reaches The Disk — `:162`
+- ANested Placement Is Refused On Load Rather Than Half Supported — `:188`
+- AProp Shows Its One Frame On Every Cel — `:217`
+- ACycle Wraps Across The Timeline — `:226`
+- An Offset Runs The Same Cycle Out Of Step — `:237`
+- ANegative Offset Starts Part Way Through Rather Than Going Out Of Range — `:249`
+- An Empty Symbol Still Reports One Frame So Nothing Divides By Zero — `:258`
+- APlacement Remembers What It Was Placed Against — `:265`
 
 ## CelRangeTests
 `tests/Lightbox.Core.Tests/Timeline/CelRangeTests.cs`

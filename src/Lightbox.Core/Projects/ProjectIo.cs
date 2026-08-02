@@ -46,6 +46,16 @@ public static class ProjectIo
     private const string PaletteFoldersFile = "palettes/folders.json";
     private const string GradientsFile = "gradients/gradients.json";
 
+    /// <summary>
+    /// Shared symbols, in the assets directory the layout already declared.
+    /// </summary>
+    /// <remarks>
+    /// One file rather than one per symbol. A symbol is a handful of strokes,
+    /// and a project with two hundred props should not be two hundred file
+    /// opens on load — the same argument that made the palettes one file.
+    /// </remarks>
+    private const string SymbolsFile = "assets/symbols.json";
+
     // ---- create -------------------------------------------------------------
 
     /// <summary>A new, empty project in memory. Nothing is written until Save.</summary>
@@ -365,10 +375,27 @@ public static class ProjectIo
         PaletteTree.Prune(project.PaletteFolders, project.Palettes);
 
         var gradients = Path.Combine(project.Root, GradientsFile.Replace('/', Path.DirectorySeparatorChar));
-        if (!File.Exists(gradients)) return;
-        var read = JsonSerializer.Deserialize<Dictionary<string, Gradient>>(
-            File.ReadAllText(gradients), DocJson.Options);
-        foreach (var (id, gradient) in read ?? []) project.Gradients[id] = gradient;
+        if (File.Exists(gradients))
+        {
+            var read = JsonSerializer.Deserialize<Dictionary<string, Gradient>>(
+                File.ReadAllText(gradients), DocJson.Options);
+            foreach (var (id, gradient) in read ?? []) project.Gradients[id] = gradient;
+        }
+
+        var symbols = Path.Combine(project.Root, SymbolsFile.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(symbols)) return;
+        var loaded = JsonSerializer.Deserialize<Dictionary<string, Symbol>>(
+            File.ReadAllText(symbols), DocJson.Options);
+        foreach (var (id, symbol) in loaded ?? [])
+        {
+            // Nesting is refused rather than half-supported. A symbol holding a
+            // placement needs a cycle check, a depth limit and a dependency
+            // graph that all have to be right before anything renders, and
+            // dropping the placement is a smaller lie than rendering an
+            // unbounded recursion.
+            foreach (var frame in symbol.Frames.OfType<PaintedFrame>()) frame.Placements = null;
+            project.Symbols[id] = symbol;
+        }
     }
 
     /// <summary>Read a document, or return the one already in the cache.</summary>
@@ -481,10 +508,26 @@ public static class ProjectIo
             File.Delete(folderPath);
         }
 
-        if (project.Gradients.Count == 0) return;
-        DocJson.WriteAtomic(
-            Path.Combine(project.Root, GradientsFile.Replace('/', Path.DirectorySeparatorChar)),
-            JsonSerializer.Serialize(project.Gradients, DocJson.Options));
+        if (project.Gradients.Count > 0)
+        {
+            DocJson.WriteAtomic(
+                Path.Combine(project.Root, GradientsFile.Replace('/', Path.DirectorySeparatorChar)),
+                JsonSerializer.Serialize(project.Gradients, DocJson.Options));
+        }
+
+        var symbolPath = Path.Combine(
+            project.Root, SymbolsFile.Replace('/', Path.DirectorySeparatorChar));
+        if (project.Symbols.Count > 0)
+        {
+            DocJson.WriteAtomic(
+                symbolPath, JsonSerializer.Serialize(project.Symbols, DocJson.Options));
+        }
+        else if (File.Exists(symbolPath))
+        {
+            // Deleting the last symbol has to reach the disk, for the reason the
+            // last palette folder does: otherwise reopening brings it back.
+            File.Delete(symbolPath);
+        }
     }
 
     // ---- conversion -----------------------------------------------------------

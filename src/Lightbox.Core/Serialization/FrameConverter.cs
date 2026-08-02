@@ -49,6 +49,15 @@ public sealed class FrameConverter : JsonConverter<Frame>
                 writer.WriteString("pngBase64", p.PngBase64);
                 writer.WritePropertyName("strokes");
                 JsonSerializer.Serialize(writer, p.Strokes, options);
+                // Only when something is placed. This writer names every
+                // property it emits, so an absent key here is the whole of the
+                // "a document that never places a symbol serializes exactly as
+                // it did before symbols existed" promise.
+                if (p.HasPlacements)
+                {
+                    writer.WritePropertyName("placements");
+                    JsonSerializer.Serialize(writer, p.Placements, options);
+                }
                 break;
             default:
                 throw new JsonException($"Unknown frame type {value.GetType().Name}.");

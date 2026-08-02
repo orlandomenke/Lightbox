@@ -44,4 +44,19 @@ public sealed class PaintedFrame : Frame
 
     /// <summary>Strokes painted on top of the baseline, in paint order.</summary>
     public List<Stroke> Strokes { get; set; } = [];
+
+    /// <summary>
+    /// Symbols placed on this frame, over the strokes.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than empty, and absent from the file until something is
+    /// placed — the camera's rule again, and the fifth time it has earned its
+    /// keep. A document that never places a symbol must serialize exactly as
+    /// it did before symbols existed.
+    /// </remarks>
+    public List<SymbolPlacement>? Placements { get; set; }
+
+    /// <summary>Whether anything is placed here at all.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasPlacements => Placements is { Count: > 0 };
 }
