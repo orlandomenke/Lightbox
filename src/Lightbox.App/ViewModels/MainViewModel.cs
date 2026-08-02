@@ -3230,6 +3230,27 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(PlayPauseGlyph))]
     private bool _isPlaying;
 
+    /// <summary>
+    /// Playback walks the sheet in order, which is the one access pattern an
+    /// LRU is worst at — it evicts the frames at the start to make room for
+    /// the ones at the end, so coming round the loop finds everything it is
+    /// about to need has just been thrown away (B28). Evicting the most recent
+    /// instead keeps the head of the sheet resident and turns a zero hit rate
+    /// into about half.
+    /// </summary>
+    /// <remarks>
+    /// Only for the duration of the scan. While drawing, the frames an artist
+    /// returns to are the ones they touched last, which is the opposite
+    /// prediction and the reason LRU is the default.
+    /// </remarks>
+    /// <summary>What the frame cache is currently evicting by. Test seam.</summary>
+    internal FrameBitmapCache.EvictionOrder FrameCacheEviction => _cache.Eviction;
+
+    partial void OnIsPlayingChanged(bool value) =>
+        _cache.Eviction = value
+            ? FrameBitmapCache.EvictionOrder.MostRecent
+            : FrameBitmapCache.EvictionOrder.LeastRecent;
+
     [ObservableProperty]
     private int _activeLayerIndex;
 

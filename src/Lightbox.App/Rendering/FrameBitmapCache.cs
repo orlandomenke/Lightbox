@@ -27,6 +27,47 @@ public sealed class FrameBitmapCache : IDisposable
 
     private const int MaxFrames = 96;
 
+    /// <summary>
+    /// Which end of the queue eviction takes from.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>An LRU against a sequential scan has a zero hit rate</b>, and playing,
+    /// scrubbing and exporting are all sequential scans. Walking a sheet longer
+    /// than the cache evicts the frames at the start to make room for the ones
+    /// at the end, so when the playhead comes round again everything it is
+    /// about to ask for has just been thrown away. Not degraded — zero. The
+    /// cache stops being a cache and every frame is re-rasterised from strokes
+    /// (B28).
+    /// </para>
+    /// <para>
+    /// Evicting the <em>most</em> recent instead is the textbook answer, and it
+    /// works because it stops the scan destroying itself: the frames that
+    /// arrived first stay put and the tail of the sheet fights over what is
+    /// left. A 96-frame scene against a 48-frame budget goes from every frame
+    /// missing to about half of them hitting. Half a cache beats none.
+    /// </para>
+    /// <para>
+    /// It is the wrong policy for drawing, where the frames an artist keeps
+    /// returning to are the ones they touched last — so it is a mode the
+    /// caller turns on for the duration of a scan, not a replacement.
+    /// </para>
+    /// </remarks>
+    public enum EvictionOrder
+    {
+        /// <summary>Least recently used. Right for drawing, where recency predicts reuse.</summary>
+        LeastRecent,
+
+        /// <summary>Most recently used. Right for a scan, where it predicts the opposite.</summary>
+        MostRecent,
+    }
+
+    /// <summary>
+    /// How to evict. Set <see cref="EvictionOrder.MostRecent"/> while playing,
+    /// scrubbing or exporting, and back afterwards.
+    /// </summary>
+    public EvictionOrder Eviction { get; set; } = EvictionOrder.LeastRecent;
+
     private readonly record struct Entry(string Key, string FrameId, SKBitmap Bmp);
 
     private readonly Dictionary<string, LinkedListNode<Entry>> _map = [];
@@ -124,11 +165,17 @@ public sealed class FrameBitmapCache : IDisposable
     /// </summary>
     private void Evict()
     {
-        while (_lru.Count > MaxFrames) RemoveNode(_lru.Last!);
-        while (_lru.Count > MinFrames && CachedBytes > ByteBudget) RemoveNode(_lru.Last!);
+        // Under MostRecent this is the node just inserted's neighbour rather
+        // than the node itself: evicting what was only this moment put in
+        // would make the cache a no-op on the very frame being shown.
+        LinkedListNode<Entry>? Victim() =>
+            Eviction == EvictionOrder.LeastRecent ? _lru.Last : _lru.First?.Next ?? _lru.First;
+
+        while (_lru.Count > MaxFrames && Victim() is { } a) RemoveNode(a);
+        while (_lru.Count > MinFrames && CachedBytes > ByteBudget && Victim() is { } b) RemoveNode(b);
         // Still over after honouring the preference: the document is big
         // enough that the preference itself is what does not fit.
-        while (_lru.Count > 1 && CachedBytes > ByteBudget) RemoveNode(_lru.Last!);
+        while (_lru.Count > 1 && CachedBytes > ByteBudget && Victim() is { } c) RemoveNode(c);
     }
 
     private static long BytesOf(SKBitmap bmp) => bmp.Width * (long)bmp.Height * 4;

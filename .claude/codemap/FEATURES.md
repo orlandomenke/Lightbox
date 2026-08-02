@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1454 tests, derived from the suite itself. Each line is a
+1460 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -971,6 +971,20 @@ regression even when every test still compiles.
 - Changing The Default Pitch Does Not Touch AGrid Already Placed — `:444`
 - Editing APlaced Grid Is Undoable — `:457`
 - Turning AGrids Snapping Off Leaves The Stroke Alone — `:471`
+
+## PlaybackEvictionTests
+`tests/Lightbox.App.Tests/ScanEvictionTests.cs`
+
+- Playing Switches The Cache To Scan Eviction — `:140`
+
+## ScanEvictionTests
+`tests/Lightbox.App.Tests/ScanEvictionTests.cs`
+
+- An Lru Scan Throws Away Everything It Is About To Need — `:67`
+- Evicting The Most Recent Keeps Half The Sheet Resident — `:79`
+- Scan Eviction Is Better Than Lru On AScan — `:90`
+- The Frame Being Shown Is Never The One Evicted — `:99`
+- Drawing Keeps The Lru It Wants — `:125`
 
 ## SceneDockerTests
 `tests/Lightbox.App.Tests/SceneDockerTests.cs`
