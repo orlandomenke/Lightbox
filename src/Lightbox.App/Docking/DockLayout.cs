@@ -55,6 +55,17 @@ public sealed class DockLayout
     /// <summary>Across the strip: the sidebar's width, the bottom area's height.</summary>
     public Dictionary<DockSide, double> AreaExtents { get; set; } = [];
 
+    /// <summary>
+    /// The bars that sit on the canvas rather than in a strip.
+    /// </summary>
+    /// <remarks>
+    /// Here because they are the same kind of thing a dock layout already is —
+    /// an arrangement of the screen, belonging to the person rather than the
+    /// artwork — so they save, reset and switch with the workspace exactly as
+    /// the panels do.
+    /// </remarks>
+    public CanvasOverlayLayout Overlays { get; set; } = CanvasOverlayLayout.Default();
+
     /// <summary>The layout the app opens with the first time.</summary>
     public static DockLayout Default()
     {
@@ -208,6 +219,7 @@ public sealed class DockLayout
     {
         Placements = Placements.ToDictionary(p => p.Key, p => p.Value.Clone()),
         AreaExtents = new Dictionary<DockSide, double>(AreaExtents),
+        Overlays = Overlays.Clone(),
     };
 
     // ---- persistence ---------------------------------------------------------

@@ -149,6 +149,16 @@
         <MenuItem Header="Character sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Reference" ToggleType="CheckBox" IsChecked="{Binding ReferenceDockerVisible, Mode=TwoWay}" />
         <Separator />
+        <!-- The bars that sit on the canvas. Separate from the panels above
+             because they are a different trade: a panel takes room away from
+             the drawing, a bar sits on top of it. -->
+        <MenuItem Header="View bar" ToggleType="CheckBox"
+                  IsChecked="{Binding Workspace.ViewBarVisible, Mode=TwoWay}"
+                  ToolTip.Tip="Zoom, rotate and mirror, on the canvas" />
+        <MenuItem Header="Shortcut bar" ToggleType="CheckBox"
+                  IsChecked="{Binding Workspace.ShortcutBarVisible, Mode=TwoWay}"
+                  ToolTip.Tip="Onion skin, camera and playback, on the canvas" />
+        <Separator />
         <!-- Workspaces are global, never stored in a project: a layout is a
              property of the person, not of the artwork. Opening someone
              else's file must not rearrange your screen. -->
@@ -1150,20 +1160,49 @@
              exactly like a broken renderer. -->
         <Panel x:Name="CanvasHost" Grid.Column="4">
           <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}" />
-          <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
-                  Background="#cc1f1f1f" CornerRadius="4" Padding="3">
-            <StackPanel Orientation="Horizontal" Spacing="2">
-              <Button Content="−" Click="OnZoomOut" ToolTip.Tip="Zoom out (mouse wheel)" />
-              <Button x:Name="ZoomLabel" Content="100%" MinWidth="52" Click="OnResetView"
-                      ToolTip.Tip="Current zoom — click to reset the whole view" />
-              <Button Content="＋" Click="OnZoomIn" ToolTip.Tip="Zoom in (mouse wheel)" />
-              <Button Content="↺" Click="OnRotateCcw" ToolTip.Tip="Rotate view 15° counter-clockwise (Shift+wheel)" />
-              <Button Content="↻" Click="OnRotateCw" ToolTip.Tip="Rotate view 15° clockwise (Shift+wheel)" />
-              <Button x:Name="MirrorButton" Content="⇋" Click="OnToggleMirror"
-                      ToolTip.Tip="Mirror the view horizontally (M) — a drawing aid, the artwork is untouched" />
-              <Button Content="⌂" Click="OnResetView" ToolTip.Tip="Reset zoom, rotation, mirror and pan (0)" />
-            </StackPanel>
-          </Border>
+          <!--
+            Overlay bars. Their edge, position, collapsed and visible state
+            live in the workspace; the window only reads that and places them
+            (see ApplyOverlayLayout). A LayoutTransformControl rather than a
+            RenderTransform, so a rotated bar actually measures as a tall thin
+            one and the edge it is pinned to is the edge it occupies.
+          -->
+          <LayoutTransformControl x:Name="ViewBarHost" Margin="8">
+            <controls:CanvasOverlayBar x:Name="ViewBar" OverlayId="View" Title="View">
+              <StackPanel Orientation="Horizontal" Spacing="2">
+                <Button Content="−" Click="OnZoomOut" ToolTip.Tip="Zoom out (mouse wheel)" />
+                <Button x:Name="ZoomLabel" Content="100%" MinWidth="52" Click="OnResetView"
+                        ToolTip.Tip="Current zoom — click to reset the whole view" />
+                <Button Content="＋" Click="OnZoomIn" ToolTip.Tip="Zoom in (mouse wheel)" />
+                <Button Content="↺" Click="OnRotateCcw" ToolTip.Tip="Rotate view 15° counter-clockwise (Shift+wheel)" />
+                <Button Content="↻" Click="OnRotateCw" ToolTip.Tip="Rotate view 15° clockwise (Shift+wheel)" />
+                <Button x:Name="MirrorButton" Content="⇋" Click="OnToggleMirror"
+                        ToolTip.Tip="Mirror the view horizontally (M) — a drawing aid, the artwork is untouched" />
+                <Button Content="⌂" Click="OnResetView" ToolTip.Tip="Reset zoom, rotation, mirror and pan (0)" />
+              </StackPanel>
+            </controls:CanvasOverlayBar>
+          </LayoutTransformControl>
+
+          <!--
+            Shortcuts: what you are looking at, rather than how. Each entry is
+            absent when it would mean nothing — no camera button without a
+            camera, no transport on a document nobody is going to play.
+          -->
+          <LayoutTransformControl x:Name="ShortcutBarHost" Margin="8">
+            <controls:CanvasOverlayBar x:Name="ShortcutBar" OverlayId="Shortcuts" Title="Shortcuts">
+              <StackPanel Orientation="Horizontal" Spacing="2">
+                <ToggleButton Content="◉" IsChecked="{Binding ActiveLayerOnion}" Padding="6,2"
+                              ToolTip.Tip="Onion skin on the active layer" />
+                <ToggleButton Content="🎥" IsChecked="{Binding ViewThroughCamera}" Padding="6,2"
+                              IsVisible="{Binding HasCamera}"
+                              ToolTip.Tip="View through the camera" />
+                <Button Content="{Binding PlayPauseGlyph}" Padding="6,2"
+                        Command="{Binding TogglePlaybackCommand}"
+                        IsVisible="{Binding ShowsTransport}"
+                        ToolTip.Tip="Play / pause (Space)" />
+              </StackPanel>
+            </controls:CanvasOverlayBar>
+          </LayoutTransformControl>
         </Panel>
 
         <GridSplitter x:Name="RightSplitter" Grid.Column="5" Width="5" ResizeDirection="Columns" />
@@ -1520,32 +1559,43 @@
                 </Border>
               </controls:Docker.BottomBar>
 
-              <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel Margin="8" Spacing="8">
+              <!--
+                No scroll viewer. Exactly one of the groups below is visible at
+                a time, so they all share a single row and the panel is as tall
+                as whichever one is showing — a colour picker you have to scroll
+                to reach is not a colour picker.
+              -->
+              <Grid Margin="8">
+                <!--
+                  Krita-style wheel: hue ring plus a value slider beside it.
 
-                  <!--
-                    Krita-style wheel: hue ring plus a value slider beside it.
+                  The slider used to sit under the wheel, which meant a wheel
+                  tall enough to be usable pushed it out of the docker: the one
+                  control you reach for on every stroke was the one that
+                  scrolled away. Side by side, the pair is one row.
 
-                    The slider used to sit under the wheel, which meant a wheel
-                    tall enough to be usable pushed it out of the docker: the
-                    one control you reach for on every stroke was the one that
-                    scrolled away. Side by side, the pair is one row, and the
-                    ring shrinks with the docker instead of the slider
-                    disappearing from it.
-                  -->
-                  <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ColorPicker.IsWheelMode}">
+                  The Viewbox is what keeps it in view at any panel height. The
+                  ring used to be sized from its own width and clamped at 240,
+                  which is a height the panel does not always have — and the
+                  moment it did not, the wheel grew a scrollbar and pushed
+                  itself off the bottom. Scaling the pair as a unit means the
+                  wheel is always whole, always square, and always the largest
+                  it can be in the room it has.
+                -->
+                <Viewbox Stretch="Uniform" StretchDirection="Both" MinHeight="120" MaxHeight="320"
+                         IsVisible="{Binding ColorPicker.IsWheelMode}">
+                  <Grid ColumnDefinitions="240,8,24" Height="240">
                     <ColorSpectrum Grid.Column="0" Shape="Ring" Components="HueSaturation"
-                                   MinHeight="110" MaxHeight="240"
-                                   Height="{Binding $self.Bounds.Width}"
                                    HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}" />
-                    <ColorSlider Grid.Column="1" Orientation="Vertical" Width="22" Margin="8,0,0,0"
+                    <ColorSlider Grid.Column="2" Orientation="Vertical"
                                  ColorModel="Hsva" ColorComponent="Component3"
                                  HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}"
                                  ToolTip.Tip="Value (brightness)" />
                   </Grid>
+                </Viewbox>
 
                   <!-- HSV sliders -->
-                  <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsHsvMode}">
+                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsHsvMode}">
                     <DockPanel>
                       <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
@@ -1567,7 +1617,7 @@
                   </StackPanel>
 
                   <!-- HSL sliders -->
-                  <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsHslMode}">
+                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsHslMode}">
                     <DockPanel>
                       <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
@@ -1589,7 +1639,7 @@
                   </StackPanel>
 
                   <!-- RGB sliders -->
-                  <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsRgbMode}">
+                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsRgbMode}">
                     <DockPanel>
                       <TextBlock Text="R" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255"
@@ -1611,7 +1661,7 @@
                   </StackPanel>
 
                   <!-- CMYK sliders -->
-                  <StackPanel Spacing="4" IsVisible="{Binding ColorPicker.IsCmykMode}">
+                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsCmykMode}">
                     <DockPanel>
                       <TextBlock Text="C" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100"
@@ -1637,9 +1687,7 @@
                       <Slider Value="{Binding ColorPicker.Black}" Minimum="0" Maximum="100" Margin="4,0" />
                     </DockPanel>
                   </StackPanel>
-
-                </StackPanel>
-              </ScrollViewer>
+              </Grid>
             </controls:Docker>
 
         <controls:Docker x:Name="SheetsPanel" PanelId="Sheets" Title="Character sheets"

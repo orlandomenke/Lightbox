@@ -32,6 +32,7 @@ public abstract class BrushStateIsolated : IDisposable
 {
     private readonly string _previousBrushes = MainViewModel.BrushStorePath ?? "";
     private readonly string _previousSettings = Lightbox.App.Services.AppSettings.Path;
+    private readonly string _previousWorkspaces = Lightbox.App.Docking.WorkspaceStore.Path;
 
     protected BrushStateIsolated()
     {
@@ -39,16 +40,25 @@ public abstract class BrushStateIsolated : IDisposable
             Path.GetTempPath(), $"lightbox-brushes-{Guid.NewGuid():N}.json");
         Lightbox.App.Services.AppSettings.Path = Path.Combine(
             Path.GetTempPath(), $"lightbox-settings-{Guid.NewGuid():N}.json");
+        // Workspaces for the same reason, and this one bites hardest: creating
+        // a project switches to that project type's workspace and saves the
+        // choice, so one test that opens a project silently rearranges the
+        // panels every later test starts from.
+        Lightbox.App.Docking.WorkspaceStore.Path = Path.Combine(
+            Path.GetTempPath(), $"lightbox-workspaces-{Guid.NewGuid():N}.json");
     }
 
     public void Dispose()
     {
         var mine = MainViewModel.BrushStorePath;
         var mySettings = Lightbox.App.Services.AppSettings.Path;
+        var myWorkspaces = Lightbox.App.Docking.WorkspaceStore.Path;
         MainViewModel.BrushStorePath = _previousBrushes;
         Lightbox.App.Services.AppSettings.Path = _previousSettings;
+        Lightbox.App.Docking.WorkspaceStore.Path = _previousWorkspaces;
         if (mine is not null && File.Exists(mine)) File.Delete(mine);
         if (File.Exists(mySettings)) File.Delete(mySettings);
+        if (File.Exists(myWorkspaces)) File.Delete(myWorkspaces);
         GC.SuppressFinalize(this);
     }
 }

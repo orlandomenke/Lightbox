@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-854 tests, derived from the suite itself. Each line is a
+870 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -149,6 +149,30 @@ regression even when every test still compiles.
 - Mouse Drag After Wheel Zoom Still Paints — `:50`
 - Mouse Drag After Middle Button Pan Still Paints — `:64`
 - Mouse Drag After Mirror Rotate Zoom Still Paints At Correct Doc Point — `:81`
+
+## CanvasOverlayGeometryTests
+`tests/Lightbox.App.Tests/CanvasOverlayTests.cs`
+
+- ADrop Goes To The Nearest Edge — `:32`
+- The Answer Depends Only On Where The Pointer Is — `:36`
+- How Far Along Is AFraction Of The Edge It Is On — `:52`
+- ABar On ASide Edge Runs Vertically — `:64`
+- ADegenerate Canvas Does Not Divide By Zero — `:73`
+- The Default Puts View Top Right And Shortcuts Down The Side — `:80`
+- ALayout Clones Rather Than Sharing Its Placements — `:92`
+
+## CanvasOverlayTests
+`tests/Lightbox.App.Tests/CanvasOverlayTests.cs`
+
+- Both Bars Are On The Canvas To Start With — `:121`
+- Moving ABar To ASide Edge Turns It AQuarter Turn — `:142`
+- Closing ABar Hides It And The View Menu Brings It Back — `:165`
+- Collapsing ABar Survives AWorkspace Reset — `:185`
+- The Bars Are Listed Separately From The Panels — `:202`
+- The Onion Toggle Acts On The Layer Being Drawn On — `:218`
+- One Button For Play And Pause — `:229`
+- An Illustration Project Is Not Offered Transport Controls — `:244`
+- The Camera Toggle Is Absent Until There Is ACamera — `:264`
 
 ## CanvasViewTests
 `tests/Lightbox.App.Tests/CanvasViewTests.cs`

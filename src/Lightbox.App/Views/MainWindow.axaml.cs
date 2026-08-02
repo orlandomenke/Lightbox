@@ -127,7 +127,11 @@ public partial class MainWindow : Window
         };
         _vm.Workspace.Changed += ApplyDockLayout;
         InitialisePanels();
+        InitialiseOverlays();
         ApplyDockLayout();
+        // The bars are positioned as a fraction of the canvas, so they have to
+        // be replaced whenever the canvas changes size.
+        CanvasHost.SizeChanged += (_, _) => ApplyOverlayLayout();
 
         // If canvas input ever fails, say so in the status bar instead of dying silently.
         Canvas.CanvasError += message => _vm.AiStatus = message;
@@ -226,6 +230,91 @@ public partial class MainWindow : Window
         foreach (var id in _floating.Keys.ToList())
         {
             if (layout.SideOf(id) != DockSide.Floating || !IsPanelUsable(id)) CloseFloating(id);
+        }
+
+        ApplyOverlayLayout();
+    }
+
+    // ---- the bars on the canvas -----------------------------------------------
+
+    private IEnumerable<(OverlayId Id, LayoutTransformControl Host, CanvasOverlayBar Bar)> OverlayBars() =>
+    [
+        (OverlayId.View, ViewBarHost, ViewBar),
+        (OverlayId.Shortcuts, ShortcutBarHost, ShortcutBar),
+    ];
+
+    private void InitialiseOverlays()
+    {
+        foreach (var (_, _, bar) in OverlayBars())
+        {
+            bar.DragHost = CanvasHost;
+            bar.Dropped += OnOverlayDropped;
+            bar.CloseRequested += b => _vm.Workspace.SetOverlayVisible(b.OverlayId, false);
+            bar.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == CanvasOverlayBar.CollapsedProperty)
+                {
+                    _vm.Workspace.SetOverlayCollapsed(bar.OverlayId, bar.Collapsed);
+                }
+            };
+        }
+    }
+
+    private void OnOverlayDropped(CanvasOverlayBar bar, Point at)
+    {
+        var width = CanvasHost.Bounds.Width;
+        var height = CanvasHost.Bounds.Height;
+        var edge = CanvasOverlayLayout.NearestEdge(at.X, at.Y, width, height);
+        _vm.Workspace.PlaceOverlay(bar.OverlayId, edge, CanvasOverlayLayout.AlongFor(edge, at.X, at.Y, width, height));
+    }
+
+    /// <summary>
+    /// Put each bar on its edge.
+    /// </summary>
+    /// <remarks>
+    /// Alignment pins it to the edge; the alignment on the other axis is
+    /// Stretch with a margin, which is how a fraction along the edge becomes a
+    /// position without measuring the bar. A side edge rotates the whole
+    /// control a quarter turn through a LayoutTransformControl, so the bar
+    /// measures as tall and thin and genuinely occupies the edge rather than
+    /// jutting out over the drawing.
+    /// </remarks>
+    private void ApplyOverlayLayout()
+    {
+        var overlays = _vm.Workspace.Layout.Overlays;
+        foreach (var (id, host, bar) in OverlayBars())
+        {
+            var placement = overlays.Place(id);
+            host.IsVisible = placement.Visible;
+            if (!placement.Visible) continue;
+
+            bar.Collapsed = placement.Collapsed;
+            var vertical = CanvasOverlayLayout.IsVertical(placement.Edge);
+            bar.IsVertical = vertical;
+            host.LayoutTransform = vertical ? new Avalonia.Media.RotateTransform(90) : null;
+
+            host.HorizontalAlignment = placement.Edge switch
+            {
+                CanvasEdge.Left => Avalonia.Layout.HorizontalAlignment.Left,
+                CanvasEdge.Right => Avalonia.Layout.HorizontalAlignment.Right,
+                _ => Avalonia.Layout.HorizontalAlignment.Left,
+            };
+            host.VerticalAlignment = placement.Edge switch
+            {
+                CanvasEdge.Top => Avalonia.Layout.VerticalAlignment.Top,
+                CanvasEdge.Bottom => Avalonia.Layout.VerticalAlignment.Bottom,
+                _ => Avalonia.Layout.VerticalAlignment.Top,
+            };
+
+            // The free axis is expressed as a lopsided margin: 0.25 along a
+            // horizontal edge is a left margin of a quarter of the width, and
+            // the bar's own size takes care of the rest.
+            var along = Math.Clamp(placement.Along, 0, 1);
+            const double Gap = 8;
+            host.Margin = vertical
+                ? new Thickness(Gap, Gap + along * Math.Max(0, CanvasHost.Bounds.Height - 2 * Gap - bar.Bounds.Width), Gap, Gap)
+                : new Thickness(Gap + along * Math.Max(0, CanvasHost.Bounds.Width - 2 * Gap - bar.Bounds.Width), Gap, Gap, Gap);
+
         }
     }
 

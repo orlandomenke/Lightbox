@@ -130,6 +130,57 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         set => SetVisible(DockPanelId.Reference, value);
     }
 
+    // ---- the bars on the canvas ---------------------------------------------
+    //
+    // Listed separately from the panels in the View menu, because they are a
+    // different kind of thing: a panel takes room away from the drawing, an
+    // overlay bar sits on top of it. Somebody who wants no panels at all may
+    // still want the zoom readout.
+
+    public CanvasOverlayLayout Overlays => _layout.Overlays;
+
+    public bool ViewBarVisible
+    {
+        get => _layout.Overlays.IsVisible(OverlayId.View);
+        set => SetOverlayVisible(OverlayId.View, value);
+    }
+
+    public bool ShortcutBarVisible
+    {
+        get => _layout.Overlays.IsVisible(OverlayId.Shortcuts);
+        set => SetOverlayVisible(OverlayId.Shortcuts, value);
+    }
+
+    public void SetOverlayVisible(OverlayId id, bool visible)
+    {
+        if (_layout.Overlays.IsVisible(id) == visible) return;
+        Mutate(l => l.Overlays.Place(id).Visible = visible);
+        OnPropertyChanged(id == OverlayId.View ? nameof(ViewBarVisible) : nameof(ShortcutBarVisible));
+    }
+
+    /// <summary>Move a bar to an edge, or roll it up. One workspace edit either way.</summary>
+    public void PlaceOverlay(OverlayId id, CanvasEdge edge, double along)
+    {
+        Mutate(l =>
+        {
+            var placement = l.Overlays.Place(id);
+            placement.Edge = edge;
+            placement.Along = Math.Clamp(along, 0, 1);
+        });
+    }
+
+    public void SetOverlayCollapsed(OverlayId id, bool collapsed)
+    {
+        if (_layout.Overlays.Place(id).Collapsed == collapsed) return;
+        Mutate(l => l.Overlays.Place(id).Collapsed = collapsed);
+    }
+
+    [RelayCommand]
+    private void ToggleViewBar() => ViewBarVisible = !ViewBarVisible;
+
+    [RelayCommand]
+    private void ToggleShortcutBar() => ShortcutBarVisible = !ShortcutBarVisible;
+
     public bool TimelineVisible
     {
         get => _layout.IsVisible(DockPanelId.Timeline);

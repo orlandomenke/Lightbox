@@ -92,6 +92,32 @@ Most panels are capped in width, because they hold fixed-size controls and
 stretching them just adds whitespace. The **Layers**, **Project** and
 **Timeline** panels are not capped — they hold lists as long as the work.
 
+### Bars on the canvas
+
+Two small bars float on the canvas itself rather than taking a strip:
+
+- **View bar** — zoom, rotate, mirror, reset.
+- **Shortcut bar** — onion skin on the layer you are drawing on, view-through-camera
+  if the document has a camera, and one play/pause button.
+
+Both are listed under **View** separately from the panels, because they are a
+different trade: a panel takes room away from the drawing, a bar sits on top of
+it. Somebody who wants no panels at all may still want the zoom readout.
+
+**Drag a bar by its ⠿ grip** to any edge of the canvas. It goes to whichever
+edge the pointer is nearest and stays where you left it along that edge, as a
+fraction, so resizing the window does not send it wandering. On a left or right
+edge the whole bar turns a quarter turn so its length runs *along* the edge
+instead of jutting out over the drawing.
+
+**▾** rolls a bar up to its grip. **✕** hides it; View brings it back. Edge,
+position, collapsed and hidden are all part of the workspace, so they save,
+reset and switch with it.
+
+What a bar offers depends on the work: an Illustration project is not going to
+be played, so it is not given a play button, and no document shows the camera
+toggle until it has a camera.
+
 ---
 
 ## 3. Documents and projects

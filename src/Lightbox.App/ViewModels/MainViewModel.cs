@@ -2580,6 +2580,7 @@ public sealed partial class MainViewModel : ObservableObject
     public event Action? LazyBrushCleared;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlayPauseGlyph))]
     private bool _isPlaying;
 
     [ObservableProperty]
@@ -2711,6 +2712,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         foreach (var row in LayerRows) row.IsActive = row.SceneIndex == value;
         OnPropertyChanged(nameof(FrameCells));
+        OnPropertyChanged(nameof(ActiveLayerOnion));
         NotifyActiveLayerCompositing();
         PublishSnapshot();
     }
@@ -3434,6 +3436,33 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (IsPlaying) Pause();
         else Play();
+    }
+
+    /// <summary>One button for both, so the shortcut bar costs one slot.</summary>
+    public string PlayPauseGlyph => IsPlaying ? "⏸" : "▶";
+
+    /// <summary>
+    /// Whether transport controls are worth showing at all.
+    /// </summary>
+    /// <remarks>
+    /// Workspace-relevant, which here means: an illustration is not going to
+    /// be played, so the shortcut bar does not carry a play button on one. The
+    /// rest — an animation, a game sprite, a storyboard, or a plain document
+    /// with no project saying otherwise — might be.
+    /// </remarks>
+    public bool ShowsTransport =>
+        ProjectDocker.Project?.Manifest.Type != Lightbox.Core.Projects.ProjectType.Illustration;
+
+    /// <summary>Onion skin on the layer being drawn on — the per-layer opt-out, on the canvas.</summary>
+    public bool ActiveLayerOnion
+    {
+        get => ActiveLayer.OnionEnabled;
+        set
+        {
+            if (ActiveLayer.OnionEnabled == value) return;
+            SetLayerOnionEnabled(ActiveLayer, value);
+            OnPropertyChanged();
+        }
     }
 
     [RelayCommand]
