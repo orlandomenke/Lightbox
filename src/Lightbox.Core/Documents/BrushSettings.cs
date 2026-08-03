@@ -251,6 +251,51 @@ public sealed class BrushSettings
     public double PressureHardnessGamma { get; set; }
 
     /// <summary>
+    /// Artist-drawn pressure curves, by what they drive. Absent by default, and
+    /// absent from the file when nobody has drawn one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A curve here wins over the gamma above for the same target; see
+    /// <see cref="PressureResponse.Factor"/>, which is the only place that
+    /// decision is made. The three gammas stay because every file, preset and
+    /// imported <c>.abr</c> in existence is written in them, and converting on
+    /// load would be a silent repaint of art that is already finished.
+    /// </para>
+    /// <para>
+    /// A dictionary rather than seven nullable properties, because the set of
+    /// things pressure may drive is a list that will grow, and growing it should
+    /// be one enum value rather than a property, a clone line, a serializer key
+    /// and a migration.
+    /// </para>
+    /// </remarks>
+    public Dictionary<BrushDynamic, ResponseCurve>? Curves { get; set; }
+
+    /// <summary>
+    /// How the finished stroke lands on the layer. Null is Normal, and null is
+    /// the default — see <see cref="BlendOrNormal"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Nullable rather than an enum defaulting to Normal, because a
+    /// non-nullable enum serializes on every stroke ever written and a document
+    /// that never used a blend mode would grow a <c>"blend": "normal"</c> line
+    /// per mark. Optional means absent, the same rule the camera follows.
+    /// </para>
+    /// <para>
+    /// The blend happens once, where the stroke's own surface meets the layer —
+    /// not per dab. That is the difference between a Multiply brush and a
+    /// Multiply brush that goes black wherever it crosses itself, and it is the
+    /// same choice <see cref="Opacity"/> already made by being a stroke-level
+    /// cap rather than a per-dab one.
+    /// </para>
+    /// </remarks>
+    public LayerBlendMode? Blend { get; set; }
+
+    /// <summary>The blend mode to actually composite with. Null reads as Normal.</summary>
+    public LayerBlendMode BlendOrNormal => Blend ?? LayerBlendMode.Normal;
+
+    /// <summary>
     /// Physical medium to simulate after the dabs are laid down. Defaults to
     /// <see cref="MediumKind.None"/>, so a brush that never sets it renders
     /// exactly as it did before media existed.
@@ -295,6 +340,11 @@ public sealed class BrushSettings
         PressureSizeGamma = PressureSizeGamma,
         PressureFlowGamma = PressureFlowGamma,
         PressureHardnessGamma = PressureHardnessGamma,
+        // Deep, like Medium. A stroke that shared its brush's curve object would
+        // have its mark change when the brush was next edited, which is
+        // invariant 4 with an extra step.
+        Curves = Curves?.ToDictionary(e => e.Key, e => e.Value.Clone()),
+        Blend = Blend,
         Medium = Medium.Clone(),
     };
 }

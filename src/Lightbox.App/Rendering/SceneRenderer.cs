@@ -1,4 +1,5 @@
 using Lightbox.Core.Documents;
+using Lightbox.Raster;
 using SkiaSharp;
 
 namespace Lightbox.App.Rendering;
@@ -324,24 +325,10 @@ public static class SceneRenderer
         SKColor.TryParse(hex, out var parsed) ? parsed : fallback;
     public static readonly SKColor OnionNextTint = new(0x30, 0x60, 0xc0);
 
-    /// <summary>Photoshop-style layer blend modes map 1:1 onto Skia's.</summary>
-    public static SKBlendMode ToSkia(LayerBlendMode mode) => mode switch
-    {
-        LayerBlendMode.Multiply => SKBlendMode.Multiply,
-        LayerBlendMode.Screen => SKBlendMode.Screen,
-        LayerBlendMode.Overlay => SKBlendMode.Overlay,
-        LayerBlendMode.Darken => SKBlendMode.Darken,
-        LayerBlendMode.Lighten => SKBlendMode.Lighten,
-        LayerBlendMode.ColorDodge => SKBlendMode.ColorDodge,
-        LayerBlendMode.ColorBurn => SKBlendMode.ColorBurn,
-        LayerBlendMode.HardLight => SKBlendMode.HardLight,
-        LayerBlendMode.SoftLight => SKBlendMode.SoftLight,
-        LayerBlendMode.Difference => SKBlendMode.Difference,
-        LayerBlendMode.Exclusion => SKBlendMode.Exclusion,
-        LayerBlendMode.Hue => SKBlendMode.Hue,
-        LayerBlendMode.Saturation => SKBlendMode.Saturation,
-        LayerBlendMode.Color => SKBlendMode.Color,
-        LayerBlendMode.Luminosity => SKBlendMode.Luminosity,
-        _ => SKBlendMode.SrcOver,
-    };
+    /// <summary>
+    /// Photoshop-style layer blend modes map 1:1 onto Skia's. Delegated to
+    /// <see cref="BlendModes"/>, which the brush engine also uses — a brush's
+    /// Multiply and a layer's Multiply have to be the same thing.
+    /// </summary>
+    public static SKBlendMode ToSkia(LayerBlendMode mode) => BlendModes.ToSkia(mode);
 }

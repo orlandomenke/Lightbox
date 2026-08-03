@@ -497,7 +497,7 @@ public static class BrushEngine
         using var paint = new SKPaint
         {
             Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(brush.Opacity, 0, 1) * 255)),
-            BlendMode = stroke.Tool == ToolKind.Eraser ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+            BlendMode = BlendModes.ForStroke(stroke),
         };
         target.DrawImage(snapshot, dev.Left, dev.Top, paint);
     }
@@ -776,7 +776,7 @@ public static class BrushEngine
         using var paint = new SKPaint
         {
             Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(stroke.Brush.Opacity, 0, 1) * 255)),
-            BlendMode = stroke.Tool == ToolKind.Eraser ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+            BlendMode = BlendModes.ForStroke(stroke),
         };
         var clip = stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId);
         if (clip is not null)
@@ -806,7 +806,7 @@ public static class BrushEngine
         using var paint = new SKPaint
         {
             Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(brush.Opacity, 0, 1) * 255)),
-            BlendMode = stroke.Tool == ToolKind.Eraser ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+            BlendMode = BlendModes.ForStroke(stroke),
         };
         var region = stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId);
         if (region is not null)
@@ -854,10 +854,14 @@ public static class BrushEngine
 
         color = JitterColor(color, pos, brush);
 
-        // Position-seeded scatter keeps re-renders identical.
-        if (brush.Scatter > 0)
+        // Position-seeded scatter keeps re-renders identical. Pressure scales
+        // how far it throws, not whether it throws — the direction stays the
+        // hash's, so a harder press spreads the same pattern rather than
+        // reshuffling it, and the mark does not boil between frames.
+        var scatter = brush.Scatter * PressureResponse.Factor(brush, BrushDynamic.Scatter, pressure);
+        if (scatter > 0)
         {
-            var amount = Hash01(pos.X, pos.Y, 1) * brush.Scatter * brush.Size;
+            var amount = Hash01(pos.X, pos.Y, 1) * scatter * brush.Size;
             var angle = Hash01(pos.X, pos.Y, 2) * Math.PI * 2;
             pos = new SKPoint(pos.X + (float)(Math.Cos(angle) * amount), pos.Y + (float)(Math.Sin(angle) * amount));
         }
@@ -867,7 +871,15 @@ public static class BrushEngine
         // Roundness squashes the dab across its own axis. Combined with a
         // direction-following angle, that is what turns a round tip into a
         // chisel and a custom tip into bristles.
+        // Pressure fattens the dab toward circular rather than thinning it:
+        // a flat brush pressed down spreads, and a curve that squashed instead
+        // would make a hard press narrower than a light one.
         var roundness = Math.Clamp(brush.Roundness, 0.05, 1);
+        if (PressureResponse.IsDriven(brush, BrushDynamic.Roundness))
+        {
+            var open = PressureResponse.Factor(brush, BrushDynamic.Roundness, pressure);
+            roundness = Math.Clamp(roundness + (1 - roundness) * open, 0.05, 1);
+        }
         if (brush.RoundnessJitter > 0)
         {
             roundness *= 1 - Hash01(pos.X, pos.Y, 13) * Math.Clamp(brush.RoundnessJitter, 0, 1);
@@ -1212,9 +1224,9 @@ public static class BrushEngine
         // brush wants, and it is why a blender built out of Smearing never
         // quite behaves.
         var dulling = brush.SmudgeMode == SmudgeMode.Dulling;
-        var carryOver = (float)Math.Clamp(brush.SmudgeLength, 0, 1);
+        var baseCarry = Math.Clamp(brush.SmudgeLength, 0, 1);
         var spread = (float)Math.Clamp(brush.SmudgeRadius, 0.05, 1);
-        var colorRate = Math.Clamp(brush.ColorRate, 0, 1);
+        var baseRate = Math.Clamp(brush.ColorRate, 0, 1);
         var ownColor = StrokeColor(stroke);
 
         SKColor carried = default;
@@ -1236,6 +1248,13 @@ public static class BrushEngine
                 carried = sample;
                 hasColor = true;
             }
+
+            // Both of these are per dab, because pressure is: pressing harder
+            // mid-stroke has to drag further and add more of the brush's own
+            // colour from that point on, not from the beginning.
+            var carryOver =
+                (float)(baseCarry * PressureResponse.Factor(brush, BrushDynamic.SmudgeLength, pressure));
+            var colorRate = baseRate * PressureResponse.Factor(brush, BrushDynamic.ColorRate, pressure);
 
             // Dulling deposits the colour under the dab rather than the
             // colour it has been carrying, which is the whole difference.
@@ -1373,32 +1392,21 @@ public static class BrushEngine
     /// stroke is worse than no ring, and duplicating the curve here is how
     /// that disagreement starts.
     /// </summary>
-    public static double RadiusAt(BrushSettings brush, double pressure)
-    {
-        if (!brush.PressureEnabled) pressure = 1;
-        var gamma = brush.PressureSizeGamma <= 0 ? 0.0 : brush.PressureSizeGamma;
-        var factor = gamma <= 0 ? 1.0 : Math.Pow(pressure, gamma);
-        return brush.Size * factor / 2;
-    }
+    public static double RadiusAt(BrushSettings brush, double pressure) =>
+        brush.Size * PressureResponse.Factor(brush, BrushDynamic.Size, pressure) / 2;
 
-    private static double DabAlpha(BrushSettings brush, double pressure)
-    {
-        if (!brush.PressureEnabled) pressure = 1;
-        var flow = Math.Clamp(brush.Flow, 0, 1);
-        if (brush.PressureFlowGamma > 0) flow *= Math.Pow(pressure, brush.PressureFlowGamma);
-        return Math.Clamp(flow, 0, 1);
-    }
+    // The base is clamped before the response, not after. Clamping the product
+    // instead would let an out-of-range Flow of 2 come back as 1 at half
+    // pressure, which reads as pressure doing nothing on exactly the brushes
+    // where somebody has already got a value wrong.
+    private static double DabAlpha(BrushSettings brush, double pressure) =>
+        Math.Clamp(
+            Math.Clamp(brush.Flow, 0, 1) * PressureResponse.Factor(brush, BrushDynamic.Flow, pressure), 0, 1);
 
     /// <summary>Dab-edge hardness after the pressure response (light pressure = softer edge).</summary>
-    private static float HardnessAt(BrushSettings brush, double pressure)
-    {
-        var hardness = Math.Clamp(brush.Hardness, 0, 1);
-        if (brush.PressureEnabled && brush.PressureHardnessGamma > 0)
-        {
-            hardness *= Math.Pow(pressure, brush.PressureHardnessGamma);
-        }
-        return (float)Math.Clamp(hardness, 0, 1);
-    }
+    private static float HardnessAt(BrushSettings brush, double pressure) =>
+        (float)Math.Clamp(
+            Math.Clamp(brush.Hardness, 0, 1) * PressureResponse.Factor(brush, BrushDynamic.Hardness, pressure), 0, 1);
 
     /// <summary>Deterministic 0..1 hash of a dab position (never an RNG).</summary>
     private static double Hash01(float x, float y, uint salt)
