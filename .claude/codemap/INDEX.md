@@ -1,6 +1,6 @@
 # Code index
 
-408 files · 101546 lines · 2133 tests.
+410 files · 101958 lines · 2142 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -65,7 +65,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ShortcutRow:12, ShortcutGroup:24, GridRow:39, AiFieldRow:99, ConfigureWindow:150
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (665 ln) · 2 test files
   - ProjectRow:19, ProjectViewModel:136, NewItemKind:300
-- `src/Lightbox.App/Services/UnityExporter.cs` (648 ln) · 10 test files
+- `src/Lightbox.App/Services/UnityExporter.cs` (648 ln) · 11 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml.cs` (496 ln) · 1 test files
   - TipScope:16, TipRow:29, BrushTipsWindow:62
@@ -73,7 +73,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GradientStopRow:16, GradientDockerViewModel:89, HexColor:452
 - `src/Lightbox.App/Services/BrushPresets.cs` (444 ln) · 4 test files
   - BrushPreset:8, BrushComparison:86, BuiltInPresets:118, PresetStore:391, State:396
-- `src/Lightbox.App/Services/UnrealExporter.cs` (439 ln) · 1 test files
+- `src/Lightbox.App/Services/UnrealExporter.cs` (439 ln) · 2 test files
   - UnrealExportOptions:9, UnrealExportResult:24, UnrealExporter:61, UnrealBlock:70
 - `src/Lightbox.App/ViewModels/WorkspaceViewModel.cs` (414 ln) · 1 test files
   - WorkspaceViewModel:20, WorkspaceRow:409
@@ -87,13 +87,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeOverlay:24, RenderPass:50, SceneRenderer:65
 - `src/Lightbox.App/Views/ExportWindow.axaml.cs` (319 ln) · 1 test files
   - ExportWindow:33
-- `src/Lightbox.App/Services/GameMakerExporter.cs` (312 ln) · 1 test files
+- `src/Lightbox.App/Services/GameMakerExporter.cs` (312 ln) · 2 test files
   - GameMakerExportOptions:9, GameMakerExportResult:27, GameMakerExporter:77, StripRecord:85, GameMakerBlock:98
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 6 indirect only
   - RampTrack:10, GradientRamp:41
 - `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 78 test files
   - MainViewModel:32
-- `src/Lightbox.App/Services/GodotExporter.cs` (281 ln) · 1 test files
+- `src/Lightbox.App/Services/GodotExporter.cs` (281 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
 - `src/Lightbox.App/Docking/DockLayout.cs` (276 ln) · 3 test files
   - DockPlacement:7, DockLayout:51
@@ -114,7 +114,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 - `src/Lightbox.App/ViewModels/PaletteNode.cs` (225 ln) · 2 test files
   - PaletteScope:16, PaletteNodeKind:22, PaletteNode:39, PaletteAssignTarget:145, PaletteTarget:166, PaletteAddIntent:188, PaletteAddRequest:212, PaletteAddOutcome:222
 - `src/Lightbox.App/Styles/Density.axaml` (217 ln) · **no tests**
-- `src/Lightbox.App/Services/ExportPreset.cs` (216 ln) · 6 test files
+- `src/Lightbox.App/Services/ExportPreset.cs` (216 ln) · 7 test files
   - ExportTarget:6, ExportPreset:77
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (215 ln) · 2 test files
   - FrameBitmapCache:13, EvictionOrder:56
@@ -283,6 +283,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MediumKind:10, PaperKind:29, MediumSettings:54, Canonical:210
 - `src/Lightbox.Core/Documents/ReferenceStrip.cs` (222 ln) · 4 test files
   - ReferenceCell:23, ReferenceStrip:91
+- `src/Lightbox.Core/Export/EngineApiNotes.cs` (212 ln) · 1 test files
+  - EngineTarget:4, ImportMechanism:13, EngineApiNote:49, EngineApiNotes:86
 - `src/Lightbox.Core/Timeline/FigureFinder.cs` (206 ln) · 1 test files
   - FigureFinder:43
 - `src/Lightbox.Core/Export/BackgroundRules.cs` (198 ln) · 6 test files
@@ -327,7 +329,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Project:15
 - `src/Lightbox.Core/Documents/Guide.cs` (114 ln) · 4 test files
   - GuideKind:4, Guide:60
-- `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 38 test files
+- `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 39 test files
   - DocumentFactory:3
 - `src/Lightbox.Core/Documents/CollisionShape.cs` (101 ln) · 4 test files
   - ShapeRole:13, CollisionShape:67, ShapeBox:87
@@ -375,7 +377,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Easing:3, EasingOps:11
 - `src/Lightbox.Core/Documents/Pivot.cs` (16 ln) · 6 test files
   - Pivot:7
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 155 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 156 indirect only
   - Ids:3
 
 ## Lightbox.Import

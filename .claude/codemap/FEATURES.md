@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2133 tests, derived from the suite itself. Each line is a
+2142 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -598,6 +598,19 @@ regression even when every test still compiles.
 - Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:84`
 - Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:100`
 - Open Document Tab Uses File Name And Keeps Existing Tabs — `:119`
+
+## EngineApiTests
+`tests/Lightbox.App.Tests/EngineApiTests.cs`
+
+- Every Symbol The Record Names Is Actually Called By That Importer — `:54`
+- The Game Maker Record Is Checked Against Behaviour Because There Is No Script — `:70`
+- Every Engine Target Has ARecord — `:90`
+- Every Engine Export Target Maps To An Engine With ARecord — `:103`
+- No Record Is Empty Or Vague — `:130`
+- The Importer Itself Names The Version It Needs — `:150`
+- Unitys Version Branch Is Compiled Rather Than Checked At Runtime — `:159`
+- No Importer Has Been Run Against The Real Engine And The Record Says So — `:174`
+- The Unverified Query Narrows Rather Than Being All Or Nothing — `:184`
 
 ## ExportConfigPageTests
 `tests/Lightbox.App.Tests/ExportConfigPageTests.cs`
