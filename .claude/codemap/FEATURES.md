@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1659 tests, derived from the suite itself. Each line is a
+1661 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2121,6 +2121,12 @@ regression even when every test still compiles.
 `tests/Lightbox.Raster.Tests/DraftAndAaTests.cs`
 
 - Scratch Preview Matches Exact Render Where The Stroke Crosses Itself — `:122`
+
+## EffectOnTranslucentArtTests
+`tests/Lightbox.Raster.Tests/EffectOnTranslucentArtTests.cs`
+
+- An Effect Brush Does Not Make AWash More Opaque Than It Was — `:70`
+- ASmudge Still Moves Colour Rather Than Doing Nothing — `:94`
 
 ## FillStrokeTests
 `tests/Lightbox.Raster.Tests/FloodFillTests.cs`

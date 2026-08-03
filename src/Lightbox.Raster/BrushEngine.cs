@@ -1302,6 +1302,19 @@ public static class BrushEngine
 
             if (deposit.Alpha > 0)
             {
+                // NOTE: the alpha runaway described in B37 is real here and is
+                // NOT fixed. SrcATop was tried and is the wrong instrument: it
+                // is Src*Da + Dst*(1-Sa), so it paints nothing where the
+                // destination is transparent — which breaks smudging onto bare
+                // canvas and breaks all-layers sampling outright, where the
+                // colour comes from the backdrop and the destination layer is
+                // empty by definition. Nine tests said so, by name.
+                //
+                // What a deposit means is "lerp the canvas toward the sampled
+                // colour, weighted by the dab falloff", and Skia has no single
+                // blend mode for that. See B37 for the shape that will work:
+                // accumulate into a stroke-local scratch and composite once,
+                // which is what the paint path already does.
                 using var paint = new SKPaint { IsAntialias = brush.AntiAlias };
                 var dabColor = deposit.WithAlpha((byte)Math.Round(deposit.Alpha * strength));
                 var hardness = (float)Math.Clamp(brush.Hardness, 0, 1);
@@ -1366,7 +1379,16 @@ public static class BrushEngine
         if (snapshot is null) return;
         // Sigma is a document width; the canvas transform carries it into
         // device pixels, so the blur stays the same physical softness.
-        using var blurPaint = new SKPaint { ImageFilter = SKImageFilter.CreateBlur(sigma, sigma) };
+        // Src, not the default SrcOver: a blur REPLACES the dab's pixels with
+        // the softened version. Drawing a semi-transparent blurred snapshot
+        // over itself once per dab stacked its alpha, which is why a pale
+        // stroke went black and why bare canvas beside it picked up a solid
+        // surround from the blur's own spread (B37).
+        using var blurPaint = new SKPaint
+        {
+            ImageFilter = SKImageFilter.CreateBlur(sigma, sigma),
+            BlendMode = SKBlendMode.Src,
+        };
 
         // The snapshot is already at output resolution, so its destination is
         // the whole document — one for one in device pixels, not a resample.
@@ -1406,7 +1428,12 @@ public static class BrushEngine
         if (!pixels.ExtractSubset(subset, rect)) return;
         using var snapshot = SKImage.FromBitmap(subset); // copies only the subset
         if (snapshot is null) return;
-        using var blurPaint = new SKPaint { ImageFilter = SKImageFilter.CreateBlur(sigma, sigma) };
+        // Src for the same reason as the committed path — see StampBlur.
+        using var blurPaint = new SKPaint
+        {
+            ImageFilter = SKImageFilter.CreateBlur(sigma, sigma),
+            BlendMode = SKBlendMode.Src,
+        };
 
         foreach (var (pos, pressure) in DabPositions(stroke))
         {
