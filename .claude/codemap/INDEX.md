@@ -1,6 +1,6 @@
 # Code index
 
-356 files · 86925 lines · 1737 tests.
+356 files · 86997 lines · 1737 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -51,7 +51,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameCell:19, MainViewModel:62, LayerKindChoice:3928, TransformParts:5871
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (3449 ln) · 6 test files
   - MainWindow:18
-- `src/Lightbox.App/Views/MainWindow.axaml` (2928 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (2986 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2489 ln) · 5 test files
   - CanvasControl:28, CanvasToolMode:492, GridGesture:548, TxDrag:695, DrawOp:2019
@@ -95,11 +95,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RulerStrip:27
 - `src/Lightbox.App/ViewModels/PaletteNode.cs` (225 ln) · 2 test files
   - PaletteScope:16, PaletteNodeKind:22, PaletteNode:39, PaletteAssignTarget:145, PaletteTarget:166, PaletteAddIntent:188, PaletteAddRequest:212, PaletteAddOutcome:222
+- `src/Lightbox.App/Styles/Density.axaml` (217 ln) · **no tests**
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (215 ln) · 2 test files
   - FrameBitmapCache:13, EvictionOrder:56
 - `src/Lightbox.App/Services/ShortcutMap.cs` (211 ln) · 3 test files
   - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
-- `src/Lightbox.App/Styles/Density.axaml` (208 ln) · **no tests**
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml` (205 ln) · **no tests**
   - AngleSlider, BlackSlider, CategoryList, CentreBox, CountLabel, CountRow, CountSlider, CrossedBox …
 - `src/Lightbox.App/ViewModels/LayerRow.cs` (194 ln) · 1 test files
@@ -114,12 +114,12 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PerformanceMonitor:14
 - `src/Lightbox.App/Services/AppSettings.cs` (186 ln) · 2 test files
   - AppSettings:16
+- `src/Lightbox.App/Controls/OverflowBar.cs` (178 ln) · 2 test files
+  - OverflowBar:25
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 2 test files
   - CanvasOverlayBar:28
 - `src/Lightbox.App/Styles/ColorPicker.axaml` (174 ln) · **no tests**
   - PART_Clear, PART_Swatch
-- `src/Lightbox.App/Controls/OverflowBar.cs` (173 ln) · 2 test files
-  - OverflowBar:25
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln) · **no tests**
   - ColorField:29
 - `src/Lightbox.App/Rendering/GuidePainter.cs` (160 ln) · 1 test files

@@ -54,12 +54,21 @@
     at a time. A fixed square is the only thing that makes a tile grid read as
     a grid.
   -->
+  <!--
+    26 rather than 24, and it is the same argument one size up. At 24 the taller
+    glyphs were *clipped* rather than ragged — a 16px emoji with an ascender does
+    not fit a 24px tile once the border and the line box are paid for — so the
+    fixed square was doing its job and the square was too small. Raised here, in
+    the one place that decides it, so every tile moves together and the grid
+    still reads as a grid.
+  -->
   <Style Selector="controls|CanvasOverlayBar Button, controls|CanvasOverlayBar ToggleButton">
-    <Setter Property="Width" Value="24" />
-    <Setter Property="Height" Value="24" />
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="26" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
   </Style>
 
   <Style Selector="Slider.param">

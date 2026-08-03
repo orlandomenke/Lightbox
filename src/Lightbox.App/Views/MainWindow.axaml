@@ -99,6 +99,45 @@
     <Style Selector="Border#Toolbar.labels ToggleButton.tool">
       <Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
+    <!-- The tool options bar is a fixed 30px row of controls that each default
+         to VerticalAlignment=Stretch. A stretched Slider puts its track at the
+         top of whatever height it is given, so it sat above the label beside
+         it; a stretched CheckBox does the same with its box. Centring them
+         here rather than on ~40 individual controls is the only version of
+         this that stays fixed when a control is added. -->
+    <Style Selector="controls|OverflowBar > Slider">
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="controls|OverflowBar CheckBox">
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="controls|OverflowBar Slider">
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="controls|OverflowBar TextBlock">
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- Icon buttons outside the overlay bars, which set their own fixed square
+         in Density.axaml. A **square** minimum rather than 26x24, because a
+         non-square minimum is what silently breaks a tile grid: give a row of
+         tiles different proportions and it stops reading as a row, which is the
+         defect the overlay bar's fixed square already exists to prevent. -->
+    <Style Selector="Button.icon">
+      <Setter Property="MinWidth" Value="26" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="ClipToBounds" Value="False" />
+    </Style>
+    <Style Selector="ToggleButton.icon">
+      <Setter Property="MinWidth" Value="26" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="ClipToBounds" Value="False" />
+    </Style>
     <Style Selector="TextBlock.toolname">
       <Setter Property="IsVisible" Value="False" />
     </Style>
@@ -214,7 +253,12 @@
         <Separator />
         <!-- MenuItem.IsChecked binds one-way by default: without Mode=TwoWay the
              click only flips the checkmark locally and the docker never reopens. -->
-        <MenuItem Header="Project" ToggleType="CheckBox" IsChecked="{Binding Workspace.ProjectPanelVisible, Mode=TwoWay}" />
+        <!-- Project and Symbols need a project to have anything to show, and
+             `IsPanelUsable` keeps them out of the layout without one. The menu
+             items have to be absent for the same reason: an item you can tick
+             that then does nothing is worse than one that is not there. -->
+        <MenuItem Header="Project" ToggleType="CheckBox" IsVisible="{Binding HasProject}"
+                  IsChecked="{Binding Workspace.ProjectPanelVisible, Mode=TwoWay}" />
         <MenuItem Header="Layers" ToggleType="CheckBox" IsChecked="{Binding Workspace.LayersPanelVisible, Mode=TwoWay}" />
         <MenuItem Header="Timeline" ToggleType="CheckBox" IsChecked="{Binding TimelineVisible, Mode=TwoWay}" />
         <MenuItem Header="Color" ToggleType="CheckBox" IsChecked="{Binding ColorDockerVisible, Mode=TwoWay}" />
@@ -222,7 +266,9 @@
         <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Character sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Reference" ToggleType="CheckBox" IsChecked="{Binding ReferenceDockerVisible, Mode=TwoWay}" />
-        <MenuItem Header="Symbols" ToggleType="CheckBox" IsChecked="{Binding Workspace.SymbolsPanelVisible, Mode=TwoWay}" />
+        <MenuItem Header="Symbols" ToggleType="CheckBox" IsVisible="{Binding HasProject}"
+                  IsChecked="{Binding Workspace.SymbolsPanelVisible, Mode=TwoWay}"
+                  ToolTip.Tip="A drawing stored once and placed many times. Lives on the project, above the animations that place it." />
         <Separator />
         <!-- The bars that sit on the canvas. Separate from the panels above
              because they are a different trade: a panel takes room away from
@@ -261,6 +307,10 @@
           what "reset" falls back to and deleting one would take the fallback
           with it.
         -->
+        <!-- A rule between the two, because the bar's overflow control ends up
+             directly beside this one and without a divider the pair reads as
+             one group belonging to the workspace. -->
+        <Border DockPanel.Dock="Right" Width="1" Margin="10,3" Background="#3a3a3a" />
         <ComboBox x:Name="WorkspacePicker" DockPanel.Dock="Right"
                   ItemsSource="{Binding Workspace.WorkspaceChoices}"
                   PlaceholderText="{Binding Workspace.CurrentLabel}"
@@ -2825,9 +2875,17 @@
                   <Border Classes="layerRow" Classes.active="{Binding IsActive}"
                           Classes.hiddenLayer="{Binding !Visible}" Padding="2">
                     <StackPanel Orientation="Horizontal" Spacing="2">
-                      <ToggleButton Content="👁" IsChecked="{Binding Visible}" Width="28" Padding="2"
+                      <!-- Both explicitly centred. They looked inconsistent
+                           because they were relying on the default, and ◉ and
+                           👁 do not have the same metrics: an emoji glyph and a
+                           geometric one centre differently inside the same
+                           tile unless told not to. -->
+                      <ToggleButton Content="👁" IsChecked="{Binding Visible}" Width="28" Padding="0"
+                                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                                     ToolTip.Tip="Layer visibility" />
-                      <ToggleButton Content="◉" IsChecked="{Binding OnionEnabled}" Width="28" Padding="2"
+                      <ToggleButton Content="◉" IsChecked="{Binding OnionEnabled}" Width="28" Padding="0"
+                                    FontSize="13"
+                                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                                     ToolTip.Tip="Onion skinning for this layer" />
                       <Panel Width="88" Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineRowHeight}">
                         <Button Content="{Binding Name}" Width="88"

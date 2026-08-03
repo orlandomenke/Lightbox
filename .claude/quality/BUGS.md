@@ -283,6 +283,34 @@ decision goes to `QUESTIONS.md` and is left alone.
   - What a deposit actually means is *lerp the canvas toward the sampled colour, weighted by the dab falloff*, and Skia has no single blend mode for that. The shape that works in this engine is the paint path's: accumulate into a stroke-local scratch at full strength and composite once (`ComposeDraftRegion`). Effect brushes never got that because they mutate the target directly.
   - A regression test must smear something with **alpha below 1** — every pre-existing smudge test uses an opaque bar, where `SrcOver` and `Src` are indistinguishable, which is why this lived so long. Cost: M
 
+- [ ] **B39** `P1` `brush` Effect brushes still leave hard black artefacts mid-stroke, some surviving the release `evidence: manual`
+  - Reported after B37 and B38 landed: "smudge, blur and blender now work, but while painting there is still artefacting, sometimes persisting after mouse release." The screenshot shows a **hard-edged opaque black band** along part of a smudge stroke, plus a smaller black dash, inside an otherwise correct soft grey smear on a transparent layer over white paper.
+  - Hard edges and a straight-sided band are the shape of **whole dab patch rects** going opaque, not of a falloff going wrong: `LerpDab` writes an axis-aligned patch per dab, and a chain of them along a diagonal reads as exactly this band.
+  - **Two hypotheses eliminated, so nobody re-runs them.** (1) *`ColorRate` mixing the foreground colour in*: `BrushSettings.ColorRate` defaults to **0** and the Smudge preset does not set it, so `Mix(deposit, ownColor, 0)` is a no-op and the black is not the palette's black arriving that way. (2) *`SampleAverage` reading premultiplied bytes*: it uses `GetPixel`, which unpremultiplies, and `LerpDab` re-premultiplies before lerping — consistent.
+  - **Still to check, in order of suspicion.** `LerpDab` indexes the read bitmap with `x * 4` and `y * srcRow` using the **target's** device-clip coordinates while assuming the read bitmap is `Rgba8888` and the same extent; a read surface with a different colour type, row stride or size would make `si` point at the wrong bytes. Separately, `StampSmudge` applies `target.Scale(outputScale)` before the dab loop while `LerpDab` computes device-space rects and then calls `DrawImage(image, left, top)` through that same transform — at `outputScale != 1` the patch is placed and scaled wrongly, which is a real export-path defect whether or not it is this one.
+  - The regression test has to smear over a **partially transparent** region and count pixels that came out opaque where the source was not, because every pre-existing smudge test uses an opaque bar where the failure cannot appear. Cost: M
+
+- [x] **B40** `P2` `ui` Ticking View > Symbols does nothing `evidence: manual`
+  - Reported as "Symbols / asset browser seems to be a docker, but selecting it never opens it."
+  - Not the docking machinery: `IsPanelUsable` gates both Symbols and Project on `HasProject`, deliberately, because a symbol lives on the project above the animations that place it. With no project open the panel is correctly absent — and the **menu item was not**, so it could be ticked and nothing happened.
+  - Fix: both menu items get `IsVisible="{Binding HasProject}"`, so the item is absent exactly when the panel would be. "Optional means absent" applies to the control that reaches a feature as much as to the feature.
+
+- [x] **B41** `P3` `ui` Tool-options sliders and checkboxes sit above their labels `evidence: manual`
+  - The bar is a fixed 30 px row and its children default to `VerticalAlignment=Stretch`; a stretched `Slider` draws its track at the top of the height it is given and a stretched `CheckBox` does the same with its box — so Size, Hardness, Opacity and "Per brush" all sat high against the text beside them.
+  - Fix: styles on `OverflowBar`'s descendants rather than an alignment attribute on some forty individual controls, so a control added later is centred without anybody remembering to.
+
+- [x] **B42** `P3` `ui` Icon glyphs are clipped instead of fitting their tile `evidence: manual`
+  - The `icon` tiles were sized for a 13 px label and several glyphs are 15-16 px with ascenders, so they were cut rather than shrunk.
+  - Fix: a minimum tile of 26x24 with centred content and no clipping, on every `Button.icon` and `ToggleButton.icon`, so a row of them still reads as a row.
+
+- [x] **B43** `P3` `ui` The onion toggle in a timeline layer row is off-centre `evidence: manual`
+  - The two toggles sat in identical tiles relying on the default content alignment, and a geometric glyph and an emoji do not centre the same way inside one.
+  - Fix: explicit `HorizontalContentAlignment`/`VerticalContentAlignment` on both, zero padding, and a matched font size.
+
+- [x] **B44** `P3` `ui` The tool-options overflow control reads as part of the workspace picker `evidence: manual`
+  - `OverflowBar`'s chevron lands at the bar's right edge, immediately left of the workspace combo — two adjacent chevrons that read as one group belonging to whichever is on the right.
+  - Fix: the button says **More tool options** with the chevron rather than a bare chevron, and a vertical rule separates the bar from the picker.
+
 - [x] **B33** `P2` `brush` The live blur covers more ground than the mark that commits `evidence: ALiveBlurDoesNotCoverMoreGroundThanTheMarkThatCommits`
   - Reported as "while dragging there is artifacting on the affected dab — it visually enlarges in a bigger radius than just the brush".
   - Cause: `FlushLivePreview` handed `_liveComposite` to `FrameRasterizer.AppendDraft` as **both** the surface to write and the pixels to read. The exact render gives every dab of a stroke the same *pre-stroke* pixels — one effect pass per stroke — but the preview re-snapshotted its own accumulated output on every pointer event, so a pixel under a dozen overlapping dabs was blurred a dozen times. N passes of sigma s reach like s·√N, and each pass drags colour in from three sigma further out, so the mark spread well past the brush as the drag went on.

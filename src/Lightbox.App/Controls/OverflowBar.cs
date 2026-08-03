@@ -49,12 +49,17 @@ public class OverflowBar : Panel
         flyout.Closed += (_, _) => MoveBack();
         _more = new Button
         {
-            Content = "▾",
+            // Named rather than a bare ▾. The bar's last control sits directly
+            // beside the workspace picker, and two adjacent chevrons read as a
+            // pair belonging to whichever is on the right — so the one that
+            // belongs to *this* bar says which bar it belongs to.
+            Content = "More tool options  ▾",
+            FontSize = 11,
             Flyout = flyout,
             VerticalAlignment = VerticalAlignment.Center,
             IsVisible = false,
         };
-        ToolTip.SetTip(_more, "The options that do not fit");
+        ToolTip.SetTip(_more, "The tool options that do not fit on the bar");
         Children.Add(_more);
     }
 
