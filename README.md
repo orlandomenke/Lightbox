@@ -32,6 +32,8 @@ Every code push builds a self-contained Windows bundle in CI:
 
 **How long a bundle lasts.** One is about 105 MB, so they are pruned rather than kept: a branch keeps its **3 newest**, `main`'s are kept 30 days and everyone else's 5, and any feature-branch bundle over a week old is deleted whatever branch it came from. A documentation-only push does not build one at all. If you need a bundle for a commit that has aged out, re-run the workflow from the Actions tab (**Run workflow**) — `workflow_dispatch` always builds.
 
+**If the storage quota fills anyway**, run **Actions ▸ cleanup artifacts ▸ Run workflow**. It prunes on its own without building anything, which matters because the build workflow's own prune cannot rescue a full quota — that prune runs beside an upload, and once the quota is full the upload fails first. Defaults match the automatic policy (keep 3 per branch, sweep feature-branch bundles over 7 days); set **keep** to `0` to clear everything, or tick **dry run** to see the list first. It reports what it freed in the run summary. GitHub recalculates usage every 6–12 hours, so a build started immediately afterwards may still be refused even though the space is genuinely free.
+
 **If SmartScreen blocks it** (and policy hides "Run anyway"): SmartScreen only screens files carrying the Mark-of-the-Web download tag — remove the tag and it never triggers. Any of these work without admin:
 
 ```powershell
