@@ -1453,6 +1453,15 @@ yours can be deleted. The preset you exported with last is selected next time.
 When an export finishes, the status line says what came out — frame count, sheet
 size, layout — **and names every layer it left out**.
 
+#### Which engines this already covers
+
+| Engine | What you need |
+| --- | --- |
+| **MonoGame**, **Raylib** | Nothing extra. Both load a PNG and take source rectangles you supply, and the sidecar is that list. |
+| **Unity** | The Unity format below, which adds an importer script. |
+| **Godot** | The sheet and sidecar work today; a `.tres` resource importer is Planned. |
+| **GameMaker**, **Unreal** | Import the sheet by hand for now — see Planned. |
+
 **For Unity** the exporter writes the sheet, the sidecar and a small importer
 script. Drop them under `Assets/`, then **Assets ▸ Lightbox ▸ Import selected
 sheet**: it slices the sprites, sets each pivot, and builds an animation clip per
@@ -1881,6 +1890,16 @@ Not built. Listed so the gap is visible rather than implied.
 
 **Editing**
 - Liquify, clone stamp, healing brush
+
+**Engine exporters**
+- A Godot `.tres` resource importer, so a `SpriteFrames` animation arrives built
+  rather than assembled frame by frame in the inspector.
+- GameMaker `.yy` project files. Writable in principle, but the schema moves
+  between releases and a file written for the wrong one produces a project that
+  will not open — so this waits on a decision about which versions to support.
+- Unreal Paper2D. Unreal's `.uasset` files are binary and cannot be written from
+  outside the editor, so this would be an Unreal-side script rather than an export
+  format, the way the Unity importer is.
 
 **Version control**
 - Seeing who has a file checked out, and taking the lock before you paint. Aimed at
