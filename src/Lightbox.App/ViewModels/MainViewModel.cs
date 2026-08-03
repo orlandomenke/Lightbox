@@ -4039,6 +4039,12 @@ public sealed partial class MainViewModel : ObservableObject
     // Blur brushes read the canvas underneath them, so they cannot be
     // composited from a separate scratch — they keep the copy-based path.
     private SKBitmap? _liveComposite;
+
+    /// <summary>
+    /// The pristine pre-stroke pixels an effect brush samples, kept apart
+    /// from the composite it writes into. See the note in BeginStroke.
+    /// </summary>
+    private SKBitmap? _liveEffectBase;
     private int _liveStampedCount;
     private bool _snapshotQueued;
 
@@ -4171,13 +4177,23 @@ public sealed partial class MainViewModel : ObservableObject
 
         _liveComposite?.Dispose();
         _liveComposite = null;
+        _liveEffectBase?.Dispose();
+        _liveEffectBase = null;
         if (CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
         {
             // Blur and smudge read the pixels they sit on, so they need a real
             // copy of the layer to work into. Without this a smudge preview
             // stamps plain dabs of the foreground colour for the whole drag
             // and only snaps to the real smear on pen-up.
-            _liveComposite = _cache.Get(target, Scene.Width, Scene.Height).Copy();
+            //
+            // Two copies, not one, and the second is the fix for B33. The
+            // composite is written into; the base is never written and is what
+            // every dab reads. The exact render gives all of a stroke's dabs
+            // the same pre-stroke pixels, so a preview that sampled the
+            // composite would re-apply the effect once per pointer event — a
+            // blur of a blur of a blur, forty deep by the end of a drag.
+            _liveEffectBase = _cache.Get(target, Scene.Width, Scene.Height).Copy();
+            _liveComposite = _liveEffectBase.Copy();
         }
         else
         {
@@ -4647,7 +4663,10 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (_liveComposite is not null)
         {
-            FrameRasterizer.AppendDraft(_liveComposite, tail); // blur path
+            // Read pre-stroke, write into the composite — the same split the
+            // exact render has, so the effect is applied once per stroke
+            // rather than once per pointer event.
+            FrameRasterizer.AppendDraft(_liveComposite, tail, readFrom: _liveEffectBase);
         }
         else if (_liveScratchCanvas is not null)
         {
@@ -4816,6 +4835,8 @@ public sealed partial class MainViewModel : ObservableObject
         var stroke = _strokeBuilder.End();
         _liveComposite?.Dispose();
         _liveComposite = null;
+        _liveEffectBase?.Dispose();
+        _liveEffectBase = null;
         _liveStampedCount = 0;
         ResetLivePostProcess();
         if (stroke is null) return;

@@ -359,6 +359,15 @@ Effect brushes (**Smudge**, **Blur**) swap the bar for their own controls —
 strength, radius, and for smudge how much of its own colour it adds. A smudge
 has no opacity in the usual sense, so showing you one would be a lie.
 
+**Flow on an effect brush is not flow on a paint brush,** and it ships an order
+of magnitude lower for that reason: Smudge 0.08, Blender 0.06, Blur 0.10. On a
+paint brush flow is how much pigment a dab lays; on these it is how hard each
+dab *pulls*, and because dabs overlap roughly ten deep the pulls compound along
+the stroke. A value that looks like a gentle nudge on one dab is a shove by the
+time ten have landed — which is why these tools used to feel impossible to
+steer. If you want a stronger effect, prefer a slower hand or a second pass over
+raising flow; that is what gives a smudge somewhere to go.
+
 Every numeric field can be **dragged sideways** to scrub its value. Hold
 **Shift** for fine, **Ctrl** for coarse. Click without dragging and you get a
 caret, as before.

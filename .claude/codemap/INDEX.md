@@ -1,6 +1,6 @@
 # Code index
 
-344 files · 83666 lines · 1657 tests.
+344 files · 83799 lines · 1659 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,8 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (8331 ln) · 3 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:3800, TransformParts:5570
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (8352 ln) · 3 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:3800, TransformParts:5591
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (3389 ln) · 6 test files
   - MainWindow:18
 - `src/Lightbox.App/Views/MainWindow.axaml` (2872 ln) · **no tests**
@@ -67,8 +67,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipScope:16, TipRow:29, BrushTipsWindow:62
 - `src/Lightbox.App/ViewModels/GradientDockerViewModel.cs` (467 ln) · 1 test files
   - GradientStopRow:16, GradientDockerViewModel:89, HexColor:452
-- `src/Lightbox.App/Services/BrushPresets.cs` (418 ln) · 3 test files
-  - BrushPreset:8, BrushComparison:86, BuiltInPresets:118, PresetStore:365, State:370
+- `src/Lightbox.App/Services/BrushPresets.cs` (425 ln) · 3 test files
+  - BrushPreset:8, BrushComparison:86, BuiltInPresets:118, PresetStore:372, State:377
 - `src/Lightbox.App/ViewModels/WorkspaceViewModel.cs` (414 ln) · 1 test files
   - WorkspaceViewModel:20, WorkspaceRow:409
 - `src/Lightbox.App/Controls/TimelineRuler.cs` (367 ln) · 1 test files
@@ -354,10 +354,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipImageSettings:15, TipImageResult:43, TipFromImage:68
 - `src/Lightbox.Raster/Tips/TipCatalogue.cs` (135 ln) · 3 test files
   - TipCatalogue:32
+- `src/Lightbox.Raster/FrameRasterizer.cs` (128 ln) · 18 test files
+  - FrameRasterizer:10
 - `src/Lightbox.Raster/Media/Impasto.cs` (128 ln) · 2 indirect only
   - Impasto:40
-- `src/Lightbox.Raster/FrameRasterizer.cs` (120 ln) · 18 test files
-  - FrameRasterizer:10
 - `src/Lightbox.Raster/TextureRegistry.cs` (107 ln) · 2 test files
   - TextureRegistry:25, Field:28
 - `src/Lightbox.Raster/SymbolRegistry.cs` (95 ln) · 7 test files

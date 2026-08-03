@@ -59,11 +59,19 @@ public static class FrameRasterizer
     /// brushes responsive while drawing. The committed frame is always
     /// re-rendered exactly via <see cref="Append"/>/<see cref="Rasterize"/>.
     /// </summary>
-    public static void AppendDraft(SKBitmap layer, Stroke stroke)
+    /// <param name="readFrom">
+    /// What an effect brush samples, when that must not be the bitmap it is
+    /// writing into. Smudge and blur read the pixels they sit on, and the exact
+    /// render gives every dab of a stroke the same <em>pre-stroke</em> pixels —
+    /// so a live preview that samples its own accumulated output is applying
+    /// the effect once per pointer event instead of once per stroke. Defaults
+    /// to <paramref name="layer"/>, which is right for every other brush.
+    /// </param>
+    public static void AppendDraft(SKBitmap layer, Stroke stroke, SKBitmap? readFrom = null)
     {
         var info = new SKImageInfo(layer.Width, layer.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(layer);
-        BrushEngine.StampStroke(canvas, stroke, info, layer, draft: true);
+        BrushEngine.StampStroke(canvas, stroke, info, readFrom ?? layer, draft: true);
         canvas.Flush();
     }
 

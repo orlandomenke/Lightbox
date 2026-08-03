@@ -301,7 +301,12 @@ public static class BuiltInPresets
         {
             Id = "builtin-smudge",
             Name = "Smudge",
-            Settings = new BrushSettings { Size = 20, Hardness = 0.5, Flow = 0.6, Spacing = 0.1, Kind = BrushKind.Smudge },
+            // Flow 0.08, not 0.6. An effect brush's flow is how hard each
+            // dab pulls, and dabs overlap ~10 deep at this spacing — so a
+            // flow an artist can steer is an order of magnitude below what
+            // reads as "a bit of smudge" on a single dab. See the note in
+            // CLAUDE.md on measuring below saturation.
+            Settings = new BrushSettings { Size = 20, Hardness = 0.5, Flow = 0.08, Spacing = 0.1, Kind = BrushKind.Smudge },
         },
         new()
         {
@@ -309,7 +314,7 @@ public static class BuiltInPresets
             Name = "Blender",
             Settings = new BrushSettings
             {
-                Size = 28, Hardness = 0.3, Flow = 0.85, Spacing = 0.06,
+                Size = 28, Hardness = 0.3, Flow = 0.06, Spacing = 0.06,
                 Kind = BrushKind.Smudge,
                 // Dulling with no colour of its own: it dissolves detail
                 // rather than smearing it, which is what makes a blender read
@@ -322,7 +327,9 @@ public static class BuiltInPresets
         {
             Id = "builtin-blur",
             Name = "Blur",
-            Settings = new BrushSettings { Size = 24, Flow = 0.7, Spacing = 0.12, Kind = BrushKind.Blur },
+            // Flow is the blur sigma: sigma = Flow * Size / 4, so 0.7 on a
+            // 24 px brush was a 4 px sigma per dab, applied at every dab.
+            Settings = new BrushSettings { Size = 24, Flow = 0.1, Spacing = 0.12, Kind = BrushKind.Blur },
         },
     ];
 

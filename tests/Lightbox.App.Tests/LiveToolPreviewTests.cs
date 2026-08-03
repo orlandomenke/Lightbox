@@ -161,4 +161,101 @@ public class LiveToolPreviewTests : BrushStateIsolated
         Assert.Equal(strokes, ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count);
         Assert.Equal(0, PixelAt(latest!, 180, 150).Alpha);
     }
+
+    // ---- B33 · the live blur covered more ground than the commit ---------------
+
+    /// <summary>Pixels with any ink in them.</summary>
+    /// <remarks>
+    /// Coordinate-free on purpose. Two earlier probes measured the wrong thing
+    /// — one walked sideways along the opaque bar and measured the bar, the
+    /// other dragged along the bar's middle where blurring uniform black is a
+    /// no-op by construction. Both passed against the unfixed code. Counting
+    /// covered pixels asks the artist's question directly: how much ground does
+    /// the mark cover?
+    /// </remarks>
+    private static int InkedPixels(RenderSnapshot snapshot)
+    {
+        using var bmp = SKBitmap.FromImage(snapshot.Image);
+        var n = 0;
+        for (var y = 0; y < bmp.Height; y++)
+            for (var x = 0; x < bmp.Width; x++)
+                if (bmp.GetPixel(x, y).Alpha > 8) n++;
+        return n;
+    }
+
+    /// <summary>
+    /// A long blur drag must not cover visibly more ground on screen than the
+    /// mark that commits.
+    /// </summary>
+    /// <remarks>
+    /// The artist's report was that the affected area is bigger than the brush
+    /// while dragging. It was: the live composite was handed to the engine as
+    /// both the surface to write and the pixels to read, so each pointer event
+    /// blurred the previous event's blur. The exact render gives every dab of a
+    /// stroke the same pre-stroke pixels — one pass per stroke, not one per
+    /// event — and N passes of sigma s reach like sigma*sqrt(N).
+    ///
+    /// Measured over 60 events on a 40 px brush at flow 0.6: the preview
+    /// covered **672 px more** than the commit before the fix and **88 px
+    /// more** after. The threshold sits between those, so this test discriminates
+    /// rather than merely passing.
+    ///
+    /// The residual 88 px is real and not yet chased: the draft path still
+    /// works from a cropped snapshot per segment rather than the whole
+    /// pre-stroke layer.
+    ///
+    /// Note the drag runs along the bar's EDGE. Along its middle there is no
+    /// gradient and blur is a no-op, which is how two earlier versions of this
+    /// test managed to pass against the bug.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ALiveBlurDoesNotCoverMoreGroundThanTheMarkThatCommits()
+    {
+        var vm = Painted();
+        Pick(vm, "Blur");
+        vm.BrushFlow = 0.6;   // high enough that compounding is unmistakable
+
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+
+        vm.BeginStroke(120, 118, 1);
+        for (var x = 122; x <= 240; x += 2) vm.MoveStroke(x, 118, 1);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var preview = InkedPixels(latest!);
+
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var committed = InkedPixels(latest!);
+
+        // Both numbers, always. An assertion that passes tells you nothing
+        // about how close it came.
+        Assert.True(
+            preview - committed <= 200,
+            $"the live blur covered {preview} px against the commit's {committed} "
+            + $"({preview - committed} more) — the preview is applying the blur more times "
+            + "than the commit does");
+    }
+
+    /// <summary>
+    /// The defaults for the three effect brushes are low, because flow on these
+    /// is how hard each dab pulls and the dabs overlap ten deep.
+    /// </summary>
+    /// <remarks>
+    /// Guarded rather than merely set: a default nudged back up would be
+    /// invisible in every other test, and it is the one number that decides
+    /// whether these tools are steerable at all.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheEffectBrushesShipWithAFlowAnArtistCanSteer()
+    {
+        var vm = VmLayers.BareVm();
+        foreach (var name in new[] { "Smudge", "Blender", "Blur" })
+        {
+            var preset = vm.BrushPresetChoices.First(p => p.Name == name);
+            Assert.True(
+                preset.Settings.Flow <= 0.1,
+                $"{name} ships with flow {preset.Settings.Flow:F2}; effect brushes need 0.1 or less");
+            Assert.True(preset.Settings.Flow > 0, $"{name} ships with no flow at all");
+        }
+    }
 }

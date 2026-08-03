@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1657 tests, derived from the suite itself. Each line is a
+1659 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -837,6 +837,8 @@ regression even when every test still compiles.
 - The Smudge Preview Matches The Commit — `:84`
 - Blur Shows Mid Drag — `:111`
 - An Abandoned Smudge Leaves No Trace — `:143`
+- ALive Blur Does Not Cover More Ground Than The Mark That Commits — `:212`
+- The Effect Brushes Ship With AFlow An Artist Can Steer — `:249`
 
 ## LoopRangeHandleTests
 `tests/Lightbox.App.Tests/LoopRangeHandleTests.cs`
