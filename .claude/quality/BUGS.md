@@ -203,6 +203,13 @@ decision goes to `QUESTIONS.md` and is left alone.
   - After: a 40 px stroke reaches **58 px** at 24 steps against 40 with no flow — 45%, against 20% before — and it keeps growing with the control (44 → 52 → 62 across 4, 12 and 32 steps) rather than flattening at 48 whatever you asked for. Cost: M
   - The lesson is the one this session keeps relearning: the measurement was real and the attribution was not. Two constants would have been changed on the strength of a plausible story if the front had not been measured first.
 
+- [ ] **B32** `P3` `ai` A third of the Windows download is a second copy of .NET, because the MCP server targets net10.0 `evidence: manual`
+  - Repro: publish both projects as CI does and measure. **286 MB on disk, 105 MB zipped** — of which the app is 69.5 MB and `mcp/` is **35.3 MB**, a full second self-contained runtime.
+  - It is not accidental duplication that a shared output folder would fix. `Lightbox.App` targets `net8.0` and `Lightbox.Mcp` targets **`net10.0`** (with `Microsoft.Extensions.Hosting 10.0.10`), so of the 224 files in `mcp/`, **182 have the same name as one in the parent and different contents** and only 2 are byte-identical. They are genuinely two runtimes.
+  - Nothing chose this: `CLAUDE.md` says the project is .NET 8, and the TFM has read `net10.0` since the commit that created the project. Every other project in the solution is `net8.0`.
+  - Fix: move `Lightbox.Mcp` to `net8.0` and publish it into the *same* folder as the app, so the runtime is shared. Saves roughly a third of every download and a third of every CI artifact. Needs checking that `ModelContextProtocol` 1.4.1 supports `net8.0` and that the two `runtimeconfig.json`/`deps.json` pairs coexist — they have distinct names, so they should. Cost: S
+  - P3 because it costs bandwidth and storage rather than correctness. It moved up the list when the artifact quota filled: at 105 MB a build a free account's whole 500 MB allowance is four builds, and this is 35 MB of each one.
+
 - [ ] **B31** `P2` `ai` Every AI call re-renders and re-encodes the reference views on the UI thread `evidence: ReferenceViewsAreEncodedOnceNotPerCall, TheEncodedViewIsReusedWhileTheSheetIsUnchanged`
   - Repro: a document with two character-sheet views, then **✦ AI Inbetween** twice. `CollectReferenceImages` runs synchronously in `AiInbetweenAsync` before the request is built, and it composes, PNG-encodes and base64s each visible view every time.
   - Measured: **52 ms** to encode and base64 one 960×540 view (38 ms at 768×432), so the default two views cost about **100 ms of UI-thread stall before every AI call**. Timed on dense synthetic line art, which is the pessimistic end; a sparse sheet is cheaper but not free.

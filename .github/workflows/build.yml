@@ -5,6 +5,18 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A push that supersedes another on the same branch cancels it. Two runs of one
+# branch in flight produce two 105 MB artifacts of which nobody wants the older,
+# and the quota does not care that it was about to be replaced.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Deleting our own older artifacts. Nothing else here writes.
+  actions: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -19,9 +31,53 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
       - run: dotnet test Lightbox.sln -c Release
 
+  # Is there anything in this push that could change the bundle? A Windows
+  # build of a Markdown edit is 105 MB of storage for a file nobody ships.
+  # Tests still run on everything — it is only the bundle that is skipped.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: filter
+        shell: bash
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          # A new branch, a force push or a first run has no usable base.
+          # Build in that case: skipping a bundle somebody wanted is a worse
+          # failure than storing one they did not.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "no usable base ref — building"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CHANGED=$(git diff --name-only "$BASE" "$GITHUB_SHA")
+          printf '%s\n' "$CHANGED"
+          # Anything that is not documentation counts as code.
+          if printf '%s\n' "$CHANGED" | grep -qvE '^(docs/|\.claude/)|^[^/]*\.md$'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "documentation only — skipping the Windows bundle"
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   publish-win-x64:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, changes]
+    # Two conditions. The first skips documentation-only pushes. The second
+    # drops the duplicate bundle a pull request from this repo would otherwise
+    # produce — `push` and `pull_request` both fire, and because a PR's SHA is
+    # the merge commit the two artifacts get different names and neither
+    # replaces the other. A fork's PR is still built, because no push event
+    # here ever covers it.
+    if: >
+      (needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name != 'pull_request'
+       || github.event.pull_request.head.repo.full_name != github.repository)
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
@@ -55,9 +111,75 @@ jobs:
             *)                       KIND="branch" ;;
           esac
           SAFE=$(printf '%s' "$BRANCH" | tr '/ _' '---' | tr -cd 'A-Za-z0-9.-')
+          echo "prefix=Lightbox-win-x64-${KIND}-${SAFE}-" >> "$GITHUB_OUTPUT"
           echo "name=Lightbox-win-x64-${KIND}-${SAFE}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      # ---- keep the quota from filling ------------------------------------------
+      #
+      # One bundle is ~105 MB zipped, so a free account's entire 500 MB
+      # allowance is four builds, and `retention-days` alone cannot save it:
+      # retention is time-based and the accumulation here is per-push.
+      #
+      # This prunes by count instead, and it runs BEFORE the upload on purpose.
+      # Pruning afterwards deadlocks — once the quota is full the upload fails,
+      # and the step that would have freed the space never runs. That is
+      # precisely how the three builds before this one died.
+      #
+      # Two rules, both narrow enough to be safe:
+      #   1. this branch keeps at most KEEP bundles including the one about to
+      #      be uploaded, so KEEP-1 survive the prune;
+      #   2. any `branch-` bundle older than STALE_DAYS goes, whatever branch it
+      #      came from. Abandoned feature branches are where the storage
+      #      actually goes and nothing else ever collects them.
+      # Release and bugfix bundles are never touched by rule 2.
+      - name: Prune older artifacts before uploading
+        continue-on-error: true       # never fail a build over housekeeping
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREFIX: ${{ steps.designation.outputs.prefix }}
+          KEEP: 3
+          STALE_DAYS: 7
+        shell: bash
+        run: |
+          set -uo pipefail
+          ALL=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
+                  --jq '.artifacts[] | select(.expired == false)
+                        | [.id, .name, .created_at, .size_in_bytes] | @tsv') || {
+            echo "could not list artifacts — skipping the prune"; exit 0; }
+
+          COUNT=$(printf '%s' "$ALL" | grep -c . || true)
+          TOTAL=$(printf '%s\n' "$ALL" | awk -F'\t' '{s+=$4} END {printf "%.0f", s/1048576}')
+          echo "::notice::Artifact storage in use: ${TOTAL:-0} MB across ${COUNT} artifacts"
+
+          delete() {
+            while IFS=$'\t' read -r id name created size; do
+              [ -n "${id:-}" ] || continue
+              printf 'deleting %s (%s, %s MB)\n' "$name" "$created" "$((size / 1048576))"
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" >/dev/null || true
+            done
+          }
+
+          # 1 · this branch, newest first, keep KEEP-1 (the upload adds one back)
+          printf '%s\n' "$ALL" \
+            | awk -F'\t' -v p="$PREFIX" 'index($2, p) == 1' \
+            | sort -t$'\t' -k3,3r \
+            | tail -n +"$KEEP" \
+            | delete
+
+          # 2 · stale throwaway bundles from any branch
+          CUTOFF=$(date -u -d "-${STALE_DAYS} days" +%Y-%m-%dT%H:%M:%SZ)
+          printf '%s\n' "$ALL" \
+            | awk -F'\t' -v c="$CUTOFF" '$2 ~ /^Lightbox-win-x64-branch-/ && $3 < c' \
+            | delete
+
       - uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.designation.outputs.name }}
           path: publish/win-x64
-          retention-days: 30
+          # Work builds are throwaway; only main's are worth keeping around.
+          #
+          # compression-level is left at its default deliberately. Measured on
+          # this bundle: 104.8 MB at level 6 against 104.4 MB at level 9,
+          # because it is already compressed DLLs and native libraries.
+          # Raising it costs CPU on every run to save 0.4%.
+          retention-days: ${{ github.ref_name == 'main' && 30 || 5 }}

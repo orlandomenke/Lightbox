@@ -24,11 +24,13 @@ Built with **C# / .NET 8**, **Avalonia** (Windows · macOS · Linux), and **Skia
 
 ## Run on Windows — no admin rights needed
 
-Every push builds a self-contained Windows bundle in CI:
+Every code push builds a self-contained Windows bundle in CI:
 
-1. Repo → **Actions** tab → newest green `build` run → **Artifacts** → download `Lightbox-win-x64` (you must be signed in to GitHub).
+1. Repo → **Actions** tab → newest green `build` run → **Artifacts** → download `Lightbox-win-x64-…` (you must be signed in to GitHub).
 2. Unzip anywhere in your user profile, e.g. `%LOCALAPPDATA%\Lightbox`.
 3. Run `Lightbox.App.exe`. Nothing is installed, no .NET required, no admin.
+
+**How long a bundle lasts.** One is about 105 MB, so they are pruned rather than kept: a branch keeps its **3 newest**, `main`'s are kept 30 days and everyone else's 5, and any feature-branch bundle over a week old is deleted whatever branch it came from. A documentation-only push does not build one at all. If you need a bundle for a commit that has aged out, re-run the workflow from the Actions tab (**Run workflow**) — `workflow_dispatch` always builds.
 
 **If SmartScreen blocks it** (and policy hides "Run anyway"): SmartScreen only screens files carrying the Mark-of-the-Web download tag — remove the tag and it never triggers. Any of these work without admin:
 
