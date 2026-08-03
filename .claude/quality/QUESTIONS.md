@@ -147,3 +147,54 @@ on the scene.
 The reason it is a question rather than a guess: (a) and (b) are not
 interchangeable later. A file written under (b) cannot be read back as (a), so
 picking the easy one first forecloses the other.
+
+## Q16 · Is a subject reading stored, and what makes it stale?
+
+`docs/DESIGN-subject-reading.md` splits the reading into **taxonomy** (per
+character, stable) and **placement** (per frame, disposable). The taxonomy is
+clearly worth storing — it is reviewable, correctable, and true of every frame.
+The placement is the question.
+
+**(a) Never stored.** Every operation reads the frame it is about to work on.
+Always fresh, nothing to invalidate, and no new keys in the file. The cost is
+that two runs of the same inking pass on the same drawing can differ, and that
+a batch across two hundred frames pays for two hundred readings.
+
+**(b) Stored with a content hash of what it read.** Staleness detection is then
+free: the hash of the frame's strokes no longer matches, so the reading is
+discarded rather than trusted. Batches get cheap. The cost is file size and one
+more thing that can be subtly wrong — a reading that matches the hash but was
+produced by a model that has since changed its mind.
+
+**(c) Stored, but only as a cache outside the document** — beside the autosave
+rather than in the `.lightbox.json`. Keeps the record clean, keeps the batch
+cheap, and makes "it went stale" a non-event because losing the cache costs
+nothing. The cost is that a reading an artist corrected by hand would live
+somewhere that gets deleted, which argues that corrected readings are taxonomy
+and belong in (a)'s per-character half anyway.
+
+Leaning (c) for placement and stored-on-the-character for taxonomy, because it
+puts the durable half where an artist can edit it and the disposable half where
+losing it is free. Not decided.
+
+## Q17 · Does an inking pass replace the pencils or land on its own layer?
+
+**(a) Its own layer, pencils untouched and hidden.** What an inker does on
+paper, non-destructive, and the artist can re-run with a different style
+without losing anything. Costs a layer per inked frame, which over two hundred
+frames is a layer count nobody wants to scroll.
+
+**(b) Replaces the strokes in place, one undo step.** Matches "the stroke record
+is the document" — the inked lines simply *are* the frame now. Cheap, tidy, and
+the artist keeps the pencils by duplicating the layer first if they want them,
+which is a thing they already know how to do.
+
+**(c) Its own layer, but one layer for the whole sequence** — an "Ink" layer
+whose cels line up with the pencils'. This is what the layer model already
+supports and it is probably the answer, but it assumes an inking pass is run
+over a range rather than a frame, which is a UI decision as much as a record
+one.
+
+The reason it cannot be deferred: (a) and (b) produce different documents from
+the same gesture, and a file written under one cannot be reinterpreted as the
+other. Pick before the first pass ships, not after.

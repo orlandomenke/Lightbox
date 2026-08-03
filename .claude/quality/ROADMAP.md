@@ -296,6 +296,14 @@ varies between similar strokes is fine on one image and boils at 12 fps.
 
 - [x] Deterministic marks across frames (no boiling) `evidence: OutputScaleTests, BrushDynamicsTests, ScalingTheCoordinatesInstead_ProducesADifferentMark`
 - [x] AI inbetweening `evidence: Inbetweener, InbetweenerTests, IAiArtist`
+- [ ] The AI reads the subject before it draws `evidence: SubjectReading, SubjectTaxonomy, PartPlacement, SubjectReadingTests, AHandNamedPartBeatsAGuessedOne, DeletingEveryReadingChangesNoPixel`
+  - Inbetweening, inking and normal maps each asked for this separately, which is the signal to design it once — see `docs/DESIGN-subject-reading.md`. Split in two because the halves have different lifetimes: **taxonomy** (this is a biped with these parts) is per character and worth reviewing by hand; **placement** (where each part is in frame 12, what occludes what) is per frame and disposable. The rig's hand-drawn `parts` win wherever they exist — a guess is a default, never an override of something a person stated.
+  - The line it must stay on: the reading is an input to *authoring*, never to rendering. Its first test deletes every reading from a finished document and asserts the render is byte-identical, because the day that fails is the day invariant 2 is gone.
+- [ ] A light source, for the tools that need to know where the shadows are `evidence: SceneLight, SceneLightTests, ALightNeverReachesStampStroke, ADocumentWithNoLightExportsExactlyAsItDid`
+  - On the scene, nullable, absent until placed — the camera's rule. Two uses that must not be conflated: for inking it is a **generation input** (which contours are heavy, which side is in shadow) consumed before there are strokes; for a normal map it is a **preview rig** and must never be baked into the output, because a normal map that carried a light would defeat the reason for having one.
+- [ ] AI-assisted inking, with styles `evidence: InkingStyle, InkingPass, InkingStyleTests, AnInkedPassIsOrdinaryStrokes, WeightFollowsTheLightRatherThanTheStrokeOrder`
+  - A style is **a brush preset plus a policy** — weight, taper, depth cue, interior detail, fills — rather than a hard-coded "flat" and "comic". Two modes would be two modes; the axes are what makes the third style somebody asks for reachable. The preset half already exists, so an inking style is an ordinary brush an artist can open and edit.
+  - Output is ordinary strokes through `BrushEngine.StampStroke`, so an inked frame replays, undoes and inbetweens like anything else. Whether it replaces the pencils or lands on its own layer is Q17.
 - [x] Batch frame editing `evidence: CelRangeTests, CelRangeSelectionTests`
 - [?] Batch transform across frames
 - [x] Frame hold tools `evidence: ExposureSheet, ExposureEditingTests, RetimingTests, ExposureStep`
@@ -330,6 +338,9 @@ exists; the half that does not is what makes it *one* click.
 
 - [x] Sprite sheet generation `evidence: SpriteSheetExporter, SpriteSheetExportTests`
 - [x] Consistent trimmed bounds across a sequence `evidence: SpriteTrim, SpriteSheetOptions, TrimmingDefaultsToTheUnion_SoEveryCellIsTheSameSizeAndNothingJitters`
+- [ ] Normal maps for the sprites `evidence: NormalMapGenerator, NormalMapPanel, NormalMapTests, ABevelFromTheSilhouetteNeedsNoDependency, ThePreviewLightIsNotBakedIntoTheMap`
+  - Three tiers, and the cheapest one first because it makes the panel, the preview light and the export path real: a Sobel over the silhouette's distance field needs no dependency and no model. Then Laigter for artists who have it, then AI for the thing neither can do — knowing a cheek is round and a sleeve fold is a crease, which is the whole argument for spending a model on it and why the subject reading is its prerequisite.
+  - **Laigter is GPL-3.0.** Linking it in would put Lightbox under GPL-3.0, which is a project-level licensing decision and must not be made by accident inside a normal-map task. Running its CLI as a separate optional tool keeps the licences apart and is how it should behave anyway — absent unless the artist has it, degrading to the built-in generator rather than breaking. See `docs/DESIGN-subject-reading.md`.
 - [?] Automatic packing (rect/skyline, tighter than a grid)
 - [?] Atlas optimization
 - [?] Sprite atlas generation across characters
