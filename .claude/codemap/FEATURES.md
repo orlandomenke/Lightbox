@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1664 tests, derived from the suite itself. Each line is a
+1673 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -33,29 +33,29 @@ regression even when every test still compiles.
 ## AiArtistFactoryTests
 `tests/Lightbox.Ai.Tests/AiProviderTests.cs`
 
-- An Incomplete Connection Produces No Artist — `:195`
-- The Open Ai Dialect Providers All Build The Same Artist — `:204`
-- Ollama Needs No Key — `:215`
-- Anthropic Builds From AKey Alone — `:222`
-- An Mcp Command That Cannot Start Is Not ACrash — `:230`
-- Testing An Incomplete Connection Says What Is Missing Without ACall — `:241`
-- Turning Assistance Off Produces No Artist However Complete The Connection Is — `:253`
-- The Switch Is On By Default And Survives ARound Trip — `:267`
+- An Incomplete Connection Produces No Artist — `:215`
+- The Open Ai Dialect Providers All Build The Same Artist — `:224`
+- Ollama Needs No Key — `:235`
+- Anthropic Builds From AKey Alone — `:242`
+- An Mcp Command That Cannot Start Is Not ACrash — `:250`
+- Testing An Incomplete Connection Says What Is Missing Without ACall — `:261`
+- Turning Assistance Off Produces No Artist However Complete The Connection Is — `:273`
+- The Switch Is On By Default And Survives ARound Trip — `:287`
 
 ## AiProviderTests
 `tests/Lightbox.Ai.Tests/AiProviderTests.cs`
 
-- Every Provider Has AUnique Id And At Least One Field — `:32`
-- An Unknown Provider Id Falls Back Rather Than Throwing — `:43`
-- AStored Value Beats The Environment Which Beats The Default — `:50`
-- Missing Names The Required Fields That Resolve To Nothing — `:79`
-- Anthropic Is Complete From The Environment Alone — `:96`
-- Settings Round Trip — `:114`
-- ABroken Settings File Means Not Configured Rather Than ACrash — `:129`
-- AProvider That No Longer Exists Loads As The Default — `:139`
-- Only What Was Typed Is Written Back — `:148`
-- The Password Fields Are The Ones Marked Secret — `:164`
-- Every Api Provider Names AModel And Every Mcp Provider Names ATool — `:180`
+- Every Provider Has AUnique Id And At Least One Field — `:51`
+- An Unknown Provider Id Falls Back Rather Than Throwing — `:62`
+- AStored Value Beats The Environment Which Beats The Default — `:69`
+- Missing Names The Required Fields That Resolve To Nothing — `:98`
+- Anthropic Is Complete From The Environment Alone — `:115`
+- Settings Round Trip — `:133`
+- ABroken Settings File Means Not Configured Rather Than ACrash — `:148`
+- AProvider That No Longer Exists Loads As The Default — `:158`
+- Only What Was Typed Is Written Back — `:167`
+- The Password Fields Are The Ones Marked Secret — `:183`
+- Every Api Provider Names AModel And Every Mcp Provider Names ATool — `:199`
 
 ## PromptTests
 `tests/Lightbox.Ai.Tests/AiTests.cs`
@@ -633,13 +633,13 @@ regression even when every test still compiles.
 ## FrameBitmapCacheTests
 `tests/Lightbox.App.Tests/FrameBitmapCacheTests.cs`
 
-- The Byte Budget Is Honoured Even When It Cannot Afford The Frame Floor — `:32`
-- The Frame Floor Still Applies When The Budget Can Afford It — `:49`
-- The Same Frame At Two Scales Is Cached Twice Rather Than Thrashing — `:62`
-- The Same Frame At Two Document Sizes Is Also Cached Separately — `:82`
-- Invalidating AFrame Drops Every Render Of It — `:96`
-- Invalidating One Frame Leaves The Others Alone — `:115`
-- Cached Bytes Tracks What Is Actually Held — `:129`
+- The Byte Budget Is Honoured Even When It Cannot Afford The Frame Floor — `:33`
+- The Frame Floor Still Applies When The Budget Can Afford It — `:50`
+- The Same Frame At Two Scales Is Cached Twice Rather Than Thrashing — `:63`
+- The Same Frame At Two Document Sizes Is Also Cached Separately — `:83`
+- Invalidating AFrame Drops Every Render Of It — `:97`
+- Invalidating One Frame Leaves The Others Alone — `:116`
+- Cached Bytes Tracks What Is Actually Held — `:130`
 
 ## GradientRampTests
 `tests/Lightbox.App.Tests/GradientRampTests.cs`
@@ -1167,16 +1167,16 @@ regression even when every test still compiles.
 ## PlaybackEvictionTests
 `tests/Lightbox.App.Tests/ScanEvictionTests.cs`
 
-- Playing Switches The Cache To Scan Eviction — `:140`
+- Playing Switches The Cache To Scan Eviction — `:141`
 
 ## ScanEvictionTests
 `tests/Lightbox.App.Tests/ScanEvictionTests.cs`
 
-- An Lru Scan Throws Away Everything It Is About To Need — `:67`
-- Evicting The Most Recent Keeps Half The Sheet Resident — `:79`
-- Scan Eviction Is Better Than Lru On AScan — `:90`
-- The Frame Being Shown Is Never The One Evicted — `:99`
-- Drawing Keeps The Lru It Wants — `:125`
+- An Lru Scan Throws Away Everything It Is About To Need — `:68`
+- Evicting The Most Recent Keeps Half The Sheet Resident — `:80`
+- Scan Eviction Is Better Than Lru On AScan — `:91`
+- The Frame Being Shown Is Never The One Evicted — `:100`
+- Drawing Keeps The Lru It Wants — `:126`
 
 ## SceneDockerTests
 `tests/Lightbox.App.Tests/SceneDockerTests.cs`
@@ -2052,6 +2052,19 @@ regression even when every test still compiles.
 - Reduce Is The One That Throws Work Away — `:87`
 - Both Are Undoable As One Step — `:101`
 - AStep Of One Or Less Is ANo Op — `:118`
+
+## TimingPresetTests
+`tests/Lightbox.Core.Tests/TimingPresetTests.cs`
+
+- Applying APattern Re Exposes The Drawings That Are There — `:26`
+- APattern Shorter Than The Range Repeats — `:42`
+- An Uneven Pattern Is Laid Down In Order — `:52`
+- It Never Creates Or Destroys ADrawing — `:62`
+- ARange That Begins Mid Hold Keeps Showing Its Drawing — `:82`
+- ARange Of One Cel Is AKey And Nothing Else Moves — `:97`
+- ANon Range Is ANo Op — `:111`
+- ADegenerate Pattern Behaves Rather Than Throwing — `:119`
+- The Built Ins Are The Ones An Animator Asks For By Name — `:132`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`

@@ -8,6 +8,7 @@ namespace Lightbox.App.Tests;
 /// "the scene is the world" — a canvas wide enough for a camera pan — makes
 /// both of its defects reachable rather than theoretical.
 /// </summary>
+[Collection("FrameCacheBudget")]
 public class FrameBitmapCacheTests : IDisposable
 {
     private readonly long _budget = FrameBitmapCache.ByteBudget;

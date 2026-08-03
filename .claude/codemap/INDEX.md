@@ -1,6 +1,6 @@
 # Code index
 
-347 files · 84247 lines · 1664 tests.
+349 files · 84555 lines · 1673 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -267,10 +267,12 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Stroke:9, BakedSample:121
 - `src/Lightbox.Core/Projects/Project.cs` (120 ln) · 7 test files
   - Project:15
-- `src/Lightbox.Core/Documents/Layer.cs` (115 ln) · 24 test files
+- `src/Lightbox.Core/Documents/Layer.cs` (115 ln) · 25 test files
   - LayerKind:3, LayerBlendMode:14, Cel:38, LayerGroup:49, Layer:67
 - `src/Lightbox.Core/Documents/Guide.cs` (114 ln) · 3 test files
   - GuideKind:4, Guide:60
+- `src/Lightbox.Core/Timeline/ExposureSheet.cs` (112 ln) · 3 test files
+  - ExposureSheet:8
 - `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 31 test files
   - DocumentFactory:3
 - `src/Lightbox.Core/Documents/Doc.cs` (102 ln) · 19 test files
@@ -289,18 +291,18 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushScope:8, BrushScopeDefaults:47
 - `src/Lightbox.Core/Inbetween/StrokeMatcher.cs` (73 ln) · 1 test files
   - StrokePair:6, StrokeMatcher:13
-- `src/Lightbox.Core/Serialization/FrameConverter.cs` (73 ln) · 76 indirect only
+- `src/Lightbox.Core/Serialization/FrameConverter.cs` (73 ln) · 77 indirect only
   - FrameConverter:14
 - `src/Lightbox.Core/Documents/BrushStabilisation.cs` (66 ln) · 2 test files
   - SmoothingMode:10, BrushStabilisation:52
 - `src/Lightbox.Core/Serialization/DocJson.cs` (66 ln) · 17 test files
   - DocJson:11
-- `src/Lightbox.Core/Documents/Frame.cs` (62 ln) · 72 test files
+- `src/Lightbox.Core/Timeline/TimingPreset.cs` (65 ln) · 1 test files
+  - TimingPreset:34
+- `src/Lightbox.Core/Documents/Frame.cs` (62 ln) · 73 test files
   - FrameRole:8, Frame:19, VectorFrame:27, PaintedFrame:40
 - `src/Lightbox.Core/Documents/ReferenceSheet.cs` (50 ln) · 1 test files
   - ReferenceSheet:11, ReferenceView:21
-- `src/Lightbox.Core/Timeline/ExposureSheet.cs` (50 ln) · 2 test files
-  - ExposureSheet:8
 - `src/Lightbox.Core/Inbetween/StrokeInterpolator.cs` (43 ln) · 1 test files
   - StrokeInterpolator:6
 - `src/Lightbox.Core/Geometry/ColorOps.cs` (29 ln) · 1 test files
@@ -311,7 +313,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Easing:3, EasingOps:11
 - `src/Lightbox.Core/Documents/Pivot.cs` (16 ln) · 2 test files
   - Pivot:7
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 122 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 123 indirect only
   - Ids:3
 
 ## Lightbox.Import

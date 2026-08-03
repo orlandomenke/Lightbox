@@ -986,6 +986,11 @@ playback range.
 Drag a cel along its row to move it. Shift-click for a range, then apply
 exposure changes to all of it at once.
 
+**Timing presets** — *Planned.* The engine exists: a pattern of hold lengths
+("on 2s", "slow in") that re-spaces the drawings a range already contains,
+without ever adding or removing one. There is no control for it on the timeline
+yet, so it is not something you can reach today.
+
 ### Onion skin
 
 Previous drawings tint red, next drawings blue. The checkbox on the timeline bar

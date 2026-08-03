@@ -4,10 +4,29 @@ using Lightbox.Ai;
 namespace Lightbox.Ai.Tests;
 
 /// <summary>
+/// <see cref="AiSettings.PathOverride"/> is process-wide, so two classes that
+/// each point it at their own throwaway file fight over it when xUnit runs
+/// them in parallel.
+/// </summary>
+/// <remarks>
+/// The failure it caused, so nobody has to rediscover it: one class saved
+/// <c>Enabled = false</c> and read it back, while the other repointed the
+/// override at a fresh directory with no <c>ai.json</c> in it. The read fell
+/// through to a default <see cref="AiConnection"/>, whose <c>Enabled</c> is
+/// <c>true</c> — so the round-trip test failed with "Expected: False, Actual:
+/// True", intermittently and only under full-solution load. try/finally
+/// restores do not close this: the damage happens while the other override is
+/// set. Any class that touches the override takes this collection.
+/// </remarks>
+[CollectionDefinition("AiSettingsFile", DisableParallelization = true)]
+public class AiSettingsFileCollection;
+
+/// <summary>
 /// The catalogue, the connection's resolution order, and the settings file.
 /// These are what the Configure window and the factory both read, so a
 /// mistake here shows up as "the provider I picked is not the one that draws".
 /// </summary>
+[Collection("AiSettingsFile")]
 public class AiProviderTests
 {
     /// <summary>Point the store at a throwaway directory for the life of a test.</summary>
@@ -189,6 +208,7 @@ public class AiProviderTests
 }
 
 /// <summary>The factory: the one place that maps a provider id to a class.</summary>
+[Collection("AiSettingsFile")]
 public class AiArtistFactoryTests
 {
     [Fact]

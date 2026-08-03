@@ -18,6 +18,24 @@ namespace Lightbox.App.Tests;
 public class BrushStateCollection;
 
 /// <summary>
+/// <see cref="Lightbox.App.Rendering.FrameBitmapCache.ByteBudget"/> is a
+/// process-wide preference, so a class that lowers it to force eviction lowers
+/// it for every class running beside it.
+/// </summary>
+/// <remarks>
+/// The arithmetic, so the reason survives: the eviction-policy tests set the
+/// budget to 320x180x4x3 = 691,200 bytes, and the frame-floor test asserts six
+/// 200x200 frames stay cached — 960,000 bytes. Run in parallel, the small
+/// budget trims the floor test's cache below its floor and it fails with
+/// "only N frames cached", intermittently and only under full-solution load.
+/// A try/finally restore does not help: the window is while the small budget
+/// is set, not after. Any test that reads or writes the budget takes this
+/// collection.
+/// </remarks>
+[CollectionDefinition("FrameCacheBudget", DisableParallelization = true)]
+public class FrameCacheBudgetCollection;
+
+/// <summary>
 /// Restores the process-wide state a test may mutate: the brush store, and the
 /// application settings.
 /// </summary>

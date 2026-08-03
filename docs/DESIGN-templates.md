@@ -121,3 +121,57 @@ that is what documents do.
 
 Step 2 is the one carrying the design. If a copy ever ends up linked, this
 whole definition collapses into a worse symbol.
+
+## Update from template
+
+**Chosen.** The copy stays static; a **pull** is added. The template can never
+reach into a document — the document reaches out to the template, when the
+artist says so, one document at a time, as one undoable step.
+
+That preserves the whole reason the copy is static — nothing is ever silently
+rewritten, and a finished shot cannot change under you — while answering the
+real need behind the question: *fix the template, roll it forward.*
+
+**What it does.** *File ▸ Update from template…* on a document that came from
+one. It shows what would change, then applies what you tick.
+
+**What it can pull**, and this list is the design rather than a detail — each
+entry is something a template can carry that an artist would plausibly want
+rolled forward without touching their drawings:
+
+| Pullable | Rule |
+| --- | --- |
+| **New layers** | Added, in the template's position. Never removes a layer you have. |
+| **Layer properties** — name, blend, opacity, lock | Applied to layers matched by id, and **skipped for any layer you have drawn on since**, unless you tick it explicitly. |
+| **Guides and grids** | Replaced wholesale. They are aids, not art. |
+| **Scene fps** | Applied. Size is *not* — changing a canvas under finished drawings is a different operation with its own questions. |
+| **Camera** | Added if the document has none. Never overwritten. |
+
+**What it never pulls: drawings, and the exposure sheet.** Those are the work.
+A template's frames are a starting point that has already been superseded the
+moment somebody drew, and its timing is what a *timing preset* is for — which
+is exactly why Q11 and Q12 stayed separate mechanisms.
+
+**The rule that carries the risk.** *Skipped for any layer you have drawn on
+since* is the load-bearing clause, and it needs a real signal rather than a
+guess. Matching by **layer id** is what makes this possible at all: a copy keeps
+the template's layer ids, so "the same layer" is a fact rather than a
+name-similarity heuristic. A layer whose id is not in the template is yours and
+is left alone; a layer you renamed keeps your name unless you tick it.
+
+**What it needs that the flag does not:** a document has to remember which
+template it came from. That is one nullable field — a template id, absent unless
+the document was made from one, the camera's rule again — and it is the only
+thing here that is a link. Note what kind of link it is: **the document points at
+the template**, not the reverse. A template still has no idea who copied it, so
+deleting one cannot break anything, and nothing traverses from template to
+copies. That asymmetry is what keeps the pull safe where a push would not be.
+
+### Order
+
+1. The flag and **New from template** (the copy). Nothing below is reachable
+   without it, and it is useful alone.
+2. `TemplateId` on the document, nullable and absent by default.
+3. **Update from template**, starting with new layers and guides — the two with
+   no ambiguity.
+4. Layer properties, with the drawn-on rule and the tick list.

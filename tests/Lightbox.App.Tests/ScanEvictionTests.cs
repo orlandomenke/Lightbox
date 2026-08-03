@@ -9,6 +9,7 @@ namespace Lightbox.App.Tests;
 /// B28: an LRU against a sequential scan has a zero hit rate, and playing,
 /// scrubbing and exporting are all sequential scans.
 /// </summary>
+[Collection("FrameCacheBudget")]
 public class ScanEvictionTests
 {
     private const int W = 320, H = 180;
