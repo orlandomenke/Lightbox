@@ -127,6 +127,67 @@ public static class SpriteSheetExporter
     private const byte InkAlpha = 8;
 
     /// <summary>
+    /// The document's tags, clamped to frames that exist.
+    /// </summary>
+    /// <remarks>
+    /// Clamped rather than dropped: a tag whose end ran past the sheet after
+    /// somebody shortened the animation still names a real range, and losing the
+    /// clip entirely would be a worse answer than shortening it. A tag that starts
+    /// beyond the end has nothing to name and is dropped.
+    /// </remarks>
+    private static List<SheetTag>? TagsFor(Scene scene)
+    {
+        if (scene.Tags is not { Count: > 0 } tags) return null;
+        var last = Math.Max(0, Math.Max(1, scene.FrameCount) - 1);
+
+        var written = new List<SheetTag>();
+        foreach (var tag in tags)
+        {
+            var from = Math.Clamp(Math.Min(tag.Start, tag.End), 0, last);
+            var to = Math.Clamp(Math.Max(tag.Start, tag.End), 0, last);
+            if (Math.Min(tag.Start, tag.End) > last) continue;
+
+            written.Add(new SheetTag
+            {
+                Name = string.IsNullOrWhiteSpace(tag.Name) ? tag.Id : tag.Name.Trim(),
+                From = from,
+                To = to,
+                Direction = tag.Direction switch
+                {
+                    TagDirection.Reverse => "reverse",
+                    TagDirection.PingPong => "pingpong",
+                    _ => "forward",
+                },
+                Loop = tag.Loop,
+            });
+        }
+        return written.Count > 0 ? written : null;
+    }
+
+    /// <summary>
+    /// Markers the artist marked as engine events, and only those.
+    /// </summary>
+    /// <remarks>
+    /// Opt-in, because most markers are notes to the animator — "contact", "check
+    /// the hand" — and exporting those would fill an AnimationClip with callbacks
+    /// nothing handles.
+    /// </remarks>
+    private static List<SheetEvent>? EventsFor(Scene scene)
+    {
+        var last = Math.Max(0, Math.Max(1, scene.FrameCount) - 1);
+        var events = scene.Markers
+            .Where(m => m.ExportsAsEvent && m.Frame >= 0 && m.Frame <= last)
+            .OrderBy(m => m.Frame)
+            .Select(m => new SheetEvent
+            {
+                Frame = m.Frame,
+                Name = string.IsNullOrWhiteSpace(m.Label) ? "event" : m.Label.Trim(),
+            })
+            .ToList();
+        return events.Count > 0 ? events : null;
+    }
+
+    /// <summary>
     /// This frame's anchors, named and measured inside its cell.
     /// </summary>
     /// <remarks>
@@ -294,6 +355,10 @@ public static class SpriteSheetExporter
                     Pack = opts.Pack == SpritePack.Skyline ? "skyline" : "grid",
                     Fps = scene.Fps,
                     Pivot = pivot is null ? null : new Point(pivot.X, pivot.Y),
+                    // Aseprite's own key and shape, because engine importers
+                    // already read it. Absent when nothing is tagged.
+                    FrameTags = TagsFor(scene),
+                    Events = EventsFor(scene),
                 },
             };
             File.WriteAllText(metaPath, JsonSerializer.Serialize(document, JsonOptions));
@@ -445,6 +510,40 @@ public static class SpriteSheetExporter
         [JsonPropertyName("pack")] public string Pack { get; set; } = "grid";
         [JsonPropertyName("fps")] public int Fps { get; set; }
         [JsonPropertyName("pivot")] public Point? Pivot { get; set; }
+
+        /// <summary>
+        /// Named frame ranges, in Aseprite's <c>frameTags</c> shape.
+        /// </summary>
+        /// <remarks>
+        /// Matching the established key rather than inventing one: every engine
+        /// importer that reads a sprite-sheet sidecar already looks here, and an
+        /// animation clip *is* a named frame range.
+        /// </remarks>
+        [JsonPropertyName("frameTags")] public List<SheetTag>? FrameTags { get; set; }
+
+        /// <summary>Lightbox extension: markers the artist marked as engine events.</summary>
+        [JsonPropertyName("events")] public List<SheetEvent>? Events { get; set; }
+    }
+
+    private sealed class SheetTag
+    {
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+
+        [JsonPropertyName("from")] public int From { get; set; }
+
+        [JsonPropertyName("to")] public int To { get; set; }
+
+        [JsonPropertyName("direction")] public string Direction { get; set; } = "forward";
+
+        /// <summary>Lightbox extension: Aseprite has no loop flag and engines need one.</summary>
+        [JsonPropertyName("loop")] public bool Loop { get; set; } = true;
+    }
+
+    private sealed class SheetEvent
+    {
+        [JsonPropertyName("frame")] public int Frame { get; set; }
+
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
     }
 
     private sealed record Box(

@@ -396,16 +396,30 @@ exists; the half that does not is what makes it *one* click.
 - [?] Collision shapes
 - [?] Physics shapes
 - [?] Export collision data
-- [?] Frame events
-- [?] Animation events
-- [?] Export animation tags
-- [?] Export animation clips
+- [x] Frame events `evidence: FrameMarker, IsEvent, ExportsAsEvent, AnUntouchedMarkerWritesNoEventKey, OnlyMarkersMarkedAsEventsAreExported`
+  - **Built by not building it twice.** `Scene.Markers` already *is* a named point on a frame, so a frame event is a nullable flag on a marker rather than a parallel `FrameEvent` record — which would have been exactly the mistake Q11's "reusable animation presets" was struck for: a feature nothing can distinguish from a shipped one.
+  - Opt-in, because the two uses genuinely differ: most markers are notes to the animator ("contact", "check the hand") and exporting those would fill an `AnimationClip` with callbacks nothing handles. Ticking it says *this one is for the game*.
+- [x] Animation events `evidence: IsEvent, ExportsAsEvent, AnEventPastTheEndIsNotExported`
+  - The same record. An "animation event" and a "frame event" were two names for one thing, and only one of them needed building.
+- [x] Export animation tags `evidence: AnimationTag, TagDirection, ATagIsExportedAsAClipInTheEstablishedShape, ATagThatRanPastTheEndIsShortenedRatherThanLost, ATagRoundTripsWithItsDirectionAndLoop`
+  - **A tag is genuinely new, and the reason is the one thing a marker cannot be: a marker is a point, a tag is a range.** Written in Aseprite's own `frameTags` key and field names, because every engine importer that reads a sprite-sheet sidecar already looks there. Direction and a loop flag come with it — Aseprite has no loop field and engines need one.
+  - Frame **indices** rather than frame ids, unlike an anchor, and the difference is deliberate: an anchor belongs to a drawing, a tag names a stretch of the timeline. Re-timing is *meant* to move a tag's boundaries, because a clip is however long the animator made it.
+  - A tag that ran past the end is **shortened rather than dropped** — it still names a real range, and losing the clip would be the worse answer. One entirely past the end names nothing and goes.
+- [x] Export animation clips `evidence: AnimationTag, ATagIsExportedAsAClipInTheEstablishedShape, ATagEntirelyPastTheEndIsDropped`
+  - There is no clip record to build: everything an engine calls a clip is a named frame range and nothing more, so tags *are* clips. This is also what makes one sheet holding several animations usable at all, which is why grouped export depends on tags and not the reverse.
 - [?] Unity exporter
 - [?] Godot exporter
 - [?] Unreal Paper2D exporter
 - [?] GameMaker exporter
 - [?] MonoGame exporter
 - [?] Raylib exporter
+- [ ] A project holds a game's assets, and export follows the artist's own folders `evidence: AssetFolder, ExportScope, ExportGrouping, AssetStatus, ProjectExportTests, AFolderTreeIsAbsentUntilOneIsMade, ExportingAFolderTakesEverythingUnderIt, OnlyReadyAssetsAreExportedWhenFiltered, AGroupedSheetSplitsRatherThanExceedingTheTextureLimit`
+  - **Designed in `docs/DESIGN-project-assets.md`.** A project has one grouping axis today — `Character`, which earns its type by carrying a palette — so environments, props and UI have nowhere to go but a flat list. The answer is a **second, generic axis**: nestable `AssetFolder` with a nullable `Kind` hint, additive and absent until one is made.
+  - **The exporter reads the tree rather than a fixed structure**, which is the whole of "dynamic rather than static": make a folder and the exporter can already export it, with no per-kind change ever. Scope is document / folder / selection / project; grouping is per-animation (default), per-folder, or one atlas; a path template gives a studio its own layout.
+  - **Per animation is the default on the honest reasoning, not on file size.** More sheets is usually *more* total bytes, not fewer — each pays its own padding and rounding, and each is a separate texture bind at runtime. Per-animation wins because it is the simplest import, has no texture-size cliff, and Unity's own Sprite Atlas re-packs it at build time anyway. The real hazard of grouping is **exceeding max texture size** (8192 or 16384), so the grouped modes take a `MaxSheetSize` and split into numbered sheets rather than writing a file no engine will read.
+  - **`DocumentRef.Status`** — Design, Draft, InDevelopment, Review, Ready, Reopened — on the *manifest*, not in the document, so marking something Ready cannot dirty the artwork or need the file open. The payoff is the export filter: *everything that is Ready* is what lets work-in-progress live in the same project as shipped art without shipping it by accident, and today the only way to get that is a second project. `Reopened` is kept distinct from `InDevelopment` on purpose — "this was Ready and is not any more" is the state a linear pipeline cannot express.
+  - **Version control: be friendly to it, do not reimplement it.** The folder-of-JSON layout is already diffable and was chosen partly for that, with one real hole — `PaintedFrame.PngBase64` is a single enormous line, so a document carrying an imported baseline diffs unreadably. Measure that before promising anything; if it is as bad as it looks, baselines belong in sidecar PNGs and that is its own decision. Beyond that: **read-only git status per row** is cheap and safe, and stage/commit/push is deliberately last and optional, because every git edge case would become a support question in a drawing application and no panel can resolve a merge conflict in art.
+  - Explicitly **not** a production tracker: no assignees, dates, comments or notifications. Status exists because the exporter needs it; the producer-facing view is a side effect.
 - [?] Modular exporter plugin system
 - [?] One-click game-ready export
 

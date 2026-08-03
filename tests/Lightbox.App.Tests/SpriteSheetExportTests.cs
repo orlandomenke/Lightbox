@@ -511,4 +511,101 @@ public class SpriteSheetExportTests : IDisposable
 
         Assert.Equal(AnchorOf(Meta(grid)), AnchorOf(Meta(packed)));
     }
+
+    // ---- P5d: tags, clips and events ---------------------------------------------
+
+    [Fact]
+    public void ADocumentWithNoTagsOrEventsWritesNeitherKey()
+    {
+        var json = File.ReadAllText(
+            SpriteSheetExporter.Export(Walking(3), Path_("bare.png")).MetadataPath);
+
+        Assert.DoesNotContain("\"frameTags\"", json);
+        Assert.DoesNotContain("\"events\"", json);
+    }
+
+    [Fact]
+    public void ATagIsExportedAsAClipInTheEstablishedShape()
+    {
+        // Aseprite's own key and field names, because every engine importer that
+        // reads a sprite-sheet sidecar already looks there. An animation clip *is*
+        // a named frame range, so there is no separate clip record to build.
+        var doc = Walking(8);
+        doc.Scene.Tags =
+        [
+            new AnimationTag { Name = "walk", Start = 0, End = 3 },
+            new AnimationTag { Name = "run", Start = 4, End = 7, Direction = TagDirection.PingPong, Loop = false },
+        ];
+
+        var tags = Meta(SpriteSheetExporter.Export(doc, Path_("tags.png")))
+            .GetProperty("meta").GetProperty("frameTags").EnumerateArray().ToList();
+
+        Assert.Equal(2, tags.Count);
+        Assert.Equal("walk", tags[0].GetProperty("name").GetString());
+        Assert.Equal(0, tags[0].GetProperty("from").GetInt32());
+        Assert.Equal(3, tags[0].GetProperty("to").GetInt32());
+        Assert.Equal("forward", tags[0].GetProperty("direction").GetString());
+        Assert.True(tags[0].GetProperty("loop").GetBoolean());
+
+        Assert.Equal("pingpong", tags[1].GetProperty("direction").GetString());
+        Assert.False(tags[1].GetProperty("loop").GetBoolean());
+    }
+
+    [Fact]
+    public void ATagThatRanPastTheEndIsShortenedRatherThanLost()
+    {
+        // Somebody shortened the animation. The clip still names a real range, and
+        // losing it entirely would be the worse answer.
+        var doc = Walking(4);
+        doc.Scene.Tags = [new AnimationTag { Name = "walk", Start = 0, End = 99 }];
+
+        var tag = Meta(SpriteSheetExporter.Export(doc, Path_("clamp.png")))
+            .GetProperty("meta").GetProperty("frameTags")[0];
+
+        Assert.Equal(0, tag.GetProperty("from").GetInt32());
+        Assert.Equal(3, tag.GetProperty("to").GetInt32());
+    }
+
+    [Fact]
+    public void ATagEntirelyPastTheEndIsDropped()
+    {
+        var doc = Walking(4);
+        doc.Scene.Tags = [new AnimationTag { Name = "gone", Start = 10, End = 20 }];
+
+        var json = File.ReadAllText(SpriteSheetExporter.Export(doc, Path_("gone.png")).MetadataPath);
+
+        Assert.DoesNotContain("\"frameTags\"", json);
+    }
+
+    [Fact]
+    public void OnlyMarkersMarkedAsEventsAreExported()
+    {
+        // Most markers are notes to the animator — "contact", "check the hand" —
+        // and exporting those would fill an AnimationClip with callbacks nothing
+        // handles. So it is opt-in, and this is the test that keeps it that way.
+        var doc = Walking(6);
+        doc.Scene.Markers =
+        [
+            new FrameMarker { Frame = 1, Label = "check the hand" },
+            new FrameMarker { Frame = 3, Label = "OnFootstep", IsEvent = true },
+        ];
+
+        var meta = Meta(SpriteSheetExporter.Export(doc, Path_("events.png"))).GetProperty("meta");
+
+        var events = meta.GetProperty("events").EnumerateArray().ToList();
+        var single = Assert.Single(events);
+        Assert.Equal("OnFootstep", single.GetProperty("name").GetString());
+        Assert.Equal(3, single.GetProperty("frame").GetInt32());
+    }
+
+    [Fact]
+    public void AnEventPastTheEndIsNotExported()
+    {
+        var doc = Walking(3);
+        doc.Scene.Markers = [new FrameMarker { Frame = 40, Label = "OnLate", IsEvent = true }];
+
+        Assert.DoesNotContain(
+            "\"events\"",
+            File.ReadAllText(SpriteSheetExporter.Export(doc, Path_("late.png")).MetadataPath));
+    }
 }

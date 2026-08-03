@@ -8,6 +8,88 @@ public sealed class FrameMarker
     public string Label { get; set; } = "";
 
     public string Color { get; set; } = "#e0a030";
+
+    /// <summary>
+    /// Export this marker as an engine animation event.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A "frame event" is a named point on a frame, and that is exactly what a
+    /// marker already is — so this is a flag rather than a second record. Adding a
+    /// parallel `FrameEvent` type would have been the mistake Q11's "reusable
+    /// animation presets" was struck for: a feature nothing can distinguish from a
+    /// shipped one.
+    /// </para>
+    /// <para>
+    /// Opt-in, because the two uses genuinely differ. Most markers are notes to
+    /// the animator — "contact", "check the hand" — and exporting those as engine
+    /// callbacks would fill somebody's `AnimationClip` with events nothing
+    /// handles. Ticking it says <em>this one is for the game</em>.
+    /// </para>
+    /// <para>
+    /// Nullable so an untouched marker writes no key.
+    /// </para>
+    /// </remarks>
+    public bool? IsEvent { get; set; }
+
+    /// <summary>Whether this marker is exported as an event. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool ExportsAsEvent => IsEvent == true;
+}
+
+/// <summary>Which way an engine plays a tagged range.</summary>
+public enum TagDirection
+{
+    Forward,
+    Reverse,
+
+    /// <summary>Out and back. Aseprite's <c>pingpong</c>, and the name engines expect.</summary>
+    PingPong,
+}
+
+/// <summary>
+/// A named range of frames: "walk", "run", "idle" — one animation clip.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This <em>is</em> new, and the reason is the one thing a marker cannot be: a
+/// marker is a point and a tag is a **range**. Everything an engine calls a clip
+/// is a named frame range and nothing more, so this is also what "export animation
+/// clips" means — there is no separate clip record to build.
+/// </para>
+/// <para>
+/// It is what makes one sheet holding several animations usable at all: without
+/// "walk = 0..7, run = 8..15" a packed multi-animation atlas is a pile of frames
+/// an importer cannot divide. That is why grouped export depends on this and not
+/// the other way round.
+/// </para>
+/// <para>
+/// Frame <em>indices</em> rather than frame ids, unlike an anchor — and the
+/// difference is real. An anchor belongs to a drawing; a tag names a stretch of
+/// the timeline, which is a property of the sheet's layout rather than of any
+/// drawing in it. Re-timing a range is meant to move a tag's boundaries, because
+/// the clip is however long the animator made it.
+/// </para>
+/// </remarks>
+public sealed class AnimationTag
+{
+    public string Id { get; set; } = Ids.NewId("tag");
+
+    public string Name { get; set; } = "Animation";
+
+    public int Start { get; set; }
+
+    /// <summary>Inclusive, like every exchange format's <c>to</c>.</summary>
+    public int End { get; set; }
+
+    public TagDirection Direction { get; set; } = TagDirection.Forward;
+
+    /// <summary>Whether an engine should loop the clip. Most cycles should.</summary>
+    public bool Loop { get; set; } = true;
+
+    /// <summary>Frames the tag covers, at least one.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int Length => Math.Max(1, Math.Abs(End - Start) + 1);
 }
 
 public sealed class Scene
@@ -143,6 +225,16 @@ public sealed class Scene
     /// <see cref="Camera"/> and <see cref="Guides"/> follow.
     /// </remarks>
     public List<Anchor>? Anchors { get; set; }
+
+    /// <summary>
+    /// Named frame ranges — the clips an engine will import.
+    /// </summary>
+    /// <remarks>
+    /// Null until one is made, so a document that never tags anything writes no
+    /// key. See <see cref="AnimationTag"/> for why a tag is a new record where a
+    /// frame event is only a flag on a marker.
+    /// </remarks>
+    public List<AnimationTag>? Tags { get; set; }
 
     /// <summary>A layer's folder, or null.</summary>
     public LayerGroup? GroupOf(Layer layer) =>

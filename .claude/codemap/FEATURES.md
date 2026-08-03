@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1808 tests, derived from the suite itself. Each line is a
+1819 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1279,6 +1279,12 @@ regression even when every test still compiles.
 - An Anchor Is Exported Per Frame By Name And Inside The Cell — `:448`
 - An Anchor On AHeld Drawing Is Exported On Every Frame It Shows — `:473`
 - Packing Does Not Move An Anchor Relative To Its Cell — `:492`
+- ADocument With No Tags Or Events Writes Neither Key — `:518`
+- ATag Is Exported As AClip In The Established Shape — `:528`
+- ATag That Ran Past The End Is Shortened Rather Than Lost — `:555`
+- ATag Entirely Past The End Is Dropped — `:570`
+- Only Markers Marked As Events Are Exported — `:581`
+- An Event Past The End Is Not Exported — `:602`
 
 ## StartScreenTests
 `tests/Lightbox.App.Tests/StartScreenTests.cs`
@@ -1644,6 +1650,15 @@ regression even when every test still compiles.
 - Resolving At AFrame Reads Through Holds — `:191`
 - An Upper Layer Wins When Two Place The Same Anchor — `:207`
 - No Declarations Means Nothing To Resolve — `:223`
+
+## AnimationTagTests
+`tests/Lightbox.Core.Tests/AnchorTests.cs`
+
+- An Untouched Marker Writes No Event Key — `:236`
+- ADocument With No Tags Writes No Tag Key — `:252`
+- ATag Round Trips With Its Direction And Loop — `:258`
+- ATags Length Counts Both Ends And Survives Being Backwards — `:275`
+- AMarker Marked As An Event Round Trips — `:285`
 
 ## BrushCostTests
 `tests/Lightbox.Core.Tests/BrushCostTests.cs`

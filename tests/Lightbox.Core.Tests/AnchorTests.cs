@@ -225,3 +225,71 @@ public class AnchorTests
         Assert.Empty(Anchors.ResolvedAt(OnOnes(2), 0));
     }
 }
+
+/// <summary>
+/// P5d: a frame event is a marker with a flag; a tag is genuinely new, because a
+/// marker is a point and a tag is a range.
+/// </summary>
+public class AnimationTagTests
+{
+    [Fact]
+    public void AnUntouchedMarkerWritesNoEventKey()
+    {
+        // A flag rather than a parallel FrameEvent record — adding one would have
+        // been the mistake Q11's "reusable animation presets" was struck for.
+        var doc = new Doc();
+        doc.Scene.Markers.Add(new FrameMarker { Frame = 1, Label = "contact" });
+
+        var json = DocJson.Serialize(doc);
+
+        Assert.DoesNotContain("\"isEvent\"", json);
+        Assert.False(doc.Scene.Markers[0].ExportsAsEvent);
+        // And the convenience getter must not reintroduce the key under a second name.
+        Assert.DoesNotContain("\"exportsAsEvent\"", json);
+    }
+
+    [Fact]
+    public void ADocumentWithNoTagsWritesNoTagKey()
+    {
+        Assert.DoesNotContain("\"tags\"", DocJson.Serialize(new Doc()));
+    }
+
+    [Fact]
+    public void ATagRoundTripsWithItsDirectionAndLoop()
+    {
+        var doc = new Doc();
+        doc.Scene.Tags =
+        [
+            new AnimationTag { Name = "run", Start = 4, End = 11, Direction = TagDirection.PingPong, Loop = false },
+        ];
+
+        var tag = Assert.Single(DocJson.Clone(doc).Scene.Tags!);
+
+        Assert.Equal("run", tag.Name);
+        Assert.Equal(TagDirection.PingPong, tag.Direction);
+        Assert.False(tag.Loop);
+        Assert.Equal(8, tag.Length);
+    }
+
+    [Fact]
+    public void ATagsLengthCountsBothEndsAndSurvivesBeingBackwards()
+    {
+        Assert.Equal(4, new AnimationTag { Start = 2, End = 5 }.Length);
+        // A range typed the wrong way round still names four frames rather than
+        // minus two, because the artist meant a range either way.
+        Assert.Equal(4, new AnimationTag { Start = 5, End = 2 }.Length);
+        Assert.Equal(1, new AnimationTag { Start = 3, End = 3 }.Length);
+    }
+
+    [Fact]
+    public void AMarkerMarkedAsAnEventRoundTrips()
+    {
+        var doc = new Doc();
+        doc.Scene.Markers.Add(new FrameMarker { Frame = 2, Label = "OnFootstep", IsEvent = true });
+
+        var back = DocJson.Clone(doc);
+
+        Assert.True(back.Scene.Markers[0].ExportsAsEvent);
+        Assert.Equal("OnFootstep", back.Scene.Markers[0].Label);
+    }
+}
