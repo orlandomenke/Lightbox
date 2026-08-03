@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2025 tests, derived from the suite itself. Each line is a
+2052 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -709,6 +709,26 @@ regression even when every test still compiles.
 - Invalidating AFrame Drops Every Render Of It — `:97`
 - Invalidating One Frame Leaves The Others Alone — `:116`
 - Cached Bytes Tracks What Is Actually Held — `:130`
+
+## GodotExportTests
+`tests/Lightbox.App.Tests/GodotExportTests.cs`
+
+- No Tres File Is Ever Written — `:63`
+- The Generic Sidecar Keeps Every Key It Already Had — `:76`
+- The Godot Block Carries Only What The Generic File Lacks — `:91`
+- Frame Durations Arrive As Multipliers Rather Than Milliseconds — `:107`
+- ADocument With No Pivot Carries No Offsets — `:121`
+- AFeet Pivot Becomes An Upward Sprite Offset — `:130`
+- An Edited Importer Is Not Overwritten — `:149`
+- The Importer Can Be Suppressed — `:160`
+- The Script Never Touches Project Godot Or The Cache — `:172`
+- The Script Builds The Resource Through Godots Own Api — `:183`
+- The Script Only Claims Sidecars That Are Ours — `:197`
+- The Script Clips Atlas Filtering So Neighbouring Sprites Cannot Bleed — `:208`
+- The Script Removes The Default Animation When Tags Supply Their Own — `:216`
+- The Script Says It Is Godot Four And Why — `:224`
+- AGodot Preset Writes The Sheet The Sidecar And The Script — `:236`
+- AGodot Preset Still Reports What It Left Out — `:249`
 
 ## GradientRampTests
 `tests/Lightbox.App.Tests/GradientRampTests.cs`
@@ -1987,6 +2007,21 @@ regression even when every test still compiles.
 - Path Length Sums Segments — `:65`
 - Centroid Averages Positions — `:72`
 - Smooth Preserves Endpoints And Count — `:80`
+
+## GodotConvertTests
+`tests/Lightbox.Core.Tests/GodotConvertTests.cs`
+
+- An Ordinary Frame Is One Tick Of The Animations Speed — `:19`
+- Rounding Recovers The Value The Milliseconds Were Rounded From — `:29`
+- Passing Milliseconds Straight Through Would Be Wildly Wrong — `:46`
+- AMissing Duration Falls Back To One Rather Than Zero — `:63`
+- An Impossible Frame Rate Does Not Divide By Zero — `:72`
+- APivot At The Centre Needs No Offset — `:81`
+- AFeet Pivot Pushes The Drawing Upward — `:90`
+- Godots YRuns Down Like Ours So There Is No Flip Here — `:102`
+- It Measures From The Cells Centre Rather Than The Canvas Centre — `:116`
+- ADegenerate Cell Is Treated As One Pixel — `:130`
+- ABlank Tag Name Gets AUsable Placeholder — `:139`
 
 ## GradientTests
 `tests/Lightbox.Core.Tests/GradientTests.cs`

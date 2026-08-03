@@ -12,6 +12,24 @@ public enum ExportTarget
     SpriteSheet,
 
     /// <summary>
+    /// A sheet, the sidecar with a Godot block, and a Godot-side importer in GDScript.
+    /// </summary>
+    /// <remarks>
+    /// A separate target for the same reason Unity is: it writes an extra file into
+    /// somebody's project.
+    /// </remarks>
+    Godot,
+
+    /// <summary>
+    /// A sheet, the sidecar, and an Unreal-side importer in Python.
+    /// </summary>
+    /// <remarks>
+    /// Unreal's <c>.uasset</c> is binary and cannot be written from outside the editor,
+    /// so the Unreal-side script is not a convenience here — it is the only mechanism.
+    /// </remarks>
+    Unreal,
+
+    /// <summary>
     /// A sheet, the sidecar with a Unity block, and the Unity-side importer script.
     /// </summary>
     /// <remarks>
@@ -161,7 +179,9 @@ public sealed record ExportPreset
     /// picker would be offering a control that does nothing — which teaches an
     /// artist that the controls lie.
     /// </remarks>
-    public bool UsesSheetSettings => Target is ExportTarget.SpriteSheet or ExportTarget.Unity;
+    public bool UsesSheetSettings =>
+        Target is ExportTarget.SpriteSheet or ExportTarget.Unity
+            or ExportTarget.Godot or ExportTarget.Unreal;
 
     /// <summary>Whether this preset's engine settings mean anything.</summary>
     public bool UsesEngineSettings => Target is ExportTarget.Unity;

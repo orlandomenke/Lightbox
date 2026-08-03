@@ -1459,7 +1459,7 @@ size, layout — **and names every layer it left out**.
 | --- | --- |
 | **MonoGame**, **Raylib** | Nothing extra. Both load a PNG and take source rectangles you supply, and the sidecar is that list. |
 | **Unity** | The Unity format below, which adds an importer script. |
-| **Godot** | The sheet and sidecar work today; a `.tres` resource importer is Planned. |
+| **Godot** | The Godot format below, which adds a GDScript importer. |
 | **GameMaker**, **Unreal** | Import the sheet by hand for now — see Planned. |
 
 **For Unity** the exporter writes the sheet, the sidecar and a small importer
@@ -1468,6 +1468,21 @@ sheet**: it slices the sprites, sets each pivot, and builds an animation clip pe
 tag with the right frame durations and any events you marked. It needs Unity's
 **2D Sprite** package, which every 2D template already has. Lightbox never
 touches Unity's own `.meta` files — Unity owns those.
+
+**For Godot** you get the sheet, the sidecar and `lightbox_import.gd`. Put all
+three anywhere under `res://`, open the script in Godot's script editor and run
+it (**File ▸ Run**, or Ctrl+Shift+X): it finds every Lightbox sheet in the
+project and writes a `SpriteFrames` beside each one, with an animation per tag,
+the right frame timings, and looping set as you tagged it. Point an
+`AnimatedSprite2D` at that resource and it plays.
+
+Two things worth knowing. **Lightbox writes no `.tres` itself** — the resource
+is built by Godot's own API inside that script, which is why it stays correct as
+Godot changes rather than being a format we guessed at. And if you have a pivot
+set, the sidecar carries a per-sprite offset for it, because Godot measures a
+sprite's offset from the middle of the region rather than as a fraction of it.
+Godot 4; on 3.x the frame timings would be dropped without saying so. Lightbox
+never touches `project.godot` or the `.godot/` cache — Godot owns those.
 
 ### Leaving the background out
 
@@ -1892,8 +1907,6 @@ Not built. Listed so the gap is visible rather than implied.
 - Liquify, clone stamp, healing brush
 
 **Engine exporters**
-- A Godot `.tres` resource importer, so a `SpriteFrames` animation arrives built
-  rather than assembled frame by frame in the inspector.
 - GameMaker `.yy` project files. Writable in principle, but the schema moves
   between releases and a file written for the wrong one produces a project that
   will not open — so this waits on a decision about which versions to support.

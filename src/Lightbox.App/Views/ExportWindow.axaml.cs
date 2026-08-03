@@ -41,7 +41,11 @@ public partial class ExportWindow : Window
     {
         InitializeComponent();
 
-        TargetBox.ItemsSource = new[] { "PNG sequence", "Sprite sheet", "Sprite sheet + Unity" };
+        TargetBox.ItemsSource = new[]
+        {
+            "PNG sequence", "Sprite sheet",
+            "Sprite sheet + Unity", "Sprite sheet + Godot",
+        };
         TrimBox.ItemsSource = new[]
         {
             "None — every cell is the whole canvas",
@@ -106,6 +110,7 @@ public partial class ExportWindow : Window
         {
             ExportTarget.PngSequence => 0,
             ExportTarget.Unity => 2,
+            ExportTarget.Godot => 3,
             _ => 1,
         };
         TrimBox.SelectedIndex = preset.Trim switch
@@ -146,6 +151,7 @@ public partial class ExportWindow : Window
         {
             0 => ExportTarget.PngSequence,
             2 => ExportTarget.Unity,
+            3 => ExportTarget.Godot,
             _ => ExportTarget.SpriteSheet,
         },
         Trim = TrimBox.SelectedIndex switch

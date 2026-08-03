@@ -50,6 +50,7 @@ public static class ExportRunner
         {
             ExportTarget.PngSequence => Sequence(doc, path),
             ExportTarget.Unity => Unity(doc, preset, path),
+            ExportTarget.Godot => Godot(doc, preset, path),
             _ => Sheet(doc, preset, path),
         };
     }
@@ -109,6 +110,25 @@ public static class ExportRunner
         return new ExportRun(
             files,
             $"{result.SpriteCount} sprite(s), {result.ClipCount} clip(s) for Unity → "
+            + Path.GetFileName(result.SheetPath),
+            result.Sheet?.OmittedLayers ?? [],
+            result.Sheet?.SuspectedBackgrounds ?? []);
+    }
+
+    private static ExportRun Godot(Doc doc, ExportPreset preset, string sheetPath)
+    {
+        var result = GodotExporter.Export(doc, sheetPath, new GodotExportOptions(preset.WriteImporter)
+        {
+            Sheet = SheetOptions(preset),
+        });
+
+        var files = new List<string> { result.SheetPath, result.MetadataPath };
+        if (result.ImporterPath is { } importer) files.Add(importer);
+        if (preset.NormalMap) files.Add(NormalMapWriter.Write(result.SheetPath, preset.Normal));
+
+        return new ExportRun(
+            files,
+            $"{result.SpriteCount} sprite(s), {result.ClipCount} animation(s) for Godot → "
             + Path.GetFileName(result.SheetPath),
             result.Sheet?.OmittedLayers ?? [],
             result.Sheet?.SuspectedBackgrounds ?? []);
