@@ -80,6 +80,31 @@ public static class UnityExporter
 
         /// <summary>Named anchors, converted the same way as the pivot.</summary>
         [JsonPropertyName("anchors")] public Dictionary<string, double[]>? Anchors { get; set; }
+
+        /// <summary>Colliders for this sprite, in world units relative to its pivot.</summary>
+        [JsonPropertyName("colliders")] public List<UnityCollider>? Colliders { get; set; }
+    }
+
+    /// <summary>
+    /// One collision rectangle, already in the two numbers a
+    /// <c>BoxCollider2D</c> takes.
+    /// </summary>
+    /// <remarks>
+    /// Offset and size rather than a rect, because that is the shape Unity's
+    /// inspector and API use — converting a rect on the Unity side would put the
+    /// pixels-per-unit division and the Y flip in the one place that cannot be
+    /// tested here.
+    /// </remarks>
+    private sealed class UnityCollider
+    {
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+
+        /// <summary>"hurtbox", "hitbox" or "physics" — what layer this belongs on.</summary>
+        [JsonPropertyName("role")] public string Role { get; set; } = "hurtbox";
+
+        [JsonPropertyName("offset")] public double[] Offset { get; set; } = [];
+
+        [JsonPropertyName("size")] public double[] Size { get; set; } = [];
     }
 
     private sealed class UnityClip
@@ -172,6 +197,38 @@ public static class UnityExporter
                     anchors.TryAdd(name, [ax, ay]);
                 }
                 if (anchors.Count > 0) sprite.Anchors = anchors;
+            }
+
+            // Where Unity measures a collider offset from. The pivot when there is
+            // one; otherwise the cell's centre, because that is Unity's default
+            // sprite origin and a collider offset means nothing without knowing
+            // which of the two the sprite ended up with.
+            var originX = scene.Pivot?.X ?? cellLeft + w / 2.0;
+            var originY = scene.Pivot?.Y ?? cellTop + h / 2.0;
+
+            var boxes = CollisionShapes.ResolvedAt(scene, i);
+            if (scene.Shapes is { Count: > 0 } shapes && boxes.Count > 0)
+            {
+                var colliders = new List<UnityCollider>();
+                foreach (var shape in shapes)
+                {
+                    if (!boxes.TryGetValue(shape.Id, out var box)) continue;
+                    var (ox, oy, sx, sy) = UnityConvert.Collider(
+                        box.X, box.Y, box.W, box.H, originX, originY, block.PixelsPerUnit);
+                    colliders.Add(new UnityCollider
+                    {
+                        Name = string.IsNullOrWhiteSpace(shape.Name) ? shape.Id : shape.Name.Trim(),
+                        Role = shape.Role switch
+                        {
+                            ShapeRole.Hitbox => "hitbox",
+                            ShapeRole.Physics => "physics",
+                            _ => "hurtbox",
+                        },
+                        Offset = [ox, oy],
+                        Size = [sx, sy],
+                    });
+                }
+                if (colliders.Count > 0) sprite.Colliders = colliders;
             }
 
             block.Sprites.Add(sprite);
@@ -424,12 +481,69 @@ public static class UnityExporter
                 public UnityClip[] clips;
             }
 
+            // Colliders are data, not an import action, and that is a Unity fact
+            // rather than a shortcut: a Sprite is an asset and a collider is a
+            // component, so there is nothing on the sliced sprite to set. The offsets
+            // and sizes are already in world units relative to the sprite's pivot,
+            // so applying one is two lines in whatever builds your character:
+            //
+            //   var box = go.AddComponent<BoxCollider2D>();
+            //   box.offset = c.Offset; box.size = c.Size;
+            //
+            // Read them with CollidersOf below, and filter on role to decide which
+            // layer each one belongs on.
+            public static Collider2DSpec[] CollidersOf(string texturePath, string spriteName)
+            {
+                var jsonPath = Path.ChangeExtension(texturePath, ".json");
+                if (!File.Exists(jsonPath)) return new Collider2DSpec[0];
+
+                var sheet = JsonUtility.FromJson<Sheet>(File.ReadAllText(jsonPath));
+                if (sheet?.unity?.sprites == null) return new Collider2DSpec[0];
+
+                foreach (var sprite in sheet.unity.sprites)
+                {
+                    if (sprite.name != spriteName || sprite.colliders == null) continue;
+
+                    var specs = new List<Collider2DSpec>();
+                    foreach (var c in sprite.colliders)
+                    {
+                        specs.Add(new Collider2DSpec
+                        {
+                            Name = c.name,
+                            Role = c.role,
+                            Offset = new Vector2(c.offset[0], c.offset[1]),
+                            Size = new Vector2(c.size[0], c.size[1]),
+                        });
+                    }
+                    return specs.ToArray();
+                }
+                return new Collider2DSpec[0];
+            }
+
+            public struct Collider2DSpec
+            {
+                public string Name;
+                public string Role;
+                public Vector2 Offset;
+                public Vector2 Size;
+            }
+
             [System.Serializable]
             private class UnitySprite
             {
                 public string name;
                 public int[] rect;
                 public float[] pivot;
+                public UnityColliderEntry[] colliders;
+            }
+
+            [System.Serializable]
+            private class UnityColliderEntry
+            {
+                public string name;
+                public string role;
+                public float[] offset;
+                public float[] size;
             }
 
             [System.Serializable]

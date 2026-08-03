@@ -182,6 +182,159 @@ public class UnityExportTests : IDisposable
         Assert.Equal(1.0 / 12, Unity(result).GetProperty("secondsPerFrame").GetDouble(), 10);
     }
 
+    // ---- colliders ---------------------------------------------------------------
+
+    [Fact]
+    public void ADocumentWithNoShapesHasNoColliderKey()
+    {
+        var result = UnityExporter.Export(Walking(2), At("nocol.png"));
+        Assert.False(Unity(result).GetProperty("sprites")[0].TryGetProperty("colliders", out _));
+    }
+
+    [Fact]
+    public void AHurtboxBelowTheFeetPivotArrivesWithANegativeYOffset()
+    {
+        // End to end, and the failure it guards is the memorable one: a sign error
+        // here puts every hurtbox above the character's head. Feet pivot at y = 90,
+        // body box from y = 35 to y = 85, so the box's centre is *above* the pivot
+        // and its offset must be positive; the second box, below the pivot, must be
+        // negative. Both in one test so a version that flipped everything fails.
+        var doc = Walking(3);
+        doc.Scene.Pivot = new Pivot { X = 55, Y = 90 };
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        var body = CollisionShapes.Declare(doc.Scene, "body");
+        var shadow = CollisionShapes.Declare(doc.Scene, "shadow", ShapeRole.Physics);
+        CollisionShapes.SetAcross(layer, 0, 3, body.Id, new ShapeBox(45, 35, 20, 50));
+        CollisionShapes.SetAcross(layer, 0, 3, shadow.Id, new ShapeBox(45, 95, 20, 10));
+
+        var result = UnityExporter.Export(
+            doc, At("collider.png"), new UnityExportOptions(WorldHeightUnits: 1.2));
+
+        var ppu = Unity(result).GetProperty("pixelsPerUnit").GetDouble();
+        Assert.Equal(100, ppu, 6);   // 120 px canvas over 1.2 units
+
+        var colliders = Unity(result).GetProperty("sprites")[0]
+            .GetProperty("colliders").EnumerateArray().ToList();
+        Assert.Equal(2, colliders.Count);
+
+        var bodyBox = colliders[0];
+        Assert.Equal("body", bodyBox.GetProperty("name").GetString());
+        Assert.Equal("hurtbox", bodyBox.GetProperty("role").GetString());
+        // Centre y = 60, pivot y = 90, so 30 px above the pivot: +0.3 units.
+        Assert.Equal(0.3, bodyBox.GetProperty("offset")[1].GetDouble(), 6);
+        // Centre x = 55, which is the pivot's x: no horizontal offset.
+        Assert.Equal(0.0, bodyBox.GetProperty("offset")[0].GetDouble(), 6);
+        Assert.Equal(0.2, bodyBox.GetProperty("size")[0].GetDouble(), 6);
+        Assert.Equal(0.5, bodyBox.GetProperty("size")[1].GetDouble(), 6);
+
+        var shadowBox = colliders[1];
+        Assert.Equal("physics", shadowBox.GetProperty("role").GetString());
+        // Centre y = 100, ten below the pivot: -0.1 units.
+        Assert.Equal(-0.1, shadowBox.GetProperty("offset")[1].GetDouble(), 6);
+    }
+
+    [Fact]
+    public void TrimmingCannotMoveACollider()
+    {
+        // The pivot and the anchors are cell-relative and so have to be *kept* right
+        // through a trim change; a collider is pivot-relative and so is right by
+        // construction. Asserted anyway, because "by construction" is a claim about
+        // the code and this is the thing that would notice if it stopped being true.
+        var doc = Walking(4);
+        doc.Scene.Pivot = new Pivot { X = 55, Y = 90 };
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        var body = CollisionShapes.Declare(doc.Scene, "body");
+        CollisionShapes.SetAcross(layer, 0, 4, body.Id, new ShapeBox(45, 35, 20, 50));
+
+        double[] OffsetWith(SpriteTrim trim, SpritePack pack, string name)
+        {
+            var r = UnityExporter.Export(
+                doc, At(name),
+                new UnityExportOptions { Sheet = new SpriteSheetOptions { Trim = trim, Pack = pack } });
+            var offset = Unity(r).GetProperty("sprites")[0].GetProperty("colliders")[0]
+                .GetProperty("offset");
+            return [offset[0].GetDouble(), offset[1].GetDouble()];
+        }
+
+        var union = OffsetWith(SpriteTrim.Union, SpritePack.Grid, "tu.png");
+        var perFrame = OffsetWith(SpriteTrim.PerFrame, SpritePack.Grid, "tp.png");
+        var packed = OffsetWith(SpriteTrim.Union, SpritePack.Skyline, "tk.png");
+        var none = OffsetWith(SpriteTrim.None, SpritePack.Grid, "tn.png");
+
+        Assert.Equal(union, perFrame);
+        Assert.Equal(union, packed);
+        Assert.Equal(union, none);
+    }
+
+    [Fact]
+    public void WithNoPivotTheColliderIsMeasuredFromTheCellCentre()
+    {
+        // Unity's default sprite origin is the centre of the rect, so a collider
+        // offset means nothing unless it is measured from the same place the sprite
+        // will actually pivot on. A box centred on the cell has no offset.
+        var doc = Walking(2);
+        Assert.Null(doc.Scene.Pivot);
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        var body = CollisionShapes.Declare(doc.Scene, "body");
+        // The ink spans x 40..80 and y 30..90 on frame 0; with a per-frame trim that
+        // is the cell, so its centre is (60, 60).
+        CollisionShapes.SetAcross(layer, 0, 1, body.Id, new ShapeBox(50, 50, 20, 20));
+
+        var result = UnityExporter.Export(
+            doc, At("nopivot.png"),
+            new UnityExportOptions { Sheet = new SpriteSheetOptions { Trim = SpriteTrim.PerFrame } });
+
+        var root = JsonDocument.Parse(File.ReadAllText(result.MetadataPath)).RootElement;
+        var source = root.GetProperty("frames")[0].GetProperty("spriteSourceSize");
+        var rect = root.GetProperty("frames")[0].GetProperty("frame");
+        var centreX = source.GetProperty("x").GetInt32() + rect.GetProperty("w").GetInt32() / 2.0;
+        var centreY = source.GetProperty("y").GetInt32() + rect.GetProperty("h").GetInt32() / 2.0;
+        var ppu = Unity(result).GetProperty("pixelsPerUnit").GetDouble();
+
+        var offset = Unity(result).GetProperty("sprites")[0].GetProperty("colliders")[0]
+            .GetProperty("offset");
+
+        Assert.Equal((60 - centreX) / ppu, offset[0].GetDouble(), 6);
+        Assert.Equal((centreY - 60) / ppu, offset[1].GetDouble(), 6);
+    }
+
+    [Fact]
+    public void AColliderIsOffsetAndSizeRatherThanARect()
+    {
+        // The shape Unity's own API takes, so the script assigns two Vector2s and
+        // computes nothing. A rect here would move the ppu division and the Y flip
+        // into the one file that cannot be tested.
+        var doc = Walking(2);
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        var body = CollisionShapes.Declare(doc.Scene, "body");
+        CollisionShapes.SetAcross(layer, 0, 2, body.Id, new ShapeBox(45, 35, 20, 50));
+
+        var collider = UnityExporter.Export(doc, At("shape.png"))
+            .MetadataPath is { } path
+            ? JsonDocument.Parse(File.ReadAllText(path)).RootElement
+                .GetProperty("unity").GetProperty("sprites")[0].GetProperty("colliders")[0]
+            : default;
+
+        Assert.Equal(2, collider.GetProperty("offset").GetArrayLength());
+        Assert.Equal(2, collider.GetProperty("size").GetArrayLength());
+        Assert.False(collider.TryGetProperty("x", out _));
+        Assert.False(collider.TryGetProperty("rect", out _));
+    }
+
+    [Fact]
+    public void TheImporterExposesCollidersWithoutTryingToApplyThem()
+    {
+        // A Sprite is an asset and a collider is a component, so there is nothing on
+        // the sliced sprite to set — the script must hand the numbers over rather
+        // than pretend it can attach them. Checked as text because the script
+        // references UnityEditor and cannot be compiled here.
+        Assert.Contains("Collider2DSpec[] CollidersOf", UnityExporter.ImporterSource);
+        // And it does not reach for Unity's sprite physics-shape provider, which is
+        // the version-coupled editor-internal API this would otherwise be tempted by.
+        Assert.DoesNotContain("PhysicsOutline", UnityExporter.ImporterSource);
+        Assert.DoesNotContain("SpriteDataProviderFactories", UnityExporter.ImporterSource);
+    }
+
     // ---- clips and events --------------------------------------------------------
 
     [Fact]

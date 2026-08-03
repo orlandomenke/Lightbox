@@ -512,6 +512,115 @@ public class SpriteSheetExportTests : IDisposable
         Assert.Equal(AnchorOf(Meta(grid)), AnchorOf(Meta(packed)));
     }
 
+    // ---- P5c: collision shapes in the sidecar -------------------------------------
+
+    [Fact]
+    public void ADocumentWithNoShapesWritesNoShapeKey()
+    {
+        var result = SpriteSheetExporter.Export(Walking(3), Path_("noshape.png"));
+        Assert.DoesNotContain("\"shapes\"", File.ReadAllText(result.MetadataPath));
+    }
+
+    [Fact]
+    public void AShapeIsExportedWithItsRoleAndInsideTheCell()
+    {
+        // Inside the cell like the pivot and the anchors, and here the consequence is
+        // not cosmetic: a collider that shifted because one frame's ink happened to be
+        // tighter is a gameplay bug with no visible cause in the drawing.
+        var doc = Walking(4);
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        var body = CollisionShapes.Declare(doc.Scene, "body");
+        var sword = CollisionShapes.Declare(doc.Scene, "sword", ShapeRole.Hitbox);
+        CollisionShapes.SetAcross(layer, 0, 4, body.Id, new ShapeBox(45, 35, 25, 50));
+        CollisionShapes.SetAcross(layer, 0, 4, sword.Id, new ShapeBox(70, 40, 30, 10));
+
+        var result = SpriteSheetExporter.Export(
+            doc, Path_("shapes.png"), new SpriteSheetOptions { Trim = SpriteTrim.Union });
+
+        var frames = Meta(result).GetProperty("frames").EnumerateArray().ToList();
+        Assert.Equal(4, frames.Count);
+        foreach (var frame in frames)
+        {
+            var shapes = frame.GetProperty("shapes").EnumerateArray().ToList();
+            Assert.Equal(2, shapes.Count);
+            // Declaration order, so the same document exports the same order.
+            Assert.Equal("body", shapes[0].GetProperty("name").GetString());
+            Assert.Equal("hurtbox", shapes[0].GetProperty("role").GetString());
+            Assert.Equal("sword", shapes[1].GetProperty("name").GetString());
+            Assert.Equal("hitbox", shapes[1].GetProperty("role").GetString());
+
+            var source = frame.GetProperty("spriteSourceSize");
+            Assert.Equal(
+                45 - source.GetProperty("x").GetInt32(),
+                shapes[0].GetProperty("x").GetDouble());
+            Assert.Equal(
+                35 - source.GetProperty("y").GetInt32(),
+                shapes[0].GetProperty("y").GetDouble());
+            // The size is not cell-relative and must not be shifted with the origin.
+            Assert.Equal(25, shapes[0].GetProperty("w").GetDouble());
+            Assert.Equal(50, shapes[0].GetProperty("h").GetDouble());
+        }
+    }
+
+    [Fact]
+    public void AShapeOnlyAppearsOnTheFramesItWasPlacedOn()
+    {
+        // Absence is the off state, and this is what carries that through to the
+        // file: a hitbox on the two contact frames of a four-frame swing.
+        var doc = Walking(4);
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        var sword = CollisionShapes.Declare(doc.Scene, "sword", ShapeRole.Hitbox);
+        CollisionShapes.SetAcross(layer, 1, 2, sword.Id, new ShapeBox(60, 40, 30, 10));
+
+        var result = SpriteSheetExporter.Export(doc, Path_("active.png"));
+
+        var frames = Meta(result).GetProperty("frames").EnumerateArray().ToList();
+        for (var i = 0; i < 4; i++)
+        {
+            var present = frames[i].TryGetProperty("shapes", out var s) && s.GetArrayLength() > 0;
+            Assert.Equal(i is 1 or 2, present);
+        }
+    }
+
+    [Fact]
+    public void AShapeOnAHeldDrawingIsExportedOnEveryFrameItShows()
+    {
+        var doc = Walking(2);
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        layer.Cels[1].Frame = null;   // frame 1 holds frame 0
+        var body = CollisionShapes.Declare(doc.Scene, "body");
+        CollisionShapes.SetAcross(layer, 0, 1, body.Id, new ShapeBox(50, 50, 10, 10));
+
+        var result = SpriteSheetExporter.Export(doc, Path_("heldshape.png"));
+
+        var frames = Meta(result).GetProperty("frames").EnumerateArray().ToList();
+        Assert.All(frames, f => Assert.True(
+            f.TryGetProperty("shapes", out var s) && s.GetArrayLength() == 1,
+            "the held frame lost its hurtbox"));
+    }
+
+    [Fact]
+    public void PackingDoesNotMoveAShapeRelativeToItsCell()
+    {
+        var doc = Walking(4);
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        var body = CollisionShapes.Declare(doc.Scene, "body");
+        CollisionShapes.SetAcross(layer, 0, 4, body.Id, new ShapeBox(45, 35, 25, 50));
+
+        static (double X, double Y) BoxOf(JsonElement meta) =>
+            meta.GetProperty("frames")[0].GetProperty("shapes")[0] is { } s
+                ? (s.GetProperty("x").GetDouble(), s.GetProperty("y").GetDouble())
+                : (0, 0);
+
+        var grid = SpriteSheetExporter.Export(
+            doc, Path_("sg.png"), new SpriteSheetOptions { Trim = SpriteTrim.Union });
+        var packed = SpriteSheetExporter.Export(
+            doc, Path_("sp.png"),
+            new SpriteSheetOptions { Trim = SpriteTrim.Union, Pack = SpritePack.Skyline });
+
+        Assert.Equal(BoxOf(Meta(grid)), BoxOf(Meta(packed)));
+    }
+
     // ---- P5d: tags, clips and events ---------------------------------------------
 
     [Fact]

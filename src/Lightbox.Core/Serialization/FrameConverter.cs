@@ -88,5 +88,13 @@ public sealed class FrameConverter : JsonConverter<Frame>
             writer.WritePropertyName("anchors");
             JsonSerializer.Serialize(writer, frame.Anchors, options);
         }
+
+        // Same rule for collision rectangles: a document that never needs a hitbox
+        // writes no shape key.
+        if (frame.Shapes is { Count: > 0 })
+        {
+            writer.WritePropertyName("shapes");
+            JsonSerializer.Serialize(writer, frame.Shapes, options);
+        }
     }
 }

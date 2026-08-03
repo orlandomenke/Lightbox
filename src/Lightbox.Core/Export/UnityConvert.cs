@@ -62,6 +62,56 @@ public static class UnityConvert
     }
 
     /// <summary>
+    /// A collision rectangle as a Unity 2D collider's <c>offset</c> and <c>size</c>.
+    /// </summary>
+    /// <param name="left">The rectangle's left edge, in document pixels.</param>
+    /// <param name="top">The rectangle's top edge, in document pixels.</param>
+    /// <param name="width">The rectangle's width in pixels.</param>
+    /// <param name="height">The rectangle's height in pixels.</param>
+    /// <param name="pivotX">
+    /// The sprite's pivot in document pixels — the sprite's transform origin, and
+    /// what a collider offset is measured from.
+    /// </param>
+    /// <param name="pivotY">The pivot's document Y, measured from the top.</param>
+    /// <param name="pixelsPerUnit">From <see cref="PixelsPerUnit"/>.</param>
+    /// <returns>World units, Y up, offset relative to the pivot.</returns>
+    /// <remarks>
+    /// <para>
+    /// A third convention on top of the pivot's three: a collider is in <b>world
+    /// units</b>, not pixels and not normalised, and its offset is measured from
+    /// the sprite's transform origin — which is the pivot. So this is where pixels
+    /// meet <c>pixelsPerUnit</c>, and getting the sign of Y wrong here puts every
+    /// hurtbox above the character's head.
+    /// </para>
+    /// <para>
+    /// <b>The cell rect does not appear, and that is a result rather than an
+    /// omission.</b> Both the rectangle and the pivot are in document pixels, so
+    /// the cell's origin cancels in the subtraction: trimming cannot move a
+    /// collider by construction, not by remembering to be careful. Where the
+    /// document declares no pivot, pass the cell's centre in document pixels —
+    /// Unity's default origin is the sprite's centre, and that one <em>is</em>
+    /// cell-dependent.
+    /// </para>
+    /// </remarks>
+    public static (double OffsetX, double OffsetY, double SizeX, double SizeY) Collider(
+        double left, double top, double width, double height,
+        double pivotX, double pivotY, double pixelsPerUnit)
+    {
+        var ppu = pixelsPerUnit <= 0 ? 100 : pixelsPerUnit;
+        var centreX = left + width / 2;
+        var centreY = top + height / 2;
+
+        return (
+            (centreX - pivotX) / ppu,
+            // Y up, so a rectangle *below* the pivot in document space is at a
+            // negative offset. The subtraction runs the other way round from X and
+            // that asymmetry is the whole bug this method exists to prevent.
+            (pivotY - centreY) / ppu,
+            width / ppu,
+            height / ppu);
+    }
+
+    /// <summary>
     /// A frame's duration in seconds, from the scene's frame rate.
     /// </summary>
     /// <remarks>

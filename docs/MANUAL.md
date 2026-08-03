@@ -1362,6 +1362,38 @@ pivot, and builds an animation clip per tag with the right frame durations and a
 events you marked. Lightbox never touches Unity's own `.meta` files — Unity owns
 those.
 
+### What the sidecar carries besides the frames
+
+The `.json` written beside a sheet is the contract with your engine, and it holds
+more than rectangles. Everything positional in it is measured **inside the
+frame's own cell**, so tightening the trim can never move a pivot, an attachment
+point or a collider:
+
+| In the file | What it is |
+| --- | --- |
+| `pivot` | Where the drawing is anchored, per cell. |
+| `anchors` | Named attachment points — a hand, a muzzle, a hardpoint. |
+| `shapes` | Collision rectangles, each with a role: `hurtbox`, `hitbox` or `physics`. |
+| `frameTags` | Your tags, as clips, with direction and a loop flag. |
+| `events` | Only the markers you ticked as engine events. |
+
+A collision rectangle exists **only on the frames you put it on**, and that is
+how a hitbox becomes active for part of a swing: place it across the contact
+frames and nowhere else. There is no separate on/off switch to keep in step,
+so re-timing the animation moves the active frames with the drawings.
+
+For Unity the same rectangles also arrive as a collider's `offset` and `size`, in
+world units and measured from the sprite's pivot — the two numbers a
+`BoxCollider2D` takes. The importer hands them to you rather than attaching them:
+a sprite is an asset and a collider is a component, so there is nothing on the
+sliced sprite to set. Filter on the role to decide which layer each one belongs
+on.
+
+*Both `anchors` and `shapes` are exported today and **cannot yet be authored** —
+the record, the multi-frame operations and the export are in place, but there is
+no canvas tool for placing one. That tool is Planned, and it is one tool for
+both.*
+
 A sprite sheet is laid out as a **uniform grid** by default, because equal cells
 are what consistent trimmed bounds produce anyway and every engine importer reads
 a grid. There is also a **packed** layout that gives each frame its own size and
@@ -1669,6 +1701,9 @@ Not built. Listed so the gap is visible rather than implied.
 
 **Animation**
 - A pose library, and reusable animation cycles
+- Placing sockets and collision rectangles on the canvas. Both are in the
+  document and in the export already; what is missing is the tool that drags one
+  into place, and it is one tool for both.
 
 **Interop**
 - PSD import and export

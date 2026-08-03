@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1860 tests, derived from the suite itself. Each line is a
+1894 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1296,12 +1296,17 @@ regression even when every test still compiles.
 - An Anchor Is Exported Per Frame By Name And Inside The Cell — `:448`
 - An Anchor On AHeld Drawing Is Exported On Every Frame It Shows — `:473`
 - Packing Does Not Move An Anchor Relative To Its Cell — `:492`
-- ADocument With No Tags Or Events Writes Neither Key — `:518`
-- ATag Is Exported As AClip In The Established Shape — `:528`
-- ATag That Ran Past The End Is Shortened Rather Than Lost — `:555`
-- ATag Entirely Past The End Is Dropped — `:570`
-- Only Markers Marked As Events Are Exported — `:581`
-- An Event Past The End Is Not Exported — `:602`
+- ADocument With No Shapes Writes No Shape Key — `:518`
+- AShape Is Exported With Its Role And Inside The Cell — `:525`
+- AShape Only Appears On The Frames It Was Placed On — `:566`
+- AShape On AHeld Drawing Is Exported On Every Frame It Shows — `:586`
+- Packing Does Not Move AShape Relative To Its Cell — `:603`
+- ADocument With No Tags Or Events Writes Neither Key — `:627`
+- ATag Is Exported As AClip In The Established Shape — `:637`
+- ATag That Ran Past The End Is Shortened Rather Than Lost — `:664`
+- ATag Entirely Past The End Is Dropped — `:679`
+- Only Markers Marked As Events Are Exported — `:690`
+- An Event Past The End Is Not Exported — `:711`
 
 ## StartScreenTests
 `tests/Lightbox.App.Tests/StartScreenTests.cs`
@@ -1620,15 +1625,21 @@ regression even when every test still compiles.
 - An Anchor Is Converted The Same Way As The Pivot — `:152`
 - Pixels Per Unit Follows The World Size Asked — `:169`
 - Seconds Per Frame Is Exact Rather Than Rounded — `:179`
-- Each Tag Becomes AClip — `:188`
-- An Event Is Timed From Its Own Clip Rather Than From The Sheet — `:208`
-- An Event Outside AClip Is Not Attached To It — `:227`
-- AMarker That Is Not An Event Never Reaches AClip — `:239`
-- The Importer Is Written Beside The Sheet — `:253`
-- An Edited Importer Is Not Overwritten — `:266`
-- No Meta File Is Ever Written — `:280`
-- The Importer Can Be Declined — `:291`
-- Exporting Twice Produces The Same Sidecar — `:301`
+- ADocument With No Shapes Has No Collider Key — `:188`
+- AHurtbox Below The Feet Pivot Arrives With ANegative YOffset — `:195`
+- Trimming Cannot Move ACollider — `:237`
+- With No Pivot The Collider Is Measured From The Cell Centre — `:270`
+- ACollider Is Offset And Size Rather Than ARect — `:302`
+- The Importer Exposes Colliders Without Trying To Apply Them — `:325`
+- Each Tag Becomes AClip — `:341`
+- An Event Is Timed From Its Own Clip Rather Than From The Sheet — `:361`
+- An Event Outside AClip Is Not Attached To It — `:380`
+- AMarker That Is Not An Event Never Reaches AClip — `:392`
+- The Importer Is Written Beside The Sheet — `:406`
+- An Edited Importer Is Not Overwritten — `:419`
+- No Meta File Is Ever Written — `:433`
+- The Importer Can Be Declined — `:444`
+- Exporting Twice Produces The Same Sidecar — `:454`
 
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
@@ -1769,6 +1780,27 @@ regression even when every test still compiles.
 - Importing Copies Rather Than Links — `:236`
 - Importing Carries Variants And Rebases Their Overrides — `:253`
 - Importing Twice Gives Two Characters With Distinct Folders — `:277`
+
+## CollisionShapeTests
+`tests/Lightbox.Core.Tests/CollisionShapeTests.cs`
+
+- ADocument With No Shapes Carries No Shape Keys — `:31`
+- The Centre Is Not Serialized Alongside The Rectangle — `:42`
+- Removing The Last Shape Leaves The Document As It Was — `:57`
+- Deleting ADeclaration Clears Its Rectangles Too — `:71`
+- Setting Across ARange Touches Every Drawing In It — `:89`
+- AHeld Drawing Is Visited Once Rather Than Twice — `:109`
+- AHitbox Is Active Only Where It Is Placed — `:130`
+- Clearing Across ARange Removes It And The Key With It — `:148`
+- ANon Range Is ANo Op — `:165`
+- AShape Travels With Its Drawing When The Timing Changes — `:176`
+- AShape Round Trips Through The File — `:196`
+- ARole Defaults To Hurtbox Because That Is What An Artist Draws First — `:213`
+- The Centre Is Where AColliders Offset Will Be Measured From — `:221`
+- Resolving At AFrame Reads Through Holds — `:231`
+- An Upper Layer Wins When Two Place The Same Shape — `:247`
+- No Declarations Means Nothing To Resolve — `:262`
+- Anchors And Shapes Do Not Interfere With Each Other — `:268`
 
 ## DensifyTests
 `tests/Lightbox.Core.Tests/DensifyTests.cs`
@@ -2287,10 +2319,16 @@ regression even when every test still compiles.
 - Flipping Before Normalising Would Give ADifferent Answer On ANon Square Cell — `:66`
 - APivot Outside The Cell Is Not Clamped — `:80`
 - ADegenerate Cell Is Treated As One Pixel Rather Than Dividing By Zero — `:96`
-- Frame Duration Comes From Fps Rather Than From Rounded Milliseconds — `:106`
-- An Impossible Frame Rate Does Not Divide By Zero — `:127`
-- Pixels Per Unit Is Derived From The World Size The Project Chose — `:133`
-- An Unset World Height Falls Back To Unitys Own Default — `:144`
+- ARectangle Centred On The Pivot Has No Offset — `:106`
+- ARectangle Below The Pivot Has ANegative YOffset — `:119`
+- XRuns The Same Way In Both Systems And YDoes Not — `:136`
+- Pixels Per Unit Scales Both The Offset And The Size — `:152`
+- Moving The Rect And The Pivot Together Changes Nothing — `:165`
+- An Impossible Pixels Per Unit Falls Back Rather Than Dividing By Zero — `:185`
+- Frame Duration Comes From Fps Rather Than From Rounded Milliseconds — `:197`
+- An Impossible Frame Rate Does Not Divide By Zero — `:218`
+- Pixels Per Unit Is Derived From The World Size The Project Chose — `:224`
+- An Unset World Height Falls Back To Unitys Own Default — `:235`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`

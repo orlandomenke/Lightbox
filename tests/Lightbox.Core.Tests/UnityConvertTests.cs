@@ -100,6 +100,97 @@ public class UnityConvertTests
         Assert.False(double.IsNaN(y) || double.IsInfinity(y));
     }
 
+    // ---- colliders -------------------------------------------------------------
+
+    [Fact]
+    public void ARectangleCentredOnThePivotHasNoOffset()
+    {
+        // The baseline, and the one case a sign error also passes.
+        var (ox, oy, sx, sy) = UnityConvert.Collider(
+            left: 40, top: 40, width: 20, height: 20, pivotX: 50, pivotY: 50, pixelsPerUnit: 100);
+
+        Assert.Equal(0, ox, 6);
+        Assert.Equal(0, oy, 6);
+        Assert.Equal(0.2, sx, 6);
+        Assert.Equal(0.2, sy, 6);
+    }
+
+    [Fact]
+    public void ARectangleBelowThePivotHasANegativeYOffset()
+    {
+        // Y up, so a box under the character's feet pivot is below the origin. Get
+        // this sign wrong and every hurtbox sits above the character's head — which
+        // is the failure this method exists to prevent, so it is asserted with the
+        // arithmetic written out.
+        //
+        // Feet pivot at document (100, 200). A box from y=210 to y=250 has its
+        // centre at 230, which is 30 px below the pivot, which at 100 ppu is -0.3.
+        var (_, oy, _, sy) = UnityConvert.Collider(
+            left: 80, top: 210, width: 40, height: 40, pivotX: 100, pivotY: 200, pixelsPerUnit: 100);
+
+        Assert.Equal(-0.3, oy, 6);
+        Assert.Equal(0.4, sy, 6);
+    }
+
+    [Fact]
+    public void XRunsTheSameWayInBothSystemsAndYDoesNot()
+    {
+        // The asymmetry stated as a test: a box to the *right* of the pivot is a
+        // positive X offset, a box *below* it is a negative Y offset, and the two
+        // subtractions therefore run opposite ways. A single-axis test would pass on
+        // a version that flipped both.
+        var (ox, oy, _, _) = UnityConvert.Collider(
+            left: 100, top: 100, width: 20, height: 20, pivotX: 50, pivotY: 50, pixelsPerUnit: 100);
+
+        Assert.True(ox > 0, $"right of the pivot should be +X, got {ox}");
+        Assert.True(oy < 0, $"below the pivot should be -Y, got {oy}");
+        Assert.Equal(0.6, ox, 6);
+        Assert.Equal(-0.6, oy, 6);
+    }
+
+    [Fact]
+    public void PixelsPerUnitScalesBothTheOffsetAndTheSize()
+    {
+        // At 270 ppu a 54 px box is a fifth of a unit. Scaling the size and
+        // forgetting the offset is a plausible half-fix that would put a correctly
+        // sized collider in the wrong place.
+        var (ox, _, sx, _) = UnityConvert.Collider(
+            left: 27, top: 0, width: 54, height: 54, pivotX: 0, pivotY: 0, pixelsPerUnit: 270);
+
+        Assert.Equal(0.2, sx, 6);
+        Assert.Equal(54.0 / 270, ox, 6);
+    }
+
+    [Fact]
+    public void MovingTheRectAndThePivotTogetherChangesNothing()
+    {
+        // The load-bearing property, stated as the arithmetic that makes it true: the
+        // offset is a difference of two document positions, so it is invariant under
+        // translating both. That is *why* the method takes no cell rect, and why
+        // trimming cannot move a collider by construction rather than by care.
+        var here = UnityConvert.Collider(80, 210, 40, 40, 100, 200, 100);
+        var moved = UnityConvert.Collider(80 + 137, 210 + 91, 40, 40, 100 + 137, 200 + 91, 100);
+
+        Assert.Equal(here, moved);
+
+        // And the discriminating half: moving only one of them does change it, so
+        // the equality above is a real property rather than a method that ignores
+        // its arguments.
+        Assert.NotEqual(here, UnityConvert.Collider(80 + 137, 210, 40, 40, 100, 200, 100));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-4)]
+    public void AnImpossiblePixelsPerUnitFallsBackRatherThanDividingByZero(double ppu)
+    {
+        var (ox, oy, sx, sy) = UnityConvert.Collider(0, 0, 100, 100, 0, 0, ppu);
+        Assert.False(double.IsNaN(ox) || double.IsInfinity(ox));
+        Assert.False(double.IsNaN(oy) || double.IsInfinity(oy));
+        Assert.Equal(1.0, sx, 6);
+        Assert.Equal(1.0, sy, 6);
+    }
+
     // ---- timing ----------------------------------------------------------------
 
     [Fact]

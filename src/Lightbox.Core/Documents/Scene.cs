@@ -277,6 +277,16 @@ public sealed class Scene
     /// </remarks>
     public List<AnimationTag>? Tags { get; set; }
 
+    /// <summary>
+    /// Collision shapes this document declares — the names and roles, not the
+    /// rectangles.
+    /// </summary>
+    /// <remarks>
+    /// The same split as <see cref="Anchors"/>, and null until one is declared, so
+    /// a document that never needs a hitbox writes no key.
+    /// </remarks>
+    public List<CollisionShape>? Shapes { get; set; }
+
     /// <summary>A layer's folder, or null.</summary>
     public LayerGroup? GroupOf(Layer layer) =>
         layer.GroupId is null ? null : LayerGroups.FirstOrDefault(g => g.Id == layer.GroupId);

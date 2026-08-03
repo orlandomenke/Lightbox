@@ -214,6 +214,51 @@ public static class SpriteSheetExporter
         return byName.Count > 0 ? byName : null;
     }
 
+    /// <summary>
+    /// This frame's collision rectangles, measured inside its cell.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A list rather than a dictionary keyed by name, unlike <see cref="AnchorsFor"/>,
+    /// and for two reasons: each entry carries a role an importer wants to filter
+    /// by, and the declaration order is meaningful to a person reading the file.
+    /// The list follows <see cref="Scene.Shapes"/> order, so the same document
+    /// exports the same order every time.
+    /// </para>
+    /// <para>
+    /// Inside the cell like the pivot and the anchors, so trimming cannot move a
+    /// hurtbox. That is not cosmetic: a collider that shifts because a frame's ink
+    /// happened to be tighter is a gameplay bug with no visible cause.
+    /// </para>
+    /// </remarks>
+    private static List<SheetShape>? ShapesFor(Scene scene, int index, SKRectI cell)
+    {
+        if (scene.Shapes is not { Count: > 0 } declared) return null;
+        var resolved = CollisionShapes.ResolvedAt(scene, index);
+        if (resolved.Count == 0) return null;
+
+        var written = new List<SheetShape>();
+        foreach (var shape in declared)
+        {
+            if (!resolved.TryGetValue(shape.Id, out var box)) continue;
+            written.Add(new SheetShape
+            {
+                Name = string.IsNullOrWhiteSpace(shape.Name) ? shape.Id : shape.Name.Trim(),
+                Role = shape.Role switch
+                {
+                    ShapeRole.Hitbox => "hitbox",
+                    ShapeRole.Physics => "physics",
+                    _ => "hurtbox",
+                },
+                X = box.X - cell.Left,
+                Y = box.Y - cell.Top,
+                W = box.W,
+                H = box.H,
+            });
+        }
+        return written.Count > 0 ? written : null;
+    }
+
     public static SpriteSheetResult Export(Doc doc, string sheetPath, SpriteSheetOptions? options = null)
     {
         var opts = options ?? new SpriteSheetOptions();
@@ -326,6 +371,11 @@ public static class SpriteSheetExporter
                     // where a weapon attaches. Absent, not empty, when the
                     // document declares none.
                     Anchors = AnchorsFor(scene, i, cell),
+                    // Collision rectangles, in the cell's coordinates like
+                    // everything else positional here. Absent when the document
+                    // declares none, so an ordinary sheet is byte-identical to one
+                    // exported before shapes existed.
+                    Shapes = ShapesFor(scene, i, cell),
                 });
             }
 
@@ -492,6 +542,15 @@ public static class SpriteSheetExporter
         /// how the document keeps them straight; names are the contract.
         /// </remarks>
         [JsonPropertyName("anchors")] public Dictionary<string, Point>? Anchors { get; set; }
+
+        /// <summary>
+        /// Lightbox extension: collision rectangles on this cell.
+        /// </summary>
+        /// <remarks>
+        /// A list, not a map, because each entry carries a role and an importer's
+        /// first move is to filter by it.
+        /// </remarks>
+        [JsonPropertyName("shapes")] public List<SheetShape>? Shapes { get; set; }
     }
 
     private sealed class SheetMeta
@@ -544,6 +603,30 @@ public static class SpriteSheetExporter
         [JsonPropertyName("frame")] public int Frame { get; set; }
 
         [JsonPropertyName("name")] public string Name { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Lightbox extension: one collision rectangle, in its cell's coordinates.
+    /// </summary>
+    /// <remarks>
+    /// Pixels rather than anything normalised, and the cell's own origin rather
+    /// than the canvas's — the same convention the pivot and the anchors use, so
+    /// an importer that has already worked out one has worked out all three.
+    /// Per-engine figures (pivot-relative offsets, world units) are computed in
+    /// the engine block that needs them, not here, because two engines want two
+    /// different conversions of the same rectangle.
+    /// </remarks>
+    private sealed class SheetShape
+    {
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+
+        /// <summary>"hurtbox", "hitbox" or "physics".</summary>
+        [JsonPropertyName("role")] public string Role { get; set; } = "hurtbox";
+
+        [JsonPropertyName("x")] public double X { get; set; }
+        [JsonPropertyName("y")] public double Y { get; set; }
+        [JsonPropertyName("w")] public double W { get; set; }
+        [JsonPropertyName("h")] public double H { get; set; }
     }
 
     private sealed record Box(

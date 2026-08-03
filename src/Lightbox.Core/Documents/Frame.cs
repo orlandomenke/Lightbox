@@ -39,6 +39,18 @@ public abstract class Frame
     /// </para>
     /// </remarks>
     public Dictionary<string, AnchorPoint>? Anchors { get; set; }
+
+    /// <summary>
+    /// This drawing's collision rectangles, keyed by <see cref="CollisionShape.Id"/>.
+    /// </summary>
+    /// <remarks>
+    /// On the frame for exactly the reasons <see cref="Anchors"/> is, and with one
+    /// extra payoff: <b>absence is the off state</b>. A hitbox that is only active
+    /// on the two contact frames is a shape placed on those two drawings and
+    /// nowhere else, so there is no "active" flag that can fall out of step with
+    /// the animation after a re-time.
+    /// </remarks>
+    public Dictionary<string, ShapeBox>? Shapes { get; set; }
 }
 
 /// <summary>A frame on a vector layer: strokes are the artwork.</summary>
