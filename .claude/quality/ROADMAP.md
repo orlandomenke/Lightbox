@@ -116,6 +116,11 @@ not to rebuild. What is missing is everything that *makes* a tip.
 - [x] Canvas mirroring `evidence: MirrorButton, IsMirrored, CanvasViewTests`
 - [x] Render at any output scale without changing the mark `evidence: OutputScaleTests, AHigherOutputScale_RendersTheSameMark, ScalingTheCoordinatesInstead_ProducesADifferentMark`
 - [x] Reference image panel `evidence: ReferenceSheet, ReferenceView, ReferenceTabTests`
+- [ ] The cursor says what the tool will do, and whether it can `evidence: CanvasCursor, CanvasCursorTests, ADisallowedActionShowsWhyRatherThanDoingNothing`
+  - Today the canvas shows a brush-size ring and little else. The eyedropper, the fill, the move tool and the shape tools all present the same pointer, so the only way to know which one is armed is to look away from the drawing at the toolbar — which is exactly the moment an artist does not want to spend.
+  - **The half that matters more is the refusal.** Painting on a hidden layer, a locked layer, an alpha-locked layer with nothing under the brush, filling outside a selection: these currently do nothing and say nothing, and silence is indistinguishable from a broken app. A forbidden cursor turns "it is not working" into "it will not do that here", which the artist can act on. B2's lesson written down as a rule — *even refusing would be better than nothing*.
+  - Needs one place that maps (tool, modifiers, what is under the pointer) to a cursor, so the answer cannot disagree between the canvas control and the view model. Testable without a window if the mapping is pure, which is the shape `RigOverlay.CursorFor` already uses.
+  - Depends on the icon set below for the artwork, but not for the mechanism: it can ship with system cursors and get custom ones later.
 
 ### Colour
 
@@ -158,6 +163,13 @@ not to rebuild. What is missing is everything that *makes* a tip.
 
 - [?] PSD import/export
 - [x] Tablet optimization `evidence: PressureTests, PressureVmTests, PenDiagnostic`
+- [ ] Save as an ordinary image format — PNG, JPEG, SVG `evidence: ImageSaveFormat, SaveAsImage, ImageSaveTests, ASvgSaveKeepsVectorLayersAsPaths`
+  - Export writes sheets and sequences for engines; there is no plain "save this as a picture". PNG and JPEG are small and mostly plumbing. **SVG is the interesting one and should not be faked**: a raster document cannot become an SVG except as an embedded bitmap, which is a lie in a vector wrapper. It is only honest for the vector layers, and it needs the vector side to be richer first — which is what makes it the same item as the one below.
+  - JPEG needs a quality control and a warning that it has no alpha, or somebody exports a character on a white box and finds out later.
+- [ ] Lightbox draws its own icons `evidence: IconSet, IconSetTests, EveryToolbarButtonResolvesAnIcon`
+  - Every icon in the app should be one set, made deliberately rather than assembled. The interesting part is *how*: **the app should draw them itself**. That needs vector tooling good enough to author a 16 px glyph and an SVG save that emits real paths, which is the honest dependency chain — icons wait on the vector side, and the vector side is worth having anyway.
+  - Generating the SVGs directly is the fallback and is fine as a first pass, but it is a worse test of the product: a drawing application that cannot make its own icons is telling you something about its vector tooling. Dogfooding here is a feature, not a vanity.
+  - The mechanical half is separable and can land first: one place that names every icon, so a missing one fails a test instead of showing a blank button, and so a redraw is a single swap. That also settles the cut-off-icon complaints, which are a sizing question the current pile of assets cannot answer consistently.
 
 ---
 

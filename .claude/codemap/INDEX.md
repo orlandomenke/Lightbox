@@ -1,6 +1,6 @@
 # Code index
 
-413 files · 102941 lines · 2157 tests.
+414 files · 103065 lines · 2160 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -118,7 +118,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ExportTarget:6, ExportPreset:77
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (215 ln) · 2 test files
   - FrameBitmapCache:13, EvictionOrder:56
-- `src/Lightbox.App/Services/ShortcutMap.cs` (211 ln) · 4 test files
+- `src/Lightbox.App/Services/ShortcutMap.cs` (211 ln) · 5 test files
   - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml` (205 ln) · **no tests**
   - AngleSlider, BlackSlider, CategoryList, CentreBox, CountLabel, CountRow, CountSlider, CrossedBox …

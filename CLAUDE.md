@@ -123,6 +123,35 @@ section in the same commit. It describes what exists today and marks what does
 not as *Planned* — a manual that documents a feature nobody can use is worse
 than no manual, because it cannot be trusted anywhere.
 
+### Land the feature, then land the places it shows up
+
+A feature is not finished when it works. It is finished when **every surface
+that is supposed to know about it does**. The failure is always the same shape:
+the thing works, nothing is red, and the artist cannot find it or cannot change
+it — which reads as the app being inconsistent rather than as one missing
+registration.
+
+So after any feature, any bug fix that changes behaviour, and any new setting,
+walk this list and update what applies **in the same commit**:
+
+| If the change… | then it belongs in |
+| --- | --- |
+| binds a key, or should be bindable | `ShortcutMap` — the single registry the Configure window's editor reads. A shortcut that is not in it cannot be seen, searched or rebound, and an artist's remap will not apply to it |
+| adds a preference an artist would want to change | the Configure window, on the page it belongs to |
+| adds a per-document or per-project option | the window that owns that scope, not the global one |
+| adds a brush, export or timing setting | its preset record, so it survives being saved and reused |
+| changes a menu, a panel or a default layout | the workspace defaults, or reopening a workspace silently loses it |
+| adds a document-level capability | the MCP surface, if an agent should be able to reach it |
+
+**Shortcuts are the one with a history**, which is why they are first: a command
+wired straight to a gesture in the view or the view model works perfectly and is
+invisible to the whole configuration system.
+
+The general rule behind the table: **anything with a registry has that registry
+for a reason, and the reason is always that something else enumerates it.** When
+adding a capability, find the registry before writing the feature — retrofitting
+one after the fact means finding every place that bypassed it.
+
 `ROADMAP.md` holds the six pillars that give the app its identity, the drawing
 floor beneath them, and **one cross-cutting `## AI assistance` section** — not a
 seventh pillar, but the one area whose cost, failure modes and review process are
