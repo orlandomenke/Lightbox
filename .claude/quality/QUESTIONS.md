@@ -10,7 +10,14 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
-## Q11 · What a "reusable animation preset" would be that a cycle symbol is not
+## Q11 · What a "reusable animation preset" would be that a cycle symbol is not — **answered (b)**
+
+**Answered 2026-08-03: (b), a timing preset, and the other line is struck as (a).**
+One item, specified: *save an exposure pattern and apply it to a range of cels*.
+It re-exposes drawings that already exist, which is the half of frame-by-frame
+work a symbol cannot carry — a symbol carries drawings, a timing preset carries
+their spacing.
+
 
 **Blocks:** the last `[?]` but one in Pillar 3.
 
@@ -41,7 +48,15 @@ drawings** — the part of frame-by-frame work that a symbol does not carry:
 *"Timing presets — save an exposure pattern and apply it to a range of cels."*
 It is the only one of the three that is both absent and unambiguous.
 
-## Q12 · Whether an animation template is a document or a project type
+## Q12 · Whether an animation template is a document or a project type — **answered (a)**
+
+**Answered 2026-08-03: (a), a document with a flag.** Designed out in
+`docs/DESIGN-templates.md`, because "changeable on the fly" was asked for
+explicitly and it is the property that decides the mechanism: a template is
+**copied, never referenced**, so editing one is safe precisely because it
+cannot reach back into work already started from it. (c) stays available —
+a starter pack is (a) plus content, and needs no change to the mechanism.
+
 
 **Blocks:** the last `[?]` in Pillar 3.
 

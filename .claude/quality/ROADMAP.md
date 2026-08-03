@@ -285,8 +285,12 @@ whatever "reusable animation presets" meant, it was not that.
 - [x] Reusable backgrounds (S5) `evidence: SymbolKind, TheKindFilterIsWhatTheSixLibrariesAre`
 - [x] Animation library (S5) `evidence: SymbolKind, ACycleOpensWithACelPerFrame, AnOffsetPlacementRunsTheSameCycleOutOfStep`
 - [x] Dependency graph — where a symbol is placed, project-wide `evidence: SymbolGraph, SymbolUsage, SymbolUse, SymbolGraphTests, ASymbolKnowsHowManyPlacementsItHasAndWhere, APlacementLeftBehindByADeleteIsStillReported`
-- [?] Reusable animation presets — **undecided, see Q11.** Recommend striking it: the Animation library is the reusable animation. What is genuinely absent is a *timing* preset — a saved exposure pattern applied to a range of cels — which no symbol can express
-- [?] Animation templates — **undecided, see Q12.** Recommend a document in the project marked as a template, rather than a built-in list nobody can add to
+- [ ] Timing presets — save an exposure pattern and apply it to a range of cels `evidence: TimingPreset, TimingPresetStore, ApplyTimingPreset, TimingPresetTests, ApplyingAPatternReExposesTheDrawingsThatAreThere, APatternShorterThanTheRangeRepeats`
+  - **Q11 answered (b).** *Reusable animation presets* is struck: the Animation library already is the reusable animation — a multi-frame symbol placed with a frame offset — and a roadmap item nothing can distinguish from a shipped one is the wish list the checkbox rules exist to prevent. What is genuinely absent is **timing**, which is the half a symbol cannot carry: a symbol carries drawings, this carries their spacing.
+  - On 1s, on 2s, a slow-in of 1-1-2-3-4. Applied to a selected range, it **re-exposes the drawings that are already there** rather than making any — which is why it is nothing a symbol can express, and why it composes with everything else instead of competing.
+- [ ] Animation templates — a document in the project marked as a template `evidence: IsTemplate, NewFromTemplate, TemplateTests, ANewDocumentFromATemplateIsACopyNotALink, EditingATemplateLeavesEarlierCopiesAlone`
+  - **Q12 answered (a), with the design written out in `docs/DESIGN-templates.md`.** A template is an ordinary animation with a flag, not a new kind of file — so an artist can make one out of work they have already done, which is where real templates come from, and editing one is just drawing.
+  - **The rule that makes it safe: a template is copied, never referenced.** That is the whole difference from a symbol, which *is* a live link. If templates were references, editing one would silently rewrite every animation ever started from it — the opposite of what a starting point means.
 
 ## Pillar 4 — Animation-aware drawing tools
 
