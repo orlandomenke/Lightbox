@@ -99,6 +99,18 @@ session start when it is stale.
 
 Rebuild by hand with `python3 scripts/codemap.py build` after large changes.
 
+**The index is only worth its cost if it is read, and the honest failure is
+reaching for `grep` out of habit.** Two rules, both learned by breaking them:
+
+- **Search the index before the source.** `codemap.py find X` answers "where does
+  X live" for a fraction of a grep over a 20k-line solution, and the whole reason
+  the file exists is that the grep gets re-paid every session.
+- **Read `HOTSPOTS.md` before editing, not after.** It is the only thing that says
+  *this file is dangerous* — and its top two entries are XAML files with hundreds
+  of commits and, for a long time, no test files at all. A session that added a
+  whole `ConfigureWindow` page and left it unguarded is what that list is for; it
+  was caught late because nobody looked.
+
 `BUGS.md` is the same idea pointed at defects: every entry names the
 regression test that closes it, `bugs.py sync` derives the checkbox from
 whether that test exists, and deleting the test reopens the bug. An agent
