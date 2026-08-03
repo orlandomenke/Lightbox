@@ -203,19 +203,23 @@ decision goes to `QUESTIONS.md` and is left alone.
   - After: a 40 px stroke reaches **58 px** at 24 steps against 40 with no flow — 45%, against 20% before — and it keeps growing with the control (44 → 52 → 62 across 4, 12 and 32 steps) rather than flattening at 48 whatever you asked for. Cost: M
   - The lesson is the one this session keeps relearning: the measurement was real and the attribution was not. Two constants would have been changed on the strength of a plausible story if the front had not been measured first.
 
-- [ ] **B35** `P2` `brush` A medium stroke hollows out down its middle, worst on watercolour `evidence: manual`
-  - Repro: one mouse stroke with each of Watercolor, Gouache, Oil. All three leave a pale, near-transparent line down the centre with the pigment banked on the flanks. Reported as "the center line for the watercolor and gouache are really awful — the centre would leave pigment and water in both media".
-  - **Attribution, from the presets rather than from the pixels:** `EdgePull` is 0.70 on Watercolor, 0.15 on Gouache, 0.05 on Oil — and that is exactly the order of how bad the artist says it is. `MediumSimulator.Apply` runs **once per stroke** on the scratch's whole coverage (`BrushEngine.cs:486`), so "pull pigment toward the wet boundary" pulls it toward the *outline of the entire stroke*. The centre is the furthest point from dry paper, so it is the most depleted.
-  - So the rim mechanism is working as `FluidLattice` documents it and is being asked the wrong question. A confident single stroke is not a drying puddle; the rim belongs to a wash that pooled and dried at its boundary, not to every mark. Real watercolour lays pigment down the middle of a stroke and *also* rims it.
-  - Candidate fixes, none measured: scale `EdgePull`'s effect by how much the wet region resembles a pool rather than a stroke (area against perimeter); or cap the fraction of a cell's pigment that can migrate so the centre can deplete but not clear; or drop the preset value and accept a weaker rim. The third is a one-line change and is worth trying first precisely because it is cheap to evaluate.
-  - **The artist's own diagnosis was tip dynamics and the evidence points elsewhere for this half** — the ordering across three presets tracks `EdgePull`, and the medium pass is per-stroke so a tip could not produce a continuous centre line. The tip half is real too and is B36. Cost: M
+- [x] **B35** `P2` `brush` A medium stroke hollows out down its middle `evidence: AWetStrokeKeepsPigmentDownItsMiddle`
+  - Repro: one stroke with each of Watercolor, Gouache, Oil. All three left a pale line down the centre with the pigment banked on the flanks.
+  - Cause: `EdgePull` moves pigment toward the wet boundary, and `MediumSimulator.Apply` runs **once over the whole stroke** — so the boundary is the mark's own outline, and the centre, being furthest from dry paper, empties. Nothing was wrong with `FluidLattice`; the presets asked it for too much.
+  - Measured, mean alpha along the centre against a flank 14 px out, on the shipped watercolour: **centre 3.0 against flank 55.6, a ratio of 0.05.** That is the white line, as a number. The sweep: 0.05 at EdgePull 0.70, 0.18 at 0.35, 0.42 at 0.20, 0.83 at 0.10, **1.11 at 0.06**, 1.74 with no pull at all.
+  - Fix: Watercolor 0.70 → **0.06**, Gouache 0.15 → **0.05**, Oil 0.05 → **0.02**. At 0.06 the centre holds 41.6 alpha and the flank sits at 37.4 — above the 35.4 it reaches with no pull at all, so there is still a real rim, with a live centre inside it.
+  - The rim was never wrong; it was turned up until it was the only thing left. A confident stroke is not a drying puddle. Cost: S
+  - **The test only discriminates on watercolour**, and that is worth saying: Gouache and Oil already sat at 0.15 and 0.05, so their ratios passed before the change. Watercolour is where the bug was, and the threshold fails loudly at anything near 0.70.
 
-- [ ] **B36** `P3` `brush` The three medium presets have no tip dynamics at all `evidence: manual`
-  - Repro: the same three strokes. The flanks show regular perpendicular ticks at the dab interval instead of a dragged mark, and the ends show radiating spokes.
-  - Cause: none of `builtin-watercolor-wet`, `builtin-gouache-body` or `builtin-oil` sets `TipId`, `AngleFollowsDirection`, `AngleJitter`, `SizeJitter` or `Roundness`. Every dab is the same soft round circle at the same angle, so what is left to see is the stamping interval.
-  - This is the artist's reading and it is right about the flanks: "the brush tips do not have any dynamic movement resulting in fixed intervals of lines instead of a dragging motion".
-  - Fix: give each a tip and a heading. Oil wants the bristle tip with `AngleFollowsDirection` — the design note already says that combination is the cheapest directional-drag answer in the engine. Watercolour wants a soft irregular edge, not a bristle. Keep it on the presets rather than in the medium pass: a tip is a brush property, and an artist must be able to change it.
-  - Do **after** B35. The hollow centre is loud enough to hide whether a tip change helped. Cost: M
+- [x] **B36** `P3` `brush` The three medium presets have no tip dynamics at all `evidence: EveryMediumPresetHasATipAndSomeVariation`
+  - Repro: the same three strokes. The flanks showed regular perpendicular ticks at the dab interval rather than a dragged mark.
+  - Cause: none of the three set `TipId`, `AngleFollowsDirection` or any jitter, so every dab was the same soft circle at the same angle and what was left to see was the stamping interval. The artist's own diagnosis, and right about the flanks.
+  - Fix, one per medium rather than one for all three, because they are not the same brush:
+    - **Oil** — `bristle` + `AngleFollowsDirection`, the pairing `DESIGN-fluid-media.md` names as the cheapest directional-drag answer in the engine, plus a little size and rotation jitter.
+    - **Gouache** — `paintbrush` (the chisel) + `AngleFollowsDirection`: a loaded flat brush turned to the stroke.
+    - **Watercolor** — `wet-edge` with size and roundness jitter and *no* heading. A wash edge is not directional; what it wants is an irregular boundary.
+  - All jitter is seeded from dab position through `Hash01`, so the mark varies and still replays identically — invariant 2 intact, and it is why this is visual variation rather than logical randomness.
+  - **Not visually verified.** The tests assert each preset declares a tip and some variation, which is a shape check; whether the mark now *reads* as a dragged brush is an art-direction question. A contact-sheet render was attempted and abandoned when the throwaway project referencing `Lightbox.App` took over ten minutes to build. Worth a look by eye before this is trusted — the bristle tip's starburst bug was found exactly that way and no test saw it. Cost: M
 
 - [x] **B37** `P1` `brush` Blur turns semi-transparent art opaque black `evidence: AnEffectBrushDoesNotMakeAWashMoreOpaqueThanItWas`
   - Repro: medium strokes on a layer, then Blur across them on the same layer. One thin blur came out as a blurred core inside a solid black surround.

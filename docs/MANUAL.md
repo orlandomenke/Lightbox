@@ -446,6 +446,13 @@ is "straight through" so you can see what you have changed.
 - **Reset** puts it back to a straight line.
 
 Seven things can be driven: **size**, **transparency**, **hardness**,
+The three wet-medium brushes ship with a tip and a heading rather than a bare
+circle: **Oil** uses the bristle tip turned to the stroke, **Gouache** a chisel
+turned the same way, and **Watercolor** an irregular wash edge with a little
+size and roundness variation and no heading at all — a wash edge is not
+directional. All of that variation is seeded from where each dab lands, so a
+mark is varied and still replays identically.
+
 **scatter**, **roundness**, and for a smudge, **colour rate** and **smudge
 length**. Untick one and pressure stops touching it entirely.
 

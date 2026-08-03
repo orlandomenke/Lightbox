@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1661 tests, derived from the suite itself. Each line is a
+1663 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -874,6 +874,12 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/MainViewModelTests.cs`
 
 - Main Window Constructs And Shows — `:206`
+
+## MediumPresetTests
+`tests/Lightbox.App.Tests/MediumPresetTests.cs`
+
+- AWet Stroke Keeps Pigment Down Its Middle — `:62`
+- Every Medium Preset Has ATip And Some Variation — `:88`
 
 ## ExportTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`

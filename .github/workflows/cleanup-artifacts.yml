@@ -21,7 +21,7 @@ on:
         default: '7'
       budget_mb:
         description: 'Ceiling for total storage — oldest go first until it fits (0 to skip)'
-        default: '1500'
+        default: '400'
       dry_run:
         description: 'List what would go without deleting anything'
         type: boolean

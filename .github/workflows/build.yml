@@ -132,7 +132,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           KEEP: 3
           STALE_DAYS: 7
-          BUDGET_MB: 1500
+          # 400, not 1500. A Free personal account's whole artifact allowance
+          # is 500 MB; Pro is 2 GB. A budget above the ceiling never fires, so
+          # this is sized for the smaller plan — raise it to ~1500 on Pro.
+          BUDGET_MB: 400
           HEADROOM_MB: 200
         shell: bash
         run: bash .github/scripts/prune-artifacts.sh

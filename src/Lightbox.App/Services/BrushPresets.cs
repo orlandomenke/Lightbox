@@ -216,13 +216,24 @@ public static class BuiltInPresets
             {
                 Size = 42, Hardness = 0.25, Opacity = 0.55, Flow = 0.45, Spacing = 0.08,
                 PressureFlowGamma = 0.8,
+                // B36 — a wash edge is not directional, so this gets an
+                // irregular tip and a little jitter rather than a heading.
+                // Both are seeded from dab position via Hash01, so the mark is
+                // varied and still reproducible (invariant 2).
+                TipId = "tip-builtin-wet-edge",
+                SizeJitter = 0.15, RoundnessJitter = 0.2,
                 Medium = new MediumSettings
                 {
                     Kind = MediumKind.Watercolour,
                     // Very wet and very mobile: pigment travels, pools at the
                     // boundary, and settles into the tooth as it dries.
                     Wetness = 0.85, Viscosity = 0.1, Drag = 0.25, FlowSteps = 16,
-                    Absorbency = 0.35, EdgePull = 0.7,
+                    // B35 — EdgePull 0.7 left the centre at 3/255 alpha: a
+                    // white line down the middle of every stroke. The rim is a
+                    // wash that pooled and dried at its boundary, not something
+                    // every mark does. Measured centre/flank alpha: 0.05 at
+                    // 0.70, 0.42 at 0.20, 1.74 with no pull at all.
+                    Absorbency = 0.35, EdgePull = 0.06,
                     PigmentDensity = 0.5, Granularity = 0.6, Hiding = 0.05,
                     Paper = PaperKind.ColdPress, PaperScale = 14, PaperInfluence = 0.7,
                     // A light touch is mostly water: paler, and it blooms.
@@ -237,13 +248,16 @@ public static class BuiltInPresets
             Settings = new BrushSettings
             {
                 Size = 26, Hardness = 0.7, Opacity = 0.95, Flow = 0.85, Spacing = 0.1,
+                // B36 — a loaded chisel brush, turned to the stroke.
+                TipId = "tip-builtin-paintbrush",
+                AngleFollowsDirection = true, SizeJitter = 0.1,
                 Medium = new MediumSettings
                 {
                     Kind = MediumKind.Gouache,
                     // Barely flows and hides what is underneath — the opposite
                     // of watercolour in every term that matters.
                     Wetness = 0.3, Viscosity = 0.75, Drag = 0.7, FlowSteps = 6,
-                    Absorbency = 0.8, EdgePull = 0.15,
+                    Absorbency = 0.8, EdgePull = 0.05,
                     PigmentDensity = 0.9, Granularity = 0.15, Hiding = 0.9,
                     Paper = PaperKind.ColdPress, PaperScale = 10, PaperInfluence = 0.35,
                     Body = 0.35, Relief = 0.2, PaintLoad = 0.85,
@@ -259,13 +273,18 @@ public static class BuiltInPresets
             Settings = new BrushSettings
             {
                 Size = 34, Hardness = 0.6, Opacity = 1, Flow = 0.9, Spacing = 0.06,
+                // B36 — DESIGN-fluid-media.md names this pairing as the
+                // cheapest directional-drag answer in the engine, and B23 says
+                // it is what an artist wanting dragged bristles actually needs.
+                TipId = "tip-builtin-bristle",
+                AngleFollowsDirection = true, SizeJitter = 0.08, RotationJitter = 0.04,
                 Medium = new MediumSettings
                 {
                     Kind = MediumKind.Oil,
                     // Thick, slow, and it drags what is already there. Running
                     // out of paint mid-stroke is the point, not a defect.
                     Wetness = 0.2, Viscosity = 0.9, Drag = 0.85, FlowSteps = 4,
-                    Absorbency = 0.9, EdgePull = 0.05,
+                    Absorbency = 0.9, EdgePull = 0.02,
                     PigmentDensity = 1, Granularity = 0.1, Hiding = 0.95,
                     Paper = PaperKind.Canvas, PaperScale = 8, PaperInfluence = 0.6,
                     Body = 0.8, Relief = 0.6, BristleDrag = 0.5,

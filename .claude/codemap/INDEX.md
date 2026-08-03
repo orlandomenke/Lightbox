@@ -1,6 +1,6 @@
 # Code index
 
-345 files · 83960 lines · 1661 tests.
+346 files · 84075 lines · 1663 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -67,8 +67,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipScope:16, TipRow:29, BrushTipsWindow:62
 - `src/Lightbox.App/ViewModels/GradientDockerViewModel.cs` (467 ln) · 1 test files
   - GradientStopRow:16, GradientDockerViewModel:89, HexColor:452
-- `src/Lightbox.App/Services/BrushPresets.cs` (425 ln) · 3 test files
-  - BrushPreset:8, BrushComparison:86, BuiltInPresets:118, PresetStore:372, State:377
+- `src/Lightbox.App/Services/BrushPresets.cs` (444 ln) · 4 test files
+  - BrushPreset:8, BrushComparison:86, BuiltInPresets:118, PresetStore:391, State:396
 - `src/Lightbox.App/ViewModels/WorkspaceViewModel.cs` (414 ln) · 1 test files
   - WorkspaceViewModel:20, WorkspaceRow:409
 - `src/Lightbox.App/Controls/TimelineRuler.cs` (367 ln) · 1 test files
@@ -152,7 +152,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipChoice:25
 - `src/Lightbox.App/Services/ColorSpace.cs` (109 ln) · 1 test files
   - ColorSpace:8
-- `src/Lightbox.App/Views/NewDocumentPanel.axaml.cs` (109 ln) · 1 test files
+- `src/Lightbox.App/Views/NewDocumentPanel.axaml.cs` (109 ln) · 2 test files
   - NewDocumentPanel:15, Preset:17, TypeChoice:26, PanelChoice:42
 - `src/Lightbox.App/Docking/DockPanels.cs` (105 ln) · 6 test files
   - DockPanelId:11, DockSide:25, DockPanelInfo:53, DockPanels:62
@@ -190,7 +190,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
-- `src/Lightbox.App/App.axaml.cs` (30 ln) · 72 indirect only
+- `src/Lightbox.App/App.axaml.cs` (30 ln) · 1 test files
   - App:8
 - `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 6 indirect only
   - NewProjectDialog:10
@@ -223,7 +223,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectIo:31, ConversionReport:544
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (603 ln) · 7 test files
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 54 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 55 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
@@ -263,7 +263,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CameraKey:10, Camera:46, CameraOps:65
 - `src/Lightbox.Core/Documents/Palette.cs` (144 ln) · 13 test files
   - Swatch:8, Palette:30, GimpPalette:55
-- `src/Lightbox.Core/Documents/Stroke.cs` (129 ln) · 68 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (129 ln) · 69 test files
   - Stroke:9, BakedSample:121
 - `src/Lightbox.Core/Projects/Project.cs` (120 ln) · 7 test files
   - Project:15
@@ -311,7 +311,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Easing:3, EasingOps:11
 - `src/Lightbox.Core/Documents/Pivot.cs` (16 ln) · 2 test files
   - Pivot:7
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 120 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 121 indirect only
   - Ids:3
 
 ## Lightbox.Import
@@ -346,7 +346,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PaperField:26, Tile:81
 - `src/Lightbox.Raster/Media/PigmentModel.cs` (356 ln) · 3 test files
   - Pigment:31
-- `src/Lightbox.Raster/Media/MediumSimulator.cs` (341 ln) · 2 test files
+- `src/Lightbox.Raster/Media/MediumSimulator.cs` (341 ln) · 3 test files
   - MediumSimulator:22
 - `src/Lightbox.Raster/SymbolRasterizer.cs` (305 ln) · 2 test files
   - SymbolRasterizer:39, Rendered:46
@@ -354,9 +354,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipImageSettings:15, TipImageResult:43, TipFromImage:68
 - `src/Lightbox.Raster/Tips/TipCatalogue.cs` (135 ln) · 3 test files
   - TipCatalogue:32
-- `src/Lightbox.Raster/FrameRasterizer.cs` (128 ln) · 19 test files
+- `src/Lightbox.Raster/FrameRasterizer.cs` (128 ln) · 20 test files
   - FrameRasterizer:10
-- `src/Lightbox.Raster/Media/Impasto.cs` (128 ln) · 2 indirect only
+- `src/Lightbox.Raster/Media/Impasto.cs` (128 ln) · 3 indirect only
   - Impasto:40
 - `src/Lightbox.Raster/TextureRegistry.cs` (107 ln) · 2 test files
   - TextureRegistry:25, Field:28
