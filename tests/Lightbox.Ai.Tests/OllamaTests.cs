@@ -10,10 +10,12 @@ internal sealed class FakeHandler(Func<HttpRequestMessage, string, HttpResponseM
 {
     public string? LastBody { get; private set; }
     public Uri? LastUri { get; private set; }
+    public string? LastAuthorization { get; private set; }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
         LastUri = request.RequestUri;
+        LastAuthorization = request.Headers.Authorization?.ToString();
         LastBody = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
         return respond(request, LastBody ?? "");
     }

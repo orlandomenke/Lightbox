@@ -244,8 +244,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Fired with a fresh snapshot whenever the canvas must repaint.</summary>
     public event Action<RenderSnapshot>? SnapshotChanged;
 
-    public MainViewModel() : this(ResolveArtist())
+    /// <summary>
+    /// The real constructor. Builds the artist through the same path the
+    /// Configure window uses, so there is one way a provider becomes an
+    /// artist rather than a startup way and a settings way.
+    /// </summary>
+    public MainViewModel() : this(artist: null)
     {
+        ReloadAiProvider();
     }
 
     /// <summary>Test seam: inject a fake artist (or null for "no API key").</summary>
@@ -1463,15 +1469,6 @@ public sealed partial class MainViewModel : ObservableObject
         MarkDocumentEdited();
         PublishSnapshot();
         RefreshThumbnails();
-    }
-
-    private static IAiArtist? ResolveArtist()
-    {
-        var key = ApiKeyProvider.GetApiKey();
-        if (key is not null) return new AnthropicArtist(key);
-        if (ApiKeyProvider.GetOllamaConfig() is { } ollama)
-            return new OllamaArtist(ollama.Url, ollama.Model);
-        return null;
     }
 
     private readonly AutosaveService _autosave;
@@ -6433,7 +6430,13 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- AI -----------------------------------------------------------------
 
-    private readonly IAiArtist? _artist;
+    /// <summary>
+    /// Not readonly: Edit ▸ Configure ▸ AI can swap the provider while the app
+    /// is running, and an artist that could only be chosen at startup would
+    /// make "test it, then use it" a two-launch operation.
+    /// </summary>
+    private IAiArtist? _artist;
+
     private CancellationTokenSource? _aiCts;
 
     [ObservableProperty]
@@ -6450,17 +6453,58 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool CanUseAi => IsAiAvailable && !AiBusy;
 
+    private bool _aiEnabled = true;
+
+    /// <summary>
+    /// Whether AI assistance is switched on at all. The AI bar binds its
+    /// visibility here rather than its enabled state: a studio that turns AI
+    /// off wants it gone, not greyed, and a permanently disabled row is a
+    /// worse answer than an absent one — the camera's rule again.
+    /// </summary>
+    public bool AiEnabled => _aiEnabled;
+
     public string AiUnavailableHint => IsAiAvailable
         ? ""
-        : "Enable AI features by setting ANTHROPIC_API_KEY (Claude API), or LIGHTBOX_OLLAMA_MODEL for a local model via Ollama, or the equivalent settings-file keys. No key at all? Use Claude Desktop with the Lightbox MCP server — see the README.";
+        : "Choose an AI provider in Edit ▸ Configure ▸ AI — Claude, GPT, OpenRouter, a local model "
+          + "through Ollama, any OpenAI-compatible endpoint, or an agent of your own over MCP. "
+          + "No provider at all? Drive Lightbox from an MCP client instead — see the README.";
+
+    private string _aiProviderLabel = "None";
+
+    /// <summary>
+    /// Which provider is in use. Cached rather than read from disk on every
+    /// get: it is a bound property, and a binding that touches the filesystem
+    /// each time it refreshes is a trap waiting for someone to bind it in a
+    /// list.
+    /// </summary>
+    public string AiProviderLabel => _artist is null ? "None" : _aiProviderLabel;
+
+    /// <summary>
+    /// Rebuild the artist from what is stored. Called after the Configure
+    /// window changes the connection, so a provider picked at 3pm is the one
+    /// that draws at 3.01 without a restart.
+    /// </summary>
+    public void ReloadAiProvider()
+    {
+        (_artist as IDisposable)?.Dispose();
+        var connection = AiSettings.Load();
+        _aiProviderLabel = connection.Provider.Name;
+        _aiEnabled = connection.Enabled;
+        _artist = AiArtistFactory.Create(connection);
+        OnPropertyChanged(nameof(IsAiAvailable));
+        OnPropertyChanged(nameof(CanUseAi));
+        OnPropertyChanged(nameof(AiEnabled));
+        OnPropertyChanged(nameof(AiUnavailableHint));
+        OnPropertyChanged(nameof(AiProviderLabel));
+    }
 
     [RelayCommand]
     private void CancelAi() => _aiCts?.Cancel();
 
     /// <summary>
-    /// Claude draws the inbetweens between the key at/before the playhead and
-    /// the next key. Same insertion path as the deterministic engine — only
-    /// the frame producer differs.
+    /// The chosen model draws the inbetweens between the key at/before the
+    /// playhead and the next key. Same insertion path as the deterministic
+    /// engine — only the frame producer differs.
     /// </summary>
     [RelayCommand]
     private async Task AiInbetweenAsync()
@@ -6490,7 +6534,7 @@ public sealed partial class MainViewModel : ObservableObject
             CollectReferenceImages());
 
         var result = await RunAiAsync(
-            $"Claude is drawing {TweenCount} inbetween(s)…",
+            $"{AiProviderLabel} is drawing {TweenCount} inbetween(s)…",
             ct => _artist.GenerateInbetweensAsync(request, ct));
         if (result is null) return;
 
@@ -6503,7 +6547,7 @@ public sealed partial class MainViewModel : ObservableObject
         AiStatus = $"Inserted {frames.Count} AI inbetween(s).";
     }
 
-    /// <summary>Claude paints strokes from a text prompt onto the current frame.</summary>
+    /// <summary>The model paints strokes from a text prompt onto the current frame.</summary>
     [RelayCommand]
     private async Task AiDrawAsync()
     {
@@ -6519,7 +6563,7 @@ public sealed partial class MainViewModel : ObservableObject
             CollectReferenceImages());
 
         var strokes = await RunAiAsync(
-            "Claude is drawing…",
+            $"{AiProviderLabel} is drawing…",
             ct => _artist.DrawAsync(request, ct));
         if (strokes is null) return;
 

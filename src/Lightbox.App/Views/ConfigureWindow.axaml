@@ -16,6 +16,7 @@
       <ListBoxItem Content="Guides and grid" />
       <ListBoxItem Content="Timeline" />
       <ListBoxItem Content="Drawing" />
+      <ListBoxItem Content="AI" />
     </ListBox>
 
     <Border Grid.Column="1" Background="#141414" />
@@ -216,6 +217,75 @@
           <ComboBox x:Name="BrushScopeBox" Width="260" SelectionChanged="OnBrushScopeChanged" />
           <TextBlock x:Name="BrushScopeHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!--
+      Content (center): AI.
+
+      One page for every provider rather than a page each: the fields come
+      from the catalogue, so adding a service is a catalogue entry and this
+      page grows a row. Test connection makes a real, tiny drawing request,
+      because the ways a connection fails are mostly not reachability.
+    -->
+    <ScrollViewer x:Name="AiPage" Grid.Column="2" Margin="14" IsVisible="False"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16">
+
+        <StackPanel Spacing="6">
+          <CheckBox x:Name="AiEnabledBox" Content="Use AI assistance"
+                    IsCheckedChanged="OnAiEnabledChanged" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="On by default. Off removes the AI bar rather than greying it out, and nothing below stops working — a provider can be set up and tested before it is switched on." />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Provider" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Who draws the inbetweens. Nothing here reaches the brush engine — an AI pass emits ordinary strokes and the document renders them like any others." />
+          <ComboBox x:Name="AiProviderBox" Width="260" SelectionChanged="OnAiProviderChanged" />
+          <TextBlock x:Name="AiSummary" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <ItemsControl x:Name="AiFieldsHost">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="views:AiFieldRow">
+              <StackPanel Spacing="2" Margin="0,0,0,8">
+                <TextBlock Text="{Binding Label}" FontSize="12" />
+                <TextBox Text="{Binding Value, Mode=TwoWay}"
+                         PasswordChar="{Binding Mask}"
+                         PlaceholderText="{Binding Placeholder}" />
+                <TextBlock Text="{Binding Hint}" IsVisible="{Binding HasHint}"
+                           FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Test" FontWeight="SemiBold" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <ComboBox x:Name="AiTestDepthBox" Width="150" SelectionChanged="OnAiTestDepthChanged" />
+            <Button x:Name="AiTestButton" Content="Test connection" Click="OnAiTestClicked" />
+            <TextBlock x:Name="AiTestElapsed" VerticalAlignment="Center" FontSize="11" Opacity="0.6"
+                       IsVisible="False" />
+          </StackPanel>
+          <!-- Indeterminate, because nothing here can know how long a model
+               will think. It is the elapsed clock beside it that answers the
+               question a bar cannot: is this still going? -->
+          <ProgressBar x:Name="AiTestProgress" IsIndeterminate="True" Height="4"
+                       IsVisible="False" />
+          <TextBlock x:Name="AiTestStatus" FontSize="11" TextWrapping="Wrap" />
+          <TextBlock x:Name="AiTestExplain" TextWrapping="Wrap" FontSize="11" Opacity="0.6" />
+        </StackPanel>
+
+        <Border Background="#20262c" CornerRadius="4" Padding="10">
+          <StackPanel Spacing="4">
+            <TextBlock Text="The other direction" FontWeight="SemiBold" FontSize="12" />
+            <TextBlock FontSize="11" Opacity="0.75" TextWrapping="Wrap"
+                       Text="Lightbox is also an MCP server, so an agent you already run can open the document and draw in it directly — no provider needed here. That path and this one are independent: this page is Lightbox calling out, the server is something calling in." />
+          </StackPanel>
+        </Border>
       </StackPanel>
     </ScrollViewer>
 

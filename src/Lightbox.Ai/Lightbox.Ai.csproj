@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Lightbox.Core\Lightbox.Core.csproj" />
+    <InternalsVisibleTo Include="Lightbox.Ai.Tests" />
   </ItemGroup>
 
   <ItemGroup>

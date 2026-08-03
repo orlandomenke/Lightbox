@@ -33,9 +33,14 @@ public abstract class BrushStateIsolated : IDisposable
     private readonly string _previousBrushes = MainViewModel.BrushStorePath ?? "";
     private readonly string _previousSettings = Lightbox.App.Services.AppSettings.Path;
     private readonly string _previousWorkspaces = Lightbox.App.Docking.WorkspaceStore.Path;
+    private readonly string? _previousAi = Lightbox.Ai.AiSettings.PathOverride;
 
     protected BrushStateIsolated()
     {
+        // The AI provider too: a test that opens Configure ▸ AI writes the
+        // chosen provider, and without this it would write the developer's own.
+        Lightbox.Ai.AiSettings.PathOverride = Path.Combine(
+            Path.GetTempPath(), $"lightbox-ai-{Guid.NewGuid():N}.json");
         MainViewModel.BrushStorePath = Path.Combine(
             Path.GetTempPath(), $"lightbox-brushes-{Guid.NewGuid():N}.json");
         Lightbox.App.Services.AppSettings.Path = Path.Combine(
@@ -54,12 +59,15 @@ public abstract class BrushStateIsolated : IDisposable
         var mine = MainViewModel.BrushStorePath;
         var mySettings = Lightbox.App.Services.AppSettings.Path;
         var myWorkspaces = Lightbox.App.Docking.WorkspaceStore.Path;
+        var myAi = Lightbox.Ai.AiSettings.PathOverride;
         MainViewModel.BrushStorePath = _previousBrushes;
         Lightbox.App.Services.AppSettings.Path = _previousSettings;
         Lightbox.App.Docking.WorkspaceStore.Path = _previousWorkspaces;
+        Lightbox.Ai.AiSettings.PathOverride = _previousAi;
         if (mine is not null && File.Exists(mine)) File.Delete(mine);
         if (File.Exists(mySettings)) File.Delete(mySettings);
         if (File.Exists(myWorkspaces)) File.Delete(myWorkspaces);
+        if (myAi is not null && File.Exists(myAi)) File.Delete(myAi);
         GC.SuppressFinalize(this);
     }
 }

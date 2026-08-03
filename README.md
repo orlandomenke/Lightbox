@@ -18,7 +18,7 @@ Built with **C# / .NET 8**, **Avalonia** (Windows · macOS · Linux), and **Skia
 |---|---|
 | `src/Lightbox.Core` | UI-agnostic core: document model, JSON serialization, geometry, the deterministic inbetween engine, exposure-sheet timeline, undo. Zero dependencies beyond the BCL. |
 | `src/Lightbox.Raster` | The paint pipeline: stamp-based `BrushEngine`, `FrameRasterizer` (strokes → pixels — the single source of rendering truth), PNG codec. |
-| `src/Lightbox.Ai` | Claude integration (Milestone 2): inbetween generation and text-to-strokes drawing via the Anthropic API with structured outputs. |
+| `src/Lightbox.Ai` | Inbetween generation and text-to-strokes drawing behind a provider-agnostic `IAiArtist`: Claude, the OpenAI dialect (GPT, OpenRouter, any compatible endpoint), Ollama, or an MCP server of your own. |
 | `src/Lightbox.App` | The Avalonia desktop app: canvas, brush controls, timeline, onion skin, playback. |
 | `tests/*` | xunit suites for every layer, including pixel-level brush tests and headless UI tests. |
 
@@ -90,9 +90,37 @@ Setup:
 
 Troubleshooting: if the server never appears, some MSIX installs of Claude Desktop read the config from `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json` instead of `%APPDATA%\Claude\` — put the same file in both. Tool errors like "Start Lightbox first" mean exactly that.
 
-## Fully offline AI — Ollama
+## Choosing an AI provider
 
-With [Ollama](https://ollama.com) installed (per-user, no admin) you can point the in-app AI buttons at a local model: `ollama pull qwen3`, then set `LIGHTBOX_OLLAMA_MODEL=qwen3` (and optionally `LIGHTBOX_OLLAMA_URL`, default `http://localhost:11434`) or add `"ollamaModel": "qwen3"` to the settings file. Expect noticeably weaker inbetweens than Claude — this path is for offline pipeline testing; the MCP path is where quality lives. An `ANTHROPIC_API_KEY`, if present, always wins.
+**Edit ▸ Configure ▸ AI.** Lightbox is not tied to one service: pick from the dropdown and the fields change to what that service needs.
+
+| Provider | Needs | Notes |
+| --- | --- | --- |
+| Claude (Anthropic) | API key, model | The default, and what the prompts are tuned against. |
+| GPT (OpenAI) | API key, model | Strict JSON schema, so replies parse by construction. |
+| OpenRouter | API key, model | One key for many vendors' models. |
+| Ollama | Model | Local, no key, no network. `ollama pull qwen3` and pick it. |
+| Custom (OpenAI-compatible) | Endpoint, model | LM Studio, vLLM, llama.cpp's server, your own gateway. Key optional. |
+| Custom agent (MCP) | Command, tool | An MCP server you supply that owns the model. |
+
+**Use AI assistance** is on by default; turning it off removes the AI bar rather than greying it out, and leaves the provider fields usable so one can be set up and tested first.
+
+**Test connection** draws rather than pings, at one of two depths. *Quick* asks for one short line (seconds, a few hundred tokens). *Test with a drawing* adds a real inbetween between two keyframes and checks it lands **between** them — which is what catches a model that answers in perfect JSON and cannot inbetween. Both check the output is usable, not merely that it parsed. The verdict is green (usable), amber (connected, output not usable) or red (not connected). A progress bar and elapsed clock run alongside, and the test can be cancelled.
+
+Environment variables still work and are shown as placeholders where they apply: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `LIGHTBOX_OLLAMA_URL`. What you type wins over the environment, which wins over the default; only what you type is stored (in `Lightbox/ai.json` in your app-data folder). An existing `anthropicApiKey` or `ollamaModel` in the old settings file is migrated on first run.
+
+Local models produce noticeably weaker inbetweens than a frontier one — that path is for working offline and for testing the pipeline.
+
+### Bringing your own model over MCP
+
+The **Custom agent (MCP)** provider launches a server you name and calls one tool on it:
+
+```
+tools/call { name: <tool>, arguments: { system, prompt, schema } }
+→ { content: [{ type: "text", text: "<json matching schema>" }] }
+```
+
+Anything behind that contract works. This is the opposite direction from Lightbox's own MCP server above — there an agent calls *in* and works the document directly; here Lightbox calls *out* for strokes. The two are independent.
 
 ## Building and running
 
@@ -111,7 +139,7 @@ dotnet run --project src/Lightbox.App   # launch the app
 - **Onion skin**: previous key tinted red, next key tinted blue.
 - **Playback**: `▶ / ⏸` or Space, loops at the scene fps (default 12).
 - **Inbetweens**: set the count and easing in the toolbar, then `＋ Inbetween` fills the gap between the current key and the next key with painted, interpolated frames. Undo (`Ctrl+Z`) if the spacing isn't right.
-- **AI (needs an API key)**: set `ANTHROPIC_API_KEY` (or add `"anthropicApiKey"` to the Lightbox settings file) and the AI bar lights up. **✦ AI Inbetween** asks Claude to draw the inbetweens — useful where straight interpolation fails (arcs, rotation, overlap); **✦ AI Draw** paints strokes from a text prompt onto the current frame. Both return strokes in the document's own format and go through the same brush re-render as hand-painted frames, and both are one `Ctrl+Z` from gone.
+- **AI (needs a provider)**: choose one in Edit ▸ Configure ▸ AI and the AI bar lights up. **✦ AI Inbetween** asks Claude to draw the inbetweens — useful where straight interpolation fails (arcs, rotation, overlap); **✦ AI Draw** paints strokes from a text prompt onto the current frame. Both return strokes in the document's own format and go through the same brush re-render as hand-painted frames, and both are one `Ctrl+Z` from gone.
 - **Layers**: the layer picker sits in the timeline bar — `＋P` adds a painted (raster) layer, `＋V` a vector layer, `👁` toggles visibility. Painting, inbetweening, and AI all operate on the active layer and respect its kind.
 - **Polish**: stroke smoothing on release (toggle), timeline thumbnails, onion-skin depth (1–3), fps control, `Export PNGs…` (numbered image sequence — feed it to ffmpeg for video), and a once-a-minute autosave (`Lightbox/autosave.lightbox.json` in your app-data folder — open it to recover after a crash).
 - **Save / Open**: `.lightbox.json` — the whole document, human- and LLM-readable.

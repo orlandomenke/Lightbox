@@ -1257,20 +1257,27 @@
       </DockPanel>
     </Border>
 
-    <!-- AI bar -->
+    <!-- AI bar. Absent, not greyed, when assistance is switched off: a row
+         that can never do anything is worse than no row. -->
     <Border DockPanel.Dock="Top" Padding="8,4" Background="#232323"
+            IsVisible="{Binding AiEnabled}"
             ToolTip.Tip="{Binding AiUnavailableHint}">
       <StackPanel Orientation="Horizontal" Spacing="10">
+        <!-- Which model is answering. The bar used to say "Claude" in three
+             places; now that the provider is the artist's choice, saying it
+             once and truthfully beats saying it three times and wrongly. -->
+        <TextBlock Text="{Binding AiProviderLabel}" VerticalAlignment="Center" Opacity="0.6" FontSize="12"
+                   ToolTip.Tip="Change this in Edit ▸ Configure ▸ AI" />
         <Button Content="✦ AI Inbetween"
                 Command="{Binding AiInbetweenCommand}"
                 IsEnabled="{Binding CanUseAi}"
-                ToolTip.Tip="Ask Claude to draw the inbetweens between this key and the next" />
-        <TextBox Text="{Binding AiPrompt}" Width="320" PlaceholderText="Describe what Claude should draw…"
+                ToolTip.Tip="Ask the model to draw the inbetweens between this key and the next" />
+        <TextBox Text="{Binding AiPrompt}" Width="320" PlaceholderText="Describe what to draw…"
                  IsEnabled="{Binding CanUseAi}" />
         <Button Content="✦ AI Draw"
                 Command="{Binding AiDrawCommand}"
                 IsEnabled="{Binding CanUseAi}"
-                ToolTip.Tip="Claude paints strokes onto the current frame" />
+                ToolTip.Tip="The model paints strokes onto the current frame" />
         <Button Content="✕" Command="{Binding CancelAiCommand}" IsVisible="{Binding AiBusy}"
                 ToolTip.Tip="Cancel the AI request" />
         <ProgressBar IsIndeterminate="True" Width="90" IsVisible="{Binding AiBusy}" VerticalAlignment="Center" />

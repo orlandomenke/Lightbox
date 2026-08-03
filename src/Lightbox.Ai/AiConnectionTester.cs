@@ -1,0 +1,238 @@
+using Lightbox.Ai.Mcp;
+using Lightbox.Core.Documents;
+using Lightbox.Core.Inbetween;
+
+namespace Lightbox.Ai;
+
+/// <summary>How hard to lean on the provider before believing it.</summary>
+public enum AiTestDepth
+{
+    /// <summary>One short line on a small canvas. Seconds, a few hundred tokens.</summary>
+    Quick,
+
+    /// <summary>
+    /// The quick test, then a real inbetween between two keyframes, checked
+    /// for the things that make an inbetween usable rather than merely
+    /// well-formed. Minutes on a local model.
+    /// </summary>
+    Thorough,
+}
+
+/// <summary>
+/// The outcome of a connection test.
+/// </summary>
+/// <param name="Connected">
+/// Something answered. Kept apart from <paramref name="Ok"/> because
+/// "unreachable" and "reachable but drawing nonsense" are different problems
+/// with different fixes, and one boolean would hide that.
+/// </param>
+public sealed record AiConnectionCheck(bool Ok, string Message, bool Connected = false);
+
+/// <summary>
+/// Proves a connection works — and that what comes back is usable — before an
+/// artist depends on it.
+/// </summary>
+/// <remarks>
+/// It draws rather than pings, because the ways this fails are mostly not
+/// reachability: a key with no credit, a model name off by a version, an
+/// endpoint that answers but cannot honour a JSON schema, an MCP server whose
+/// tool is called something else, a small local model that returns valid JSON
+/// full of nonsense. A HEAD request would say "connected" to every one.
+///
+/// The output checks are deliberately about *usability*, not quality. Points
+/// off the canvas, an empty stroke list, an inbetween that does not lie
+/// between its keys — these are things no amount of prompt tuning fixes, and
+/// they are what tells someone a model is the wrong tool before they spend an
+/// afternoon finding out.
+/// </remarks>
+public static class AiConnectionTester
+{
+    /// <summary>Deliberately trivial: one line on a small canvas.</summary>
+    private static DrawRequest Probe() => new(
+        new SceneInfo(Canvas, Canvas, 12),
+        "A single short horizontal line across the middle. One stroke, two points.",
+        []);
+
+    private const int Canvas = 128;
+
+    /// <summary>
+    /// An arm swinging from the top of the canvas to the bottom. Simple
+    /// enough that any model that can inbetween at all gets it, and specific
+    /// enough that a model which cannot is caught: the answer has to sit
+    /// between the two keys, which a plausible-looking guess will not.
+    /// </summary>
+    private static InbetweenRequest Swing() => new(
+        new SceneInfo(Canvas, Canvas, 12),
+        [new Stroke { Label = "arm", Points = [new(20, 20, 0.6), new(100, 20, 0.6)] }],
+        [new Stroke { Label = "arm", Points = [new(20, 100, 0.6), new(100, 100, 0.6)] }],
+        [0.5],
+        Easing.Linear);
+
+    public static Task<AiConnectionCheck> TestAsync(
+        AiConnection connection,
+        AiTestDepth depth = AiTestDepth.Quick,
+        IProgress<string>? progress = null,
+        CancellationToken ct = default)
+        => TestAsync(connection, depth, artist: null, progress, ct);
+
+    /// <param name="artist">
+    /// Test seam: skip the factory and drive a prepared artist. Lets the
+    /// output checks be exercised against scripted replies, which is the half
+    /// of this class that has real logic in it.
+    /// </param>
+    internal static async Task<AiConnectionCheck> TestAsync(
+        AiConnection connection,
+        AiTestDepth depth,
+        IAiArtist? artist,
+        IProgress<string>? progress = null,
+        CancellationToken ct = default)
+    {
+        // Say what is missing before spending a call finding out.
+        if (connection.Missing() is { Count: > 0 } missing)
+        {
+            var names = string.Join(", ", missing.Select(f => f.Label.ToLowerInvariant()));
+            return new AiConnectionCheck(false, $"Still needs: {names}.");
+        }
+
+        try
+        {
+            artist ??= AiArtistFactory.Create(connection, ignoreSwitch: true);
+        }
+        catch (McpException e)
+        {
+            return new AiConnectionCheck(false, e.Message);
+        }
+        if (artist is null)
+            return new AiConnectionCheck(false, "Lightbox could not build a connection from these values.");
+
+        try
+        {
+            if (await CheckToolNameAsync(artist, connection, ct) is { } toolProblem) return toolProblem;
+
+            progress?.Report("Asking for one short line…");
+            var drawn = await artist.DrawAsync(Probe(), ct);
+            if (Interpret(drawn.Outcome, drawn.Message, connection) is { } failure) return failure;
+
+            if (BadStrokes(drawn.Value!) is { } strokeProblem)
+            {
+                return new AiConnectionCheck(false,
+                    $"Connected, but the strokes are not usable: {strokeProblem}", Connected: true);
+            }
+
+            var name = connection.Provider.Name;
+            var drewLine = $"{name} drew {Count(drawn.Value!.Count, "stroke")}";
+            if (depth == AiTestDepth.Quick)
+                return new AiConnectionCheck(true, $"Connected. {drewLine}.", Connected: true);
+
+            progress?.Report("Asking for an inbetween between two keyframes…");
+            var tweened = await artist.GenerateInbetweensAsync(Swing(), ct);
+            if (Interpret(tweened.Outcome, tweened.Message, connection) is { } tweenFailure) return tweenFailure;
+
+            if (BadInbetween(tweened.Value!) is { } tweenProblem)
+            {
+                // Connected and well-formed but not competent: a real result,
+                // and the one a small local model most often lands on.
+                return new AiConnectionCheck(false,
+                    $"Connected, and {drewLine}, but the inbetween is not usable: {tweenProblem} "
+                    + "The connection is fine — this model may be too small for inbetweening.",
+                    Connected: true);
+            }
+
+            return new AiConnectionCheck(true,
+                $"Connected. {drewLine}, and put the inbetween where it belongs.", Connected: true);
+        }
+        catch (McpException e)
+        {
+            return new AiConnectionCheck(false, e.Message);
+        }
+        catch (OperationCanceledException)
+        {
+            return new AiConnectionCheck(false, "Canceled.");
+        }
+        finally
+        {
+            // An MCP test leaves a child process behind otherwise.
+            if (artist is IAsyncDisposable disposable) await disposable.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// An MCP server that is up but offers a different tool is the likeliest
+    /// mistake on that path, and the one worth naming precisely.
+    /// </summary>
+    private static async Task<AiConnectionCheck?> CheckToolNameAsync(
+        IAiArtist artist, AiConnection connection, CancellationToken ct)
+    {
+        if (artist is not McpArtist mcp) return null;
+        var wanted = connection.Value("tool") ?? McpArtist.DefaultTool;
+        var tools = await mcp.ListToolsAsync(ct);
+        if (tools.Count == 0 || tools.Contains(wanted)) return null;
+        return new AiConnectionCheck(false,
+            $"The server started, but offers no tool called “{wanted}”. It has: "
+            + string.Join(", ", tools) + ".", Connected: true);
+    }
+
+    /// <summary>Map a non-success outcome; null when the call succeeded.</summary>
+    private static AiConnectionCheck? Interpret(AiOutcome outcome, string? message, AiConnection connection) =>
+        outcome switch
+        {
+            AiOutcome.Success => null,
+            // A refusal proves the connection: something read the prompt and
+            // decided. That is reachability confirmed, and a caveat.
+            AiOutcome.Refused => new AiConnectionCheck(false,
+                $"Connected, but {connection.Provider.Name} declined the test drawing. "
+                + "The connection is fine; the model may be a poor fit for drawing tasks.",
+                Connected: true),
+            AiOutcome.Truncated => new AiConnectionCheck(false,
+                "The reply was cut off before it finished — the model's output limit may be very low.",
+                Connected: true),
+            _ => new AiConnectionCheck(false, message ?? "Failed."),
+        };
+
+    /// <summary>
+    /// What is wrong with these strokes, or null if nothing is.
+    /// </summary>
+    /// <remarks>
+    /// Notably absent: an off-canvas check. <c>StrokeWire.FromWire</c> already
+    /// clamps every point into the scene plus a margin, so by the time a
+    /// stroke reaches here it cannot be off-canvas — a check for it would have
+    /// been reassurance that could never fire, and a test caught it as such.
+    /// What survives are the two failures the clamp cannot hide.
+    /// </remarks>
+    internal static string? BadStrokes(IReadOnlyList<Stroke> strokes)
+    {
+        if (strokes.Count == 0) return "nothing was drawn.";
+        if (strokes.All(s => s.Points.Count < 2)) return "no stroke has two points, so nothing would mark.";
+
+        // Every point in the same place: a dot where a line was asked for.
+        // Small models do this, and it survives both the schema and the clamp.
+        var extent = strokes.SelectMany(s => s.Points).ToList();
+        var width = extent.Max(p => p.X) - extent.Min(p => p.X);
+        var height = extent.Max(p => p.Y) - extent.Min(p => p.Y);
+        if (width < 1 && height < 1) return "every point is in the same place, so it is a dot, not a line.";
+
+        return null;
+    }
+
+    /// <summary>What is wrong with this inbetween, or null if nothing is.</summary>
+    internal static string? BadInbetween(IReadOnlyList<InbetweenFrameResult> frames)
+    {
+        if (frames.Count == 0) return "no frames came back.";
+        var frame = frames[0];
+        if (frame.T is <= 0 or >= 1) return $"its timing is {frame.T:0.##}, which is not between the keys.";
+        if (BadStrokes(frame.Strokes) is { } bad) return bad;
+
+        // The competence check. The keys sit at y=20 and y=100, so a real
+        // inbetween sits between them; a model that copied a key, or invented
+        // a pose, does not. The band is wide because easing, arcs and overlap
+        // all legitimately move it — this rejects "not between the keys at
+        // all", not "not where I would have put it".
+        var mean = frame.Strokes.SelectMany(s => s.Points).Select(p => p.Y).DefaultIfEmpty(0).Average();
+        if (mean is < 25 or > 95)
+            return $"it sits at y≈{mean:0}, outside the two keys at y=20 and y=100.";
+
+        return null;
+    }
+
+    private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
+}

@@ -17,14 +17,19 @@ namespace Lightbox.Ai;
 /// </summary>
 public sealed class AnthropicArtist : IAiArtist
 {
+    /// <summary>What the provider catalogue offers as the default, and what a
+    /// caller that names no model gets.</summary>
     public const string Model = "claude-opus-5";
+
     private const int MaxTokens = 32000;
 
     private readonly AnthropicClient _client;
+    private readonly string _model;
 
-    public AnthropicArtist(string apiKey)
+    public AnthropicArtist(string apiKey, string? model = null)
     {
         _client = new AnthropicClient { ApiKey = apiKey };
+        _model = string.IsNullOrWhiteSpace(model) ? Model : model.Trim();
     }
 
     public async Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(
@@ -36,28 +41,7 @@ public sealed class AnthropicArtist : IAiArtist
             StrokeSchemas.InbetweenResult,
             request.ReferenceImages,
             ct);
-        if (call.Outcome != AiOutcome.Success)
-            return Forward<List<InbetweenFrameResult>>(call);
-
-        try
-        {
-            var dto = JsonSerializer.Deserialize<StrokeWire.InbetweenResultDto>(call.Value!)
-                      ?? throw new JsonException("null payload");
-            var frames = dto.Inbetweens
-                .Where(f => f.T is > 0 and < 1)
-                .OrderBy(f => f.T)
-                .Select(f => new InbetweenFrameResult(f.T, StrokeWire.FromWire(f.Strokes, request.Scene)))
-                .ToList();
-            if (frames.Count == 0)
-                return AiResult<List<InbetweenFrameResult>>.Error(
-                    "The model returned no usable inbetween frames.", retryable: true);
-            return AiResult<List<InbetweenFrameResult>>.Success(frames);
-        }
-        catch (JsonException e)
-        {
-            return AiResult<List<InbetweenFrameResult>>.Error(
-                $"Could not parse the model's response: {e.Message}", retryable: true);
-        }
+        return StrokeParsing.Inbetweens(call, request.Scene, "The model");
     }
 
     public async Task<AiResult<List<Core.Documents.Stroke>>> DrawAsync(
@@ -69,24 +53,7 @@ public sealed class AnthropicArtist : IAiArtist
             StrokeSchemas.DrawResult,
             request.ReferenceImages,
             ct);
-        if (call.Outcome != AiOutcome.Success)
-            return Forward<List<Core.Documents.Stroke>>(call);
-
-        try
-        {
-            var dto = JsonSerializer.Deserialize<StrokeWire.DrawResultDto>(call.Value!)
-                      ?? throw new JsonException("null payload");
-            var strokes = StrokeWire.FromWire(dto.Strokes, request.Scene);
-            if (strokes.Count == 0)
-                return AiResult<List<Core.Documents.Stroke>>.Error(
-                    "The model returned no usable strokes.", retryable: true);
-            return AiResult<List<Core.Documents.Stroke>>.Success(strokes);
-        }
-        catch (JsonException e)
-        {
-            return AiResult<List<Core.Documents.Stroke>>.Error(
-                $"Could not parse the model's response: {e.Message}", retryable: true);
-        }
+        return StrokeParsing.Strokes(call, request.Scene, "The model");
     }
 
     // ---- shared call path ----------------------------------------------------
@@ -111,7 +78,7 @@ public sealed class AnthropicArtist : IAiArtist
 
         var parameters = new MessageCreateParams
         {
-            Model = Model,
+            Model = _model,
             MaxTokens = MaxTokens,
             System = new List<TextBlockParam> { new() { Text = system } },
             Messages = [new() { Role = Role.User, Content = content }],
@@ -174,11 +141,4 @@ public sealed class AnthropicArtist : IAiArtist
             return AiResult<string>.Error($"Network error: {e.Message}", retryable: true);
         }
     }
-
-    private static AiResult<T> Forward<T>(AiResult<string> call) => call.Outcome switch
-    {
-        AiOutcome.Refused => AiResult<T>.Refused(call.Message ?? "Refused."),
-        AiOutcome.Truncated => AiResult<T>.Truncated(call.Message ?? "Truncated."),
-        _ => AiResult<T>.Error(call.Message ?? "Unknown error.", call.Retryable),
-    };
 }

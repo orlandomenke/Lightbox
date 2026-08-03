@@ -86,6 +86,61 @@ public sealed partial class GridRow(
 }
 
 /// <summary>
+/// One field of the chosen AI provider, editable.
+/// </summary>
+/// <remarks>
+/// Built from the catalogue rather than declared in XAML, so the page does
+/// not have to know that Claude wants a key and an MCP server wants a command
+/// line. The watermark carries the part a person cannot see: whether a blank
+/// box is actually blank, or is already satisfied by an environment variable
+/// or a default.
+/// </remarks>
+public sealed partial class AiFieldRow : ObservableObject
+{
+    private readonly Lightbox.Ai.AiConnection _connection;
+    private readonly Action _changed;
+
+    public AiFieldRow(Lightbox.Ai.AiField field, Lightbox.Ai.AiConnection connection, Action changed)
+    {
+        Field = field;
+        _connection = connection;
+        _changed = changed;
+        _value = connection.Stored(field.Id) ?? "";
+    }
+
+    public Lightbox.Ai.AiField Field { get; }
+
+    public string Label => Field.Required ? Field.Label : Field.Label + " (optional)";
+
+    public string? Hint => Field.Hint;
+
+    public bool HasHint => !string.IsNullOrEmpty(Field.Hint);
+
+    /// <summary>'\0' means "show the text" — a secret shows dots instead.</summary>
+    public char Mask => Field.Kind == Lightbox.Ai.AiFieldKind.Secret ? '•' : '\0';
+
+    [ObservableProperty]
+    private string _value;
+
+    public string Placeholder => _connection.OriginOf(Field.Id) switch
+    {
+        Lightbox.Ai.AiValueOrigin.Environment => $"using {Field.EnvVar}",
+        Lightbox.Ai.AiValueOrigin.Default => Field.Default ?? "",
+        Lightbox.Ai.AiValueOrigin.Missing when Field.Required => "required",
+        _ => "",
+    };
+
+    partial void OnValueChanged(string value)
+    {
+        _connection.Set(Field.Id, value);
+        // Clearing a box can uncover an environment variable or a default;
+        // the watermark has to say so or the field reads as unset.
+        OnPropertyChanged(nameof(Placeholder));
+        _changed();
+    }
+}
+
+/// <summary>
 /// Edit → Configure: categories on the left, content in the center. The
 /// Shortcuts page lists every rebindable command grouped by area, searchable
 /// by name or by keys, with a conflict warning before a clashing binding can
@@ -116,6 +171,185 @@ public partial class ConfigureWindow : Window
         LoadGuidesPage();
         LoadTimelinePage();
         LoadDrawingPage();
+        LoadAiPage();
+    }
+
+    // ---- AI page ---------------------------------------------------------------
+
+    private Lightbox.Ai.AiConnection _ai = new();
+    private bool _loadingAi;
+    private CancellationTokenSource? _aiTestCts;
+
+    /// <summary>Test seam: the rows the page is currently showing.</summary>
+    internal IReadOnlyList<AiFieldRow> AiFieldRows { get; private set; } = [];
+
+    /// <summary>Test seam: the last thing Test connection said.</summary>
+    internal string AiTestMessage => AiTestStatus?.Text ?? "";
+
+    /// <summary>The two depths, in the order the picker shows them.</summary>
+    private static readonly (Lightbox.Ai.AiTestDepth Depth, string Label, string Explain)[] AiDepths =
+    [
+        (Lightbox.Ai.AiTestDepth.Quick, "Quick test",
+            "Asks for one short line on a small canvas. Seconds, a few hundred tokens, and it "
+            + "proves the whole path: the key, the model name, schema-constrained output, the "
+            + "parse, and that the strokes land on the canvas."),
+        (Lightbox.Ai.AiTestDepth.Thorough, "Test with a drawing",
+            "The quick test, then a real inbetween between two keyframes — checked for landing "
+            + "between them rather than merely being well-formed. This is what catches a model "
+            + "that answers in perfect JSON and cannot inbetween. Minutes on a local model."),
+    ];
+
+    private void LoadAiPage()
+    {
+        if (AiProviderBox is null) return;
+        _loadingAi = true;
+        _ai = Lightbox.Ai.AiSettings.Load();
+        AiEnabledBox.IsChecked = _ai.Enabled;
+        AiProviderBox.ItemsSource = Lightbox.Ai.AiProviders.All.Select(p => p.Name).ToList();
+        AiProviderBox.SelectedIndex = Lightbox.Ai.AiProviders.All
+            .Select((p, i) => (p, i)).First(x => x.p.Id == _ai.Provider.Id).i;
+        AiTestDepthBox.ItemsSource = AiDepths.Select(d => d.Label).ToList();
+        AiTestDepthBox.SelectedIndex = 0;
+        _loadingAi = false;
+        RebuildAiFields();
+        RefreshAiTestExplain();
+    }
+
+    private void OnAiEnabledChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingAi || AiEnabledBox.IsChecked is not { } on) return;
+        _ai.Enabled = on;
+        SaveAi();
+    }
+
+    private void OnAiTestDepthChanged(object? sender, SelectionChangedEventArgs e) => RefreshAiTestExplain();
+
+    private void RefreshAiTestExplain()
+    {
+        if (AiTestExplain is null) return;
+        AiTestExplain.Text = AiDepths[Math.Max(0, AiTestDepthBox.SelectedIndex)].Explain;
+    }
+
+    /// <summary>
+    /// Rebuild the editor for the selected provider. Whole-list rather than
+    /// diffed: switching provider changes which fields exist, and six rows is
+    /// not worth the reconciliation.
+    /// </summary>
+    private void RebuildAiFields()
+    {
+        if (AiFieldsHost is null) return;
+        AiSummary.Text = _ai.Provider.Summary;
+        AiFieldRows = _ai.Provider.Fields
+            .Select(f => new AiFieldRow(f, _ai, SaveAi))
+            .ToList();
+        AiFieldsHost.ItemsSource = AiFieldRows;
+        // A stale verdict beside changed fields is worse than none: it reads
+        // as though the new values were the ones that passed.
+        SetAiStatus("", ok: null);
+    }
+
+    /// <summary>
+    /// Persist on every keystroke, and hand the view model the new artist.
+    /// </summary>
+    /// <remarks>
+    /// No Save button because this window has never had one, and because
+    /// "typed the key, closed the window, AI still off" is the failure the
+    /// button would cause. Writing a partial key is harmless — the connection
+    /// is simply incomplete until it is not.
+    /// </remarks>
+    private void SaveAi()
+    {
+        if (_loadingAi) return;
+        Lightbox.Ai.AiSettings.Save(_ai);
+        _vm?.ReloadAiProvider();
+    }
+
+    private void OnAiProviderChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingAi || AiProviderBox.SelectedIndex < 0) return;
+        _ai.ProviderId = Lightbox.Ai.AiProviders.All[AiProviderBox.SelectedIndex].Id;
+        RebuildAiFields();
+        SaveAi();
+    }
+
+    /// <summary>
+    /// Beyond this, say so. A thorough test against a local model genuinely
+    /// takes minutes, and silence for that long is indistinguishable from a
+    /// hang — which is the whole reason for the clock and the bar.
+    /// </summary>
+    private static readonly TimeSpan LongTest = TimeSpan.FromMinutes(2);
+
+    private async void OnAiTestClicked(object? sender, RoutedEventArgs e)
+    {
+        // A second click cancels the first: a hung endpoint would otherwise
+        // leave the button dead until its ten-minute timeout.
+        if (_aiTestCts is not null)
+        {
+            await _aiTestCts.CancelAsync();
+            return;
+        }
+
+        var depth = AiDepths[Math.Max(0, AiTestDepthBox.SelectedIndex)].Depth;
+        _aiTestCts = new CancellationTokenSource();
+        AiTestButton.Content = "Cancel";
+        AiTestProgress.IsVisible = true;
+        AiTestElapsed.IsVisible = true;
+        SetAiStatus("Connecting…", ok: null);
+
+        var started = DateTime.UtcNow;
+        var stage = "Connecting…";
+        var clock = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        clock.Tick += (_, _) =>
+        {
+            var elapsed = DateTime.UtcNow - started;
+            AiTestElapsed.Text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
+            SetAiStatus(
+                elapsed > LongTest
+                    ? stage + " Still going — a local model can take several minutes. Click Cancel to stop."
+                    : stage,
+                ok: null);
+        };
+        clock.Start();
+
+        try
+        {
+            var progress = new Progress<string>(s => stage = s);
+            var check = await Lightbox.Ai.AiConnectionTester.TestAsync(
+                _ai, depth, progress, _aiTestCts.Token);
+            clock.Stop();
+            // Three states, not two: "unreachable" and "reachable but drawing
+            // nonsense" need different fixes, and amber says which.
+            SetAiStatus(check.Message, check.Ok ? true : check.Connected ? null : false);
+        }
+        catch (Exception ex)
+        {
+            // The tester is meant to return failures rather than throw; if one
+            // escapes, the window must still be usable.
+            clock.Stop();
+            SetAiStatus(ex.Message, ok: false);
+        }
+        finally
+        {
+            clock.Stop();
+            _aiTestCts.Dispose();
+            _aiTestCts = null;
+            AiTestButton.Content = "Test connection";
+            AiTestProgress.IsVisible = false;
+            AiTestElapsed.IsVisible = false;
+        }
+    }
+
+    /// <summary>Green passed, amber connected-but-unusable, red not connected.</summary>
+    private void SetAiStatus(string message, bool? ok)
+    {
+        if (AiTestStatus is null) return;
+        AiTestStatus.Text = message;
+        AiTestStatus.Foreground = ok switch
+        {
+            true => Avalonia.Media.Brushes.MediumSeaGreen,
+            false => Avalonia.Media.Brushes.IndianRed,
+            _ => Avalonia.Media.Brushes.Goldenrod,
+        };
     }
 
     // ---- timeline page -----------------------------------------------------------
@@ -329,8 +563,8 @@ public partial class ConfigureWindow : Window
 
     private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (ShortcutsPage is null || PerformancePage is null
-            || GuidesPage is null || TimelinePage is null || DrawingPage is null)
+        if (ShortcutsPage is null || PerformancePage is null || GuidesPage is null
+            || TimelinePage is null || DrawingPage is null || AiPage is null)
         {
             return;
         }
@@ -340,6 +574,7 @@ public partial class ConfigureWindow : Window
         GuidesPage.IsVisible = page == 2;
         TimelinePage.IsVisible = page == 3;
         DrawingPage.IsVisible = page == 4;
+        AiPage.IsVisible = page == 5;
         if (page == 1) RefreshMeasured();
         // Rebuilt on the way in: a grid may have been placed since the window
         // opened, and the window outlives the drawing that made it.

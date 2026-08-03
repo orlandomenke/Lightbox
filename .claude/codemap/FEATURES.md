@@ -1,9 +1,52 @@
 # Behaviour inventory
 
-1586 tests, derived from the suite itself. Each line is a
+1652 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
+
+## AiConnectionTesterTests
+`tests/Lightbox.Ai.Tests/AiConnectionTesterTests.cs`
+
+- AQuick Test Passes On One Good Line — `:71`
+- AQuick Test Does Not Ask For An Inbetween — `:81`
+- AThorough Test Asks For Both — `:92`
+- AStroke With One Point Is Unusable Rather Than APass — `:104`
+- AStroke With No Extent Is Unusable — `:115`
+- Points Off The Canvas Are Clamped Before The Tester Sees Them — `:127`
+- An Empty Drawing Fails — `:144`
+- AThorough Test Passes When The Inbetween Lands Between The Keys — `:155`
+- AThorough Test Fails When The Model Copied AKey Instead — `:165`
+- ATiming Outside The Keys Leaves No Usable Frame — `:178`
+- The Checks Name The Problem Rather Than Just Failing — `:187`
+- Each Stage Is Reported So ALong Test Can Say What It Is Doing — `:198`
+
+## AiArtistFactoryTests
+`tests/Lightbox.Ai.Tests/AiProviderTests.cs`
+
+- An Incomplete Connection Produces No Artist — `:195`
+- The Open Ai Dialect Providers All Build The Same Artist — `:204`
+- Ollama Needs No Key — `:215`
+- Anthropic Builds From AKey Alone — `:222`
+- An Mcp Command That Cannot Start Is Not ACrash — `:230`
+- Testing An Incomplete Connection Says What Is Missing Without ACall — `:241`
+- Turning Assistance Off Produces No Artist However Complete The Connection Is — `:253`
+- The Switch Is On By Default And Survives ARound Trip — `:267`
+
+## AiProviderTests
+`tests/Lightbox.Ai.Tests/AiProviderTests.cs`
+
+- Every Provider Has AUnique Id And At Least One Field — `:32`
+- An Unknown Provider Id Falls Back Rather Than Throwing — `:43`
+- AStored Value Beats The Environment Which Beats The Default — `:50`
+- Missing Names The Required Fields That Resolve To Nothing — `:79`
+- Anthropic Is Complete From The Environment Alone — `:96`
+- Settings Round Trip — `:114`
+- ABroken Settings File Means Not Configured Rather Than ACrash — `:129`
+- AProvider That No Longer Exists Loads As The Default — `:139`
+- Only What Was Typed Is Written Back — `:148`
+- The Password Fields Are The Ones Marked Secret — `:164`
+- Every Api Provider Names AModel And Every Mcp Provider Names ATool — `:180`
 
 ## PromptTests
 `tests/Lightbox.Ai.Tests/AiTests.cs`
@@ -34,15 +77,41 @@ regression even when every test still compiles.
 
 - Inbetween Result Dto Parses Model Shaped Json — `:205`
 
+## McpArtistTests
+`tests/Lightbox.Ai.Tests/McpArtistTests.cs`
+
+- It Handshakes Once Then Calls The Named Tool — `:59`
+- The Tool Is Called With System Prompt And Schema — `:82`
+- Text Blocks Are Joined Rather Than Truncated To The First — `:100`
+- ATool Error Is Reported Not Parsed — `:122`
+- AProtocol Failure Becomes AValue Rather Than An Exception — `:137`
+- List Tools Reads The Names — `:151`
+- Testing An Mcp Connection Names The Tools When The Chosen One Is Absent — `:164`
+- Disposing The Artist Closes The Channel — `:179`
+- Arguments Split Like AShell Would — `:197`
+
 ## OllamaTests
 `tests/Lightbox.Ai.Tests/OllamaTests.cs`
 
-- Request Body Carries Model Schema Prompts And Options — `:45`
-- Success Response Parses And Validates — `:69`
-- Connection Refused Maps To Retryable With Hint — `:87`
-- Model Not Found Suggests Pull — `:100`
-- Empty Or Unusable Frames Is Retryable Error — `:115`
-- Draw Parses Strokes — `:127`
+- Request Body Carries Model Schema Prompts And Options — `:47`
+- Success Response Parses And Validates — `:71`
+- Connection Refused Maps To Retryable With Hint — `:89`
+- Model Not Found Suggests Pull — `:102`
+- Empty Or Unusable Frames Is Retryable Error — `:117`
+- Draw Parses Strokes — `:129`
+
+## OpenAiTests
+`tests/Lightbox.Ai.Tests/OpenAiTests.cs`
+
+- Request Carries Model Schema And Bearer Token — `:38`
+- ABase Url With ATrailing Slash Resolves The Same Way — `:66`
+- No Key Means No Authorization Header — `:80`
+- Reference Images Ride Along As Data Uris Before The Task — `:93`
+- Success Parses Into Strokes — `:110`
+- Status Codes Become Sentences Somebody Can Act — `:130`
+- ARefusal Is ARefusal Rather Than An Error — `:148`
+- Hitting The Output Limit Is Truncation Rather Than AParse Failure — `:167`
+- Something That Is Not AChat Completion Says So — `:179`
 
 ## ActiveColorTests
 `tests/Lightbox.App.Tests/ActiveColorTests.cs`
@@ -90,6 +159,27 @@ regression even when every test still compiles.
 - Ai Inbetween Without Second Key Asks For One — `:110`
 - Ai Draw Appends Strokes Undoable — `:120`
 - Ai Draw Empty Prompt Does Nothing — `:143`
+
+## AiProviderPageTests
+`tests/Lightbox.App.Tests/AiProviderPageTests.cs`
+
+- The Picker Offers Every Provider And Starts On The Stored One — `:33`
+- Each Provider Shows Its Own Fields And Nobody Elses — `:43`
+- Only The Secret Fields Are Masked — `:63`
+- Choosing AProvider Persists It Immediately — `:75`
+- Typing AValue Persists It Under The Right Provider — `:87`
+- ADefault Shows As APlaceholder Rather Than As Typed Text — `:103`
+- ARequired Field With Nothing Behind It Says So — `:117`
+- Switching Provider Clears AStale Test Verdict — `:134`
+- The Ai Page Is The Last Category And Hidden Until Chosen — `:144`
+- The View Model Picks Up AProvider Chosen While It Is Running — `:156`
+- The Unavailable Hint Points At The Configure Window Rather Than An Environment Variable — `:172`
+- Ai Assistance Is On By Default — `:183`
+- Turning It Off Persists And Takes The Artist With It — `:193`
+- The Provider Fields Stay Usable While Assistance Is Off — `:213`
+- Both Test Depths Are Offered And Quick Is The Default — `:235`
+- The Depth Picker Explains What Each One Costs — `:246`
+- The Progress Bar And Clock Are Hidden Until ATest Is Running — `:261`
 
 ## BackgroundLayerTests
 `tests/Lightbox.App.Tests/BackgroundLayerTests.cs`

@@ -3,10 +3,17 @@ using System.Text.Json;
 namespace Lightbox.Ai;
 
 /// <summary>
-/// Resolves the Anthropic API key: the ANTHROPIC_API_KEY environment variable
-/// wins; otherwise the per-user settings file. The key is never written into
-/// documents or logs.
+/// The pre-provider configuration, kept for two reasons only: it names the
+/// settings directory every other store hangs off, and <see cref="AiSettings"/>
+/// reads it once to migrate an existing install.
 /// </summary>
+/// <remarks>
+/// Nothing here writes. It used to: <c>SaveApiKey</c> serialized a single-key
+/// object over <c>settings.json</c>, which is the same file
+/// <c>AppSettings.Save</c> serializes its whole object over — each silently
+/// erased the other. New configuration lives in <c>ai.json</c> instead, and
+/// this type is read-only so that hazard cannot come back.
+/// </remarks>
 public static class ApiKeyProvider
 {
     public static string SettingsPath =>
@@ -67,15 +74,5 @@ public static class ApiKeyProvider
         {
             return null;
         }
-    }
-
-    public static void SaveApiKey(string key)
-    {
-        var dir = Path.GetDirectoryName(SettingsPath)!;
-        Directory.CreateDirectory(dir);
-        var json = JsonSerializer.Serialize(
-            new Dictionary<string, string> { ["anthropicApiKey"] = key },
-            new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(SettingsPath, json);
     }
 }

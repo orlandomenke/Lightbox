@@ -46,53 +46,17 @@ public sealed class OllamaArtist : IAiArtist
         InbetweenRequest request, CancellationToken ct)
     {
         var call = await CallAsync(Prompts.InbetweenSystem, Prompts.InbetweenUser(request), StrokeSchemas.InbetweenResult, ct);
-        if (call.Outcome != AiOutcome.Success)
-            return Forward<List<InbetweenFrameResult>>(call);
-
-        try
-        {
-            var dto = JsonSerializer.Deserialize<StrokeWire.InbetweenResultDto>(call.Value!)
-                      ?? throw new JsonException("null payload");
-            var frames = dto.Inbetweens
-                .Where(f => f.T is > 0 and < 1)
-                .OrderBy(f => f.T)
-                .Select(f => new InbetweenFrameResult(f.T, StrokeWire.FromWire(f.Strokes, request.Scene)))
-                .Where(f => f.Strokes.Count > 0)
-                .ToList();
-            if (frames.Count == 0)
-                return AiResult<List<InbetweenFrameResult>>.Error(
-                    "The local model returned no usable inbetween frames — try a larger model.", retryable: true);
-            return AiResult<List<InbetweenFrameResult>>.Success(frames);
-        }
-        catch (JsonException e)
-        {
-            return AiResult<List<InbetweenFrameResult>>.Error(
-                $"Could not parse the local model's response: {e.Message}", retryable: true);
-        }
+        return StrokeParsing.Inbetweens(call, request.Scene, "The local model", LargerModel);
     }
 
     public async Task<AiResult<List<Core.Documents.Stroke>>> DrawAsync(DrawRequest request, CancellationToken ct)
     {
         var call = await CallAsync(Prompts.DrawSystem, Prompts.DrawUser(request), StrokeSchemas.DrawResult, ct);
-        if (call.Outcome != AiOutcome.Success)
-            return Forward<List<Core.Documents.Stroke>>(call);
-
-        try
-        {
-            var dto = JsonSerializer.Deserialize<StrokeWire.DrawResultDto>(call.Value!)
-                      ?? throw new JsonException("null payload");
-            var strokes = StrokeWire.FromWire(dto.Strokes, request.Scene);
-            if (strokes.Count == 0)
-                return AiResult<List<Core.Documents.Stroke>>.Error(
-                    "The local model returned no usable strokes — try a larger model.", retryable: true);
-            return AiResult<List<Core.Documents.Stroke>>.Success(strokes);
-        }
-        catch (JsonException e)
-        {
-            return AiResult<List<Core.Documents.Stroke>>.Error(
-                $"Could not parse the local model's response: {e.Message}", retryable: true);
-        }
+        return StrokeParsing.Strokes(call, request.Scene, "The local model", LargerModel);
     }
+
+    /// <summary>The advice that is only true of a local model.</summary>
+    private const string LargerModel = " Try a larger model.";
 
     private async Task<AiResult<string>> CallAsync(string system, string user, string schemaJson, CancellationToken ct)
     {
@@ -140,11 +104,4 @@ public sealed class OllamaArtist : IAiArtist
     }
 
     private static string Truncate(string s) => s.Length <= 200 ? s : s[..200] + "…";
-
-    private static AiResult<T> Forward<T>(AiResult<string> call) => call.Outcome switch
-    {
-        AiOutcome.Refused => AiResult<T>.Refused(call.Message ?? "Refused."),
-        AiOutcome.Truncated => AiResult<T>.Truncated(call.Message ?? "Truncated."),
-        _ => AiResult<T>.Error(call.Message ?? "Unknown error.", call.Retryable),
-    };
 }
