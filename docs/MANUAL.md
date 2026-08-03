@@ -370,11 +370,12 @@ raising flow; that is what gives a smudge somewhere to go.
 
 **These defaults are deliberately conservative and you may well want to raise
 them.** They were chosen while an effect brush still stacked opacity with every
-dab, which turned a pale wash opaque black; that is fixed, and flow no longer
-touches opacity at all — it only decides how much colour moves. Measured on a
-wash, flow 0.08 carries almost nothing and 0.2 upward carries visibly more, with
-the wash's opacity unchanged at every setting. Raise it until the tool feels
-right; it can no longer run away from you.
+dab, which turned a pale wash opaque black. That is fixed: flow no longer touches
+opacity at all — it only decides how much colour moves — and it now responds
+evenly across its range rather than saturating. Measured on a wash, carried
+colour runs 0, 17, 34, 47, 64 as flow goes 0.08 → 0.85, with the wash's own
+opacity unchanged at every setting. Raise it until the tool feels right; it can
+no longer run away from you.
 
 Every numeric field can be **dragged sideways** to scrub its value. Hold
 **Shift** for fine, **Ctrl** for coarse. Click without dragging and you get a

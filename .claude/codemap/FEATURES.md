@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1663 tests, derived from the suite itself. Each line is a
+1664 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -837,8 +837,8 @@ regression even when every test still compiles.
 - The Smudge Preview Matches The Commit — `:84`
 - Blur Shows Mid Drag — `:111`
 - An Abandoned Smudge Leaves No Trace — `:143`
-- ALive Blur Does Not Cover More Ground Than The Mark That Commits — `:212`
-- The Effect Brushes Ship With AFlow An Artist Can Steer — `:249`
+- ALive Blur Does Not Cover More Ground Than The Mark That Commits — `:214`
+- The Effect Brushes Ship With AFlow An Artist Can Steer — `:251`
 
 ## LoopRangeHandleTests
 `tests/Lightbox.App.Tests/LoopRangeHandleTests.cs`
@@ -2131,8 +2131,8 @@ regression even when every test still compiles.
 ## EffectOnTranslucentArtTests
 `tests/Lightbox.Raster.Tests/EffectOnTranslucentArtTests.cs`
 
-- An Effect Brush Does Not Make AWash More Opaque Than It Was — `:70`
-- ASmudge Still Moves Colour Rather Than Doing Nothing — `:94`
+- An Effect Brush Does Not Make AWash More Opaque Than It Was — `:72`
+- ASmudge Still Moves Colour Rather Than Doing Nothing — `:96`
 
 ## FillStrokeTests
 `tests/Lightbox.Raster.Tests/FloodFillTests.cs`
@@ -2391,6 +2391,11 @@ regression even when every test still compiles.
 - ABaked Stroke Ignores ABackdrop That Changed Under It — `:188`
 - ABaked Stroke With No Sample Falls Back To Its Layer — `:208`
 - Sampling Reads The Layer Over The Backdrop Not The Backdrop Alone — `:222`
+
+## SmudgeCostTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/SmudgeCostTests.cs`
+
+- AWhole Smudge Stroke Stays Affordable — `:29`
 
 ## StampingArcTests
 `tests/Lightbox.Raster.Tests/StampingArcTests.cs`

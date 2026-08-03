@@ -4663,10 +4663,16 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (_liveComposite is not null)
         {
-            // Read pre-stroke, write into the composite — the same split the
-            // exact render has, so the effect is applied once per stroke
-            // rather than once per pointer event.
-            FrameRasterizer.AppendDraft(_liveComposite, tail, readFrom: _liveEffectBase);
+            // The pristine base is for BLUR only, and the distinction is the
+            // physics rather than a detail. A blur re-derives its dab from the
+            // pre-stroke pixels, so every dab of a stroke must see the same
+            // source or the effect compounds once per pointer event (B33). A
+            // smudge *carries*: each dab has to see the deposits the previous
+            // ones left, which is how a smear travels at all — the committed
+            // path gives it the very bitmap it is writing, and the draft has to
+            // match or the preview stops matching the commit.
+            var readFrom = live.Brush.Kind == BrushKind.Blur ? _liveEffectBase : null;
+            FrameRasterizer.AppendDraft(_liveComposite, tail, readFrom);
         }
         else if (_liveScratchCanvas is not null)
         {

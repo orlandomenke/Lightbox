@@ -1302,33 +1302,7 @@ public static class BrushEngine
 
             if (deposit.Alpha > 0)
             {
-                // NOTE: the alpha runaway described in B37 is real here and is
-                // NOT fixed. SrcATop was tried and is the wrong instrument: it
-                // is Src*Da + Dst*(1-Sa), so it paints nothing where the
-                // destination is transparent — which breaks smudging onto bare
-                // canvas and breaks all-layers sampling outright, where the
-                // colour comes from the backdrop and the destination layer is
-                // empty by definition. Nine tests said so, by name.
-                //
-                // What a deposit means is "lerp the canvas toward the sampled
-                // colour, weighted by the dab falloff", and Skia has no single
-                // blend mode for that. See B37 for the shape that will work:
-                // accumulate into a stroke-local scratch and composite once,
-                // which is what the paint path already does.
-                using var paint = new SKPaint { IsAntialias = brush.AntiAlias };
-                var dabColor = deposit.WithAlpha((byte)Math.Round(deposit.Alpha * strength));
-                var hardness = (float)Math.Clamp(brush.Hardness, 0, 1);
-                if (hardness >= 0.999f)
-                {
-                    paint.Color = dabColor;
-                }
-                else
-                {
-                    paint.Shader = SKShader.CreateRadialGradient(
-                        pos, radius, [dabColor, dabColor.WithAlpha(0)], [hardness, 1f], SKShaderTileMode.Clamp);
-                }
-                target.DrawCircle(pos, radius, paint);
-                target.Flush(); // the next sample must see this deposit
+                LerpDab(target, pixels, pos, radius, brush, deposit, strength, outputScale);
             }
 
             // How much of the carried colour survives into the next dab. At 0
@@ -1354,6 +1328,141 @@ public static class BrushEngine
             n++;
         }
         return new SKColor((byte)(r / n), (byte)(g / n), (byte)(b / n), (byte)(a / n));
+    }
+
+    /// <summary>
+    /// Lay one smudge dab down as a weighted move toward the sampled colour.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is B38, and it is a pixel loop because Skia has no blend mode for
+    /// what a smudge deposit means. What is wanted is
+    /// <c>dst = lerp(dst, deposit, w)</c> with <c>w</c> the dab's falloff.
+    /// <c>SrcOver</c> gets the <em>colour</em> right — it is already a lerp
+    /// toward the source — and gets the <em>alpha</em> wrong, because it adds
+    /// instead of interpolating. That is the whole bug: the deposit's alpha came
+    /// from the sample, raising the canvas alpha, which raised the next sample,
+    /// which raised the deposit. On a wash of alpha 60 ten overlapping dabs
+    /// reached opaque black.
+    /// </para>
+    /// <para>
+    /// <c>SrcATop</c> was tried and is worse: it holds the destination alpha,
+    /// which is right, but paints nothing where the destination is transparent —
+    /// so it breaks smudging onto bare canvas and breaks all-layers sampling
+    /// outright, where the colour comes from the backdrop and the destination
+    /// layer is empty by definition. Nine tests named that.
+    /// </para>
+    /// <para>
+    /// Interpolating alpha as an ordinary channel is what makes both work: a
+    /// dab over a wash converges on the wash's own opacity rather than climbing
+    /// past it, and a dab reaching off the edge of a mark can still carry
+    /// pigment out into bare canvas, because zero is a value to move away from
+    /// rather than a place that cannot be painted.
+    /// </para>
+    /// <para>
+    /// Bounded work, as invariant 6 requires: the loop covers one dab's
+    /// bounding box, not the canvas. That is the same order as the draw it
+    /// replaces.
+    /// </para>
+    /// </remarks>
+    private static void LerpDab(
+        SKCanvas target, SKBitmap read, SKPoint pos, float radius, BrushSettings brush,
+        SKColor deposit, double strength, double outputScale)
+    {
+        // The target is written through its own bitmap rather than the canvas,
+        // so flush anything the canvas still holds first.
+        target.Flush();
+        if (!target.GetDeviceClipBounds(out var clip) || clip.IsEmpty) return;
+
+        var s = (float)outputScale;
+        var cx = pos.X * s;
+        var cy = pos.Y * s;
+        var r = radius * s;
+        if (r <= 0) return;
+
+        var hardness = (float)Math.Clamp(brush.Hardness, 0, 1);
+        var w0 = (float)Math.Clamp(strength, 0, 1);
+        if (w0 <= 0) return;
+
+        var left = Math.Max(clip.Left, (int)MathF.Floor(cx - r));
+        var top = Math.Max(clip.Top, (int)MathF.Floor(cy - r));
+        var right = Math.Min(clip.Right, (int)MathF.Ceiling(cx + r) + 1);
+        var bottom = Math.Min(clip.Bottom, (int)MathF.Ceiling(cy + r) + 1);
+        if (right <= left || bottom <= top) return;
+
+        // Spans over PeekPixels, not GetPixel/SetPixel. Those are a P/Invoke
+        // each, and the first cut of this cost 10.8 s for one 4K smudge stroke
+        // against a 400 ms budget — the same lesson DESIGN-performance.md
+        // already records from the first time this engine did it.
+        using var readPix = read.PeekPixels();
+        if (readPix is null) return;
+        var srcRow = readPix.RowBytes;
+        var src = readPix.GetPixelSpan();
+
+        var info = new SKImageInfo(right - left, bottom - top, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var patch = new SKBitmap(info);
+        using var patchPix = patch.PeekPixels();
+        if (patchPix is null) return;
+        var dstRow = patchPix.RowBytes;
+        var dst = patchPix.GetPixelSpan<byte>();
+
+        // The lattice is premultiplied, and lerping premultiplied colour is the
+        // right operation as well as the fast one: no unpremultiply/repremultiply
+        // per pixel, and no divide-by-zero where alpha is nil.
+        var da = deposit.Alpha / 255f;
+        var dr = deposit.Red * da;
+        var dg = deposit.Green * da;
+        var db = deposit.Blue * da;
+        var dAl = deposit.Alpha;
+
+        for (var y = top; y < bottom; y++)
+        {
+            var sRow = y * srcRow;
+            var pRow = (y - top) * dstRow;
+            for (var x = left; x < right; x++)
+            {
+                var si = sRow + x * 4;
+                var pi = pRow + (x - left) * 4;
+
+                var dx = x + 0.5f - cx;
+                var dy = y + 0.5f - cy;
+                var d = MathF.Sqrt(dx * dx + dy * dy) / r;
+
+                float w;
+                if (d > 1f)
+                {
+                    w = 0f;
+                }
+                else
+                {
+                    // Flat to the hardness radius, then a linear ramp to
+                    // nothing — the profile the radial-gradient paint drew.
+                    var falloff = hardness >= 0.999f || d <= hardness
+                        ? 1f
+                        : 1f - (d - hardness) / (1f - hardness);
+                    w = w0 * Math.Clamp(falloff, 0f, 1f);
+                }
+
+                if (w <= 0f)
+                {
+                    dst[pi] = src[si];
+                    dst[pi + 1] = src[si + 1];
+                    dst[pi + 2] = src[si + 2];
+                    dst[pi + 3] = src[si + 3];
+                    continue;
+                }
+
+                dst[pi] = (byte)(src[si] + (dr - src[si]) * w);
+                dst[pi + 1] = (byte)(src[si + 1] + (dg - src[si + 1]) * w);
+                dst[pi + 2] = (byte)(src[si + 2] + (db - src[si + 2]) * w);
+                dst[pi + 3] = (byte)(src[si + 3] + (dAl - src[si + 3]) * w);
+            }
+        }
+
+        using var image = SKImage.FromBitmap(patch);
+        using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+        target.DrawImage(image, left, top, paint);
+        target.Flush(); // the next sample must see this deposit
     }
 
     private static SKColor Mix(SKColor x, SKColor y, double t) => new(

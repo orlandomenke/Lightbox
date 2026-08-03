@@ -196,13 +196,15 @@ public class LiveToolPreviewTests : BrushStateIsolated
     /// event — and N passes of sigma s reach like sigma*sqrt(N).
     ///
     /// Measured over 60 events on a 40 px brush at flow 0.6: the preview
-    /// covered **672 px more** than the commit before the fix and **88 px
-    /// more** after. The threshold sits between those, so this test discriminates
-    /// rather than merely passing.
+    /// covered **672 px more** than the commit before the pristine-base fix,
+    /// **88 px more** after it, and **-2 px** — noise — once B37 stopped the
+    /// blur compositing a second copy of its snapshot over the first. Both
+    /// were the same accumulation seen from different ends.
     ///
-    /// The residual 88 px is real and not yet chased: the draft path still
-    /// works from a cropped snapshot per segment rather than the whole
-    /// pre-stroke layer.
+    /// The threshold is 20 rather than 200 for that reason. It was loosened to
+    /// 200 to accommodate a residual that has since turned out not to exist,
+    /// and a threshold with 200 px of slack in it would not notice either bug
+    /// coming back.
     ///
     /// Note the drag runs along the bar's EDGE. Along its middle there is no
     /// gradient and blur is a no-op, which is how two earlier versions of this
@@ -230,7 +232,7 @@ public class LiveToolPreviewTests : BrushStateIsolated
         // Both numbers, always. An assertion that passes tells you nothing
         // about how close it came.
         Assert.True(
-            preview - committed <= 200,
+            preview - committed <= 20,
             $"the live blur covered {preview} px against the commit's {committed} "
             + $"({preview - committed} more) — the preview is applying the blur more times "
             + "than the commit does");

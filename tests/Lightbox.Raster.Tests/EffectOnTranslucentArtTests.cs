@@ -61,18 +61,20 @@ public class EffectOnTranslucentArtTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Blur only. Smudge has the same runaway and it is NOT fixed — see B38,
-    /// and the note in <c>StampSmudgeDabs</c> for why the obvious blend-mode
-    /// answer is wrong. Listing smudge here would be a test asserting a bug.
+    /// Both, since B38. Blur replaces its dab (<c>Src</c>); smudge interpolates
+    /// toward the sampled colour with alpha treated as an ordinary channel, so
+    /// a dab over a wash converges on the wash's own opacity instead of
+    /// climbing past it.
     /// </summary>
     [Theory]
     [InlineData(BrushKind.Blur)]
+    [InlineData(BrushKind.Smudge)]
     public void AnEffectBrushDoesNotMakeAWashMoreOpaqueThanItWas(BrushKind kind)
     {
         using var layer = Wash();
         var before = Alpha(layer);
 
-        FrameRasterizer.Append(layer, Drag(kind, 0.1));
+        FrameRasterizer.Append(layer, Drag(kind, kind == BrushKind.Blur ? 0.1 : 0.6));
         var after = Alpha(layer);
 
         // Both numbers, always.
