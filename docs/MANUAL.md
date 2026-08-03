@@ -1406,6 +1406,39 @@ does not change the artwork file and does not need it open. **Reopened** is kept
 separate from In development on purpose: it means *this was Ready and is not any
 more*, which is the state a straight-line pipeline cannot express.
 
+#### Normal maps
+
+Tick **Also write a normal map** and the export writes
+`<name>_normal.png` beside the sheet — a tangent-space normal map, so an engine
+can light your sprites. Off by default: it doubles the texture memory for the
+asset, and most 2D games do not light their sprites at all.
+
+It works from the silhouette. The alpha channel says where the drawing is, and
+the edge is bevelled inward:
+
+| | |
+| --- | --- |
+| **Bevel** | How far in from the edge the surface finishes rising, in pixels. |
+| **Strength** | How steeply it tilts. 1 is a natural rounded edge. |
+| **Green points** | **OpenGL** for Unity and Godot, **DirectX** for Unreal. |
+
+**Get "green points" wrong and the lighting looks inverted** — a character lit
+from above reads as lit from below, and every bevel reads as a groove. Nothing
+about the result will point at the setting, so it is worth knowing which your
+engine wants. The mnemonic: on an OpenGL-convention map, green is bright at the
+*top*. Choosing the Unity format does not change this for you, because a flipped
+green is something you should see and set rather than have swapped underneath
+you.
+
+The map is generated from the finished sheet, so it lines up with it exactly —
+trim, padding and packing included. And no preview light is ever baked into it:
+what ships is the surface, not how it looked while you were judging it.
+
+*Reading a drawing for real shape — knowing a cheek is round and a sleeve fold is
+a crease — is a later tier. This one bevels the silhouette, which is what makes a
+flat sprite catch a light at all. An interactive panel with a draggable preview
+light is Planned.*
+
 #### Presets, which are the actual point
 
 "One click" is a claim about the *second* export. Three are built in:

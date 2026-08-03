@@ -83,6 +83,27 @@ public sealed record ExportPreset
     /// <summary>Write the Unity-side importer script beside the sheet.</summary>
     public bool WriteImporter { get; init; } = true;
 
+    // ---- normal map ---------------------------------------------------------
+
+    /// <summary>
+    /// Also write a tangent-space normal map beside the sheet, as
+    /// <c>&lt;name&gt;_normal.png</c>.
+    /// </summary>
+    /// <remarks>
+    /// Off by default. It doubles the texture memory for the asset and most 2D games
+    /// do not light their sprites at all, so it is something an artist turns on for
+    /// the ones that do.
+    /// </remarks>
+    public bool NormalMap { get; init; }
+
+    /// <summary>How the normal map is generated. Ignored unless <see cref="NormalMap"/>.</summary>
+    /// <remarks>
+    /// Green defaults to OpenGL, which is what Unity reads. The Unity target does not
+    /// override it — a flipped green is a thing an artist should be able to see and set,
+    /// not a thing that changes silently under them when they pick an engine.
+    /// </remarks>
+    public NormalMapOptions Normal { get; init; } = new();
+
     /// <summary>
     /// The three presets an artist should not have to invent.
     /// </summary>

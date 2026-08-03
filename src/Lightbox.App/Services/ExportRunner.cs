@@ -79,11 +79,16 @@ public static class ExportRunner
     private static ExportRun Sheet(Doc doc, ExportPreset preset, string sheetPath)
     {
         var result = SpriteSheetExporter.Export(doc, sheetPath, SheetOptions(preset));
-        return new ExportRun(
-            [result.SheetPath, result.MetadataPath],
-            SummaryOf(result),
-            result.OmittedLayers,
-            result.SuspectedBackgrounds);
+        var files = new List<string> { result.SheetPath, result.MetadataPath };
+        var summary = SummaryOf(result);
+
+        if (preset.NormalMap)
+        {
+            files.Add(NormalMapWriter.Write(result.SheetPath, preset.Normal));
+            summary += ", + normal map";
+        }
+
+        return new ExportRun(files, summary, result.OmittedLayers, result.SuspectedBackgrounds);
     }
 
     private static ExportRun Unity(Doc doc, ExportPreset preset, string sheetPath)
@@ -96,6 +101,7 @@ public static class ExportRunner
 
         var files = new List<string> { result.SheetPath, result.MetadataPath };
         if (result.ImporterPath is { } importer) files.Add(importer);
+        if (preset.NormalMap) files.Add(NormalMapWriter.Write(result.SheetPath, preset.Normal));
 
         // The report comes off the sheet result the Unity export already produced.
         // Exporting again to get it would rewrite the sidecar and strip the Unity

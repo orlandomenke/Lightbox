@@ -334,6 +334,106 @@ public class ExportWindowTests : IDisposable
         Assert.Empty(ExportPresetStore.Load());
     }
 
+    // ---- normal maps --------------------------------------------------------------
+
+    [Fact]
+    public void ASheetPresetWithANormalMapWritesItBesideTheSheet()
+    {
+        var run = ExportRunner.Run(
+            Walking(), new ExportPreset { Name = "n", NormalMap = true },
+            Path.Combine(_dir, "hero.png"));
+
+        Assert.Equal(3, run.Files.Count);
+        var map = run.Files[2];
+        Assert.EndsWith("hero_normal.png", map);
+        Assert.True(File.Exists(map));
+        Assert.Contains("normal map", run.Summary);
+    }
+
+    [Fact]
+    public void ThereIsNoNormalMapUnlessItIsAskedFor()
+    {
+        // Off by default: it doubles the asset's texture memory and most 2D games do not
+        // light their sprites at all.
+        var run = ExportRunner.Run(
+            Walking(), new ExportPreset { Name = "n" }, Path.Combine(_dir, "plain.png"));
+
+        Assert.Equal(2, run.Files.Count);
+        Assert.False(File.Exists(NormalMapWriter.PathFor(Path.Combine(_dir, "plain.png"))));
+    }
+
+    [Fact]
+    public void TheMapIsTheSameSizeAsTheSheetItCameFrom()
+    {
+        // Derived from the finished sheet rather than re-composed, so it lines up cell
+        // for cell by construction. A map one pixel out of register with its albedo puts
+        // a bright rim on every silhouette.
+        var run = ExportRunner.Run(
+            Walking(4),
+            new ExportPreset { Name = "n", NormalMap = true, Trim = SpriteTrim.PerFrame, Pack = SpritePack.Skyline },
+            Path.Combine(_dir, "reg.png"));
+
+        using var sheet = SkiaSharp.SKBitmap.Decode(run.Files[0]);
+        using var map = SkiaSharp.SKBitmap.Decode(run.Files[2]);
+
+        Assert.Equal(sheet.Width, map.Width);
+        Assert.Equal(sheet.Height, map.Height);
+    }
+
+    [Fact]
+    public void AUnityPresetGetsTheMapTooAndStillKeepsItsBlock()
+    {
+        var run = ExportRunner.Run(
+            Walking(2),
+            new ExportPreset { Name = "n", Target = ExportTarget.Unity, NormalMap = true },
+            Path.Combine(_dir, "un.png"));
+
+        Assert.Equal(4, run.Files.Count);
+        Assert.Contains(run.Files, f => f.EndsWith("un_normal.png"));
+        Assert.Contains("\"unity\"", File.ReadAllText(run.Files[1]));
+    }
+
+    [AvaloniaFact]
+    public void TheMapSettingsAppearOnlyOnceTheMapIsAskedFor()
+    {
+        // One line until somebody wants four. And absent entirely for a PNG sequence,
+        // which has no sheet to map.
+        var window = new ExportWindow();
+
+        window.ShowForTests(new ExportPreset { Name = "s", Target = ExportTarget.SpriteSheet });
+        Assert.False(window.NormalRowsVisibleForTests);
+
+        window.TickNormalMapForTests(true);
+        Assert.True(window.NormalRowsVisibleForTests);
+
+        window.ShowForTests(new ExportPreset
+        {
+            Name = "seq", Target = ExportTarget.PngSequence, NormalMap = true,
+        });
+        Assert.False(window.NormalRowsVisibleForTests);
+    }
+
+    [AvaloniaFact]
+    public void TheGreenConventionRoundTripsThroughTheWindow()
+    {
+        // The setting a flipped default would silently break, so it is asserted in both
+        // directions rather than only on the non-default one.
+        var window = new ExportWindow();
+
+        window.ShowForTests(new ExportPreset
+        {
+            Name = "u", NormalMap = true,
+            Normal = new NormalMapOptions(Green: NormalGreen.DirectX, BevelPixels: 3, Strength: 2),
+        });
+        var dx = window.GatherForTests();
+        Assert.Equal(NormalGreen.DirectX, dx.Normal.Green);
+        Assert.Equal(3, dx.Normal.BevelPixels, 6);
+        Assert.Equal(2, dx.Normal.Strength, 6);
+
+        window.ShowForTests(new ExportPreset { Name = "g", NormalMap = true });
+        Assert.Equal(NormalGreen.OpenGl, window.GatherForTests().Normal.Green);
+    }
+
     [AvaloniaFact]
     public void AGarbledNumberFallsBackRatherThanRefusingTheExport()
     {

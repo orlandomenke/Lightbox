@@ -55,6 +55,28 @@
 
     <TextBlock x:Name="BackgroundHint" TextWrapping="Wrap" FontSize="10" Opacity="0.6" />
 
+    <StackPanel x:Name="NormalPanel" Spacing="6">
+      <CheckBox x:Name="NormalMapBox" Content="Also write a normal map"
+                IsCheckedChanged="OnNormalMapChanged"
+                ToolTip.Tip="A tangent-space normal map beside the sheet, as &lt;name&gt;_normal.png, so an engine can light the sprite." />
+      <Grid ColumnDefinitions="120,*" ColumnSpacing="8" RowSpacing="6"
+            RowDefinitions="Auto,Auto,Auto" x:Name="NormalRows">
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Bevel" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="6">
+          <TextBox x:Name="BevelBox" Width="70" />
+          <TextBlock Text="px in from the edge" VerticalAlignment="Center" Opacity="0.7" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Strength" VerticalAlignment="Center" />
+        <TextBox Grid.Row="1" Grid.Column="1" x:Name="NormalStrengthBox" Width="70"
+                 HorizontalAlignment="Left" />
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Green points" VerticalAlignment="Center" />
+        <ComboBox Grid.Row="2" Grid.Column="1" x:Name="GreenBox" HorizontalAlignment="Stretch"
+                  ToolTip.Tip="Get this backwards and lighting looks inverted — every bevel reads as a groove. Unity wants OpenGL; Unreal wants DirectX." />
+      </Grid>
+    </StackPanel>
+
     <!-- Unity only. Absent rather than disabled: a control that does nothing
          teaches an artist that the controls lie. -->
     <StackPanel x:Name="EnginePanel" Spacing="8" IsVisible="False">

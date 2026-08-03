@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1968 tests, derived from the suite itself. Each line is a
+1996 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -599,6 +599,18 @@ regression even when every test still compiles.
 - Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:100`
 - Open Document Tab Uses File Name And Keeps Existing Tabs — `:119`
 
+## ExportConfigPageTests
+`tests/Lightbox.App.Tests/ExportConfigPageTests.cs`
+
+- The Export Page Is The One That Shows At Its Index — `:65`
+- It Opens Showing What Is Stored Rather Than ADefault — `:77`
+- The Toggle Writes Back And Persists — `:95`
+- Changing The Trigger Status Writes The Status And Not The Index — `:109`
+- The Preset Picker Offers The Built Ins And The Artists Own — `:123`
+- The Preset List Is Reread Each Time The Page Is Opened — `:140`
+- An Empty Folder Means Unset Rather Than The Working Directory — `:157`
+- Loading The Page Does Not Itself Change Anything — `:173`
+
 ## ExportPinTests
 `tests/Lightbox.App.Tests/ExportPinTests.cs`
 
@@ -627,7 +639,13 @@ regression even when every test still compiles.
 - Saving Over An Existing Name Replaces It Rather Than Adding ASecond Row — `:302`
 - ABlank Name Saves Nothing — `:316`
 - ABuilt In Cannot Be Deleted — `:324`
-- AGarbled Number Falls Back Rather Than Refusing The Export — `:338`
+- ASheet Preset With ANormal Map Writes It Beside The Sheet — `:340`
+- There Is No Normal Map Unless It Is Asked For — `:354`
+- The Map Is The Same Size As The Sheet It Came From — `:366`
+- AUnity Preset Gets The Map Too And Still Keeps Its Block — `:384`
+- The Map Settings Appear Only Once The Map Is Asked For — `:397`
+- The Green Convention Round Trips Through The Window — `:417`
+- AGarbled Number Falls Back Rather Than Refusing The Export — `:438`
 
 ## FileRevealTests
 `tests/Lightbox.App.Tests/FileRevealTests.cs`
@@ -2017,6 +2035,24 @@ regression even when every test still compiles.
 - Length Mismatch Inflates Cost — `:42`
 - Unmatched Pair With Null — `:52`
 - Empty Frames Produce Only One Sided Pairs — `:60`
+
+## NormalMapTests
+`tests/Lightbox.Core.Tests/NormalMapTests.cs`
+
+- The Distance Field Is Zero Outside And Grows Inward — `:40`
+- Both Sweeps Are Needed And The Second One Runs — `:62`
+- The Left Edge Faces Left And The Right Edge Faces Right — `:80`
+- Green Is Bright At The Top Under Open Gl And At The Bottom Under Direct X — `:99`
+- The Two Conventions Differ Only In Green — `:130`
+- The Flat Interior Points Straight Out And The Outside Is Flat Not Black — `:155`
+- Alpha Is Carried Through So The Map Masks Like The Sprite — `:176`
+- AWider Bevel Tilts Further From The Edge — `:191`
+- More Strength Tilts Further Without Moving The Bevel — `:223`
+- ARounded Edge Has No Crease Where AChamfer Does — `:240`
+- The Same Silhouette Gives Byte Identical Output — `:274`
+- The Preview Light Is Not Baked Into The Map — `:286`
+- ABevel From The Silhouette Needs No Dependency — `:311`
+- ADegenerate Size Is Not ACrash — `:332`
 
 ## OnionSkinTests
 `tests/Lightbox.Core.Tests/OnionSkinTests.cs`

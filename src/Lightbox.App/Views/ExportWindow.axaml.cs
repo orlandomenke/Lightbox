@@ -56,6 +56,7 @@ public partial class ExportWindow : Window
             "Everything — keep the paper",
         };
         BackgroundBox.SelectionChanged += (_, _) => ShowBackgroundHint();
+        GreenBox.ItemsSource = new[] { "OpenGL — up (Unity, Godot)", "DirectX — down (Unreal)" };
 
         Reload();
     }
@@ -124,6 +125,11 @@ public partial class ExportWindow : Window
         WorldHeightBox.Text = preset.WorldHeightUnits.ToString("0.###");
         WriteImporterBox.IsChecked = preset.WriteImporter;
 
+        NormalMapBox.IsChecked = preset.NormalMap;
+        BevelBox.Text = preset.Normal.BevelPixels.ToString("0.###");
+        NormalStrengthBox.Text = preset.Normal.Strength.ToString("0.###");
+        GreenBox.SelectedIndex = preset.Normal.Green == NormalGreen.DirectX ? 1 : 0;
+
         ApplyVisibility();
         ShowBackgroundHint();
     }
@@ -161,7 +167,14 @@ public partial class ExportWindow : Window
         },
         WorldHeightUnits = double.TryParse(WorldHeightBox.Text, out var h) && h > 0 ? h : 1.0,
         WriteImporter = WriteImporterBox.IsChecked == true,
+        NormalMap = NormalMapBox.IsChecked == true,
+        Normal = new NormalMapOptions(
+            BevelPixels: double.TryParse(BevelBox.Text, out var bevel) && bevel > 0 ? bevel : 6,
+            Strength: double.TryParse(NormalStrengthBox.Text, out var st) && st > 0 ? st : 1.0,
+            Green: GreenBox.SelectedIndex == 1 ? NormalGreen.DirectX : NormalGreen.OpenGl),
     };
+
+    private void OnNormalMapChanged(object? sender, RoutedEventArgs e) => ApplyVisibility();
 
     private void OnTargetChanged(object? sender, SelectionChangedEventArgs e) => ApplyVisibility();
 
@@ -179,6 +192,11 @@ public partial class ExportWindow : Window
             control.IsVisible = preset.UsesSheetSettings;
         }
         EnginePanel.IsVisible = preset.UsesEngineSettings;
+
+        // A PNG sequence has no sheet to map. The map's own settings appear only once it
+        // is asked for, so the panel is one line until somebody wants four.
+        NormalPanel.IsVisible = preset.UsesSheetSettings;
+        NormalRows.IsVisible = preset.UsesSheetSettings && NormalMapBox.IsChecked == true;
     }
 
     private void ShowBackgroundHint()
@@ -271,4 +289,12 @@ public partial class ExportWindow : Window
     internal bool SheetRowsVisibleForTests => TrimBox.IsVisible;
 
     internal bool EngineRowsVisibleForTests => EnginePanel.IsVisible;
+
+    internal bool NormalRowsVisibleForTests => NormalRows.IsVisible;
+
+    internal void TickNormalMapForTests(bool on)
+    {
+        NormalMapBox.IsChecked = on;
+        ApplyVisibility();
+    }
 }
