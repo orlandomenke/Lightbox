@@ -116,61 +116,26 @@ jobs:
 
       # ---- keep the quota from filling ------------------------------------------
       #
-      # One bundle is ~105 MB zipped, so a free account's entire 500 MB
-      # allowance is four builds, and `retention-days` alone cannot save it:
-      # retention is time-based and the accumulation here is per-push.
+      # One bundle is ~105 MB zipped, so `retention-days` alone cannot hold the
+      # line: retention is time-based and the accumulation here is per-push.
       #
-      # This prunes by count instead, and it runs BEFORE the upload on purpose.
-      # Pruning afterwards deadlocks — once the quota is full the upload fails,
-      # and the step that would have freed the space never runs. That is
-      # precisely how the three builds before this one died.
+      # It runs BEFORE the upload on purpose. Pruning afterwards deadlocks —
+      # once the quota is full the upload fails, and the step that would have
+      # freed the space never runs.
       #
-      # Two rules, both narrow enough to be safe:
-      #   1. this branch keeps at most KEEP bundles including the one about to
-      #      be uploaded, so KEEP-1 survive the prune;
-      #   2. any `branch-` bundle older than STALE_DAYS goes, whatever branch it
-      #      came from. Abandoned feature branches are where the storage
-      #      actually goes and nothing else ever collects them.
-      # Release and bugfix bundles are never touched by rule 2.
+      # The policy lives in .github/scripts/prune-artifacts.sh so the cleanup
+      # button runs exactly the same rules. HEADROOM_MB is the one thing only
+      # this caller wants: leave room for the bundle about to be uploaded.
       - name: Prune older artifacts before uploading
         continue-on-error: true       # never fail a build over housekeeping
         env:
           GH_TOKEN: ${{ github.token }}
-          PREFIX: ${{ steps.designation.outputs.prefix }}
           KEEP: 3
           STALE_DAYS: 7
+          BUDGET_MB: 1500
+          HEADROOM_MB: 200
         shell: bash
-        run: |
-          set -uo pipefail
-          ALL=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
-                  --jq '.artifacts[] | select(.expired == false)
-                        | [.id, .name, .created_at, .size_in_bytes] | @tsv') || {
-            echo "could not list artifacts — skipping the prune"; exit 0; }
-
-          COUNT=$(printf '%s' "$ALL" | grep -c . || true)
-          TOTAL=$(printf '%s\n' "$ALL" | awk -F'\t' '{s+=$4} END {printf "%.0f", s/1048576}')
-          echo "::notice::Artifact storage in use: ${TOTAL:-0} MB across ${COUNT} artifacts"
-
-          delete() {
-            while IFS=$'\t' read -r id name created size; do
-              [ -n "${id:-}" ] || continue
-              printf 'deleting %s (%s, %s MB)\n' "$name" "$created" "$((size / 1048576))"
-              gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" >/dev/null || true
-            done
-          }
-
-          # 1 · this branch, newest first, keep KEEP-1 (the upload adds one back)
-          printf '%s\n' "$ALL" \
-            | awk -F'\t' -v p="$PREFIX" 'index($2, p) == 1' \
-            | sort -t$'\t' -k3,3r \
-            | tail -n +"$KEEP" \
-            | delete
-
-          # 2 · stale throwaway bundles from any branch
-          CUTOFF=$(date -u -d "-${STALE_DAYS} days" +%Y-%m-%dT%H:%M:%SZ)
-          printf '%s\n' "$ALL" \
-            | awk -F'\t' -v c="$CUTOFF" '$2 ~ /^Lightbox-win-x64-branch-/ && $3 < c' \
-            | delete
+        run: bash .github/scripts/prune-artifacts.sh
 
       - uses: actions/upload-artifact@v5
         with:

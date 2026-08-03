@@ -32,7 +32,19 @@ Every code push builds a self-contained Windows bundle in CI:
 
 **How long a bundle lasts.** One is about 105 MB, so they are pruned rather than kept: a branch keeps its **3 newest**, `main`'s are kept 30 days and everyone else's 5, and any feature-branch bundle over a week old is deleted whatever branch it came from. A documentation-only push does not build one at all. If you need a bundle for a commit that has aged out, re-run the workflow from the Actions tab (**Run workflow**) — `workflow_dispatch` always builds.
 
-**If the storage quota fills anyway**, run **Actions ▸ cleanup artifacts ▸ Run workflow**. It prunes on its own without building anything, which matters because the build workflow's own prune cannot rescue a full quota — that prune runs beside an upload, and once the quota is full the upload fails first. Defaults match the automatic policy (keep 3 per branch, sweep feature-branch bundles over 7 days); set **keep** to `0` to clear everything, or tick **dry run** to see the list first. It reports what it freed in the run summary. GitHub recalculates usage every 6–12 hours, so a build started immediately afterwards may still be refused even though the space is genuinely free.
+**If the storage quota fills anyway**, run **Actions ▸ cleanup artifacts ▸ Run workflow**. It prunes on its own without building anything, which matters because the build workflow's own prune cannot rescue a full quota — that prune runs beside an upload, and once the quota is full the upload fails first.
+
+Both share one policy, in `.github/scripts/prune-artifacts.sh`, and it has three rules:
+
+1. **Keep the newest N per branch** (default 3), across every branch — not just the one being built.
+2. **Sweep feature-branch bundles older than N days** (default 7). Release and bugfix bundles are exempt; age alone is not a reason to take one somebody kept on purpose.
+3. **Hold total storage under a budget** (default 1500 MB), deleting oldest-first until it fits. This is the safety valve: rules 1 and 2 keep storage flat once it is sane, but only rule 3 can unblock a quota that is already full.
+
+Set **keep** to `0` to clear everything, or tick **dry run** to see the list first. Either way it writes what it found and freed to the run summary.
+
+> **The button only appears when this workflow is on the repository's default branch.** `workflow_dispatch` is resolved from the default branch, so on a feature branch there is nothing to click however correct the file is.
+
+GitHub recalculates usage every 6–12 hours, so a build started immediately after a cleanup may still be refused even though the space is genuinely free.
 
 **If SmartScreen blocks it** (and policy hides "Run anyway"): SmartScreen only screens files carrying the Mark-of-the-Web download tag — remove the tag and it never triggers. Any of these work without admin:
 

@@ -2,10 +2,14 @@ name: cleanup artifacts
 
 # A button in the Actions tab, for when the storage quota has filled and the
 # build workflow's own prune cannot rescue it — once the quota is full an
-# upload fails, and the prune that runs beside an upload never gets to help.
-# This runs on its own, needs no build, and takes about ten seconds.
+# upload fails, and the prune that runs beside an upload never gets the chance.
+# This runs on its own, builds nothing, and takes about ten seconds.
 #
 # Actions ▸ cleanup artifacts ▸ Run workflow.
+#
+# NOTE: workflow_dispatch only shows a Run workflow button when this file is on
+# the repository's DEFAULT branch. On a feature branch it is invisible, however
+# correct it is.
 on:
   workflow_dispatch:
     inputs:
@@ -15,6 +19,9 @@ on:
       stale_days:
         description: 'Also delete feature-branch bundles older than N days (0 to skip)'
         default: '7'
+      budget_mb:
+        description: 'Ceiling for total storage — oldest go first until it fits (0 to skip)'
+        default: '1500'
       dry_run:
         description: 'List what would go without deleting anything'
         type: boolean
@@ -28,94 +35,17 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
+      # Only the script is needed, so keep the checkout shallow and sparse.
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
       - name: Prune
         env:
           GH_TOKEN: ${{ github.token }}
           KEEP: ${{ inputs.keep }}
           STALE_DAYS: ${{ inputs.stale_days }}
+          BUDGET_MB: ${{ inputs.budget_mb }}
           DRY_RUN: ${{ inputs.dry_run }}
         shell: bash
-        run: |
-          set -uo pipefail
-
-          # The inputs are free text, and a non-numeric one would make awk
-          # compare a count against a string and delete the wrong things.
-          # Fall back to the safe defaults rather than guessing.
-          case "$KEEP" in ''|*[!0-9]*) echo "keep='$KEEP' is not a number — using 3"; KEEP=3 ;; esac
-          case "$STALE_DAYS" in ''|*[!0-9]*) echo "stale_days='$STALE_DAYS' is not a number — using 0"; STALE_DAYS=0 ;; esac
-
-          ALL=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
-                  --jq '.artifacts[] | select(.expired == false)
-                        | [.id, .name, .created_at, .size_in_bytes] | @tsv')
-
-          # Only ever our own build bundles. Anything else a future workflow
-          # uploads is none of this button's business.
-          OURS=$(printf '%s\n' "$ALL" | awk -F'\t' '$2 ~ /^Lightbox-win-x64-/')
-
-          summary() { printf '%s\n' "$1" >> "$GITHUB_STEP_SUMMARY"; }
-
-          before_n=$(printf '%s' "$OURS" | grep -c . || true)
-          before_mb=$(printf '%s\n' "$OURS" | awk -F'\t' '{s+=$4} END {printf "%.0f", s/1048576}')
-          summary "## Before"
-          summary "\`$before_n\` bundles, **${before_mb:-0} MB**"
-
-          if [ "$before_n" -eq 0 ]; then
-            summary ""
-            summary "Nothing to do."
-            exit 0
-          fi
-
-          # Rule 1 — group by branch (the artifact name minus its trailing SHA),
-          # newest first, keep the first KEEP of each group.
-          RULE1=$(printf '%s\n' "$OURS" \
-            | awk -F'\t' 'BEGIN{OFS="\t"} { g=$2; sub(/-[^-]*$/, "", g); print g,$1,$2,$3,$4 }' \
-            | sort -t$'\t' -k1,1 -k4,4r \
-            | awk -F'\t' -v keep="$KEEP" 'BEGIN{OFS="\t"}
-                { if ($1 != prev) { n = 0; prev = $1 } n++; if (n > keep) print $2,$3,$4,$5 }')
-
-          # Rule 2 — stale throwaway bundles from any branch. Release and bugfix
-          # bundles are deliberately exempt: those are the ones somebody kept on
-          # purpose.
-          RULE2=""
-          if [ "$STALE_DAYS" -gt 0 ] 2>/dev/null; then
-            CUTOFF=$(date -u -d "-${STALE_DAYS} days" +%Y-%m-%dT%H:%M:%SZ)
-            RULE2=$(printf '%s\n' "$OURS" \
-              | awk -F'\t' -v c="$CUTOFF" '$2 ~ /^Lightbox-win-x64-branch-/ && $3 < c')
-          fi
-
-          DOOMED=$(printf '%s\n%s\n' "$RULE1" "$RULE2" | grep . | sort -u -t$'\t' -k1,1n)
-
-          if [ -z "$DOOMED" ]; then
-            summary ""
-            summary "Nothing matched — already within \`keep=$KEEP\`."
-            exit 0
-          fi
-
-          freed=0
-          summary ""
-          summary "## $([ "$DRY_RUN" = 'true' ] && echo 'Would delete' || echo 'Deleted')"
-          summary ""
-          summary "| Bundle | Created | MB |"
-          summary "| --- | --- | --- |"
-          while IFS=$'\t' read -r id name created size; do
-            [ -n "${id:-}" ] || continue
-            mb=$((size / 1048576))
-            if [ "$DRY_RUN" = 'true' ]; then
-              echo "would delete $name ($created, ${mb} MB)"
-            else
-              echo "deleting $name ($created, ${mb} MB)"
-              gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" >/dev/null \
-                || { echo "  failed, skipping"; continue; }
-            fi
-            freed=$((freed + mb))
-            summary "| \`$name\` | $created | $mb |"
-          done <<< "$DOOMED"
-
-          summary ""
-          if [ "$DRY_RUN" = 'true' ]; then
-            summary "**${freed} MB** would be freed. Nothing was deleted — untick *${{ github.workflow }}*'s dry run to do it."
-          else
-            summary "**${freed} MB** freed, leaving about **$((before_mb - freed)) MB**."
-            summary ""
-            summary "> GitHub recalculates quota usage every 6–12 hours, so a build started right now may still be refused even though the space is genuinely free."
-          fi
+        run: bash .github/scripts/prune-artifacts.sh
