@@ -2915,6 +2915,56 @@ public partial class MainWindow : Window
         _vm.AiStatus = $"Exported {written.Count} PNG frame(s).";
     }
 
+    /// <summary>
+    /// <c>File ▸ Export for a game engine…</c> — the entry point Pillar 5 did not have.
+    /// </summary>
+    /// <remarks>
+    /// Two steps on purpose: the settings, then the path. Asking for a filename first
+    /// and the format afterwards is how somebody ends up with a <c>.png</c> holding a
+    /// PNG sequence's folder name.
+    /// </remarks>
+    private async void OnExportSheetClicked(object? sender, RoutedEventArgs e)
+    {
+        var dialog = new ExportWindow();
+        await dialog.ShowDialog(this);
+        if (dialog.Chosen is not { } preset) return;
+
+        string path;
+        if (preset.Target == Services.ExportTarget.PngSequence)
+        {
+            var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "Export PNG sequence to folder",
+                AllowMultiple = false,
+            });
+            if (folders.Count == 0 || folders[0].TryGetLocalPath() is not { } dir) return;
+            path = dir;
+        }
+        else
+        {
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export sprite sheet",
+                SuggestedFileName = (_vm.ActiveTab?.Title ?? "sheet") + ".png",
+                DefaultExtension = "png",
+            });
+            if (file?.TryGetLocalPath() is not { } sheet) return;
+            path = sheet;
+        }
+
+        try
+        {
+            var run = await Task.Run(() => Services.ExportRunner.Run(_vm.Doc, preset, path));
+            _vm.AiStatus = _vm.DescribeExport(run);
+        }
+        catch (Exception ex)
+        {
+            // A failed export must say so in the status line rather than taking the
+            // window down. An unwritable path is the ordinary case, not a bug.
+            _vm.AiStatus = $"Export failed: {ex.Message}";
+        }
+    }
+
     // ---- guides -------------------------------------------------------------------
 
     /// <summary>

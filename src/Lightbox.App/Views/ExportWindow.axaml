@@ -1,0 +1,83 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.ExportWindow"
+        Title="Export"
+        Width="440" SizeToContent="Height" MaxHeight="700"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+  <StackPanel Margin="14" Spacing="10">
+
+    <!-- The preset row first, because the whole point of this window is that an
+         artist visits it once per project and presses Export after that. -->
+    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+      <TextBlock Grid.Column="0" Text="Preset" VerticalAlignment="Center" />
+      <ComboBox Grid.Column="1" x:Name="PresetBox" HorizontalAlignment="Stretch"
+                SelectionChanged="OnPresetChanged" />
+      <Button Grid.Column="2" Classes="text" Content="Delete" x:Name="DeletePresetButton"
+              Click="OnDeletePreset"
+              ToolTip.Tip="Only your own presets. The built-in three cannot be deleted." />
+    </Grid>
+
+    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+      <TextBlock Grid.Column="0" Text="Save as" VerticalAlignment="Center" />
+      <TextBox Grid.Column="1" x:Name="PresetNameBox"
+               PlaceholderText="Name — e.g. Knight atlas"
+               ToolTip.Tip="Keep these settings under a name, so the next export is one click." />
+      <Button Grid.Column="2" Classes="text" Content="Save" Click="OnSavePreset" />
+    </Grid>
+
+    <Separator />
+
+    <Grid ColumnDefinitions="120,*" RowSpacing="8" ColumnSpacing="8"
+          RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="Format" VerticalAlignment="Center" />
+      <ComboBox Grid.Row="0" Grid.Column="1" x:Name="TargetBox" HorizontalAlignment="Stretch"
+                SelectionChanged="OnTargetChanged" />
+
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="Trim" VerticalAlignment="Center"
+                 x:Name="TrimLabel" />
+      <ComboBox Grid.Row="1" Grid.Column="1" x:Name="TrimBox" HorizontalAlignment="Stretch" />
+
+      <TextBlock Grid.Row="2" Grid.Column="0" Text="Layout" VerticalAlignment="Center"
+                 x:Name="PackLabel" />
+      <ComboBox Grid.Row="2" Grid.Column="1" x:Name="PackBox" HorizontalAlignment="Stretch" />
+
+      <TextBlock Grid.Row="3" Grid.Column="0" Text="Padding" VerticalAlignment="Center"
+                 x:Name="PaddingLabel" />
+      <TextBox Grid.Row="3" Grid.Column="1" x:Name="PaddingBox" Width="70"
+               HorizontalAlignment="Left"
+               ToolTip.Tip="Transparent gutter around each cell, in pixels. Stops an engine's bilinear filtering bleeding one sprite into the next." />
+
+      <TextBlock Grid.Row="4" Grid.Column="0" Text="Background" VerticalAlignment="Center"
+                 x:Name="BackgroundLabel" />
+      <ComboBox Grid.Row="4" Grid.Column="1" x:Name="BackgroundBox" HorizontalAlignment="Stretch" />
+    </Grid>
+
+    <TextBlock x:Name="BackgroundHint" TextWrapping="Wrap" FontSize="10" Opacity="0.6" />
+
+    <!-- Unity only. Absent rather than disabled: a control that does nothing
+         teaches an artist that the controls lie. -->
+    <StackPanel x:Name="EnginePanel" Spacing="8" IsVisible="False">
+      <Separator />
+      <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Text="Canvas height" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+          <TextBox x:Name="WorldHeightBox" Width="70" />
+          <TextBlock Text="world units" VerticalAlignment="Center" Opacity="0.7" />
+        </StackPanel>
+      </Grid>
+      <CheckBox x:Name="WriteImporterBox"
+                Content="Write the Unity importer script beside the sheet"
+                ToolTip.Tip="Never overwritten once it is there — you may have adjusted it." />
+      <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+                 Text="Needs Unity's 2D Sprite package, which every 2D template has. Lightbox never writes a .meta file — Unity owns those." />
+    </StackPanel>
+
+    <Separator />
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Cancel" Click="OnCancel" />
+      <Button Content="Export…" Click="OnExport" IsDefault="True" />
+    </StackPanel>
+  </StackPanel>
+</Window>

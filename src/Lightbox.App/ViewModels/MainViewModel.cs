@@ -6523,6 +6523,46 @@ public sealed partial class MainViewModel : ObservableObject
     private void ClearActiveLayer() => ClearLayerContent(ActiveLayer);
 
     /// <summary>
+    /// One status line for a finished export, including what it left out.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The omissions are in the sentence rather than behind a dialog, and that is the
+    /// point of reporting them at all: "a layer I wanted is missing" is invisible in
+    /// the sheet and surfaces in the engine, on a build, days later. Naming the layers
+    /// is what turns that into something an artist notices now.
+    /// </para>
+    /// <para>
+    /// Names, not a count. "2 layers left out" is exactly as unhelpful as silence when
+    /// the question is <em>which</em>.
+    /// </para>
+    /// </remarks>
+    public string DescribeExport(Lightbox.App.Services.ExportRun run)
+    {
+        var parts = new List<string> { run.Summary };
+
+        if (run.Omitted.Count > 0)
+        {
+            var named = run.Omitted.Select(o => $"{o.Name} ({Reason(o.Signal)})");
+            parts.Add("left out: " + string.Join(", ", named));
+        }
+        if (run.Suspected.Count > 0)
+        {
+            parts.Add("kept but looks like a background: "
+                      + string.Join(", ", run.Suspected.Select(s => s.Name)));
+        }
+        return string.Join(" — ", parts);
+
+        static string Reason(Lightbox.Core.Export.BackgroundSignal signal) => signal switch
+        {
+            Lightbox.Core.Export.BackgroundSignal.Pinned => "never export",
+            Lightbox.Core.Export.BackgroundSignal.Paper => "paper",
+            Lightbox.Core.Export.BackgroundSignal.Hidden => "hidden",
+            _ => "fills the canvas",
+        };
+    }
+
+    /// <summary>
     /// Pin a layer out of exports, into them, or back to letting the export decide.
     /// </summary>
     /// <param name="pin">

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1923 tests, derived from the suite itself. Each line is a
+1941 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -585,6 +585,28 @@ regression even when every test still compiles.
 - Pinning Is One Undo Step And Marks The Document Dirty — `:49`
 - Setting The Pin It Already Has Does Nothing — `:65`
 - APinned Layer Is Left Out Of The Sheet It Would Otherwise Appear In — `:81`
+
+## ExportWindowTests
+`tests/Lightbox.App.Tests/ExportWindowTests.cs`
+
+- APreset Round Trips Through The File — `:66`
+- The Built Ins Are Never Written To The File — `:89`
+- ACorrupt File Leaves AWorking App Rather Than ADialog — `:103`
+- ANameless Preset Is Dropped Rather Than Shown As ABlank Row — `:112`
+- The Built Ins Take The Positions This Pillar Already Argued For — `:119`
+- ASheet Preset Writes The Image And The Sidecar — `:141`
+- AUnity Preset Also Writes The Importer And Keeps Its Block — `:155`
+- AUnity Preset Still Reports What It Left Out — `:172`
+- APng Sequence Preset Writes Frames And Reports No Omissions — `:186`
+- The Status Line Names The Layers It Left Out — `:204`
+- An Export With Nothing Left Out Says Only What It Made — `:227`
+- The Controls Round Trip APreset — `:238`
+- What Does Not Apply Is Hidden Rather Than Disabled — `:268`
+- Saving APreset Keeps It And Selects It — `:289`
+- Saving Over An Existing Name Replaces It Rather Than Adding ASecond Row — `:302`
+- ABlank Name Saves Nothing — `:316`
+- ABuilt In Cannot Be Deleted — `:324`
+- AGarbled Number Falls Back Rather Than Refusing The Export — `:338`
 
 ## FileRevealTests
 `tests/Lightbox.App.Tests/FileRevealTests.cs`

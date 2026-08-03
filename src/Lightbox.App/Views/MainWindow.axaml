@@ -192,6 +192,8 @@
         <MenuItem Header="Export _document…" Click="OnExportDocumentClicked"
                   ToolTip.Tip="A standalone .lightbox.json with every shared palette and gradient it uses inlined" />
         <MenuItem Header="_Export PNGs…" Click="OnExportClicked" />
+        <MenuItem Header="Export for a _game engine…" Click="OnExportSheetClicked"
+                  ToolTip.Tip="Sprite sheet, sidecar and optional Unity importer. Trim, layout and background handling live here." />
       </MenuItem>
       <MenuItem Header="_Edit">
         <MenuItem Header="_Configure…" Click="OnConfigureClicked" />

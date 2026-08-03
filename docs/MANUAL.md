@@ -1354,17 +1354,38 @@ this page at all.
 | **Save as…** | Picks a new path. |
 | **Export document…** | Writes a standalone `.lightbox.json` with every referenced swatch, gradient, brush tip and clip region **inlined**. |
 | **Export PNGs…** | Every frame as a numbered PNG, into a folder you pick. |
+| **Export for a game engine…** | Sprite sheet, sidecar, and optionally the Unity importer. |
 
-### Sprite sheets and game engines — no menu item yet
+### Export for a game engine
 
-Everything below is **built and tested, and has no command in the File menu**.
-The sheet writer, the packer, the sidecar, the anchors, the collision rectangles
-and the Unity importer are all reachable from an agent over MCP and from code,
-and *not* from the interface. The export window that gathers them into one
-action — scope, trim, layout, background handling, engine — is the next piece of
-work, and until it lands this section describes capability rather than a
-workflow. It is written down here because the alternative is a manual that
-implies a menu item you will go looking for.
+**File ▸ Export for a game engine…** asks two things in order — the settings,
+then where to put it. Settings first on purpose: choosing a filename before a
+format is how you end up with a `.png` holding a folder name.
+
+| | |
+| --- | --- |
+| **Format** | PNG sequence, sprite sheet, or sprite sheet + Unity. |
+| **Trim** | None, union (the default — one box for the whole sequence, so the character cannot jitter), or per frame. |
+| **Layout** | Grid, or packed. Packed is tighter on ragged frames and only readable through the sidecar. |
+| **Padding** | Transparent gutter around each cell, against an engine's filtering bleeding one sprite into the next. |
+| **Background** | See below. |
+
+Controls that do not apply are **not shown** — a PNG sequence has no cells and no
+atlas, so it gets no layout picker.
+
+#### Presets, which are the actual point
+
+"One click" is a claim about the *second* export. Three are built in:
+
+- **Character sprites** — union trim, grid, background detection on.
+- **Packed atlas** — per-frame trim, packed, one pixel of padding.
+- **Backdrop** — no trim, keep everything including the paper.
+
+Type a name and press **Save** to keep your own; they are marked **◈** and only
+yours can be deleted. The preset you exported with last is selected next time.
+
+When an export finishes, the status line says what came out — frame count, sheet
+size, layout — **and names every layer it left out**.
 
 **For Unity** the exporter writes the sheet, the sidecar and a small importer
 script. Drop them under `Assets/`, then **Assets ▸ Lightbox ▸ Import selected
@@ -1454,7 +1475,7 @@ a grid. There is also a **packed** layout that gives each frame its own size and
 fits them together — on ragged frames it is around a fifth smaller, measured. It
 is only readable through the sidecar's per-frame rectangles, so a packed sheet
 reports no grid at all rather than a column count that would look right and be
-wrong. *The layout has no control yet — it arrives with the one-click game export.*
+wrong.
 
 **Export document** is the escape hatch that matters. Inside a project, a
 document refers to shared resources by id, so a lone file is no longer
@@ -1554,6 +1575,27 @@ A symbol can hold several frames — a walk, a flicker, a blink. A placement of
 one advances with the timeline, and its **frame offset** shifts where in the
 cycle it starts, so one stored walk can carry two characters half a stride
 apart.
+
+#### Using a cycle as something to draw over
+
+A stored cycle makes a good **underlay**: a plain, unstyled base animation you
+draw the real thing on top of, updated in one place. It works today, in three
+steps:
+
+1. Make the cycle as a symbol — line only, no styling. Keep it global if more
+   than one project needs it.
+2. Place it on its own layer, below the one you will draw on. Drop that layer's
+   opacity so it reads as a guide.
+3. Right-click that layer → **In exports** → **Never export this layer**.
+
+Now the base cycle is a live link: fix the timing or the drawing once and every
+animation built over it follows, and none of them ship it. This is the
+base-character workflow — one "knight, no styling, 12-frame run", drawn over per
+shot.
+
+*A proper **reference layer** — one setting that ghosts it, keeps it out of
+exports and badges it in the Layers docker, instead of the three steps above — is
+Planned.*
 
 ### Editing one
 

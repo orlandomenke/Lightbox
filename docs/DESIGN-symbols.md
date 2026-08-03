@@ -208,3 +208,105 @@ approximation of it. Self-contained, and the same drawing.
 The cost, stated plainly: an exported document is no longer *only* strokes — a
 reader has to resolve placements to render it. That is the price of the export
 being the same mark as the original, and it is the cheaper of the two.
+
+---
+
+## Animated symbols as a reference underlay
+
+*Written up after the question "are symbols only single images, or could we make
+an animation symbol — a run cycle as reference?"*
+
+### The part that already exists
+
+**A symbol has always been able to hold an animation.** `Symbol.Frames` is a
+list, `Symbol.Fps` sets its rate, a placement advances with the timeline, and
+`SymbolPlacement.FrameOffset` shifts where in the cycle it starts — so one stored
+walk can carry two characters half a stride apart. Editing it opens a cel per
+frame and it is animated with the ordinary tools. So "an animation symbol" is not
+a feature to add; it is a symbol with more than one frame in it.
+
+What was missing is not the *animation*. It is the **underlay**: a reusable
+animation you draw over, that is never part of the artwork, and that updates
+everywhere when the source is edited.
+
+### The composition, and it is nearly complete
+
+Three parts exist independently and add up to almost the whole thing:
+
+| Part | State |
+| --- | --- |
+| A reusable, live-linked animation | `Symbol` with several frames. Built. |
+| Reference footage against the timeline | `ReferenceStrip` / `StripSlicer`. Built, for *imported* footage. |
+| A layer that never exports | `Layer.OmitFromExport = true`. Built, for backgrounds. |
+
+Place an animated symbol on a layer pinned out of exports and you have a
+reusable, live-updating, non-exporting animated underlay **today**. Edit the base
+run cycle once and every shot drawn over it follows; export and it is not there.
+
+That is the design, and the honest framing of the remaining work is that it is
+**presentation and discoverability, not mechanism**:
+
+1. **It reads as artwork.** A reference wants to look like a reference — the
+   onion-skin treatment, a flat tint at low opacity, not a full-strength drawing
+   competing with the line on top of it. Layer opacity gets part of the way and
+   is the wrong control for the job: it is a compositing value the artist may
+   also want for real reasons.
+2. **Nothing points at the workflow.** No menu says "use this as a reference",
+   so an artist would have to invent the three-step recipe. A feature nobody can
+   find is not shipped, whatever the record can express.
+3. **It is not obviously non-exporting.** The pin is right, but "this layer is a
+   guide" and "do not export this layer" are the same setting wearing one label,
+   and the first is what the artist means.
+
+### The shape it should take: `LayerRole`
+
+A nullable role on `Layer` — the camera's rule, absent until used — with one
+value to start: `Reference`.
+
+```
+Layer.Role = LayerRole.Reference
+  → rendered as a ghost (the onion-skin path, not layer opacity)
+  → never exported (implies the existing pin, without spending it)
+  → refuses paint? No — see below
+  → shown in the Layers docker with the reference badge, not a hidden flag
+```
+
+Three decisions worth settling now, because they are the ones that will be got
+wrong later:
+
+- **A reference layer is not locked.** Roughing *on* the reference before
+  committing on a clean layer is a real way to work, and locking it would make
+  the feature narrower than the underlay it replaces.
+- **The role implies the export pin rather than replacing it.** They stay
+  separate fields: an artist can pin an ordinary layer out of exports without
+  making it a ghost, and that is a different intention.
+- **Ghost rendering goes through the onion-skin path**, not through a second
+  tinting implementation. There is one way to draw "this is not the current
+  drawing" in this application and adding a second would let them drift.
+
+### Why this serves the on-model goal too
+
+The question also noted that a reference document is meant to keep drawings **on
+character**, so it serves more than one goal. That is right, and it is why this
+should not become a fourth parallel feature. There are two presentations of one
+idea:
+
+- **A reference you look at** — the character sheet, `ReferenceSheet`, in its own
+  tab. On-model checking, turnarounds, expression sheets.
+- **A reference you draw over** — the same art, on the canvas, under the line,
+  aligned to the timeline.
+
+The base-character case the question describes — an unstyled, line-only rig whose
+cycles are drawn over per shot and updated centrally — is the second presentation
+of the first idea, and it is the strongest argument for the role: a studio's
+"base knight, no styling, 12-frame run" is one global symbol, and every animation
+that uses it is a layer pointing at it.
+
+### Not doing
+
+- A *second* record for animated references. `Symbol` already is one, and a
+  parallel `ReferenceAnimation` would be the mistake Q11's "reusable animation
+  presets" was struck for: a feature nothing can distinguish from a shipped one.
+- Onion skin *of* a reference layer. A ghost of a ghost is unreadable, and the
+  reference already shows the whole cycle by advancing with the timeline.
+- Auto-tracing a reference. That is inbetweening pointed at the wrong problem.

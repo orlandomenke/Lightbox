@@ -36,6 +36,18 @@ public class BrushStateCollection;
 public class FrameCacheBudgetCollection;
 
 /// <summary>
+/// Tests that redirect <c>ExportPresetStore.PathOverride</c>.
+/// </summary>
+/// <remarks>
+/// The third instance of the same hazard, after the frame-cache budget and the AI
+/// settings path: a process-wide static that xUnit's class-level parallelism lets two
+/// classes fight over. A try/finally restore does not help, because the damage happens
+/// <em>while</em> the other value is set.
+/// </remarks>
+[CollectionDefinition("ExportPresetFile", DisableParallelization = true)]
+public class ExportPresetFileCollection;
+
+/// <summary>
 /// Restores the process-wide state a test may mutate: the brush store, and the
 /// application settings.
 /// </summary>

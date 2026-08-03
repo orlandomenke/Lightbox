@@ -18,12 +18,18 @@ public sealed record UnityExportOptions(
     public SpriteSheetOptions Sheet { get; init; } = new();
 }
 
+/// <param name="Sheet">
+/// The underlying sheet export, whole. Carried rather than summarised because a
+/// caller that wanted the omitted-layer report would otherwise export a second time
+/// to get it — which would rewrite the sidecar and strip the Unity block off it.
+/// </param>
 public sealed record UnityExportResult(
     string SheetPath,
     string MetadataPath,
     string? ImporterPath,
     int SpriteCount,
-    int ClipCount);
+    int ClipCount,
+    SpriteSheetResult? Sheet = null);
 
 /// <summary>
 /// Export for Unity: the atlas, the sidecar, and a Unity-side importer.
@@ -256,7 +262,8 @@ public static class UnityExporter
         }
 
         return new UnityExportResult(
-            sheet.SheetPath, sheet.MetadataPath, importerPath, block.Sprites.Count, block.Clips?.Count ?? 0);
+            sheet.SheetPath, sheet.MetadataPath, importerPath,
+            block.Sprites.Count, block.Clips?.Count ?? 0, sheet);
     }
 
     /// <summary>
