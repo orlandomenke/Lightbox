@@ -381,9 +381,16 @@ exists; the half that does not is what makes it *one* click.
 - [x] Export frame durations `evidence: SheetFrame, TheSidecarIsAsepriteShaped`
 - [x] Export metadata `evidence: SheetMeta, SpriteSheetResult`
 - [x] Pivot editor `evidence: Pivot, ThePivotIsRecordedPerCell_SoTrimmingCannotShiftTheCharacter`
-- [?] Multi-frame pivot editing
-- [?] Named pivot points
-- [?] Socket system
+- [x] Multi-frame pivot editing `evidence: Anchors, SetAcross, ClearAcross, AnchorTests, SettingAcrossARangeTouchesEveryDrawingInIt, AHeldDrawingIsVisitedOnceRatherThanTwice`
+  - Works on **drawings**, not cels: a range on 2s holds each drawing twice, and resolving through the exposure means a hold is visited once rather than edited twice. One position for the range rather than an interpolation — interpolating a socket needs two authored ends and a curve, and guessing it would make the simple case unpredictable.
+- [x] Named pivot points `evidence: Anchor, AnchorKind, AnchorPoint, Declare, AnAnchorRoundTripsThroughTheFile, ADocumentWithNoAnchorsCarriesNoAnchorKeys`
+  - `Scene.Pivot` stays the document's single unnamed pivot and is what an engine reads when nothing else is declared; a named anchor of kind `Pivot` is for a *second* one.
+- [x] Socket system `evidence: AnchorKind, ResolvedAt, AnAnchorIsExportedPerFrameByNameAndInsideTheCell, AnAnchorOnAHeldDrawingIsExportedOnEveryFrameItShows, PackingDoesNotMoveAnAnchorRelativeToItsCell`
+  - **The declaration and the positions live in different places, and that is the load-bearing choice.** `Scene.Anchors` holds the names, because a name is a property of the rig and renaming "left hand" must not touch a drawing. `Frame.Anchors` holds where the point *is*, because a hold, a re-time, a cel drag and a timing preset all move drawings around the sheet — an index-keyed table would silently point at the wrong drawing after any of them, and it would look like an animation bug. On the frame the anchor travels with its drawing for free, and a test re-times a range to prove it.
+  - Exported per frame, keyed by **name** rather than id, measured **inside the cell** like the pivot so trimming cannot move where a weapon attaches. Positions are stored in document pixels; normalising them into the record would bake the trim in and make a re-export at a different trim wrong.
+  - Exported and nothing more: parenting a GameObject to a socket is the engine's job. Lightbox owes the position.
+  - **`FrameConverter` names every property it writes, so a field added to `Frame` is silently dropped.** Cost one round-trip test to find. `WriteShared` now exists so the next base-class field is added in one place rather than two, with the hazard written down where somebody will hit it.
+  - **No canvas overlay yet** — the record, the range operation and the export are in; placing one by dragging on the canvas is the next step and is where the estimate for P5c's shape editor really lives.
 - [?] Hitbox editor
 - [?] Hurtbox editor
 - [?] Collision shapes

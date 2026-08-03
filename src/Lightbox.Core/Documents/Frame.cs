@@ -21,6 +21,24 @@ public abstract class Frame
     public string Id { get; set; } = Ids.NewId("f");
 
     public FrameRole Role { get; set; } = FrameRole.Key;
+
+    /// <summary>
+    /// Where this drawing's named anchors sit, keyed by <see cref="Anchor.Id"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On the frame rather than in a table keyed by frame index, and that is the
+    /// load-bearing choice: a hold, a re-time, a cel drag and a timing preset all
+    /// move drawings around the sheet, and an index-keyed table would silently
+    /// point at the wrong drawing after any of them. Here the anchor travels with
+    /// the drawing for free.
+    /// </para>
+    /// <para>
+    /// Null until an anchor is placed, and absent from the file until then — the
+    /// camera's rule. A document that never sockets anything writes no anchor key.
+    /// </para>
+    /// </remarks>
+    public Dictionary<string, AnchorPoint>? Anchors { get; set; }
 }
 
 /// <summary>A frame on a vector layer: strokes are the artwork.</summary>

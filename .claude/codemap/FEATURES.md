@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1791 tests, derived from the suite itself. Each line is a
+1808 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1275,6 +1275,10 @@ regression even when every test still compiles.
 - Packing The Same Document Twice Produces The Same File — `:381`
 - APacked Sheet Still Carries The Pivot Per Cell — `:396`
 - Padding Still Separates Every Sprite When Packed — `:420`
+- ADocument With No Anchors Writes No Anchor Key — `:441`
+- An Anchor Is Exported Per Frame By Name And Inside The Cell — `:448`
+- An Anchor On AHeld Drawing Is Exported On Every Frame It Shows — `:473`
+- Packing Does Not Move An Anchor Relative To Its Cell — `:492`
 
 ## StartScreenTests
 `tests/Lightbox.App.Tests/StartScreenTests.cs`
@@ -1623,6 +1627,23 @@ regression even when every test still compiles.
 - The New Menu Actually Makes Things — `:239`
 - The Reference Panel Is Absent Until It Is Asked For — `:282`
 - ACapped Strip Is No Wider Than Its Panels Can Use — `:298`
+
+## AnchorTests
+`tests/Lightbox.Core.Tests/AnchorTests.cs`
+
+- ADocument With No Anchors Carries No Anchor Keys — `:24`
+- Removing The Last Anchor Leaves The Document As It Was — `:33`
+- Deleting ADeclaration Clears Its Positions Too — `:49`
+- Setting Across ARange Touches Every Drawing In It — `:69`
+- AHeld Drawing Is Visited Once Rather Than Twice — `:86`
+- ARange Starting On AHold Still Sets The Drawing It Shows — `:110`
+- Clearing Across ARange Removes It And The Key With It — `:125`
+- ANon Range Is ANo Op — `:144`
+- An Anchor Travels With Its Drawing When The Timing Changes — `:154`
+- An Anchor Round Trips Through The File — `:174`
+- Resolving At AFrame Reads Through Holds — `:191`
+- An Upper Layer Wins When Two Place The Same Anchor — `:207`
+- No Declarations Means Nothing To Resolve — `:223`
 
 ## BrushCostTests
 `tests/Lightbox.Core.Tests/BrushCostTests.cs`

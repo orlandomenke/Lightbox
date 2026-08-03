@@ -38,14 +38,14 @@ public sealed class FrameConverter : JsonConverter<Frame>
             case VectorFrame v:
                 writer.WriteString("kind", "vector");
                 writer.WriteString("id", v.Id);
-                WriteRole(writer, v, options);
+                WriteShared(writer, v, options);
                 writer.WritePropertyName("strokes");
                 JsonSerializer.Serialize(writer, v.Strokes, options);
                 break;
             case PaintedFrame p:
                 writer.WriteString("kind", "painted");
                 writer.WriteString("id", p.Id);
-                WriteRole(writer, p, options);
+                WriteShared(writer, p, options);
                 writer.WriteString("pngBase64", p.PngBase64);
                 writer.WritePropertyName("strokes");
                 JsonSerializer.Serialize(writer, p.Strokes, options);
@@ -65,9 +65,28 @@ public sealed class FrameConverter : JsonConverter<Frame>
         writer.WriteEndObject();
     }
 
-    private static void WriteRole(Utf8JsonWriter writer, Frame frame, JsonSerializerOptions options)
+    /// <summary>
+    /// Everything declared on <see cref="Frame"/> itself, for both kinds.
+    /// </summary>
+    /// <remarks>
+    /// <b>This writer names every property it emits, so a field added to the base
+    /// class is silently dropped until it is named here.</b> That is the price of
+    /// the explicit writer — which is worth paying, because naming each key is
+    /// also the whole of the "a document that never uses X serializes exactly as
+    /// it did before X existed" promise. It cost one round-trip test to learn, and
+    /// this method exists so the next base-class field is added in one place
+    /// rather than two.
+    /// </remarks>
+    private static void WriteShared(Utf8JsonWriter writer, Frame frame, JsonSerializerOptions options)
     {
         writer.WritePropertyName("role");
         JsonSerializer.Serialize(writer, frame.Role, options);
+
+        // Only when something is anchored, so an unanchored document writes no key.
+        if (frame.Anchors is { Count: > 0 })
+        {
+            writer.WritePropertyName("anchors");
+            JsonSerializer.Serialize(writer, frame.Anchors, options);
+        }
     }
 }

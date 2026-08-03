@@ -132,6 +132,18 @@ public sealed class Scene
     /// </summary>
     public Pivot? Pivot { get; set; }
 
+    /// <summary>
+    /// Named anchors this document declares — the rig, not the positions.
+    /// </summary>
+    /// <remarks>
+    /// The names live here because a name is a property of the rig: renaming
+    /// "left hand" must not touch a drawing. Where each one *is* on a given
+    /// drawing is <see cref="Frame.Anchors"/>. Null until one is declared, so a
+    /// document that never uses them writes no key — the same rule
+    /// <see cref="Camera"/> and <see cref="Guides"/> follow.
+    /// </remarks>
+    public List<Anchor>? Anchors { get; set; }
+
     /// <summary>A layer's folder, or null.</summary>
     public LayerGroup? GroupOf(Layer layer) =>
         layer.GroupId is null ? null : LayerGroups.FirstOrDefault(g => g.Id == layer.GroupId);

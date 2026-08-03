@@ -434,4 +434,81 @@ public class SpriteSheetExportTests : IDisposable
             r.X + r.W + 2 <= packed.SheetWidth && r.Y + r.H + 2 <= packed.SheetHeight,
             "no gutter at the far edge"));
     }
+
+    // ---- P5b: named anchors in the sidecar ---------------------------------------
+
+    [Fact]
+    public void ADocumentWithNoAnchorsWritesNoAnchorKey()
+    {
+        var result = SpriteSheetExporter.Export(Walking(3), Path_("noanchor.png"));
+        Assert.DoesNotContain("\"anchors\"", File.ReadAllText(result.MetadataPath));
+    }
+
+    [Fact]
+    public void AnAnchorIsExportedPerFrameByNameAndInsideTheCell()
+    {
+        // Measured inside the cell like the pivot, and for the same reason:
+        // trimming must not be able to move where a weapon attaches.
+        var doc = Walking(4);
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        var hand = Anchors.Declare(doc.Scene, "leftHand");
+        Anchors.SetAcross(layer, 0, 4, hand.Id, new AnchorPoint(70, 60));
+
+        var result = SpriteSheetExporter.Export(
+            doc, Path_("anchor.png"), new SpriteSheetOptions { Trim = SpriteTrim.Union });
+
+        var frames = Meta(result).GetProperty("frames").EnumerateArray().ToList();
+        Assert.Equal(4, frames.Count);
+        foreach (var frame in frames)
+        {
+            var anchor = frame.GetProperty("anchors").GetProperty("leftHand");
+            var source = frame.GetProperty("spriteSourceSize");
+            // Cell-relative: the document position minus where the cell starts.
+            Assert.Equal(70 - source.GetProperty("x").GetInt32(), anchor.GetProperty("x").GetDouble());
+            Assert.Equal(60 - source.GetProperty("y").GetInt32(), anchor.GetProperty("y").GetDouble());
+        }
+    }
+
+    [Fact]
+    public void AnAnchorOnAHeldDrawingIsExportedOnEveryFrameItShows()
+    {
+        // A socket that vanished on every other frame would read as a rigging bug
+        // in the engine rather than an export one.
+        var doc = Walking(2);
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        layer.Cels[1].Frame = null;   // frame 1 holds frame 0
+        var hand = Anchors.Declare(doc.Scene, "muzzle");
+        Anchors.SetAcross(layer, 0, 1, hand.Id, new AnchorPoint(50, 50));
+
+        var result = SpriteSheetExporter.Export(doc, Path_("held.png"));
+
+        var frames = Meta(result).GetProperty("frames").EnumerateArray().ToList();
+        Assert.All(frames, f => Assert.True(
+            f.GetProperty("anchors").TryGetProperty("muzzle", out _),
+            "the held frame lost its anchor"));
+    }
+
+    [Fact]
+    public void PackingDoesNotMoveAnAnchorRelativeToItsCell()
+    {
+        // The same guard the pivot has, for the same reason: a new layout is
+        // exactly what quietly breaks a cell-relative offset.
+        var doc = Walking(4);
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        var hand = Anchors.Declare(doc.Scene, "hand");
+        Anchors.SetAcross(layer, 0, 4, hand.Id, new AnchorPoint(70, 60));
+
+        static (double X, double Y) AnchorOf(JsonElement meta) =>
+            meta.GetProperty("frames")[0].GetProperty("anchors").GetProperty("hand") is { } a
+                ? (a.GetProperty("x").GetDouble(), a.GetProperty("y").GetDouble())
+                : (0, 0);
+
+        var grid = SpriteSheetExporter.Export(
+            doc, Path_("ag.png"), new SpriteSheetOptions { Trim = SpriteTrim.Union });
+        var packed = SpriteSheetExporter.Export(
+            doc, Path_("ap.png"),
+            new SpriteSheetOptions { Trim = SpriteTrim.Union, Pack = SpritePack.Skyline });
+
+        Assert.Equal(AnchorOf(Meta(grid)), AnchorOf(Meta(packed)));
+    }
 }

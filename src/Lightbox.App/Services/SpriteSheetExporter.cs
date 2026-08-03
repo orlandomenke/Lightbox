@@ -126,6 +126,33 @@ public static class SpriteSheetExporter
     /// <summary>Below this a pixel is not ink. Antialiased edges sit well above it.</summary>
     private const byte InkAlpha = 8;
 
+    /// <summary>
+    /// This frame's anchors, named and measured inside its cell.
+    /// </summary>
+    /// <remarks>
+    /// Two names for one anchor would make the sidecar ambiguous, so a duplicate
+    /// takes the id as a suffix rather than overwriting silently — the artist gets
+    /// a usable file and a visible oddity instead of one socket quietly missing.
+    /// </remarks>
+    private static Dictionary<string, Point>? AnchorsFor(Scene scene, int index, SKRectI cell)
+    {
+        if (scene.Anchors is not { Count: > 0 } declared) return null;
+        var resolved = Anchors.ResolvedAt(scene, index);
+        if (resolved.Count == 0) return null;
+
+        var byName = new Dictionary<string, Point>(StringComparer.Ordinal);
+        foreach (var anchor in declared)
+        {
+            if (!resolved.TryGetValue(anchor.Id, out var point)) continue;
+            var name = string.IsNullOrWhiteSpace(anchor.Name) ? anchor.Id : anchor.Name.Trim();
+            if (!byName.TryAdd(name, new Point(point.X - cell.Left, point.Y - cell.Top)))
+            {
+                byName[$"{name} ({anchor.Id})"] = new Point(point.X - cell.Left, point.Y - cell.Top);
+            }
+        }
+        return byName.Count > 0 ? byName : null;
+    }
+
     public static SpriteSheetResult Export(Doc doc, string sheetPath, SpriteSheetOptions? options = null)
     {
         var opts = options ?? new SpriteSheetOptions();
@@ -233,6 +260,11 @@ public static class SpriteSheetExporter
                     PivotOffset = pivot is null
                         ? null
                         : new Point(pivot.X - cell.Left, pivot.Y - cell.Top),
+                    // Named anchors, measured inside the cell like the pivot and
+                    // for the same reason: trimming must not be able to move
+                    // where a weapon attaches. Absent, not empty, when the
+                    // document declares none.
+                    Anchors = AnchorsFor(scene, i, cell),
                 });
             }
 
@@ -385,6 +417,16 @@ public static class SpriteSheetExporter
 
         /// <summary>Lightbox extension: the pivot's position within this cell.</summary>
         [JsonPropertyName("pivot")] public Point? PivotOffset { get; set; }
+
+        /// <summary>
+        /// Lightbox extension: named anchors on this cell, by name.
+        /// </summary>
+        /// <remarks>
+        /// Keyed by <em>name</em> rather than by id, because the consumer is an
+        /// engine importer and "leftHand" is what a script will look for. Ids are
+        /// how the document keeps them straight; names are the contract.
+        /// </remarks>
+        [JsonPropertyName("anchors")] public Dictionary<string, Point>? Anchors { get; set; }
     }
 
     private sealed class SheetMeta
