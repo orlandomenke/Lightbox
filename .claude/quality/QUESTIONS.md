@@ -10,7 +10,57 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
-## Q11 · What a "reusable animation preset" would be that a cycle symbol is not
+## Q19 · Are Linux and macOS shipping targets, or only development ones?
+
+**Blocks:** the `net10.0` decision in `docs/DESIGN-net10-upgrade.md`, and
+whether **B32**'s fix points up or down.
+
+The upgrade is otherwise clean. Avalonia 12.1.1 and SkiaSharp 3.119.4 both
+publish explicit `net10.0` dependency groups, every .NET 9 and .NET 10 breaking
+change on the official lists was checked against real code and none apply, and
+.NET 8 leaves support in November 2026 — so standing still is also a decision
+with a date on it. One consequence needs a person: a self-contained `net10.0`
+Linux build requires **glibc 2.27** (Ubuntu 18.04-class) where `net8.0` needed
+**2.23** (Ubuntu 16.04-class). Windows and macOS floors do not move.
+
+**The reason this is a question and not a footnote is that it cannot be
+answered from the code.** It depends on who runs this, and nothing in the
+repository records that.
+
+What the code *does* say is that the floor is currently theoretical.
+`build.yml` publishes exactly one artifact, `win-x64`, cross-compiled from
+Ubuntu. **There is no Linux build and no macOS build shipped at all**, so
+today a rising Linux floor cannot lose a user who has nothing to download.
+Anyone running this on Linux right now built it from source, which means they
+have a .NET SDK, which means their distro is far newer than either floor.
+
+So the glibc number is the wrong thing to decide. The thing to decide is
+whether the missing Linux and macOS artifacts are an omission or a choice —
+because that is what makes the floor matter, and it is also what decides
+whether the publish-path half of **B32** should grow a `linux-x64` job.
+
+**(a) Development targets only — Windows is what ships.** Take the floor; it
+costs nothing measurable, because nothing crosses it. Linux stays what it is
+today, the place the tests run and the Windows bundle is built. The devcontainer
+serves that fully and the glibc question closes as not-applicable.
+
+**(b) Shipping targets, not yet built.** Then the floor is real but still
+almost certainly fine — Ubuntu 18.04 left standard support in 2023, and an
+application that wants a tablet and a GPU is not being run on an eight-year-old
+distro. Worth saying out loud rather than assuming, and it makes a `linux-x64`
+publish job part of the upgrade rather than the separate concern
+`DESIGN-net10-upgrade.md` currently files it as.
+
+**(c) Stay on `net8.0`.** Keeps the floor and keeps the smaller diff, which is
+**B32**'s own prescription. It buys three months and pays a migration's
+verification cost twice — once to prove a downgrade changed no pixels, again in
+November to prove the upgrade did not.
+
+**Recommend (a)**, on the evidence that the only artifact anyone can download
+is a Windows one and no issue in the tracker asks for another. It is the one
+reading that makes the glibc floor a non-question rather than a small risk
+taken quietly — and if (b) turns out to be the truth, the floor is still very
+likely fine and the thing that changes is scope, not safety.
 
 **Blocks:** the last `[?]` but one in Pillar 3.
 

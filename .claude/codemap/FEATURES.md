@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1663 tests, derived from the suite itself. Each line is a
+1670 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1904,6 +1904,15 @@ regression even when every test still compiles.
 - Converting To The Type It Already Is Says So And Does Nothing — `:318`
 - Conversion Survives ASave And Reload — `:331`
 
+## CultureInvarianceTests
+`tests/Lightbox.Core.Tests/Serialization/CultureInvarianceTests.cs`
+
+- Saving In AHostile Locale Produces The Same Bytes — `:99`
+- The Compact Wire Format Is Also Locale Independent — `:116`
+- Opening In AHostile Locale Restores The Same Values — `:137`
+- ADocument Saved In One Locale Opens In Another — `:160`
+- No Number Is Written With ADecimal Comma — `:182`
+
 ## MediumSettingsTests
 `tests/Lightbox.Core.Tests/Serialization/MediumSettingsTests.cs`
 
@@ -2377,6 +2386,12 @@ regression even when every test still compiles.
 
 - Encode Decode Round Trips Pixels — `:158`
 - Materialize Composites Baseline Plus Strokes — `:172`
+
+## RuntimeDeterminismTests
+`tests/Lightbox.Raster.Tests/RuntimeDeterminismTests.cs`
+
+- The Fingerprint Is Stable Within ARun — `:180`
+- The Fingerprint Matches The Recorded Baseline — `:201`
 
 ## SampleSourceTests
 `tests/Lightbox.Raster.Tests/SampleSourceTests.cs`
