@@ -1828,6 +1828,12 @@ Not built. Listed so the gap is visible rather than implied.
 **Editing**
 - Liquify, clone stamp, healing brush
 
+**Version control**
+- Seeing who has a file checked out, and taking the lock before you paint. Aimed at
+  the systems game studios actually run — Unity Version Control and Perforce — where
+  a lock, not a merge, is how two artists stay out of each other's way. Git status
+  on a row is planned alongside it.
+
 **Animation**
 - A pose library, and reusable animation cycles
 - Placing sockets and collision rectangles on the canvas. Both are in the

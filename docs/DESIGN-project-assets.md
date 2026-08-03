@@ -160,8 +160,12 @@ thing: a background action switched on once and then forgotten.
 
 ## Version control: be friendly to it, do not reimplement it
 
-Lightbox should not become a git client. What it can do, in ascending order of
-cost, and only the first two are certain:
+Lightbox should not become a git client — and the more useful realisation is that
+**git is not the version control most of its users are on.** See the section after
+this one: game studios run *locking* systems, and locking is the part a drawing
+application can genuinely help with.
+
+What it can do, in ascending order of cost, and only the first two are certain:
 
 **1. Be diffable, which is mostly already true and has one real hole.** The
 `.lbproj` folder of plain JSON was chosen partly for this, and the stroke record
@@ -185,6 +189,91 @@ every git edge case becomes a support question in a drawing application, and
 merge conflicts in art are not something a panel can resolve. If it is built, it
 is *stage, commit, push* and nothing else: no branching, no rebasing, no conflict
 UI, and a plain "resolve this in your git client" when it cannot proceed.
+
+## The version control game engines actually ship, and why it changes the design
+
+*Written up after the question "could we connect to version control systems shipped
+by game engines, like Unity's?"*
+
+Yes — and it is a better fit than git, for a reason worth stating plainly.
+
+### One provider interface, several CLIs
+
+| System | Where it comes from | Driven by |
+| --- | --- |
+| **Unity Version Control** (formerly Plastic SCM) | Unity ships it | `cm` |
+| **Perforce / Helix Core** | the industry default for game art | `p4` |
+| **Git** | everywhere | `git` |
+| **Godot, GameMaker** | ship no VCS of their own | git, via their own plugins |
+
+Unreal is worth naming precisely: it does **not** ship a VCS. It ships *Revision
+Control integration* that talks to Perforce, Git, Subversion or Plastic. So there
+are three real backends, not five, and every one of them is driven by a
+command-line client that is already installed if the artist is on that system.
+
+That makes the shape obvious and cheap: **an `IVersionControl` with one
+implementation per CLI, shelling out to a binary that is absent unless the artist
+has it.** The same rule the roadmap already applies to Laigter — absent unless
+installed, degrading rather than breaking — and for the same second reason:
+Perforce and UVCS are proprietary, and running their client as a separate process
+keeps the licences apart. **Never link, never vendor, never ship a client.**
+
+### The realisation: locking is the feature, not history
+
+Git cannot say *"I have this open, do not touch it."* Perforce and UVCS can, and it
+is the mechanism game studios actually run on:
+
+- Perforce marks binary assets `+l` (exclusive open) through a **typemap**, so
+  opening one for edit takes a global lock. The Perforce documentation names 3D
+  models and other digital assets as the typical case, and recommends exactly this
+  typemap when configuring against Unity, Unreal or Godot.
+- UVCS has **Smart Locks**, which additionally check you are on the latest version
+  before granting the lock.
+
+This matters to Lightbox more than history does, and it settles two open questions:
+
+1. **The `PngBase64` diff hole shrinks from a problem to a note.** Under a locking
+   workflow nobody merges a drawing — they take the lock, edit, and submit. A
+   baseline that diffs unreadably is a nuisance in a git repository and almost
+   irrelevant in Perforce. Still worth measuring, but it stops being a reason to
+   change the on-disk layout.
+2. **The most valuable integration is not commit and push.** It is *"who has this
+   checked out"* on the row, and *take the lock* before you start painting. Two
+   artists opening the same walk cycle is the failure that costs a day, and it is
+   the one thing a panel can prevent outright rather than help resolve.
+
+So the ascending order of cost, restated for a locking backend:
+
+1. **Show lock state per row** — free of consequence, and the highest value thing
+   on this page: unlocked, locked by you, locked by someone else and who. Composes
+   with asset status the same way git status does: one says where it is in
+   production, the other says whether you may touch it.
+2. **Take and release a lock**, and **check out** (which in Perforce is what makes
+   a read-only file writable at all — an artist on Perforce cannot save without
+   it, so this is closer to essential than to convenient).
+3. **Submit** — last, optional, and the same restraint as git: no branching, no
+   merging, no conflict UI.
+
+### The parts that will bite, recorded before they do
+
+- **Lightbox does not own the workspace root.** A `.lbproj` normally lives *inside*
+  or *beside* an engine project already under version control, so the integration
+  must find the enclosing workspace rather than assume the project folder is one.
+  On Perforce that is `p4 -ztag info`; on UVCS the workspace is discovered upward
+  from the path.
+- **Read-only files are the Perforce norm.** Anything that writes — save, autosave,
+  auto-export — has to expect a read-only target and say "check this out first"
+  rather than throwing an IO error at an artist. That is a change to the *save*
+  path, not only an addition to a panel, and it is the most invasive part.
+- **Gluon is the mode these users are in.** UVCS's artist-facing client checks out
+  part of a tree rather than switching branches. An integration that assumes branch
+  switching is modelling the programmer's workflow, not the animator's.
+- **None of it can be verified here**, and that is exactly the shape of failure the
+  Unity importer just demonstrated: a write-only integration against an external
+  tool cannot fail visibly on this side. So every backend records the CLI, the
+  minimum version and the commands it uses, and gets one real run by hand against a
+  live server before its box is ticked. That discipline is already a roadmap item;
+  this is its second customer.
 
 ## What this is not
 
