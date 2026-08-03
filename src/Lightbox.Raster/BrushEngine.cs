@@ -608,12 +608,23 @@ public static class BrushEngine
         canvas.Restore();
     }
 
-    private static void StampDabs(SKCanvas canvas, Stroke stroke)
+    /// <summary>
+    /// One dab, with every stroke-global quantity already resolved.
+    /// </summary>
+    /// <remarks>
+    /// The walk carries a spacing phase, a travelled distance and a heading, so working
+    /// out where dab <em>n</em> goes means walking dabs 0..n. Recording the result lets the
+    /// live preview walk once per pointer event instead of once per question it wants to
+    /// ask — which was measured: four walks an event made a 600-event stroke cost 3.2×
+    /// more per event at the end than at the start, and invariant 6 does not allow that.
+    /// </remarks>
+    public readonly record struct Dab(SKPoint Pos, double Pressure, double Heading, double Load);
+
+    /// <summary>Every dab of a stroke, in order.</summary>
+    public static List<Dab> WalkDabs(Stroke stroke)
     {
         var brush = stroke.Brush;
-        var color = StrokeColor(stroke);
-        var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
-        var tipImage = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
+        var dabs = new List<Dab>();
 
         // Direction comes from consecutive dab centres rather than from the
         // source points, so it follows the path the dabs actually took —
@@ -624,6 +635,7 @@ public static class BrushEngine
         // centres rather than between recorded points, so it is the path the
         // paint actually took after spacing and smoothing have had their say.
         double travelled = 0;
+
         foreach (var (pos, pressure) in DabPositions(stroke))
         {
             if (previous is { } from)
@@ -635,10 +647,97 @@ public static class BrushEngine
                 // zero-length step would snap the tip to zero degrees.
                 if (brush.AngleFollowsDirection && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
             }
-            StampDab(canvas, pos, pressure, brush, color, tip, heading, tipImage, LoadAt(travelled, brush));
+            dabs.Add(new Dab(pos, pressure, heading, LoadAt(travelled, brush)));
             previous = pos;
         }
+        return dabs;
     }
+
+    /// <summary>
+    /// How many leading dabs two walks of the same growing stroke agree on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A dab's position is not settled the moment it is generated, and that was the
+    /// second half of B45.</b> <see cref="GeometryOps.Densify"/> interpolates a span using
+    /// its neighbours' control points, so the newest span is drawn straighter than it will
+    /// be once the next point arrives. Dabs in it move — usually by a fraction of a pixel,
+    /// but every dab dynamic is seeded from the dab's position, so with scatter at 0.35 on
+    /// a 30 px brush a sub-pixel move throws the dab up to ten pixels somewhere else.
+    /// Measured: identical renders at 0.85 px spans, a worst-case pixel 206/255 out at
+    /// 8.7 px spans.
+    /// </para>
+    /// <para>
+    /// <b>Determined by observation rather than by encoding Densify's rule.</b> Densify
+    /// looks one point ahead, so a dab that survived the last point arriving will survive
+    /// the next one too. Deriving it this way means a future change to smoothing or
+    /// densification cannot silently invalidate the assumption — the comparison simply
+    /// reports a shorter stable prefix.
+    /// </para>
+    /// <para>
+    /// At least one whenever there is a dab at all: the first sits on the first recorded
+    /// point, which nothing later can move, so a tap inks immediately.
+    /// </para>
+    /// </remarks>
+    public static int StableCount(IReadOnlyList<Dab> now, IReadOnlyList<Dab>? before)
+    {
+        if (now.Count == 0) return 0;
+        if (before is null) return 1;
+
+        var agreed = 0;
+        var shared = Math.Min(now.Count, before.Count);
+        while (agreed < shared && now[agreed].Pos == before[agreed].Pos) agreed++;
+        return Math.Max(1, agreed);
+    }
+
+    /// <summary>Every pixel the dabs from <paramref name="from"/> onward can touch.</summary>
+    /// <remarks>
+    /// Computed from the dabs rather than from the source points, because that is what the
+    /// live preview has to be able to take back — and scatter can throw a dab well off the
+    /// polyline the points describe. Null when the range is empty or off-canvas.
+    /// </remarks>
+    public static SKRectI? RangeBounds(
+        IReadOnlyList<Dab> dabs, int from, BrushSettings brush, SKImageInfo info)
+    {
+        if (from >= dabs.Count) return null;
+        var reach = DabReach(brush);
+
+        float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+        for (var i = Math.Max(0, from); i < dabs.Count; i++)
+        {
+            var pos = dabs[i].Pos;
+            if (pos.X < minX) minX = pos.X;
+            if (pos.Y < minY) minY = pos.Y;
+            if (pos.X > maxX) maxX = pos.X;
+            if (pos.Y > maxY) maxY = pos.Y;
+        }
+
+        var rect = new SKRectI(
+            (int)Math.Floor(minX - reach), (int)Math.Floor(minY - reach),
+            (int)Math.Ceiling(maxX + reach), (int)Math.Ceiling(maxY + reach));
+        var clipped = SKRectI.Intersect(rect, new SKRectI(0, 0, info.Width, info.Height));
+        return clipped.Width <= 0 || clipped.Height <= 0 ? null : clipped;
+    }
+
+    /// <summary>Stamp dabs <paramref name="from"/> (inclusive) to <paramref name="to"/> (exclusive).</summary>
+    public static void StampDabRange(
+        SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to)
+    {
+        var brush = stroke.Brush;
+        var color = StrokeColor(stroke);
+        var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
+        var tipImage = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
+
+        for (var i = Math.Max(0, from); i < Math.Min(to, dabs.Count); i++)
+        {
+            var dab = dabs[i];
+            StampDab(canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load);
+        }
+    }
+
+    private static void StampDabs(SKCanvas canvas, Stroke stroke) =>
+        StampDabRange(canvas, stroke, WalkDabs(stroke), 0, int.MaxValue);
+
 
     /// <summary>Everything a dab can reach beyond its center: radius, scatter offset, soft edge.</summary>
     /// <summary>
@@ -732,11 +831,25 @@ public static class BrushEngine
     /// the new segment — identical semantics to the exact render, so what the
     /// artist sees while drawing is what commits.
     /// </summary>
-    public static void StampDraftDabs(SKCanvas scratchCanvas, Stroke tail) => StampDabs(scratchCanvas, tail);
+    /// <param name="stroke">
+    /// The <b>whole</b> stroke so far, never a tail of it.
+    /// </param>
+    /// <param name="alreadyStamped">
+    /// How many of this stroke's dabs are already in the scratch — the return value of
+    /// the previous call.
+    /// </param>
+    /// <returns>The new total, to hand back next time.</returns>
+    /// <remarks>
+    /// <b>Taking the whole stroke and a count is the point, not a convenience.</b>
+    /// Passing a tail here is what made a live mark differ from its own commit (B45):
+    /// the dab walk is a fold with four pieces of carried state, and a tail restarts all
+    /// four. The signature no longer lets a caller do that.
+    /// </remarks>
 
     /// <summary>Pixels a live segment can reach (dab size + scatter margin); null when off-canvas.</summary>
     public static SKRectI? DraftSegmentBounds(Stroke tail, SKImageInfo info) =>
         SegmentBounds(tail, info, DabReach(tail.Brush));
+
 
     /// <summary>
     /// Every pixel the FINAL render of a stroke can touch — the same margin

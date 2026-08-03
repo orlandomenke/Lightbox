@@ -58,7 +58,8 @@ public class PostProcessDabsTests(ITestOutputHelper output)
     {
         var bmp = new SKBitmap(Info);
         using var canvas = new SKCanvas(bmp);
-        BrushEngine.StampDraftDabs(canvas, stroke);
+        var dabs = BrushEngine.WalkDabs(stroke);
+        BrushEngine.StampDabRange(canvas, stroke, dabs, 0, dabs.Count);
         canvas.Flush();
         return bmp;
     }

@@ -4174,6 +4174,55 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private SKBitmap? _liveEffectBase;
     private int _liveStampedCount;
+
+    /// <summary>
+    /// How many of the live stroke's dabs are already in the scratch.
+    /// </summary>
+    /// <remarks>
+    /// Counted in <b>dabs</b>, not in points, and the two are not interchangeable: the
+    /// walk emits a dab every <c>spacing × diameter</c> of arc length, so a slow pointer
+    /// produces many points and few dabs and a fast one the reverse. This is the number
+    /// that lets the engine walk the whole stroke and draw only what is new (B45).
+    /// </remarks>
+    private int _liveDabCount;
+
+    /// <summary>
+    /// The scratch pixels under the provisional tail, before it was stamped.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why the tail is drawn and then taken back rather than simply held until it
+    /// settles.</b> A dab's position is provisional until the next point arrives, so
+    /// stamping it immediately means stamping it in the wrong place; holding it back
+    /// instead was tried and measured, and it costs too much — the live mark came out 4%
+    /// short on a long stroke and <b>39% short on a six-event flick</b>, which reads as
+    /// the stroke lagging behind the pen. An artist notices that far more than they would
+    /// notice a settled dab.
+    /// </para>
+    /// <para>
+    /// So the tail is stamped for the tip to be live, its region is remembered, and the
+    /// next event restores those exact pixels before re-stamping. Restoring by copy makes
+    /// it byte-exact, and because the stable count only ever grows, the dabs still land in
+    /// index order — which is what keeps a self-crossing accumulating the same way it does
+    /// in a single-pass render.
+    /// </para>
+    /// </remarks>
+    private SKBitmap? _liveTailBackup;
+    private SKRectI? _liveTailRegion;
+
+    /// <summary>Dabs in the scratch whose position is settled, so never taken back.</summary>
+    private int _liveStableDabs;
+
+    /// <summary>
+    /// The dab walk from the previous pointer event.
+    /// </summary>
+    /// <remarks>
+    /// Kept for two reasons, both measured. It is what the new walk is compared against to
+    /// find the settled prefix, which avoids walking the stroke a second time just to ask
+    /// that question. And walking is not free: four walks an event made a 600-event stroke
+    /// cost 3.2× more per event at the end than at the start, which invariant 6 forbids.
+    /// </remarks>
+    private List<BrushEngine.Dab>? _liveDabs;
     private bool _snapshotQueued;
 
     // ---- live post-processing (medium, wet edge, texture, granulation) --------
@@ -4330,6 +4379,10 @@ public sealed partial class MainViewModel : ObservableObject
         }
         ResetLivePostProcess();
         _liveStampedCount = 0;
+        _liveDabCount = 0;
+        _liveStableDabs = 0;
+        _liveTailRegion = null;
+        _liveDabs = null;
         FlushLivePreview();
         PublishSnapshot();
     }
@@ -4764,11 +4817,24 @@ public sealed partial class MainViewModel : ObservableObject
         MoveStrokeBatch([new PointerSample(x, y, pressure)]);
 
     /// <summary>
-    /// Stamp only the not-yet-stamped tail of the live stroke into the
-    /// preview bitmap. (With stroke opacity below 1 the batch joints would
-    /// double-composite slightly — the preview accepts that; the committed
-    /// frame is always re-rendered exactly from the record.)
+    /// Stamp the dabs of the live stroke that are not in the preview yet.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The whole stroke goes to the engine every time, and only the new dabs are
+    /// drawn.</b> This used to hand over a two-point <c>tail</c> instead, which was the
+    /// cause of B45: the dab walk carries a spacing phase, a travelled distance, a
+    /// heading and a step size, and a tail restarts all four. An artist saw that as the
+    /// mark changing the instant they let go — denser live than committed, paint load that
+    /// only depleted on release, and a tip texture that jumped because dabs landing
+    /// elsewhere are seeded elsewhere.
+    /// </para>
+    /// <para>
+    /// The tail survives for <em>bounds</em>, which is a different question: what changed
+    /// on screen since the last event is genuinely the segment, and repainting the whole
+    /// stroke's region every event would break invariant 6.
+    /// </para>
+    /// </remarks>
     private void FlushLivePreview()
     {
         if (_strokeBuilder.Current is not { } live) return;
@@ -4807,7 +4873,11 @@ public sealed partial class MainViewModel : ObservableObject
             // Dabs only — no opacity, no layer copy. The compositor lays the
             // scratch over the layer and applies the stroke's opacity once,
             // so self-crossings look identical live and committed.
-            BrushEngine.StampDraftDabs(_liveScratchCanvas, tail);
+            //
+            // The whole stroke, with the dabs already in the scratch skipped: the walk
+            // has to run from the start for its phase, travel and heading to match the
+            // commit, and only the drawing is incremental.
+            StampLiveDabs(live, info);
             if (segment is { } used)
             {
                 _liveScratchUsed = _liveScratchUsed is { } prior ? UnionRect(prior, used) : used;
@@ -4819,6 +4889,89 @@ public sealed partial class MainViewModel : ObservableObject
         _liveStampedCount = points.Count;
 
         if (_liveComposite is null && NeedsLivePostProcess(live.Brush)) RequestLivePostProcess();
+    }
+
+    /// <summary>
+    /// Bring the scratch up to date with the stroke: settled dabs permanently, the
+    /// provisional tail on loan.
+    /// </summary>
+    /// <remarks>
+    /// The three steps are ordered the way they are because the dabs have to reach the
+    /// scratch in index order for the accumulation to match a single-pass render: take
+    /// back the old tail, add whatever became settled, then lend the new tail.
+    /// </remarks>
+    private void StampLiveDabs(Stroke live, SKImageInfo info)
+    {
+        if (_liveScratchCanvas is null) return;
+
+        // One walk, then every question answered from its result.
+        var dabs = BrushEngine.WalkDabs(live);
+        var stable = BrushEngine.StableCount(dabs, _liveDabs);
+        _liveDabs = dabs;
+
+        // 1. Take back the tail lent out last time. Only the part of the buffer this
+        // tail actually used: the backup is sized to the largest tail seen, so drawing
+        // the whole thing would scale a bigger image into a smaller rect.
+        if (_liveTailRegion is { } lent && _liveTailBackup is not null)
+        {
+            using var restore = SKImage.FromBitmap(_liveTailBackup);
+            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+            _liveScratchCanvas.DrawImage(
+                restore,
+                new SKRect(0, 0, lent.Width, lent.Height),
+                new SKRect(lent.Left, lent.Top, lent.Right, lent.Bottom),
+                src);
+            _liveScratchCanvas.Flush();
+            _liveTailRegion = null;
+        }
+
+        // 2. Everything whose position has stopped moving, permanently.
+        BrushEngine.StampDabRange(_liveScratchCanvas, live, dabs, _liveStableDabs, stable);
+        _liveStableDabs = Math.Max(_liveStableDabs, Math.Min(stable, dabs.Count));
+
+        // 3. The rest on loan, so the mark reaches the pen tip.
+        if (BrushEngine.RangeBounds(dabs, _liveStableDabs, live.Brush, info) is { } tail
+            && _liveScratch is not null)
+        {
+            _liveScratchCanvas.Flush();
+            if (_liveTailBackup is null
+                || _liveTailBackup.Width < tail.Width || _liveTailBackup.Height < tail.Height)
+            {
+                _liveTailBackup?.Dispose();
+                _liveTailBackup = new SKBitmap(new SKImageInfo(
+                    Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
+                    SKColorType.Rgba8888, SKAlphaType.Premul));
+            }
+            // A real copy, not a subset view. SKBitmap.ExtractSubset hands back a bitmap
+            // that SHARES the source's pixels, so using it as the backup made it track the
+            // scratch and the rollback a no-op — the tail accumulated instead of being
+            // taken back, which measured as the live mark 9% heavier than the commit.
+            //
+            // The subset is taken FIRST and only then wrapped, which is the same trap
+            // PostProcessDabs records: SKImage.FromBitmap on the whole scratch sets up a
+            // 33 MB image at 4K, every pointer event, to read back a region a few hundred
+            // pixels across.
+            using (var region = new SKBitmap())
+            {
+                if (_liveScratch.ExtractSubset(region, tail))
+                {
+                    using var pixels = region.PeekPixels();
+                    using var view = pixels is null ? null : SKImage.FromPixels(pixels);
+                    if (view is not null)
+                    {
+                        using var into = new SKCanvas(_liveTailBackup);
+                        using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+                        into.DrawImage(view, 0, 0, src);
+                        into.Flush();
+                        _liveTailRegion = tail;
+                    }
+                }
+            }
+
+            BrushEngine.StampDabRange(_liveScratchCanvas, live, dabs, _liveStableDabs, dabs.Count);
+            _liveScratchCanvas.Flush();
+        }
+        _liveDabCount = dabs.Count;
     }
 
     /// <summary>
@@ -4972,6 +5125,10 @@ public sealed partial class MainViewModel : ObservableObject
         _liveEffectBase?.Dispose();
         _liveEffectBase = null;
         _liveStampedCount = 0;
+        _liveDabCount = 0;
+        _liveStableDabs = 0;
+        _liveTailRegion = null;
+        _liveDabs = null;
         ResetLivePostProcess();
         if (stroke is null) return;
         var target = PaintTarget();

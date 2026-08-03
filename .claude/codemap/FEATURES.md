@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2142 tests, derived from the suite itself. Each line is a
+2157 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -931,6 +931,18 @@ regression even when every test still compiles.
 - Selected The Live Stroke Is Already Clipped — `:135`
 - Alpha Locked And Selected Both Masks Apply Live — `:161`
 
+## LiveMatchesCommittedTests
+`tests/Lightbox.App.Tests/LiveMatchesCommittedTests.cs`
+
+- AHard Round Ink Stroke Is The Same Live And Committed — `:232`
+- An Airbrush Keeps Its Opacity When The Pen Lifts — `:247`
+- The Live Stroke Does Not Shrink On Release — `:262`
+- AScattered Jittered Brush Does Not Reshuffle On Release — `:277`
+- ASimulated Medium Looks The Same Live And Committed — `:300`
+- Paint Load Depletes While Drawing And Not Only On Release — `:315`
+- ALong Stroke Does Not Diverge More Than AShort One — `:364`
+- Sampling Density Does Not Change Whether The Mark Matches — `:387`
+
 ## LiveMediumPixelTests
 `tests/Lightbox.App.Tests/LiveMediumPixelTests.cs`
 
@@ -973,6 +985,11 @@ regression even when every test still compiles.
 - An Abandoned Smudge Leaves No Trace — `:143`
 - ALive Blur Does Not Cover More Ground Than The Mark That Commits — `:214`
 - The Effect Brushes Ship With AFlow An Artist Can Steer — `:251`
+
+## LongStrokeCostTests _Category=Performance_
+`tests/Lightbox.App.Tests/LongStrokeCostTests.cs`
+
+- APointer Event Stays In Budget Deep Into ALong Stroke — `:39`
 
 ## LoopRangeHandleTests
 `tests/Lightbox.App.Tests/LoopRangeHandleTests.cs`
@@ -2707,8 +2724,8 @@ regression even when every test still compiles.
 ## FluidLineTests
 `tests/Lightbox.Raster.Tests/DraftAndAaTests.cs`
 
-- Light Pressure Strokes Have No Gaps Along The Centerline — `:181`
-- Pressure Ramp Keeps The Stroke Connected — `:211`
+- Light Pressure Strokes Have No Gaps Along The Centerline — `:182`
+- Pressure Ramp Keeps The Stroke Connected — `:212`
 
 ## ScratchPreviewTests
 `tests/Lightbox.Raster.Tests/DraftAndAaTests.cs`
@@ -2794,6 +2811,16 @@ regression even when every test still compiles.
 - ASmall Texture Is Left At Its Own Size — `:223`
 - Height Comes From Luminance Not From One Channel — `:234`
 - ANegative Document Coordinate Tiles Rather Than Throwing — `:250`
+
+## IncrementalDabWalkTests
+`tests/Lightbox.Raster.Tests/IncrementalDabWalkTests.cs`
+
+- Growing AStroke One Point At ATime Gives The Same Pixels — `:86`
+- The Stable Count Grows And Never Exceeds The Dabs There Are — `:122`
+- ASingle Point Is Entirely Settled So ATap Inks At Once — `:149`
+- AWalked Dab Carries The Stroke Globals That Made It Position Dependent — `:167`
+- The Bounds Of ADab Range Cover Every Dab In It — `:185`
+- An Empty Range Has No Bounds — `:211`
 
 ## LivePaletteTests
 `tests/Lightbox.Raster.Tests/LivePaletteTests.cs`
@@ -2921,9 +2948,9 @@ regression even when every test still compiles.
 ## PostProcessDabsTests _Category=Performance_
 `tests/Lightbox.Raster.Tests/PostProcessDabsTests.cs`
 
-- Post Processing Pre Stamped Dabs Matches Rendering From Scratch — `:101`
-- AStroke That Reaches Nothing Reports No Bounds — `:122`
-- The Cost Of APass Does Not Grow With The Length Of The Stroke — `:133`
+- Post Processing Pre Stamped Dabs Matches Rendering From Scratch — `:102`
+- AStroke That Reaches Nothing Reports No Bounds — `:123`
+- The Cost Of APass Does Not Grow With The Length Of The Stroke — `:134`
 
 ## PressureCurveTests
 `tests/Lightbox.Raster.Tests/PressureCurveTests.cs`

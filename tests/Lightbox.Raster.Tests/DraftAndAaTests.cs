@@ -142,7 +142,8 @@ public class ScratchPreviewTests
         };
         foreach (var tail in tails)
         {
-            BrushEngine.StampDraftDabs(scratchCanvas, tail);
+            var dabs = BrushEngine.WalkDabs(tail);
+            BrushEngine.StampDabRange(scratchCanvas, tail, dabs, 0, dabs.Count);
             var rect = BrushEngine.DraftSegmentBounds(tail, info);
             Assert.NotNull(rect);
             BrushEngine.ComposeDraftRegion(compCanvas, baseBmp, scratch, rect!.Value, stroke);
