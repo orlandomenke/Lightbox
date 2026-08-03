@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Lightbox.App.Services;
 
@@ -368,6 +369,95 @@ public partial class ConfigureWindow : Window
         RefreshHoldHint();
     }
 
+    // ---- Export: auto-export on a status change -----------------------------------
+
+    private bool _loadingExport;
+
+    /// <summary>The presets in the picker, in the order they are shown.</summary>
+    private List<Services.ExportPreset> _exportPresets = [];
+
+    private void LoadExportPage()
+    {
+        if (_vm is null) return;
+        _loadingExport = true;
+
+        var settings = _vm.Settings.AutoExport;
+        AutoExportBox.IsChecked = settings.Enabled;
+
+        AutoExportStatusBox.ItemsSource = Lightbox.Core.Projects.AssetStatuses.InOrder
+            .Select(Lightbox.Core.Projects.AssetStatuses.Label).ToList();
+        AutoExportStatusBox.SelectedIndex =
+            Lightbox.Core.Projects.AssetStatuses.InOrder.ToList().IndexOf(settings.Trigger);
+
+        // Built-ins plus the artist's own, read fresh: a preset may have been saved from
+        // the export window since this one opened.
+        _exportPresets = Services.ExportPreset.BuiltIns
+            .Concat(Services.ExportPresetStore.Load()).ToList();
+        AutoExportPresetBox.ItemsSource = _exportPresets.Select(p => p.Name).ToList();
+        var index = _exportPresets.FindIndex(p => p.Name == settings.PresetName);
+        AutoExportPresetBox.SelectedIndex = index < 0 ? 0 : index;
+
+        AutoExportFolderBox.Text = settings.OutputFolder ?? "";
+
+        _loadingExport = false;
+    }
+
+    private void OnAutoExportChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingExport || _vm is null) return;
+        _vm.Settings.AutoExport.Enabled = AutoExportBox.IsChecked == true;
+        _vm.Settings.Save();
+    }
+
+    private void OnAutoExportStatusChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingExport || _vm is null) return;
+        var order = Lightbox.Core.Projects.AssetStatuses.InOrder;
+        if (AutoExportStatusBox.SelectedIndex < 0 || AutoExportStatusBox.SelectedIndex >= order.Count) return;
+
+        _vm.Settings.AutoExport.Trigger = order[AutoExportStatusBox.SelectedIndex];
+        _vm.Settings.Save();
+    }
+
+    private void OnAutoExportPresetChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingExport || _vm is null) return;
+        if (AutoExportPresetBox.SelectedIndex < 0
+            || AutoExportPresetBox.SelectedIndex >= _exportPresets.Count)
+        {
+            return;
+        }
+        _vm.Settings.AutoExport.PresetName = _exportPresets[AutoExportPresetBox.SelectedIndex].Name;
+        _vm.Settings.Save();
+    }
+
+    private void OnAutoExportFolderChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingExport || _vm is null) return;
+        var text = AutoExportFolderBox.Text?.Trim();
+        // Empty means unset rather than "the current directory", which is the one value
+        // that would write files somewhere nobody chose.
+        _vm.Settings.AutoExport.OutputFolder = string.IsNullOrWhiteSpace(text) ? null : text;
+        _vm.Settings.Save();
+    }
+
+    private async void OnBrowseAutoExportFolder(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Where auto-exported assets go",
+            AllowMultiple = false,
+        });
+        if (folders.Count == 0 || folders[0].TryGetLocalPath() is not { } dir) return;
+
+        // An absolute path from the picker. Somebody who wants the portable relative form
+        // types it; a picker cannot express "relative to whatever project is open".
+        AutoExportFolderBox.Text = dir;
+        _vm.Settings.AutoExport.OutputFolder = dir;
+        _vm.Settings.Save();
+    }
+
     private void RefreshHoldHint()
     {
         if (_vm is null) return;
@@ -564,7 +654,7 @@ public partial class ConfigureWindow : Window
     private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (ShortcutsPage is null || PerformancePage is null || GuidesPage is null
-            || TimelinePage is null || DrawingPage is null || AiPage is null)
+            || TimelinePage is null || DrawingPage is null || ExportPage is null || AiPage is null)
         {
             return;
         }
@@ -574,13 +664,17 @@ public partial class ConfigureWindow : Window
         GuidesPage.IsVisible = page == 2;
         TimelinePage.IsVisible = page == 3;
         DrawingPage.IsVisible = page == 4;
-        AiPage.IsVisible = page == 5;
+        ExportPage.IsVisible = page == 5;
+        AiPage.IsVisible = page == 6;
         if (page == 1) RefreshMeasured();
         // Rebuilt on the way in: a grid may have been placed since the window
         // opened, and the window outlives the drawing that made it.
         if (page == 2) RefreshGrids();
         if (page == 3) LoadTimelinePage();
         if (page == 4) LoadDrawingPage();
+        // Rebuilt on the way in for the same reason: a preset may have been saved from
+        // the export window since this one opened.
+        if (page == 5) LoadExportPage();
     }
 
     private void OnQualityChanged(object? sender, SelectionChangedEventArgs e)

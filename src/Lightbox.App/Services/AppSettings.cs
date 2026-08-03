@@ -132,6 +132,16 @@ public sealed class AppSettings
     /// <summary>How wide one timeline frame cell is, in pixels.</summary>
     public double TimelineFrameWidth { get; set; } = 28;
 
+    /// <summary>
+    /// Exporting automatically when a document reaches a status.
+    /// </summary>
+    /// <remarks>
+    /// Beside the autosave interval, which is the closest existing thing: a background
+    /// action an artist switches on once and then stops thinking about. Off by default,
+    /// because it writes files into somebody else's project.
+    /// </remarks>
+    public AutoExportSettings AutoExport { get; set; } = new();
+
     public static string Path { get; set; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Lightbox", "settings.json");

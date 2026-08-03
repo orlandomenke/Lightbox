@@ -60,6 +60,46 @@ public sealed class ProjectTests : IDisposable
     }
 
     [Fact]
+    public void AStatusRoundTripsAndAnUnsetOneWritesNoKey()
+    {
+        // On the manifest rather than in the document, so this is what proves marking
+        // something Ready survives a reload without the artwork file being involved.
+        var project = TwoAnimations(out var walk, out var idle);
+        walk.Status = AssetStatus.Ready;
+        ProjectIo.Save(project);
+
+        var manifest = File.ReadAllText(Path.Combine(_root, "project.json"));
+        var character = File.ReadAllText(
+            Path.Combine(_root, "characters", "knight", "character.json"));
+        // As a name rather than a number, so a hand-edit and a diff both read. Camel
+        // case, because that is what DocJson.Options applies to every enum in the
+        // project — consistency with the rest of the file beats matching the C# spelling.
+        Assert.Contains("\"status\": \"ready\"", character + manifest);
+
+        var reloaded = ProjectIo.Load(_root);
+        var animations = reloaded.Characters.Single().Animations;
+        Assert.Equal(AssetStatus.Ready, animations.Single(a => a.Id == walk.Id).Status);
+        // And the one nobody set stays unset — "nobody has said" is not "Design".
+        Assert.Null(animations.Single(a => a.Id == idle.Id).Status);
+    }
+
+    [Fact]
+    public void MarkingSomethingReadyDoesNotTouchTheArtwork()
+    {
+        // The whole reason status lives on the manifest: it must not dirty the drawing
+        // and must not need it open.
+        var project = TwoAnimations(out var walk, out _);
+        ProjectIo.Save(project);
+        var file = Path.Combine(_root, "characters", "knight", "animations", "walk.lightbox.json");
+        var before = File.ReadAllBytes(file);
+
+        walk.Status = AssetStatus.Ready;
+        ProjectIo.Save(project);
+
+        Assert.Equal(before, File.ReadAllBytes(file));
+    }
+
+    [Fact]
     public void TheLayoutIsTheOneDocumented()
     {
         var project = TwoAnimations(out _, out _);

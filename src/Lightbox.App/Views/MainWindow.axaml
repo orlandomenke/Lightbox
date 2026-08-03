@@ -1807,10 +1807,33 @@
                             <MenuItem Header="Rename…" Click="OnProjectRowRename" />
                             <MenuItem Header="Remove from project" Click="OnProjectRemove"
                                       ToolTip.Tip="Take it out of the index. The file stays on disk." />
+                            <Separator />
+                            <!-- Status, and the reason it is here rather than in the
+                                 document: marking something Ready must not need the
+                                 file open and must not dirty the artwork. -->
+                            <MenuItem Header="Status" IsVisible="{Binding !IsHeading}">
+                              <MenuItem Header="Not set" Click="OnProjectStatusClear" />
+                              <Separator />
+                              <MenuItem Header="Design" Tag="Design" Click="OnProjectStatusSet" />
+                              <MenuItem Header="Draft" Tag="Draft" Click="OnProjectStatusSet" />
+                              <MenuItem Header="In development" Tag="InDevelopment" Click="OnProjectStatusSet" />
+                              <MenuItem Header="Review" Tag="Review" Click="OnProjectStatusSet" />
+                              <MenuItem Header="Ready" Tag="Ready" Click="OnProjectStatusSet"
+                                        ToolTip.Tip="With auto-export on, this is what hands the asset to the engine." />
+                              <MenuItem Header="Reopened" Tag="Reopened" Click="OnProjectStatusSet"
+                                        ToolTip.Tip="Was Ready and is not any more — the state a linear pipeline cannot express." />
+                            </MenuItem>
                           </MenuFlyout>
                         </DockPanel.ContextFlyout>
                         <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.7" />
+                        <!-- Status as a dot, because the column has to read down at a
+                             glance and a word per row would not. The tooltip names it. -->
+                        <Border DockPanel.Dock="Right" Width="8" Height="8" CornerRadius="4"
+                                VerticalAlignment="Center" Margin="4,0,2,0"
+                                IsVisible="{Binding HasStatus}"
+                                Background="{Binding StatusColor}"
+                                ToolTip.Tip="{Binding StatusLabel}" />
                         <!-- Running time, right-aligned so the column reads
                              down. Absent when nothing knows the length rather
                              than showing a zero somebody might schedule

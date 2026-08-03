@@ -1373,6 +1373,39 @@ format is how you end up with a `.png` holding a folder name.
 Controls that do not apply are **not shown** — a PNG sequence has no cells and no
 atlas, so it gets no layout picker.
 
+#### Not exporting at all: mark it Ready
+
+The shortcut through this whole section. Right-click a document in the **Project**
+panel → **Status**, and set where it is: Design, Draft, In development, Review,
+Ready, or Reopened. A coloured dot appears on the row.
+
+Switch on **Configure ▸ Export ▸ Export automatically on a status change**, point
+it at a folder, and reaching that status exports the asset there. Finish it, mark
+it Ready, and the sheet and its sidecar land where your engine is already looking.
+Nobody has to remember to export — and the export nobody remembered is the one
+that makes a designer think you have not started.
+
+| Setting | |
+| --- | --- |
+| **Which status fires it** | Ready by default. A studio that reviews in engine sets Review. |
+| **Export preset** | The same presets as the export window. Save one there and it appears here. |
+| **Output folder** | Absolute, or relative to the project — `../Game/Assets/Sprites` keeps everything portable. |
+
+Three things worth knowing:
+
+- **It is off until you switch it on.** This writes files into another project, so
+  turning it on is your decision, not a default.
+- **The status is always saved first.** If the folder is gone or your engine has
+  the file locked, you keep the status and get a message. A production field
+  should not be hostage to a network share.
+- **Re-picking the status something already has does nothing.** Opening the menu
+  to check must not re-export.
+
+Status lives in the project index, not in the drawing — so marking something Ready
+does not change the artwork file and does not need it open. **Reopened** is kept
+separate from In development on purpose: it means *this was Ready and is not any
+more*, which is the state a straight-line pipeline cannot express.
+
 #### Presets, which are the actual point
 
 "One click" is a claim about the *second* export. Three are built in:

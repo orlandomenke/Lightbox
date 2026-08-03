@@ -1,6 +1,6 @@
 # A project as a game's asset set
 
-Status: **designed, nothing built.** This is the answer to three questions asked
+Status: **status and auto-export built; folders and scope still designed only.** This is the answer to three questions asked
 together — can a project hold *all* a game's assets, can the folder structure be
 the artist's rather than ours, and can export follow it — plus two that arrived
 with them: asset status, and version control.
@@ -128,6 +128,35 @@ Three things make this worth more than a label:
 The panel shows it as a colour, filters by it, and sets it in bulk on a selection.
 No approval gates, no locking, no permissions — an indie studio has none of that
 machinery and would resent being handed it.
+
+### Auto-export: the status *is* the trigger
+
+**Built.** The payoff turned out to be bigger than an export filter. If status
+already means "this is done", then reaching it is the moment to hand the asset over
+— so the artist stops thinking about exporting at all, and the engine reads a file
+that appeared because the workflow moved forward.
+
+The rules that make it safe, in the order they matter:
+
+1. **The status change is authoritative; the export is a consequence.** Ready is
+   written and saved, *then* the export is attempted. A missing folder, a file the
+   engine has locked, an unmounted drive — the artist keeps their status and gets a
+   message. The reverse would make a production field hostage to a network share.
+2. **Off until switched on.** It writes files into somebody else's project on a
+   click. That is consent, not a default.
+3. **Re-selecting the same status does nothing.** Opening the menu to check what a
+   document is set to must not re-export it.
+4. **The trigger is configurable.** Ready by default; a studio that reviews in
+   engine sets Review. When the engine should see an asset is a question about
+   their pipeline, not ours.
+5. **Relative output folders resolve against the project, and are refused without
+   one** rather than resolved against the working directory — which would write
+   files somewhere nobody chose.
+
+Configuration is general — one folder, one preset, one trigger — because it
+describes how a studio ships rather than anything about one document. It lives in
+the Configure window beside the autosave interval, which is the closest existing
+thing: a background action switched on once and then forgotten.
 
 ## Version control: be friendly to it, do not reimplement it
 

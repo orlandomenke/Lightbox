@@ -94,6 +94,30 @@ public sealed partial class ProjectRow : ObservableObject
 
     public string Glyph => IsScene ? "🎬" : IsCharacter ? "🗀" : "▣";
 
+    /// <summary>
+    /// The production status, mirrored from the manifest so the row can show it.
+    /// </summary>
+    /// <remarks>
+    /// Observable and set through <c>ProjectViewModel.SetStatus</c> rather than bound
+    /// two-way to the manifest: the setter has to save the project and may fire an
+    /// export, and neither belongs behind a property assignment.
+    /// </remarks>
+    [ObservableProperty]
+    private AssetStatus? _status;
+
+    public bool HasStatus => Status is not null;
+
+    public string StatusLabel => Status is { } s ? AssetStatuses.Label(s) : "";
+
+    public string StatusColor => Status is { } s ? AssetStatuses.Color(s) : "#00000000";
+
+    partial void OnStatusChanged(AssetStatus? value)
+    {
+        OnPropertyChanged(nameof(HasStatus));
+        OnPropertyChanged(nameof(StatusLabel));
+        OnPropertyChanged(nameof(StatusColor));
+    }
+
     /// <summary>The id this row is remembered by across a rebuild.</summary>
     internal string? Key => Animation?.Id ?? Scene?.Id ?? Character?.Id;
 }
@@ -186,7 +210,8 @@ public sealed partial class ProjectViewModel : ObservableObject
         foreach (var character in Project?.Characters ?? [])
         {
             Rows.Add(new ProjectRow(character));
-            foreach (var animation in character.Animations) Rows.Add(new ProjectRow(character, animation));
+            foreach (var animation in character.Animations)
+                Rows.Add(new ProjectRow(character, animation) { Status = animation.Status });
         }
         // Scenes after the characters, because the characters are what a
         // project is named after and a film's shot list is the second axis
@@ -194,13 +219,14 @@ public sealed partial class ProjectViewModel : ObservableObject
         foreach (var scene in Project?.Scenes ?? [])
         {
             Rows.Add(new ProjectRow(scene, RunningTime(scene)));
-            foreach (var shot in scene.Shots) Rows.Add(new ProjectRow(scene, shot, ShotTime(shot)));
+            foreach (var shot in scene.Shots)
+                Rows.Add(new ProjectRow(scene, shot, ShotTime(shot)) { Status = shot.Status });
         }
         // Project-level documents last, unindented — they belong to the
         // project, not under anything.
         foreach (var document in Project?.Manifest.Documents ?? [])
         {
-            Rows.Add(new ProjectRow(null, document));
+            Rows.Add(new ProjectRow(null, document) { Status = document.Status });
         }
         Selected = Rows.FirstOrDefault(r => r.Key == keep);
         OnPropertyChanged(nameof(HasScenes));
@@ -486,6 +512,42 @@ public sealed partial class ProjectViewModel : ObservableObject
         else row.Character!.Name = trimmed;
         row.Name = trimmed;
         _changed();
+    }
+
+    // ---- production status -------------------------------------------------------
+
+    /// <summary>
+    /// Set a document's production status. Returns what it was.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The manifest is the record and the row is a mirror of it, so both are written
+    /// here rather than binding the row two-way: setting a status saves the project and
+    /// may fire an export, and neither belongs behind a property assignment.
+    /// </para>
+    /// <para>
+    /// Returns the previous value because the caller needs it to decide whether this was
+    /// a change at all — re-selecting the status something already has must not fire an
+    /// export, or opening the menu to look would ship the asset.
+    /// </para>
+    /// <para>
+    /// Nothing here touches the document. Status is production metadata about a drawing,
+    /// not part of it, which is why marking something Ready does not dirty the artwork
+    /// file or need it open.
+    /// </para>
+    /// </remarks>
+    public AssetStatus? SetStatus(ProjectRow row, AssetStatus? status)
+    {
+        if (row.Animation is not { } reference) return null;
+
+        var before = reference.Status;
+        reference.Status = status;
+        row.Status = status;
+
+        // Saves the manifest, not the artwork — the project's save writes only the
+        // documents in `_dirty`, and this did not put one there.
+        if (before != status) _changed();
+        return before;
     }
 
     // ---- where things are on disk ------------------------------------------------

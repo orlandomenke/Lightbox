@@ -2805,6 +2805,29 @@ public partial class MainWindow : Window
         if (_vm.ProjectDocker.Selected is { } row) row.IsRenaming = true;
     }
 
+    /// <summary>
+    /// Set the selected document's production status — and, with auto-export on, hand it
+    /// to the engine.
+    /// </summary>
+    /// <remarks>
+    /// The status comes off the menu item's <c>Tag</c> rather than from six near-identical
+    /// handlers. A tag that does not parse does nothing rather than guessing a status, so
+    /// a typo in the XAML is inert instead of quietly marking things Design.
+    /// </remarks>
+    private void OnProjectStatusSet(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.ProjectDocker.Selected is not { } row) return;
+        if ((sender as Control)?.Tag as string is not { } tag) return;
+        if (!Enum.TryParse<Lightbox.Core.Projects.AssetStatus>(tag, out var status)) return;
+
+        _vm.SetProjectStatus(row, status);
+    }
+
+    private void OnProjectStatusClear(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.ProjectDocker.Selected is { } row) _vm.SetProjectStatus(row, null);
+    }
+
     private void OnProjectNameKeyDown(object? sender, KeyEventArgs e)
     {
         if (sender is not TextBox box || box.DataContext is not ProjectRow row) return;

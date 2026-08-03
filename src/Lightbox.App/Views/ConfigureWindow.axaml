@@ -16,6 +16,7 @@
       <ListBoxItem Content="Guides and grid" />
       <ListBoxItem Content="Timeline" />
       <ListBoxItem Content="Drawing" />
+      <ListBoxItem Content="Export" />
       <ListBoxItem Content="AI" />
     </ListBox>
 
@@ -318,6 +319,50 @@
                            Minimum="14" Maximum="72" Increment="2" FormatString="0"
                            ValueChanged="OnFrameWidthChanged" />
             <TextBlock Text="Pixels per frame" VerticalAlignment="Center" />
+          </DockPanel>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+    <ScrollViewer x:Name="ExportPage" Grid.Column="2" Margin="14" IsVisible="False"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16">
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Export when an asset is done" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Finish an asset, set its status in the Project panel, and the sheet and its sidecar land where your engine is already looking. Nobody has to remember to export — and the export nobody remembered is the one that makes a designer think you have not started." />
+          <CheckBox x:Name="AutoExportBox" Content="Export automatically on a status change"
+                    IsCheckedChanged="OnAutoExportChanged" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.6"
+                     Text="Off by default, because this writes files into another project on a click. The status change is always saved first: if the folder is missing or your engine has the file locked, you keep the status and get a message." />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Which status fires it" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Ready by default. A studio that reviews in engine wants Review instead — when the engine should see an asset is a question about your pipeline, not ours." />
+          <ComboBox x:Name="AutoExportStatusBox" Width="260"
+                    SelectionChanged="OnAutoExportStatusChanged" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Export preset" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="The same presets the export window uses. Save one there and it appears here." />
+          <ComboBox x:Name="AutoExportPresetBox" Width="260"
+                    SelectionChanged="OnAutoExportPresetChanged" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Output folder" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Where the files go. An absolute path, or one relative to the project folder — ../Game/Assets/Sprites keeps the whole thing portable." />
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Browse…" Click="OnBrowseAutoExportFolder"
+                    Margin="6,0,0,0" />
+            <TextBox x:Name="AutoExportFolderBox"
+                     PlaceholderText="e.g. ../Game/Assets/Sprites"
+                     LostFocus="OnAutoExportFolderChanged" />
           </DockPanel>
         </StackPanel>
       </StackPanel>

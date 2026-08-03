@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1941 tests, derived from the suite itself. Each line is a
+1960 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -189,6 +189,27 @@ regression even when every test still compiles.
 - Both Test Depths Are Offered And Quick Is The Default — `:235`
 - The Depth Picker Explains What Each One Costs — `:246`
 - The Progress Bar And Clock Are Hidden Until ATest Is Running — `:261`
+
+## AutoExportTests
+`tests/Lightbox.App.Tests/AutoExportTests.cs`
+
+- AProject That Never Sets AStatus Writes No Status Key — `:72`
+- Reopened Is Not ASynonym For In Development — `:83`
+- Nothing Happens When It Is Switched Off — `:97`
+- Re Selecting The Status Something Already Has Does Not Export — `:110`
+- Arriving At The Trigger From Anywhere Exports — `:125`
+- AStatus That Is Not The Trigger Does Not Export And Says Which One Would — `:136`
+- The Trigger Is Configurable Because Some Studios Review In Engine — `:147`
+- ARelative Folder Resolves Against The Project — `:161`
+- ARelative Folder With No Project Is Refused Rather Than Guessed — `:175`
+- No Folder Is Said Out Loud Because It Is AMisconfiguration — `:187`
+- AFile Name Comes From The Document Name And Survives Punctuation — `:202`
+- An Export Lands In The Folder Named After The Document — `:217`
+- AMissing Folder Is Created Rather Than Refused — `:232`
+- It Uses The Named Preset And Falls Back Rather Than Failing — `:246`
+- AFailed Export Is AMessage Rather Than An Exception — `:268`
+- APng Sequence Preset Gets AFolder Rather Than AFile Name — `:284`
+- The Settings Round Trip And Are Off By Default — `:304`
 
 ## BackgroundLayerTests
 `tests/Lightbox.App.Tests/BackgroundLayerTests.cs`
@@ -1721,9 +1742,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:145`
 - The Canvas Gets The Room Left Over By The Strips — `:168`
 - The Project Row Menu Actually Does Something When Clicked — `:192`
-- The New Menu Actually Makes Things — `:239`
-- The Reference Panel Is Absent Until It Is Asked For — `:282`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:298`
+- The New Menu Actually Makes Things — `:258`
+- The Reference Panel Is Absent Until It Is Asked For — `:301`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:317`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
@@ -2048,28 +2069,30 @@ regression even when every test still compiles.
 `tests/Lightbox.Core.Tests/ProjectTests.cs`
 
 - AProject Round Trips Through The Folder — `:49`
-- The Layout Is The One Documented — `:63`
-- An Animation On Disk Is An Ordinary Document — `:75`
-- AProject With No Type Writes No Type Key — `:87`
-- ADeclared Type Survives — `:101`
-- Loading AProject Does Not Read Its Documents — `:109`
-- Saving Rewrites Only The Dirty Document — `:125`
-- Saving With No Dirty Set Writes Every Loaded Document — `:144`
-- An Interrupted Write Leaves The Previous File Intact — `:158`
-- Shared Palettes Live On The Project And Round Trip — `:175`
-- ASaved Project Keeps Its Swatch Ids — `:191`
-- Character Folders Are Unique Even When Names Collide — `:218`
-- Slugs Are Always Usable As AFolder Name — `:236`
-- Migrating ALoose Document Gives AOne Character Project — `:240`
-- Flatten Inlines The Swatches The Document Actually Uses — `:265`
-- Flatten Inlines Referenced Gradients — `:287`
-- Flatten Does Not Mutate The Open Document — `:309`
-- An Empty Project Saves And Loads Without Characters — `:326`
-- Loading Something That Is Not AProject Fails — `:335`
-- The Palette Hierarchy Survives AProject Save And Reload — `:344`
-- AProject With No Folders Writes No Folder File — `:363`
-- Deleting The Last Folder Reaches The Disk — `:375`
-- APalette Filed Under AMissing Folder Still Shows Up On Load — `:392`
+- AStatus Round Trips And An Unset One Writes No Key — `:63`
+- Marking Something Ready Does Not Touch The Artwork — `:87`
+- The Layout Is The One Documented — `:103`
+- An Animation On Disk Is An Ordinary Document — `:115`
+- AProject With No Type Writes No Type Key — `:127`
+- ADeclared Type Survives — `:141`
+- Loading AProject Does Not Read Its Documents — `:149`
+- Saving Rewrites Only The Dirty Document — `:165`
+- Saving With No Dirty Set Writes Every Loaded Document — `:184`
+- An Interrupted Write Leaves The Previous File Intact — `:198`
+- Shared Palettes Live On The Project And Round Trip — `:215`
+- ASaved Project Keeps Its Swatch Ids — `:231`
+- Character Folders Are Unique Even When Names Collide — `:258`
+- Slugs Are Always Usable As AFolder Name — `:276`
+- Migrating ALoose Document Gives AOne Character Project — `:280`
+- Flatten Inlines The Swatches The Document Actually Uses — `:305`
+- Flatten Inlines Referenced Gradients — `:327`
+- Flatten Does Not Mutate The Open Document — `:349`
+- An Empty Project Saves And Loads Without Characters — `:366`
+- Loading Something That Is Not AProject Fails — `:375`
+- The Palette Hierarchy Survives AProject Save And Reload — `:384`
+- AProject With No Folders Writes No Folder File — `:403`
+- Deleting The Last Folder Reaches The Disk — `:415`
+- APalette Filed Under AMissing Folder Still Shows Up On Load — `:432`
 
 ## ReferenceStripTests
 `tests/Lightbox.Core.Tests/ReferenceStripTests.cs`

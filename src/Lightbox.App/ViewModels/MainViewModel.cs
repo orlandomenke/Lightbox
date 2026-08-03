@@ -6523,6 +6523,69 @@ public sealed partial class MainViewModel : ObservableObject
     private void ClearActiveLayer() => ClearLayerContent(ActiveLayer);
 
     /// <summary>
+    /// Set a project document's status, and export it if that is what the artist asked
+    /// the app to do on that status.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The shortcut through the whole export pillar: finish an asset, mark it Ready, and
+    /// the sheet lands where the engine is already looking. Nobody has to remember to
+    /// export — and the export nobody remembered is the one that makes a designer think
+    /// the artist has not started.
+    /// </para>
+    /// <para>
+    /// <b>The order is load-bearing. The status is written and saved first; the export is
+    /// a consequence.</b> If the destination is missing, locked by the engine, or on a
+    /// drive that is not mounted, the artist gets a message and keeps their status.
+    /// Refusing the status change because a file could not be written would make a
+    /// production field hostage to a network share.
+    /// </para>
+    /// <para>
+    /// The document is read from the open tab when there is one, so an unsaved edit
+    /// exports as the artist sees it rather than as the file last had it. Otherwise it
+    /// comes off disk, which is the point of statuses living on the manifest: marking
+    /// something Ready never needed it open.
+    /// </para>
+    /// </remarks>
+    public void SetProjectStatus(ProjectRow row, AssetStatus? status)
+    {
+        if (row.Animation is not { } reference) return;
+
+        var before = ProjectDocker.SetStatus(row, status);
+        if (status is not { } now) return;
+
+        var settings = Settings.AutoExport;
+        var root = ProjectDocker.RootPath;
+
+        // Decided before anything is loaded, so the ordinary case — auto-export off —
+        // costs a comparison rather than reading a document off disk.
+        var (folder, outcome) = AutoExport.Decide(before, now, settings, root);
+        if (folder is null)
+        {
+            if (AutoExport.Explain(outcome, settings) is { Length: > 0 } why) AiStatus = why;
+            return;
+        }
+
+        var doc = Tabs.FirstOrDefault(t => t.Source?.Id == reference.Id)?.Editor.Doc
+                  ?? (ProjectDocker.Project is { } project
+                      ? ProjectIo.LoadDocument(project, reference)
+                      : null);
+        if (doc is null)
+        {
+            AiStatus = $"Status saved, but {reference.Name} could not be read to export it.";
+            return;
+        }
+
+        var report = AutoExport.Run(
+            doc, reference.Name, before, now, settings, ProjectDocker.RootPath, ExportPresets());
+        if (report.Message is { Length: > 0 }) AiStatus = report.Message;
+    }
+
+    /// <summary>Built-in export presets plus the artist's own.</summary>
+    private static List<ExportPreset> ExportPresets() =>
+        ExportPreset.BuiltIns.Concat(ExportPresetStore.Load()).ToList();
+
+    /// <summary>
     /// One status line for a finished export, including what it left out.
     /// </summary>
     /// <remarks>

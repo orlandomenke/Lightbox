@@ -60,6 +60,30 @@ public sealed class DocumentRef
 
     /// <summary>Seconds this shot runs, or null when the hint is not filled in.</summary>
     public double? Seconds => Frames > 0 && Fps > 0 ? Frames / (double)Fps : null;
+
+    /// <summary>
+    /// Where this document is in production, or null when nobody has said.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>On the manifest rather than in the document</b>, and that is the whole
+    /// choice: marking something Ready must not dirty the artwork file, must not
+    /// touch a pixel, and must not need the document open. Status is production
+    /// metadata about a drawing, not part of it — so invariant 1 is not in play and
+    /// a status change cannot alter what re-renders.
+    /// </para>
+    /// <para>
+    /// Nullable so a project that never uses statuses writes no key, and so
+    /// "nobody has said" stays distinct from "Design". A project imported from a
+    /// folder of loose files has no statuses, and pretending every file is at the
+    /// start of a pipeline it was never in would be a guess.
+    /// </para>
+    /// </remarks>
+    public AssetStatus? Status { get; set; }
+
+    /// <summary>Whether anybody has set a status on this document.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasStatus => Status is not null;
 }
 
 /// <summary>

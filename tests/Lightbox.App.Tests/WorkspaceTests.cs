@@ -216,7 +216,7 @@ public sealed class WorkspaceTests : BrushStateIsolated
 
             Assert.Equal(
                 ["Open", "Open with default app…", "Show in file manager", "Copy path",
-                 "Duplicate", "Rename…", "Remove from project"],
+                 "Duplicate", "Rename…", "Remove from project", "Status"],
                 items.Select(i => i.Header?.ToString()).ToList());
 
             vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
@@ -228,6 +228,25 @@ public sealed class WorkspaceTests : BrushStateIsolated
 
             Click(items, "Rename…");
             Assert.True(vm.ProjectDocker.Selected!.IsRenaming);
+
+            // The status items are one level down, and they are exactly the kind of
+            // nested flyout item this test exists to catch: they read their status off
+            // Tag, so a typo there is inert rather than loud.
+            var status = items.Single(i => i.Header?.ToString() == "Status");
+            var options = status.Items.OfType<MenuItem>().ToList();
+            Assert.Equal(
+                ["Not set", "Design", "Draft", "In development", "Review", "Ready", "Reopened"],
+                options.Select(i => i.Header?.ToString()).ToList());
+
+            var row = vm.ProjectDocker.Selected!;
+            Click(options, "Ready");
+            Assert.Equal(Lightbox.Core.Projects.AssetStatus.Ready, row.Status);
+            // Written through to the manifest, not only onto the row.
+            Assert.Equal(Lightbox.Core.Projects.AssetStatus.Ready, row.Animation!.Status);
+
+            Click(options, "Not set");
+            Assert.Null(row.Status);
+            Assert.Null(row.Animation!.Status);
         }
         finally
         {
