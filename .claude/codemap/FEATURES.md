@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1460 tests, derived from the suite itself. Each line is a
+1481 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1240,11 +1240,13 @@ regression even when every test still compiles.
 ## BrushTipsWindowTests
 `tests/Lightbox.App.Tests/TipLibraryTests.cs`
 
-- Generating ATip Puts It In The Library As Pixels — `:168`
-- Only The Controls The Shape Actually Reads Are Shown — `:186`
-- An Empty Library Says So Rather Than Showing Nothing — `:206`
-- The Library Lists What Is In The Store — `:219`
-- The Preview Bakes Small However Big The Output Is — `:238`
+- Generating ATip Puts It In The Library As Pixels — `:179`
+- Only The Controls The Shape Actually Reads Are Shown — `:197`
+- An Empty Library Says So Rather Than Showing Nothing — `:217`
+- The Library Lists What Is In The Store — `:230`
+- ABuilt In Cannot Be Deleted Or Renamed — `:251`
+- Editing ACopy Loads The Recipe Without Touching The Original — `:269`
+- The Preview Bakes Small However Big The Output Is — `:286`
 
 ## TipLibraryTests
 `tests/Lightbox.App.Tests/TipLibraryTests.cs`
@@ -1252,11 +1254,11 @@ regression even when every test still compiles.
 - ALibrary Round Trips — `:30`
 - ACorrupt Library Is Empty Rather Than Fatal — `:44`
 - AProject Tip Comes Before AUser Tip — `:54`
-- With No Project The Library Is Just The Users Own — `:69`
-- Painting With ALibrary Tip Copies It Into The Drawing — `:81`
-- Deleting From The Library Cannot Change ADrawing — `:94`
-- AProject That Never Made ATip Writes No Tips Key — `:110`
-- AProject Tip Survives Save And Reload — `:131`
+- With No Project The Library Is Just The Users Own — `:73`
+- Painting With ALibrary Tip Copies It Into The Drawing — `:92`
+- Deleting From The Library Cannot Change ADrawing — `:105`
+- AProject That Never Made ATip Writes No Tips Key — `:121`
+- AProject Tip Survives Save And Reload — `:142`
 
 ## ToolBarAlignmentTests
 `tests/Lightbox.App.Tests/ToolBarAlignmentTests.cs`
@@ -2186,6 +2188,17 @@ regression even when every test still compiles.
 - Paper Texture Commit Does Not Stall The Pen — `:101`
 - Textured Stroke Commit Does Not Stall The Pen — `:121`
 
+## TipCatalogueTests
+`tests/Lightbox.Raster.Tests/TipCatalogueTests.cs`
+
+- There Are Eight Built Ins And Every One Bakes — `:12`
+- Every Built In Is ADistinct Shape — `:22`
+- The Ids Are Frozen — `:34`
+- The Pixels Behind ABuilt In Do Not Move Between Runs — `:59`
+- The Catalogue Is Baked Once And Shared Afterwards — `:73`
+- The Three Staples Are The Ones An Artist Expects To Find First — `:82`
+- APaintbrush Is Flat Enough To Read As One — `:94`
+
 ## TipFromImageTests
 `tests/Lightbox.Raster.Tests/TipFromImageTests.cs`
 
@@ -2215,4 +2228,16 @@ regression even when every test still compiles.
 - ABaked Tip Carries Its Shape In Alpha — `:197`
 - The Same Recipe Bakes The Same Tip Every Time — `:211`
 - ARecipe Is Provenance And Travels With The Tip — `:227`
-- An Absurd Size Is Clamped Rather Than Allocated — `:243`
+- ABristle Tip Is Combed At The Rim And Solid In The Middle — `:245`
+- More Bristles Means More Channels — `:270`
+- One Exponent Walks The Whole Superellipse Family — `:289`
+- ASuperellipse Is Still Flattened By Roundness — `:322`
+- APolygon Has Corners That Reach Further Than Its Flats — `:335`
+- Rounding APolygon Pulls It Toward The Circle It Sits Inside — `:354`
+- Spatter Grains Have ASize Rather Than Being Fog — `:373`
+- Spatter Coverage Is Monotone And The Cell Count Sets The Grain Size — `:404`
+- AHalo Is Denser At Its Rim Than In Its Middle — `:430`
+- The Halo Rim Slider Takes It Back To AFlat Wash — `:448`
+- Every Shape Bakes Something And Stays Inside The Matrix — `:462`
+- Every Shape Bakes The Same Way Twice — `:480`
+- An Absurd Size Is Clamped Rather Than Allocated — `:549`

@@ -12,20 +12,32 @@ using SkiaSharp;
 
 namespace Lightbox.App.Views;
 
+/// <summary>Where a library tip came from, and therefore what may be done to it.</summary>
+public enum TipScope
+{
+    /// <summary>Shared by every document in the project.</summary>
+    Project,
+
+    /// <summary>The artist's own, following them between projects.</summary>
+    User,
+
+    /// <summary>Shipped with the app. Read-only: its id is in old documents.</summary>
+    BuiltIn,
+}
+
 /// <summary>One tip in the library list.</summary>
-public sealed class TipRow(BrushTip tip, bool fromProject, Bitmap? thumbnail)
+public sealed class TipRow(BrushTip tip, TipScope scope, Bitmap? thumbnail)
 {
     public BrushTip Tip { get; } = tip;
 
-    /// <summary>Project tips are shared; user tips follow the artist between projects.</summary>
-    public bool FromProject { get; } = fromProject;
+    public TipScope Scope { get; } = scope;
 
     public string Name => Tip.Name;
 
     public Bitmap? Thumbnail { get; } = thumbnail;
 
     public string Detail =>
-        (FromProject ? "Project" : "User")
+        (Scope switch { TipScope.Project => "Project", TipScope.BuiltIn => "Built-in", _ => "User" })
         + (Tip.Recipe is { } r ? $" · {r.Shape} {r.Size}px" : Tip.Source is { } s ? $" · {s}" : "");
 }
 
@@ -79,14 +91,21 @@ public partial class BrushTipsWindow : Window
 
         foreach (var tip in _vm.ProjectDocker.Project?.Manifest.Tips ?? [])
         {
-            _rows.Add(new TipRow(tip, fromProject: true, Preview(tip)));
+            _rows.Add(new TipRow(tip, TipScope.Project, Preview(tip)));
         }
         foreach (var tip in _user.Tips)
         {
-            _rows.Add(new TipRow(tip, fromProject: false, Preview(tip)));
+            _rows.Add(new TipRow(tip, TipScope.User, Preview(tip)));
+        }
+        foreach (var tip in TipCatalogue.All)
+        {
+            _rows.Add(new TipRow(tip, TipScope.BuiltIn, Preview(tip)));
         }
 
-        EmptyLibrary.IsVisible = _rows.Count == 0;
+        // The catalogue is always there, so the empty state now only means the
+        // artist has made nothing yet — which is still worth saying, because
+        // otherwise eight shapes they did not choose look like their library.
+        EmptyLibrary.IsVisible = _rows.All(r => r.Scope == TipScope.BuiltIn);
         if (selected is not null)
         {
             TipList.SelectedItem = _rows.FirstOrDefault(r => r.Tip.Id == selected);
@@ -99,9 +118,16 @@ public partial class BrushTipsWindow : Window
     private void UpdateLibraryButtons()
     {
         var row = TipList.SelectedItem as TipRow;
-        DeleteButton.IsEnabled = row is not null;
-        NameBox.IsEnabled = row is not null;
-        PromoteButton.IsEnabled = row is { FromProject: false } && _vm.ProjectDocker.Project is not null;
+
+        // A built-in is read-only, and not because it is precious: its id is
+        // recorded in every document that ever painted with it, so deleting or
+        // renaming one would make an old file refer to something that no longer
+        // means what it meant.
+        var mutable = row is not null && row.Scope != TipScope.BuiltIn;
+        DeleteButton.IsEnabled = mutable;
+        NameBox.IsEnabled = mutable;
+        PromoteButton.IsEnabled = row is { Scope: TipScope.User } && _vm.ProjectDocker.Project is not null;
+        EditCopyButton.IsEnabled = row?.Tip.Recipe is not null;
 
         _syncingName = true;
         NameBox.Text = row?.Name ?? "";
@@ -127,7 +153,8 @@ public partial class BrushTipsWindow : Window
         // its own raster in Doc.BrushTips, so deleting here can never reach
         // back and change a picture — which is the whole reason a tip travels
         // with the document rather than being referenced out of a library.
-        if (row.FromProject) _vm.ProjectDocker.Project?.Manifest.Tips?.RemoveAll(t => t.Id == row.Tip.Id);
+        if (row.Scope == TipScope.BuiltIn) return;
+        if (row.Scope == TipScope.Project) _vm.ProjectDocker.Project?.Manifest.Tips?.RemoveAll(t => t.Id == row.Tip.Id);
         else _user.Tips.RemoveAll(t => t.Id == row.Tip.Id);
 
         Persist();
@@ -141,7 +168,7 @@ public partial class BrushTipsWindow : Window
     /// </summary>
     private void OnRenamed(object? sender, TextChangedEventArgs e)
     {
-        if (_syncingName || SelectedTip is not { } tip) return;
+        if (_syncingName || TipList.SelectedItem is not TipRow { Scope: not TipScope.BuiltIn, Tip: var tip }) return;
         var name = NameBox.Text?.Trim();
         if (string.IsNullOrEmpty(name) || name == tip.Name) return;
         tip.Name = name;
@@ -150,7 +177,7 @@ public partial class BrushTipsWindow : Window
 
     private void OnPromote(object? sender, RoutedEventArgs e)
     {
-        if (TipList.SelectedItem is not TipRow { FromProject: false } row) return;
+        if (TipList.SelectedItem is not TipRow { Scope: TipScope.User } row) return;
         if (_vm.ProjectDocker.Project is not { } project) return;
 
         project.Manifest.Tips ??= [];
@@ -173,7 +200,46 @@ public partial class BrushTipsWindow : Window
         Spacing = SpacingSlider.Value,
         LineWidth = LineWidthSlider.Value,
         Crossed = CrossedBox.IsChecked == true,
+        Count = (int)Math.Round(CountSlider.Value),
+        Sharpness = SharpnessSlider.Value,
     };
+
+    /// <summary>
+    /// Put a recipe back on the controls. The inverse of
+    /// <see cref="CurrentRecipe"/>, which is what makes a tip re-openable —
+    /// the reason <see cref="BrushTip.Recipe"/> is stored at all.
+    /// </summary>
+    private void LoadRecipe(TipRecipe recipe)
+    {
+        ShapeBox.SelectedIndex = (int)recipe.Shape;
+        SizeBox.SelectedIndex = recipe.Size switch { 128 => 0, 512 => 2, 1024 => 3, _ => 1 };
+        HardnessSlider.Value = Math.Clamp(recipe.Hardness, HardnessSlider.Minimum, HardnessSlider.Maximum);
+        InnerSlider.Value = Math.Clamp(recipe.InnerRadius, InnerSlider.Minimum, InnerSlider.Maximum);
+        RoundnessSlider.Value = Math.Clamp(recipe.Roundness, RoundnessSlider.Minimum, RoundnessSlider.Maximum);
+        AngleSlider.Value = Math.Clamp(recipe.Angle, AngleSlider.Minimum, AngleSlider.Maximum);
+        SpacingSlider.Value = Math.Clamp(recipe.Spacing, SpacingSlider.Minimum, SpacingSlider.Maximum);
+        LineWidthSlider.Value = Math.Clamp(recipe.LineWidth, LineWidthSlider.Minimum, LineWidthSlider.Maximum);
+        CrossedBox.IsChecked = recipe.Crossed;
+        CountSlider.Value = Math.Clamp(recipe.Count, CountSlider.Minimum, CountSlider.Maximum);
+        SharpnessSlider.Value = Math.Clamp(recipe.Sharpness, SharpnessSlider.Minimum, SharpnessSlider.Maximum);
+        OnRecipeChanged();
+    }
+
+    /// <summary>Load the selected tip's recipe into the generator. Test seam for the click.</summary>
+    internal void EditCopyForTest() => OnEditCopy(null, new RoutedEventArgs());
+
+    /// <summary>
+    /// Open the selected tip's recipe in the generator. A copy, always: baking
+    /// over an existing tip would change the pixels under every drawing that
+    /// used it, which is invariant 1 read from the wrong end.
+    /// </summary>
+    private void OnEditCopy(object? sender, RoutedEventArgs e)
+    {
+        if (SelectedTip is not { Recipe: { } recipe } tip) return;
+        LoadRecipe(recipe);
+        GenerateName.Text = $"{tip.Name} copy";
+        CategoryList.SelectedIndex = 1;
+    }
 
     private void OnRecipeChanged(object? sender, RoutedEventArgs e) => OnRecipeChanged();
 
@@ -198,8 +264,42 @@ public partial class BrushTipsWindow : Window
         var shape = (TipShape)Math.Max(0, ShapeBox.SelectedIndex);
         HardnessRow.IsVisible = shape == TipShape.SoftCircle;
         InnerRow.IsVisible = shape == TipShape.Ring;
-        RoundnessRow.IsVisible = shape == TipShape.Chisel;
+        RoundnessRow.IsVisible = shape is TipShape.Chisel or TipShape.Superellipse;
         HatchRows.IsVisible = shape == TipShape.Hatch;
+
+        // Count and Sharpness are one control each and four meanings each, so
+        // they are relabelled rather than duplicated. A slider called
+        // "Sharpness" that actually sets grain coverage is the same lie as a
+        // slider that does nothing.
+        CountRow.IsVisible = shape is TipShape.Bristle or TipShape.Polygon or TipShape.Spatter;
+        CountLabel.Text = shape switch
+        {
+            TipShape.Bristle => "Bristles",
+            TipShape.Polygon => "Sides",
+            // Cells across, not grain size: more cells is *smaller* grains, and
+            // a label that reads the other way round makes the slider feel
+            // broken to the one person who bothers to check.
+            _ => "Grains across",
+        };
+
+        SharpnessRow.IsVisible = shape is TipShape.Bristle or TipShape.Superellipse
+            or TipShape.Polygon or TipShape.Spatter or TipShape.Halo;
+        SharpnessLabel.Text = shape switch
+        {
+            TipShape.Bristle => "Channel depth",
+            TipShape.Superellipse => "Squareness",
+            TipShape.Polygon => "Corner sharpness",
+            TipShape.Spatter => "Coverage",
+            _ => "Rim strength",
+        };
+
+        // Sides top out at 12 and bristles want more than a polygon does.
+        CountSlider.Maximum = shape switch
+        {
+            TipShape.Polygon => 12,
+            TipShape.Spatter => 24,
+            _ => 32,
+        };
     }
 
     private void RefreshGeneratePreview()

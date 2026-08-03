@@ -380,15 +380,41 @@ the flow if you want a darker wash.
 **Edit ▸ Brush tips…** opens the tip workshop — its own window, like Configure,
 because making a brush is not something you do mid-stroke.
 
-Three pages. **Library** is what you have: your own tips, and the project's
-above them when a project is open. **Generate** bakes a shape — hard or soft
-circle, ring, chisel, hatch — with only the controls that shape actually reads.
-**From a scan** turns a photographed or scanned stamp into a tip: set the black
-and white points once and they apply to every image in the batch, which matters
-because a series that will be blended has to match exactly.
+Three pages. **Library** is what you have: your own tips, the project's above
+them when a project is open, and eight built-ins below. **Generate** bakes a
+shape, with only the controls that shape actually reads. **From a scan** turns a
+photographed or scanned stamp into a tip: set the black and white points once
+and they apply to every image in the batch, which matters because a series that
+will be blended has to match exactly.
 
 A tip is baked once and then only looked up. Nothing in this window is
 recomputed while you draw.
+
+#### The eight that are already there
+
+| Tip | What it is |
+| --- | --- |
+| **Soft round** | The default. A disc with a long shoulder. |
+| **Hard round** | Full to the edge, one pixel of feather. A pen. |
+| **Paintbrush** | A flat brush seen head-on. Turn on *angle follows direction* and it reads as a loaded brush rather than a nib. |
+| **Bristle round** | A round brush whose hairs have parted — fine scratches through a solid middle. Dry-brush without a simulation. |
+| **Marker nib** | Squarish with rounded corners, the shape a chisel marker lays down. |
+| **Cut nib** | Six flats and six corners. The only tip here with a point. |
+| **Spatter** | Grains with a size, not fog: a sponge, a stipple, a rough charcoal edge. |
+| **Wet edge** | Pale in the middle, dark at the rim — the mark a puddle leaves when it dries, stamped rather than simulated. |
+
+Built-ins cannot be deleted or renamed, because drawings refer to them by name
+under the hood. **Edit a copy** puts one back on the Generate page so you can
+change it and bake your own.
+
+#### Shapes the generator can bake
+
+Hard circle, soft circle, ring, chisel, hatch, bristle, superellipse, polygon,
+spatter and halo. Three controls do different jobs depending on the shape and
+are relabelled to say which: *Count* is bristles, polygon sides or grains
+across; *Sharpness* is channel depth, squareness, corner sharpness, coverage or
+rim strength; *Flatness* squashes a chisel or a superellipse across its short
+axis.
 
 Two things worth knowing:
 

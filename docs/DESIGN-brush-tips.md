@@ -160,6 +160,60 @@ threshold, the output is the *coverage* of that threshold over the pixel — one
   makes `AngleFollowsDirection` worth having, and it is the cheapest useful
   answer to `BristleDrag` (see the last section).
 
+### Five more, and the reason each earns its place
+
+The test for adding a shape is whether the ones already there can reach it. A
+"soft round 2" cannot pass that; these five can. Each is a standard curve rather
+than an invented one, because a named curve comes with a control whose behaviour
+is already understood.
+
+- **Bristle** — a raised-cosine comb, `½(1 + cos Nθ)`, around the azimuth.
+  Two ways to build it that both stamp a *starburst* instead of a brush, and
+  both were built here before the right one: multiplying by the comb keeps a
+  ridge at each hair and discards everything between them, and inverting that
+  still leaves grooves a quarter of the hair spacing wide. What works is
+  `(1 − comb)^k` at a high exponent — a narrow spike at each parting —
+  *subtracted* from a solid disc at a depth below one, so a scratch thins the
+  paint rather than removing it. It fades to nothing over the inner third,
+  because a comb that reaches the centre is a star.
+- **Superellipse** — Lamé's `|x/a|^n + |y/b|^n = 1`. One exponent walks from a
+  pointed almond through an ellipse to a squarish marker nib, which is three
+  shapes for one control and one slider. The implicit value is converted back to
+  a distance in pixels before feathering, the same correction the chisel makes,
+  or the soft edge is a different width on each axis.
+- **Polygon** — the polar form `cos(π/N) / cos((θ mod 2π/N) − π/N)`. The only
+  procedural shape with corners. Rounding lerps toward the **inscribed** circle,
+  the one the flats already sit on: rounding a corner must take material away,
+  and the tempting `flat → 1` grows the tip as the slider moves, which an artist
+  reads as a bug in the *size* slider.
+- **Spatter** — Worley (cellular) noise. Value noise thresholds into ragged
+  blobs with no characteristic size; cellular noise measures distance to the
+  nearest of a set of feature points, so grains have a size and that size is the
+  cell spacing — a control someone can reason about. Feature points come from
+  `Hash01` on the cell index, never an RNG: a tip that baked differently on two
+  machines would make the same document render differently on each, which is
+  invariant 2 one level up.
+- **Halo** — a Gaussian rim band over a low plateau: the profile a drying puddle
+  leaves, pale in the middle and dense at the contact line. `FluidLattice`
+  produces this properly from the flow; this is the stamped counterpart for a
+  brush that is not paying for a simulation, which is the same "every simulated
+  medium ships a fast counterpart" rule the preset catalogue follows.
+
+### The catalogue: eight tips that are there on day one
+
+`TipCatalogue` — soft round, hard round, paintbrush, and one of each of the five
+above. **Recipes plus frozen ids, not shipped PNGs.** Eight files would put a
+megabyte of pixels in the repository to hold what eight lines of arithmetic
+already contain, and would make "the same tip" mean two things depending on
+whether the file was found.
+
+The ids are the part that cannot change. A document that painted with a built-in
+copied the raster into `Doc.BrushTips` under that id, so the id is in that file's
+record forever: renaming one is a compatibility break, and re-tuning the pixels
+behind one silently repaints old drawings — invariant 1 read from the wrong end.
+**Adjusting a built-in means adding a new one**, and the workshop's *Edit a copy*
+is how an artist does that without being able to get it wrong.
+
 ### Hatching and screentones
 
 Two different features that the spec runs together, and separating them is the

@@ -25,6 +25,8 @@
 
       <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0"
                   HorizontalAlignment="Right">
+        <Button x:Name="EditCopyButton" Content="Edit a copy" Click="OnEditCopy"
+                ToolTip.Tip="Load this tip's recipe into the generator. The original is left alone — a tip's pixels never change under a drawing that used it." />
         <Button x:Name="PromoteButton" Content="Move to project" Click="OnPromote"
                 ToolTip.Tip="Share this tip with every document in the project" />
         <TextBox x:Name="NameBox" Width="180" Watermark="Name" IsEnabled="False"
@@ -33,8 +35,12 @@
       </StackPanel>
 
       <TextBlock x:Name="EmptyLibrary" DockPanel.Dock="Top"
-                 Text="Nothing here yet. Generate a shape, or bring in a scan."
+                 Text="You have not made any tips yet — the eight below ship with the app. Generate a shape, or bring in a scan."
                  Opacity="0.5" Margin="0,20,0,0" HorizontalAlignment="Center" IsVisible="False" />
+
+      <TextBlock DockPanel.Dock="Bottom" Opacity="0.5" FontSize="11" Margin="0,6,0,0"
+                 TextWrapping="Wrap"
+                 Text="The eight tips marked Built-in ship with the app and cannot be deleted or renamed. Edit a copy to start from one." />
 
       <ScrollViewer VerticalScrollBarVisibility="Auto">
         <ListBox x:Name="TipList" SelectionChanged="OnTipSelected" Background="Transparent">
@@ -74,6 +80,11 @@
             <ComboBoxItem Content="Ring" />
             <ComboBoxItem Content="Chisel" />
             <ComboBoxItem Content="Hatch" />
+            <ComboBoxItem Content="Bristle" />
+            <ComboBoxItem Content="Superellipse" />
+            <ComboBoxItem Content="Polygon" />
+            <ComboBoxItem Content="Spatter" />
+            <ComboBoxItem Content="Halo" />
           </ComboBox>
 
           <TextBlock Text="Baked size" Opacity="0.7" Margin="0,6,0,0" />
@@ -111,6 +122,19 @@
             <Slider x:Name="LineWidthSlider" Minimum="1" Maximum="24" Value="3"
                     ValueChanged="OnRecipeChanged" />
             <CheckBox x:Name="CrossedBox" Content="Cross-hatch" Click="OnRecipeChanged" />
+          </StackPanel>
+
+          <StackPanel x:Name="CountRow" Spacing="2" IsVisible="False">
+            <TextBlock x:Name="CountLabel" Text="Count" Opacity="0.7" />
+            <Slider x:Name="CountSlider" Minimum="3" Maximum="32" Value="12"
+                    TickFrequency="1" IsSnapToTickEnabled="True"
+                    ValueChanged="OnRecipeChanged" />
+          </StackPanel>
+
+          <StackPanel x:Name="SharpnessRow" Spacing="2" IsVisible="False">
+            <TextBlock x:Name="SharpnessLabel" Text="Sharpness" Opacity="0.7" />
+            <Slider x:Name="SharpnessSlider" Minimum="0" Maximum="1" Value="0.5"
+                    ValueChanged="OnRecipeChanged" />
           </StackPanel>
 
           <TextBlock Text="Angle" Opacity="0.7" Margin="0,6,0,0" />

@@ -62,7 +62,11 @@ public class TipLibraryTests : BrushStateIsolated
 
         var all = TipStore.Available(project, new TipStore.State { Tips = [mine, shared] });
 
-        Assert.Equal(["Shared", "Mine"], all.Select(t => t.Name));
+        // The catalogue is always there and always last: an artist's own work
+        // must not be pushed down the list by shapes that shipped with the app.
+        Assert.Equal(["Shared", "Mine"], all.Take(2).Select(t => t.Name));
+        Assert.Equal(TipCatalogue.All.Count + 2, all.Count);
+        Assert.All(all.Skip(2), t => Assert.True(TipCatalogue.IsBuiltIn(t.Id)));
     }
 
     [AvaloniaFact]
@@ -74,7 +78,14 @@ public class TipLibraryTests : BrushStateIsolated
 
         var all = TipStore.Available(null, new TipStore.State { Tips = [mine] });
 
-        Assert.Equal(["Mine"], all.Select(t => t.Name));
+        Assert.Equal(["Mine"], all.Where(t => !TipCatalogue.IsBuiltIn(t.Id)).Select(t => t.Name));
+        Assert.Equal(TipCatalogue.All.Count + 1, all.Count);
+
+        // And the catalogue can be asked for without: the tip picker wants it,
+        // a "what have I made" list does not.
+        Assert.Equal(["Mine"],
+            TipStore.Available(null, new TipStore.State { Tips = [mine] }, includeBuiltIn: false)
+                .Select(t => t.Name));
     }
 
     [AvaloniaFact]
@@ -230,8 +241,45 @@ public class BrushTipsWindowTests : BrushStateIsolated
             _store);
 
         var window = new BrushTipsWindow(new ViewModels.MainViewModel(null), _store);
+        var rows = window.TipList.ItemsSource!.Cast<TipRow>().ToList();
 
-        Assert.Equal(2, window.TipList.ItemCount);
+        Assert.Equal(["One", "Two"], rows.Where(r => r.Scope == TipScope.User).Select(r => r.Name));
+        Assert.Equal(TipCatalogue.All.Count, rows.Count(r => r.Scope == TipScope.BuiltIn));
+    }
+
+    [AvaloniaFact]
+    public void ABuiltInCannotBeDeletedOrRenamed()
+    {
+        // Not because it is precious: its id is recorded in every document that
+        // ever painted with it, so removing one would leave an old file
+        // referring to something that no longer means what it meant.
+        var window = new BrushTipsWindow(new ViewModels.MainViewModel(null), _store);
+        var rows = window.TipList.ItemsSource!.Cast<TipRow>().ToList();
+
+        window.TipList.SelectedItem = rows.First(r => r.Scope == TipScope.BuiltIn);
+        Assert.False(window.DeleteButton.IsEnabled);
+        Assert.False(window.NameBox.IsEnabled);
+
+        // …and it can still be used as a starting point, which is the point of
+        // keeping the recipe on the tip at all.
+        Assert.True(window.EditCopyButton.IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public void EditingACopyLoadsTheRecipeWithoutTouchingTheOriginal()
+    {
+        var window = new BrushTipsWindow(new ViewModels.MainViewModel(null), _store);
+        var rows = window.TipList.ItemsSource!.Cast<TipRow>().ToList();
+        var cutNib = rows.Single(r => r.Name == "Cut nib");
+        var before = cutNib.Tip.Png;
+
+        window.TipList.SelectedItem = cutNib;
+        window.EditCopyForTest();
+
+        Assert.Equal((int)TipShape.Polygon, window.ShapeBox.SelectedIndex);
+        Assert.Equal(6, (int)Math.Round(window.CountSlider.Value));
+        Assert.Equal("Cut nib copy", window.GenerateName.Text);
+        Assert.Equal(before, cutNib.Tip.Png);
     }
 
     [AvaloniaFact]

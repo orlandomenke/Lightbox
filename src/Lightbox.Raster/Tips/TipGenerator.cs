@@ -89,6 +89,11 @@ public static class TipGenerator
                     TipShape.Ring => Ring(MathF.Sqrt(rx * rx + ry * ry), radius, (float)recipe.InnerRadius),
                     TipShape.Chisel => Chisel(rx, ry, radius, (float)recipe.Roundness),
                     TipShape.Hatch => Hatch(rx, ry, radius, recipe),
+                    TipShape.Bristle => Bristle(rx, ry, radius, recipe),
+                    TipShape.Superellipse => Superellipse(rx, ry, radius, recipe),
+                    TipShape.Polygon => Polygon(rx, ry, radius, recipe),
+                    TipShape.Spatter => Spatter(rx, ry, radius, recipe),
+                    TipShape.Halo => Halo(MathF.Sqrt(rx * rx + ry * ry), radius, recipe),
                     _ => 0f,
                 };
             }
@@ -170,6 +175,214 @@ public static class TipGenerator
     {
         var phase = v - MathF.Floor(v / spacing + 0.5f) * spacing;
         return Step(half - MathF.Abs(phase));
+    }
+
+    /// <summary>
+    /// A round brush whose bristles have parted: a raised-cosine comb around
+    /// the azimuth, inside a soft disc.
+    /// </summary>
+    /// <remarks>
+    /// The comb is <c>½(1 + cos(N·θ))</c>, which is the standard way to get a
+    /// periodic ridge with no discontinuity anywhere — a hard-edged wedge would
+    /// alias as the tip rotates with the stroke.
+    ///
+    /// <b>The scratches are subtracted, and they are narrow.</b> Two ways to get
+    /// this wrong, and both stamp a starburst rather than a brush: multiplying
+    /// by the comb keeps a thin ridge at each hair and discards everything
+    /// between them, and even inverting that leaves grooves a quarter of the
+    /// hair spacing wide, which the eye reads as wedges. So the groove is
+    /// <c>(1 − comb)^k</c> with a high exponent — a narrow spike at each parting
+    /// and flat zero elsewhere — subtracted from a solid disc at a depth below
+    /// one, so a scratch thins the paint instead of removing it.
+    ///
+    /// It fades toward the middle, because the centre of a round brush is where
+    /// the hairs are packed tightest and the last place paint runs out. A comb
+    /// that reached the centre would leave a star, not a brush.
+    ///
+    /// Where that fade happens is the difference between a bristle brush and a
+    /// soft round with a texture on it. Solid to a third of the way out and
+    /// fully combed by four fifths puts the streaks over most of the mark,
+    /// which is what the eye actually reads as hair.
+    /// </remarks>
+    private static float Bristle(float x, float y, float radius, TipRecipe recipe)
+    {
+        var d = MathF.Sqrt(x * x + y * y);
+        var body = Soft(d, radius, 0.5f);
+        if (body <= 0) return 0f;
+
+        var n = Math.Max(2, recipe.Count);
+        var theta = MathF.Atan2(y, x);
+        var comb = 0.5f * (1f + MathF.Cos(n * theta));
+        var sharp = 4f + 16f * (float)Math.Clamp(recipe.Sharpness, 0, 1);
+        var groove = MathF.Pow(1f - comb, sharp);
+
+        var t = Math.Clamp(d / radius, 0f, 1f);
+        var depth = 0.9f * Smooth(Math.Clamp((t - 0.3f) / 0.5f, 0f, 1f));
+        return body * (1f - depth * groove);
+    }
+
+    /// <summary>
+    /// Lamé's superellipse, <c>|x/a|^n + |y/b|^n = 1</c>.
+    /// </summary>
+    /// <remarks>
+    /// One exponent walks a whole family of nibs: n = 2 is an ellipse, n → ∞ a
+    /// rectangle, n = 1 a diamond and below that a four-pointed almond. It is
+    /// the cheapest single control that reaches shapes a circle and a chisel
+    /// cannot, which is why it is here rather than three separate shapes.
+    ///
+    /// The implicit value is converted back to a distance in pixels before
+    /// feathering, or the soft edge would be a different width on the long
+    /// axis than the short one — the same correction <see cref="Chisel"/>
+    /// makes.
+    /// </remarks>
+    private static float Superellipse(float x, float y, float radius, TipRecipe recipe)
+    {
+        var minor = radius * Math.Clamp((float)recipe.Roundness, 0.05f, 1f);
+        // 0.4 → a pointed almond, 0.5 → an ellipse, 1 → a squarish nib.
+        var n = 0.5f + 7.5f * (float)Math.Clamp(recipe.Sharpness, 0, 1);
+
+        var nx = MathF.Abs(x) / radius;
+        var ny = MathF.Abs(y) / minor;
+        var f = MathF.Pow(nx, n) + MathF.Pow(ny, n);
+        if (f <= 0) return 1f;
+
+        // f = 1 on the boundary; f^(1/n) is the radial fraction, which scales
+        // back to pixels the same way the chisel's does.
+        var frac = MathF.Pow(f, 1f / n);
+        var scale = MathF.Sqrt(x * x + y * y) / MathF.Max(frac, 1e-4f);
+        return Step((1f - frac) * MathF.Max(scale, 1f));
+    }
+
+    /// <summary>
+    /// A rounded regular polygon, in polar form.
+    /// </summary>
+    /// <remarks>
+    /// The boundary radius of a regular N-gon at angle θ is
+    /// <c>cos(π/N) / cos((θ mod 2π/N) − π/N)</c> — the distance to the flat,
+    /// which peaks at the corners and dips to <c>cos(π/N)</c> at the middle of
+    /// a side.
+    ///
+    /// Rounding is a lerp toward that dip — the <em>inscribed</em> circle, the
+    /// one the flats already touch. Rounding a corner has to take material
+    /// away: lerping toward the circumscribed circle instead (the tempting
+    /// <c>flat → 1</c>) grows the tip as the slider moves, and an artist reads
+    /// a size that changes with a shape control as a bug in the size slider.
+    /// </remarks>
+    private static float Polygon(float x, float y, float radius, TipRecipe recipe)
+    {
+        var n = Math.Clamp(recipe.Count, 3, 12);
+        var d = MathF.Sqrt(x * x + y * y);
+        if (d <= 0) return 1f;
+
+        var seg = 2f * MathF.PI / n;
+        var theta = MathF.Atan2(y, x);
+        var phase = theta - MathF.Floor(theta / seg) * seg;
+        var inscribed = MathF.Cos(MathF.PI / n);
+        var flat = inscribed / MathF.Cos(phase - MathF.PI / n);
+
+        // Sharpness 1 is the polygon, 0 the circle its own flats sit on.
+        var round = 1f - (float)Math.Clamp(recipe.Sharpness, 0, 1);
+        var boundary = radius * (flat + (inscribed - flat) * round);
+        return Step(boundary - d);
+    }
+
+    /// <summary>
+    /// Worley (cellular) noise, thresholded into grains — a sponge, a stipple,
+    /// a charcoal edge.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Cellular rather than value noise, and the difference is the whole point:
+    /// value noise is fog, and thresholding fog gives ragged blobs with no
+    /// characteristic size. Worley measures the distance to the nearest of a
+    /// set of scattered feature points, so the grains have a size, and that
+    /// size is the cell spacing — which is a control an artist can reason
+    /// about.
+    /// </para>
+    /// <para>
+    /// Feature points come from <see cref="Hash01"/> on the cell index, not an
+    /// RNG. Invariant 2 is about rendering, and a tip is baked rather than
+    /// rendered — but a tip that came out differently on two machines would
+    /// make the same document render differently on each, which is the same
+    /// defect one level up.
+    /// </para>
+    /// </remarks>
+    private static float Spatter(float x, float y, float radius, TipRecipe recipe)
+    {
+        var body = Soft(MathF.Sqrt(x * x + y * y), radius, 0.6f);
+        if (body <= 0) return 0f;
+
+        var cells = Math.Clamp(recipe.Count, 2, 64);
+        var cell = 2f * radius / cells;
+        var u = (x + radius) / cell;
+        var v = (y + radius) / cell;
+        int cx = (int)MathF.Floor(u), cy = (int)MathF.Floor(v);
+
+        // Nearest feature point over the 3×3 neighbourhood: anything closer
+        // than that cannot be in a cell further away.
+        var nearest = float.MaxValue;
+        for (var j = -1; j <= 1; j++)
+        {
+            for (var i = -1; i <= 1; i++)
+            {
+                int gx = cx + i, gy = cy + j;
+                var fx = gx + Hash01(gx * 0.7391f, gy * 1.3319f, 3);
+                var fy = gy + Hash01(gx * 1.9137f, gy * 0.5711f, 7);
+                float dx = u - fx, dy = v - fy;
+                nearest = MathF.Min(nearest, dx * dx + dy * dy);
+            }
+        }
+
+        // Grain radius in cell units. Coverage is the artist's control; the
+        // square root keeps the slider roughly linear in *area* covered, which
+        // is what the eye reads.
+        var coverage = (float)Math.Clamp(recipe.Sharpness, 0.02, 1);
+        var grain = 0.62f * MathF.Sqrt(coverage);
+        var edge = (grain - MathF.Sqrt(nearest)) * cell;
+        return body * Step(edge);
+    }
+
+    /// <summary>
+    /// A pale disc with a dark rim — one stamp of a dried wet edge.
+    /// </summary>
+    /// <remarks>
+    /// The radial profile a drying puddle leaves: pigment carried to the
+    /// contact line and stranded there, so the middle is thin and the border is
+    /// dense. <c>FluidLattice</c> produces this properly from the flow, and
+    /// this is the cheap stamped version for a brush that is not paying for a
+    /// simulation — which is the same "every simulated medium ships a fast
+    /// counterpart" rule the preset catalogue follows.
+    /// </remarks>
+    private static float Halo(float d, float radius, TipRecipe recipe)
+    {
+        var t = d / radius;
+        if (t >= 1f) return Step(radius - d);
+
+        var rim = (float)Math.Clamp(recipe.Sharpness, 0, 1);
+        var floor = 0.15f + 0.45f * (1f - rim);
+
+        // A Gaussian band sitting just inside the boundary, over a low plateau.
+        const float Where = 0.86f, Width = 0.11f;
+        var k = (t - Where) / Width;
+        var band = MathF.Exp(-k * k);
+        var value = floor + (1f - floor) * band * rim;
+        return MathF.Min(value, Step(radius - d));
+    }
+
+    /// <summary>
+    /// The same position hash the brush engine seeds its dab dynamics from,
+    /// so a generated tip and a painted mark agree about what "random-looking
+    /// but fixed" means.
+    /// </summary>
+    private static float Hash01(float x, float y, int salt)
+    {
+        var h = BitConverter.SingleToInt32Bits(x) * 73856093
+                ^ BitConverter.SingleToInt32Bits(y) * 19349663
+                ^ salt * 83492791;
+        h ^= h >> 13;
+        h *= unchecked((int)0x5bd1e995);
+        h ^= h >> 15;
+        return ((uint)h % 100000u) / 100000f;
     }
 
     // ---- coverage -----------------------------------------------------------

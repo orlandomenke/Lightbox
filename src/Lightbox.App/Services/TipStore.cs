@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
+using Lightbox.Raster.Tips;
 
 namespace Lightbox.App.Services;
 
@@ -76,13 +77,15 @@ public static class TipStore
 
     /// <summary>
     /// Everything visible right now: the project's tips first when there is a
-    /// project, then the user's.
+    /// project, then the user's, then the built-in catalogue.
     /// </summary>
     /// <remarks>
     /// Project first because it is the more specific scope, and de-duplicated
-    /// by id so a tip promoted from user to project does not appear twice.
+    /// by id so a tip promoted from user to project does not appear twice. The
+    /// built-ins come last because they are always there — an artist's own work
+    /// should never be pushed down the list by shapes that shipped with the app.
     /// </remarks>
-    public static List<BrushTip> Available(Project? project, State? user = null)
+    public static List<BrushTip> Available(Project? project, State? user = null, bool includeBuiltIn = true)
     {
         var all = new List<BrushTip>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -94,6 +97,13 @@ public static class TipStore
         foreach (var tip in (user ?? Load()).Tips)
         {
             if (seen.Add(tip.Id)) all.Add(tip);
+        }
+        if (includeBuiltIn)
+        {
+            foreach (var tip in TipCatalogue.All)
+            {
+                if (seen.Add(tip.Id)) all.Add(tip);
+            }
         }
 
         return all;

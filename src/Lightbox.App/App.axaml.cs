@@ -13,6 +13,11 @@ public sealed class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // Eight fixed shapes with no input, ~160 ms to bake. Started here so
+            // the first artist to open the tip library is not the one who waits
+            // for them.
+            Lightbox.Raster.Tips.TipCatalogue.Warm();
+
             var window = new MainWindow();
             desktop.MainWindow = window;
             // The start screen is offered from here rather than from the window

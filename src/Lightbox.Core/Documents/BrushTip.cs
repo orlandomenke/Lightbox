@@ -21,6 +21,39 @@ public enum TipShape
 
     /// <summary>Parallel or crossed rules, in tip space so they follow the stroke.</summary>
     Hatch,
+
+    /// <summary>
+    /// A ring of bristle channels, from a raised-cosine comb around the
+    /// azimuth. What a round hog brush leaves when the paint thins.
+    /// </summary>
+    Bristle,
+
+    /// <summary>
+    /// A superellipse — Lamé's curve, <c>|x/a|^n + |y/b|^n = 1</c>. At n = 2 a
+    /// plain ellipse, above it a squarish marker nib, below it a pointed
+    /// almond. One exponent walks the whole family.
+    /// </summary>
+    Superellipse,
+
+    /// <summary>
+    /// A rounded polygon in polar form. The shape a cut nib or a folded felt
+    /// tip presses out, and the one procedural shape with corners.
+    /// </summary>
+    Polygon,
+
+    /// <summary>
+    /// Worley (cellular) noise thresholded into a spatter of grains. The
+    /// classic answer for a sponge, a stipple or a rough charcoal edge, and
+    /// unlike value noise it produces distinct blobs rather than fog.
+    /// </summary>
+    Spatter,
+
+    /// <summary>
+    /// A soft disc with a raised rim, from the same 1D profile a watercolour
+    /// leaves when it dries: pale in the middle, dark at the contact line.
+    /// A single stamp of a wet edge, for a brush that is not simulating one.
+    /// </summary>
+    Halo,
 }
 
 /// <summary>
@@ -61,6 +94,22 @@ public sealed class TipRecipe
 
     /// <summary>Rule the other way too, for <see cref="TipShape.Hatch"/>.</summary>
     public bool Crossed { get; set; }
+
+    /// <summary>
+    /// How many of the repeating element there are: bristles round a
+    /// <see cref="TipShape.Bristle"/> tip, sides on a
+    /// <see cref="TipShape.Polygon"/>, cells across a
+    /// <see cref="TipShape.Spatter"/>.
+    /// </summary>
+    public int Count { get; set; } = 12;
+
+    /// <summary>
+    /// The shape's own exponent or sharpness, 0..1 mapped per shape: Lamé's
+    /// <c>n</c> for a <see cref="TipShape.Superellipse"/>, corner radius for a
+    /// <see cref="TipShape.Polygon"/>, grain coverage for
+    /// <see cref="TipShape.Spatter"/>, rim height for <see cref="TipShape.Halo"/>.
+    /// </summary>
+    public double Sharpness { get; set; } = 0.5;
 
     public TipRecipe Clone() => (TipRecipe)MemberwiseClone();
 }
