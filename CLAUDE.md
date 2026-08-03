@@ -163,6 +163,12 @@ anchor is the one thing the file cannot represent.
 
 - Build: `dotnet build Lightbox.sln`
 - Test: `dotnet test` (all four suites must stay green)
+- **The .NET 10 SDK builds this and the .NET 8 runtime runs it.** The TFM is
+  `net8.0` (except `Lightbox.Mcp`), but Avalonia 12's source generators need a
+  newer Roslyn than the .NET 8 SDK ships, and a `net8.0` assembly does not roll
+  forward onto a 10.0 runtime — so both are required, and a machine with only
+  one compiles or runs but not both. `.devcontainer/devcontainer.json` has them;
+  `docs/DESIGN-net10-upgrade.md` has the reasoning and the upgrade assessment.
 - Performance budgets run inside the normal suite, tagged
   `[Trait("Category", "Performance")]`. They are deliberately loose — they
   catch order-of-magnitude regressions, not drift.

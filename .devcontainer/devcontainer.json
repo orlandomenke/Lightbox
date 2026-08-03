@@ -1,0 +1,67 @@
+{
+  // Lightbox in a Linux container — Codespaces, or any devcontainer host.
+  //
+  // Everything CI needs and nothing it does not. The three things that are not
+  // obvious are commented where they appear; see docs/DESIGN-net10-upgrade.md
+  // for why the SDK version and the target framework are different questions.
+  "name": "Lightbox",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+
+  "features": {
+    // TWO SDKs, deliberately.
+    //
+    // 10.0 is what BUILDS the repo: Avalonia 12's source generators need newer
+    // Roslyn than the .NET 8 SDK ships, which is why .github/workflows/build.yml
+    // installs 10.0.x even though the solution targets net8.0.
+    //
+    // 8.0 is what RUNS it. Every project except Lightbox.Mcp targets net8.0, no
+    // runtimeconfig sets rollForward, and the default (Minor) does not cross
+    // major versions — so a net8.0 test assembly needs the 8.0 runtime present
+    // and will not fall back to 10.0. Install only 10.0 here and the build
+    // succeeds while `dotnet test` fails to launch its host, which reads as a
+    // broken test rather than a missing runtime.
+    //
+    // CI gets away with naming only 10.0.x because the ubuntu-latest runner
+    // image preinstalls .NET 8. That is an inherited dependency rather than a
+    // declared one, and it expires when GitHub drops 8.0 from the image.
+    "ghcr.io/devcontainers/features/dotnet:2": {
+      "version": "10.0",
+      "additionalVersions": "8.0"
+    }
+  },
+
+  // libfontconfig1 is SkiaSharp's native dependency — without it text rendering
+  // fails at runtime, not at build time. MANUAL_TESTING.md and the CI workflow
+  // both name it.
+  //
+  // xvfb is only for LOOKING at the app: `dotnet test` needs no display at all,
+  // because Lightbox.App.Tests drives Avalonia through Avalonia.Headless.XUnit.
+  // Synthetic input through Xvfb is unreliable here — a dropped click is
+  // indistinguishable from a bug — so prefer a headless pixel test and keep
+  // Xvfb for eyeballing the real window.
+  //
+  // python3 runs the codemap, bugs and roadmap scripts that CLAUDE.md leans on.
+  "onCreateCommand": "sudo apt-get update && sudo apt-get install -y --no-install-recommends libfontconfig1 xvfb python3 && sudo rm -rf /var/lib/apt/lists/*",
+
+  // Warm the NuGet cache so the first build is not the slow one. Failure here
+  // must not fail container creation — a restore can fail for reasons that have
+  // nothing to do with the container being usable.
+  "postCreateCommand": "dotnet restore Lightbox.sln || true",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.csharp"
+      ]
+    }
+  },
+
+  // 4 cores keeps `dotnet test`'s four suites from serialising badly; the
+  // performance-tagged tests are loose enough to survive a shared runner but
+  // they are measuring a container, so treat absolute numbers as advisory and
+  // read the slopes. See docs/DESIGN-performance.md.
+  "hostRequirements": {
+    "cpus": 4
+  }
+}
