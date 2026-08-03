@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1652 tests, derived from the suite itself. Each line is a
+1657 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -20,6 +20,15 @@ regression even when every test still compiles.
 - ATiming Outside The Keys Leaves No Usable Frame — `:178`
 - The Checks Name The Problem Rather Than Just Failing — `:187`
 - Each Stage Is Reported So ALong Test Can Say What It Is Doing — `:198`
+
+## AiPayloadBudgetTests _Category=Performance_
+`tests/Lightbox.Ai.Tests/AiPayloadBudgetTests.cs`
+
+- An Inbetween Request Stays Within Its Budget — `:68`
+- Resampling Is What Keeps ALong Stroke Affordable — `:81`
+- The Fixed Overhead Is Not Worth Optimising — `:99`
+- Cost Scales With Stroke Count Which Is Why Sending Fewer Is The Real Lever — `:115`
+- ADraw Request With An Empty Canvas Is Tiny — `:130`
 
 ## AiArtistFactoryTests
 `tests/Lightbox.Ai.Tests/AiProviderTests.cs`

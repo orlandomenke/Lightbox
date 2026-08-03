@@ -134,6 +134,16 @@ Then, in parallel:
   `.claude/quality/DESIGN.md` — control sizing, button consistency, docker
   density. A BLOCKING verdict means a control or docker is unusable and the
   round is not done.
+- **ai-engineer** *and* **art-director**, together, whenever the round touched
+  `src/Lightbox.Ai`, the MCP surface, a prompt, or an AI path in the view
+  model. This is gate **G12**, and it is a pair on purpose: one of them owns
+  what is sent and what it costs, the other owns whether what comes back is
+  worth keeping, and either alone fails in a predictable direction. Spawn them
+  in the same message — ai-engineer's `FOR ART-DIRECTOR` block and
+  art-director's `FOR AI-ENGINEER` block are how they hand work across, and
+  reading both at once is the point. ai-engineer's BLOCKING fails the round;
+  art-director's REJECTED is answered with a change or with a question in
+  `QUESTIONS.md` naming what would settle it — never by overruling it.
 - **adversary** on every claim you intend to report, one claim per agent. A
   claim it refutes is not a finding and not a fix — go back to step 3 or drop
   it.

@@ -94,6 +94,7 @@ session start when it is stale.
 | What is known broken? | `python3 scripts/bugs.py next` |
 | What is broken in the area I am editing? | `python3 scripts/bugs.py mine <domain>` |
 | What does the app do, from the artist's side? | read `docs/MANUAL.md` |
+| What does an AI request cost? | read `docs/DESIGN-ai-payload.md` — do not re-derive it |
 | What should I pick up next? | `python3 scripts/roadmap.py next` |
 
 Rebuild by hand with `python3 scripts/codemap.py build` after large changes.
@@ -180,6 +181,42 @@ still hanging around.
 
 It does not merge or open a PR unless that was the actual request — those are
 the two git actions other people see.
+
+### Touching anything AI: two agents, on purpose
+
+AI work is reviewed by a **pair**, `.claude/agents/ai-engineer.md` and
+`.claude/agents/art-director.md`, and they are meant to disagree.
+
+- **ai-engineer** owns the machinery: what is sent, what it costs, what the
+  contract is, what happens when it fails, and the line that keeps a model out
+  of the render path.
+- **art-director** owns the result: does the inbetween read at 12 fps, is it
+  actually *between* the keys, is it on-model, does the mark say anything.
+
+Either alone fails in a direction you can predict. Alone, the engineer
+optimises until the output is cheap and lifeless; alone, the director asks for
+richness nobody can afford or reproduce. **art-director has a veto on
+expression, ai-engineer has a veto on determinism**, and where they disagree
+and cannot measure, it goes to `QUESTIONS.md` rather than to whoever ran last.
+Q18 — flat point arrays are 57% cheaper and might cost stroke labels — is the
+live example, and it is exactly the shape of argument the pair exists for.
+
+Gate G12 in the charter makes this non-optional for a diff touching
+`src/Lightbox.Ai`, the MCP surface, a prompt, or an AI path in the view model.
+
+### What an AI request costs, before optimising it
+
+`docs/DESIGN-ai-payload.md` has the measured numbers, and one of them settles
+most of these arguments before they start: **images are ~87% of a request's
+bytes and ~5% of its tokens; strokes are the reverse.** So "make the payload
+smaller" is not a goal — it is two goals that recommend opposite changes, and a
+proposal that has not said which one it means is not ready.
+
+The corollaries, all measured: compression is not worth it (82% off the bytes,
+nothing off the tokens, and the upload is 0.3 s beside a minute of generation);
+GraphQL does not apply (there is no API of ours in the path); and the biggest
+lever by six times is **sending fewer strokes**, not encoding them better.
+`AiPayloadBudgetTests` keeps the numbers honest.
 
 ### Measuring a brush: the saturation trap
 
