@@ -184,5 +184,11 @@ public sealed record ExportPreset
             or ExportTarget.Godot or ExportTarget.Unreal;
 
     /// <summary>Whether this preset's engine settings mean anything.</summary>
-    public bool UsesEngineSettings => Target is ExportTarget.Unity;
+    /// <remarks>
+    /// Unreal as well as Unity, because both need to know how big the drawing is in
+    /// the world — and they disagree about what a world unit is, which is precisely
+    /// why the field is stated in metres and converted per engine rather than passed
+    /// through. See <see cref="Lightbox.Core.Export.UnrealConvert.UnrealUnitsPerMetre"/>.
+    /// </remarks>
+    public bool UsesEngineSettings => Target is ExportTarget.Unity or ExportTarget.Unreal;
 }

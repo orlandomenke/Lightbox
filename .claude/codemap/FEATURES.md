@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2052 tests, derived from the suite itself. Each line is a
+2095 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1779,6 +1779,37 @@ regression even when every test still compiles.
 - The Importer Can Be Declined — `:494`
 - Exporting Twice Produces The Same Sidecar — `:504`
 
+## UnrealExportTests
+`tests/Lightbox.App.Tests/UnrealExportTests.cs`
+
+- No Asset File Is Written Because Lightbox Cannot Write One — `:72`
+- The Generic Sidecar Keeps Every Key It Already Had — `:82`
+- The Block Carries Only What The Generic File Lacks — `:97`
+- The Pixels Per Unit Is Unreals Centimetre Figure And Not Unitys — `:110`
+- Frame Runs Are Counts Of Frames And Never Zero — `:125`
+- ADocument With No Pivot Carries No Pivot Points — `:137`
+- AFeet Pivot Arrives Relative To The Cell And Inside It — `:147`
+- The Sidecar Names The Assets So The Script Never Has To — `:170`
+- An Untagged Sheet Still Gets Exactly One Flipbook Name — `:184`
+- Each Tag Becomes AFlipbook Name In Tag Order — `:194`
+- Two Tags With The Same Name Do Not Collapse Into One Asset — `:211`
+- An Edited Importer Is Not Overwritten — `:231`
+- The Importer Can Be Suppressed — `:242`
+- Every Property Write Goes Through The Helper That Cannot Fail Silently — `:254`
+- AFailed Property Write Is Reported As An Error And Not Just Logged — `:275`
+- The Script Builds Assets Through Unreals Own Api — `:288`
+- The Script Only Claims Sidecars That Are Ours — `:302`
+- The Script Turns Mips Off Because That Is What Bleeds An Atlas — `:311`
+- The Script Sets The Region After Creation Because The Factory Takes No Texture — `:323`
+- The Script Says Why It Is AScript At All — `:337`
+- The Script Does No Name Cleaning Of Its Own — `:348`
+- The Shipped Script Is Structurally Intact Python — `:363`
+- And It Actually Catches Each Of Those Mistakes — `:379`
+- An Unreal Preset Writes The Sheet The Sidecar And The Script — `:470`
+- The Runner Passes The World Height Through Rather Than Defaulting It — `:484`
+- An Unreal Preset Still Reports What It Left Out — `:501`
+- The World Height Field Is Offered For Unreal And Not Only Unity — `:513`
+
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
 
@@ -2529,6 +2560,26 @@ regression even when every test still compiles.
 - An Impossible Frame Rate Does Not Divide By Zero — `:218`
 - Pixels Per Unit Is Derived From The World Size The Project Chose — `:224`
 - An Unset World Height Falls Back To Unitys Own Default — `:235`
+
+## UnrealConvertTests
+`tests/Lightbox.Core.Tests/UnrealConvertTests.cs`
+
+- Unreals Figure Is AHundred Times Unitys Because AUnit Is ACentimetre — `:23`
+- Using Unitys Figure Would Make ACharacter Centimetres Tall — `:40`
+- The Constant Says What It Is Rather Than Being AHundred Somewhere — `:62`
+- An Impossible World Height Does Not Divide By Zero — `:72`
+- An Ordinary Frame Runs For One Flipbook Frame — `:81`
+- AHold On2s Runs For Two — `:88`
+- Truncating Rather Than Rounding Would Delete The Frame Entirely — `:95`
+- No Duration Ever Produces AFrame That Never Shows — `:113`
+- An Impossible Frame Rate Still Gives AUsable Run — `:121`
+- The Pivot Is Measured From The Sprite Rectangles Own Corner — `:129`
+- It Is Neither Unitys Normalised Pivot Nor Godots Centre Offset — `:138`
+- Unreals Texture Space YRuns Down So AFeet Pivot Is The Larger Number — `:164`
+- ATrimmed Cell Moves The Pivot With It Rather Than Leaving It Behind — `:176`
+- Punctuation Unreal Rejects Becomes An Underscore — `:196`
+- AName With Nothing Usable In It Falls Back Rather Than Being Empty — `:206`
+- ARun Of Punctuation Collapses Rather Than Becoming ARow Of Underscores — `:214`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`

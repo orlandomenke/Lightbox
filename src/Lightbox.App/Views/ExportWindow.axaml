@@ -85,7 +85,9 @@
         <TextBlock Grid.Column="0" Text="Canvas height" VerticalAlignment="Center" />
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
           <TextBox x:Name="WorldHeightBox" Width="70" />
-          <TextBlock Text="world units" VerticalAlignment="Center" Opacity="0.7" />
+          <!-- Metres, not "world units": Unity's unit is a metre and Unreal's is a
+               centimetre, so the only unambiguous label is a real-world one. -->
+          <TextBlock Text="metres tall" VerticalAlignment="Center" Opacity="0.7" />
         </StackPanel>
       </Grid>
       <CheckBox x:Name="WriteImporterBox"

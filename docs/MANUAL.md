@@ -1460,7 +1460,8 @@ size, layout — **and names every layer it left out**.
 | **MonoGame**, **Raylib** | Nothing extra. Both load a PNG and take source rectangles you supply, and the sidecar is that list. |
 | **Unity** | The Unity format below, which adds an importer script. |
 | **Godot** | The Godot format below, which adds a GDScript importer. |
-| **GameMaker**, **Unreal** | Import the sheet by hand for now — see Planned. |
+| **Unreal** | The Unreal format below, which adds a Python importer. |
+| **GameMaker** | Import the sheet by hand for now — see Planned. |
 
 **For Unity** the exporter writes the sheet, the sidecar and a small importer
 script. Drop them under `Assets/`, then **Assets ▸ Lightbox ▸ Import selected
@@ -1483,6 +1484,35 @@ set, the sidecar carries a per-sprite offset for it, because Godot measures a
 sprite's offset from the middle of the region rather than as a fraction of it.
 Godot 4; on 3.x the frame timings would be dropped without saying so. Lightbox
 never touches `project.godot` or the `.godot/` cache — Godot owns those.
+
+**For Unreal** you get the sheet, the sidecar and `lightbox_import.py`. Put them
+anywhere under the project's `Content` folder, enable the **Python Editor Script
+Plugin** and **Paper2D**, then run the script from **Tools ▸ Execute Python
+Script…**. It imports the sheet as a texture, makes one Paper Sprite per frame
+and one Flipbook per tag, and tells you in the Output Log what it built.
+
+Three things worth knowing, and the first will bite you if you skip it:
+
+- **The canvas height is in metres, and that matters more for Unreal.** An Unreal
+  world unit is a *centimetre* where Unity's is a metre, so the same number means
+  two very different sizes. Lightbox does that conversion for you — which is why
+  the field says metres — but it means a figure you copied from a Unity project's
+  pixels-per-unit will not do.
+- **If the script cannot set something, it says so.** Paper2D's scripting surface
+  is officially experimental and property names have moved between engine
+  versions. Rather than quietly producing a sprite with nothing in it, the script
+  collects everything it failed to set and finishes with an error naming each one.
+  If you see that, the assets are incomplete — check your engine version before
+  using them.
+- **Asset names are cleaned up.** Unreal will not accept spaces or brackets in an
+  asset name, so `Hero sheet (v2).png` becomes `Hero_sheet_v2`, with sprites
+  numbered after it and one flipbook per tag. Two tags with the same name get
+  numbered rather than overwriting each other.
+
+Mipmaps are turned off and filtering set to nearest, because a mipmap on an atlas
+averages across the edges of your sprites and puts a sliver of the neighbour on
+each one. Lightbox writes no `.uasset` — it cannot, they are binary, which is why
+this is a script rather than a file.
 
 ### Leaving the background out
 
@@ -1910,9 +1940,6 @@ Not built. Listed so the gap is visible rather than implied.
 - GameMaker `.yy` project files. Writable in principle, but the schema moves
   between releases and a file written for the wrong one produces a project that
   will not open — so this waits on a decision about which versions to support.
-- Unreal Paper2D. Unreal's `.uasset` files are binary and cannot be written from
-  outside the editor, so this would be an Unreal-side script rather than an export
-  format, the way the Unity importer is.
 
 **Version control**
 - Seeing who has a file checked out, and taking the lock before you paint. Aimed at

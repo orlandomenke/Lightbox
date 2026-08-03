@@ -45,6 +45,7 @@ public partial class ExportWindow : Window
         {
             "PNG sequence", "Sprite sheet",
             "Sprite sheet + Unity", "Sprite sheet + Godot",
+            "Sprite sheet + Unreal",
         };
         TrimBox.ItemsSource = new[]
         {
@@ -111,6 +112,7 @@ public partial class ExportWindow : Window
             ExportTarget.PngSequence => 0,
             ExportTarget.Unity => 2,
             ExportTarget.Godot => 3,
+            ExportTarget.Unreal => 4,
             _ => 1,
         };
         TrimBox.SelectedIndex = preset.Trim switch
@@ -152,6 +154,7 @@ public partial class ExportWindow : Window
             0 => ExportTarget.PngSequence,
             2 => ExportTarget.Unity,
             3 => ExportTarget.Godot,
+            4 => ExportTarget.Unreal,
             _ => ExportTarget.SpriteSheet,
         },
         Trim = TrimBox.SelectedIndex switch

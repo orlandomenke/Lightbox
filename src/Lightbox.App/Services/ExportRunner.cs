@@ -51,6 +51,7 @@ public static class ExportRunner
             ExportTarget.PngSequence => Sequence(doc, path),
             ExportTarget.Unity => Unity(doc, preset, path),
             ExportTarget.Godot => Godot(doc, preset, path),
+            ExportTarget.Unreal => Unreal(doc, preset, path),
             _ => Sheet(doc, preset, path),
         };
     }
@@ -129,6 +130,26 @@ public static class ExportRunner
         return new ExportRun(
             files,
             $"{result.SpriteCount} sprite(s), {result.ClipCount} animation(s) for Godot → "
+            + Path.GetFileName(result.SheetPath),
+            result.Sheet?.OmittedLayers ?? [],
+            result.Sheet?.SuspectedBackgrounds ?? []);
+    }
+
+    private static ExportRun Unreal(Doc doc, ExportPreset preset, string sheetPath)
+    {
+        var result = UnrealExporter.Export(doc, sheetPath, new UnrealExportOptions(preset.WriteImporter)
+        {
+            Sheet = SheetOptions(preset),
+            WorldHeightUnits = preset.WorldHeightUnits,
+        });
+
+        var files = new List<string> { result.SheetPath, result.MetadataPath };
+        if (result.ImporterPath is { } importer) files.Add(importer);
+        if (preset.NormalMap) files.Add(NormalMapWriter.Write(result.SheetPath, preset.Normal));
+
+        return new ExportRun(
+            files,
+            $"{result.SpriteCount} sprite(s), {result.FlipbookCount} flipbook(s) for Unreal → "
             + Path.GetFileName(result.SheetPath),
             result.Sheet?.OmittedLayers ?? [],
             result.Sheet?.SuspectedBackgrounds ?? []);
