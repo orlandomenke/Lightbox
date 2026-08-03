@@ -67,6 +67,38 @@ rather than producing a file nothing will read. Silently. With a line in the
 report saying it happened, because a split changes how many files an importer
 finds.
 
+### Backgrounds are a folder-shaped question
+
+The one export setting that genuinely differs per *kind* of asset rather than per
+export, and the folder tree is what makes it expressible:
+
+| Folder | Wants |
+| --- | --- |
+| `characters/` | No background, ever. The grey layer under the line is a working aid. |
+| `props/`, `fx/` | Same. |
+| `environments/`, `backdrops/` | Often the background **is** the asset. |
+| `ui/` | Mixed, and usually decided per file. |
+
+The mechanism is already built and is deliberately not being invented again here:
+`BackgroundHandling` — `PaperOnly` / `Detected` / `Everything` — on the export,
+plus a three-state pin per layer (`Layer.OmitFromExport`: never, always, decide).
+What the folder tree adds is a **default `BackgroundHandling` on `AssetFolder`**
+that an export inherits, **nearest ancestor wins**, and a document may still
+override it. So `characters/` is set to `Detected` once and every character
+underneath it is right without anybody ticking anything.
+
+Three notes on why it is shaped this way:
+
+- **Inheritance rather than per-file configuration** because per-file is what the
+  artist is trying to escape. A per-file tickbox is the fallback for the odd case,
+  not the mechanism.
+- **The folder default is a default, not a rule.** A backdrop that lives under
+  `environments/` and happens to want the paper dropped says so on the file, and
+  the file wins. Nearest-ancestor-then-file is the whole precedence.
+- **It stays reported.** Whatever the folder decided, the export names every layer
+  it left out. A default that hides *why* something is missing would make the
+  tree the thing people distrust.
+
 **Path template** is how a studio gets its own layout rather than ours:
 `{project}/{folder}/{animation}`, `{folder}_{animation}`, `{path}` for the full
 nested path. This is the "custom method" half of the question, and it is cheap

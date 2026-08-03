@@ -1954,6 +1954,15 @@
                             <Separator />
                             <MenuItem Header="Select layer contents" Click="OnLayerMenuSelectAlpha" />
                             <MenuItem Header="Blank layer content" Click="OnLayerMenuBlank" />
+                            <Separator />
+                            <MenuItem Header="In exports">
+                              <MenuItem Header="Decide automatically" Click="OnLayerMenuExportAuto"
+                                        ToolTip.Tip="The export's own background handling decides. The default." />
+                              <MenuItem Header="Never export this layer" Click="OnLayerMenuExportNever"
+                                        ToolTip.Tip="Left out of every export, in every mode — a reference photo, a colour check, a note to self." />
+                              <MenuItem Header="Always export this layer" Click="OnLayerMenuExportAlways"
+                                        ToolTip.Tip="Kept in even when background detection would drop it — for the asset whose background is the point: a backdrop, a sky, a tiling floor." />
+                            </MenuItem>
                             <MenuItem Header="Delete layer" Click="OnLayerMenuDelete" />
                           </ContextMenu>
                         </Border.ContextMenu>

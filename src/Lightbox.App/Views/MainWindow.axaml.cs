@@ -1033,6 +1033,24 @@ public partial class MainWindow : Window
         if (LayerRowOf(sender) is { } row) _vm.DeleteLayer(row.Layer);
     }
 
+    // Three states rather than a checkbox, because "leave it to the export" and
+    // "keep this in whatever the export decides" are genuinely different answers and
+    // a two-state control cannot say both.
+    private void OnLayerMenuExportAuto(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.SetLayerExportPin(row.Layer, null);
+    }
+
+    private void OnLayerMenuExportNever(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.SetLayerExportPin(row.Layer, true);
+    }
+
+    private void OnLayerMenuExportAlways(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.SetLayerExportPin(row.Layer, false);
+    }
+
     private void OnGroupMenuRename(object? sender, RoutedEventArgs e)
     {
         if (GroupRowOf(sender) is { } row) row.IsRenaming = true;

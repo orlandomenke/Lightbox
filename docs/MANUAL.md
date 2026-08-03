@@ -1353,14 +1353,68 @@ this page at all.
 | **Save** | Writes in place. With a project open, writes the project and only the documents that changed. |
 | **Save as…** | Picks a new path. |
 | **Export document…** | Writes a standalone `.lightbox.json` with every referenced swatch, gradient, brush tip and clip region **inlined**. |
-| **Export PNG / sequence / sprite sheet** | Frames as images; sheets with trimmed bounds and a pivot. |
+| **Export PNGs…** | Every frame as a numbered PNG, into a folder you pick. |
 
-**Export for Unity** writes the sheet, the sidecar and a small importer script
-into your Unity project. Drop the folder under `Assets/`, then
-**Assets ▸ Lightbox ▸ Import selected sheet**: it slices the sprites, sets each
-pivot, and builds an animation clip per tag with the right frame durations and any
-events you marked. Lightbox never touches Unity's own `.meta` files — Unity owns
-those.
+### Sprite sheets and game engines — no menu item yet
+
+Everything below is **built and tested, and has no command in the File menu**.
+The sheet writer, the packer, the sidecar, the anchors, the collision rectangles
+and the Unity importer are all reachable from an agent over MCP and from code,
+and *not* from the interface. The export window that gathers them into one
+action — scope, trim, layout, background handling, engine — is the next piece of
+work, and until it lands this section describes capability rather than a
+workflow. It is written down here because the alternative is a manual that
+implies a menu item you will go looking for.
+
+**For Unity** the exporter writes the sheet, the sidecar and a small importer
+script. Drop them under `Assets/`, then **Assets ▸ Lightbox ▸ Import selected
+sheet**: it slices the sprites, sets each pivot, and builds an animation clip per
+tag with the right frame durations and any events you marked. It needs Unity's
+**2D Sprite** package, which every 2D template already has. Lightbox never
+touches Unity's own `.meta` files — Unity owns those.
+
+### Leaving the background out
+
+A background you added so you could see the line should not end up in a sprite
+sheet. Three modes, and the sheet says which layers it left out and why — nothing
+disappears silently:
+
+| Mode | What goes |
+| --- | --- |
+| **Paper only** | The document's Background layer. This is the default and always has been. |
+| **Detected** | Also any layer that covers the whole canvas on **every** drawing it shows. |
+| **Everything** | Nothing. For the asset whose background *is* the point — a backdrop, a sky, a tiling floor. |
+
+Detection reads **pixels, not names**. A layer called "grey" that floods the
+canvas is caught; a layer called "Background sketch" with a drawing on it is not,
+because a rule that removed a layer on the strength of its name would eventually
+ship a sheet with your artwork quietly missing. Names still get a mention: a kept
+layer whose name reads like a background is reported as worth a look.
+
+"Every drawing" is the part that matters. A layer that goes full-bleed for two
+frames is a flash, not a background, and stays in.
+
+Any layer can override the mode. Right-click it in the Layers docker, **In
+exports**:
+
+- **Decide automatically** — the default; the export's mode decides.
+- **Never export this layer** — the reference photo, the colour check, the note
+  to self. Left out of every export, in every mode.
+- **Always export this layer** — keeps a full-canvas fill in when detection is
+  on, which is how a backdrop gets exported without turning detection off for
+  the whole document.
+
+It is one undo step, and it marks the document changed: what leaves the app is
+part of the document, not a preference.
+
+*Per-folder defaults — characters never need a background, environments might —
+arrive with the project asset folders. Today the choice is per export, with the
+per-layer override above.*
+
+**Stray strokes are not solved by this**, and honestly cannot be: a mark on the
+wrong layer is a drawing, and nothing can tell it from one you meant. What the
+export does give you is the report — every omitted layer named, so the sheet you
+get is one you can account for.
 
 ### What the sidecar carries besides the frames
 

@@ -329,10 +329,60 @@ public class UnityExportTests : IDisposable
         // than pretend it can attach them. Checked as text because the script
         // references UnityEditor and cannot be compiled here.
         Assert.Contains("Collider2DSpec[] CollidersOf", UnityExporter.ImporterSource);
-        // And it does not reach for Unity's sprite physics-shape provider, which is
-        // the version-coupled editor-internal API this would otherwise be tempted by.
+        // And it does not reach for Unity's sprite *physics-shape* provider, which is
+        // a different thing from the sprite-rect data provider the slicing needs.
         Assert.DoesNotContain("PhysicsOutline", UnityExporter.ImporterSource);
-        Assert.DoesNotContain("SpriteDataProviderFactories", UnityExporter.ImporterSource);
+    }
+
+    // ---- the API the importer is allowed to use ----------------------------------
+
+    [Fact]
+    public void SlicingGoesThroughTheDataProviderOnAnyModernUnity()
+    {
+        // Not style. `TextureImporter.spritesheet` stopped working in Unity 2021.2 and
+        // was removed in 2022.2: setting it throws nothing and slices nothing, so the
+        // import reports success and produces one sprite. The first version of this
+        // exporter used only that property, which means it would have silently done
+        // nothing on every Unity anyone is running.
+        //
+        // Checked as text because the script references UnityEditor and cannot be
+        // compiled here — which is the whole reason a written-down assertion about the
+        // API is worth having.
+        var source = UnityExporter.ImporterSource;
+
+        Assert.Contains("#if UNITY_2021_2_OR_NEWER", source);
+        Assert.Contains("using UnityEditor.U2D.Sprites;", source);
+        Assert.Contains("SpriteDataProviderFactories", source);
+        Assert.Contains("InitSpriteEditorDataProvider", source);
+        Assert.Contains("SetSpriteRects", source);
+        // Apply() before SaveAndReimport, or the rects never reach the importer.
+        Assert.Contains("provider.Apply()", source);
+
+        // The legacy property may still appear — for older editors — but only inside
+        // the #else arm. Asserted by position: it must come after the modern path.
+        var modern = source.IndexOf("SetSpriteRects", StringComparison.Ordinal);
+        var legacy = source.IndexOf("importer.spritesheet", StringComparison.Ordinal);
+        Assert.True(
+            legacy < 0 || legacy > modern,
+            $"legacy spritesheet assignment at {legacy} is not behind the modern path at {modern}");
+    }
+
+    [Fact]
+    public void EverySlicedSpriteGetsItsOwnId()
+    {
+        // SpriteRect.spriteID has no counterpart in the old SpriteMetaData, so it is
+        // exactly the field a mechanical port forgets. Left at its default, every
+        // sprite collides on one empty id.
+        Assert.Contains("spriteID = GUID.Generate()", UnityExporter.ImporterSource);
+    }
+
+    [Fact]
+    public void AMissingSpritePackageIsReportedRatherThanCrashing()
+    {
+        // The data provider needs com.unity.2d.sprite. It is in every 2D template, but
+        // "null reference in LightboxSheetImporter" is a bad way to learn that.
+        Assert.Contains("com.unity.2d.sprite", UnityExporter.ImporterSource);
+        Assert.Contains("if (provider == null)", UnityExporter.ImporterSource);
     }
 
     // ---- clips and events --------------------------------------------------------

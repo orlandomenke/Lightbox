@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1894 tests, derived from the suite itself. Each line is a
+1923 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -577,6 +577,14 @@ regression even when every test still compiles.
 - Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:84`
 - Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:100`
 - Open Document Tab Uses File Name And Keeps Existing Tabs — `:119`
+
+## ExportPinTests
+`tests/Lightbox.App.Tests/ExportPinTests.cs`
+
+- The Three States Are Three And The Default Is Absent — `:26`
+- Pinning Is One Undo Step And Marks The Document Dirty — `:49`
+- Setting The Pin It Already Has Does Nothing — `:65`
+- APinned Layer Is Left Out Of The Sheet It Would Otherwise Appear In — `:81`
 
 ## FileRevealTests
 `tests/Lightbox.App.Tests/FileRevealTests.cs`
@@ -1273,40 +1281,49 @@ regression even when every test still compiles.
 ## SpriteSheetExportTests
 `tests/Lightbox.App.Tests/SpriteSheetExportTests.cs`
 
-- Trimming Defaults To The Union So Every Cell Is The Same Size And Nothing Jitters — `:63`
-- The Union Covers Every Frames Ink — `:88`
-- Per Frame Trimming Records Where Each Cell Came From — `:103`
-- No Trim Gives Every Cell The Whole Canvas — `:119`
-- The Grid Holds Every Frame And The Sheet Is That Size — `:129`
-- Every Cell Actually Contains Its Frame — `:144`
-- Padding Leaves ATransparent Gutter Without Losing Ink — `:169`
-- Without APivot The Sidecar Carries None — `:182`
-- The Pivot Is Recorded Per Cell So Trimming Cannot Shift The Character — `:191`
-- The Sidecar Is Aseprite Shaped — `:219`
-- An Opaque Background Layer Does Not Defeat Trimming — `:247`
-- An Empty Document Still Produces ASheet — `:260`
-- The Grid Is Still The Default And Its Bytes Are Unchanged — `:276`
-- APacked Sheet Is Smaller Than The Grid On Ragged Frames — `:297`
-- APacked Sheet Reports No Grid Rather Than APlausible One — `:331`
-- The Sidecar Carries Every Sprites Own Rect — `:346`
-- Packing The Same Document Twice Produces The Same File — `:381`
-- APacked Sheet Still Carries The Pivot Per Cell — `:396`
-- Padding Still Separates Every Sprite When Packed — `:420`
-- ADocument With No Anchors Writes No Anchor Key — `:441`
-- An Anchor Is Exported Per Frame By Name And Inside The Cell — `:448`
-- An Anchor On AHeld Drawing Is Exported On Every Frame It Shows — `:473`
-- Packing Does Not Move An Anchor Relative To Its Cell — `:492`
-- ADocument With No Shapes Writes No Shape Key — `:518`
-- AShape Is Exported With Its Role And Inside The Cell — `:525`
-- AShape Only Appears On The Frames It Was Placed On — `:566`
-- AShape On AHeld Drawing Is Exported On Every Frame It Shows — `:586`
-- Packing Does Not Move AShape Relative To Its Cell — `:603`
-- ADocument With No Tags Or Events Writes Neither Key — `:627`
-- ATag Is Exported As AClip In The Established Shape — `:637`
-- ATag That Ran Past The End Is Shortened Rather Than Lost — `:664`
-- ATag Entirely Past The End Is Dropped — `:679`
-- Only Markers Marked As Events Are Exported — `:690`
-- An Event Past The End Is Not Exported — `:711`
+- Trimming Defaults To The Union So Every Cell Is The Same Size And Nothing Jitters — `:64`
+- The Union Covers Every Frames Ink — `:89`
+- Per Frame Trimming Records Where Each Cell Came From — `:104`
+- No Trim Gives Every Cell The Whole Canvas — `:120`
+- The Grid Holds Every Frame And The Sheet Is That Size — `:130`
+- Every Cell Actually Contains Its Frame — `:145`
+- Padding Leaves ATransparent Gutter Without Losing Ink — `:170`
+- Without APivot The Sidecar Carries None — `:183`
+- The Pivot Is Recorded Per Cell So Trimming Cannot Shift The Character — `:192`
+- The Sidecar Is Aseprite Shaped — `:220`
+- An Opaque Background Layer Does Not Defeat Trimming — `:248`
+- An Empty Document Still Produces ASheet — `:261`
+- The Grid Is Still The Default And Its Bytes Are Unchanged — `:277`
+- APacked Sheet Is Smaller Than The Grid On Ragged Frames — `:298`
+- APacked Sheet Reports No Grid Rather Than APlausible One — `:332`
+- The Sidecar Carries Every Sprites Own Rect — `:347`
+- Packing The Same Document Twice Produces The Same File — `:382`
+- APacked Sheet Still Carries The Pivot Per Cell — `:397`
+- Padding Still Separates Every Sprite When Packed — `:421`
+- ADocument With No Anchors Writes No Anchor Key — `:442`
+- An Anchor Is Exported Per Frame By Name And Inside The Cell — `:449`
+- An Anchor On AHeld Drawing Is Exported On Every Frame It Shows — `:474`
+- Packing Does Not Move An Anchor Relative To Its Cell — `:493`
+- The Default Export Is Byte Identical To Before Background Handling Existed — `:570`
+- AFlooded Layer Is Omitted Under Detection And Kept Without It — `:592`
+- APinned In Layer Survives Detection Even Though It Fills The Canvas — `:625`
+- APinned Out Layer Goes Even Under Paper Only — `:641`
+- ALayer That Fills The Canvas On One Frame Only Is Not ABackground — `:656`
+- AHeld Flood Is Still Recognised Across Its Holds — `:688`
+- Everything Puts The Paper Back In — `:704`
+- ALayer Named Like ABackground Is Reported Rather Than Removed — `:727`
+- AHidden Layer Is Reported So Its Absence Has An Answer — `:743`
+- ADocument With No Shapes Writes No Shape Key — `:758`
+- AShape Is Exported With Its Role And Inside The Cell — `:765`
+- AShape Only Appears On The Frames It Was Placed On — `:806`
+- AShape On AHeld Drawing Is Exported On Every Frame It Shows — `:826`
+- Packing Does Not Move AShape Relative To Its Cell — `:843`
+- ADocument With No Tags Or Events Writes Neither Key — `:867`
+- ATag Is Exported As AClip In The Established Shape — `:877`
+- ATag That Ran Past The End Is Shortened Rather Than Lost — `:904`
+- ATag Entirely Past The End Is Dropped — `:919`
+- Only Markers Marked As Events Are Exported — `:930`
+- An Event Past The End Is Not Exported — `:951`
 
 ## StartScreenTests
 `tests/Lightbox.App.Tests/StartScreenTests.cs`
@@ -1631,15 +1648,18 @@ regression even when every test still compiles.
 - With No Pivot The Collider Is Measured From The Cell Centre — `:270`
 - ACollider Is Offset And Size Rather Than ARect — `:302`
 - The Importer Exposes Colliders Without Trying To Apply Them — `:325`
-- Each Tag Becomes AClip — `:341`
-- An Event Is Timed From Its Own Clip Rather Than From The Sheet — `:361`
-- An Event Outside AClip Is Not Attached To It — `:380`
-- AMarker That Is Not An Event Never Reaches AClip — `:392`
-- The Importer Is Written Beside The Sheet — `:406`
-- An Edited Importer Is Not Overwritten — `:419`
-- No Meta File Is Ever Written — `:433`
-- The Importer Can Be Declined — `:444`
-- Exporting Twice Produces The Same Sidecar — `:454`
+- Slicing Goes Through The Data Provider On Any Modern Unity — `:340`
+- Every Sliced Sprite Gets Its Own Id — `:371`
+- AMissing Sprite Package Is Reported Rather Than Crashing — `:380`
+- Each Tag Becomes AClip — `:391`
+- An Event Is Timed From Its Own Clip Rather Than From The Sheet — `:411`
+- An Event Outside AClip Is Not Attached To It — `:430`
+- AMarker That Is Not An Event Never Reaches AClip — `:442`
+- The Importer Is Written Beside The Sheet — `:456`
+- An Edited Importer Is Not Overwritten — `:469`
+- No Meta File Is Ever Written — `:483`
+- The Importer Can Be Declined — `:494`
+- Exporting Twice Produces The Same Sidecar — `:504`
 
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
@@ -1708,6 +1728,23 @@ regression even when every test still compiles.
 - ATag Round Trips With Its Direction And Loop — `:258`
 - ATags Length Counts Both Ends And Survives Being Backwards — `:275`
 - AMarker Marked As An Event Round Trips — `:285`
+
+## BackgroundRulesTests
+`tests/Lightbox.Core.Tests/BackgroundRulesTests.cs`
+
+- ADocument That Never Pins ALayer Writes No Key — `:23`
+- Pinning ALayer Out Beats Every Mode — `:31`
+- Pinning ALayer In Survives Detection And The Paper Flag — `:46`
+- AHidden Layer Is Reported Rather Than Just Absent — `:59`
+- APinned Out Layer Is Reported As Pinned Even When Hidden — `:70`
+- Paper Only Drops The Paper Layer And Nothing Else — `:83`
+- Detected Also Drops AFull Canvas Fill — `:98`
+- Everything Keeps The Paper Layer — `:110`
+- AName That Reads Like ABackground Is Advisory And Never Acted On — `:119`
+- Nothing Is Suspected When It Was Already Omitted Or Pinned In — `:133`
+- Name Matching Is Whole Word And Case Insensitive — `:157`
+- The Pin Round Trips Through The File — `:163`
+- The Threshold Leaves Room For ASoft Edge Without Letting ADrawing Through — `:183`
 
 ## BrushCostTests
 `tests/Lightbox.Core.Tests/BrushCostTests.cs`

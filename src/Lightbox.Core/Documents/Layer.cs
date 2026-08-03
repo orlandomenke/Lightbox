@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Lightbox.Core.Documents;
 
 public enum LayerKind
@@ -99,6 +101,32 @@ public sealed class Layer
     /// putting back.
     /// </summary>
     public bool IsBackground { get; set; }
+
+    /// <summary>
+    /// Overrides what the exporter would decide about this layer on its own.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Three states, and all three are needed. <c>true</c> leaves the layer out of
+    /// every export whatever the mode says — the reference photo, the notes-to-self
+    /// layer, the colour-check swatch. <c>false</c> keeps it in even when detection
+    /// would drop it, which is the escape hatch for the case where the background
+    /// <em>is</em> the asset: a backdrop, a sky, a tiling floor. <c>null</c>, the
+    /// default, leaves it to <see cref="Export.BackgroundHandling"/>.
+    /// </para>
+    /// <para>
+    /// Nullable rather than a <c>bool</c> so a document that never touches it writes
+    /// no key — the camera's rule. A plain <c>bool</c> would put
+    /// <c>"omitFromExport": false</c> on every layer of every document ever saved.
+    /// </para>
+    /// </remarks>
+    public bool? OmitFromExport { get; set; }
+
+    /// <summary>Whether the artist pinned this layer out of exports.</summary>
+    [JsonIgnore] public bool IsOmittedFromExport => OmitFromExport == true;
+
+    /// <summary>Whether the artist pinned this layer *into* exports.</summary>
+    [JsonIgnore] public bool IsKeptInExport => OmitFromExport == false;
 
     /// <summary>Whether this layer participates in onion-skin ghosting.</summary>
     public bool OnionEnabled { get; set; } = true;

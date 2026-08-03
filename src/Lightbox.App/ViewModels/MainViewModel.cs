@@ -6522,6 +6522,30 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ClearActiveLayer() => ClearLayerContent(ActiveLayer);
 
+    /// <summary>
+    /// Pin a layer out of exports, into them, or back to letting the export decide.
+    /// </summary>
+    /// <param name="pin">
+    /// <c>true</c> never export, <c>false</c> always export, <c>null</c> let
+    /// <see cref="Lightbox.Core.Export.BackgroundHandling"/> decide.
+    /// </param>
+    /// <remarks>
+    /// Through the editor, so it is one undo step and marks the document dirty — this
+    /// changes what leaves the app, which makes it document state rather than a
+    /// preference. No cache invalidation and no thumbnail refresh: it reaches the
+    /// export and never a pixel on the canvas.
+    /// </remarks>
+    public void SetLayerExportPin(Layer layer, bool? pin)
+    {
+        if (layer.OmitFromExport == pin) return;
+        _editor.Perform(doc =>
+        {
+            if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layer.Id) is { } target)
+                target.OmitFromExport = pin;
+        });
+        SyncLayerRows();
+    }
+
     public void ClearLayerContent(Layer layer)
     {
         // Mark before the edit so the thumbnail refresh inside Changed sees them.

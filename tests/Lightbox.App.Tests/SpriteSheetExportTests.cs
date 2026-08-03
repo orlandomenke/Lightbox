@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Lightbox.App.Services;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Export;
 using SkiaSharp;
 
 namespace Lightbox.App.Tests;
@@ -510,6 +511,245 @@ public class SpriteSheetExportTests : IDisposable
             new SpriteSheetOptions { Trim = SpriteTrim.Union, Pack = SpritePack.Skyline });
 
         Assert.Equal(AnchorOf(Meta(grid)), AnchorOf(Meta(packed)));
+    }
+
+    // ---- background omission -----------------------------------------------------
+
+    /// <summary>
+    /// Adds a layer flooded over the whole canvas, the way an artist does when they
+    /// want to see the line against something.
+    /// </summary>
+    private static Layer AddFloodedLayer(Doc doc, string name, int frames, double inset = 0)
+    {
+        var layer = new Layer { Name = name };
+        for (var i = 0; i < frames; i++)
+        {
+            var frame = new PaintedFrame();
+            frame.Strokes.Add(new Stroke
+            {
+                Tool = ToolKind.Fill,
+                Color = "#808080",
+                Points =
+                [
+                    new StrokePoint(-10 + inset, -10 + inset, 1),
+                    new StrokePoint(doc.Scene.Width + 10 - inset, -10 + inset, 1),
+                    new StrokePoint(doc.Scene.Width + 10 - inset, doc.Scene.Height + 10 - inset, 1),
+                    new StrokePoint(-10 + inset, doc.Scene.Height + 10 - inset, 1),
+                ],
+                Brush = new BrushSettings { Opacity = 1, AntiAlias = false },
+            });
+            layer.Cels.Add(new Cel { Frame = frame });
+        }
+        // Under the artwork, which is where an artist puts it.
+        doc.Scene.Layers.Insert(1, layer);
+        return layer;
+    }
+
+    private static long OpaquePixels(string pngPath)
+    {
+        using var data = SKData.Create(pngPath);
+        using var image = SKImage.FromEncodedData(data);
+        var info = new SKImageInfo(image!.Width, image.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        using var bitmap = new SKBitmap(info);
+        image.ReadPixels(info, bitmap.GetPixels(), bitmap.RowBytes, 0, 0);
+
+        using var pixels = bitmap.PeekPixels();
+        var span = pixels.GetPixelSpan();
+        var count = 0L;
+        for (var y = 0; y < image.Height; y++)
+        {
+            for (var x = 0; x < image.Width; x++)
+            {
+                if (span[y * pixels.RowBytes + x * 4 + 3] > 250) count++;
+            }
+        }
+        return count;
+    }
+
+    [Fact]
+    public void TheDefaultExportIsByteIdenticalToBeforeBackgroundHandlingExisted()
+    {
+        // The promise that lets this ship. Somebody's importer, somebody's diff and
+        // somebody's build all depend on the default not moving, so this is a byte
+        // comparison rather than a shape check — "the same layout" and "the same file"
+        // are different claims and only the second keeps their pipeline working.
+        var doc = Walking(4, paperColor: "#ffffff");
+        AddFloodedLayer(doc, "Grey", 4);
+
+        var implicitDefault = SpriteSheetExporter.Export(doc, Path_("bgd.png"));
+        var stated = SpriteSheetExporter.Export(
+            doc, Path_("bgs.png"),
+            new SpriteSheetOptions { Background = BackgroundHandling.PaperOnly });
+
+        Assert.Equal(File.ReadAllBytes(implicitDefault.SheetPath), File.ReadAllBytes(stated.SheetPath));
+        // And the flooded layer is still in it, because PaperOnly is deliberately not
+        // the whole feature.
+        Assert.DoesNotContain(
+            implicitDefault.OmittedLayers, o => o.Signal == BackgroundSignal.FullCanvasFill);
+    }
+
+    [Fact]
+    public void AFloodedLayerIsOmittedUnderDetectionAndKeptWithoutIt()
+    {
+        // The case that started this: a character with a grey layer added for
+        // visibility. The measurement is the sheet's opaque pixel count — with the
+        // flood in, every cell is solid; with it out, only the character is.
+        var doc = Walking(4, paperColor: "#ffffff");
+        AddFloodedLayer(doc, "Grey", 4);
+
+        var kept = SpriteSheetExporter.Export(
+            doc, Path_("kept.png"),
+            new SpriteSheetOptions { Background = BackgroundHandling.PaperOnly });
+        var dropped = SpriteSheetExporter.Export(
+            doc, Path_("dropped.png"),
+            new SpriteSheetOptions { Background = BackgroundHandling.Detected });
+
+        var keptPixels = OpaquePixels(kept.SheetPath);
+        var droppedPixels = OpaquePixels(dropped.SheetPath);
+
+        // Both numbers printed, because "fewer pixels" with only one of them shown is
+        // the assertion that passes on a build where the layer was never drawn at all.
+        Assert.True(
+            droppedPixels < keptPixels,
+            $"kept {keptPixels} opaque px, dropped {droppedPixels} — omission changed nothing");
+        // And the character is still there: a fix that exported an empty sheet would
+        // also satisfy the line above.
+        Assert.True(droppedPixels > 0, "the whole sheet came out empty");
+
+        var omission = Assert.Single(
+            dropped.OmittedLayers, o => o.Signal == BackgroundSignal.FullCanvasFill);
+        Assert.Equal("Grey", omission.Name);
+    }
+
+    [Fact]
+    public void APinnedInLayerSurvivesDetectionEvenThoughItFillsTheCanvas()
+    {
+        // The backdrop escape hatch, end to end: the background *is* the asset.
+        var doc = Walking(2, paperColor: "#ffffff");
+        AddFloodedLayer(doc, "Sky", 2).OmitFromExport = false;
+
+        var result = SpriteSheetExporter.Export(
+            doc, Path_("backdrop.png"),
+            new SpriteSheetOptions { Background = BackgroundHandling.Detected });
+
+        Assert.DoesNotContain(result.OmittedLayers, o => o.Name == "Sky");
+        // Nor is it warned about — the artist already answered the question.
+        Assert.DoesNotContain(result.SuspectedBackgrounds, s => s.Name == "Sky");
+    }
+
+    [Fact]
+    public void APinnedOutLayerGoesEvenUnderPaperOnly()
+    {
+        // The reference photo, the colour check, the note to self.
+        var doc = Walking(2);
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        layer.OmitFromExport = true;
+
+        var result = SpriteSheetExporter.Export(doc, Path_("pinnedout.png"));
+
+        var omission = Assert.Single(
+            result.OmittedLayers, o => o.Signal == BackgroundSignal.Pinned);
+        Assert.Equal(layer.Name, omission.Name);
+    }
+
+    [Fact]
+    public void ALayerThatFillsTheCanvasOnOneFrameOnlyIsNotABackground()
+    {
+        // The false positive that would hurt most: a flash, a whip pan, an impact
+        // frame that goes full-bleed for two frames. Detection requires *every*
+        // drawing to cover the canvas, and this is what that rule is for.
+        var doc = Walking(4, paperColor: "#ffffff");
+        var flash = AddFloodedLayer(doc, "Flash", 4);
+        // Frame 2 is a small shape rather than a flood, so the layer is art.
+        if (flash.Cels[2].Frame is PaintedFrame p)
+        {
+            p.Strokes.Clear();
+            p.Strokes.Add(new Stroke
+            {
+                Tool = ToolKind.Fill,
+                Color = "#ffffff",
+                Points =
+                [
+                    new StrokePoint(10, 10, 1), new StrokePoint(30, 10, 1),
+                    new StrokePoint(30, 30, 1), new StrokePoint(10, 30, 1),
+                ],
+                Brush = new BrushSettings { Opacity = 1, AntiAlias = false },
+            });
+        }
+
+        var result = SpriteSheetExporter.Export(
+            doc, Path_("flash.png"),
+            new SpriteSheetOptions { Background = BackgroundHandling.Detected });
+
+        Assert.DoesNotContain(result.OmittedLayers, o => o.Name == "Flash");
+    }
+
+    [Fact]
+    public void AHeldFloodIsStillRecognisedAcrossItsHolds()
+    {
+        // A background is usually one drawing exposed for the whole sequence, which is
+        // the case a per-cel check would get wrong by finding nulls.
+        var doc = Walking(4, paperColor: "#ffffff");
+        var grey = AddFloodedLayer(doc, "Grey", 4);
+        for (var i = 1; i < grey.Cels.Count; i++) grey.Cels[i].Frame = null;
+
+        var result = SpriteSheetExporter.Export(
+            doc, Path_("held.png"),
+            new SpriteSheetOptions { Background = BackgroundHandling.Detected });
+
+        Assert.Contains(result.OmittedLayers, o => o.Name == "Grey");
+    }
+
+    [Fact]
+    public void EverythingPutsThePaperBackIn()
+    {
+        // Not reachable before this existed: the exporter always dropped the paper
+        // layer, so a backdrop asset could not be exported at all.
+        var doc = Walking(2, paperColor: "#3060a0");
+
+        var without = SpriteSheetExporter.Export(
+            doc, Path_("nopaper.png"), new SpriteSheetOptions { Trim = SpriteTrim.None });
+        var with = SpriteSheetExporter.Export(
+            doc, Path_("paper.png"),
+            new SpriteSheetOptions { Trim = SpriteTrim.None, Background = BackgroundHandling.Everything });
+
+        var withoutPixels = OpaquePixels(without.SheetPath);
+        var withPixels = OpaquePixels(with.SheetPath);
+
+        Assert.True(
+            withPixels > withoutPixels,
+            $"paper omitted {withoutPixels} px, paper included {withPixels} — no difference");
+        Assert.Contains(without.OmittedLayers, o => o.Signal == BackgroundSignal.Paper);
+        Assert.DoesNotContain(with.OmittedLayers, o => o.Signal == BackgroundSignal.Paper);
+    }
+
+    [Fact]
+    public void ALayerNamedLikeABackgroundIsReportedRatherThanRemoved()
+    {
+        // The weak signal advises and never acts. A rule that dropped this would
+        // eventually ship a sheet with a layer quietly missing.
+        var doc = Walking(3);
+        doc.Scene.Layers.First(l => !l.IsBackground).Name = "Backdrop sketch";
+
+        var result = SpriteSheetExporter.Export(
+            doc, Path_("named.png"),
+            new SpriteSheetOptions { Background = BackgroundHandling.Detected });
+
+        Assert.DoesNotContain(result.OmittedLayers, o => o.Name == "Backdrop sketch");
+        Assert.Contains(result.SuspectedBackgrounds, s => s.Name == "Backdrop sketch");
+    }
+
+    [Fact]
+    public void AHiddenLayerIsReportedSoItsAbsenceHasAnAnswer()
+    {
+        var doc = Walking(2);
+        var extra = AddFloodedLayer(doc, "Shadow", 2);
+        extra.Visible = false;
+
+        var result = SpriteSheetExporter.Export(doc, Path_("hidden.png"));
+
+        Assert.Contains(
+            result.OmittedLayers, o => o.Name == "Shadow" && o.Signal == BackgroundSignal.Hidden);
     }
 
     // ---- P5c: collision shapes in the sidecar -------------------------------------

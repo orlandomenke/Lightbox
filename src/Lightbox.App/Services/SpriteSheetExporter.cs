@@ -74,6 +74,17 @@ public sealed record SpriteSheetOptions
     /// Grid or skyline. Grid by default, so an existing export is byte-identical.
     /// </summary>
     public SpritePack Pack { get; init; } = SpritePack.Grid;
+
+    /// <summary>
+    /// What to do about background layers.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="BackgroundHandling.PaperOnly"/> by default, which is what the
+    /// exporter has always done — so an existing export is byte-identical, and the
+    /// stronger detection is something an artist turns on rather than something that
+    /// starts quietly removing layers from sheets that were fine yesterday.
+    /// </remarks>
+    public BackgroundHandling Background { get; init; } = BackgroundHandling.PaperOnly;
 }
 
 /// <param name="CellWidth">
@@ -100,11 +111,28 @@ public sealed record SpriteSheetResult(
     SpritePack Pack = SpritePack.Grid,
     int SheetWidth = 0,
     int SheetHeight = 0,
-    long UsedArea = 0)
+    long UsedArea = 0,
+    IReadOnlyList<OmittedLayer>? Omitted = null,
+    IReadOnlyList<SuspectedBackground>? Suspected = null)
 {
     /// <summary>How much of the sheet is sprite, 0 to 1.</summary>
     public double Occupancy =>
         SheetWidth > 0 && SheetHeight > 0 ? UsedArea / (double)SheetWidth / SheetHeight : 0;
+
+    /// <summary>
+    /// Layers this export left out, with the reason for each.
+    /// </summary>
+    /// <remarks>
+    /// Reported rather than silent, and that is the load-bearing part of background
+    /// omission. The failure being designed against is not "the background got
+    /// exported" — that one is visible in the sheet. It is "a layer the artist wanted
+    /// is missing", which is invisible here and shows up in the engine, on a build,
+    /// days later.
+    /// </remarks>
+    public IReadOnlyList<OmittedLayer> OmittedLayers => Omitted ?? [];
+
+    /// <summary>Layers that were exported but might not have been meant to be.</summary>
+    public IReadOnlyList<SuspectedBackground> SuspectedBackgrounds => Suspected ?? [];
 }
 
 /// <summary>
@@ -272,9 +300,14 @@ public static class SpriteSheetExporter
         var inkBounds = new List<SKRectI>(count);
         try
         {
+            // Once for the whole export, before any frame is composed: a layer that
+            // were a background on one frame and not the next is not a background.
+            var (omitted, suspected) = DecideLayers(scene, cache, opts.Background, count);
+            var skip = omitted.Select(o => o.LayerId).ToHashSet(StringComparer.Ordinal);
+
             for (var i = 0; i < count; i++)
             {
-                var image = ComposeFrame(scene, cache, i);
+                var image = ComposeFrame(scene, cache, i, skip);
                 frames.Add(image);
                 inkBounds.Add(InkBoundsOf(image));
             }
@@ -415,7 +448,8 @@ public static class SpriteSheetExporter
 
             return new SpriteSheetResult(
                 sheetPath, metaPath, cellW, cellH, columns, rows, count,
-                opts.Pack, sheetW, sheetH, entries.Sum(e => (long)e.Frame.W * e.Frame.H));
+                opts.Pack, sheetW, sheetH, entries.Sum(e => (long)e.Frame.W * e.Frame.H),
+                omitted, suspected);
         }
         finally
         {
@@ -466,12 +500,13 @@ public static class SpriteSheetExporter
     /// layer would make every frame's ink bounds the whole canvas and turn
     /// trimming into a no-op that looks like it worked.
     /// </summary>
-    private static SKImage ComposeFrame(Scene scene, FrameBitmapCache cache, int index)
+    private static SKImage ComposeFrame(
+        Scene scene, FrameBitmapCache cache, int index, HashSet<string> skipLayerIds)
     {
         var passes = new List<RenderPass>();
         foreach (var layer in scene.Layers)
         {
-            if (layer.IsBackground || !scene.IsLayerVisible(layer)) continue;
+            if (skipLayerIds.Contains(layer.Id)) continue;
             var frame = ExposureSheet.ExposedFrame(layer, index);
             if (frame is null) continue;
             passes.Add(new RenderPass(
@@ -479,6 +514,137 @@ public static class SpriteSheetExporter
                 SceneRenderer.ToSkia(layer.BlendMode)));
         }
         return SceneRenderer.Compose(scene.Width, scene.Height, passes, SKColors.Transparent);
+    }
+
+    /// <summary>
+    /// Which layers this export leaves out, and which kept ones are worth a word.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Decided once for the whole export rather than per frame, because a layer that
+    /// is a background on frame 3 and not on frame 4 is not a background — it is an
+    /// animation, and dropping it on some frames would be the worst possible answer.
+    /// </para>
+    /// <para>
+    /// The measurement is arranged to be cheap in the case that dominates. Coverage is
+    /// only computed under <see cref="BackgroundHandling.Detected"/>; it is computed
+    /// per <em>drawing</em> so a hold is free; it stops at the first drawing that
+    /// fails; and each drawing is first checked at five points — the corners and the
+    /// centre — so an ordinary layer with a transparent corner costs five reads rather
+    /// than a full scan. Invariant 6's spirit: an ordinary character sequence pays
+    /// almost nothing for a feature aimed at the layer that covers everything.
+    /// </para>
+    /// </remarks>
+    private static (List<OmittedLayer> Omitted, List<SuspectedBackground> Suspected) DecideLayers(
+        Scene scene, FrameBitmapCache cache, BackgroundHandling mode, int frameCount)
+    {
+        var omitted = new List<OmittedLayer>();
+        var suspected = new List<SuspectedBackground>();
+
+        foreach (var layer in scene.Layers)
+        {
+            var visible = scene.IsLayerVisible(layer);
+
+            // Only measured when the answer can matter — the mode has to be Detected,
+            // the layer has to be visible, and it must not already be settled by the
+            // artist's own pin or by being the paper layer.
+            var needsCoverage =
+                mode == BackgroundHandling.Detected
+                && visible
+                && !layer.IsOmittedFromExport
+                && !layer.IsKeptInExport
+                && !layer.IsBackground;
+
+            var covers = needsCoverage && CoversCanvasThroughout(layer, scene, cache, frameCount);
+
+            var signal = BackgroundRules.OmissionFor(layer, visible, mode, covers);
+            if (signal is { } reason)
+            {
+                omitted.Add(new OmittedLayer(layer.Id, layer.Name, reason));
+            }
+            else if (BackgroundRules.SuspicionFor(layer, signal) is { } suspicion)
+            {
+                suspected.Add(suspicion);
+            }
+        }
+        return (omitted, suspected);
+    }
+
+    /// <summary>
+    /// Whether every drawing this layer shows fills the canvas.
+    /// </summary>
+    /// <remarks>
+    /// <b>Every</b> drawing, not the first. A layer whose opening frame happens to be
+    /// a full-bleed shape and which then animates is art, and requiring all of them
+    /// is what keeps detection from eating it. A layer that shows nothing at all is
+    /// not a background either — it is empty, and it costs nothing to export.
+    /// </remarks>
+    private static bool CoversCanvasThroughout(
+        Layer layer, Scene scene, FrameBitmapCache cache, int frameCount)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var any = false;
+
+        for (var i = 0; i < frameCount; i++)
+        {
+            if (ExposureSheet.ExposedFrame(layer, i) is not { } frame) continue;
+            if (!seen.Add(frame.Id)) continue;   // a hold is the same drawing
+
+            any = true;
+            var image = cache.Get(frame, scene.Width, scene.Height, celIndex: i);
+            if (!FillsCanvas(image)) return false;
+        }
+        return any;
+    }
+
+    /// <summary>
+    /// Whether an image covers at least <see cref="BackgroundRules.FullCanvasCoverage"/>
+    /// of itself.
+    /// </summary>
+    private static bool FillsCanvas(SKBitmap source)
+    {
+        using var pixels = source.PeekPixels();
+        if (pixels is null) return false;
+
+        var span = pixels.GetPixelSpan();
+        var stride = pixels.RowBytes;
+        var bytesPerPixel = pixels.BytesPerPixel;
+        // Alpha is the last byte of the pixel for both Rgba8888 and Bgra8888, which is
+        // every colour type the cache produces. Anything else is not something to
+        // guess at.
+        if (bytesPerPixel != 4) return false;
+
+        int w = source.Width, h = source.Height;
+        if (w <= 0 || h <= 0) return false;
+
+        // Five reads before any scan. A drawing is overwhelmingly likely not to be a
+        // full-canvas fill, and one transparent corner settles it.
+        if (span[0 * stride + 0 * 4 + 3] < InkAlpha
+            || span[0 * stride + (w - 1) * 4 + 3] < InkAlpha
+            || span[(h - 1) * stride + 0 * 4 + 3] < InkAlpha
+            || span[(h - 1) * stride + (w - 1) * 4 + 3] < InkAlpha
+            || span[h / 2 * stride + w / 2 * 4 + 3] < InkAlpha)
+        {
+            return false;
+        }
+
+        // The corners passed, so count properly. The threshold is a fraction rather
+        // than "no transparent pixel" because a flood fill on an antialiased canvas
+        // leaves a handful of soft pixels at the edges.
+        var needed = (long)Math.Ceiling(BackgroundRules.FullCanvasCoverage * w * h);
+        var allowed = (long)w * h - needed;
+        var missing = 0L;
+
+        for (var y = 0; y < h; y++)
+        {
+            var row = y * stride;
+            for (var x = 0; x < w; x++)
+            {
+                if (span[row + x * 4 + 3] >= InkAlpha) continue;
+                if (++missing > allowed) return false;
+            }
+        }
+        return true;
     }
 
     /// <summary>The tight box around everything with alpha in an image; empty when blank.</summary>

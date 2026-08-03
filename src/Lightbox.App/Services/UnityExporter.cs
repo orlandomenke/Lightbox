@@ -334,11 +334,21 @@ public static class UnityExporter
         // debugged as one. See the "unity" block in the json.
         //
         // It never writes a .meta file. Unity owns those.
+        //
+        // Two slicing APIs, chosen by Unity version, and that is not belt-and-braces:
+        // TextureImporter.spritesheet STOPPED WORKING in 2021.2 and was removed in
+        // 2022.2. Setting it on a modern Unity throws nothing and slices nothing —
+        // the import "succeeds" and you get one sprite. Anything from 2021.2 up goes
+        // through ISpriteEditorDataProvider, which needs the 2D Sprite package
+        // (com.unity.2d.sprite — present in every 2D template).
         #if UNITY_EDITOR
         using System.Collections.Generic;
         using System.IO;
         using UnityEditor;
         using UnityEngine;
+        #if UNITY_2021_2_OR_NEWER
+        using UnityEditor.U2D.Sprites;
+        #endif
 
         public static class LightboxSheetImporter
         {
@@ -383,7 +393,9 @@ public static class UnityExporter
                     if (texture != null) height = texture.height;
                 }
 
-                var metas = new List<SpriteMetaData>();
+                // One neutral list, so the version-specific slicing below differs only
+                // in which API it hands these to.
+                var slices = new List<Slice>();
                 foreach (var sprite in sheet.unity.sprites)
                 {
                     // The rect's y is measured from the top in the sidecar and from the
@@ -391,23 +403,83 @@ public static class UnityExporter
                     // here rather than in the file because it needs the texture height,
                     // which only Unity knows.
                     var y = height - sprite.rect[1] - sprite.rect[3];
-                    metas.Add(new SpriteMetaData
+                    slices.Add(new Slice
                     {
-                        name = sprite.name,
-                        rect = new Rect(sprite.rect[0], y, sprite.rect[2], sprite.rect[3]),
-                        alignment = (int)SpriteAlignment.Custom,
-                        pivot = sprite.pivot != null && sprite.pivot.Length == 2
+                        Name = sprite.name,
+                        Rect = new Rect(sprite.rect[0], y, sprite.rect[2], sprite.rect[3]),
+                        Pivot = sprite.pivot != null && sprite.pivot.Length == 2
                             ? new Vector2(sprite.pivot[0], sprite.pivot[1])
                             : new Vector2(0.5f, 0.5f),
                     });
                 }
 
-                importer.spritesheet = metas.ToArray();
+                ApplySlices(importer, slices);
                 EditorUtility.SetDirty(importer);
                 importer.SaveAndReimport();
 
                 BuildClips(texturePath, sheet);
-                Debug.Log($"Lightbox: imported {metas.Count} sprites from {Path.GetFileName(texturePath)}");
+                Debug.Log($"Lightbox: imported {slices.Count} sprites from {Path.GetFileName(texturePath)}");
+            }
+
+            private struct Slice
+            {
+                public string Name;
+                public Rect Rect;
+                public Vector2 Pivot;
+            }
+
+            // The version split. Everything above and below is shared; only this
+            // decides which API receives the rects.
+            private static void ApplySlices(TextureImporter importer, List<Slice> slices)
+            {
+        #if UNITY_2021_2_OR_NEWER
+                // 2021.2 and up. TextureImporter.spritesheet is inert here — it fails
+                // silently, which is the worst failure mode available, so this path is
+                // the one that matters.
+                var factories = new SpriteDataProviderFactories();
+                factories.Init();
+                var provider = factories.GetSpriteEditorDataProviderFromObject(importer);
+                if (provider == null)
+                {
+                    Debug.LogError(
+                        "Lightbox: no sprite data provider. Install the 2D Sprite package "
+                        + "(com.unity.2d.sprite) and import again.");
+                    return;
+                }
+                provider.InitSpriteEditorDataProvider();
+
+                var rects = new List<SpriteRect>();
+                foreach (var slice in slices)
+                {
+                    rects.Add(new SpriteRect
+                    {
+                        name = slice.Name,
+                        // A fresh id per rect. The old SpriteMetaData had no such field;
+                        // here it is what Unity keys the sub-asset on, and leaving it
+                        // default makes every sprite collide on the same empty id.
+                        spriteID = GUID.Generate(),
+                        rect = slice.Rect,
+                        alignment = SpriteAlignment.Custom,
+                        pivot = slice.Pivot,
+                    });
+                }
+
+                provider.SetSpriteRects(rects.ToArray());
+                provider.Apply();
+        #else
+                var metas = new List<SpriteMetaData>();
+                foreach (var slice in slices)
+                {
+                    metas.Add(new SpriteMetaData
+                    {
+                        name = slice.Name,
+                        rect = slice.Rect,
+                        alignment = (int)SpriteAlignment.Custom,
+                        pivot = slice.Pivot,
+                    });
+                }
+                importer.spritesheet = metas.ToArray();
+        #endif
             }
 
             private static void BuildClips(string texturePath, Sheet sheet)
