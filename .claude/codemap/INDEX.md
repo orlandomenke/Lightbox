@@ -1,6 +1,6 @@
 # Code index
 
-356 files · 86997 lines · 1737 tests.
+357 files · 87286 lines · 1742 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -79,7 +79,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeOverlay:24, RenderPass:50, SceneRenderer:65
 - `src/Lightbox.App/Views/ConfigureWindow.axaml` (326 ln) · **no tests**
   - AiEnabledBox, AiFieldsHost, AiPage, AiProviderBox, AiSummary, AiTestButton, AiTestDepthBox, AiTestElapsed …
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 68 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 69 test files
   - SpriteTrim:11, SpriteSheetOptions:35, SpriteSheetResult:46, SpriteSheetExporter:69, SheetDocument:275, SheetFrame:281, SheetMeta:295, Box:310 …
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 6 indirect only
   - RampTrack:10, GradientRamp:41
@@ -229,7 +229,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectIo:31, ConversionReport:544
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (632 ln) · 8 test files
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 57 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 58 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
@@ -273,7 +273,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CameraKey:10, Camera:46, CameraOps:65
 - `src/Lightbox.Core/Documents/Palette.cs` (144 ln) · 13 test files
   - Swatch:8, Palette:30, GimpPalette:55
-- `src/Lightbox.Core/Documents/Stroke.cs` (129 ln) · 71 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (129 ln) · 72 test files
   - Stroke:9, BakedSample:121
 - `src/Lightbox.Core/Timeline/ExposureSheet.cs` (125 ln) · 3 test files
   - ExposureSheet:8
@@ -321,7 +321,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Easing:3, EasingOps:11
 - `src/Lightbox.Core/Documents/Pivot.cs` (16 ln) · 2 test files
   - Pivot:7
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 126 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 127 indirect only
   - Ids:3
 
 ## Lightbox.Import
@@ -344,7 +344,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Raster
 
-- `src/Lightbox.Raster/BrushEngine.cs` (1707 ln) · 18 test files
+- `src/Lightbox.Raster/BrushEngine.cs` (1707 ln) · 19 test files
   - BrushEngine:25
 - `src/Lightbox.Raster/Media/FluidLattice.cs` (1083 ln) · 2 test files
   - FluidLattice:59
@@ -378,7 +378,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushTipRegistry:12
 - `src/Lightbox.Raster/ReferenceStripRegistry.cs` (50 ln) · **no tests**
   - ReferenceStripRegistry:22
-- `src/Lightbox.Raster/BlendModes.cs` (49 ln) · 24 indirect only
+- `src/Lightbox.Raster/BlendModes.cs` (49 ln) · 25 indirect only
   - BlendModes:15
 - `src/Lightbox.Raster/ClipRegionRegistry.cs` (27 ln) · 3 test files
   - ClipRegionRegistry:12
