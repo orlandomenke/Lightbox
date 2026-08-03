@@ -7,6 +7,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using Lightbox.App.Controls;
 using Lightbox.App.Docking;
+using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
@@ -182,11 +183,23 @@ public partial class MainWindow : Window
             {
                 RefreshTipButton();
             }
+            // B and E switch brushes without going near the picker, and a
+            // preset applied from a shortcut has to move the button's label.
+            if (args.PropertyName is nameof(MainViewModel.SelectedBrushPreset))
+            {
+                RefreshBrushPickerButton();
+                RefreshPresetPage();
+            }
         };
         _vm.Workspace.Changed += ApplyDockLayout;
         InitialisePanels();
         InitialiseOverlays();
         ApplyDockLayout();
+        // Both buttons show state the view model restored in its constructor,
+        // before anything here was subscribed — so the first paint has to be
+        // asked for rather than waited for.
+        RefreshBrushPickerButton();
+        RefreshTipButton();
         // The bars are positioned as a fraction of the canvas, so they have to
         // be replaced whenever the canvas changes size.
         CanvasHost.SizeChanged += (_, _) => ApplyOverlayLayout();
@@ -1325,9 +1338,153 @@ public partial class MainWindow : Window
 
     private void OnSavePresetClicked(object? sender, RoutedEventArgs e)
     {
-        var preset = _vm.SaveCurrentAsPreset(PresetNameBox.Text ?? "");
+        var preset = _vm.SaveCurrentAsPreset(PresetNameBox.Text ?? "", SplitTags(PresetTagBox.Text));
         PresetNameBox.Text = "";
+        PresetTagBox.Text = "";
         _vm.AiStatus = $"Saved brush preset “{preset.Name}”.";
+        RefreshPresetPage();
+        RefreshBrushPickerButton();
+    }
+
+    private void OnUpdatePresetClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.SelectedBrushPreset is not { } preset || !_vm.UpdateSelectedPreset()) return;
+        _vm.AiStatus = $"Updated “{preset.Name}”.";
+        RefreshPresetPage();
+        RefreshBrushPickerButton();
+    }
+
+    private void OnRevertPresetClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.SelectedBrushPreset is not { } preset || !_vm.RevertBrushPreset()) return;
+        _vm.AiStatus = $"“{preset.Name}” is back to the one that ships with Lightbox.";
+        RefreshPresetPage();
+        RefreshBrushPickerButton();
+    }
+
+    private void OnApplyTagsClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.SelectedBrushPreset is not { } preset) return;
+        _vm.SetPresetTags(preset, SplitTags(PresetTagBox.Text));
+        RefreshPresetPage();
+    }
+
+    private void OnDeletePresetClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.SelectedBrushPreset is not { } preset) return;
+        var wasBuiltIn = preset.IsBuiltIn;
+        if (!_vm.DeletePreset(preset)) return;
+        _vm.AiStatus = wasBuiltIn ? $"“{preset.Name}” reverted." : $"Deleted “{preset.Name}”.";
+        RefreshPresetPage();
+        RefreshBrushPickerButton();
+    }
+
+    private static List<string> SplitTags(string? text) =>
+        (text ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    /// <summary>
+    /// The preset page reflects one preset, and which one changes under it —
+    /// so it is refreshed rather than bound. Two of the four buttons only make
+    /// sense some of the time, and a button that does nothing is worse than an
+    /// absent one.
+    /// </summary>
+    private void RefreshPresetPage()
+    {
+        if (PresetCurrentName is null) return;
+
+        var preset = _vm.SelectedBrushPreset;
+        PresetCurrentName.Text = preset?.Name ?? "No brush chosen";
+        UpdatePresetButton.IsEnabled = _vm.CanUpdateBrushPreset;
+        RevertPresetButton.IsVisible = preset?.IsBuiltIn == true;
+        RevertPresetButton.IsEnabled = _vm.CanRevertBrushPreset;
+        DeletePresetButton.IsEnabled = preset is not null;
+        DeletePresetButton.Content = preset?.IsBuiltIn == true ? "Revert this brush" : "Delete this brush";
+        ApplyTagsButton.IsEnabled = preset is not null;
+
+        PresetModifiedNote.IsVisible = _vm.BrushIsModified;
+        PresetModifiedText.Text = _vm.BrushModifiedTip;
+
+        // Only when the artist has not started typing, or refreshing would eat
+        // what they were halfway through writing.
+        if (!PresetTagBox.IsFocused) PresetTagBox.Text = string.Join(", ", preset?.Tags ?? []);
+    }
+
+    // ---- the brush picker -------------------------------------------------------
+
+    private readonly HashSet<string> _brushTagFilter = new(StringComparer.OrdinalIgnoreCase);
+    private bool _pickingBrush;
+
+    private void OnBrushPickerOpen(object? sender, RoutedEventArgs e)
+    {
+        BuildBrushTagChips();
+        RefreshBrushPresetList();
+    }
+
+    private void BuildBrushTagChips()
+    {
+        if (BrushTagChips is null) return;
+
+        // Absent until there are tags. An empty strip of chips is a row of
+        // nothing that says the feature is broken.
+        BrushTagChips.IsVisible = _vm.BrushTagChoices.Count > 0;
+        if (!BrushTagChips.IsVisible)
+        {
+            BrushTagChips.ItemsSource = null;
+            return;
+        }
+
+        var chips = new List<Control>();
+        foreach (var tag in _vm.BrushTagChoices)
+        {
+            var chip = new ToggleButton
+            {
+                Content = tag,
+                FontSize = 10,
+                Padding = new Thickness(6, 1),
+                Margin = new Thickness(0, 0, 4, 4),
+                IsChecked = _brushTagFilter.Contains(tag),
+            };
+            chip.IsCheckedChanged += (_, _) =>
+            {
+                if (chip.IsChecked == true) _brushTagFilter.Add(tag);
+                else _brushTagFilter.Remove(tag);
+                RefreshBrushPresetList();
+            };
+            chips.Add(chip);
+        }
+        BrushTagChips.ItemsSource = chips;
+    }
+
+    private void OnBrushFilterChanged(object? sender, TextChangedEventArgs e) => RefreshBrushPresetList();
+
+    /// <summary>Re-run the filter. The rules themselves live in <see cref="BrushFilter"/>.</summary>
+    private void RefreshBrushPresetList()
+    {
+        if (BrushPresetList is null) return;
+
+        var matches = BrushFilter.Apply(_vm.BrushPresetChoices, BrushSearchBox.Text, _brushTagFilter);
+
+        _pickingBrush = true;
+        BrushPresetList.ItemsSource = matches;
+        BrushPresetList.SelectedItem = matches.FirstOrDefault(p => p.Id == _vm.SelectedBrushPreset?.Id);
+        _pickingBrush = false;
+
+        BrushFilterEmpty.IsVisible = matches.Count == 0;
+    }
+
+    private void OnBrushPresetPicked(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_pickingBrush || BrushPresetList?.SelectedItem is not BrushPreset preset) return;
+        _vm.SelectedBrushPreset = preset;
+        RefreshBrushPickerButton();
+        RefreshPresetPage();
+        if (BrushPickerButton?.Flyout is { } flyout) flyout.Hide();
+    }
+
+    private void RefreshBrushPickerButton()
+    {
+        if (BrushPickerName is null) return;
+        BrushPickerName.Text = _vm.SelectedBrushPreset?.Name ?? "Brush";
     }
 
     private async void OnImportBrushesClicked(object? sender, RoutedEventArgs e)
@@ -1533,6 +1690,7 @@ public partial class MainWindow : Window
 
         if (index == 0) RefreshTipButton();
         if (index == 3) BuildPressureCurves();
+        if (index == 4) RefreshPresetPage();
     }
 
     // ---- pressure curves --------------------------------------------------------

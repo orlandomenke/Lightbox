@@ -317,19 +317,80 @@
             warning, a price tag, and the tooltip names what you are paying
             for. Derived from the settings, so editing a brush moves it.
           -->
-          <ComboBox ItemsSource="{Binding BrushPresetChoices}" SelectedItem="{Binding SelectedBrushPreset}"
-                    Width="130" VerticalAlignment="Center"
-                    ToolTip.Tip="Brush preset (B returns to the last configured brush). ◈ marks an expressive brush — richer mark, more cost.">
-            <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="services:BrushPreset">
-                <DockPanel ToolTip.Tip="{Binding CostTip}">
-                  <TextBlock DockPanel.Dock="Right" Text="{Binding CostBadge}" Foreground="#d9a05b"
-                             FontSize="11" VerticalAlignment="Center" Margin="6,0,0,0" />
-                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          <!--
+            A flyout rather than a dropdown, because a dropdown is a list and
+            what an artist has is a collection. Once there are forty brushes
+            scrolling is the wrong verb: you search for the one you mean, or
+            you go to the tag you filed it under.
+          -->
+          <Button x:Name="BrushPickerButton" Width="150" VerticalAlignment="Center" Padding="6,3"
+                  Click="OnBrushPickerOpen"
+                  ToolTip.Tip="Brush preset (B returns to the last configured brush). ◈ marks an expressive brush — richer mark, more cost.">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Right" Text="▾" FontSize="10" Opacity="0.6"
+                         VerticalAlignment="Center" Margin="4,0,0,0" />
+              <!-- The dot says the brush has drifted from the preset named beside it -->
+              <TextBlock DockPanel.Dock="Right" Text="{Binding BrushModifiedBadge}" Foreground="#d9a05b"
+                         FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"
+                         ToolTip.Tip="{Binding BrushModifiedTip}" />
+              <TextBlock x:Name="BrushPickerName" Text="Brush" VerticalAlignment="Center"
+                         FontSize="12" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+            <Button.Flyout>
+              <Flyout Placement="Bottom">
+                <DockPanel Width="300" MaxHeight="460">
+                  <TextBox x:Name="BrushSearchBox" DockPanel.Dock="Top" Watermark="Search brushes"
+                           Margin="0,0,0,6" TextChanged="OnBrushFilterChanged" />
+                  <!--
+                    Tags as chips rather than a second dropdown: the whole set
+                    is small, and seeing which ones exist is most of the value
+                    — an artist who has forgotten what they filed things under
+                    cannot search for it.
+                  -->
+                  <ItemsControl x:Name="BrushTagChips" DockPanel.Dock="Top" Margin="0,0,0,6"
+                                IsVisible="False">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                  </ItemsControl>
+                  <TextBlock x:Name="BrushFilterEmpty" DockPanel.Dock="Bottom" IsVisible="False"
+                             Text="No brush matches." Opacity="0.5" FontSize="11" Margin="0,6,0,0" />
+                  <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ListBox x:Name="BrushPresetList" Background="Transparent"
+                             SelectionChanged="OnBrushPresetPicked">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="services:BrushPreset">
+                          <DockPanel ToolTip.Tip="{Binding CostTip}" Margin="0,1">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding CostBadge}" Foreground="#d9a05b"
+                                       FontSize="11" VerticalAlignment="Center" Margin="6,0,0,0" />
+                            <StackPanel Spacing="1">
+                              <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                              <ItemsControl ItemsSource="{Binding Tags}" IsVisible="{Binding Tags, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                <ItemsControl.ItemsPanel>
+                                  <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                  </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate x:DataType="x:String">
+                                    <Border Background="#2b2b2b" CornerRadius="3" Padding="4,0" Margin="0,0,3,0">
+                                      <TextBlock Text="{Binding}" FontSize="10" Opacity="0.75" />
+                                    </Border>
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                            </StackPanel>
+                          </DockPanel>
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                  </ScrollViewer>
                 </DockPanel>
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
           <!--
             Foreground over background, the arrangement every painting tool
             has had for thirty years. One pair, shared by the brush, the fill
@@ -984,10 +1045,37 @@
 
                     <StackPanel x:Name="BrushPagePresets" Spacing="6" IsVisible="False">
                       <TextBlock Text="Presets" FontWeight="SemiBold" FontSize="12" />
+
+                      <Border x:Name="PresetModifiedNote" Background="#33291a" CornerRadius="4"
+                              Padding="8,6" IsVisible="False">
+                        <TextBlock x:Name="PresetModifiedText" TextWrapping="Wrap" FontSize="11" />
+                      </Border>
+
                       <DockPanel>
-                        <Button DockPanel.Dock="Right" Content="Save preset" Click="OnSavePresetClicked" />
+                        <Button x:Name="UpdatePresetButton" DockPanel.Dock="Right" Content="Update"
+                                Click="OnUpdatePresetClicked" Margin="6,0,0,0"
+                                ToolTip.Tip="Write these settings back over the brush you started from" />
+                        <Button x:Name="RevertPresetButton" DockPanel.Dock="Right" Content="Revert"
+                                Click="OnRevertPresetClicked"
+                                ToolTip.Tip="Throw away your changes to this shipped brush and get the original back" />
+                        <TextBlock x:Name="PresetCurrentName" VerticalAlignment="Center" FontSize="12"
+                                   TextTrimming="CharacterEllipsis" />
+                      </DockPanel>
+
+                      <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Save as new" Click="OnSavePresetClicked" />
                         <TextBox x:Name="PresetNameBox" PlaceholderText="New preset name" Margin="0,0,6,0" />
                       </DockPanel>
+
+                      <DockPanel ToolTip.Tip="Comma-separated. Whatever you would look for it under — inking, roughs, hair.">
+                        <Button x:Name="ApplyTagsButton" DockPanel.Dock="Right" Content="Tag"
+                                Click="OnApplyTagsClicked" />
+                        <TextBox x:Name="PresetTagBox" PlaceholderText="Tags, comma separated" Margin="0,0,6,0" />
+                      </DockPanel>
+
+                      <Button x:Name="DeletePresetButton" Content="Delete this brush" Click="OnDeletePresetClicked"
+                              HorizontalAlignment="Left"
+                              ToolTip.Tip="Removes a brush you made. A shipped brush is reverted instead — it is not yours to delete." />
                       <Button Content="Import brushes… (.abr .gbr .gih .kpp)" Click="OnImportBrushesClicked"
                               HorizontalAlignment="Stretch"
                               ToolTip.Tip="Photoshop and Krita/GIMP brushes: tip shapes and basic settings import; engine-specific features do not map 1:1" />

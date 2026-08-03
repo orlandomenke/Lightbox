@@ -42,7 +42,14 @@ item that a painting app is simply expected to have lives here.
 
 - [x] High-performance brush engine `evidence: BrushEngine, StampStroke, LargeCanvasPerformanceTests, PerformanceTests`
 - [x] Custom brush editor `evidence: BrushPageGeneral, BrushPageEffects, BrushPagePressure`
-- [x] Brush presets and tagging `evidence: BrushPreset, PresetStore, BuiltInPresets, BrushCategoryList`
+- [x] Brush presets and tagging `evidence: BrushPreset, PresetStore, BuiltInPresets, BrushPresetList, BrushTagChoices, BrushPresetEditingTests, TagsPersistAndFeedTheFilterList, ABrushNobodyFiledWritesNoTagsKey`
+  - "and tagging" was ticked against `BrushCategoryList`, which is the ⚙ window's page list and has nothing to do with tags. Tags are now free text on the preset, absent until one is filed, and the picker collects whatever exists rather than offering a vocabulary written here — the categories worth having are the ones an artist's work has.
+- [x] A brush can be edited, updated and saved as a copy `evidence: BrushComparison, SameMark, UpdateSelectedPreset, RevertBrushPreset, BrushPresetEditingTests, BrushComparisonTests, NudgingAnythingLightsTheIndicator, PuttingASettingBackClearsTheIndicator, EverySettingThatReachesPixelsIsCompared`
+  - The dot compares values rather than tracking a "touched" flag, so putting a setting back clears it — one that stayed lit would train people to ignore it. The comparison serializes rather than listing properties: a hand-written comparer over forty fields is a list somebody forgets to extend, and the failure is silent.
+- [x] The brushes that ship can be overwritten and reverted `evidence: BuiltInPresets, Merge, BuiltInPresetMergeTests, UpdatingAShippedBrushSurvivesARestart, AShadowedBuiltInAppearsOnceAndKeepsItsPlace, RevertingAShippedBrushGivesBackTheOriginal`
+  - By shadowing — a user preset reusing the built-in's id, which the merge prefers and which keeps its place in the list. Deleting the shadow uncovers the original, so "revert" is a deletion rather than a stored copy of what shipped.
+- [x] Brushes are searched and filtered, not scrolled `evidence: BrushFilter, BrushFilterTests, SearchMatchesATagAsWellAsAName, TwoTagsMeanEitherNotBoth, SearchAndTagsNarrowTogether`
+  - A flyout rather than a dropdown. Tags OR between themselves: asking for a brush that is both inking and roughs is almost always an empty list, which reads as the filter being broken. The rules are a pure function rather than a method on the window, because none of them are testable through a flyout.
 - [x] Brush stabilization (lazy mouse, weighted, predictive) `evidence: SmoothingMode, StrokeFilters, SmoothingTests`
 - [x] A fast curve is stamped along the curve, not the chords between pen samples `evidence: Densify, DensifyTests, StampingArcTests, ACurveIsFollowedRatherThanCutAcross, AFastCurveIsInkedRightOutToItsEdge, ADrawnCornerStaysSharp`
 - [x] Texture brushes `evidence: PaperField, PaperKind, TexturedBrushTests`
@@ -62,7 +69,12 @@ item that a painting app is simply expected to have lives here.
 - [x] Brush rotation, base and per-dab `evidence: BrushSettings, BrushDynamicsTests, AngleFollowsDirection, TipRotationDeg, RotationJitter`
 - [ ] Tilt and speed reach the stroke record `evidence: StrokePointTiltTests, AMouseStrokeStoresNoTilt, AnOldFileWithoutTiltStillLoads, TiltIsReplayedNotResampled`
   - Was ticked as part of rotation and is not built: `StrokePoint` is `(X, Y, Pressure)`, no device reads tilt, and nothing stores time — so speed can only be inferred from point spacing, which after `Densify` is a resampling artifact rather than a speed. Optional, absent by default: a mouse has no tilt and 0 means perpendicular, so the two must not be the same value. See `docs/DESIGN-brush-tips.md`.
-- [?] Brush symmetry options
+- [ ] Symmetry and mirrored painting `evidence: SymmetryTests, AMirroredStrokeIsOneRecordNotTwo, SymmetryIsViewOnlyUntilTheStrokeLands`
+  - Nothing exists. Krita and Photoshop both have it, and for character design — the thing this application is for — a vertical mirror is not a nicety. The design question that has to be answered first is whether a mirrored mark is *one stroke rendered twice* or *two strokes*: the first keeps the record small and makes turning symmetry off afterwards meaningful, the second is simpler and matches what an artist can then edit independently. Invariant 1 pushes toward the first.
+- [ ] Smoothing is a brush setting, not a global `evidence: BrushStabilisation, APresetCarriesItsOwnStabilisation, ABrushWithNoStabilisationKeyBehavesAsItAlwaysDid`
+  - `_stabilizer` is one object for the whole app, so a preset cannot say "this inking brush wants heavy lazy-mouse and the pencil wants none" — which is most of why stabilisation settings exist. It is a per-stroke input rather than a per-pixel one, so it does not touch invariant 4; it is simply in the wrong scope.
+- [ ] Texture from an image, not only the built-in papers `evidence: TextureImageTests, AnImportedTextureTilesDeterministically`
+  - `TextureSurface` is a `PaperKind` enum. Photoshop's texture panel carries a pattern, and most imported `.abr` brushes that read as "textured" are carrying one — so this is also import fidelity. Needs the same treatment tips got: an asset with an id, stored in the document, absent when unused.
 - [x] Brush scripting/API `evidence: LightboxTools, IpcDocumentApi`
 - [x] Brush importers — .abr / .gbr / .gih / .kpp `evidence: AbrReader, GbrReader, GihReader, KppReader, BrushImportTests`
 - [x] Physical media simulation (watercolour, gouache, oil, ink) `evidence: MediumSimulator, FluidLattice, Pigment, MediumRenderingTests`

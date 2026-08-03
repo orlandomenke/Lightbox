@@ -19,6 +19,29 @@ public sealed class BrushPreset
     public string? TipPng { get; set; }
 
     /// <summary>
+    /// What the artist filed this brush under. Absent until they tag one.
+    /// </summary>
+    /// <remarks>
+    /// Free text rather than a fixed vocabulary. The categories an artist wants
+    /// are the ones their work has — "inking", "roughs", "that client", "hair"
+    /// — and no list written here would contain them. The picker collects
+    /// whatever tags exist and offers those, so the vocabulary grows out of use.
+    /// </remarks>
+    public List<string>? Tags { get; set; }
+
+    /// <summary>Tags, lower-cased and trimmed, for matching. Never null.</summary>
+    [JsonIgnore]
+    public IEnumerable<string> NormalisedTags =>
+        Tags?.Select(t => t.Trim().ToLowerInvariant()).Where(t => t.Length > 0) ?? [];
+
+    /// <summary>
+    /// A preset that ships with the app. Its id is fixed, which is what lets a
+    /// user preset shadow it — see <see cref="BuiltInPresets.Merge"/>.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsBuiltIn => Id.StartsWith("builtin-", StringComparison.Ordinal);
+
+    /// <summary>
     /// What this preset costs to draw with. Derived from its settings, never
     /// stored — see <see cref="BrushCostOf"/> for why a written-down answer
     /// would go wrong the first time somebody edited the brush.
@@ -46,6 +69,49 @@ public sealed class BrushPreset
         : "Stamps dabs and stops. Predictable cost at any canvas size.";
 
     public override string ToString() => Name;
+}
+
+/// <summary>
+/// Comparing a working brush against the preset it came from.
+/// </summary>
+/// <remarks>
+/// <b>By serializing, not by a hand-written comparer.</b> A comparer over forty
+/// properties is a list somebody has to remember to extend, and the failure
+/// mode when they forget is silent: the indicator says "unchanged" for a brush
+/// that is not. That is the same bug <see cref="BrushSettings.Clone"/> can
+/// have, and the same reason to avoid the shape. The JSON is already the
+/// canonical form of a brush, it already covers every field, and a new setting
+/// joins it for free.
+/// </remarks>
+public static class BrushComparison
+{
+    private static readonly JsonSerializerOptions Canonical = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+    };
+
+    /// <summary>
+    /// Do these two brushes paint the same mark?
+    /// </summary>
+    /// <remarks>
+    /// Anti-aliasing and the smudge sample source are excluded, and they have
+    /// to be: both live in Configure rather than in a brush, and the preset
+    /// apply path deliberately carries them across unchanged. Comparing them
+    /// would light the "modified" dot the moment somebody turned anti-aliasing
+    /// off, on a brush they had not touched.
+    /// </remarks>
+    public static bool SameMark(BrushSettings a, BrushSettings b) =>
+        Canonicalise(a) == Canonicalise(b);
+
+    private static string Canonicalise(BrushSettings settings)
+    {
+        var copy = settings.Clone();
+        copy.AntiAlias = true;
+        copy.SampleSource = SampleSource.ThisLayer;
+        return JsonSerializer.Serialize(copy, Canonical);
+    }
 }
 
 /// <summary>The built-in presets. Users add their own on top (persisted).</summary>
@@ -259,6 +325,36 @@ public static class BuiltInPresets
             Settings = new BrushSettings { Size = 24, Flow = 0.7, Spacing = 0.12, Kind = BrushKind.Blur },
         },
     ];
+
+    /// <summary>
+    /// The list an artist actually sees: the built-ins, plus the artist's own,
+    /// with a user preset that carries a built-in's id <em>replacing</em> it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The shadowing rule is what makes "overwrite" work on a shipped brush.
+    /// Tweaking Pencil and keeping the change is the most ordinary thing
+    /// anybody does with a preset list, and the alternatives are both bad: an
+    /// app that refuses leaves the artist maintaining "Pencil 2", and one that
+    /// edits the built-in in place has no way back to what shipped.
+    /// </para>
+    /// <para>
+    /// A shadow is an ordinary user preset that happens to reuse the id, so it
+    /// persists, exports and deletes like any other — and deleting it uncovers
+    /// the original, which is exactly what "revert" should mean.
+    /// </para>
+    /// </remarks>
+    public static List<BrushPreset> Merge(IEnumerable<BrushPreset> userPresets)
+    {
+        var user = userPresets.ToList();
+        var shadowed = user.Where(p => p.IsBuiltIn).ToDictionary(p => p.Id, StringComparer.Ordinal);
+
+        var merged = Create()
+            .Select(builtIn => shadowed.GetValueOrDefault(builtIn.Id, builtIn))
+            .ToList();
+        merged.AddRange(user.Where(p => !p.IsBuiltIn));
+        return merged;
+    }
 }
 
 /// <summary>

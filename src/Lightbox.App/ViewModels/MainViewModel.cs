@@ -1602,6 +1602,10 @@ public sealed partial class MainViewModel : ObservableObject
         // and the pressure-size curve move it too, which is why this is
         // unconditional rather than a special case on BrushSize.
         OnPropertyChanged(nameof(BrushCursorDiameter));
+        // Any change to the working brush can be the one that makes it differ
+        // from the preset it came from, so the dot is recomputed here rather
+        // than at a handful of places somebody has to remember.
+        NotifyPresetProperties();
         if (!_applyingPreset) PersistBrushState();
     }
 
@@ -2182,24 +2186,242 @@ public sealed partial class MainViewModel : ObservableObject
     private void NotifyBrushProperties()
     {
         foreach (var name in BrushPropertyNames) OnPropertyChanged(name);
+        NotifyPresetProperties();
     }
 
     /// <summary>Save the working brush as a reusable preset.</summary>
-    public BrushPreset SaveCurrentAsPreset(string name)
+    public BrushPreset SaveCurrentAsPreset(string name, IEnumerable<string>? tags = null)
     {
         var preset = new BrushPreset
         {
             Name = string.IsNullOrWhiteSpace(name) ? $"Preset {BrushPresetChoices.Count + 1}" : name.Trim(),
             Tool = IsEraser ? ToolKind.Eraser : ToolKind.Brush,
             Settings = CurrentToolSettings.Clone(),
+            Tags = CleanTags(tags),
         };
         _userPresets.Add(preset);
         BrushPresetChoices.Add(preset);
         _applyingPreset = true;
         SelectedBrushPreset = preset;
         _applyingPreset = false;
+        RefreshTagChoices();
         PersistBrushState();
         return preset;
+    }
+
+    // ---- editing the preset you are on -----------------------------------------
+
+    /// <summary>
+    /// Whether the working brush has drifted from the preset it came from.
+    /// </summary>
+    /// <remarks>
+    /// The tool bar's small dot. Without it the state is genuinely ambiguous:
+    /// the picker says "Pencil", the brush has been nudged four times, and
+    /// nothing on screen distinguishes that from the pencil as shipped — so an
+    /// artist either loses the tweaks or saves a duplicate to be safe.
+    /// </remarks>
+    public bool BrushIsModified =>
+        SelectedBrushPreset is { } preset && !BrushComparison.SameMark(preset.Settings, CurrentToolSettings);
+
+    /// <summary>Small enough to sit next to the picker, loud enough to notice.</summary>
+    public string BrushModifiedBadge => BrushIsModified ? "●" : "";
+
+    public string BrushModifiedTip => BrushIsModified
+        ? $"Changed from “{SelectedBrushPreset?.Name}”. Update it, or save the changes as a new brush."
+        : "";
+
+    /// <summary>Can the current preset be updated in place?</summary>
+    public bool CanUpdateBrushPreset => SelectedBrushPreset is not null && BrushIsModified;
+
+    /// <summary>
+    /// Write the working brush back over the preset it came from.
+    /// </summary>
+    /// <remarks>
+    /// A built-in is updated by <em>shadowing</em> it — a user preset that
+    /// reuses its id, which the merge prefers. So the change persists, and
+    /// <see cref="RevertBrushPreset"/> can uncover the original by deleting
+    /// the shadow. Editing the shipped list in place would have no way back.
+    /// </remarks>
+    public bool UpdateSelectedPreset()
+    {
+        if (SelectedBrushPreset is not { } preset) return false;
+
+        var updated = new BrushPreset
+        {
+            Id = preset.Id,
+            Name = preset.Name,
+            Tool = IsEraser ? ToolKind.Eraser : ToolKind.Brush,
+            Settings = CurrentToolSettings.Clone(),
+            TipPng = preset.TipPng,
+            Tags = preset.Tags is null ? null : [.. preset.Tags],
+        };
+
+        _userPresets.RemoveAll(p => p.Id == preset.Id);
+        _userPresets.Add(updated);
+        ReplaceInChoices(preset, updated);
+        PersistBrushState();
+        return true;
+    }
+
+    /// <summary>True when the selected preset is a built-in that has been overwritten.</summary>
+    public bool CanRevertBrushPreset =>
+        SelectedBrushPreset is { IsBuiltIn: true } preset && _userPresets.Any(p => p.Id == preset.Id);
+
+    /// <summary>Delete the shadow over a built-in, uncovering what shipped.</summary>
+    public bool RevertBrushPreset()
+    {
+        if (SelectedBrushPreset is not { IsBuiltIn: true } preset) return false;
+        if (_userPresets.RemoveAll(p => p.Id == preset.Id) == 0) return false;
+
+        var original = BuiltInPresets.Create().FirstOrDefault(p => p.Id == preset.Id);
+        if (original is null) return false;
+
+        ReplaceInChoices(preset, original);
+        _applyingPreset = true;
+        SelectedBrushPreset = original;
+        _applyingPreset = false;
+        // Apply it, or the tool bar would show the shipped brush's name over
+        // the edited brush's settings and the dot would say "unchanged".
+        OnSelectedBrushPresetChanged(original);
+        PersistBrushState();
+        return true;
+    }
+
+    /// <summary>Rename a preset the artist made. Built-ins keep their names.</summary>
+    public bool RenamePreset(BrushPreset preset, string name)
+    {
+        var trimmed = name.Trim();
+        if (trimmed.Length == 0 || preset.IsBuiltIn) return false;
+        preset.Name = trimmed;
+        // The list is bound to the objects, so nudge it into re-reading them.
+        ReplaceInChoices(preset, preset);
+        PersistBrushState();
+        return true;
+    }
+
+    /// <summary>
+    /// Remove a preset. A built-in is reverted rather than removed — it is not
+    /// the artist's to delete, and "delete" on one plainly means "give me back
+    /// the one that shipped".
+    /// </summary>
+    public bool DeletePreset(BrushPreset preset)
+    {
+        if (preset.IsBuiltIn) return RevertBrushPreset();
+        if (_userPresets.RemoveAll(p => p.Id == preset.Id) == 0) return false;
+
+        var at = BrushPresetChoices.IndexOf(preset);
+        if (at >= 0) BrushPresetChoices.RemoveAt(at);
+        if (SelectedBrushPreset?.Id == preset.Id)
+        {
+            _applyingPreset = true;
+            SelectedBrushPreset = null;
+            _applyingPreset = false;
+        }
+        RefreshTagChoices();
+        NotifyPresetProperties();
+        PersistBrushState();
+        return true;
+    }
+
+    // ---- tags -------------------------------------------------------------------
+
+    /// <summary>Every tag any preset carries, in use order. What the picker filters by.</summary>
+    public ObservableCollection<string> BrushTagChoices { get; } = [];
+
+    /// <summary>Set the tags on a preset. Built-ins can be tagged too — by shadowing.</summary>
+    public bool SetPresetTags(BrushPreset preset, IEnumerable<string> tags)
+    {
+        var cleaned = CleanTags(tags);
+
+        if (preset.IsBuiltIn && _userPresets.All(p => p.Id != preset.Id))
+        {
+            // Filing a shipped brush is an edit like any other, so it goes
+            // through the same shadow rather than mutating the list Create()
+            // rebuilds from scratch every launch.
+            var shadow = new BrushPreset
+            {
+                Id = preset.Id,
+                Name = preset.Name,
+                Tool = preset.Tool,
+                Settings = preset.Settings.Clone(),
+                TipPng = preset.TipPng,
+                Tags = cleaned,
+            };
+            _userPresets.Add(shadow);
+            ReplaceInChoices(preset, shadow);
+            if (SelectedBrushPreset?.Id == preset.Id)
+            {
+                _applyingPreset = true;
+                SelectedBrushPreset = shadow;
+                _applyingPreset = false;
+            }
+        }
+        else
+        {
+            preset.Tags = cleaned;
+        }
+
+        RefreshTagChoices();
+        PersistBrushState();
+        return true;
+    }
+
+    private static List<string>? CleanTags(IEnumerable<string>? tags)
+    {
+        var cleaned = (tags ?? [])
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        // Null rather than empty, so a preset nobody filed writes no key.
+        return cleaned.Count == 0 ? null : cleaned;
+    }
+
+    private void RefreshTagChoices()
+    {
+        var seen = BrushPresetChoices
+            .SelectMany(p => p.Tags ?? [])
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        BrushTagChoices.Clear();
+        foreach (var tag in seen) BrushTagChoices.Add(tag);
+    }
+
+    private void ReplaceInChoices(BrushPreset old, BrushPreset replacement)
+    {
+        var at = BrushPresetChoices.IndexOf(old);
+        if (at < 0)
+        {
+            BrushPresetChoices.Add(replacement);
+        }
+        else
+        {
+            // Removing and re-inserting rather than assigning, so a bound list
+            // re-reads the row even when the object is the same one renamed.
+            BrushPresetChoices.RemoveAt(at);
+            BrushPresetChoices.Insert(at, replacement);
+        }
+
+        if (SelectedBrushPreset?.Id == replacement.Id)
+        {
+            _applyingPreset = true;
+            SelectedBrushPreset = replacement;
+            _applyingPreset = false;
+        }
+        NotifyPresetProperties();
+    }
+
+    private void NotifyPresetProperties()
+    {
+        OnPropertyChanged(nameof(BrushIsModified));
+        OnPropertyChanged(nameof(BrushModifiedBadge));
+        OnPropertyChanged(nameof(BrushModifiedTip));
+        OnPropertyChanged(nameof(CanUpdateBrushPreset));
+        OnPropertyChanged(nameof(CanRevertBrushPreset));
     }
 
     /// <summary>Add imported presets (from .abr/.gbr/.gih/.kpp) and persist them.</summary>
@@ -2293,10 +2515,11 @@ public sealed partial class MainViewModel : ObservableObject
         // order it was declared in. The badge marks them individually; the
         // grouping is what makes the two kinds legible as kinds — an artist
         // scanning for something cheap should not have to read every row.
-        foreach (var preset in Ordered([.. BuiltInPresets.Create(), .. state.UserPresets]))
+        foreach (var preset in Ordered(BuiltInPresets.Merge(state.UserPresets)))
         {
             BrushPresetChoices.Add(preset);
         }
+        RefreshTagChoices();
         if (state.LastBrush is not null) _brushWork = state.LastBrush.Clone();
         else _brushWork = new BrushSettings { Size = 6, Hardness = 0.8 };
         if (state.LastEraser is not null) _eraserWork = state.LastEraser.Clone();

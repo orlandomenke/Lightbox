@@ -317,9 +317,43 @@ Hold **Ctrl** at any time to pick a colour off the canvas without changing tool.
 
 ### Brushes
 
-The tool options bar carries the controls you reach for constantly — preset,
+The tool options bar carries the controls you reach for constantly — brush,
 size, hardness, opacity, stabilizer. **⚙** opens every parameter, grouped:
-General, Effects, Medium, Pressure.
+General, Effects, Medium, Pen pressure, Presets.
+
+#### Finding a brush
+
+The brush button opens a flyout, not a dropdown: once you have forty brushes,
+scrolling is the wrong verb.
+
+- **Search** matches names and tags.
+- **Tag chips** across the top narrow the list. Pick several and you get all of
+  them — "inking *or* roughs" — because asking for a brush that is both is
+  almost always an empty list.
+- The chips only appear once you have tagged something.
+
+Tag a brush on the **Presets** page: a comma-separated list, whatever you would
+look for it under. There is no fixed vocabulary, because the categories worth
+having are the ones your work has.
+
+#### Changing a brush and keeping the change
+
+An **●** next to the brush name means the settings have drifted from the brush
+they came from. It compares values, so putting a setting back clears it.
+
+The **Presets** page then gives you three moves:
+
+| | |
+| --- | --- |
+| **Update** | Writes your changes back over the brush you started from. |
+| **Save as new** | Keeps both — the original untouched, your version under a new name. |
+| **Delete** | Removes a brush you made. |
+
+**You can update the brushes that ship with Lightbox.** Tweak Pencil, press
+Update, and it stays tweaked across restarts. Nothing is lost doing it:
+**Revert** gives you the original back whenever you want it, and on a shipped
+brush the Delete button *is* Revert — it is not yours to delete, and "delete"
+on one plainly means "give me back the one that came with the app".
 
 Effect brushes (**Smudge**, **Blur**) swap the bar for their own controls —
 strength, radius, and for smudge how much of its own colour it adds. A smudge

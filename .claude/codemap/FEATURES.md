@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1531 tests, derived from the suite itself. Each line is a
+1567 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -144,6 +144,18 @@ regression even when every test still compiles.
 - ADropped Tip Leaves The Drawing Alone — `:222`
 - Every Built In Tip Has AThumbnail To Show In The Picker — `:236`
 
+## BrushFilterTests
+`tests/Lightbox.App.Tests/BrushFilterTests.cs`
+
+- No Filter Shows Everything In The Order It Came — `:25`
+- Search Matches Part Of AName And Ignores Case — `:32`
+- Search Matches ATag As Well As AName — `:39`
+- Two Tags Mean Either Not Both — `:49`
+- Search And Tags Narrow Together — `:60`
+- An Untagged Brush Is Hidden By Any Tag Filter And Found By Name — `:69`
+- Tag Matching Ignores Case And Surrounding Space — `:76`
+- Nothing Matching Is An Empty List Rather Than Everything — `:87`
+
 ## BrushMemoryTests
 `tests/Lightbox.App.Tests/BrushMemoryTests.cs`
 
@@ -157,6 +169,46 @@ regression even when every test still compiles.
 - ANew Document In The Project Is Fed That Brush — `:150`
 - AProject With Nothing Recorded Leaves The Brush Alone — `:168`
 - Switching To Per Project Mid Session Hands Back What Is Already There — `:182`
+
+## BrushComparisonTests
+`tests/Lightbox.App.Tests/BrushPresetEditingTests.cs`
+
+- Two Untouched Brushes Are The Same — `:354`
+- Every Setting That Reaches Pixels Is Compared — `:360`
+- The Two Configure Settings Are Not Part Of The Brush — `:390`
+- Comparing Does Not Disturb Either Brush — `:399`
+
+## BrushPresetEditingTests
+`tests/Lightbox.App.Tests/BrushPresetEditingTests.cs`
+
+- APreset Just Chosen Is Not Modified — `:23`
+- Nudging Anything Lights The Indicator — `:35`
+- Putting ASetting Back Clears The Indicator — `:51`
+- ADeep Setting Counts As Much As ASurface One — `:67`
+- Anti Aliasing Is Not Part Of The Brush — `:81`
+- Updating Writes The Changes Back And Clears The Indicator — `:97`
+- Updating AShipped Brush Survives ARestart — `:110`
+- AShadowed Built In Appears Once And Keeps Its Place — `:126`
+- Reverting AShipped Brush Gives Back The Original — `:141`
+- There Is Nothing To Revert On AShipped Brush Nobody Touched — `:161`
+- Saving ACopy Leaves The Original Alone — `:173`
+- Deleting ABrush You Made Removes It — `:188`
+- Deleting AShipped Brush Reverts It Rather Than Removing It — `:200`
+- AShipped Brush Cannot Be Renamed — `:214`
+- ABrush You Made Can Be Renamed — `:223`
+- Tags Persist And Feed The Filter List — `:237`
+- ABrush Nobody Filed Writes No Tags Key — `:249`
+- Blank And Duplicate Tags Are Dropped Rather Than Stored — `:260`
+- Tagging AShipped Brush Shadows It Rather Than Editing The List — `:270`
+- Tagging AShipped Brush Does Not Count As Modifying It — `:283`
+- ATag Dropped From The Last Brush Using It Leaves The Choice List — `:296`
+
+## BuiltInPresetMergeTests
+`tests/Lightbox.App.Tests/BrushPresetEditingTests.cs`
+
+- AUser Preset Reusing ABuilt In Id Replaces It In Place — `:314`
+- AShadow Keeps The Originals Position Rather Than Going To The End — `:326`
+- Ordinary User Presets Come After The Shipped Ones — `:337`
 
 ## BrushPresetTests
 `tests/Lightbox.App.Tests/BrushToolTests.cs`

@@ -1,6 +1,6 @@
 # Code index
 
-321 files · 78719 lines · 1531 tests.
+324 files · 79832 lines · 1567 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -27,17 +27,17 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (7937 ln) · 3 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:3457, TransformParts:5223
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3190 ln) · 6 test files
-  - MainWindow:17
-- `src/Lightbox.App/Views/MainWindow.axaml` (2739 ln) · **no tests**
-  - BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushPageEffects, BrushPageGeneral, BrushPageMedium …
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (8160 ln) · 3 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:3680, TransformParts:5446
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3348 ln) · 6 test files
+  - MainWindow:18
+- `src/Lightbox.App/Views/MainWindow.axaml` (2827 ln) · **no tests**
+  - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2489 ln) · 5 test files
   - CanvasControl:28, CanvasToolMode:492, GridGesture:548, TxDrag:695, DrawOp:2019
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
-- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (714 ln) · 68 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (714 ln) · 69 test files
   - MainViewModel:19
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (603 ln) · 2 test files
   - ProjectRow:19, ProjectViewModel:112, NewItemKind:274
@@ -47,6 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GradientStopRow:16, GradientDockerViewModel:89, HexColor:452
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (460 ln) · 6 indirect only
   - ShortcutRow:11, ShortcutGroup:23, GridRow:38, ConfigureWindow:94
+- `src/Lightbox.App/Services/BrushPresets.cs` (418 ln) · 3 test files
+  - BrushPreset:8, BrushComparison:86, BuiltInPresets:118, PresetStore:365, State:370
 - `src/Lightbox.App/ViewModels/WorkspaceViewModel.cs` (414 ln) · 1 test files
   - WorkspaceViewModel:20, WorkspaceRow:409
 - `src/Lightbox.App/Controls/TimelineRuler.cs` (367 ln) · 1 test files
@@ -55,10 +57,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ColorMode:9, ColorPickerViewModel:25
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` (334 ln) · 6 test files
   - StrokeOverlay:24, RenderPass:50, SceneRenderer:65
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 61 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (323 ln) · 62 test files
   - SpriteTrim:11, SpriteSheetOptions:35, SpriteSheetResult:46, SpriteSheetExporter:69, SheetDocument:275, SheetFrame:281, SheetMeta:295, Box:310 …
-- `src/Lightbox.App/Services/BrushPresets.cs` (322 ln) · 1 test files
-  - BrushPreset:8, BuiltInPresets:52, PresetStore:269, State:274
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 6 indirect only
   - RampTrack:10, GradientRamp:41
 - `src/Lightbox.App/Docking/DockLayout.cs` (276 ln) · 3 test files
@@ -84,7 +84,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - AngleSlider, BlackSlider, CategoryList, CentreBox, CountLabel, CountRow, CountSlider, CrossedBox …
 - `src/Lightbox.App/ViewModels/LayerRow.cs` (194 ln) · 1 test files
   - GroupRow:11, LayerRow:90
-- `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (194 ln) · 68 indirect only
+- `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (194 ln) · 69 indirect only
   - SymbolRow:16, SymbolBrowserViewModel:78
 - `src/Lightbox.App/Services/IpcDocumentApi.cs` (193 ln) · 1 test files
   - IpcDocumentApi:15, FrameRef:86, InsertPayload:118, DrawPayload:146, ViewRef:167
@@ -162,13 +162,15 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeBuilder:10
 - `src/Lightbox.App/Views/FloatingPanelWindow.cs` (56 ln) · 6 indirect only
   - FloatingPanelWindow:16
+- `src/Lightbox.App/Services/BrushFilter.cs` (47 ln) · 1 test files
+  - BrushFilter:12
 - `src/Lightbox.App/Services/IpcProtocol.cs` (43 ln) · 4 test files
   - IpcProtocol:12, Request:23, Response:29
 - `src/Lightbox.App/Services/PlaybackClock.cs` (35 ln) · 1 test files
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
-- `src/Lightbox.App/App.axaml.cs` (30 ln) · 65 indirect only
+- `src/Lightbox.App/App.axaml.cs` (30 ln) · 66 indirect only
   - App:8
 - `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 6 indirect only
   - NewProjectDialog:10
@@ -203,9 +205,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (350 ln) · 49 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (350 ln) · 50 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
-- `src/Lightbox.Core/Documents/ResponseCurve.cs` (294 ln) · 4 test files
+- `src/Lightbox.Core/Documents/ResponseCurve.cs` (294 ln) · 5 test files
   - BrushDynamic:22, ResponseCurve:70, PressureResponse:230
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (280 ln) · 2 test files
   - GeometryOps:5
@@ -223,7 +225,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FigureFinder:43
 - `src/Lightbox.Core/Geometry/ShapeBuilder.cs` (197 ln) · 3 test files
   - ShapeKind:5, ShapeBuilder:38
-- `src/Lightbox.Core/Documents/MediumSettings.cs` (191 ln) · 14 test files
+- `src/Lightbox.Core/Documents/MediumSettings.cs` (191 ln) · 15 test files
   - MediumKind:10, PaperKind:29, MediumSettings:54
 - `src/Lightbox.Core/Documents/Symbol.cs` (179 ln) · 8 test files
   - SymbolKind:11, Symbol:42, SymbolPlacement:120
@@ -245,7 +247,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Stroke:9, BakedSample:121
 - `src/Lightbox.Core/Projects/Project.cs` (120 ln) · 7 test files
   - Project:15
-- `src/Lightbox.Core/Documents/Layer.cs` (115 ln) · 23 test files
+- `src/Lightbox.Core/Documents/Layer.cs` (115 ln) · 24 test files
   - LayerKind:3, LayerBlendMode:14, Cel:38, LayerGroup:49, Layer:67
 - `src/Lightbox.Core/Documents/Guide.cs` (114 ln) · 3 test files
   - GuideKind:4, Guide:60
@@ -287,7 +289,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Easing:3, EasingOps:11
 - `src/Lightbox.Core/Documents/Pivot.cs` (16 ln) · 2 test files
   - Pivot:7
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 111 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 113 indirect only
   - Ids:3
 
 ## Lightbox.Import

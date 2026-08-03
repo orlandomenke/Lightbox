@@ -213,6 +213,19 @@ algorithmic or an API-usage mistake, and three of the four were inside Skia's
 native code. Before proposing a native rewrite, re-run that measurement — it is
 the only evidence that would change the answer.
 
+### Measurement traps that have already cost time
+
+Both are the same shape — *the number was real and the attribution was not* —
+and both are cheap to walk into again.
+
+| Trap | What it looks like | The check |
+| --- | --- | --- |
+| **Dab saturation** | A flow or opacity control "works": faint 0.93, full 1.00. Twenty overlapping dabs make `1-(1-a)^20` = 0.92 at `a` = 0.12, so the test passes on a build where the control is wired to nothing. | Measure below saturation, or measure width rather than alpha. Print both numbers. Assert the faint mark is *present*, not only fainter. |
+| **Shared state between benchmarks** | An A/B reads as a 25% regression that is an earlier scenario having grown a shared buffer. Run alone, the same change was an 11% win. | Tear down between values; hold scenario state in closures that die with it. |
+
+`CLAUDE.md` carries the first one in full, because it bites brush work
+specifically and every agent reads that file.
+
 ## 4. Definition of done for a user-visible change
 
 1. It works when driven the way a user drives it (headless pixel test where
