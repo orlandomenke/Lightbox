@@ -6651,15 +6651,114 @@ public sealed partial class MainViewModel : ObservableObject
 
     public FrameMarker? MarkerAt(int frame) => Scene.Markers.FirstOrDefault(m => m.Frame == frame);
 
+    /// <summary>
+    /// Set or replace the marker at a frame, keeping what the label does not own.
+    /// </summary>
+    /// <remarks>
+    /// This <em>replaces</em> the marker, so its note and its event flag have to be
+    /// carried across explicitly. Without that, renaming a marker would silently
+    /// throw away the prose attached to it and un-export an engine event — a
+    /// deletion disguised as an edit, and the kind that is only noticed later.
+    /// </remarks>
     public void SetMarkerAt(int frame, string label, string color)
     {
+        var existing = MarkerAt(frame);
+        var note = existing?.Note;
+        var isEvent = existing?.IsEvent;
+
         _editor.Perform(doc =>
         {
             doc.Scene.Markers.RemoveAll(m => m.Frame == frame);
-            doc.Scene.Markers.Add(new FrameMarker { Frame = frame, Label = label.Trim(), Color = color });
+            doc.Scene.Markers.Add(new FrameMarker
+            {
+                Frame = frame,
+                Label = label.Trim(),
+                Color = color,
+                Note = note,
+                IsEvent = isEvent,
+            });
             doc.Scene.Markers.Sort((a, b) => a.Frame.CompareTo(b.Frame));
         });
     }
+
+    /// <summary>
+    /// Attach prose to the marker at a frame, making one if there is none.
+    /// </summary>
+    /// <remarks>
+    /// A note needs somewhere to live, and a frame the artist wants to write about
+    /// is a frame worth marking — so writing a note on an unmarked frame creates
+    /// the marker rather than refusing. Clearing the text back to nothing removes
+    /// the note but keeps the marker, because the marker may be doing its own job.
+    /// </remarks>
+    public void SetMarkerNoteAt(int frame, string? note)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (trimmed is null && MarkerAt(frame) is null) return;
+
+        _editor.Perform(doc =>
+        {
+            if (doc.Scene.Markers.FirstOrDefault(m => m.Frame == frame) is { } marker)
+            {
+                marker.Note = trimmed;
+                return;
+            }
+            doc.Scene.Markers.Add(new FrameMarker { Frame = frame, Note = trimmed });
+            doc.Scene.Markers.Sort((a, b) => a.Frame.CompareTo(b.Frame));
+        });
+    }
+
+    /// <summary>Whether the marker at a frame is exported to an engine.</summary>
+    public void SetMarkerIsEventAt(int frame, bool isEvent)
+    {
+        if (MarkerAt(frame) is null) return;
+        // Null rather than false when off, so an ordinary marker writes no key.
+        _editor.Perform(doc =>
+        {
+            if (doc.Scene.Markers.FirstOrDefault(m => m.Frame == frame) is { } marker)
+            {
+                marker.IsEvent = isEvent ? true : null;
+            }
+        });
+    }
+
+    /// <summary>Markers carrying prose, in frame order. What a notes list shows.</summary>
+    public IReadOnlyList<FrameMarker> Notes =>
+        Scene.Markers.Where(m => m.HasNote).OrderBy(m => m.Frame).ToList();
+
+    /// <summary>
+    /// Jump to the next marker after the playhead. False when there is none.
+    /// </summary>
+    /// <remarks>
+    /// What "timeline bookmarks" actually wanted, and the one thing genuinely
+    /// missing: a named point you can *reach*. Markers have existed since M9c and
+    /// there has never been a way to walk between them, so on a long sheet they
+    /// were labels you had to hunt for by eye.
+    /// </remarks>
+    public bool GoToNextMarker()
+    {
+        var next = Scene.Markers.Where(m => m.Frame > CurrentFrameIndex).OrderBy(m => m.Frame).FirstOrDefault();
+        if (next is null) return false;
+        CurrentFrameIndex = Math.Clamp(next.Frame, 0, Math.Max(0, Scene.FrameCount - 1));
+        return true;
+    }
+
+    /// <summary>Jump to the marker before the playhead. False when there is none.</summary>
+    public bool GoToPreviousMarker()
+    {
+        var previous = Scene.Markers
+            .Where(m => m.Frame < CurrentFrameIndex)
+            .OrderByDescending(m => m.Frame)
+            .FirstOrDefault();
+        if (previous is null) return false;
+        CurrentFrameIndex = Math.Clamp(previous.Frame, 0, Math.Max(0, Scene.FrameCount - 1));
+        return true;
+    }
+
+    [RelayCommand]
+    private void NextMarker() => GoToNextMarker();
+
+    [RelayCommand]
+    private void PreviousMarker() => GoToPreviousMarker();
 
     public void RemoveMarkerAt(int frame)
     {

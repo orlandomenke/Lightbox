@@ -32,6 +32,31 @@ public sealed class FrameMarker
     /// </remarks>
     public bool? IsEvent { get; set; }
 
+    /// <summary>
+    /// Prose about this frame, for a person. Absent unless written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one thing a <see cref="Label"/> is not. A label is a chip on the ruler
+    /// and has to stay short to fit; a note is "the hand pops here, fix it on 2s"
+    /// — several lines if it wants to be, shown in a list and on hover, never
+    /// drawn on the ruler and <b>never exported as an event</b>.
+    /// </para>
+    /// <para>
+    /// On the marker rather than in a record of its own, and that is the whole
+    /// point: <em>frame tagging</em>, <em>timeline bookmarks</em> and
+    /// <em>animation notes</em> were three roadmap items for one thing seen three
+    /// ways. A separate note record would have made an artist choose between two
+    /// near-identical features before knowing the difference, and forced the UI to
+    /// explain both. One place to put text; what is filled in decides how it reads.
+    /// </para>
+    /// </remarks>
+    public string? Note { get; set; }
+
+    /// <summary>Whether this marker carries prose. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasNote => !string.IsNullOrWhiteSpace(Note);
+
     /// <summary>Whether this marker is exported as an event. Derived; never serialized.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool ExportsAsEvent => IsEvent == true;
@@ -86,6 +111,22 @@ public sealed class AnimationTag
 
     /// <summary>Whether an engine should loop the clip. Most cycles should.</summary>
     public bool Loop { get; set; } = true;
+
+    /// <summary>
+    /// Prose about this range. Absent unless written.
+    /// </summary>
+    /// <remarks>
+    /// The same field as <see cref="FrameMarker.Note"/> and for the same reason,
+    /// on the record that can hold a <em>range</em> — because "the whole run cycle
+    /// reads too heavy" is a note about a stretch of frames and a marker is a
+    /// point. Never exported: a clip's name is the contract, an artist's note is
+    /// not.
+    /// </remarks>
+    public string? Note { get; set; }
+
+    /// <summary>Whether this tag carries prose. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasNote => !string.IsNullOrWhiteSpace(Note);
 
     /// <summary>Frames the tag covers, at least one.</summary>
     [System.Text.Json.Serialization.JsonIgnore]

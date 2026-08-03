@@ -1035,6 +1035,27 @@ One row per layer, one cell per frame. Click a cell to go there; the current one
 is highlighted. A **keyed** cell holds a drawing; a **hold** repeats the drawing
 before it, which is what animating on 2s and 3s is made of.
 
+### Markers, notes and events
+
+A **marker** is a named point on a frame, shown as a coloured chip on the ruler.
+One thing, three uses, and which one you get depends on what you fill in:
+
+| | |
+| --- | --- |
+| A **label** | The chip on the ruler — "contact", "passing". Keep it short; it has to fit. |
+| A **note** | Prose about the frame, as long as it needs to be: *the hand pops here, fix on 2s*. It is not drawn on the ruler; it appears in the notes list and on hover. Writing a note on an unmarked frame creates the marker for you. |
+| An **event** | Tick it and the marker is exported to your game engine as an animation event — `OnFootstep` at frame 7. Off by default, because most markers are notes to yourself and a game has nothing to do with them. |
+
+Renaming a marker keeps its note and its event tick. **Next / previous marker**
+walks between them, which is what makes them useful on a long sheet rather than
+labels you have to find by eye; walking past the last one stays where it is rather
+than jumping back to the first.
+
+A **tag** is the same idea over a *range* rather than a point: a name, a start and
+an end — "walk", "run", "idle". That is what an engine calls an animation clip, and
+it is what lets one sprite sheet hold several animations. A tag can carry a note
+too, for when the remark is about the whole cycle rather than one drawing.
+
 Right-click a cel for: insert frame, extend or reduce exposure, clear, delete
 (which pulls the rest of the row back), copy, cut, paste, markers, and the
 playback range.

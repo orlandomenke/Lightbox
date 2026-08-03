@@ -1,6 +1,6 @@
 # Code index
 
-366 files · 89925 lines · 1819 tests.
+367 files · 90279 lines · 1832 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,7 +47,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (8632 ln) · 4 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (8731 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:3928, TransformParts:5871
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (3457 ln) · 6 test files
   - MainWindow:18
@@ -55,7 +55,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2489 ln) · 5 test files
   - CanvasControl:28, CanvasToolMode:492, GridGesture:548, TxDrag:695, DrawOp:2019
-- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · 73 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · 74 test files
   - MainViewModel:20
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
@@ -89,7 +89,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CurveEditor:29
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 2 test files
   - ComposeRing:31, Buffer:33
-- `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (261 ln) · 73 indirect only
+- `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (261 ln) · 74 indirect only
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (256 ln) · 3 test files
   - Workspace:13, WorkspaceStore:51
@@ -237,14 +237,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StripSlicer:49
 - `src/Lightbox.Core/Projects/Templates.cs` (344 ln) · 2 test files
   - Templates:25, NewLayer:96, LayerChange:107, PullPreview:118, PullOptions:136
+- `src/Lightbox.Core/Documents/Scene.cs` (296 ln) · 10 test files
+  - FrameMarker:4, TagDirection:66, AnimationTag:99, Scene:136
 - `src/Lightbox.Core/Documents/ResponseCurve.cs` (294 ln) · 5 test files
   - BrushDynamic:22, ResponseCurve:70, PressureResponse:230
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (280 ln) · 2 test files
   - GeometryOps:5
 - `src/Lightbox.Core/Projects/ProjectManifest.cs` (264 ln) · 12 test files
   - ProjectType:11, DocumentRef:29, CharacterVariant:85, Character:106, ProjectScene:176, ProjectManifest:200
-- `src/Lightbox.Core/Documents/Scene.cs` (255 ln) · 9 test files
-  - FrameMarker:4, TagDirection:41, AnimationTag:74, Scene:95
 - `src/Lightbox.Core/Geometry/TransformOps.cs` (234 ln) · 1 test files
   - TransformOps:12
 - `src/Lightbox.Core/Geometry/Snapper.cs` (229 ln) · 1 test files
@@ -331,7 +331,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Easing:3, EasingOps:11
 - `src/Lightbox.Core/Documents/Pivot.cs` (16 ln) · 2 test files
   - Pivot:7
-- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 140 indirect only
+- `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 141 indirect only
   - Ids:3
 
 ## Lightbox.Import

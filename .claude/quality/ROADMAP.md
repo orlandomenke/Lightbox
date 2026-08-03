@@ -438,10 +438,16 @@ timeline, review, versioning, collaboration.
 - [x] Loop regions `evidence: TimelineRuler, DraggingTheStartHandleSetsTheStartFrame, DraggingTheEndHandleSetsTheEndFrame, AltClickingBetweenThemResetsItToo, WithLoopingOffItStopsOnTheLastFrame`
 - [x] Frame markers `evidence: FrameMarker`
 - [x] Automatic frame numbering `evidence: FrameLabel, FrameCell`
-- [?] Frame tagging
-- [?] Animation tagging
-- [?] Timeline bookmarks
-- [?] Animation notes
+- [x] ~~Frame tagging~~ — this is **frame markers**, shipped above, plus P5d's event flag `evidence: FrameMarker, IsEvent, ExportsAsEvent, AMarkerWithNoNoteWritesNoNoteKey`
+  - Struck rather than built. A "frame tag" is a named point on a frame, which `FrameMarker` has been since M9c; the only thing it was missing was a way to say *this one is for the game*, and P5d added that as a flag. An item nothing can distinguish from a shipped feature is the wish list the checkbox rules exist to prevent — the same reason Q11's "reusable animation presets" went.
+- [x] ~~Animation tagging~~ — this is **`AnimationTag`**, built in P5d `evidence: AnimationTag, TagDirection, ATagCarriesProseToo`
+  - Also struck. Pillar 5 needed named frame ranges to make a multi-animation atlas usable, so it built them; this item and that requirement were the same feature approached from the timeline's side and the exporter's.
+- [x] ~~Timeline bookmarks~~ — a bookmark **is** a marker, and what was missing was navigation `evidence: GoToNextMarker, GoToPreviousMarker, TheMarkersCanBeWalkedForwardsAndBackwards, WalkingPastTheLastMarkerStaysPutRatherThanWrapping`
+  - The useful half was hiding inside a duplicate. Markers have existed since M9c with **no way to reach one**, so on a long sheet they were labels you hunted for by eye. Next/previous marker is what "bookmarks" actually wanted, and it is now there; walking past the last one stays put rather than wrapping, because wrapping moves the playhead somewhere the artist did not ask for and they would not see where it went.
+- [x] Animation notes `evidence: Note, HasNote, SetMarkerNoteAt, Notes, WritingANoteOnAnUnmarkedFrameMakesTheMarker, ANoteSurvivesRenamingTheMarker, ANoteIsNotAnEvent, ATagCarriesProseToo`
+  - **The one of the four that was genuinely different**, and the difference is precise: a `Label` is a chip on the ruler and has to stay short to fit, a note is "the hand pops here, fix it on 2s" — several lines if it wants, shown in a list and on hover, never drawn as a chip and **never exported as an event**.
+  - Built as a nullable `Note` on `FrameMarker` *and* on `AnimationTag`, so prose can attach to a point or to a range, with no new record either time. A separate note type would have made an artist choose between two near-identical features before knowing the difference, and forced the UI to explain both. **Discoverability is solved by presenting one mechanism well, not by shipping two.**
+  - **A latent defect found on the way in.** `SetMarkerAt` replaces the marker at a frame, so renaming one would have silently thrown away its note *and* un-exported its engine event — a deletion disguised as an edit, and the kind only noticed much later. Both are carried across now, with a test that fails if they stop being.
 - [?] Timeline scrubbing with audio
 - [?] Audio waveform
 

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1819 tests, derived from the suite itself. Each line is a
+1832 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -874,6 +874,23 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/MainViewModelTests.cs`
 
 - Main Window Constructs And Shows — `:206`
+
+## MarkerNotesTests
+`tests/Lightbox.App.Tests/MarkerNotesTests.cs`
+
+- AMarker With No Note Writes No Note Key — `:31`
+- Writing ANote On An Unmarked Frame Makes The Marker — `:44`
+- ANote Survives Renaming The Marker — `:60`
+- Clearing The Text Removes The Note And Keeps The Marker — `:78`
+- ANote Is Not An Event — `:93`
+- The Event Flag Goes Back To Absent Rather Than False — `:104`
+- Notes Are Listed In Frame Order — `:117`
+- ANote Is One Undo Step — `:128`
+- The Markers Can Be Walked Forwards And Backwards — `:141`
+- Walking Past The Last Marker Stays Put Rather Than Wrapping — `:161`
+- With No Markers Navigation Does Nothing — `:176`
+- ATag Carries Prose Too — `:189`
+- ATag With No Note Writes No Note Key — `:204`
 
 ## MediumPresetTests
 `tests/Lightbox.App.Tests/MediumPresetTests.cs`
