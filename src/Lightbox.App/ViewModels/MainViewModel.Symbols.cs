@@ -85,14 +85,30 @@ public sealed partial class MainViewModel
     /// </remarks>
     private void AdoptFromLibrary(string symbolId)
     {
-        if (ProjectDocker.Project is not { } project) return;
-        if (project.Symbols.ContainsKey(symbolId)) return;
-        if (!Library.TryGetValue(symbolId, out var global)) return;
+        if (ProjectDocker.Project is { } project)
+        {
+            if (project.Symbols.ContainsKey(symbolId)) return;
+            if (!Library.TryGetValue(symbolId, out var global)) return;
+            SymbolScopes.Adopt(project, global);
+            RefreshProjectResources();
+            SymbolBrowser.Refresh();
+            AiStatus = $"“{global.Name}” copied into this project — it renders with the library gone.";
+            return;
+        }
 
-        SymbolScopes.Adopt(project, global);
+        // No project: the *document* is what has to stay self-contained, so the
+        // copy goes into Doc.Symbols — which the registry already reads, and
+        // which is the same key `ProjectIo.Flatten` writes when an export has to
+        // carry its symbols. Same principle one level down.
+        if (Doc.Symbols?.ContainsKey(symbolId) == true) return;
+        if (!Library.TryGetValue(symbolId, out var loose)) return;
+
+        Doc.Symbols ??= [];
+        Doc.Symbols[symbolId] = Core.Serialization.DocJson.CloneValue(loose);
         RefreshProjectResources();
         SymbolBrowser.Refresh();
-        AiStatus = $"“{global.Name}” copied into this project — it renders with the library gone.";
+        MarkDocumentEdited();
+        AiStatus = $"“{loose.Name}” copied into this document — it saves and reloads with the drawing.";
     }
 
     /// <summary>Copy the selected project symbol up into the artist's library.</summary>

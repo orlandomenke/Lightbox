@@ -163,7 +163,13 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
         ? null
         : HasAny
             ? "No symbol matches that."
-            : "No symbols yet. Draw something, then Make symbol.";
+            : _project() is null
+                // Without a project the only thing here can be the artist's own
+                // library, so "Make symbol" is not the advice — it needs a
+                // project to make one *in*, and saying so is better than an
+                // instruction that will be refused.
+                ? "No symbols in your library yet. Open a project to make one, then Promote it."
+                : "No symbols yet. Draw something, then Make symbol.";
 
     /// <summary>Rebuild the grid from the project and the artist's own library.</summary>
     /// <remarks>

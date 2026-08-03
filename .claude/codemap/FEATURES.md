@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1767 tests, derived from the suite itself. Each line is a
+1791 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1268,6 +1268,13 @@ regression even when every test still compiles.
 - The Sidecar Is Aseprite Shaped — `:219`
 - An Opaque Background Layer Does Not Defeat Trimming — `:247`
 - An Empty Document Still Produces ASheet — `:260`
+- The Grid Is Still The Default And Its Bytes Are Unchanged — `:276`
+- APacked Sheet Is Smaller Than The Grid On Ragged Frames — `:297`
+- APacked Sheet Reports No Grid Rather Than APlausible One — `:331`
+- The Sidecar Carries Every Sprites Own Rect — `:346`
+- Packing The Same Document Twice Produces The Same File — `:381`
+- APacked Sheet Still Carries The Pivot Per Cell — `:396`
+- Padding Still Separates Every Sprite When Packed — `:420`
 
 ## StartScreenTests
 `tests/Lightbox.App.Tests/StartScreenTests.cs`
@@ -1349,6 +1356,10 @@ regression even when every test still compiles.
 - AGlobal Row Cannot Be Promoted — `:211`
 - The Project Is Offered ANewer Library Version And Takes It On Asking — `:223`
 - With Nothing Newer There Is Nothing To Offer — `:245`
+- The Library Is There With No Project Open — `:260`
+- Placing One In ALoose Document Copies It Into The Document — `:277`
+- Project Scope Stays Project Only — `:298`
+- With No Project The Empty Message Does Not Tell You To Do Something Impossible — `:316`
 
 ## SymbolPlacingTests
 `tests/Lightbox.App.Tests/SymbolPlacingTests.cs`
@@ -1995,6 +2006,23 @@ regression even when every test still compiles.
 - APolygon Cannot Have Fewer Than Three Sides — `:112`
 - The Same Corners Always Give The Same Points — `:120`
 - Every Point Is At Full Pressure — `:133`
+
+## SkylinePackerTests
+`tests/Lightbox.Core.Tests/SkylinePackerTests.cs`
+
+- Nothing Overlaps And Nothing Leaves The Sheet — `:35`
+- Every Sprite Comes Back At Its Own Size And In Input Order — `:50`
+- The Same Input Packs Identically — `:68`
+- Equal Sized Sprites Are Ordered By Index Rather Than By Luck — `:82`
+- Packing Beats AGrid On Ragged Input — `:98`
+- Packing Is No Worse Than AGrid On Uniform Input — `:113`
+- Padding Surrounds Every Sprite Including At The Sheet Edge — `:128`
+- ASheet Is Never Narrower Than Its Widest Sprite — `:145`
+- AFixed Width Is Honoured When It Fits — `:156`
+- AVery Small Sheet Still Packs — `:166`
+- No Sprites Is Not ACrash — `:174`
+- AZero Sized Sprite Is Given APixel Rather Than Disappearing — `:182`
+- ALong Sheet Stays Fast Enough To Export — `:194`
 
 ## StripSlicerTests
 `tests/Lightbox.Core.Tests/StripSlicerTests.cs`

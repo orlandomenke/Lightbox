@@ -1334,6 +1334,14 @@ this page at all.
 | **Export document…** | Writes a standalone `.lightbox.json` with every referenced swatch, gradient, brush tip and clip region **inlined**. |
 | **Export PNG / sequence / sprite sheet** | Frames as images; sheets with trimmed bounds and a pivot. |
 
+A sprite sheet is laid out as a **uniform grid** by default, because equal cells
+are what consistent trimmed bounds produce anyway and every engine importer reads
+a grid. There is also a **packed** layout that gives each frame its own size and
+fits them together — on ragged frames it is around a fifth smaller, measured. It
+is only readable through the sidecar's per-frame rectangles, so a packed sheet
+reports no grid at all rather than a column count that would look right and be
+wrong. *The layout has no control yet — it arrives with the one-click game export.*
+
 **Export document** is the escape hatch that matters. Inside a project, a
 document refers to shared resources by id, so a lone file is no longer
 self-contained. Export inlines them, and the exported file renders identically
@@ -1358,9 +1366,11 @@ and every animation holding it changes — that is the whole point, and it is wh
 a placement refers to the symbol rather than copying it.
 
 Symbols belong to the **project**, not to one animation, because a prop lives
-above the animations that use it. **View → Symbols** opens the panel; it is not
-offered without a project open, because there would be nowhere for a symbol to
-live.
+above the animations that use it. **View → Symbols** opens the panel, and it
+works with no project open too — your own library is yours, and it should be
+there when you open the app to draw one picture. Placing one into a loose file
+copies it into that file, so it still saves and reloads on its own. What needs a
+project is *making* a project symbol, since there would be nowhere to put it.
 
 ### Two libraries: this project, and yours
 

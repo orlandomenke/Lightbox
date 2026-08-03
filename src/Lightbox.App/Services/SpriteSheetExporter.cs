@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Lightbox.App.Rendering;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Export;
 using Lightbox.Core.Timeline;
 using SkiaSharp;
 
@@ -32,6 +33,33 @@ public enum SpriteTrim
     PerFrame,
 }
 
+/// <summary>How the cells are arranged on the sheet.</summary>
+public enum SpritePack
+{
+    /// <summary>
+    /// A uniform grid. The default, and it stays the default.
+    /// </summary>
+    /// <remarks>
+    /// Equal cells are what union bounds produce anyway, and every engine
+    /// importer in existence reads a grid — including ones that ignore the
+    /// sidecar entirely.
+    /// </remarks>
+    Grid,
+
+    /// <summary>
+    /// Bottom-left skyline packing: each sprite at its own size, tighter.
+    /// </summary>
+    /// <remarks>
+    /// Worth reaching for when the frames are <b>ragged</b> — per-frame trimming,
+    /// or a sheet holding several animations. It is only usable with the
+    /// per-sprite rects in the sidecar, so an importer that reads
+    /// <c>meta.columns</c> and divides will get this wrong; that is why a packed
+    /// sheet reports <c>columns</c> and <c>rows</c> as zero rather than a number
+    /// that would look plausible and be false.
+    /// </remarks>
+    Skyline,
+}
+
 public sealed record SpriteSheetOptions
 {
     public SpriteTrim Trim { get; init; } = SpriteTrim.Union;
@@ -41,8 +69,26 @@ public sealed record SpriteSheetOptions
 
     /// <summary>Transparent gutter around each cell, to stop bilinear bleed in an engine.</summary>
     public int Padding { get; init; }
+
+    /// <summary>
+    /// Grid or skyline. Grid by default, so an existing export is byte-identical.
+    /// </summary>
+    public SpritePack Pack { get; init; } = SpritePack.Grid;
 }
 
+/// <param name="CellWidth">
+/// The widest cell. Under <see cref="SpritePack.Skyline"/> cells differ, so this
+/// is the maximum rather than the size of every one — read the sidecar's
+/// per-frame rects for the truth.
+/// </param>
+/// <param name="Columns">Grid columns, or 0 for a packed sheet, which has no grid.</param>
+/// <param name="SheetWidth">The image's own size, which a packed sheet does not imply.</param>
+/// <param name="UsedArea">
+/// Pixels the sprites occupy, against <paramref name="SheetWidth"/> ×
+/// <paramref name="SheetHeight"/>. Reported so the packer's win can be *measured*
+/// rather than claimed — "atlas optimisation" with no number attached is a
+/// feeling.
+/// </param>
 public sealed record SpriteSheetResult(
     string SheetPath,
     string MetadataPath,
@@ -50,7 +96,16 @@ public sealed record SpriteSheetResult(
     int CellHeight,
     int Columns,
     int Rows,
-    int FrameCount);
+    int FrameCount,
+    SpritePack Pack = SpritePack.Grid,
+    int SheetWidth = 0,
+    int SheetHeight = 0,
+    long UsedArea = 0)
+{
+    /// <summary>How much of the sheet is sprite, 0 to 1.</summary>
+    public double Occupancy =>
+        SheetWidth > 0 && SheetHeight > 0 ? UsedArea / (double)SheetWidth / SheetHeight : 0;
+}
 
 /// <summary>
 /// The asset target's export: one image holding every frame on a uniform
@@ -95,14 +150,50 @@ public static class SpriteSheetExporter
             var cellW = Math.Max(1, cells.Max(c => c.Width));
             var cellH = Math.Max(1, cells.Max(c => c.Height));
 
-            var columns = opts.Columns is > 0
-                ? opts.Columns.Value
-                : Math.Max(1, (int)Math.Ceiling(Math.Sqrt(count)));
-            var rows = (int)Math.Ceiling(count / (double)columns);
-
             var stride = opts.Padding;
-            var sheetW = columns * (cellW + stride * 2);
-            var sheetH = rows * (cellH + stride * 2);
+            int columns, rows, sheetW, sheetH;
+
+            // One placement list for both layouts, so everything downstream — the
+            // draw loop, the sidecar, the pivot arithmetic — is written once and
+            // cannot drift between the two modes.
+            var slots = new (int X, int Y, int W, int H)[count];
+
+            if (opts.Pack == SpritePack.Skyline)
+            {
+                // Each sprite at its own size, which is where per-frame trimming
+                // finally pays: the grid takes the widest by the tallest for every
+                // cell whatever the trim said.
+                var packed = SkylinePacker.Pack(
+                    cells.Select(c => (c.Width, c.Height)).ToList(), stride);
+                sheetW = packed.Width;
+                sheetH = packed.Height;
+                // A packed sheet has no grid, and reporting a plausible number
+                // here would be worse than reporting none.
+                columns = 0;
+                rows = 0;
+                for (var i = 0; i < count; i++)
+                {
+                    var r = packed.Rects[i];
+                    slots[i] = (r.X, r.Y, r.Width, r.Height);
+                }
+            }
+            else
+            {
+                columns = opts.Columns is > 0
+                    ? opts.Columns.Value
+                    : Math.Max(1, (int)Math.Ceiling(Math.Sqrt(count)));
+                rows = (int)Math.Ceiling(count / (double)columns);
+                sheetW = columns * (cellW + stride * 2);
+                sheetH = rows * (cellH + stride * 2);
+                for (var i = 0; i < count; i++)
+                {
+                    slots[i] = (
+                        i % columns * (cellW + stride * 2) + stride,
+                        i / columns * (cellH + stride * 2) + stride,
+                        cellW,
+                        cellH);
+                }
+            }
 
             var info = new SKImageInfo(sheetW, sheetH, SKColorType.Rgba8888, SKAlphaType.Premul);
             using var surface = SKSurface.Create(info)
@@ -114,27 +205,26 @@ public static class SpriteSheetExporter
             for (var i = 0; i < count; i++)
             {
                 var cell = cells[i];
-                var col = i % columns;
-                var row = i / columns;
-                var x = col * (cellW + stride * 2) + stride;
-                var y = row * (cellH + stride * 2) + stride;
+                var (x, y, w, h) = slots[i];
 
                 // Draw the cell's slice of the frame at the cell's origin.
                 surface.Canvas.Save();
-                surface.Canvas.ClipRect(SKRect.Create(x, y, cellW, cellH));
+                surface.Canvas.ClipRect(SKRect.Create(x, y, w, h));
                 surface.Canvas.DrawImage(frames[i], x - cell.Left, y - cell.Top);
                 surface.Canvas.Restore();
 
                 entries.Add(new SheetFrame
                 {
                     Filename = $"{Path.GetFileNameWithoutExtension(sheetPath)} {i}.png",
-                    Frame = new Box(x, y, cellW, cellH),
+                    // The sprite's real rect. Under Skyline this is the only way
+                    // to find it — there is no grid to divide.
+                    Frame = new Box(x, y, w, h),
                     Rotated = false,
                     Trimmed = opts.Trim != SpriteTrim.None,
                     // Aseprite's spriteSourceSize is where the trimmed cell sat
                     // in the untrimmed canvas, which is exactly the offset an
                     // importer needs to put the drawing back.
-                    SpriteSourceSize = new Box(cell.Left, cell.Top, cellW, cellH),
+                    SpriteSourceSize = new Box(cell.Left, cell.Top, w, h),
                     SourceSize = new Size(scene.Width, scene.Height),
                     Duration = (int)Math.Round(1000.0 / Math.Max(1, scene.Fps)),
                     // The offset that actually matters to an engine: where the
@@ -167,13 +257,18 @@ public static class SpriteSheetExporter
                     Scale = "1",
                     Columns = columns,
                     Rows = rows,
+                    // Named in the file, so an importer can tell that dividing by
+                    // columns is not going to work rather than discovering it.
+                    Pack = opts.Pack == SpritePack.Skyline ? "skyline" : "grid",
                     Fps = scene.Fps,
                     Pivot = pivot is null ? null : new Point(pivot.X, pivot.Y),
                 },
             };
             File.WriteAllText(metaPath, JsonSerializer.Serialize(document, JsonOptions));
 
-            return new SpriteSheetResult(sheetPath, metaPath, cellW, cellH, columns, rows, count);
+            return new SpriteSheetResult(
+                sheetPath, metaPath, cellW, cellH, columns, rows, count,
+                opts.Pack, sheetW, sheetH, entries.Sum(e => (long)e.Frame.W * e.Frame.H));
         }
         finally
         {
@@ -303,6 +398,9 @@ public static class SpriteSheetExporter
         /// <summary>Lightbox extensions: what a grid importer needs and Aseprite does not record.</summary>
         [JsonPropertyName("columns")] public int Columns { get; set; }
         [JsonPropertyName("rows")] public int Rows { get; set; }
+
+        /// <summary>"grid" or "skyline". A packed sheet has no grid to divide.</summary>
+        [JsonPropertyName("pack")] public string Pack { get; set; } = "grid";
         [JsonPropertyName("fps")] public int Fps { get; set; }
         [JsonPropertyName("pivot")] public Point? Pivot { get; set; }
     }

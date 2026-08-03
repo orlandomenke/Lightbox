@@ -253,4 +253,72 @@ public sealed class SymbolLibraryTests : BrushStateIsolated, IDisposable
         Assert.Equal(0, vm.UpdateSymbolsFromLibrary());
         Assert.Contains("matches your library", vm.AiStatus);
     }
+
+    // ---- reachable without a project -------------------------------------------
+
+    [AvaloniaFact]
+    public void TheLibraryIsThereWithNoProjectOpen()
+    {
+        // It is the artist's own library. It should be there when they open the
+        // app to draw one picture, not only inside a project.
+        var global = Sword("My sword");
+        SymbolLibrary.Save(new Dictionary<string, Symbol> { [global.Id] = global });
+
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        Assert.False(vm.HasProject);
+        vm.SymbolBrowser.Refresh();
+
+        var row = vm.SymbolBrowser.Rows.Single();
+        Assert.True(row.IsGlobal);
+        Assert.Equal("My sword", row.Name);
+    }
+
+    [AvaloniaFact]
+    public void PlacingOneInALooseDocumentCopiesItIntoTheDocument()
+    {
+        // Without a project the *document* is what has to stand alone, so the
+        // copy goes into Doc.Symbols — the same key ProjectIo.Flatten writes when
+        // an export has to carry its symbols. Same principle one level down.
+        var global = Sword("Loose sword");
+        SymbolLibrary.Save(new Dictionary<string, Symbol> { [global.Id] = global });
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        vm.SymbolBrowser.Refresh();
+
+        var placement = vm.PlaceSymbol(global.Id, 60, 60);
+
+        Assert.NotNull(placement);
+        Assert.NotNull(vm.Doc.Symbols);
+        Assert.True(vm.Doc.Symbols!.ContainsKey(global.Id));
+        // And it survives a save and reload with nothing else installed.
+        var reloaded = Lightbox.Core.Serialization.DocJson.Deserialize(vm.SerializeDocument());
+        Assert.Single(reloaded.Symbols![global.Id].Frames);
+    }
+
+    [AvaloniaFact]
+    public void ProjectScopeStaysProjectOnly()
+    {
+        // "Project only for projects": there is no project scope to show without
+        // one, and making a project symbol still needs somewhere to put it.
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        vm.BeginStroke(30, 30, 1);
+        vm.MoveStroke(90, 90, 1);
+        vm.EndStroke();
+
+        Assert.Null(vm.MakeSymbolFromDrawing("Nope"));
+        Assert.Contains("project", vm.AiStatus);
+
+        vm.SymbolBrowser.ScopeFilter = SymbolScope.Project;
+        vm.SymbolBrowser.Refresh();
+        Assert.Empty(vm.SymbolBrowser.Rows);
+    }
+
+    [AvaloniaFact]
+    public void WithNoProjectTheEmptyMessageDoesNotTellYouToDoSomethingImpossible()
+    {
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        vm.SymbolBrowser.Refresh();
+
+        Assert.Contains("library", vm.SymbolBrowser.EmptyMessage);
+        Assert.DoesNotContain("Draw something, then Make symbol", vm.SymbolBrowser.EmptyMessage);
+    }
 }

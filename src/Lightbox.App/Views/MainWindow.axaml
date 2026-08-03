@@ -266,9 +266,9 @@
         <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Character sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Reference" ToggleType="CheckBox" IsChecked="{Binding ReferenceDockerVisible, Mode=TwoWay}" />
-        <MenuItem Header="Symbols" ToggleType="CheckBox" IsVisible="{Binding HasProject}"
+        <MenuItem Header="Symbols" ToggleType="CheckBox"
                   IsChecked="{Binding Workspace.SymbolsPanelVisible, Mode=TwoWay}"
-                  ToolTip.Tip="A drawing stored once and placed many times. Lives on the project, above the animations that place it." />
+                  ToolTip.Tip="A drawing stored once and placed many times. Your own library is here with no project open; project symbols need a project." />
         <Separator />
         <!-- The bars that sit on the canvas. Separate from the panels above
              because they are a different trade: a panel takes room away from

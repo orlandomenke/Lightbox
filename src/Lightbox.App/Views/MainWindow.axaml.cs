@@ -407,9 +407,12 @@ public partial class MainWindow : Window
     private bool IsPanelUsable(DockPanelId id) => id switch
     {
         DockPanelId.Project => _vm.HasProject,
-        // A symbol lives above the animations that place it, so with no
-        // project there is nowhere for one to live and nothing to show.
-        DockPanelId.Symbols => _vm.HasProject,
+        // Symbols are *not* gated. A project symbol needs a project, but the
+        // artist's own library does not — it is theirs, and it should be there
+        // when they open the app to draw one picture. Placing one into a loose
+        // document copies it into Doc.Symbols, so the file still stands alone.
+        // The project tree above stays gated, because without a project it has
+        // literally nothing to show.
         DockPanelId.Timeline => _vm.ShowTimeline,
         _ => true,
     };

@@ -269,4 +269,169 @@ public class SpriteSheetExportTests : IDisposable
         // collapsing to zero.
         Assert.Equal(64, result.CellWidth);
     }
+
+    // ---- P5a: rect packing and per-sprite metadata ------------------------------
+
+    [Fact]
+    public void TheGridIsStillTheDefaultAndItsBytesAreUnchanged()
+    {
+        // The safety property for this whole change: an existing export must not
+        // move. Written as a byte comparison rather than a shape check, because
+        // "the same layout" and "the same file" are different claims and only the
+        // second one keeps somebody's importer working.
+        var before = SpriteSheetExporter.Export(Walking(6), Path_("before.png"));
+        var beforeBytes = File.ReadAllBytes(before.SheetPath);
+        var beforeMeta = File.ReadAllText(before.MetadataPath);
+
+        var after = SpriteSheetExporter.Export(
+            Walking(6), Path_("after.png"), new SpriteSheetOptions { Pack = SpritePack.Grid });
+
+        Assert.Equal(SpritePack.Grid, before.Pack);
+        Assert.Equal(beforeBytes, File.ReadAllBytes(after.SheetPath));
+        Assert.Equal(
+            beforeMeta.Replace("before", "after"),
+            File.ReadAllText(after.MetadataPath));
+    }
+
+    [Fact]
+    public void APackedSheetIsSmallerThanTheGridOnRaggedFrames()
+    {
+        // Per-frame trimming is where packing pays: the grid takes the widest by
+        // the tallest for every cell whatever the trim said.
+        var grid = SpriteSheetExporter.Export(
+            Walking(8), Path_("grid.png"),
+            new SpriteSheetOptions { Trim = SpriteTrim.PerFrame, Pack = SpritePack.Grid });
+        var packed = SpriteSheetExporter.Export(
+            Walking(8), Path_("packed.png"),
+            new SpriteSheetOptions { Trim = SpriteTrim.PerFrame, Pack = SpritePack.Skyline });
+
+        var gridArea = (long)grid.SheetWidth * grid.SheetHeight;
+        var packedArea = (long)packed.SheetWidth * packed.SheetHeight;
+
+        File.WriteAllText(
+            System.IO.Path.Combine(System.IO.Path.GetTempPath(), "lightbox-pack-measurement.txt"),
+            $"packed {packed.SheetWidth}x{packed.SheetHeight} = {packedArea} px, occupancy {packed.Occupancy:P1}\n"
+            + $"grid   {grid.SheetWidth}x{grid.SheetHeight} = {gridArea} px, occupancy {grid.Occupancy:P1}\n"
+            + $"cells  grid {grid.CellWidth}x{grid.CellHeight}, packed max {packed.CellWidth}x{packed.CellHeight}\n");
+        Assert.True(
+            packedArea < gridArea,
+            $"packed {packed.SheetWidth}x{packed.SheetHeight} ({packedArea} px, {packed.Occupancy:P1} full) "
+            + $"vs grid {grid.SheetWidth}x{grid.SheetHeight} ({gridArea} px, {grid.Occupancy:P1} full); "
+            + $"cells grid {grid.CellWidth}x{grid.CellHeight} packed-max {packed.CellWidth}x{packed.CellHeight}");
+        // Occupancy is *reported* but deliberately not compared between the two
+        // modes, because it does not mean what it looks like: a grid with no
+        // padding is 100% cell-occupied by construction, however empty those
+        // cells are. Total sheet area is the honest comparison, and it is the one
+        // above. Occupancy earns its place for a *packed* sheet, where it says
+        // how much of the image is sprite.
+        Assert.True(packed.Occupancy > 0 && packed.Occupancy <= 1);
+    }
+
+    [Fact]
+    public void APackedSheetReportsNoGridRatherThanAPlausibleOne()
+    {
+        // An importer that reads columns and divides would be silently wrong.
+        // Zero is a value it can check; 3 is a value it would trust.
+        var packed = SpriteSheetExporter.Export(
+            Walking(6), Path_("nogrid.png"), new SpriteSheetOptions { Pack = SpritePack.Skyline });
+
+        Assert.Equal(0, packed.Columns);
+        Assert.Equal(0, packed.Rows);
+        var meta = Meta(packed).GetProperty("meta");
+        Assert.Equal("skyline", meta.GetProperty("pack").GetString());
+        Assert.Equal(0, meta.GetProperty("columns").GetInt32());
+    }
+
+    [Fact]
+    public void TheSidecarCarriesEverySpritesOwnRect()
+    {
+        // The half that makes packing usable at all.
+        var packed = SpriteSheetExporter.Export(
+            Walking(6), Path_("rects.png"),
+            new SpriteSheetOptions { Trim = SpriteTrim.PerFrame, Pack = SpritePack.Skyline });
+
+        var frames = Meta(packed).GetProperty("frames").EnumerateArray().ToList();
+        Assert.Equal(6, frames.Count);
+
+        var rects = frames.Select(f => f.GetProperty("frame")).Select(r => (
+            X: r.GetProperty("x").GetInt32(),
+            Y: r.GetProperty("y").GetInt32(),
+            W: r.GetProperty("w").GetInt32(),
+            H: r.GetProperty("h").GetInt32())).ToList();
+
+        Assert.All(rects, r => Assert.True(r.W > 0 && r.H > 0));
+        // Inside the sheet, every one of them.
+        Assert.All(rects, r => Assert.True(
+            r.X + r.W <= packed.SheetWidth && r.Y + r.H <= packed.SheetHeight,
+            $"rect {r.X},{r.Y} {r.W}x{r.H} runs off a {packed.SheetWidth}x{packed.SheetHeight} sheet"));
+        // And no two overlap, which is the property the packer exists for.
+        for (var i = 0; i < rects.Count; i++)
+        {
+            for (var j = i + 1; j < rects.Count; j++)
+            {
+                var a = rects[i];
+                var b = rects[j];
+                var apart = a.X + a.W <= b.X || b.X + b.W <= a.X || a.Y + a.H <= b.Y || b.Y + b.H <= a.Y;
+                Assert.True(apart, $"sprites {i} and {j} overlap");
+            }
+        }
+    }
+
+    [Fact]
+    public void PackingTheSameDocumentTwiceProducesTheSameFile()
+    {
+        // A re-export that reshuffles the atlas makes every downstream diff
+        // meaningless.
+        var first = SpriteSheetExporter.Export(
+            Walking(8), Path_("det1.png"),
+            new SpriteSheetOptions { Trim = SpriteTrim.PerFrame, Pack = SpritePack.Skyline });
+        var second = SpriteSheetExporter.Export(
+            Walking(8), Path_("det2.png"),
+            new SpriteSheetOptions { Trim = SpriteTrim.PerFrame, Pack = SpritePack.Skyline });
+
+        Assert.Equal(File.ReadAllBytes(first.SheetPath), File.ReadAllBytes(second.SheetPath));
+    }
+
+    [Fact]
+    public void APackedSheetStillCarriesThePivotPerCell()
+    {
+        // Packing must not cost the thing that stops trimming shifting the
+        // character. The pivot is measured inside the cell, so where the cell
+        // landed on the sheet is irrelevant — and that is worth a test, because
+        // it is exactly the kind of offset a new layout quietly breaks.
+        var doc = Walking(4);
+        doc.Scene.Pivot = new Pivot { X = 100, Y = 90 };
+
+        var grid = SpriteSheetExporter.Export(
+            doc, Path_("pg.png"), new SpriteSheetOptions { Trim = SpriteTrim.Union });
+        var packed = SpriteSheetExporter.Export(
+            doc, Path_("pp.png"),
+            new SpriteSheetOptions { Trim = SpriteTrim.Union, Pack = SpritePack.Skyline });
+
+        static (double X, double Y) PivotOf(JsonElement meta) =>
+            meta.GetProperty("frames")[0].GetProperty("pivot") is { } p
+                ? (p.GetProperty("x").GetDouble(), p.GetProperty("y").GetDouble())
+                : (0, 0);
+
+        Assert.Equal(PivotOf(Meta(grid)), PivotOf(Meta(packed)));
+    }
+
+    [Fact]
+    public void PaddingStillSeparatesEverySpriteWhenPacked()
+    {
+        var packed = SpriteSheetExporter.Export(
+            Walking(6), Path_("pad.png"),
+            new SpriteSheetOptions { Trim = SpriteTrim.PerFrame, Pack = SpritePack.Skyline, Padding = 2 });
+
+        var rects = Meta(packed).GetProperty("frames").EnumerateArray()
+            .Select(f => f.GetProperty("frame"))
+            .Select(r => (X: r.GetProperty("x").GetInt32(), Y: r.GetProperty("y").GetInt32(),
+                          W: r.GetProperty("w").GetInt32(), H: r.GetProperty("h").GetInt32()))
+            .ToList();
+
+        Assert.All(rects, r => Assert.True(r.X >= 2 && r.Y >= 2, $"no gutter at {r.X},{r.Y}"));
+        Assert.All(rects, r => Assert.True(
+            r.X + r.W + 2 <= packed.SheetWidth && r.Y + r.H + 2 <= packed.SheetHeight,
+            "no gutter at the far edge"));
+    }
 }
