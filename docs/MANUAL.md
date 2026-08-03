@@ -1355,6 +1355,13 @@ this page at all.
 | **Export document…** | Writes a standalone `.lightbox.json` with every referenced swatch, gradient, brush tip and clip region **inlined**. |
 | **Export PNG / sequence / sprite sheet** | Frames as images; sheets with trimmed bounds and a pivot. |
 
+**Export for Unity** writes the sheet, the sidecar and a small importer script
+into your Unity project. Drop the folder under `Assets/`, then
+**Assets ▸ Lightbox ▸ Import selected sheet**: it slices the sprites, sets each
+pivot, and builds an animation clip per tag with the right frame durations and any
+events you marked. Lightbox never touches Unity's own `.meta` files — Unity owns
+those.
+
 A sprite sheet is laid out as a **uniform grid** by default, because equal cells
 are what consistent trimmed bounds produce anyway and every engine importer reads
 a grid. There is also a **packed** layout that gives each frame its own size and

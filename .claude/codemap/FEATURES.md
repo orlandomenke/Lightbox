@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1832 tests, derived from the suite itself. Each line is a
+1860 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1609,6 +1609,27 @@ regression even when every test still compiles.
 - Selection Region Limits The Transform To Strokes Inside It — `:157`
 - Empty Scope Refuses To Start — `:177`
 
+## UnityExportTests
+`tests/Lightbox.App.Tests/UnityExportTests.cs`
+
+- The Generic Sidecar Keeps Every Key It Already Had — `:61`
+- An Ordinary Export Still Has No Unity Block — `:78`
+- Every Sprite Gets ARect And The Count Matches The Frames — `:87`
+- The Rects Are The Ones The Sheet Exporter Wrote — `:98`
+- AFeet Pivot Arrives As Bottom Centre Normalised — `:121`
+- An Anchor Is Converted The Same Way As The Pivot — `:152`
+- Pixels Per Unit Follows The World Size Asked — `:169`
+- Seconds Per Frame Is Exact Rather Than Rounded — `:179`
+- Each Tag Becomes AClip — `:188`
+- An Event Is Timed From Its Own Clip Rather Than From The Sheet — `:208`
+- An Event Outside AClip Is Not Attached To It — `:227`
+- AMarker That Is Not An Event Never Reaches AClip — `:239`
+- The Importer Is Written Beside The Sheet — `:253`
+- An Edited Importer Is Not Overwritten — `:266`
+- No Meta File Is Ever Written — `:280`
+- The Importer Can Be Declined — `:291`
+- Exporting Twice Produces The Same Sidecar — `:301`
+
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
 
@@ -2255,6 +2276,21 @@ regression even when every test still compiles.
 - Retiming Is One Undo Step — `:249`
 - The Scene Grows To Fit But Never Shrinks — `:268`
 - An Unknown Layer Is ANo Op Rather Than AThrow — `:286`
+
+## UnityConvertTests
+`tests/Lightbox.Core.Tests/UnityConvertTests.cs`
+
+- The Centre Of ACell Is The Centre Either Way Up — `:18`
+- The Top Of The Cell Becomes One And The Bottom Becomes Zero — `:29`
+- AFeet Centre Pivot Comes Out At The Bottom Middle — `:41`
+- It Normalises Within The Trimmed Cell Rather Than The Canvas — `:53`
+- Flipping Before Normalising Would Give ADifferent Answer On ANon Square Cell — `:66`
+- APivot Outside The Cell Is Not Clamped — `:80`
+- ADegenerate Cell Is Treated As One Pixel Rather Than Dividing By Zero — `:96`
+- Frame Duration Comes From Fps Rather Than From Rounded Milliseconds — `:106`
+- An Impossible Frame Rate Does Not Divide By Zero — `:127`
+- Pixels Per Unit Is Derived From The World Size The Project Chose — `:133`
+- An Unset World Height Falls Back To Unitys Own Default — `:144`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`
