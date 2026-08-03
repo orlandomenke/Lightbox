@@ -123,8 +123,12 @@ section in the same commit. It describes what exists today and marks what does
 not as *Planned* — a manual that documents a feature nobody can use is worse
 than no manual, because it cannot be trusted anywhere.
 
-`ROADMAP.md` holds the six pillars that give the app its identity, plus the
-drawing floor beneath them. **Its checkboxes are derived from the code**, not
+`ROADMAP.md` holds the six pillars that give the app its identity, the drawing
+floor beneath them, and **one cross-cutting `## AI assistance` section** — not a
+seventh pillar, but the one area whose cost, failure modes and review process are
+shared and only legible together. A feature belongs there if it needs a model to
+be possible at all; anything that merely measures geometry or timing stays with
+the pillar it serves, whatever the word "assistant" in its name suggests. **Its checkboxes are derived from the code**, not
 asserted: each item names the types and tests that would exist if it were
 built, and `python3 scripts/roadmap.py sync` resolves them. Landing a feature
 means adding its evidence anchors in the same commit — a green box with no

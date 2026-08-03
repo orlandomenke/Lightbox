@@ -308,29 +308,12 @@ Tools that know they are operating on a sequence, not a picture. This is the
 pillar the determinism invariant exists to make possible: an effect that
 varies between similar strokes is fine on one image and boils at 12 fps.
 
+Everything here is arithmetic — geometry and timing, no model. The AI half of
+this pillar (inbetweening, inking, reading the subject) lives under
+**AI assistance** below, because its cost and its review process are shared with
+every other AI feature and are only legible together.
+
 - [x] Deterministic marks across frames (no boiling) `evidence: OutputScaleTests, BrushDynamicsTests, ScalingTheCoordinatesInstead_ProducesADifferentMark`
-- [x] AI inbetweening `evidence: Inbetweener, InbetweenerTests, IAiArtist`
-- [x] Any model, over an API or MCP `evidence: AiProviders, AiConnection, AiArtistFactory, OpenAiArtist, McpArtist, AiProviderTests, EachProviderShowsItsOwnFieldsAndNobodyElses, AStoredValueBeatsTheEnvironmentWhichBeatsTheDefault`
-  - Six providers behind one `IAiArtist`, chosen in Edit ▸ Configure ▸ AI: Claude, GPT, OpenRouter, Ollama, any OpenAI-compatible endpoint, and an MCP server the user supplies. The page is **generated from the catalogue**, so adding a service is a catalogue entry and a factory case — a page that hard-coded Claude's fields would pass a test that only checked Claude and then show an API key box for a local server.
-- [x] AI assistance can be switched off entirely `evidence: TurningItOffPersistsAndTakesTheArtistWithIt, TheProviderFieldsStayUsableWhileAssistanceIsOff, AiEnabled`
-  - On by default, and off removes the AI bar rather than greying it — the camera's rule, for a studio that wants AI nowhere near a shot. The switch beats a complete connection, and the provider fields stay usable while it is off so a provider can be configured and proven before it is turned on.
-- [x] A connection test that checks the output, not just the reply `evidence: AiConnectionTester, AiTestDepth, AiConnectionTesterTests, AThoroughTestFailsWhenTheModelCopiedAKeyInstead, AQuickTestDoesNotAskForAnInbetween`
-  - **It draws rather than pings.** The ways this fails are mostly not reachability: a key with no credit, a model name off by a version, an endpoint that answers but cannot honour a JSON schema, an MCP server whose tool is spelled differently, a small model that returns valid JSON full of nonsense. A ping says "connected" to every one.
-  - Two depths. Quick asks for one line; thorough adds a real inbetween and checks it lands **between** the two keys — the one assertion that separates a working connection from a working inbetweener, and the one a parse check can never make. Three verdicts rather than two, because "unreachable" and "reachable but drawing nonsense" need different fixes.
-- [x] A budget on what a request costs `evidence: AiPayloadBudgetTests, AnInbetweenRequestStaysWithinItsBudget, CostScalesWithStrokeCount_WhichIsWhySendingFewerIsTheRealLever, ResamplingIsWhatKeepsALongStrokeAffordable`
-  - The one cost in this app that is invisible locally: a change that doubles a payload shows up on somebody's bill a month later and nothing in the suite says a word. Measured in `docs/DESIGN-ai-payload.md` — a 40-stroke frame pair is 102 KB and at least 26k tokens; `MaxWirePoints` is the constant carrying it, and deleting it would fail no other test.
-  - The finding worth keeping: **images are ~87% of a request's bytes and ~5% of its tokens, and strokes are the reverse.** So "make the payload smaller" is two goals recommending opposite changes, and any optimisation has to say which it means. Compression is off the table for the same reason — it takes 82% off the bytes, touches no tokens, and 0.3 s of upload is invisible beside 30–120 s of generation.
-- [ ] Send the strokes that need judgement, not the whole frame `evidence: StrokeSelection, StrokeSelectionTests, OnlyStrokesThatMoveAreSent, TheContextIsEnoughToPlaceThem`
-  - Six times bigger than any encoding trick, and the only lever with no format risk. A 120-stroke frame is ~79k tokens and most of those strokes barely move; the deterministic inbetweener already handles a matched stroke correctly, and the AI is needed where straight interpolation fails — arcs, rotation, overlap. Halving the stroke count halves the cost exactly.
-  - The hard half is knowing *which* strokes need judgement, which is `DESIGN-subject-reading.md`'s question approached from the other side.
-- [ ] The AI reads the subject before it draws `evidence: SubjectReading, SubjectTaxonomy, PartPlacement, SubjectReadingTests, AHandNamedPartBeatsAGuessedOne, DeletingEveryReadingChangesNoPixel`
-  - Inbetweening, inking and normal maps each asked for this separately, which is the signal to design it once — see `docs/DESIGN-subject-reading.md`. Split in two because the halves have different lifetimes: **taxonomy** (this is a biped with these parts) is per character and worth reviewing by hand; **placement** (where each part is in frame 12, what occludes what) is per frame and disposable. The rig's hand-drawn `parts` win wherever they exist — a guess is a default, never an override of something a person stated.
-  - The line it must stay on: the reading is an input to *authoring*, never to rendering. Its first test deletes every reading from a finished document and asserts the render is byte-identical, because the day that fails is the day invariant 2 is gone.
-- [ ] A light source, for the tools that need to know where the shadows are `evidence: SceneLight, SceneLightTests, ALightNeverReachesStampStroke, ADocumentWithNoLightExportsExactlyAsItDid`
-  - On the scene, nullable, absent until placed — the camera's rule. Two uses that must not be conflated: for inking it is a **generation input** (which contours are heavy, which side is in shadow) consumed before there are strokes; for a normal map it is a **preview rig** and must never be baked into the output, because a normal map that carried a light would defeat the reason for having one.
-- [ ] AI-assisted inking, with styles `evidence: InkingStyle, InkingPass, InkingStyleTests, AnInkedPassIsOrdinaryStrokes, WeightFollowsTheLightRatherThanTheStrokeOrder`
-  - A style is **a brush preset plus a policy** — weight, taper, depth cue, interior detail, fills — rather than a hard-coded "flat" and "comic". Two modes would be two modes; the axes are what makes the third style somebody asks for reachable. The preset half already exists, so an inking style is an ordinary brush an artist can open and edit.
-  - Output is ordinary strokes through `BrushEngine.StampStroke`, so an inked frame replays, undoes and inbetweens like anything else. Whether it replaces the pencils or lands on its own layer is Q17.
 - [x] Batch frame editing `evidence: CelRangeTests, CelRangeSelectionTests`
 - [?] Batch transform across frames
 - [x] Frame hold tools `evidence: ExposureSheet, ExposureEditingTests, RetimingTests, ExposureStep`
@@ -342,17 +325,8 @@ varies between similar strokes is fine on one image and boils at 12 fps.
 - [?] Spacing visualization
 - [?] Spacing assistant
 - [?] Timing charts
-- [?] Smear frame assistant
-- [?] Inbetween guide generation
-- [?] Secondary motion assistant
 - [?] Automatic contact frame detection
-- [?] Smart line cleanup suggestions
-- [?] Automatic line consistency checker
 - [?] Perspective consistency checker
-- [?] Volume consistency checker
-- [?] Colour consistency checker
-- [?] Animation quality checker
-- [?] Motion readability analysis
 - [?] Silhouette readability preview
 - [?] Walk cycle analyzer
 - [?] Jump arc analyzer
@@ -366,7 +340,7 @@ exists; the half that does not is what makes it *one* click.
 - [x] Sprite sheet generation `evidence: SpriteSheetExporter, SpriteSheetExportTests`
 - [x] Consistent trimmed bounds across a sequence `evidence: SpriteTrim, SpriteSheetOptions, TrimmingDefaultsToTheUnion_SoEveryCellIsTheSameSizeAndNothingJitters`
 - [~] Normal maps for the sprites `evidence: NormalMapGenerator, NormalMapOptions, NormalGreen, NormalMapWriter, DistanceInside, NormalMapTests, ABevelFromTheSilhouetteNeedsNoDependency, ThePreviewLightIsNotBakedIntoTheMap, GreenIsBrightAtTheTopUnderOpenGlAndAtTheBottomUnderDirectX, NormalMapPanel`
-  - Three tiers, and the cheapest one first because it makes the panel, the preview light and the export path real: a Sobel over the silhouette's distance field needs no dependency and no model. Then Laigter for artists who have it, then AI for the thing neither can do — knowing a cheek is round and a sleeve fold is a crease, which is the whole argument for spending a model on it and why the subject reading is its prerequisite.
+  - Three tiers, and the cheapest one first because it makes the panel, the preview light and the export path real: a Sobel over the silhouette's distance field needs no dependency and no model. Then Laigter for artists who have it. **Tier three is AI, and it lives under AI assistance** — it refines whichever base map the first two produced rather than replacing either, so it is filed with the features whose cost is per request.
   - **Laigter is GPL-3.0.** Linking it in would put Lightbox under GPL-3.0, which is a project-level licensing decision and must not be made by accident inside a normal-map task. Running its CLI as a separate optional tool keeps the licences apart and is how it should behave anyway — absent unless the artist has it, degrading to the built-in generator rather than breaking. See `docs/DESIGN-subject-reading.md`.
   - **Tier one is built and exported; the panel is not.** `NormalMapGenerator` takes an alpha channel and returns RGBA, `NormalMapWriter` writes `<name>_normal.png` beside a sheet, and the export window has the checkbox. What is missing is the interactive panel with a draggable preview light — so the item is `[~]` rather than `[x]`, and the anchor for the panel is left in place unresolved rather than quietly dropped.
   - **Chosen as the next Pillar 5 item precisely because it can be verified here.** The alternative was another engine exporter, and the Unity defect had just shown what an unverifiable write-only integration costs. This is pure arithmetic over an array: no dependency, no model, no external API to get wrong.
@@ -596,6 +570,108 @@ timeline, review, versioning, collaboration.
 - [?] Asset locking
 - [?] Cloud libraries
 - [?] Team asset sharing
+
+## AI assistance
+
+The third of the three purposes in `CLAUDE.md`, gathered here rather than
+scattered through the pillars it serves. It is **not a seventh pillar** — the six
+are the app's identity and AI cuts across all of them — but it is the one area
+where the cost, the failure modes and the review process are shared, and reading
+them together is the only way to see the whole bill.
+
+**What belongs in this section:** a feature that *needs a model to be possible at
+all*. Things that measure geometry or timing stay with the pillar they serve, even
+when the word "assistant" is in the name — arcs, spacing, timing charts and
+contact-frame detection are arithmetic, and filing them here would make this
+section look like the whole roadmap.
+
+Three rules govern everything below, and they are not negotiable per feature:
+
+1. **A model never renders.** Every AI feature produces an *authored artifact* —
+   strokes, a reading, a normal map — which is then stored and replayed by the
+   ordinary deterministic path. Invariant 2 is not a constraint AI works around;
+   it is the line that decides whether a proposal is buildable. The test shape is
+   always the same: delete the AI's output and the render must be byte-identical
+   to what the record alone produces.
+2. **Two reviewers, and they are meant to disagree.** `ai-engineer` owns the
+   machinery, the cost and the determinism line; `art-director` owns whether the
+   result reads at 12 fps and is on-model. **art-director has a veto on
+   expression, ai-engineer has a veto on determinism**, and where they disagree
+   and cannot measure it goes to `QUESTIONS.md`. Gate G12 makes this mandatory for
+   any diff touching `src/Lightbox.Ai`, the MCP surface, a prompt, or an AI path in
+   the view model.
+3. **Cost is a first-class property.** `docs/DESIGN-ai-payload.md` has the measured
+   numbers and they are not to be re-derived. The one that settles most arguments:
+   **images are ~87% of a request's bytes and ~5% of its tokens; strokes are the
+   reverse** — so "make the payload smaller" is two goals recommending opposite
+   changes, and a proposal that has not said which it means is not ready.
+
+### The machinery
+
+- [x] Any model, over an API or MCP `evidence: AiProviders, AiConnection, AiArtistFactory, OpenAiArtist, McpArtist, AiProviderTests, EachProviderShowsItsOwnFieldsAndNobodyElses, AStoredValueBeatsTheEnvironmentWhichBeatsTheDefault`
+  - Six providers behind one `IAiArtist`, chosen in Edit ▸ Configure ▸ AI: Claude, GPT, OpenRouter, Ollama, any OpenAI-compatible endpoint, and an MCP server the user supplies. The page is **generated from the catalogue**, so adding a service is a catalogue entry and a factory case — a page that hard-coded Claude's fields would pass a test that only checked Claude and then show an API key box for a local server.
+- [x] AI assistance can be switched off entirely `evidence: TurningItOffPersistsAndTakesTheArtistWithIt, TheProviderFieldsStayUsableWhileAssistanceIsOff, AiEnabled`
+  - On by default, and off removes the AI bar rather than greying it — the camera's rule, for a studio that wants AI nowhere near a shot. The switch beats a complete connection, and the provider fields stay usable while it is off so a provider can be configured and proven before it is turned on.
+- [x] A connection test that checks the output, not just the reply `evidence: AiConnectionTester, AiTestDepth, AiConnectionTesterTests, AThoroughTestFailsWhenTheModelCopiedAKeyInstead, AQuickTestDoesNotAskForAnInbetween`
+  - **It draws rather than pings.** The ways this fails are mostly not reachability: a key with no credit, a model name off by a version, an endpoint that answers but cannot honour a JSON schema, an MCP server whose tool is spelled differently, a small model that returns valid JSON full of nonsense. A ping says "connected" to every one.
+  - Two depths. Quick asks for one line; thorough adds a real inbetween and checks it lands **between** the two keys — the one assertion that separates a working connection from a working inbetweener, and the one a parse check can never make. Three verdicts rather than two, because "unreachable" and "reachable but drawing nonsense" need different fixes.
+- [x] A budget on what a request costs `evidence: AiPayloadBudgetTests, AnInbetweenRequestStaysWithinItsBudget, CostScalesWithStrokeCount_WhichIsWhySendingFewerIsTheRealLever, ResamplingIsWhatKeepsALongStrokeAffordable`
+  - The one cost in this app that is invisible locally: a change that doubles a payload shows up on somebody's bill a month later and nothing in the suite says a word. Measured in `docs/DESIGN-ai-payload.md` — a 40-stroke frame pair is 102 KB and at least 26k tokens; `MaxWirePoints` is the constant carrying it, and deleting it would fail no other test.
+  - The finding worth keeping: **images are ~87% of a request's bytes and ~5% of its tokens, and strokes are the reverse.** So "make the payload smaller" is two goals recommending opposite changes, and any optimisation has to say which it means. Compression is off the table for the same reason — it takes 82% off the bytes, touches no tokens, and 0.3 s of upload is invisible beside 30–120 s of generation.
+- [ ] Send the strokes that need judgement, not the whole frame `evidence: StrokeSelection, StrokeSelectionTests, OnlyStrokesThatMoveAreSent, TheContextIsEnoughToPlaceThem`
+  - Six times bigger than any encoding trick, and the only lever with no format risk. A 120-stroke frame is ~79k tokens and most of those strokes barely move; the deterministic inbetweener already handles a matched stroke correctly, and the AI is needed where straight interpolation fails — arcs, rotation, overlap. Halving the stroke count halves the cost exactly.
+  - The hard half is knowing *which* strokes need judgement, which is `DESIGN-subject-reading.md`'s question approached from the other side.
+- [x] An MCP surface, so an agent can work the document directly `evidence: IpcServer, IpcDocumentApi, IpcTests, InsertInbetweens_ValidatesAndInserts_Undoable, DrawStrokes_AppendsToExposedKey, BadRequests_FailCleanly, PipeRoundTrip_GetScene`
+  - **The other direction, and it was missing from this file entirely** until the AI section was gathered — which is its own small argument for the section. `CLAUDE.md` names it as one of the three purposes and the code has shipped it since M4a, but no roadmap item claimed it, so nothing was deriving its status from the code.
+  - Independent of the provider list above, and that independence is the point: there, Lightbox calls out to a model; here, an agent the artist already runs calls **in** and edits the document. Configuring a provider is not a prerequisite for either.
+  - Every tool goes through the same document editor a menu item uses, marshalled onto the UI thread — so an agent's edit is one undo step, dirties the tab, and cannot bypass `BrushEngine.StampStroke`. An MCP surface that wrote pixels directly would break invariant 1 for the one caller least able to notice.
+  - The anchors are named tests rather than a project name, and the first attempt at them was wrong: `McpToolTests` does not exist and `roadmap.py` demoted the item within seconds of it being written. That is the file working as designed — a green box asserted from memory is exactly what the derived checkbox exists to refuse.
+
+### Reading the drawing
+
+The prerequisite half. Both of these exist to be *inputs to authoring* and neither
+may reach a pixel at render time.
+
+- [ ] The AI reads the subject before it draws `evidence: SubjectReading, SubjectTaxonomy, PartPlacement, SubjectReadingTests, AHandNamedPartBeatsAGuessedOne, DeletingEveryReadingChangesNoPixel`
+  - Inbetweening, inking and normal maps each asked for this separately, which is the signal to design it once — see `docs/DESIGN-subject-reading.md`. Split in two because the halves have different lifetimes: **taxonomy** (this is a biped with these parts) is per character and worth reviewing by hand; **placement** (where each part is in frame 12, what occludes what) is per frame and disposable. The rig's hand-drawn `parts` win wherever they exist — a guess is a default, never an override of something a person stated.
+  - The line it must stay on: the reading is an input to *authoring*, never to rendering. Its first test deletes every reading from a finished document and asserts the render is byte-identical, because the day that fails is the day invariant 2 is gone.
+- [ ] A light source, for the tools that need to know where the shadows are `evidence: SceneLight, SceneLightTests, ALightNeverReachesStampStroke, ADocumentWithNoLightExportsExactlyAsItDid`
+  - On the scene, nullable, absent until placed — the camera's rule. Two uses that must not be conflated: for inking it is a **generation input** (which contours are heavy, which side is in shadow) consumed before there are strokes; for a normal map it is a **preview rig** and must never be baked into the output, because a normal map that carried a light would defeat the reason for having one.
+
+### What it does for the artist
+
+- [x] AI inbetweening `evidence: Inbetweener, InbetweenerTests, IAiArtist`
+- [ ] AI-assisted inking, with styles `evidence: InkingStyle, InkingPass, InkingStyleTests, AnInkedPassIsOrdinaryStrokes, WeightFollowsTheLightRatherThanTheStrokeOrder`
+  - A style is **a brush preset plus a policy** — weight, taper, depth cue, interior detail, fills — rather than a hard-coded "flat" and "comic". Two modes would be two modes; the axes are what makes the third style somebody asks for reachable. The preset half already exists, so an inking style is an ordinary brush an artist can open and edit.
+  - Output is ordinary strokes through `BrushEngine.StampStroke`, so an inked frame replays, undoes and inbetweens like anything else. Whether it replaces the pencils or lands on its own layer is Q17.
+### Normal maps, tier three
+
+- [ ] AI normal maps — improving on the maths and on Laigter, not replacing them `evidence: AiNormalPass, NormalRefinement, AiNormalMapTests, TheBaseMapSurvivesAFailedRefinement, ARefinementIsStoredNotRegenerated, DeletingTheRefinementLeavesTheDeterministicMap`
+  - **Deliberately third, and deliberately a refinement rather than a generator.** Tier one bevels the silhouette (built); tier two runs Laigter if the artist has it; this takes whichever of those produced the **base map**, plus the subject reading, and *corrects* it. So the two earlier paths are not a fallback for when this fails — they are its input, and the better the base, the smaller the model's job.
+  - **After Laigter for a concrete reason, not politeness.** Two base paths mean two things to improve and something to compare against: the same drawing refined from the silhouette bevel and from Laigter's output tells you how much the model is actually contributing, which is the measurement that decides whether it is worth the request at all. Running it before Laigter would leave that unanswerable.
+  - **What only a model can do, stated precisely.** The maths knows where the edge is; it cannot know *what the region is*. A cheek is a dome, a sleeve fold is a crease, hair is stranded, a pauldron is hard-edged and a cloth hem is soft — and the same silhouette bevel is wrong for all five in different directions. This is exactly the case for spending a request: the subject reading names the parts, and the model assigns each part a shape, so the output is the normal that part *should* have rather than the normal its outline implies. That is why the subject reading is its prerequisite and not merely useful.
+  - **Determinism, and how this stays inside invariant 2.** The refinement is generated once, at authoring time, and **stored as an artifact on the document** — not re-run at export and never at render. A test deletes it and asserts the deterministic map is what comes back, which is the same test shape the subject reading uses and for the same reason.
+  - **The failure mode is worse than a bad inbetween, so the controls are stricter.** A hallucinated shape does not read as a wrong drawing, it reads as *damage*: lighting that contradicts the art, a face that dents. So the refinement is **blendable against the base** with a strength, reviewable side by side with the base, and discardable without regenerating anything. An artist must always be able to get back to the map the maths produced.
+  - **Where the two reviewers land, and it is not obvious.** `art-director` judges whether the lit sprite reads and holds the veto on whether a dome is a dome. `ai-engineer` holds the line that this is an authored artifact rather than a render-time pass, and owns the question this feature makes unavoidable: **the cost is per frame, not per character.** A 24-frame cycle is 24 requests unless the reading lets one answer cover the whole cycle, and that is the design's central problem rather than a detail of it — the first thing to measure, before any of the rest is built.
+  - **A tier that improves on both must be able to prove it.** Judged against the same sprite lit the same way from all three paths, side by side. If a person cannot tell the refinement from tier one, the request was not worth making and the item stops there — the medium-simulation rule applied to a model.
+
+### Speculative — needs a model, not yet designed
+
+Each of these needs to recognise *what is drawn* rather than measure how it moves,
+which is what puts them here rather than with Pillar 4's arithmetic. None has a
+design, and several may turn out to be one feature seen from different sides —
+the way inbetweening, inking and normal maps each independently asked for the
+subject reading.
+
+- [?] Inbetween guide generation
+- [?] Secondary motion assistant
+- [?] Smear frame assistant
+- [?] Smart line cleanup suggestions
+- [?] Automatic line consistency checker
+- [?] Volume consistency checker
+- [?] Colour consistency checker
+- [?] Animation quality checker
+- [?] Motion readability analysis
 
 ---
 

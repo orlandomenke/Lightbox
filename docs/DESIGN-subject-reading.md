@@ -163,3 +163,75 @@ the built-in normal map is the prerequisite for none of it. So:
 
 Steps 1 and 2 ship something usable and prove the light. Step 3 is the one that
 needs its questions answered first.
+
+---
+
+## The third normal-map tier, and why it comes last
+
+*Added after the question "could AI analyse the subject and colourise a normal map
+based on it, after Laigter, so we can leverage both paths?"*
+
+Yes, and the framing matters: **it improves on the two earlier paths rather than
+replacing either.** Tier one bevels the silhouette deterministically; tier two runs
+Laigter if the artist has it; tier three takes whichever produced the **base map**,
+plus the reading above, and *corrects* it.
+
+That ordering is not politeness toward the cheaper tiers. It is what makes the
+feature measurable and what makes it safe:
+
+- **Two base paths mean something to compare against.** The same drawing refined
+  from the silhouette bevel and from Laigter's output tells you how much the model
+  actually contributed. Run this first and that question has no answer.
+- **A better base is a smaller job.** Laigter already reads the interior lines a
+  silhouette bevel cannot see, so the model is left with the part that genuinely
+  needs recognition rather than the whole surface.
+- **A failure degrades to a working map.** The base is not a fallback bolted on
+  afterwards; it is the input, so it is still there.
+
+### What only a model can do here
+
+The maths knows where the edge is. It cannot know *what the region is* — and the
+same silhouette bevel is wrong for all of these in different directions:
+
+| Region | Wants |
+| --- | --- |
+| A cheek | a dome |
+| A sleeve fold | a crease, running along the fold rather than in from the outline |
+| Hair | strands, not one mass |
+| A pauldron | hard edges and a flat face |
+| A cloth hem | soft, and softer than the bevel would make it |
+
+This is the case for spending a request, and it is why the reading is a
+**prerequisite rather than a nice-to-have**: the taxonomy names the parts, the
+placement says where they are on this frame, and the model's job reduces to
+assigning each named part a shape. Without the reading it is guessing at both at
+once.
+
+### The rules it inherits, and the one it adds
+
+Everything in `AI assistance` applies — a model never renders, two reviewers, cost
+is first-class. The refinement is generated once at authoring time and **stored on
+the document**; deleting it must leave the deterministic map exactly as it was.
+
+The rule this feature adds is about the shape of its failure. A bad inbetween reads
+as a wrong drawing; **a hallucinated normal reads as damage** — lighting that
+contradicts the art, a face that dents under a moving light. So:
+
+- The refinement is **blendable against the base** with a strength, not all-or-nothing.
+- It is **reviewable side by side** with the base and with the other tier.
+- It is **discardable without regenerating anything**.
+
+### The problem to measure before building any of it
+
+**Cost is per frame, not per character.** A 24-frame cycle is 24 requests unless
+the reading lets one answer cover the whole cycle — and whether it can is the
+central design question, not a detail. The taxonomy is per character and stable;
+if a part's *shape* is also stable, then one refinement per part could be reused
+across every frame that part appears in, and the cost collapses to per character.
+If it cannot, this feature is expensive in a way no artist will accept on a
+sequence, and that is worth knowing before the prompt is written.
+
+And the acceptance bar, stated in advance: judged against the same sprite lit the
+same way from all three paths, side by side. **If a person cannot tell the
+refinement from tier one, the request was not worth making** — the
+medium-simulation rule from `CLAUDE.md` applied to a model.
