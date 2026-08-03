@@ -1461,7 +1461,7 @@ size, layout — **and names every layer it left out**.
 | **Unity** | The Unity format below, which adds an importer script. |
 | **Godot** | The Godot format below, which adds a GDScript importer. |
 | **Unreal** | The Unreal format below, which adds a Python importer. |
-| **GameMaker** | Import the sheet by hand for now — see Planned. |
+| **GameMaker** | The GameMaker format below, which needs no importer at all. |
 
 **For Unity** the exporter writes the sheet, the sidecar and a small importer
 script. Drop them under `Assets/`, then **Assets ▸ Lightbox ▸ Import selected
@@ -1513,6 +1513,37 @@ Mipmaps are turned off and filtering set to nearest, because a mipmap on an atla
 averages across the edges of your sprites and puts a sliver of the neighbour on
 each one. Lightbox writes no `.uasset` — it cannot, they are binary, which is why
 this is a script rather than a file.
+
+**For GameMaker** there is nothing to run. GameMaker slices a strip whose filename
+ends in `_strip8` into eight frames on import, so that is what you get: **one
+strip per animation**, named for it. Drag `Knight_run_cycle_strip4.png` into the
+IDE and you have a four-frame sprite called `Knight_run_cycle`. Tags become
+separate files, because a GameMaker sprite holds one animation and not a list of
+them; a document with no tags is a single strip.
+
+Set the sprite's speed to the fps in the sidecar and make sure the editor's units
+are **Frames per second** — it offers frames-per-game-frame too, and the same
+number means something different under each. `image_speed` multiplies that and
+starts at 1, so nothing else needs setting. Holds need no special handling: a
+drawing held on 2s is two identical frames in the strip, which is how a strip says
+"hold".
+
+Two things this target decides for you rather than asks:
+
+- **Packing, columns and padding disappear from the dialog**, because GameMaker
+  works out a frame's width by dividing the image's width by the number in the
+  filename. One pixel of gutter or a packed layout and every frame comes out
+  sliced through the middle. A per-frame trim is refused for the same reason and
+  the export tells you it did.
+- **What GameMaker cannot do, the export says out loud.** A sprite has one speed,
+  no reverse and no ping-pong — so a ping-pong tag or a tag you marked as
+  not-looping is reported in the status line, with what to do about it in code,
+  rather than exported as though it worked.
+
+No `.yy` files are written. They are JSON and writable in principle, but the
+schema moves between releases and carries IDs the IDE expects to own, so a file
+written for the wrong version gives you a project that will not open. The strip
+convention is a naming rule instead, and naming rules do not go out of date.
 
 ### Leaving the background out
 
@@ -1935,11 +1966,6 @@ Not built. Listed so the gap is visible rather than implied.
 
 **Editing**
 - Liquify, clone stamp, healing brush
-
-**Engine exporters**
-- GameMaker `.yy` project files. Writable in principle, but the schema moves
-  between releases and a file written for the wrong one produces a project that
-  will not open — so this waits on a decision about which versions to support.
 
 **Version control**
 - Seeing who has a file checked out, and taking the lock before you paint. Aimed at

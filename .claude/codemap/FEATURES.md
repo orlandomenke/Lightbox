@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2095 tests, derived from the suite itself. Each line is a
+2133 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -709,6 +709,38 @@ regression even when every test still compiles.
 - Invalidating AFrame Drops Every Render Of It — `:97`
 - Invalidating One Frame Leaves The Others Alone — `:116`
 - Cached Bytes Tracks What Is Actually Held — `:130`
+
+## GameMakerExportTests
+`tests/Lightbox.App.Tests/GameMakerExportTests.cs`
+
+- An Untagged Document Is One Strip Named With Its Frame Count — `:83`
+- The Number In The Name Is The Number Of Cells In The Image — `:93`
+- No Project File Is Ever Written — `:110`
+- There Is No Importer Script Because Game Maker Cannot Run One — `:122`
+- The Strip Is One Row — `:136`
+- APadding Request Is Overridden Rather Than Honoured — `:149`
+- APacked Layout Is Overridden Rather Than Honoured — `:164`
+- APer Frame Trim Is Refused And Said So Rather Than Silently Changed — `:178`
+- ANone Trim Is Still Honoured Because It Keeps Cells Uniform — `:193`
+- Each Tag Becomes Its Own Strip Because AGame Maker Sprite Is One Animation — `:208`
+- Each Tags Strip Is Exactly Its Own Frames Wide — `:218`
+- ATags Strip Holds The Frames That Tag Covers And Not The Ones Before It — `:231`
+- The Whole Sheet Is Not Left Behind When It Was Cut Up — `:268`
+- Two Tags With The Same Name Do Not Overwrite Each Other — `:280`
+- The Speed Is Given In Frames Per Second Because The Editor Offers Two Units — `:299`
+- AHold Is Already Expressed As Repeated Cells So Uniform Speed Is Enough — `:307`
+- APing Pong Tag Is Reported Rather Than Quietly Flattened — `:331`
+- ATag That Does Not Loop Is Reported Because AGame Maker Sprite Always Does — `:345`
+- An Ordinary Document Has Nothing To Report And Says Nothing — `:356`
+- The Generic Sidecar Keeps Every Key It Already Had — `:369`
+- The Sidecar Names Every Strip And The Sprite It Becomes — `:384`
+- ADocument With No Pivot Carries No Origin — `:398`
+- APivot Becomes An Origin Inside The Cell — `:406`
+- AGame Maker Preset Writes Every Strip And The Sidecar — `:425`
+- The Runner Puts The Notes In The Summary Where Somebody Will See Them — `:438`
+- AGame Maker Preset Still Reports What It Left Out — `:455`
+- ANormal Map Is Written For Every Strip Rather Than Only The First — `:467`
+- The Strip Layout Controls Are Hidden Rather Than Shown And Overridden — `:481`
 
 ## GodotExportTests
 `tests/Lightbox.App.Tests/GodotExportTests.cs`
@@ -2019,6 +2051,20 @@ regression even when every test still compiles.
 - Cells In ARow Share Their Top And Height Even When The Poses Do Not — `:226`
 - ACell With No Pivot Assumes The Middle Of Its Foot — `:244`
 - APlaced Pivot Is Absolute So Resizing The Cell Does Not Move It — `:255`
+
+## GameMakerConvertTests
+`tests/Lightbox.Core.Tests/GameMakerConvertTests.cs`
+
+- AStrip Is Named With Its Own Frame Count — `:20`
+- The Name Survives ARound Trip Through The Reader — `:27`
+- Punctuation Game Maker Rejects Is Gone From The Name — `:41`
+- AStrip Cannot Claim Zero Frames — `:52`
+- AName With No Suffix Reads As ASingle Frame — `:60`
+- AName That Only Looks Like AStrip Is Not One — `:69`
+- It Reads The Last Suffix When An Earlier One Is Part Of The Name — `:78`
+- The Origin Is Pixels From The Cells Top Left — `:90`
+- Game Maker And Unreal Happen To Agree About The Pivot And This Is Where That Is Recorded — `:99`
+- AFeet Origin Is The Larger YBecause Game Makers YRuns Down — `:113`
 
 ## ColorTests
 `tests/Lightbox.Core.Tests/Geometry/GeometryTests.cs`

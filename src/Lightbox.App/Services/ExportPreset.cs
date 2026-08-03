@@ -21,6 +21,17 @@ public enum ExportTarget
     Godot,
 
     /// <summary>
+    /// One <c>_stripN</c> strip per animation, which GameMaker slices on import.
+    /// </summary>
+    /// <remarks>
+    /// The one target that writes several images and no importer: GameMaker has no
+    /// import-time scripting, and the strip convention needs none. It also forces its own
+    /// layout, so <see cref="ExportPreset.UsesStripLayout"/> hides the controls it would
+    /// otherwise override.
+    /// </remarks>
+    GameMaker,
+
+    /// <summary>
     /// A sheet, the sidecar, and an Unreal-side importer in Python.
     /// </summary>
     /// <remarks>
@@ -181,7 +192,18 @@ public sealed record ExportPreset
     /// </remarks>
     public bool UsesSheetSettings =>
         Target is ExportTarget.SpriteSheet or ExportTarget.Unity
-            or ExportTarget.Godot or ExportTarget.Unreal;
+            or ExportTarget.Godot or ExportTarget.Unreal or ExportTarget.GameMaker;
+
+    /// <summary>
+    /// Whether the target dictates the sheet's layout rather than taking it.
+    /// </summary>
+    /// <remarks>
+    /// GameMaker derives a frame's width by dividing the strip's width by the frame count
+    /// in its filename, so the strip has to be one row of uniform cells with no padding.
+    /// Packing, columns and padding are therefore decided rather than chosen, and showing
+    /// controls the exporter overrides would teach an artist that the controls lie.
+    /// </remarks>
+    public bool UsesStripLayout => Target is ExportTarget.GameMaker;
 
     /// <summary>Whether this preset's engine settings mean anything.</summary>
     /// <remarks>

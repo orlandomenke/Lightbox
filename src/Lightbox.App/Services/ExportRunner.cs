@@ -52,6 +52,7 @@ public static class ExportRunner
             ExportTarget.Unity => Unity(doc, preset, path),
             ExportTarget.Godot => Godot(doc, preset, path),
             ExportTarget.Unreal => Unreal(doc, preset, path),
+            ExportTarget.GameMaker => GameMaker(doc, preset, path),
             _ => Sheet(doc, preset, path),
         };
     }
@@ -151,6 +152,35 @@ public static class ExportRunner
             files,
             $"{result.SpriteCount} sprite(s), {result.FlipbookCount} flipbook(s) for Unreal → "
             + Path.GetFileName(result.SheetPath),
+            result.Sheet?.OmittedLayers ?? [],
+            result.Sheet?.SuspectedBackgrounds ?? []);
+    }
+
+    private static ExportRun GameMaker(Doc doc, ExportPreset preset, string sheetPath)
+    {
+        var result = GameMakerExporter.Export(doc, sheetPath, new GameMakerExportOptions
+        {
+            Sheet = SheetOptions(preset),
+        });
+
+        var files = new List<string>(result.StripPaths) { result.MetadataPath };
+        if (preset.NormalMap && result.StripPaths.Count > 0)
+        {
+            // One map per strip: the strips are separate images, so a single map could
+            // only line up with one of them.
+            files.AddRange(result.StripPaths.Select(s => NormalMapWriter.Write(s, preset.Normal)));
+        }
+
+        var summary =
+            $"{result.FrameCount} frame(s) in {result.StripPaths.Count} strip(s) for GameMaker → "
+            + string.Join(", ", result.StripPaths.Select(Path.GetFileName));
+
+        // The notes go in the summary rather than only in the file, because "your
+        // ping-pong tag will not ping-pong" is worth reading before you import.
+        if (result.Notes.Count > 0) summary += " — " + string.Join(" ", result.Notes);
+
+        return new ExportRun(
+            files, summary,
             result.Sheet?.OmittedLayers ?? [],
             result.Sheet?.SuspectedBackgrounds ?? []);
     }

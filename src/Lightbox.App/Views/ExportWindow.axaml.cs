@@ -45,7 +45,7 @@ public partial class ExportWindow : Window
         {
             "PNG sequence", "Sprite sheet",
             "Sprite sheet + Unity", "Sprite sheet + Godot",
-            "Sprite sheet + Unreal",
+            "Sprite sheet + Unreal", "Strips + GameMaker",
         };
         TrimBox.ItemsSource = new[]
         {
@@ -113,6 +113,7 @@ public partial class ExportWindow : Window
             ExportTarget.Unity => 2,
             ExportTarget.Godot => 3,
             ExportTarget.Unreal => 4,
+            ExportTarget.GameMaker => 5,
             _ => 1,
         };
         TrimBox.SelectedIndex = preset.Trim switch
@@ -155,6 +156,7 @@ public partial class ExportWindow : Window
             2 => ExportTarget.Unity,
             3 => ExportTarget.Godot,
             4 => ExportTarget.Unreal,
+            5 => ExportTarget.GameMaker,
             _ => ExportTarget.SpriteSheet,
         },
         Trim = TrimBox.SelectedIndex switch
@@ -195,11 +197,19 @@ public partial class ExportWindow : Window
         var preset = Gather("probe");
 
         foreach (var control in new Control[]
-                 { TrimLabel, TrimBox, PackLabel, PackBox, PaddingLabel, PaddingBox,
-                   BackgroundLabel, BackgroundBox, BackgroundHint })
+                 { TrimLabel, TrimBox, BackgroundLabel, BackgroundBox, BackgroundHint })
         {
             control.IsVisible = preset.UsesSheetSettings;
         }
+
+        // Packing, columns and padding are the three the strip convention decides for
+        // itself, so they go away rather than being shown and then overridden. The trim
+        // stays, because none-versus-union is still a real choice for a strip.
+        foreach (var control in new Control[] { PackLabel, PackBox, PaddingLabel, PaddingBox })
+        {
+            control.IsVisible = preset.UsesSheetSettings && !preset.UsesStripLayout;
+        }
+
         EnginePanel.IsVisible = preset.UsesEngineSettings;
 
         // A PNG sequence has no sheet to map. The map's own settings appear only once it
