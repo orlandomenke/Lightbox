@@ -15,13 +15,27 @@ namespace Lightbox.App.ViewModels;
 /// </summary>
 public sealed partial class SymbolRow : ObservableObject
 {
-    public SymbolRow(Symbol model)
+    public SymbolRow(Symbol model, SymbolScope scope = SymbolScope.Project)
     {
         Model = model;
+        Scope = scope;
         _name = model.Name;
     }
 
     public Symbol Model { get; }
+
+    /// <summary>Which library this tile came from.</summary>
+    /// <remarks>
+    /// Shown on the tile because it changes what placing it does: a project
+    /// symbol is placed, a global one is <em>copied into the project</em> first.
+    /// An artist who cannot see the difference cannot predict either.
+    /// </remarks>
+    public SymbolScope Scope { get; }
+
+    public bool IsGlobal => Scope == SymbolScope.Global;
+
+    /// <summary>A badge, so the two scopes are told apart without reading a menu.</summary>
+    public string ScopeBadge => IsGlobal ? "◈" : "";
 
     [ObservableProperty]
     private string _name;
@@ -80,10 +94,18 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
     private readonly Func<Project?> _project;
     private readonly Func<(int Width, int Height)> _canvasSize;
 
-    public SymbolBrowserViewModel(Func<Project?> project, Func<(int, int)> canvasSize)
+    private readonly Func<IReadOnlyDictionary<string, Symbol>> _library;
+
+    public SymbolBrowserViewModel(
+        Func<Project?> project,
+        Func<(int, int)> canvasSize,
+        Func<IReadOnlyDictionary<string, Symbol>>? library = null)
     {
         _project = project;
         _canvasSize = canvasSize;
+        // Injected so the grid can be tested without a settings file, and so the
+        // view model never learns where the library lives.
+        _library = library ?? (() => new Dictionary<string, Symbol>());
     }
 
     /// <summary>What the grid shows: the project's symbols, filtered.</summary>
@@ -110,12 +132,26 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
     public IReadOnlyList<SymbolKind?> KindChoices { get; } =
         [null, .. Enum.GetValues<SymbolKind>().Cast<SymbolKind?>()];
 
+    /// <summary>Which library to show, or null for both.</summary>
+    /// <remarks>
+    /// Null by default and for the same reason the kind filter is: an artist with
+    /// four symbols should not open on a filtered view of two. It becomes useful
+    /// once a personal library has grown past what fits on screen.
+    /// </remarks>
+    [ObservableProperty]
+    private SymbolScope? _scopeFilter;
+
+    public IReadOnlyList<SymbolScope?> ScopeChoices { get; } =
+        [null, SymbolScope.Project, SymbolScope.Global];
+
+    partial void OnScopeFilterChanged(SymbolScope? value) => Refresh();
+
     partial void OnKindFilterChanged(SymbolKind? value) => Refresh();
 
     partial void OnSearchChanged(string value) => Refresh();
 
     /// <summary>Whether the project has any symbols at all, filter aside.</summary>
-    public bool HasAny => _project()?.Symbols.Count > 0;
+    public bool HasAny => _project()?.Symbols.Count > 0 || _library().Count > 0;
 
     /// <summary>What to say when the grid is empty, or null when it is not.</summary>
     /// <remarks>
@@ -129,19 +165,44 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
             ? "No symbol matches that."
             : "No symbols yet. Draw something, then Make symbol.";
 
-    /// <summary>Rebuild the grid from the project.</summary>
+    /// <summary>Rebuild the grid from the project and the artist's own library.</summary>
+    /// <remarks>
+    /// <para>
+    /// Both scopes in one grid rather than two panels, because the artist's
+    /// question is "which sword do I want", not "which folder is it in" — the
+    /// filter is there for when it becomes the second question.
+    /// </para>
+    /// <para>
+    /// <b>A library symbol already adopted appears once, as a project symbol.</b>
+    /// It is the same id and the same drawing, and showing it twice would ask the
+    /// artist to choose between a thing and itself. The project's copy wins
+    /// because it is the one a placement resolves to.
+    /// </para>
+    /// </remarks>
     public void Refresh()
     {
         Rows.Clear();
-        if (_project() is { } project)
+        var mine = _project()?.Symbols;
+
+        var candidates = new List<(Symbol Symbol, SymbolScope Scope)>();
+        if (mine is not null)
         {
-            foreach (var symbol in project.Symbols.Values.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
-            {
-                if (KindFilter is { } kind && symbol.Kind != kind) continue;
-                if (!Matches(symbol, Search)) continue;
-                Rows.Add(new SymbolRow(symbol));
-            }
+            foreach (var symbol in mine.Values) candidates.Add((symbol, SymbolScope.Project));
         }
+        foreach (var (id, symbol) in _library())
+        {
+            if (mine?.ContainsKey(id) == true) continue;
+            candidates.Add((symbol, SymbolScope.Global));
+        }
+
+        foreach (var (symbol, scope) in candidates.OrderBy(c => c.Symbol.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            if (ScopeFilter is { } want && scope != want) continue;
+            if (KindFilter is { } kind && symbol.Kind != kind) continue;
+            if (!Matches(symbol, Search)) continue;
+            Rows.Add(new SymbolRow(symbol, scope));
+        }
+
         RefreshThumbs();
         OnPropertyChanged(nameof(HasAny));
         OnPropertyChanged(nameof(EmptyMessage));

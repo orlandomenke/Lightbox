@@ -1358,8 +1358,40 @@ and every animation holding it changes — that is the whole point, and it is wh
 a placement refers to the symbol rather than copying it.
 
 Symbols belong to the **project**, not to one animation, because a prop lives
-above the animations that use it. **View → Symbols** opens the panel; it does
-nothing without a project open, so it is not offered until there is one.
+above the animations that use it. **View → Symbols** opens the panel; it is not
+offered without a project open, because there would be nowhere for a symbol to
+live.
+
+### Two libraries: this project, and yours
+
+| | Where it lives | Who can use it |
+| --- | --- | --- |
+| **Project** | in the project | everything under that project, and nothing outside it |
+| **Global** | your own library, beside your brushes | every project you make, and one you start tomorrow |
+
+The panel shows both in one grid, with a **◈** on the global ones and a filter
+beside the kind filter when you want only one.
+
+**Promote** copies a project symbol up into your library. It is a copy, not a
+move — the project keeps its own. There is no demote, because it would not mean
+anything: a global symbol you have placed is already in that project, so making
+it project-only is just removing it from your library.
+
+**Placing a global symbol copies it into the project first**, and this is the one
+thing worth understanding rather than just using. It means:
+
+- The project still renders with your library gone — move the folder to another
+  machine, hand it to somebody else, open it in five years, and the art is there.
+  That is why it works this way.
+- **Editing a symbol in your library does not change projects that already placed
+  it.** That is the price. A finished shot cannot change under you, which is the
+  same trade templates make.
+
+To roll a library fix forward, **Update from library** appears in the panel when
+your library has a newer version of something this project uses. It is the
+project asking; nothing in your library ever reaches into a project on its own.
+Placements are untouched and need no touching — they refer to the symbol by
+identity, so replacing what that identity resolves to *is* the update.
 
 ### Making one
 

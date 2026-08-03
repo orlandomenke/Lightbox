@@ -640,6 +640,11 @@ public partial class MainWindow : Window
         if (_vm.SymbolBrowser.Selected is { } row) _vm.DeleteSymbol(row.Model);
     }
 
+    private void OnPromoteSymbol(object? sender, RoutedEventArgs e) => _vm.PromoteSelectedSymbol();
+
+    private void OnUpdateSymbolsFromLibrary(object? sender, RoutedEventArgs e) =>
+        _vm.UpdateSymbolsFromLibrary();
+
     /// <summary>
     /// Report where the selected symbol is placed.
     /// </summary>

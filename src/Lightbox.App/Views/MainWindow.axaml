@@ -2024,6 +2024,14 @@
                               SelectedItem="{Binding SymbolBrowser.KindFilter}"
                               PlaceholderText="All kinds"
                               ToolTip.Tip="Show one kind of symbol, or all of them" />
+                    <!-- Both scopes in one grid: the question is "which sword do
+                         I want", not "which folder is it in". The filter is for
+                         when it becomes the second question. -->
+                    <ComboBox DockPanel.Dock="Left" Width="92" Margin="4,0,0,0"
+                              ItemsSource="{Binding SymbolBrowser.ScopeChoices}"
+                              SelectedItem="{Binding SymbolBrowser.ScopeFilter}"
+                              PlaceholderText="Everywhere"
+                              ToolTip.Tip="Project symbols live in this project only. Global ones are yours and are available in every project — placing one copies it into the project, so the project still renders with your library gone." />
                     <TextBox Text="{Binding SymbolBrowser.Search, Mode=TwoWay}"
                              Watermark="Search" Margin="4,0,0,0"
                              ToolTip.Tip="Matches a name or a tag" />
@@ -2061,6 +2069,15 @@
                     <Button Content="Usage" Click="OnSymbolUsage"
                             IsEnabled="{Binding SymbolBrowser.Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
                             ToolTip.Tip="Count where this symbol is placed — reads every document in the project" />
+                    <Button Content="Promote" Click="OnPromoteSymbol"
+                            IsEnabled="{Binding CanPromoteSelectedSymbol}"
+                            ToolTip.Tip="Copy this symbol into your own library, so every project can use it" />
+                    <!-- The pull, and only when there is something to pull.
+                         Absent rather than disabled: an artist whose library
+                         matches should not be shown a button about it. -->
+                    <Button Content="Update from library" Click="OnUpdateSymbolsFromLibrary"
+                            IsVisible="{Binding HasLibraryUpdates}"
+                            ToolTip.Tip="Take the newer version from your library. Nothing in your library can change a project on its own — this is the project asking." />
                     <Button Classes="icon" Content="🗑" Click="OnDeleteSymbol"
                             IsEnabled="{Binding SymbolBrowser.Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
                             ToolTip.Tip="Delete the symbol from the project" />

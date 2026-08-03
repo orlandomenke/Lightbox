@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1742 tests, derived from the suite itself. Each line is a
+1767 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1333,6 +1333,23 @@ regression even when every test still compiles.
 - Acknowledging Is An Undo Step — `:331`
 - Acknowledging Nothing Is Not An Edit — `:348`
 
+## SymbolLibraryTests
+`tests/Lightbox.App.Tests/SymbolLibraryTests.cs`
+
+- The Library Round Trips With Its Drawings — `:55`
+- ACorrupt Library Is An Empty One Rather Than ACrash — `:72`
+- No Library Yet Is Not An Error — `:79`
+- The Grid Shows Both Scopes And Badges The Global Ones — `:87`
+- The Scope Filter Narrows To One Library — `:103`
+- An Adopted Library Symbol Appears Once As AProject Symbol — `:121`
+- Placing ALibrary Symbol Copies It Into The Project — `:142`
+- Dragging ALibrary Symbol Onto The Canvas Copies It Too — `:159`
+- APlaced Library Symbol Still Renders With The Library Deleted — `:176`
+- Promoting Puts AProject Symbol In The Library On Disk — `:195`
+- AGlobal Row Cannot Be Promoted — `:211`
+- The Project Is Offered ANewer Library Version And Takes It On Asking — `:223`
+- With Nothing Newer There Is Nothing To Offer — `:245`
+
 ## SymbolPlacingTests
 `tests/Lightbox.App.Tests/SymbolPlacingTests.cs`
 
@@ -2039,6 +2056,22 @@ regression even when every test still compiles.
 - ANegative Offset Starts Part Way Through Rather Than Going Out Of Range — `:249`
 - An Empty Symbol Still Reports One Frame So Nothing Divides By Zero — `:258`
 - APlacement Remembers What It Was Placed Against — `:265`
+
+## SymbolScopeTests
+`tests/Lightbox.Core.Tests/SymbolScopeTests.cs`
+
+- Placing AGlobal Symbol Copies It Into The Project — `:37`
+- The Project Renders With The Library Gone — `:54`
+- Adopting Twice Adopts Once — `:73`
+- Promoting Copies Up And Keeps The Id — `:91`
+- Promoting An Edited Symbol Replaces The Library Entry — `:108`
+- Editing ALibrary Symbol Does Not Reach Into AProject That Placed It — `:127`
+- Asking For The Update Takes It — `:144`
+- APull Never Goes Backwards — `:166`
+- APull Leaves Placements Alone — `:184`
+- ASymbol The Library Does Not Have Is Not Stale — `:208`
+- Pulling Something The Project Does Not Have Is ANo Op — `:219`
+- ALibrary Symbol Round Trips Through The Documents Own Serializer — `:226`
 
 ## TemplateTests
 `tests/Lightbox.Core.Tests/TemplateTests.cs`

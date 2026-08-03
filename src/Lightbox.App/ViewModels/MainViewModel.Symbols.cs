@@ -1,3 +1,4 @@
+using Lightbox.App.Services;
 using CommunityToolkit.Mvvm.Input;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
@@ -21,11 +22,135 @@ public sealed partial class MainViewModel
     /// <summary>The symbol browser's state. Empty until a project is open.</summary>
     public SymbolBrowserViewModel SymbolBrowser { get; private set; } = null!;
 
+    /// <summary>The artist's own library, loaded once and kept.</summary>
+    /// <remarks>
+    /// Held rather than re-read, because the browser asks for it on every refresh
+    /// and reading a file per keystroke in the search box would be absurd. It is
+    /// only written when the artist promotes or removes something.
+    /// </remarks>
+    private Dictionary<string, Symbol>? _symbolLibrary;
+
+    private Dictionary<string, Symbol> Library => _symbolLibrary ??= SymbolLibrary.Load();
+
+    /// <summary>Re-read the library from disk. Test seam.</summary>
+    /// <remarks>
+    /// The library is held rather than re-read on every access, so a test that
+    /// writes the file behind the view model has to say so. In the application
+    /// the same situation — the file changing underneath a running session — is
+    /// not reachable, because the session is the only thing that writes it.
+    /// </remarks>
+    internal void ReloadSymbolLibraryForTests()
+    {
+        _symbolLibrary = null;
+        SymbolBrowser.Refresh();
+        OnPropertyChanged(nameof(HasLibraryUpdates));
+    }
+
+    /// <summary>Make a symbol from whatever is on the drawing. Test seam.</summary>
+    internal Symbol? MakeSymbolFromDrawingForTests(string name)
+    {
+        BeginStroke(30, 30, 1);
+        MoveStroke(90, 90, 1);
+        EndStroke();
+        return MakeSymbolFromDrawing(name);
+    }
+
     /// <summary>Wire the browser up. Called from the constructor.</summary>
     private void InitialiseSymbolBrowser() =>
         SymbolBrowser = new SymbolBrowserViewModel(
             () => ProjectDocker.Project,
-            () => (Scene.Width, Scene.Height));
+            () => (Scene.Width, Scene.Height),
+            () => Library);
+
+    // ---- global and project scope -------------------------------------------------
+
+    /// <summary>
+    /// Copy a library symbol into the project, if that is where this id lives.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Copy-on-place, and it is what keeps the project self-contained: a
+    /// <c>.lbproj</c> that resolved a placement out of an application folder
+    /// would lose art the moment it moved machine. The library is a source to
+    /// choose from, never a live dependency.
+    /// </para>
+    /// <para>
+    /// Keyed on the <b>id</b> and called from inside <see cref="PlaceSymbol"/>,
+    /// so every route is covered by construction. Doing it per route looked
+    /// simpler and was wrong: the drag-and-drop path carries only an id, so a
+    /// row-based version would have adopted for the Place button and left a
+    /// dragged library symbol failing to resolve — the harder bug to spot,
+    /// because the two routes look interchangeable from the panel.
+    /// </para>
+    /// </remarks>
+    private void AdoptFromLibrary(string symbolId)
+    {
+        if (ProjectDocker.Project is not { } project) return;
+        if (project.Symbols.ContainsKey(symbolId)) return;
+        if (!Library.TryGetValue(symbolId, out var global)) return;
+
+        SymbolScopes.Adopt(project, global);
+        RefreshProjectResources();
+        SymbolBrowser.Refresh();
+        AiStatus = $"“{global.Name}” copied into this project — it renders with the library gone.";
+    }
+
+    /// <summary>Copy the selected project symbol up into the artist's library.</summary>
+    /// <remarks>
+    /// One direction only. There is no demote, because it would not mean
+    /// anything: a global symbol that has been placed is already in that project,
+    /// so "make this project-only" is deleting it from the library, which is its
+    /// own action and reads as one.
+    /// </remarks>
+    public void PromoteSelectedSymbol()
+    {
+        if (SymbolBrowser.Selected is not { } row || row.IsGlobal) return;
+        SymbolScopes.Promote(Library, row.Model);
+        SymbolLibrary.Save(Library);
+        SymbolBrowser.Refresh();
+        AiStatus = $"“{row.Model.Name}” is in your library — available in every project.";
+    }
+
+    public bool CanPromoteSelectedSymbol => SymbolBrowser.Selected is { IsGlobal: false };
+
+    /// <summary>Project symbols the library has a newer version of.</summary>
+    public IReadOnlyList<SymbolScopes.Stale> LibraryUpdates =>
+        ProjectDocker.Project is { } project ? SymbolScopes.Outdated(project, Library) : [];
+
+    public bool HasLibraryUpdates => LibraryUpdates.Count > 0;
+
+    /// <summary>
+    /// Pull every newer library version into this project, as one undoable step.
+    /// </summary>
+    /// <remarks>
+    /// The direction is the safety property: the project reaches out when the
+    /// artist says so, and nothing in the library can reach into a project. So
+    /// editing a symbol in your own library can never change a finished shot.
+    /// Placements are untouched and need no touching — they reference the symbol
+    /// by id, so replacing what that id resolves to is the whole of the update.
+    /// </remarks>
+    public int UpdateSymbolsFromLibrary()
+    {
+        if (ProjectDocker.Project is not { } project) return 0;
+        var stale = SymbolScopes.Outdated(project, Library);
+        if (stale.Count == 0)
+        {
+            AiStatus = "Every symbol here matches your library.";
+            return 0;
+        }
+
+        foreach (var entry in stale) SymbolScopes.Pull(project, Library, entry.Mine.Id);
+        RefreshProjectResources();
+        SymbolBrowser.Refresh();
+        InvalidateWholeCanvas();
+        PublishSnapshot();
+        MarkDocumentEdited();
+        OnPropertyChanged(nameof(HasLibraryUpdates));
+        AiStatus = stale.Count == 1
+            ? $"Updated “{stale[0].Name}” from your library."
+            : $"Updated {stale.Count} symbols from your library.";
+        return stale.Count;
+    }
 
     // ---- making one -------------------------------------------------------------
 
@@ -403,6 +528,9 @@ public sealed partial class MainViewModel
     public SymbolPlacement? PlaceSymbol(string symbolId, double x, double y)
     {
         if (!CanEdit(ActiveLayer, "place a symbol")) return null;
+        // A library symbol becomes a project symbol here, before anything tries
+        // to resolve it — see AdoptFromLibrary for why this is not per route.
+        AdoptFromLibrary(symbolId);
         if (SymbolRegistry.Resolve(symbolId) is not { } symbol)
         {
             AiStatus = "That symbol is not in this project.";
