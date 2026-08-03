@@ -55,10 +55,6 @@ namespace Lightbox.Core.Tests.Serialization;
 /// </remarks>
 public class CultureInvarianceTests
 {
-    /// <summary>Locales whose number or casing rules would corrupt a document
-    /// if any part of the save path were culture-sensitive.</summary>
-    private static readonly string[] HostileCultures = ["de-DE", "tr-TR"];
-
     /// <summary>
     /// Decimals in several places, a string enum, a camelCase key with an
     /// interior capital, and a label — the surfaces a locale could reach.
@@ -93,6 +89,33 @@ public class CultureInvarianceTests
         }
     }
 
+    /// <summary>
+    /// The premise every other test in this class rests on: these locales
+    /// really are loaded and really do format differently.
+    /// </summary>
+    /// <remarks>
+    /// Without this the whole class can pass for the wrong reason. Under
+    /// globalization-invariant mode — a runtime switch, or an ICU-less
+    /// container — <c>new CultureInfo("de-DE")</c> still succeeds and still
+    /// behaves as the invariant culture, so "invariant output equals de-DE
+    /// output" becomes a tautology and every assertion below holds while
+    /// guarding nothing. That is the shape `CLAUDE.md` warns about in the
+    /// saturation trap: assert the thing is present as well as equal, or the
+    /// test also passes when the mechanism is missing.
+    /// </remarks>
+    [Theory]
+    [InlineData("de-DE", "0,5")]
+    [InlineData("tr-TR", "0,5")]
+    public void TheHostileLocaleIsActuallyLoaded(string culture, string expected)
+    {
+        // CurrentCulture is read inside the lambda, so it resolves after
+        // InCulture has switched it — and named explicitly rather than left
+        // implicit, because the whole assertion is about which one applies.
+        var formatted = InCulture(culture, () => (0.5).ToString(CultureInfo.CurrentCulture));
+
+        Assert.Equal(expected, formatted);
+    }
+
     [Theory]
     [InlineData("de-DE")]
     [InlineData("tr-TR")]
@@ -102,6 +125,9 @@ public class CultureInvarianceTests
         var invariant = InCulture(CultureInfo.InvariantCulture.Name, () => DocJson.Serialize(doc));
         var hostile = InCulture(culture, () => DocJson.Serialize(doc));
 
+        // Both sides non-trivial: an invariant-mode container would make these
+        // equal by making them the same thing. TheHostileLocaleIsActuallyLoaded
+        // is what rules that out.
         Assert.Equal(invariant, hostile);
     }
 

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1670 tests, derived from the suite itself. Each line is a
+1671 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1907,11 +1907,12 @@ regression even when every test still compiles.
 ## CultureInvarianceTests
 `tests/Lightbox.Core.Tests/Serialization/CultureInvarianceTests.cs`
 
-- Saving In AHostile Locale Produces The Same Bytes — `:99`
-- The Compact Wire Format Is Also Locale Independent — `:116`
-- Opening In AHostile Locale Restores The Same Values — `:137`
-- ADocument Saved In One Locale Opens In Another — `:160`
-- No Number Is Written With ADecimal Comma — `:182`
+- The Hostile Locale Is Actually Loaded — `:109`
+- Saving In AHostile Locale Produces The Same Bytes — `:122`
+- The Compact Wire Format Is Also Locale Independent — `:142`
+- Opening In AHostile Locale Restores The Same Values — `:163`
+- ADocument Saved In One Locale Opens In Another — `:186`
+- No Number Is Written With ADecimal Comma — `:208`
 
 ## MediumSettingsTests
 `tests/Lightbox.Core.Tests/Serialization/MediumSettingsTests.cs`
