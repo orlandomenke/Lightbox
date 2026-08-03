@@ -62,4 +62,40 @@ public sealed record TimingPreset(string Name, IReadOnlyList<int> Holds)
 
     /// <summary>Cels one full cycle of the pattern occupies.</summary>
     public int CycleLength => Holds.Count == 0 ? 1 : Holds.Sum(h => Math.Max(1, h));
+
+    /// <summary>The pattern as an artist would type it — <c>"1, 1, 2, 3, 4"</c>.</summary>
+    /// <remarks>
+    /// Round-trips through <see cref="TryParse"/>, which is what lets a saved
+    /// preset be stored, shown and edited as one short string rather than as a
+    /// structure nobody can read in a settings file.
+    /// </remarks>
+    public string Pattern => string.Join(", ", Holds.Select(h => Math.Max(1, h)));
+
+    /// <summary>
+    /// Read a pattern an artist typed: <c>"2"</c>, <c>"1 1 2 3 4"</c>,
+    /// <c>"1,1,2,3,4"</c>.
+    /// </summary>
+    /// <remarks>
+    /// Commas, spaces and both together all work, because an animator writing
+    /// down a timing chart uses whichever is to hand. Anything that is not a
+    /// positive number fails the whole parse rather than being skipped: silently
+    /// dropping the typo in "1,1,x,3" would make a preset that quietly is not
+    /// the one on screen.
+    /// </remarks>
+    public static bool TryParse(string name, string? text, out TimingPreset preset)
+    {
+        preset = new TimingPreset(name, [1]);
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        var holds = new List<int>();
+        foreach (var part in text.Split([',', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!int.TryParse(part, out var h) || h < 1) return false;
+            holds.Add(h);
+        }
+        if (holds.Count == 0) return false;
+
+        preset = new TimingPreset(string.IsNullOrWhiteSpace(name) ? holds.Count == 1 ? $"On {holds[0]}s" : "Custom" : name, holds);
+        return true;
+    }
 }

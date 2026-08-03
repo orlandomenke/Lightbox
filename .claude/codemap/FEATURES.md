@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1673 tests, derived from the suite itself. Each line is a
+1737 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1368,6 +1368,28 @@ regression even when every test still compiles.
 - Closing AProject Stops Its Symbols Resolving — `:60`
 - Deleting ASymbol Stops It Resolving — `:78`
 
+## TemplateUiTests
+`tests/Lightbox.App.Tests/TemplateUiTests.cs`
+
+- With No Project There Is Nothing To Offer And Nothing To Pull — `:30`
+- ADocument That Is Not ATemplate Writes No Template Keys — `:44`
+- Marking ADocument As ATemplate Is Just AFlag — `:60`
+- AMarked Document Appears In The List — `:78`
+- New From Template Opens ACopy In Its Own Tab — `:93`
+- Editing The Template Afterwards Leaves The Copy Alone — `:113`
+- Switching Tabs Changes The Answer — `:146`
+- ADocument That Did Not Come From ATemplate Cannot Be Asked — `:171`
+- ACopy Can Be Asked And Reports Nothing When It Matches — `:181`
+- ANew Layer In The Template Is Offered And Arrives — `:192`
+- APull Is One Undo Step — `:207`
+- APull That Changes Nothing Leaves No Undo Step To Press Through — `:225`
+- APull Never Touches The Artists Drawings — `:237`
+- ALayer The Artist Drew On Is Reported As Such And Skipped — `:253`
+- The Dialog Turns The Preview Into Ticks And Back — `:276`
+- The Dialog Offers Only What Actually Differs — `:296`
+- The Dialog Lists ADrawn On Layer And Defaults It Off — `:314`
+- Cancelling Returns Nothing — `:334`
+
 ## TimelineBugTests
 `tests/Lightbox.App.Tests/TimelineBugTests.cs`
 
@@ -1428,6 +1450,26 @@ regression even when every test still compiles.
 
 - Master Switch Writes Into The Stroke Record — `:127`
 - Per Setting Checkboxes Map To The Response Curves — `:141`
+
+## TimingPresetUiTests
+`tests/Lightbox.App.Tests/TimingPresetUiTests.cs`
+
+- The Picker Offers The Built Ins And Starts On Something — `:52`
+- Applying To ASelected Range Retimes The Whole Range — `:65`
+- With No Range It Applies To The Cel Alone — `:79`
+- Retiming Is One Undo Step From The View Model — `:93`
+- The Ruler Follows The New Length — `:109`
+- ARange Of Nothing Says So Rather Than Silently Doing Nothing — `:127`
+- The Status Line Says Which Way The Length Went — `:145`
+- ASaved Pattern Persists And Comes Back On The Next Launch — `:166`
+- The Built Ins Are Not Written To The Store — `:185`
+- ATyped Pattern That Will Not Parse Is Refused With AReason — `:200`
+- Saving The Same Name Twice Replaces It Rather Than Adding ASecond — `:214`
+- ABuilt In Name Gets Its Own Entry Rather Than Overriding The One — `:230`
+- Deleting Removes It From The List And The File — `:245`
+- ABuilt In Cannot Be Deleted — `:259`
+- ACorrupt Store Leaves The Built Ins — `:271`
+- The Cel Menu Names The Pattern The Bar Has Chosen — `:283`
 
 ## BrushTipsWindowTests
 `tests/Lightbox.App.Tests/TipLibraryTests.cs`
@@ -1998,6 +2040,31 @@ regression even when every test still compiles.
 - An Empty Symbol Still Reports One Frame So Nothing Divides By Zero — `:258`
 - APlacement Remembers What It Was Placed Against — `:265`
 
+## TemplateTests
+`tests/Lightbox.Core.Tests/TemplateTests.cs`
+
+- An Ordinary Document Carries No Template Keys — `:37`
+- The Flag Round Trips And Clearing It Removes The Key — `:52`
+- ANew Document From ATemplate Is ACopy Not ALink — `:67`
+- Editing ATemplate Leaves Earlier Copies Alone — `:91`
+- ACopy Survives The Template Being Deleted — `:108`
+- The Project Lists Its Templates Apart From Its Animations — `:124`
+- The Preview Finds Layers The Template Has And The Document Does Not — `:141`
+- APull Never Removes ALayer The Artist Has — `:156`
+- Nothing To Pull Reports Nothing — `:170`
+- ALayer The Artist Has Drawn On Is Skipped Unless Ticked — `:184`
+- An Untouched Layer Takes The Properties Without Being Ticked — `:209`
+- Erasing Counts As Drawn On Too — `:227`
+- Imported Pixels Count As Work Even With No Strokes — `:248`
+- ANew Layer Arrives With Its Drawings — `:264`
+- APull Never Touches Drawings On ALayer The Document Already Has — `:284`
+- APull Never Touches The Exposure Sheet — `:299`
+- Guides Are Replaced Wholesale And Grids Come With Them — `:318`
+- Fps Is Pulled And Size Is Not — `:339`
+- ACamera Is Added When Absent And Never Overwritten — `:359`
+- Each Part Of The Pull Can Be Declined — `:379`
+- APull Into ADocument That Is Not ACopy Still Behaves — `:397`
+
 ## CelRangeTests
 `tests/Lightbox.Core.Tests/Timeline/CelRangeTests.cs`
 
@@ -2057,14 +2124,23 @@ regression even when every test still compiles.
 `tests/Lightbox.Core.Tests/TimingPresetTests.cs`
 
 - Applying APattern Re Exposes The Drawings That Are There — `:26`
-- APattern Shorter Than The Range Repeats — `:42`
-- An Uneven Pattern Is Laid Down In Order — `:52`
-- It Never Creates Or Destroys ADrawing — `:62`
-- ARange That Begins Mid Hold Keeps Showing Its Drawing — `:82`
-- ARange Of One Cel Is AKey And Nothing Else Moves — `:97`
-- ANon Range Is ANo Op — `:111`
-- ADegenerate Pattern Behaves Rather Than Throwing — `:119`
-- The Built Ins Are The Ones An Animator Asks For By Name — `:132`
+- The Pattern Decides The Length Not The Selection — `:41`
+- Going To Ones Shrinks The Range — `:57`
+- APattern Shorter Than The Range Repeats — `:76`
+- An Uneven Pattern Is Laid Down In Order — `:86`
+- It Never Creates Or Destroys ADrawing — `:97`
+- ARange Of Only Holds Is ANo Op And Nothing Blanks — `:112`
+- ARange Beginning Mid Hold Does Not Drag The Outside Drawing In — `:130`
+- ARange Of One Cel Leaves Everything After It Intact — `:152`
+- ANon Range Is ANo Op — `:168`
+- ADegenerate Pattern Behaves Rather Than Throwing — `:176`
+- The Built Ins Are The Ones An Animator Asks For By Name — `:190`
+- APattern Can Be Typed With Commas Or Spaces — `:207`
+- ATypo Fails The Whole Parse Rather Than Being Skipped — `:220`
+- APattern Round Trips Through Its Text — `:228`
+- Retiming Is One Undo Step — `:249`
+- The Scene Grows To Fit But Never Shrinks — `:268`
+- An Unknown Layer Is ANo Op Rather Than AThrow — `:286`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`

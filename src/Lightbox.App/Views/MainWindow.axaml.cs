@@ -219,6 +219,7 @@ public partial class MainWindow : Window
         KeyDown += OnKeyDown;
         RecentMenu.SubmenuOpened += (_, _) => RefreshRecentMenu();
         ConvertProjectMenu.SubmenuOpened += (_, _) => RefreshConvertMenu();
+        TemplatesMenu.SubmenuOpened += (_, _) => RefreshTemplatesMenu();
         Loaded += (_, _) =>
         {
             _vm.PublishSnapshot();
@@ -1110,6 +1111,15 @@ public partial class MainWindow : Window
     {
         if (CellOf(sender) is { } cell) _vm.ReduceExposureAt(cell);
     }
+
+    private void OnRetimeCel(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.ApplyTimingAt(cell);
+    }
+
+    private void OnSaveTimingPreset(object? sender, RoutedEventArgs e) => _vm.SaveTimingPreset();
+
+    private void OnDeleteTimingPreset(object? sender, RoutedEventArgs e) => _vm.DeleteSelectedTimingPreset();
 
     private void OnClearCel(object? sender, RoutedEventArgs e)
     {
@@ -3370,6 +3380,56 @@ public partial class MainWindow : Window
         var clear = new MenuItem { Header = "Clear the list" };
         clear.Click += (_, _) => _vm.ForgetRecentsCommand.Execute(null);
         RecentMenu.Items.Add(clear);
+    }
+
+    // ---- templates (Q12) --------------------------------------------------------
+
+    /// <summary>
+    /// Build <c>New from template…</c> when it opens.
+    /// </summary>
+    /// <remarks>
+    /// Built on open rather than bound, for the same reason as the recents list:
+    /// finding the project's templates reads documents, and doing that on every
+    /// property change would read the project every time anything at all
+    /// happened.
+    /// </remarks>
+    private void RefreshTemplatesMenu()
+    {
+        TemplatesMenu.Items.Clear();
+        var templates = _vm.TemplateChoices;
+        if (templates.Count == 0)
+        {
+            TemplatesMenu.Items.Add(new MenuItem
+            {
+                Header = "No templates yet",
+                IsEnabled = false,
+                [ToolTip.TipProperty] =
+                    "Mark any document as a template with File ▸ Use as template. "
+                    + "Real templates come from work you have already done.",
+            });
+            return;
+        }
+        foreach (var reference in templates)
+        {
+            var item = new MenuItem { Header = reference.Name, [ToolTip.TipProperty] = reference.Path };
+            var target = reference;
+            item.Click += (_, _) => _vm.NewFromTemplate(target);
+            TemplatesMenu.Items.Add(item);
+        }
+    }
+
+    private async void OnUpdateFromTemplateClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.PreviewTemplatePull() is not { } preview)
+        {
+            _vm.AiStatus = "This document did not come from a template, or its template is gone.";
+            return;
+        }
+
+        var dialog = new UpdateFromTemplateWindow();
+        dialog.Show(preview);
+        await dialog.ShowDialog(this);
+        if (dialog.Result is { } options) _vm.UpdateFromTemplate(options);
     }
 
     private async void OnOpenClicked(object? sender, RoutedEventArgs e)

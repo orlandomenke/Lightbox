@@ -376,6 +376,35 @@ public sealed class DocumentEditor
     }
 
     /// <summary>
+    /// Re-time a range to a saved pattern, as one undoable step.
+    /// </summary>
+    /// <remarks>
+    /// The general case of <see cref="StretchExposure"/>: that one holds every
+    /// drawing for the same number of frames, this one follows a pattern, so a
+    /// slow-in of 1-1-2-3-4 is expressible where a single step is not. Same
+    /// guarantee — no drawing is created or destroyed, only re-spaced — and the
+    /// row grows or shrinks to fit the pattern rather than the selection.
+    /// </remarks>
+    public ExposureSheet.TimingChange ApplyTiming(string layerId, int from, int to, TimingPreset preset)
+    {
+        if (FindLayer(layerId) is null) return default;
+        var change = default(ExposureSheet.TimingChange);
+        Perform(doc =>
+        {
+            var layer = doc.Scene.Layers.First(l => l.Id == layerId);
+            PadCels(layer, doc.Scene.FrameCount);
+            var lo = Math.Clamp(Math.Min(from, to), 0, layer.Cels.Count - 1);
+            var hi = Math.Clamp(Math.Max(from, to), 0, layer.Cels.Count - 1);
+            change = ExposureSheet.ApplyTiming(layer, lo, hi - lo + 1, preset);
+            // The row may now be longer than the scene. Growing the scene is
+            // what StretchExposure already does; never shrinking it is
+            // deliberate, because other layers still occupy those frames.
+            if (layer.Cels.Count > doc.Scene.FrameCount) doc.Scene.FrameCount = layer.Cels.Count;
+        });
+        return change;
+    }
+
+    /// <summary>
     /// Thin a range to every <paramref name="step"/>-th drawing, keeping the
     /// range the same length by holding what survives. Destructive: the
     /// drawings between are discarded.

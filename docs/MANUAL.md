@@ -200,6 +200,62 @@ Deleting a scene keeps its shots — they become project documents. Reorganising
 a film must not be the fastest way to delete it, and the files on disk are never
 touched either way.
 
+### Templates
+
+**A template is an ordinary document with a flag set.** Not a new file type, not
+a folder, not a list built into the app. That is the whole of it, and everything
+useful follows from it: you can turn work you have *already done* into a
+template, which is where real templates come from — the third walk cycle you set
+up the same way.
+
+| | |
+| --- | --- |
+| **Make one** | **File ▸ Use as template** on any open document. It does not move and does not change; it gains a flag and starts appearing in one more list. |
+| **Start from one** | **File ▸ New from template…** lists the project's templates. Pick one and you get a **copy** — yours from the first stroke. |
+| **Edit one** | Open it and draw. It is a document; every tool works on it. |
+| **Stop being one** | Untick the same menu item. Nothing else changes. |
+
+**A template is copied, never referenced.** That is the difference from a symbol,
+which *is* a live link. Because the copy has no link back, editing a template can
+never reach into an animation somebody already started — so there is nothing to
+lock, nothing to version, and no dialog asking whether to propagate. It is also
+why you can change a template whenever you like: your edits apply to copies made
+*after* them and to nothing made before.
+
+A template carries what a document carries: the layer stack with its names,
+blend modes, opacities and locks; the exposure sheet; guides and grids; the
+camera if it has one; the canvas size and frame rate; and any drawing you want in
+it — a pivot cross, a ground line, construction guides on their own locked layer.
+
+Without a project none of this is needed: a standalone template is a file you
+Open and then Save as, which already works. What a project adds is being able to
+*list* them, so the menu items only appear when one is open.
+
+#### Updating a document from its template
+
+You fixed the template. **File ▸ Update from template…** rolls that forward into
+a document that came from it — one document at a time, when you ask, as a single
+undoable step. Nothing ever travels the other way, so a finished shot cannot
+change under you.
+
+It shows what would change and you tick what you want:
+
+| Can be pulled | |
+| --- | --- |
+| **New layers** | Added in the template's position, with anything drawn on them. A layer you have is never removed. |
+| **Layer properties** — name, blend mode, opacity, lock | Matched by layer identity, not by name, and **skipped for any layer you have drawn on** unless you tick it yourself. |
+| **Guides and grids** | Replaced wholesale. They are aids, not art. |
+| **Frame rate** | Applied. Canvas size is *not* — changing a canvas under finished drawings is a different operation with its own questions. |
+| **Camera** | Added if the document has none. An existing one is never overwritten. |
+
+**It never pulls your drawings or your timing.** Those are the work. A template's
+frames were superseded the moment you drew, and re-timing is what a timing preset
+is for.
+
+The menu item is greyed out unless this document came from a template and that
+template still exists. Deleting a template cannot break anything that was made
+from it — the option simply is not there.
+
 ### Changing what a project is for
 
 **File → Project type** converts an open project between Illustration,
@@ -986,10 +1042,35 @@ playback range.
 Drag a cel along its row to move it. Shift-click for a range, then apply
 exposure changes to all of it at once.
 
-**Timing presets** — *Planned.* The engine exists: a pattern of hold lengths
-("on 2s", "slow in") that re-spaces the drawings a range already contains,
-without ever adding or removing one. There is no control for it on the timeline
-yet, so it is not something you can reach today.
+### Timing presets
+
+A **timing preset** is a pattern of hold lengths — how long each drawing in a
+run is held. `2` is on 2s. `1, 1, 2, 3, 4` is a slow-in: two snappy frames, then
+progressively longer holds.
+
+The picker and **Re-time** are on the timeline bar. Shift-click a range first,
+or use **Re-time to …** in a cel's right-click menu to do one cel.
+
+Applying one **re-spaces the drawings that are already there**. It never makes a
+drawing and never deletes one — the worst it can do to your art is change its
+timing, and one undo puts that back.
+
+**The pattern decides the length, not your selection.** Twelve drawings put on
+2s take twenty-four frames, so the row gets longer and the rest of it moves
+down; the same twelve put back on 1s take twelve, and it gets shorter. The
+status line says which way it went. If you want to *thin* a range — keep every
+second drawing and discard the rest — that is a different, deliberately
+destructive operation.
+
+Six patterns are built in: on 1s, 2s, 3s, 4s, and a slow-in and slow-out. Behind
+the **⚙** beside the picker you can save your own: type a name and a pattern
+(commas or spaces, both work) and it is there next time you open the app. Your
+own patterns can be deleted; the built-ins cannot.
+
+| Compared with | |
+| --- | --- |
+| A **symbol** | carries *drawings*. A timing preset carries their *spacing* — the half a symbol cannot express. |
+| A **template** | gives a new document its shape, once, at creation. A preset re-times drawings you already made, any time, as often as you like. |
 
 ### Onion skin
 

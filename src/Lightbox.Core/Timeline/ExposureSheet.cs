@@ -48,65 +48,78 @@ public static class ExposureSheet
         return -1;
     }
 
+    /// <summary>What re-timing a range did, for a caller that has to report it.</summary>
+    /// <param name="Drawings">Drawings re-exposed. Zero means the range held none.</param>
+    /// <param name="Frames">Cels the range occupies now.</param>
+    /// <param name="Grew">
+    /// Change in the range's length — positive when the pattern needed more
+    /// room than the selection had, negative when it needed less.
+    /// </param>
+    public readonly record struct TimingChange(int Drawings, int Frames, int Grew);
+
     /// <summary>
-    /// Re-expose the drawings in a range to a timing pattern, in place.
+    /// Re-expose the drawings keyed in a range to a timing pattern, in place.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Q11's answer. It <b>never creates or destroys a drawing</b> — it collects
-    /// the drawings the range already exposes, in order, and lays them back down
-    /// on the pattern's spacing. That is the property that makes it safe to
-    /// reach for: the worst it can do to an animator's art is re-time it, and
-    /// one undo puts the timing back.
+    /// Q11's answer, and it <b>never creates or destroys a drawing</b>. It takes
+    /// the drawings keyed inside the range, in order, and lays them back down on
+    /// the pattern's spacing. The worst it can do to an animator's art is
+    /// re-time it, and one undo puts the timing back.
     /// </para>
     /// <para>
-    /// The range keeps its length. A pattern that would run past the end simply
-    /// stops, and a pattern that finishes early repeats — which is what makes
-    /// <c>[2]</c> mean "on 2s for as far as I dragged". Drawings that no longer
-    /// fit are dropped from the exposure rather than deleted: they are still in
-    /// the record, still on the frames they were on before this ran, and undo
-    /// restores them. Nothing about this call is destructive to a
-    /// <see cref="Frame"/>.
+    /// <b>The pattern decides the length, not the selection.</b> Twelve drawings
+    /// put on 2s occupy twenty-four cels, so the range grows and the rest of the
+    /// row moves down; the same twelve put on 1s occupy twelve and it shrinks.
+    /// The alternative — hold the selection's length and drop whatever no longer
+    /// fits — would silently lose half an artist's drawings when they asked for
+    /// "on 2s", which is never what that phrase means. Thinning a range on
+    /// purpose is <see cref="DocumentEditor.ReduceToStep"/>, and it is a separate
+    /// command precisely because it is destructive.
     /// </para>
     /// <para>
-    /// Returns how many drawings ended up exposed, so a caller can say
-    /// "9 drawings over 18 cels" rather than reporting nothing.
+    /// A pattern shorter than the run of drawings repeats, which is what makes
+    /// <c>[2]</c> mean "on 2s for everything I selected" rather than "on 2s for
+    /// the first drawing".
+    /// </para>
+    /// <para>
+    /// Only cels keyed <em>inside</em> the range are moved. A range that starts
+    /// mid-hold does not drag the drawing keyed before it into the selection —
+    /// that drawing keeps its key and merely loses the part of its hold that lay
+    /// inside the range, which is what re-timing a selection means. Pulling it in
+    /// would put one <see cref="Frame"/> in two cels, and editing either would
+    /// then edit both.
     /// </para>
     /// </remarks>
     /// <param name="start">First cel of the range, clamped to the layer.</param>
     /// <param name="count">Cels in the range. Below 1 is a no-op.</param>
-    public static int ApplyTiming(Layer layer, int start, int count, TimingPreset preset)
+    public static TimingChange ApplyTiming(Layer layer, int start, int count, TimingPreset preset)
     {
-        if (layer.Cels.Count == 0 || count < 1) return 0;
+        if (layer.Cels.Count == 0 || count < 1) return default;
         start = Math.Clamp(start, 0, layer.Cels.Count - 1);
         var end = Math.Min(layer.Cels.Count, start + count);
-        if (end <= start) return 0;
+        if (end <= start) return default;
 
-        // The drawings the range shows now, in the order it shows them. The
-        // first cel resolves through a hold, because a range that begins
-        // mid-hold is showing a drawing and has to keep showing it — starting
-        // from nothing would blank the front of the range.
+        // Every keyed cel is one drawing. No de-duplicating: if two cels really
+        // do reference one frame, laying it twice preserves what was there,
+        // where collapsing them would be the one thing this must never do.
         var drawings = new List<Frame>();
-        if (ExposedFrame(layer, start) is { } leading) drawings.Add(leading);
         for (var i = start; i < end; i++)
         {
-            if (layer.Cels[i].Frame is { } keyed && (drawings.Count == 0 || !ReferenceEquals(drawings[^1], keyed)))
-            {
-                drawings.Add(keyed);
-            }
+            if (layer.Cels[i].Frame is { } keyed) drawings.Add(keyed);
         }
-        if (drawings.Count == 0) return 0;
+        if (drawings.Count == 0) return default;
 
-        for (var i = start; i < end; i++) layer.Cels[i].Frame = null;
-
-        var at = start;
-        var n = 0;
-        while (at < end && n < drawings.Count)
+        var rebuilt = new List<Cel>();
+        for (var n = 0; n < drawings.Count; n++)
         {
-            layer.Cels[at].Frame = drawings[n];
-            at += preset.HoldFor(n);
-            n++;
+            rebuilt.Add(new Cel { Frame = drawings[n] });
+            for (var h = 1; h < preset.HoldFor(n); h++) rebuilt.Add(new Cel());
         }
-        return n;
+
+        var was = end - start;
+        layer.Cels.RemoveRange(start, was);
+        layer.Cels.InsertRange(start, rebuilt);
+        return new TimingChange(drawings.Count, rebuilt.Count, rebuilt.Count - was);
     }
 }

@@ -1,8 +1,16 @@
 # What a template is
 
-Status: **designed, nothing built.** Q12 answered (a) — *a document in the
-project marked as a template* — with a follow-up worth answering properly:
-*what is your definition of a template, and how do you use it?*
+Status: **built.** Q12 answered (a) — *a document in the project marked as a
+template* — with a follow-up worth answering properly: *what is your definition
+of a template, and how do you use it?*
+
+`Doc.IsTemplate` and `Doc.TemplateId` are on the document (both nullable, both
+absent from the JSON until used); `Lightbox.Core.Projects.Templates` holds the
+listing, the copy and the pull; `File ▸ New from template… / Use as template /
+Update from template…` reach them, the last through
+`UpdateFromTemplateWindow`. `TemplateTests` and `TemplateUiTests` guard it. One
+deliberate refinement of the design is recorded under *Update from template*
+below.
 
 ## The definition
 
@@ -147,7 +155,21 @@ rolled forward without touching their drawings:
 | **Scene fps** | Applied. Size is *not* — changing a canvas under finished drawings is a different operation with its own questions. |
 | **Camera** | Added if the document has none. Never overwritten. |
 
-**What it never pulls: drawings, and the exposure sheet.** Those are the work.
+**One refinement made while building it.** *New layers arrive with their
+drawings.* The rule below says a pull never brings drawings, and for a layer the
+document already has, it does not — that is the rule protecting the artist's
+work. But a layer the document does **not** have cannot overwrite anything, and
+the case this document itself names — construction guides on their own locked
+layer — is worthless as an empty layer. So the rule is scoped to what it is
+actually for: never touch art on a layer that exists. `ANewLayerArrivesWithItsDrawings`
+records it.
+
+**One thing the design named that does not exist to pull.** *Grids* are not a
+separate concept: a grid is a `GuideKind.Grid` guide, so "guides and grids" is
+one list and one tick. Nothing was dropped — there was only ever one thing there.
+
+**What it never pulls: drawings on a layer you have, and the exposure sheet.**
+Those are the work.
 A template's frames are a starting point that has already been superseded the
 moment somebody drew, and its timing is what a *timing preset* is for — which
 is exactly why Q11 and Q12 stayed separate mechanisms.

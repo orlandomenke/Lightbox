@@ -90,6 +90,56 @@ public sealed class Doc
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasSymbols => Symbols is { Count: > 0 };
 
+    /// <summary>
+    /// Marks this document as a template: a starting point other animations are
+    /// copied from. Q12's answer, and deliberately the whole of it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A template is an ordinary document with a flag, not a new file type — so
+    /// an artist can turn work they have already done into one, which is where
+    /// real templates come from. See <c>docs/DESIGN-templates.md</c>.
+    /// </para>
+    /// <para>
+    /// Nullable rather than a plain <c>bool</c>, and that is not fussiness: the
+    /// serializer drops nulls and writes <c>false</c>, so a non-nullable flag
+    /// would add <c>"isTemplate": false</c> to every document ever saved. The
+    /// camera's rule — optional means <em>absent</em>, not defaulted. Read it
+    /// through <see cref="IsTemplateDocument"/> rather than comparing to true.
+    /// </para>
+    /// </remarks>
+    public bool? IsTemplate { get; set; }
+
+    /// <summary>Whether this document is a template. Derived; never serialized.</summary>
+    /// <remarks>
+    /// <c>[JsonIgnore]</c> because a convenience getter beside a nullable field
+    /// is still a property: without it this would write <c>"isTemplateDocument":
+    /// false</c> on every document and reintroduce, under a second name, exactly
+    /// the key making <see cref="IsTemplate"/> nullable existed to remove.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsTemplateDocument => IsTemplate == true;
+
+    /// <summary>
+    /// The id of the template this document was copied from, if it was.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one link in the whole template design, and note which way it points:
+    /// <b>the document names the template, never the reverse</b>. A template has
+    /// no idea who copied it, so deleting one cannot break anything and nothing
+    /// can traverse from a template to its copies. That asymmetry is what makes
+    /// <em>Update from template</em> safe where a push from the template would
+    /// not be.
+    /// </para>
+    /// <para>
+    /// It is not a live reference. The copy is complete on its own and renders
+    /// with the template deleted; this exists only so the artist can ask to pull
+    /// changes forward, and a document whose template is gone simply cannot be
+    /// asked.
+    /// </para>
+    /// </remarks>
+    public string? TemplateId { get; set; }
 }
 
 /// <summary>A recorded selection: closed contours (even-odd) plus edge feather.</summary>

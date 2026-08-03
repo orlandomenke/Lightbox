@@ -280,6 +280,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             InPlace = Settings.AutosaveInPlace,
         };
+        LoadTimingPresets();
         ColorPicker = new ColorPickerViewModel();
         ColorPicker.SetHex(ColorHex);
         ColorPicker.HexCommitted += hex => ColorHex = hex;
@@ -380,6 +381,13 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var tab in Tabs) tab.IsActive = tab == value;
         OnPropertyChanged(nameof(ShowTimeline));
         OnPropertyChanged(nameof(ReferenceSheetsView));
+        // The template state is per document, so switching tabs changes all
+        // three. Without this the File menu kept the previous tab's answer:
+        // "Use as template" ticked on a document that is not one, and Update
+        // from template greyed out on a copy that could be updated.
+        OnPropertyChanged(nameof(IsActiveDocumentTemplate));
+        OnPropertyChanged(nameof(TemplateLabel));
+        OnPropertyChanged(nameof(CanUpdateFromTemplate));
         if (value.Editor == _editor) return;
 
         _switchingTabs = true;
@@ -692,6 +700,126 @@ public sealed partial class MainViewModel : ObservableObject
         {
             AiStatus = $"Could not save the project: {ex.Message}";
         }
+    }
+
+    // ---- templates (Q12) --------------------------------------------------------
+
+    /// <summary>
+    /// Whether the active document is marked as a template.
+    /// </summary>
+    /// <remarks>
+    /// A template is an ordinary document with a flag, so this is genuinely all
+    /// that "make one" does: it does not move, it does not change, it gains a
+    /// flag and starts appearing in one more list. Setting it marks the document
+    /// edited, because it is a change to the document and has to be saved like
+    /// one.
+    /// </remarks>
+    public bool IsActiveDocumentTemplate
+    {
+        get => SaveTargetTab?.Doc.IsTemplateDocument ?? false;
+        set
+        {
+            if (SaveTargetTab is not { } tab || tab.Doc.IsTemplateDocument == value) return;
+            Core.Projects.Templates.SetTemplate(tab.Doc, value);
+            MarkDocumentEdited();
+            OnPropertyChanged(nameof(IsActiveDocumentTemplate));
+            OnPropertyChanged(nameof(TemplateLabel));
+            OnPropertyChanged(nameof(CanUpdateFromTemplate));
+            AiStatus = value
+                ? "Marked as a template. New from template… will offer it."
+                : "No longer a template. The document is otherwise unchanged.";
+        }
+    }
+
+    public string TemplateLabel =>
+        IsActiveDocumentTemplate ? "This document is a template" : "Use as template";
+
+    /// <summary>
+    /// The project's templates, for the New from template… list.
+    /// </summary>
+    /// <remarks>
+    /// Empty without a project, and that is the whole reason the feature is
+    /// project-scoped: a standalone template is a file you Open and then Save as,
+    /// which has always worked. What a project adds is being able to <em>list</em>
+    /// them.
+    /// </remarks>
+    public IReadOnlyList<DocumentRef> TemplateChoices =>
+        ProjectDocker.Project is { } project ? Core.Projects.Templates.InProject(project) : [];
+
+    /// <summary>Start a new document from a template — a copy, with no live link.</summary>
+    public void NewFromTemplate(DocumentRef reference)
+    {
+        if (ProjectDocker.Project is not { } project) return;
+        if (ProjectIo.LoadDocument(project, reference) is not { } template) return;
+
+        var copy = Core.Projects.Templates.NewFromTemplate(template, reference.Id);
+        var name = $"{reference.Name} copy";
+        var added = ProjectDocker.SelectedCharacter is { } character
+            ? ProjectIo.AddAnimation(project, character, name, copy)
+            : ProjectIo.AddDocument(project, name, copy);
+
+        ProjectDocker.Adopt(project);
+        ProjectDocker.MarkDirty(added);
+        OpenProjectDocument(added, copy);
+        AiStatus = $"New from \"{reference.Name}\". It is a copy — editing the template later leaves it alone.";
+    }
+
+    /// <summary>
+    /// Whether this document can be asked to pull from the template it came from.
+    /// </summary>
+    /// <remarks>
+    /// Needs a project, a recorded template id, and that template still to exist.
+    /// A document whose template has been deleted simply cannot be asked, which
+    /// is the whole point of the link pointing document → template: nothing
+    /// breaks, the option just is not there.
+    /// </remarks>
+    public bool CanUpdateFromTemplate => TemplateOfActiveDocument() is not null;
+
+    private Doc? TemplateOfActiveDocument()
+    {
+        if (ProjectDocker.Project is not { } project) return null;
+        if (SaveTargetTab?.Doc.TemplateId is not { Length: > 0 } id) return null;
+        var reference = project.Manifest.Characters.SelectMany(c => c.Animations)
+            .Concat(project.Manifest.Documents)
+            .Concat(project.Manifest.Scenes?.SelectMany(s => s.Shots) ?? [])
+            .FirstOrDefault(r => r.Id == id);
+        if (reference is null) return null;
+        var template = ProjectIo.LoadDocument(project, reference);
+        return template is { IsTemplateDocument: true } ? template : null;
+    }
+
+    /// <summary>What a pull would change, or null when there is nothing to pull from.</summary>
+    public Core.Projects.Templates.PullPreview? PreviewTemplatePull() =>
+        TemplateOfActiveDocument() is { } template && SaveTargetTab is { } tab
+            ? Core.Projects.Templates.Preview(tab.Doc, template)
+            : null;
+
+    /// <summary>
+    /// Pull the ticked changes from the template, as one undoable step.
+    /// </summary>
+    /// <remarks>
+    /// The direction is the safety property: the artist reaches out to the
+    /// template, one document at a time, when they say so. Nothing ever travels
+    /// the other way, so a finished shot cannot change under anybody.
+    /// </remarks>
+    public int UpdateFromTemplate(Core.Projects.Templates.PullOptions options)
+    {
+        if (TemplateOfActiveDocument() is not { } template) return 0;
+        var changed = 0;
+        _editor.Perform(doc => changed = Core.Projects.Templates.Apply(doc, template, options));
+        if (changed == 0)
+        {
+            // Nothing moved, so the undo step would be an empty one the artist
+            // has to press through. Drop it.
+            _editor.Undo();
+            AiStatus = "Nothing to pull — the document already matches its template.";
+            return 0;
+        }
+
+        OnDocumentChanged();
+        MarkDocumentEdited();
+        AiStatus = $"Pulled {changed} change{(changed == 1 ? "" : "s")} from the template. One undo puts it back.";
+        return changed;
     }
 
     /// <summary>
@@ -5166,13 +5294,159 @@ public sealed partial class MainViewModel : ObservableObject
             : "Nothing to reduce in that range.";
     }
 
+    // ---- timing presets (Q11's UI half) ----------------------------------------
+
+    /// <summary>
+    /// The patterns on offer: the built-ins, then whatever the artist has saved.
+    /// </summary>
+    /// <remarks>
+    /// Built-ins first and never stored, so a later correction to "slow in"
+    /// reaches everybody instead of being frozen into their settings file the
+    /// first time they opened the app.
+    /// </remarks>
+    public ObservableCollection<TimingPreset> TimingPresets { get; } = [];
+
+    [ObservableProperty]
+    private TimingPreset? _selectedTimingPreset;
+
+    /// <summary>Whether the selected pattern is one of the artist's own.</summary>
+    public bool CanDeleteTimingPreset =>
+        SelectedTimingPreset is { } preset && !TimingPreset.BuiltIns.Contains(preset);
+
+    /// <summary>The cel menu's re-time item, naming the pattern the bar has chosen.</summary>
+    /// <remarks>
+    /// Naming it rather than offering the whole list again: a submenu on the cel
+    /// would be a second picker to keep in step with the first, and the two
+    /// disagreeing is the kind of thing an artist notices at the worst moment.
+    /// </remarks>
+    public string RetimeMenuLabel =>
+        SelectedTimingPreset is { } preset ? $"Re-time to {preset.Name}" : "Re-time";
+
+    partial void OnSelectedTimingPresetChanged(TimingPreset? value)
+    {
+        OnPropertyChanged(nameof(CanDeleteTimingPreset));
+        OnPropertyChanged(nameof(RetimeMenuLabel));
+    }
+
+    private void LoadTimingPresets()
+    {
+        TimingPresets.Clear();
+        foreach (var preset in TimingPreset.BuiltIns) TimingPresets.Add(preset);
+        foreach (var preset in TimingPresetStore.Load()) TimingPresets.Add(preset);
+        SelectedTimingPreset ??= TimingPresets.FirstOrDefault(p => p.Name == "On 2s") ?? TimingPresets.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Re-time the cel's range to the selected pattern, as one undoable step.
+    /// </summary>
+    /// <remarks>
+    /// The row grows or shrinks to fit the pattern rather than the selection,
+    /// because "on 2s" must never mean "throw away half my drawings". The status
+    /// line says which way it went, since a silent change of length on a long
+    /// row is easy to miss.
+    /// </remarks>
+    public void ApplyTimingAt(FrameCell cell)
+    {
+        if (LayerOfCell(cell) is not { } layer) return;
+        if (SelectedTimingPreset is not { } preset) return;
+        if (!CanEdit(layer, "re-time it")) return;
+
+        var (start, end) = OpRangeFor(cell);
+        var change = _editor.ApplyTiming(layer.Id, start, end, preset);
+        if (change.Drawings == 0)
+        {
+            AiStatus = "Nothing to re-time there — that range holds no drawing of its own.";
+            return;
+        }
+
+        AfterRetime(layer);
+        var length = change.Grew switch
+        {
+            > 0 => $", {change.Grew} frame{(change.Grew == 1 ? "" : "s")} longer",
+            < 0 => $", {-change.Grew} frame{(change.Grew == -1 ? "" : "s")} shorter",
+            _ => "",
+        };
+        AiStatus =
+            $"{preset.Name}: {change.Drawings} drawing{(change.Drawings == 1 ? "" : "s")} " +
+            $"over {change.Frames} frame{(change.Frames == 1 ? "" : "s")}{length}.";
+    }
+
+    [RelayCommand]
+    private void ApplySelectedTiming()
+    {
+        if (CurrentCell() is { } cell) ApplyTimingAt(cell);
+    }
+
+    [ObservableProperty]
+    private string _newTimingPresetName = "";
+
+    [ObservableProperty]
+    private string _newTimingPresetPattern = "";
+
+    /// <summary>
+    /// Save the typed pattern under the typed name. False when it will not parse.
+    /// </summary>
+    /// <remarks>
+    /// A name already in use replaces that preset rather than adding a second
+    /// with the same label, which is the only behaviour that leaves the list
+    /// usable. Built-ins cannot be shadowed — an artist who saves "On 2s" gets
+    /// their own entry beside it rather than silently overriding the one the
+    /// manual describes.
+    /// </remarks>
+    public bool SaveTimingPreset()
+    {
+        var name = NewTimingPresetName.Trim();
+        if (name.Length == 0) name = "Custom";
+        if (!TimingPreset.TryParse(name, NewTimingPresetPattern, out var preset))
+        {
+            AiStatus = "A timing pattern is whole numbers of frames — \"2\", or \"1, 1, 2, 3, 4\".";
+            return false;
+        }
+
+        var mine = TimingPresets.Where(p => !TimingPreset.BuiltIns.Contains(p)).ToList();
+        if (mine.FirstOrDefault(p => string.Equals(p.Name, preset.Name, StringComparison.OrdinalIgnoreCase)) is { } existing)
+        {
+            TimingPresets[TimingPresets.IndexOf(existing)] = preset;
+        }
+        else
+        {
+            TimingPresets.Add(preset);
+        }
+
+        TimingPresetStore.Save(TimingPresets.Where(p => !TimingPreset.BuiltIns.Contains(p)));
+        SelectedTimingPreset = preset;
+        NewTimingPresetName = "";
+        NewTimingPresetPattern = "";
+        AiStatus = $"Saved \"{preset.Name}\" — {preset.Pattern}.";
+        return true;
+    }
+
+    /// <summary>Forget one of the artist's own patterns. Built-ins are not deletable.</summary>
+    public void DeleteSelectedTimingPreset()
+    {
+        if (SelectedTimingPreset is not { } preset || TimingPreset.BuiltIns.Contains(preset)) return;
+        TimingPresets.Remove(preset);
+        TimingPresetStore.Save(TimingPresets.Where(p => !TimingPreset.BuiltIns.Contains(p)));
+        SelectedTimingPreset = TimingPresets.FirstOrDefault();
+        AiStatus = $"Deleted \"{preset.Name}\".";
+    }
+
     private void AfterRetime(Layer layer)
     {
         foreach (var cel in layer.Cels)
         {
             if (cel.Frame is { } frame) _dirtyThumbIds.Add(frame.Id);
         }
+        // Every re-timing operation can change the row's length, and stretching
+        // already grew the scene with it. These three are derived from
+        // Scene.FrameCount and have no notification of their own, so without
+        // them the ruler and the scrub limit kept the old length until something
+        // else happened to refresh them.
+        OnPropertyChanged(nameof(TimelineExtent));
+        OnPropertyChanged(nameof(MaxScrubFrame));
+        OnPropertyChanged(nameof(FrameLabel));
         SyncLayerRows();
+        ClampCurrentFrame(publishIfUnchanged: false);
         InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();

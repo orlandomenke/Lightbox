@@ -133,6 +133,22 @@
         -->
         <MenuItem x:Name="ConvertProjectMenu" Header="{Binding ProjectTypeLabel}"
                   IsVisible="{Binding HasProject}" />
+        <!--
+          Templates. Absent unless a project is open, because without one a
+          template is a file you Open and then Save as — which has always
+          worked. What a project adds is being able to *list* them.
+        -->
+        <Separator IsVisible="{Binding HasProject}" />
+        <MenuItem x:Name="TemplatesMenu" Header="New from _template…"
+                  IsVisible="{Binding HasProject}" />
+        <MenuItem Header="{Binding TemplateLabel}" ToggleType="CheckBox"
+                  IsChecked="{Binding IsActiveDocumentTemplate, Mode=TwoWay}"
+                  IsVisible="{Binding HasProject}"
+                  ToolTip.Tip="A template is an ordinary document with a flag. It does not move and does not change; it starts appearing in New from template…" />
+        <MenuItem Header="_Update from template…" Click="OnUpdateFromTemplateClicked"
+                  IsVisible="{Binding HasProject}"
+                  IsEnabled="{Binding CanUpdateFromTemplate}"
+                  ToolTip.Tip="Pull layers, guides, fps and a camera forward from the template this document came from. Never touches your drawings or your timing." />
         <Separator />
         <MenuItem Header="Export _document…" Click="OnExportDocumentClicked"
                   ToolTip.Tip="A standalone .lightbox.json with every shared palette and gradient it uses inlined" />
@@ -2681,6 +2697,38 @@
               <Button Content="＋ Inbetween" Command="{Binding InsertInbetweensCommand}"
                       ToolTip.Tip="Insert interpolated frames between this key and the next" />
 
+              <!-- Timing presets. The picker and Apply are on the bar because
+                   re-timing a range is something an animator does over and
+                   over; saving a pattern is done once, so it lives behind the
+                   ⚙ like the onion settings do. -->
+              <ComboBox ItemsSource="{Binding TimingPresets}" SelectedItem="{Binding SelectedTimingPreset}"
+                        Width="104" VerticalAlignment="Center"
+                        ToolTip.Tip="A pattern of hold lengths. Applying it re-spaces the drawings in the selected range — it never adds or removes one."
+                        DisplayMemberBinding="{Binding Name}" />
+              <Button Content="Re-time" Command="{Binding ApplySelectedTimingCommand}"
+                      ToolTip.Tip="Re-space the selected range (or this cel) to the chosen pattern. The row grows or shrinks to fit the pattern — no drawing is lost." />
+              <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="Save a timing pattern of your own">
+                <Button.Flyout>
+                  <Flyout Placement="Top">
+                    <StackPanel Width="260" Spacing="8">
+                      <TextBlock Text="Timing patterns" FontWeight="SemiBold" FontSize="12" />
+                      <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+                                 Text="Hold length per drawing, in frames. &quot;2&quot; is on 2s. &quot;1, 1, 2, 3, 4&quot; is a slow-in: two snappy frames, then progressively longer holds." />
+                      <TextBox Text="{Binding NewTimingPresetName, Mode=TwoWay}"
+                               PlaceholderText="Name — e.g. Studio slow-in" />
+                      <TextBox Text="{Binding NewTimingPresetPattern, Mode=TwoWay}"
+                               PlaceholderText="Pattern — e.g. 1, 1, 2, 3, 4" />
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Content="Save" Click="OnSaveTimingPreset" />
+                        <Button Content="Delete selected" Click="OnDeleteTimingPreset"
+                                IsEnabled="{Binding CanDeleteTimingPreset}"
+                                ToolTip.Tip="Only your own patterns can be deleted — the built-ins stay" />
+                      </StackPanel>
+                    </StackPanel>
+                  </Flyout>
+                </Button.Flyout>
+              </Button>
+
               <!-- Camera. One button until there is one, then the whole row:
                    a document that never adds a camera shows no camera UI. -->
               <Button Content="🎥 Add camera" Command="{Binding AddCameraCommand}"
@@ -2830,6 +2878,14 @@
                                   <Separator />
                                   <MenuItem Header="Extend exposure (+1 hold)" Click="OnExtendExposure" />
                                   <MenuItem Header="Reduce exposure (−1 hold)" Click="OnReduceExposure" />
+                                  <!-- The pattern is chosen on the timeline bar, so this item
+                                       names it rather than repeating the whole list: a submenu
+                                       here would be a second picker to keep in step with the
+                                       first. Shift-click a range before using it to re-time
+                                       more than one drawing. -->
+                                  <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).RetimeMenuLabel}"
+                                            Click="OnRetimeCel"
+                                            ToolTip.Tip="Re-space this cel's range to the pattern chosen on the timeline bar" />
                                   <MenuItem Header="Clear cel" Click="OnClearCel"
                                             ToolTip.Tip="Blank the drawing, keep its slot on the timeline" />
                                   <MenuItem Header="Delete cel" Click="OnDeleteCel"
