@@ -133,6 +133,33 @@ brush presets, and for the same reason: a tip is part of how a project looks.
 A **tips panel**, absent until it has something to show, on the pattern the
 symbol panel already set.
 
+### Choosing one while drawing
+
+Two places, and the split is between making and using. The **workshop** —
+`Edit ▸ Brush tips…`, its own window — is where a tip is generated, scanned,
+renamed or promoted to the project, none of which anybody does mid-stroke. The
+**picker** is in the brush options, and it is only a choice.
+
+The picker is a **flyout of thumbnails in two columns**, not a dropdown of
+names. A tip is a shape, and a name is a poor handle on one: nobody knows what
+a "Cut nib" looks like until they have seen it, and once they have they
+recognise the picture and never read the name again. The two columns are the
+narrowest arrangement in which a 60px tile is still legible at the width the
+tool-options flyout already is.
+
+Three details that are not obvious:
+
+- **Round comes first and is not a tip.** It is the engine's own dab, drawn
+  rather than baked from the catalogue, because it must not look like a library
+  entry that could be deleted.
+- **Choosing copies the raster into the document.** Invariant 1 for tips: from
+  that moment the drawing renders whether or not the library still has it. This
+  is why deleting from the library is safe, and why going back to Round does
+  *not* remove the raster — strokes already painted with it still reference it.
+- **A tip that has left the library reads as "Custom", not "Round".** The mark
+  still renders from the document's own copy, and saying Round would be a lie
+  about what the brush is doing.
+
 ---
 
 ## 2. The procedural generator

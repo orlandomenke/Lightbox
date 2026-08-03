@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1481 tests, derived from the suite itself. Each line is a
+1531 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -123,6 +123,26 @@ regression even when every test still compiles.
 - The Ring Matches The Radius The Engine Will Stamp — `:47`
 - Turning Tracking Off Pins The Ring To Full Size — `:68`
 - When Pressure Is Disabled For The Brush The Ring Ignores It — `:82`
+
+## BrushCurveUiTests
+`tests/Lightbox.App.Tests/BrushCurveUiTests.cs`
+
+- ABrush With No Curve Still Shows The Shape Its Gamma Means — `:24`
+- Drawing ACurve Replaces The Gamma That Was Driving It — `:40`
+- Turning ADynamic Off Clears Both Ways It Could Have Been Driven — `:51`
+- ADynamic With No Gamma Of Its Own Is Turned On As ALine — `:67`
+- Turning On Something Already Driven Leaves It Alone — `:81`
+- Reset Puts ADynamic Back To AStraight Line — `:97`
+- The Brush And The Eraser Keep Separate Curves — `:109`
+- The Editor Hands Back AWhole Curve Rather Than Mutating One — `:124`
+- An Editor With No Curve Shows The Identity Rather Than Nothing — `:142`
+- Choosing Normal Stores Nothing At All — `:155`
+- The Brush Picker Offers The Same Modes The Layer Docker Does — `:171`
+- The Picker Offers Round First And Then Every Tip That Exists — `:183`
+- Choosing ATip Copies Its Pixels Into The Drawing — `:195`
+- Choosing Round Goes Back To The Engines Own Dab — `:211`
+- ADropped Tip Leaves The Drawing Alone — `:222`
+- Every Built In Tip Has AThumbnail To Show In The Picker — `:236`
 
 ## BrushMemoryTests
 `tests/Lightbox.App.Tests/BrushMemoryTests.cs`
@@ -1373,6 +1393,15 @@ regression even when every test still compiles.
 - Turning The Medium Off Makes It Fast Again — `:80`
 - The Reason Names Every Cause So It Can Be Acted On — `:92`
 
+## BrushDynamicsSerializationTests
+`tests/Lightbox.Core.Tests/BrushDynamicsSerializationTests.cs`
+
+- ACurve Round Trips Through The File — `:33`
+- ACurve Means The Same Thing After ALoad As Before — `:52`
+- ABlend Mode Round Trips — `:72`
+- ABrush That Uses Neither Writes Neither Key — `:80`
+- AFile Written Before Curves Existed Loads And Paints The Same — `:91`
+
 ## BrushScopeTests
 `tests/Lightbox.Core.Tests/BrushScopeTests.cs`
 
@@ -1653,6 +1682,32 @@ regression even when every test still compiles.
 - ADocument With No Reference Writes No Key For One — `:200`
 - Editing The Timeline Of ADocument With No Reference Is Untouched — `:212`
 - AReference Round Trips Through Json — `:224`
+
+## PressureResponseTests
+`tests/Lightbox.Core.Tests/ResponseCurveTests.cs`
+
+- ABrush With No Curves Behaves Exactly As It Always Did — `:206`
+- ATarget Nothing Drives Returns One — `:227`
+- ACurve Wins Over The Gamma For The Same Target — `:242`
+- The Master Switch Beats Everything — `:255`
+- The Shape To Show Is The Curve Or The Gammas Own — `:270`
+- The Shown Shape Is ACopy And Cannot Be Edited By Accident — `:285`
+- Cloning ABrush Clones Its Curves Rather Than Sharing Them — `:295`
+
+## ResponseCurveTests
+`tests/Lightbox.Core.Tests/ResponseCurveTests.cs`
+
+- ACurve Nobody Has Touched Is AStraight Line — `:13`
+- ACurve Never Leaves The Unit Square — `:25`
+- ARising Curve Never Dips — `:44`
+- The Handles Themselves Are Hit Exactly — `:64`
+- Outside Its Handles The Curve Is Flat — `:80`
+- AGamma Becomes The Curve It Describes — `:94`
+- AGamma Of Zero Means No Response At All — `:125`
+- Handles Out Of Order Are Sorted Rather Than Followed — `:139`
+- Two Handles At The Same Pressure Do Not Divide By Zero — `:153`
+- ADegenerate Curve Still Answers — `:166`
+- The Same Curve Answers The Same Way Every Time — `:175`
 
 ## SceneAndConversionTests
 `tests/Lightbox.Core.Tests/SceneAndConversionTests.cs`
@@ -2081,6 +2136,21 @@ regression even when every test still compiles.
 - Post Processing Pre Stamped Dabs Matches Rendering From Scratch — `:101`
 - AStroke That Reaches Nothing Reports No Bounds — `:122`
 - The Cost Of APass Does Not Grow With The Length Of The Stroke — `:133`
+
+## PressureCurveTests
+`tests/Lightbox.Raster.Tests/PressureCurveTests.cs`
+
+- ACurve Drives The Dab Where AGamma Would Have — `:63`
+- An Artist Drawn Curve Does What No Gamma Could — `:80`
+- ACurve On Flow Changes How Dark The Mark Is — `:99`
+- Pressure Can Open The Scatter Without Reshuffling It — `:121`
+- ADriven Dynamic Is Still As Repeatable As Everything Else — `:147`
+- The Master Switch Still Turns Everything Off — `:165`
+- The Brush Ring Agrees With The Stroke The Curve Produces — `:179`
+- ABrush Blend Mode Changes How The Stroke Meets What Is Under It — `:209`
+- ABrush That Sets No Blend Mode Paints Exactly As It Always Did — `:222`
+- An Eraser Ignores The Blend Mode Entirely — `:234`
+- ABlended Stroke Carries Its Blend Through ACopy — `:248`
 
 ## PressureTests
 `tests/Lightbox.Raster.Tests/PressureTests.cs`

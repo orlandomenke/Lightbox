@@ -1498,6 +1498,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     private BrushSettings CurrentToolSettings => IsEraser ? _eraserWork : _brushWork;
 
+    /// <summary>
+    /// The settings the tool bar is editing. A test seam: the curve properties
+    /// are read back through <see cref="PressureResponse"/>, and asserting on
+    /// the record is how a test says "the brush now says this" rather than
+    /// "the view model agrees with itself".
+    /// </summary>
+    internal BrushSettings CurrentToolSettingsForTest => CurrentToolSettings;
+
     public ObservableCollection<BrushPreset> BrushPresetChoices { get; } = [];
 
     [ObservableProperty]
@@ -2030,6 +2038,119 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    // ---- pressure curves -------------------------------------------------------
+    //
+    // The editor edits a shape; the record keeps either a curve or a gamma. So
+    // these three do the whole of the translation between the two, and nothing
+    // else in the app has to know that a brush can be written either way.
+
+    /// <summary>
+    /// The shape to draw for a dynamic: the artist's curve, or the one its
+    /// gamma describes. Never null, so the editor always has something to show
+    /// — and for a brush made before curves existed, what it shows is that
+    /// brush's real response rather than a straight line that would flatten it
+    /// the moment anybody touched it.
+    /// </summary>
+    public ResponseCurve BrushCurve(BrushDynamic target) =>
+        PressureResponse.Shape(CurrentToolSettings, target);
+
+    /// <summary>Whether anything at all drives a dynamic — what the checkbox reads.</summary>
+    public bool BrushDrives(BrushDynamic target) =>
+        PressureResponse.IsDriven(CurrentToolSettings, target);
+
+    /// <summary>
+    /// Store an artist-drawn curve for a dynamic, replacing whatever drove it.
+    /// </summary>
+    public void SetBrushCurve(BrushDynamic target, ResponseCurve curve)
+    {
+        SetBrush(s =>
+        {
+            s.Curves ??= [];
+            s.Curves[target] = curve.Clone();
+        }, nameof(BrushCurve));
+        NotifyBrushProperties();
+    }
+
+    /// <summary>
+    /// Turn a dynamic on or off. On means linear unless something already
+    /// drives it; off clears the curve and the gamma together, because leaving
+    /// one behind would make the checkbox lie about what the brush does.
+    /// </summary>
+    public void SetBrushDrives(BrushDynamic target, bool on)
+    {
+        if (on && BrushDrives(target)) return;
+
+        SetBrush(s =>
+        {
+            s.Curves?.Remove(target);
+            switch (target)
+            {
+                case BrushDynamic.Size: s.PressureSizeGamma = on ? 1 : 0; break;
+                case BrushDynamic.Flow: s.PressureFlowGamma = on ? 1 : 0; break;
+                case BrushDynamic.Hardness: s.PressureHardnessGamma = on ? 1 : 0; break;
+                default:
+                    if (on) (s.Curves ??= [])[target] = ResponseCurve.Linear();
+                    break;
+            }
+            if (s.Curves is { Count: 0 }) s.Curves = null;
+        }, nameof(BrushCurve));
+        NotifyBrushProperties();
+    }
+
+    /// <summary>Put a dynamic back to the plain <c>p^1</c> line.</summary>
+    public void ResetBrushCurve(BrushDynamic target)
+    {
+        SetBrushDrives(target, false);
+        SetBrushDrives(target, true);
+    }
+
+    /// <summary>How the brush's strokes land on the layer.</summary>
+    public LayerBlendMode BrushBlend
+    {
+        get => GetBrushValue(s => s.BlendOrNormal);
+        // Normal is stored as absent, so a document that never leaves the
+        // default never grows the key. See BrushSettings.Blend.
+        set => SetBrush(s => s.Blend = value == LayerBlendMode.Normal ? null : value);
+    }
+
+    // The brush picker offers the same list the layer docker does — see
+    // BlendModeChoices further down. One list, because a brush's Multiply and
+    // a layer's Multiply are the same operation and offering different sets
+    // would imply they were not.
+
+    // ---- brush tip -------------------------------------------------------------
+
+    /// <summary>The tip the current brush stamps, or null for a plain round dab.</summary>
+    public string? BrushTipId => GetBrushValue(s => s.TipId);
+
+    /// <summary>
+    /// Every tip that can be chosen right now: the project's, the artist's own,
+    /// and the eight built-ins.
+    /// </summary>
+    public IReadOnlyList<BrushTip> AvailableTips() => TipStore.Available(ProjectDocker.Project);
+
+    /// <summary>
+    /// Point the brush at a library tip, or at nothing for a round dab.
+    /// </summary>
+    /// <remarks>
+    /// The raster is copied into the document under the same id on the way
+    /// past. That is invariant 1 for tips: from here on the drawing renders
+    /// whether or not the library still has it, and deleting the library copy
+    /// cannot reach back and change a picture.
+    /// </remarks>
+    public void SetBrushTip(BrushTip? tip)
+    {
+        if (tip is not null)
+        {
+            var doc = SaveTargetTab?.Doc ?? Doc;
+            TipStore.AdoptInto(doc, tip);
+            BrushTipRegistry.Register(doc.BrushTips);
+        }
+
+        SetBrush(s => s.TipId = tip?.Id, nameof(BrushTipId));
+        NotifyBrushProperties();
+    }
+
     private static readonly string[] BrushPropertyNames =
     [
         nameof(BrushSize), nameof(BrushHardness), nameof(BrushOpacity), nameof(BrushFlow),
@@ -2037,6 +2158,7 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(BrushRotationJitter), nameof(BrushPressureEnabled),
         nameof(BrushPressureSizeGamma), nameof(BrushPressureFlowGamma), nameof(BrushPressureHardnessGamma),
         nameof(BrushPressureAffectsSize), nameof(BrushPressureAffectsFlow), nameof(BrushPressureAffectsHardness),
+        nameof(BrushBlend),
         nameof(BrushCursorDiameter),
         nameof(BrushSizeJitter), nameof(BrushMinimumDiameter), nameof(BrushRoundness),
         nameof(BrushRoundnessJitter), nameof(BrushAngleFollowsDirection), nameof(BrushFlowJitter),

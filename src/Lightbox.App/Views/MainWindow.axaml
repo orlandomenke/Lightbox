@@ -7,6 +7,7 @@
         xmlns:controls="using:Lightbox.App.Controls"
         xmlns:docs="using:Lightbox.Core.Documents"
         xmlns:docking="using:Lightbox.App.Docking"
+        xmlns:views="using:Lightbox.App.Views"
         x:Class="Lightbox.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Lightbox"
@@ -608,6 +609,63 @@
                                        Increment="0.02" FormatString="0.00" Width="64" />
                         <Slider Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2" Margin="4,0" />
                       </DockPanel>
+
+                      <DockPanel ToolTip.Tip="How the finished stroke lands on the layer. Applied once, where the stroke meets the layer — so a Multiply brush does not go black where it crosses itself.">
+                        <TextBlock Text="Blend" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <ComboBox ItemsSource="{Binding BlendModeChoices}" SelectedItem="{Binding BrushBlend}"
+                                  HorizontalAlignment="Stretch" Margin="4,0,0,0" />
+                      </DockPanel>
+
+                      <!--
+                        The tip, as a picture. A dropdown of names is unusable
+                        for shapes: nobody knows what "Cut nib" looks like until
+                        they have seen it, and having seen it they recognise the
+                        thumbnail and never read the name again.
+                      -->
+                      <DockPanel Margin="0,4,0,0">
+                        <TextBlock Text="Tip" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <Button x:Name="TipPickerButton" HorizontalAlignment="Stretch" Margin="4,0,0,0"
+                                Padding="4" Click="OnTipPickerOpen"
+                                ToolTip.Tip="The shape each dab stamps. Painting with one copies it into the drawing.">
+                          <DockPanel>
+                            <Border DockPanel.Dock="Left" Width="26" Height="26" Background="#242424"
+                                    CornerRadius="3" Margin="0,0,8,0">
+                              <Image x:Name="TipPickerThumb" Stretch="Uniform" Margin="1" />
+                            </Border>
+                            <TextBlock x:Name="TipPickerName" Text="Round" VerticalAlignment="Center" FontSize="12" />
+                          </DockPanel>
+                          <Button.Flyout>
+                            <Flyout Placement="Bottom">
+                              <DockPanel Width="300" MaxHeight="420">
+                                <Button DockPanel.Dock="Bottom" Content="Brush tips…" Click="OnBrushTipsClicked"
+                                        HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                                        ToolTip.Tip="Make a tip, or bring one in from a scan" />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                  <ListBox x:Name="TipPickerList" Background="Transparent"
+                                           SelectionChanged="OnTipPicked">
+                                    <ListBox.ItemsPanel>
+                                      <ItemsPanelTemplate>
+                                        <!-- Two columns, so a tip is a picture rather than a row of text -->
+                                        <WrapPanel Orientation="Horizontal" ItemWidth="134" />
+                                      </ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                    <ListBox.ItemTemplate>
+                                      <DataTemplate x:DataType="views:TipChoice">
+                                        <StackPanel Margin="0,2" Spacing="2">
+                                          <Border Height="60" Background="#242424" CornerRadius="3">
+                                            <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="3" />
+                                          </Border>
+                                          <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                      </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                  </ListBox>
+                                </ScrollViewer>
+                              </DockPanel>
+                            </Flyout>
+                          </Button.Flyout>
+                        </Button>
+                      </DockPanel>
                     </StackPanel>
 
                     <StackPanel x:Name="BrushPageEffects" Spacing="6" IsVisible="False">
@@ -907,41 +965,21 @@
                                  FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
                       <CheckBox Content="Use pen pressure" IsChecked="{Binding BrushPressureEnabled}"
                                 ToolTip.Tip="Master switch for this brush — off ignores the tablet's pressure entirely" />
-                      <StackPanel Spacing="6" IsEnabled="{Binding BrushPressureEnabled}">
-                        <DockPanel>
-                          <CheckBox Content="Size" Width="110" FontSize="12"
-                                    IsChecked="{Binding BrushPressureAffectsSize}"
-                                    ToolTip.Tip="Pressure controls line thickness" />
-                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4"
-                                         Increment="0.1" FormatString="0.0" Width="64"
-                                         IsEnabled="{Binding BrushPressureAffectsSize}"
-                                         ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
-                          <Slider Value="{Binding BrushPressureSizeGamma}" Minimum="0" Maximum="4" Margin="4,0"
-                                  IsEnabled="{Binding BrushPressureAffectsSize}" />
-                        </DockPanel>
-                        <DockPanel>
-                          <CheckBox Content="Transparency" Width="110" FontSize="12"
-                                    IsChecked="{Binding BrushPressureAffectsFlow}"
-                                    ToolTip.Tip="Pressure controls paint amount (flow) — light pressure paints lighter" />
-                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4"
-                                         Increment="0.1" FormatString="0.0" Width="64"
-                                         IsEnabled="{Binding BrushPressureAffectsFlow}"
-                                         ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
-                          <Slider Value="{Binding BrushPressureFlowGamma}" Minimum="0" Maximum="4" Margin="4,0"
-                                  IsEnabled="{Binding BrushPressureAffectsFlow}" />
-                        </DockPanel>
-                        <DockPanel>
-                          <CheckBox Content="Hardness" Width="110" FontSize="12"
-                                    IsChecked="{Binding BrushPressureAffectsHardness}"
-                                    ToolTip.Tip="Light pressure gives a softer dab edge" />
-                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushPressureHardnessGamma}" Minimum="0" Maximum="4"
-                                         Increment="0.1" FormatString="0.0" Width="64"
-                                         IsEnabled="{Binding BrushPressureAffectsHardness}"
-                                         ToolTip.Tip="Response curve (1 = linear, higher = needs more pressure)" />
-                          <Slider Value="{Binding BrushPressureHardnessGamma}" Minimum="0" Maximum="4" Margin="4,0"
-                                  IsEnabled="{Binding BrushPressureAffectsHardness}" />
-                        </DockPanel>
-                      </StackPanel>
+                      <!--
+                        A curve per dynamic rather than an exponent. Deciding
+                        how a brush answers the pen is a shape judgement — where
+                        it should bite, where it level off — and one number
+                        cannot say most of what an artist means. It also cannot
+                        say anything that rises and then falls, which is what an
+                        ink brush that spreads and then floods actually does.
+
+                        Rows are built in code rather than repeated seven times
+                        here: they differ only by which dynamic they drive.
+                      -->
+                      <TextBlock Text="Drag a point to shape the response. Click for a new one, middle-click to remove."
+                                 FontSize="10" Opacity="0.6" TextWrapping="Wrap" />
+                      <StackPanel x:Name="PressureCurveRows" Spacing="10"
+                                  IsEnabled="{Binding BrushPressureEnabled}" />
                     </StackPanel>
 
                     <StackPanel x:Name="BrushPagePresets" Spacing="6" IsVisible="False">

@@ -331,6 +331,54 @@ caret, as before.
 
 **Shift + drag** on the canvas resizes the brush.
 
+#### Blend mode
+
+On the **General** page. It decides how the finished stroke lands on the layer
+— Multiply to shade, Screen to glow, and every other mode the layer docker
+offers, because they are the same operation.
+
+It is applied **once, where the stroke meets the layer**, not to each dab. So a
+Multiply brush that crosses itself does not go black at the crossing, which is
+almost never what you meant. The eraser ignores it: erasing takes paint away,
+and no blend mode does that.
+
+#### Choosing a tip
+
+Also on **General**, as a grid of thumbnails rather than a list of names —
+nobody knows what a "Cut nib" looks like until they have seen one. **Round** at
+the top is the brush's own dab and the default. **Brush tips…** at the bottom
+opens the workshop.
+
+Painting with a tip copies it into the drawing, so the file keeps rendering
+even if you later delete the tip from your library.
+
+### How the brush answers the pen
+
+The **Pen pressure** page gives each thing pressure can drive its own curve.
+Pressure runs left to right, the effect bottom to top, and the dashed diagonal
+is "straight through" so you can see what you have changed.
+
+- **Drag** a point to shape the response.
+- **Click** empty space for a new point.
+- **Middle-click** a point to remove it. The two ends stay — you can still drag
+  them up and down.
+- **Reset** puts it back to a straight line.
+
+Seven things can be driven: **size**, **transparency**, **hardness**,
+**scatter**, **roundness**, and for a smudge, **colour rate** and **smudge
+length**. Untick one and pressure stops touching it entirely.
+
+A curve does what no single number can. An exponent can only make the response
+gentler or fiercer; it can never rise and then fall, which is what an ink brush
+that spreads and then floods actually does. Draw that shape and you have it.
+
+A brush you made before curves existed opens showing the response it already
+had, not a straight line — so touching the page never quietly flattens a brush
+you had tuned.
+
+**Use pen pressure** at the top is the master switch. Off, the tablet is
+ignored entirely and every curve on the page with it.
+
 ### Physical media
 
 Watercolour, gouache, oil and ink are simulated, not imitated with a texture:

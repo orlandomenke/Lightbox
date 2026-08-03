@@ -173,6 +173,15 @@ public partial class MainWindow : Window
                 SyncCanvasToolMode();
                 RefreshGuideGrab();
             }
+            // The brush and the eraser keep separate settings, and a preset
+            // replaces the lot — so the tip button has to follow the switch or
+            // it shows the shape of a brush that is no longer selected.
+            if (args.PropertyName is nameof(MainViewModel.BrushTipId)
+                or nameof(MainViewModel.ActiveTool)
+                or nameof(MainViewModel.BrushSize))
+            {
+                RefreshTipButton();
+            }
         };
         _vm.Workspace.Changed += ApplyDockLayout;
         InitialisePanels();
@@ -1521,6 +1530,141 @@ public partial class MainWindow : Window
         BrushPageMedium.IsVisible = index == 2;
         BrushPagePressure.IsVisible = index == 3;
         BrushPagePresets.IsVisible = index == 4;
+
+        if (index == 0) RefreshTipButton();
+        if (index == 3) BuildPressureCurves();
+    }
+
+    // ---- pressure curves --------------------------------------------------------
+
+    /// <summary>
+    /// What each curve drives, and what to call it. Data rather than seven
+    /// blocks of near-identical XAML, so adding a dynamic is a row here.
+    /// </summary>
+    private static readonly (BrushDynamic Target, string Label, string Tip, bool SmudgeOnly)[] PressureRows =
+    [
+        (BrushDynamic.Size, "Size", "Line thickness", false),
+        (BrushDynamic.Flow, "Transparency", "Paint amount per dab — light pressure paints lighter", false),
+        (BrushDynamic.Hardness, "Hardness", "Light pressure gives a softer dab edge", false),
+        (BrushDynamic.Scatter, "Scatter", "How far dabs are thrown off the path", false),
+        (BrushDynamic.Roundness, "Roundness", "Press harder and a flat dab spreads toward circular", false),
+        (BrushDynamic.ColorRate, "Colour rate", "How much of the brush's own colour a smudge adds", true),
+        (BrushDynamic.SmudgeLength, "Smudge length", "How far a smudge drags what it picked up", true),
+    ];
+
+    private bool _buildingCurves;
+
+    /// <summary>
+    /// Build the pressure page's rows. Rebuilt when the page is shown rather
+    /// than bound, because a curve is edited by dragging rather than by typing
+    /// and there is nothing for a two-way binding to carry.
+    /// </summary>
+    private void BuildPressureCurves()
+    {
+        if (PressureCurveRows is null) return;
+
+        _buildingCurves = true;
+        PressureCurveRows.Children.Clear();
+
+        foreach (var (target, label, tip, smudgeOnly) in PressureRows)
+        {
+            if (smudgeOnly && !_vm.IsSmudgeBrush) continue;
+
+            var driven = _vm.BrushDrives(target);
+
+            var editor = new CurveEditor
+            {
+                Curve = _vm.BrushCurve(target),
+                IsActive = driven,
+                Width = 128,
+                Height = 84,
+            };
+            editor.CurveChanged += curve =>
+            {
+                if (_buildingCurves) return;
+                _vm.SetBrushCurve(target, curve);
+            };
+
+            var check = new CheckBox { Content = label, FontSize = 12, IsChecked = driven };
+            check.IsCheckedChanged += (_, _) =>
+            {
+                if (_buildingCurves) return;
+                _vm.SetBrushDrives(target, check.IsChecked == true);
+                BuildPressureCurves();
+            };
+
+            var reset = new Button
+            {
+                Content = "Reset",
+                FontSize = 11,
+                IsEnabled = driven,
+                [ToolTip.TipProperty] = "Back to a straight line",
+            };
+            reset.Click += (_, _) =>
+            {
+                _vm.ResetBrushCurve(target);
+                BuildPressureCurves();
+            };
+
+            var side = new StackPanel { Spacing = 4, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+            side.Children.Add(check);
+            side.Children.Add(new TextBlock
+            {
+                Text = tip, FontSize = 10, Opacity = 0.6, TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            });
+            side.Children.Add(reset);
+
+            var row = new DockPanel { [ToolTip.TipProperty] = tip };
+            DockPanel.SetDock(editor, Dock.Right);
+            row.Children.Add(editor);
+            row.Children.Add(side);
+            PressureCurveRows.Children.Add(row);
+        }
+
+        _buildingCurves = false;
+    }
+
+    // ---- the tip picker ---------------------------------------------------------
+
+    /// <summary>Fill the flyout the moment before it opens, so it is never stale.</summary>
+    private void OnTipPickerOpen(object? sender, RoutedEventArgs e)
+    {
+        if (TipPickerList is null) return;
+
+        var choices = new List<TipChoice> { TipChoice.Round() };
+        choices.AddRange(_vm.AvailableTips().Select(TipChoice.For));
+
+        _pickingTip = true;
+        TipPickerList.ItemsSource = choices;
+        TipPickerList.SelectedItem = choices.FirstOrDefault(c => c.Tip?.Id == _vm.BrushTipId) ?? choices[0];
+        _pickingTip = false;
+    }
+
+    private bool _pickingTip;
+
+    private void OnTipPicked(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_pickingTip || TipPickerList?.SelectedItem is not TipChoice choice) return;
+        _vm.SetBrushTip(choice.Tip);
+        RefreshTipButton();
+        if (TipPickerButton?.Flyout is { } flyout) flyout.Hide();
+    }
+
+    /// <summary>The button shows the tip itself, because that is what it is for.</summary>
+    private void RefreshTipButton()
+    {
+        if (TipPickerName is null) return;
+
+        var chosen = _vm.BrushTipId is { } id
+            ? _vm.AvailableTips().FirstOrDefault(t => t.Id == id)
+            : null;
+
+        // Named but missing: the tip travelled into the drawing and then left
+        // the library. The mark still renders — the raster is in the document —
+        // so say so rather than showing "Round", which would be a lie about
+        // what the brush is doing.
+        TipPickerName.Text = chosen?.Name ?? (_vm.BrushTipId is null ? "Round" : "Custom");
+        TipPickerThumb.Source = chosen is null ? null : TipChoice.For(chosen).Thumbnail;
     }
 
     // ---- drag a symbol onto the canvas to place it -----------------------------
