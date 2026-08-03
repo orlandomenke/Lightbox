@@ -24,3 +24,9 @@ obj/
 # machine's timings and would be a merge conflict every time somebody ran them.
 .claude/quality/PERFORMANCE.md
 .claude/quality/PERFORMANCE.json
+
+# Bytecode for the scripts/ tooling. Regenerated on every codemap, bugs or
+# roadmap run, so tracking it means a dirty tree after any command that reads
+# the repo.
+__pycache__/
+*.pyc
