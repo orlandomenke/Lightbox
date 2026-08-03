@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1567 tests, derived from the suite itself. Each line is a
+1586 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -209,6 +209,19 @@ regression even when every test still compiles.
 - AUser Preset Reusing ABuilt In Id Replaces It In Place — `:314`
 - AShadow Keeps The Originals Position Rather Than Going To The End — `:326`
 - Ordinary User Presets Come After The Shipped Ones — `:337`
+
+## BrushStabilisationTests
+`tests/Lightbox.App.Tests/BrushStabilisationTests.cs`
+
+- ABrush Follows The Application Until It Is Told Not To — `:20`
+- Ticking Per Brush Changes Nothing About How It Draws — `:30`
+- Two Brushes Can Steady The Hand Differently — `:46`
+- Unticking Hands The Sliders Back And Drops The Brushes Copy — `:68`
+- Editing ABrushes Own Does Not Move The Applications Default — `:85`
+- APreset Carries Its Own Stabilisation — `:98`
+- APresets Stabilisation Survives ARestart — `:120`
+- Changing Stabilisation Counts As Modifying The Brush — `:136`
+- ABrush That Follows The Application Writes No Stabilisation Key — `:149`
 
 ## BrushPresetTests
 `tests/Lightbox.App.Tests/BrushToolTests.cs`
@@ -2058,6 +2071,20 @@ regression even when every test still compiles.
 - Paint With No Body Renders Exactly As It Always Did — `:130`
 - Relief Is As Repeatable As Everything Else — `:147`
 - Shading Paints No Extra Coverage — `:160`
+
+## ImportedTextureTests
+`tests/Lightbox.Raster.Tests/ImportedTextureTests.cs`
+
+- An Imported Paper Bites Into The Stroke — `:67`
+- Depth Zero Leaves The Stroke Exactly As It Was — `:81`
+- An Imported Paper Wins Over The Built In Surfaces — `:97`
+- The Paper Is Anchored To The Document Rather Than To The Stroke — `:121`
+- The Same Paper Paints The Same Mark Every Time — `:177`
+- ATexture That Is Not Registered Is Ignored Rather Than Fatal — `:193`
+- AHuge Scan Is Reduced Rather Than Held Whole — `:208`
+- ASmall Texture Is Left At Its Own Size — `:223`
+- Height Comes From Luminance Not From One Channel — `:234`
+- ANegative Document Coordinate Tiles Rather Than Throwing — `:250`
 
 ## LivePaletteTests
 `tests/Lightbox.Raster.Tests/LivePaletteTests.cs`

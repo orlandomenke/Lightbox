@@ -1475,7 +1475,10 @@ public partial class MainWindow : Window
     private void OnBrushPresetPicked(object? sender, SelectionChangedEventArgs e)
     {
         if (_pickingBrush || BrushPresetList?.SelectedItem is not BrushPreset preset) return;
-        _vm.SelectedBrushPreset = preset;
+        // ApplyPreset rather than the property, so picking the brush you are
+        // already on puts it back — which is the obvious way to undo a nudge
+        // once there is a dot telling you the brush has been nudged.
+        _vm.ApplyPreset(preset);
         RefreshBrushPickerButton();
         RefreshPresetPage();
         if (BrushPickerButton?.Flyout is { } flyout) flyout.Hide();
@@ -1485,6 +1488,44 @@ public partial class MainWindow : Window
     {
         if (BrushPickerName is null) return;
         BrushPickerName.Text = _vm.SelectedBrushPreset?.Name ?? "Brush";
+    }
+
+    private async void OnImportTextureClicked(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Paper texture",
+            AllowMultiple = false,
+            FileTypeFilter = [FilePickerFileTypes.ImageAll],
+        });
+
+        if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path) return;
+        if (SkiaSharp.SKBitmap.Decode(path) is not { } bitmap) return;
+
+        using (bitmap)
+        {
+            _vm.ImportBrushTexture(Lightbox.Raster.PngCodec.Encode(bitmap));
+        }
+        _vm.AiStatus = $"Painting on “{Path.GetFileName(path)}”.";
+        RefreshTextureNote(Path.GetFileName(path));
+    }
+
+    private void OnClearTextureClicked(object? sender, RoutedEventArgs e)
+    {
+        _vm.ClearBrushTexture();
+        RefreshTextureNote(null);
+    }
+
+    /// <summary>
+    /// Names the file the paper came from. The document keeps the pixels, so
+    /// this is the artist's memory rather than a reference — the same job
+    /// <c>BrushTip.Source</c> does.
+    /// </summary>
+    private void RefreshTextureNote(string? name)
+    {
+        if (TextureSourceNote is null) return;
+        TextureSourceNote.IsVisible = name is not null;
+        TextureSourceNote.Text = name is null ? "" : $"Paper: {name}";
     }
 
     private async void OnImportBrushesClicked(object? sender, RoutedEventArgs e)

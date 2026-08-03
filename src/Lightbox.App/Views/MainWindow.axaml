@@ -482,6 +482,17 @@
                            FormatString="0" Classes="value" VerticalAlignment="Center"
                            IsVisible="{Binding IsPulledStringSmoothing}"
                            ToolTip.Tip="String length in pixels — the brush trails the cursor by this much" />
+            <!--
+              Which settings the controls beside this are pointed at. Ticking it
+              copies whatever is in effect, so it never changes how the brush
+              draws — only what the sliders now belong to. An inking brush wants
+              heavy lazy-mouse and a pencil wants none, and that is the whole
+              reason stabilisation is worth setting at all.
+            -->
+            <CheckBox Content="Per brush" VerticalAlignment="Center" FontSize="11"
+                      MinHeight="0" Height="22" Padding="4,0,0,0"
+                      IsChecked="{Binding BrushHasOwnStabilisation}"
+                      ToolTip.Tip="On, this brush carries its own stabilisation and keeps it in its preset. Off, it follows the application-wide setting." />
           </StackPanel>
         </StackPanel>
 
@@ -802,8 +813,24 @@
                       <DockPanel ToolTip.Tip="Paper surface multiplied into the stroke. Anchored to the document, so the grain stays put as you paint over it.">
                         <TextBlock Text="Surface" Width="100" VerticalAlignment="Center" FontSize="12" />
                         <ComboBox ItemsSource="{Binding TextureSurfaceChoices}" SelectedItem="{Binding BrushTextureSurface}"
-                                  HorizontalAlignment="Stretch" />
+                                  HorizontalAlignment="Stretch" IsEnabled="{Binding !HasImportedTexture}" />
                       </DockPanel>
+                      <!--
+                        An imported paper wins over the built-in surfaces, so
+                        the dropdown above goes quiet rather than pretending to
+                        still be in charge. The image goes into the document,
+                        not a path on disk — a file pointing at somebody's
+                        scans folder paints differently on the next machine.
+                      -->
+                      <DockPanel ToolTip.Tip="Use a scan or photograph of real paper. It goes into the drawing, so the file still paints the right grain anywhere.">
+                        <Button DockPanel.Dock="Right" x:Name="ClearTextureButton" Content="✕"
+                                Click="OnClearTextureClicked" Margin="6,0,0,0"
+                                ToolTip.Tip="Back to the built-in surfaces" />
+                        <Button Content="Paper image…" Click="OnImportTextureClicked"
+                                HorizontalAlignment="Stretch" />
+                      </DockPanel>
+                      <TextBlock x:Name="TextureSourceNote" FontSize="10" Opacity="0.6"
+                                 IsVisible="False" TextWrapping="Wrap" />
                         <DockPanel>
                           <TextBlock Text="Grain size" Width="100" VerticalAlignment="Center" FontSize="12" />
                           <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128"
@@ -1128,6 +1155,17 @@
                            FormatString="0" Classes="value" VerticalAlignment="Center"
                            IsVisible="{Binding IsPulledStringSmoothing}"
                            ToolTip.Tip="String length in pixels — the brush trails the cursor by this much" />
+            <!--
+              Which settings the controls beside this are pointed at. Ticking it
+              copies whatever is in effect, so it never changes how the brush
+              draws — only what the sliders now belong to. An inking brush wants
+              heavy lazy-mouse and a pencil wants none, and that is the whole
+              reason stabilisation is worth setting at all.
+            -->
+            <CheckBox Content="Per brush" VerticalAlignment="Center" FontSize="11"
+                      MinHeight="0" Height="22" Padding="4,0,0,0"
+                      IsChecked="{Binding BrushHasOwnStabilisation}"
+                      ToolTip.Tip="On, this brush carries its own stabilisation and keeps it in its preset. Off, it follows the application-wide setting." />
           </StackPanel>
         </StackPanel>
 

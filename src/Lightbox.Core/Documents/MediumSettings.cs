@@ -188,4 +188,35 @@ public sealed class MediumSettings
         PressureMix = PressureMix,
         Rewetting = Rewetting,
     };
+
+    /// <summary>
+    /// Is this the medium block a brush that has never asked for one carries?
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Used to keep it out of the file. Twenty-one keys on every stroke of
+    /// every document is what "the simulation is optional" looked like on disk
+    /// before this: behaviourally absent, and a third of the brush record.
+    /// </para>
+    /// <para>
+    /// The comparison serializes rather than listing the fields, for the same
+    /// reason <c>BrushComparison</c> does — a hand-written check over twenty-one
+    /// properties is a list somebody forgets to extend, and forgetting here
+    /// means silently dropping a setting an artist dialled in.
+    /// </para>
+    /// </remarks>
+    public bool IsUntouched() => Canonical.Of(this) == Canonical.Default;
+
+    private static class Canonical
+    {
+        private static readonly System.Text.Json.JsonSerializerOptions Options = new()
+        {
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+        };
+
+        internal static readonly string Default = Of(new MediumSettings());
+
+        internal static string Of(MediumSettings settings) =>
+            System.Text.Json.JsonSerializer.Serialize(settings, Options);
+    }
 }

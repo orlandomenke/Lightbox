@@ -365,6 +365,18 @@ caret, as before.
 
 **Shift + drag** on the canvas resizes the brush.
 
+#### Stabiliser
+
+The **Per brush** box beside the stabiliser decides what those controls belong
+to. Off, they set one value for the whole application — how it has always
+worked. On, this brush keeps its own and takes it along in its preset.
+
+That is what the setting is actually for: an inking brush wants heavy
+lazy-mouse so a long confident line comes out clean, and a pencil wants none,
+because the shake *is* the texture and smoothing it makes roughs look dead.
+Ticking the box copies whatever is already in effect, so it never changes how
+the brush draws — only what the controls are pointed at.
+
 #### Blend mode
 
 On the **General** page. It decides how the finished stroke lands on the layer
@@ -385,6 +397,24 @@ opens the workshop.
 
 Painting with a tip copies it into the drawing, so the file keeps rendering
 even if you later delete the tip from your library.
+
+#### Paper texture
+
+On the **Effects** page. Pick one of the built-in surfaces, or **Paper image…**
+to use a scan or photograph of the real thing — an imported paper takes over
+and the surface list goes quiet.
+
+Two things worth knowing:
+
+- **The image goes into the drawing, not a path on disk.** A file pointing at
+  your scans folder would paint differently on somebody else's machine.
+- **The grain is anchored to the canvas, not to the stroke.** Two marks
+  crossing the same patch sit on the same tooth, which is what makes it read as
+  paper rather than as an effect applied per stroke.
+
+**Grain size** is how many document pixels one bit of the paper covers, and
+**Depth** is how hard it bites. Depth starts at zero, so importing a paper
+opens it for you — a texture you cannot see looks like a broken import.
 
 ### How the brush answers the pen
 

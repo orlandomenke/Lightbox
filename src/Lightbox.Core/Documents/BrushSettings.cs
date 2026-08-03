@@ -207,6 +207,24 @@ public sealed class BrushSettings
     /// <summary>Paper surface multiplied into the dab; null keeps the flat granulation.</summary>
     public PaperKind? TextureSurface { get; set; }
 
+    /// <summary>
+    /// Key into <see cref="Doc.Textures"/> for an imported paper, or null for
+    /// one of the built-in surfaces.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Wins over <see cref="TextureSurface"/> when both are set, because the
+    /// artist went and found an image and that is the more specific answer.
+    /// </para>
+    /// <para>
+    /// An id into the document rather than a path, the same as a brush tip: a
+    /// file that referenced a texture on somebody's disk would render
+    /// differently on the next machine, which is invariant 1 with the failure
+    /// moved somewhere it is hard to notice.
+    /// </para>
+    /// </remarks>
+    public string? TextureId { get; set; }
+
     /// <summary>Grain size in document pixels for <see cref="TextureSurface"/>.</summary>
     public double TextureScale { get; set; } = 12;
 
@@ -293,14 +311,65 @@ public sealed class BrushSettings
     public LayerBlendMode? Blend { get; set; }
 
     /// <summary>The blend mode to actually composite with. Null reads as Normal.</summary>
+    /// <remarks>
+    /// <b>Ignored by the serializer, and it has to be.</b> A public getter is a
+    /// property as far as System.Text.Json is concerned, so without this every
+    /// stroke wrote <c>"blendOrNormal": "normal"</c> — reintroducing, under a
+    /// second name, exactly the per-stroke key that making <see cref="Blend"/>
+    /// nullable existed to remove. Any convenience accessor added beside a
+    /// nullable field needs the same attribute.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
     public LayerBlendMode BlendOrNormal => Blend ?? LayerBlendMode.Normal;
+
+    /// <summary>
+    /// This brush's own hand-steadying, or null to follow the application's.
+    /// </summary>
+    /// <remarks>
+    /// Null is the ordinary state and means today's behaviour exactly: one
+    /// setting for the whole app. A brush that says otherwise overrides it, so
+    /// an inking brush can carry heavy lazy-mouse and a pencil none — which is
+    /// most of what stabilisation is for and what a single global cannot say.
+    /// </remarks>
+    public BrushStabilisation? Stabilisation { get; set; }
 
     /// <summary>
     /// Physical medium to simulate after the dabs are laid down. Defaults to
     /// <see cref="MediumKind.None"/>, so a brush that never sets it renders
     /// exactly as it did before media existed.
     /// </summary>
+    /// <remarks>
+    /// Never null, so the sixty-odd places that read <c>brush.Medium.Something</c>
+    /// need no guard. What it is <em>not</em> is always written — see
+    /// <see cref="MediumOnDisk"/>.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
     public MediumSettings Medium { get; set; } = new();
+
+    /// <summary>
+    /// The medium as it is stored: the block itself, or nothing when the brush
+    /// never asked for one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A shadow property rather than making <see cref="Medium"/> nullable,
+    /// which would be the tidier model and would also put a <c>?.</c> or a
+    /// <c>?? new()</c> at sixty-seven call sites for a distinction none of them
+    /// care about. The engine wants a medium that is always there; the file
+    /// wants one that is absent unless used. This is the seam between those.
+    /// </para>
+    /// <para>
+    /// Twenty-one keys per stroke is what the alternative costs, on every mark
+    /// of every drawing, for a simulation nobody switched on — and "optional
+    /// means absent, not disabled" is the rule the camera set.
+    /// </para>
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonPropertyName("medium")]
+    public MediumSettings? MediumOnDisk
+    {
+        get => Medium.IsUntouched() ? null : Medium;
+        set => Medium = value ?? new MediumSettings();
+    }
 
     public BrushSettings Clone() => new()
     {
@@ -329,6 +398,7 @@ public sealed class BrushSettings
         AngleFollowsDirection = AngleFollowsDirection,
         FlowJitter = FlowJitter,
         TextureSurface = TextureSurface,
+        TextureId = TextureId,
         TextureScale = TextureScale,
         TextureDepth = TextureDepth,
         SecondaryColor = SecondaryColor,
@@ -345,6 +415,7 @@ public sealed class BrushSettings
         // invariant 4 with an extra step.
         Curves = Curves?.ToDictionary(e => e.Key, e => e.Value.Clone()),
         Blend = Blend,
+        Stabilisation = Stabilisation?.Clone(),
         Medium = Medium.Clone(),
     };
 }

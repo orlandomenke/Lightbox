@@ -210,6 +210,26 @@ The general form is the lesson `docs/DESIGN-performance.md` records for
 measurement: **the number was real and the attribution was not.** Ask *what
 else is in this measurement* before *what is wrong with the code*.
 
+### "Optional" has two halves, and the second one is easy to miss
+
+A setting is optional when it is **absent unless used** — not merely inert at
+its default. Two ways that goes wrong, both found by dumping the JSON for a
+document with one default stroke rather than by reading the model:
+
+- **A non-nullable block serializes even when it is untouched.** The medium was
+  behaviourally absent and written anyway: twenty-one keys on every stroke of
+  every document, a third of the brush record, for a pass nobody switched on.
+  A block whose default is "off" wants to be nullable, or to have a shadow
+  property that returns null when it is untouched.
+- **A convenience getter beside a nullable field is a property.**
+  `BlendOrNormal => Blend ?? Normal` had a public getter, so every stroke wrote
+  `"blendOrNormal": "normal"` — reintroducing under a second name the exact key
+  that making `Blend` nullable existed to remove. These need `[JsonIgnore]`.
+
+So: after adding a setting, **serialize a document that does not use it and
+look**. `Assert.DoesNotContain("\"yourKey\"", json)` is the cheap version and
+belongs in the same commit.
+
 ### Verifying UI behaviour
 
 Prefer a headless pixel test over a screenshot: tests in

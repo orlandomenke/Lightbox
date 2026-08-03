@@ -22,6 +22,18 @@ public sealed class Doc
     public Dictionary<string, string> BrushTips { get; set; } = [];
 
     /// <summary>
+    /// Imported paper textures (id → PNG, base64), referenced by
+    /// <see cref="BrushSettings.TextureId"/>.
+    /// </summary>
+    /// <remarks>
+    /// Null until a texture is imported, and absent from the file until then —
+    /// unlike <see cref="BrushTips"/>, which predates the rule and writes an
+    /// empty object. Same reasoning as tips otherwise: the pixels travel with
+    /// the document so it renders with nothing else installed.
+    /// </remarks>
+    public Dictionary<string, string>? Textures { get; set; }
+
+    /// <summary>
     /// Selections that strokes were painted under (id → region). Referenced by
     /// <see cref="Stroke.ClipId"/> so clipped strokes re-render identically
     /// from the document alone.

@@ -3,27 +3,6 @@ using Lightbox.Core.Geometry;
 
 namespace Lightbox.App.Services;
 
-/// <summary>The stabilizer algorithms (raster input smoothing).</summary>
-public enum SmoothingMode
-{
-    Off,
-
-    /// <summary>Neighbor averaging of the finished stroke — the classic light touch-up.</summary>
-    Laplacian,
-
-    /// <summary>Centered moving average over a window — steady, rounds corners.</summary>
-    MovingAverage,
-
-    /// <summary>Exponential moving average, applied live — smooth with minimal lag.</summary>
-    Ema,
-
-    /// <summary>Lazy mouse: the brush trails the cursor on a string of fixed length.</summary>
-    PulledString,
-
-    /// <summary>Savitzky–Golay: polynomial fit that smooths without flattening peaks.</summary>
-    SavitzkyGolay,
-}
-
 /// <summary>
 /// Input smoothing for hand-drawn strokes. Live modes (EMA, pulled string)
 /// filter positions as they stream in — what's recorded is the smoothed
@@ -33,16 +12,39 @@ public enum SmoothingMode
 /// </summary>
 public sealed class StrokeStabilizer
 {
-    public SmoothingMode Mode { get; set; } = SmoothingMode.Laplacian;
+    /// <summary>
+    /// The settings this filter is running with. Replaced at the start of every
+    /// stroke from whichever brush is in hand, so a brush that carries its own
+    /// stabilisation gets it without anything else having to know.
+    /// </summary>
+    public BrushStabilisation Settings { get; set; } = new();
+
+    public SmoothingMode Mode
+    {
+        get => Settings.Mode;
+        set => Settings.Mode = value;
+    }
 
     /// <summary>Window size for moving average / Savitzky–Golay (odd, 3–25).</summary>
-    public int Window { get; set; } = 7;
+    public int Window
+    {
+        get => Settings.Window;
+        set => Settings.Window = value;
+    }
 
     /// <summary>EMA smoothing strength 0–0.95 (higher = smoother, laggier).</summary>
-    public double Strength { get; set; } = 0.5;
+    public double Strength
+    {
+        get => Settings.Strength;
+        set => Settings.Strength = value;
+    }
 
     /// <summary>Pulled-string radius in document pixels.</summary>
-    public double LazyRadius { get; set; } = 24;
+    public double LazyRadius
+    {
+        get => Settings.LazyRadius;
+        set => Settings.LazyRadius = value;
+    }
 
     private double _x;
     private double _y;

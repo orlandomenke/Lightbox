@@ -1363,6 +1363,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void RegisterResources()
     {
+        // Imported textures come in with everything else the document carries,
+        // so a file opened on a machine that has never seen one still paints
+        // the paper it was drawn on.
+        if (Doc.Textures is { Count: > 0 } textures) TextureRegistry.Register(textures);
+
         var palettes = Doc.Palettes.AsEnumerable();
         var gradients = new Dictionary<string, Gradient>(Doc.Gradients);
         if (ProjectDocker.Project is { } project)
@@ -1510,6 +1515,26 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private BrushPreset? _selectedBrushPreset;
+
+    /// <summary>
+    /// Put a preset on, whether or not it is already the one selected.
+    /// </summary>
+    /// <remarks>
+    /// Assigning <see cref="SelectedBrushPreset"/> the value it already holds
+    /// raises nothing, so picking the brush you are already on used to do
+    /// nothing — and after the modified indicator existed, that became the
+    /// obvious gesture for "give me this brush back". This is the path the
+    /// picker uses.
+    /// </remarks>
+    public void ApplyPreset(BrushPreset preset)
+    {
+        if (SelectedBrushPreset?.Id == preset.Id)
+        {
+            OnSelectedBrushPresetChanged(preset);
+            return;
+        }
+        SelectedBrushPreset = preset;
+    }
 
     partial void OnSelectedBrushPresetChanged(BrushPreset? value)
     {
@@ -2122,6 +2147,52 @@ public sealed partial class MainViewModel : ObservableObject
     // a layer's Multiply are the same operation and offering different sets
     // would imply they were not.
 
+    // ---- imported paper texture --------------------------------------------------
+
+    /// <summary>The imported texture this brush bites into, or null for a built-in paper.</summary>
+    public string? BrushTextureId => GetBrushValue(s => s.TextureId);
+
+    /// <summary>True when an imported paper is in charge, so the surface list can stand down.</summary>
+    public bool HasImportedTexture => BrushTextureId is not null;
+
+    /// <summary>
+    /// Take an image into the document as a paper texture and point the brush
+    /// at it.
+    /// </summary>
+    /// <remarks>
+    /// Stored in the document rather than referenced on disk, the same as a
+    /// brush tip: a file pointing at somebody's scans folder renders
+    /// differently on the next machine, which is invariant 1 broken somewhere
+    /// nobody looks. Returns the id so a caller can name it back.
+    /// </remarks>
+    public string ImportBrushTexture(string png)
+    {
+        var doc = SaveTargetTab?.Doc ?? Doc;
+        var id = Ids.NewId("tex");
+        (doc.Textures ??= [])[id] = png;
+        TextureRegistry.Register(doc.Textures);
+        MarkDocumentEdited();
+
+        SetBrush(s =>
+        {
+            s.TextureId = id;
+            // A texture nobody can see is a texture that looks broken. The
+            // depth slider starts at zero, so importing one has to open it.
+            if (s.TextureDepth <= 0) s.TextureDepth = 0.5;
+        }, nameof(BrushTextureId));
+        NotifyBrushProperties();
+        return id;
+    }
+
+    /// <summary>Go back to the built-in papers.</summary>
+    public void ClearBrushTexture()
+    {
+        // The document keeps the pixels: strokes already painted with it still
+        // reference the id, the same rule the tip picker follows.
+        SetBrush(s => s.TextureId = null, nameof(BrushTextureId));
+        NotifyBrushProperties();
+    }
+
     // ---- brush tip -------------------------------------------------------------
 
     /// <summary>The tip the current brush stamps, or null for a plain round dab.</summary>
@@ -2162,7 +2233,7 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(BrushRotationJitter), nameof(BrushPressureEnabled),
         nameof(BrushPressureSizeGamma), nameof(BrushPressureFlowGamma), nameof(BrushPressureHardnessGamma),
         nameof(BrushPressureAffectsSize), nameof(BrushPressureAffectsFlow), nameof(BrushPressureAffectsHardness),
-        nameof(BrushBlend),
+        nameof(BrushBlend), nameof(BrushTextureId), nameof(HasImportedTexture),
         nameof(BrushCursorDiameter),
         nameof(BrushSizeJitter), nameof(BrushMinimumDiameter), nameof(BrushRoundness),
         nameof(BrushRoundnessJitter), nameof(BrushAngleFollowsDirection), nameof(BrushFlowJitter),
@@ -2187,6 +2258,9 @@ public sealed partial class MainViewModel : ObservableObject
     {
         foreach (var name in BrushPropertyNames) OnPropertyChanged(name);
         NotifyPresetProperties();
+        // Switching brush or preset can change which stabilisation is in
+        // effect, and the sliders show whichever it is.
+        NotifySmoothingProperties();
     }
 
     /// <summary>Save the working brush as a reusable preset.</summary>
@@ -2500,10 +2574,10 @@ public sealed partial class MainViewModel : ObservableObject
             LastBrushPresetId = SelectedBrushPreset?.Id,
             LastBrush = _brushWork.Clone(),
             LastEraser = _eraserWork.Clone(),
-            SmoothingMode = _stabilizer.Mode.ToString(),
-            SmoothingWindow = _stabilizer.Window,
-            SmoothingStrength = _stabilizer.Strength,
-            LazyRadius = _stabilizer.LazyRadius,
+            SmoothingMode = _appStabilisation.Mode.ToString(),
+            SmoothingWindow = _appStabilisation.Window,
+            SmoothingStrength = _appStabilisation.Strength,
+            LazyRadius = _appStabilisation.LazyRadius,
         }, BrushStorePath);
     }
 
@@ -2523,10 +2597,10 @@ public sealed partial class MainViewModel : ObservableObject
         if (state.LastBrush is not null) _brushWork = state.LastBrush.Clone();
         else _brushWork = new BrushSettings { Size = 6, Hardness = 0.8 };
         if (state.LastEraser is not null) _eraserWork = state.LastEraser.Clone();
-        if (Enum.TryParse<SmoothingMode>(state.SmoothingMode, out var mode)) _stabilizer.Mode = mode;
-        if (state.SmoothingWindow is { } window) _stabilizer.Window = Math.Clamp(window | 1, 3, 25);
-        if (state.SmoothingStrength is { } strength) _stabilizer.Strength = Math.Clamp(strength, 0, 0.95);
-        if (state.LazyRadius is { } radius) _stabilizer.LazyRadius = Math.Clamp(radius, 4, 200);
+        if (Enum.TryParse<SmoothingMode>(state.SmoothingMode, out var mode)) _appStabilisation.Mode = mode;
+        if (state.SmoothingWindow is { } window) _appStabilisation.Window = Math.Clamp(window | 1, 3, 25);
+        if (state.SmoothingStrength is { } strength) _appStabilisation.Strength = Math.Clamp(strength, 0, 0.95);
+        if (state.LazyRadius is { } radius) _appStabilisation.LazyRadius = Math.Clamp(radius, 4, 200);
         // Restore the selection WITHOUT re-applying the preset (the working
         // settings above already carry the user's last tweaks on top of it).
         _applyingPreset = true;
@@ -3488,15 +3562,64 @@ public sealed partial class MainViewModel : ObservableObject
 
     private readonly StrokeStabilizer _stabilizer = new();
 
+    /// <summary>
+    /// The stabilisation a brush that carries none falls back to. Persisted
+    /// with the rest of the brush state, which is where it already lived.
+    /// </summary>
+    private readonly BrushStabilisation _appStabilisation = new();
+
     public IReadOnlyList<SmoothingMode> SmoothingChoices { get; } = Enum.GetValues<SmoothingMode>();
+
+    /// <summary>
+    /// The settings the stabilizer should run with for the brush in hand.
+    /// </summary>
+    private BrushStabilisation EffectiveStabilisation =>
+        CurrentToolSettings.Stabilisation ?? _appStabilisation;
+
+    /// <summary>
+    /// Does this brush steady the hand its own way, or follow the application?
+    /// </summary>
+    /// <remarks>
+    /// Turning it on copies whatever is currently in effect, so ticking the box
+    /// never changes how the brush draws — it only changes what the sliders are
+    /// now editing. Turning it off drops the brush's copy and hands the sliders
+    /// back to the application's, which is the way back to absent.
+    /// </remarks>
+    public bool BrushHasOwnStabilisation
+    {
+        get => CurrentToolSettings.Stabilisation is not null;
+        set
+        {
+            if (value == BrushHasOwnStabilisation) return;
+            CurrentToolSettings.Stabilisation = value ? EffectiveStabilisation.Clone() : null;
+            OnPropertyChanged();
+            NotifySmoothingProperties();
+            NotifyPresetProperties();
+            PersistBrushState();
+        }
+    }
+
+    private void NotifySmoothingProperties()
+    {
+        OnPropertyChanged(nameof(SmoothingMode));
+        OnPropertyChanged(nameof(SmoothingWindow));
+        OnPropertyChanged(nameof(SmoothingStrength));
+        OnPropertyChanged(nameof(LazyRadius));
+        OnPropertyChanged(nameof(LazyRadiusForCursor));
+        OnPropertyChanged(nameof(BrushHasOwnStabilisation));
+    }
+
+    // Each of these edits whichever settings are in effect — the brush's own
+    // when it has them, the application's otherwise. One set of controls, and
+    // the checkbox beside them says which they are pointed at.
 
     public SmoothingMode SmoothingMode
     {
-        get => _stabilizer.Mode;
+        get => EffectiveStabilisation.Mode;
         set
         {
-            if (_stabilizer.Mode == value) return;
-            _stabilizer.Mode = value;
+            if (EffectiveStabilisation.Mode == value) return;
+            EffectiveStabilisation.Mode = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(SmoothStrokes));
             OnPropertyChanged(nameof(IsWindowSmoothing));
@@ -3523,12 +3646,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     public double SmoothingWindow
     {
-        get => _stabilizer.Window;
+        get => EffectiveStabilisation.Window;
         set
         {
             var window = Math.Clamp((int)Math.Round(value) | 1, 3, 25);
-            if (_stabilizer.Window == window) return;
-            _stabilizer.Window = window;
+            if (EffectiveStabilisation.Window == window) return;
+            EffectiveStabilisation.Window = window;
             OnPropertyChanged();
             PersistBrushState();
         }
@@ -3536,12 +3659,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     public double SmoothingStrength
     {
-        get => _stabilizer.Strength;
+        get => EffectiveStabilisation.Strength;
         set
         {
             var strength = Math.Clamp(value, 0, 0.95);
-            if (Math.Abs(_stabilizer.Strength - strength) < 0.001) return;
-            _stabilizer.Strength = strength;
+            if (Math.Abs(EffectiveStabilisation.Strength - strength) < 0.001) return;
+            EffectiveStabilisation.Strength = strength;
             OnPropertyChanged();
             PersistBrushState();
         }
@@ -3549,12 +3672,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     public double LazyRadius
     {
-        get => _stabilizer.LazyRadius;
+        get => EffectiveStabilisation.LazyRadius;
         set
         {
             var radius = Math.Clamp(value, 4, 200);
-            if (Math.Abs(_stabilizer.LazyRadius - radius) < 0.5) return;
-            _stabilizer.LazyRadius = radius;
+            if (Math.Abs(EffectiveStabilisation.LazyRadius - radius) < 0.5) return;
+            EffectiveStabilisation.LazyRadius = radius;
             OnPropertyChanged();
             OnPropertyChanged(nameof(LazyRadiusForCursor));
             PersistBrushState();
@@ -4023,6 +4146,10 @@ public sealed partial class MainViewModel : ObservableObject
         var startX = join?.X ?? x;
         var startY = join?.Y ?? y;
 
+        // Whichever brush is in hand decides how the hand is steadied, and it
+        // is decided here rather than when a slider moves — switching brushes
+        // mid-drawing has to change the smoothing with them.
+        _stabilizer.Settings = EffectiveStabilisation;
         _stabilizer.Begin(startX, startY);
         _strokeBuilder.Begin(
             IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,

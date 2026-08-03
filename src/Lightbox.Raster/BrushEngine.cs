@@ -475,7 +475,7 @@ public static class BrushEngine
             // granulation are the cheap stand-ins for what the simulation
             // actually computes, so running both would double the rim and the
             // grain.
-            if (brush.Medium.Kind == MediumKind.None && brush.TextureSurface is null && brush.Granulation > 0)
+            if (brush.Medium.Kind == MediumKind.None && !HasTexture(brush) && brush.Granulation > 0)
             {
                 ApplyGranulation(canvas, brush, rect);
             }
@@ -488,7 +488,7 @@ public static class BrushEngine
         else
         {
             if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, outputScale);
-            if (brush.TextureSurface is not null) ApplyTexture(canvas, brush, rect, local);
+            if (HasTexture(brush)) ApplyTexture(canvas, brush, rect, local);
         }
         ApplyClip(canvas, stroke, local, dev, outputScale);
         ApplyAlphaLock(canvas, stroke, targetPixels, dev);
@@ -556,7 +556,7 @@ public static class BrushEngine
 
         // Identical to StampPaint's post-dab half, at output scale 1 — the
         // live preview is display-only and never renders bigger.
-        if (brush.Medium.Kind == MediumKind.None && brush.TextureSurface is null && brush.Granulation > 0)
+        if (brush.Medium.Kind == MediumKind.None && !HasTexture(brush) && brush.Granulation > 0)
         {
             InDocumentSpace(canvas, rect, 1.0, () => ApplyGranulation(canvas, brush, rect));
         }
@@ -568,7 +568,7 @@ public static class BrushEngine
         else
         {
             if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, 1.0);
-            if (brush.TextureSurface is not null) ApplyTexture(canvas, brush, rect, local);
+            if (HasTexture(brush)) ApplyTexture(canvas, brush, rect, local);
         }
 
         using var snapshot = scratch.Snapshot();
@@ -1123,16 +1123,55 @@ public static class BrushEngine
     /// a texture with a fixed physical scale, and it keeps a 1x and a 2x
     /// render of the same stroke the same image.
     /// </summary>
+    /// <summary>Does this brush have a paper to bite into — imported or built in?</summary>
+    private static bool HasTexture(BrushSettings brush) =>
+        brush.TextureSurface is not null || TextureRegistry.Resolve(brush.TextureId) is not null;
+
+    /// <summary>
+    /// An imported texture, tiled in <em>document</em> coordinates.
+    /// </summary>
+    /// <remarks>
+    /// Document coordinates, not region coordinates, and that is the whole of
+    /// what makes it usable: the grain stays put as the artist draws over it,
+    /// so two strokes crossing the same patch of paper sit on the same tooth.
+    /// Sampling from the region's own origin instead would give every stroke
+    /// its own paper, aligned to wherever the stroke happened to start — which
+    /// looks correct in a single mark and obviously wrong the moment there are
+    /// two.
+    ///
+    /// <c>TextureScale</c> is the size of one texel in document pixels, so it
+    /// means the same thing it does for the procedural papers.
+    /// </remarks>
+    private static void FillFromImage(
+        Span<float> dest, int width, int height, int originX, int originY,
+        TextureRegistry.Field field, double scale)
+    {
+        var step = 1.0 / Math.Max(0.25, scale / 8.0);
+        for (var y = 0; y < height; y++)
+        {
+            var v = (int)Math.Floor((originY + y) * step);
+            for (var x = 0; x < width; x++)
+            {
+                var u = (int)Math.Floor((originX + x) * step);
+                dest[y * width + x] = field.At(u, v);
+            }
+        }
+    }
+
     private static void ApplyTexture(SKCanvas canvas, BrushSettings brush, SKRectI rect, SKImageInfo local)
     {
-        if (brush.TextureSurface is not { } surface) return;
+        var imported = TextureRegistry.Resolve(brush.TextureId);
+        if (imported is null && brush.TextureSurface is null) return;
+
         var depth = (float)Math.Clamp(brush.TextureDepth, 0, 1);
         if (depth <= 0) return;
 
         var w = Math.Max(1, rect.Width);
         var h = Math.Max(1, rect.Height);
         var height = new float[w * h];
-        Media.PaperField.Fill(height, w, h, rect.Left, rect.Top, surface, brush.TextureScale);
+
+        if (imported is not null) FillFromImage(height, w, h, rect.Left, rect.Top, imported, brush.TextureScale);
+        else Media.PaperField.Fill(height, w, h, rect.Left, rect.Top, brush.TextureSurface!.Value, brush.TextureScale);
 
         var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using var mask = new SKBitmap(info);
