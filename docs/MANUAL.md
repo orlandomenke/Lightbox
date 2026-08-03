@@ -1530,10 +1530,31 @@ a sprite is an asset and a collider is a component, so there is nothing on the
 sliced sprite to set. Filter on the role to decide which layer each one belongs
 on.
 
-*Both `anchors` and `shapes` are exported today and **cannot yet be authored** —
-the record, the multi-frame operations and the export are in place, but there is
-no canvas tool for placing one. That tool is Planned, and it is one tool for
-both.*
+#### Placing them: the rig overlay
+
+Sockets and collision rectangles are placed on the canvas, with one set of
+gestures for both — an anchor is a point and a shape is a rectangle, and the
+overlay treats a point as a rectangle with no size.
+
+- **Click** a mark to select it. A selected rectangle grows corner handles.
+- **Drag** the body to move; drag a corner to resize. The opposite corner stays
+  exactly where it is, and dragging past it flips the rectangle rather than
+  turning it inside out.
+- **Push across** copies the selected mark's geometry over a range of frames —
+  place a physics body once and send it down the whole cycle instead of dragging
+  it twenty-four times.
+- **Clear here** takes the mark off this drawing but keeps it declared. That is
+  how a hitbox stops being active partway through a swing: it exists on the
+  frames that connect and nowhere else.
+- **Delete** removes the declaration and every placement of it.
+
+Everything is one undo step, and **edits land on the drawing rather than on the
+frame number.** Drag a socket while parked on a held frame and it moves the
+drawing being held — the hold stays a hold. Re-time the sequence afterwards and
+every mark travels with its own drawing.
+
+Handles stay the same size to your hand at every zoom, and an anchor has a
+slightly larger catch radius than a corner, because a point has no body to grab.
 
 A sprite sheet is laid out as a **uniform grid** by default, because equal cells
 are what consistent trimmed bounds produce anyway and every engine importer reads
@@ -1869,9 +1890,6 @@ Not built. Listed so the gap is visible rather than implied.
 
 **Animation**
 - A pose library, and reusable animation cycles
-- Placing sockets and collision rectangles on the canvas. Both are in the
-  document and in the export already; what is missing is the tool that drags one
-  into place, and it is one tool for both.
 
 **Interop**
 - PSD import and export

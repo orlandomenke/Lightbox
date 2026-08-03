@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-1996 tests, derived from the suite itself. Each line is a
+2025 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1219,6 +1219,43 @@ regression even when every test still compiles.
 - Removing The Last Reference Leaves The Document With No Key For One — `:345`
 - ADocument With No Reference Composites Exactly As It Always Has — `:358`
 - AReference Survives Saving And Reopening — `:374`
+
+## RigEditingTests
+`tests/Lightbox.App.Tests/RigEditingTests.cs`
+
+- With The Mode Off There Is Nothing To Draw — `:36`
+- ADocument With No Rig Has Nothing Declared — `:53`
+- Adding Declares And Places In One Step — `:66`
+- AShape Dragged Out Backwards Arrives The Right Way Round — `:88`
+- ADrag Lands On The Drawing Rather Than On The Frame Index — `:106`
+- Dragging While Parked On AHold Edits The Drawing Being Held — `:127`
+- Resizing AShape Moves Only The Corner That Was Grabbed — `:146`
+- Pressing Selects What It Hit And Clears On Empty Canvas — `:163`
+- Every Rig Edit Is One Undo Step — `:181`
+- ADrag Of Nothing Records Nothing — `:198`
+- Clearing Here Leaves It Declared So AHitbox Can Stop Partway Through ASwing — `:214`
+- Deleting Takes The Declaration And Every Placement Of It — `:235`
+- Pushing Across Visits Every Drawing Once Even On2s — `:252`
+- Pushing With Nothing Selected Does Nothing — `:271`
+
+## RigOverlayTests
+`tests/Lightbox.App.Tests/RigOverlayTests.cs`
+
+- ASelected Shapes Corner Beats Its Own Body — `:25`
+- An Unselected Shape Has No Corners To Grab — `:39`
+- An Anchor Inside AShape Is Still Reachable — `:53`
+- The Smaller Shape Wins When One Is Inside Another — `:70`
+- APress On Nothing Hits Nothing — `:85`
+- AHandle Stays The Same Size To The Hand At Every Zoom — `:97`
+- An Anchor Has AMore Forgiving Target Than AHandle — `:111`
+- An Impossible Zoom Does Not Divide By Zero — `:124`
+- Moving AShape Never Resizes It — `:134`
+- Resizing Leaves The Opposite Corner Exactly Where It Was — `:145`
+- Each Corner Moves Only Its Own Two Edges — `:160`
+- Dragging ACorner Past Its Opposite Flips Rather Than Going Negative — `:178`
+- AShape Cannot Be Collapsed To Nothing — `:193`
+- An Anchor Moves Even When ACorner Is Somehow Named — `:204`
+- The Cursor Says What The Gesture Will Do — `:220`
 
 ## RulerAndGuideEditTests
 `tests/Lightbox.App.Tests/RulerAndGuideEditTests.cs`
