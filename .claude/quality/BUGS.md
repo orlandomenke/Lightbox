@@ -67,6 +67,14 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ## Open
 
+- [x] **B51** `P2` `ui` Overlay-bar icons were cut off, and the rule meant to prevent it was outranked `evidence: OverlayBarLayoutTests, EveryShortcutTileLeavesRoomForItsGlyph, TheShortcutTilesDoNotOverrideTheOnePlaceThatSizesThem, TheReadoutKeepsTheTileWidthAcrossTheBar`
+  - Repro: look at the shortcut bar. 🎥 and 🔒 are clipped; ◉ and ⌗ are fine, which is what made it look like a font problem rather than a layout one.
+  - **Two causes stacked, and fixing the first made it worse.** Every button in the bar set `Padding="6,2"` inline, which beats any style: 12 px off a 26 px tile leaves 14 px for a glyph that needs ~20. Removing it exposed the second — the overlay-bar rule in `Density.axaml` sat *above* the plain `Button` and `ToggleButton` rules, and **Avalonia resolves competing styles by order, not by specificity**, so the generic `Padding="8,0"` won and the content box shrank to **10 px**.
+  - That is also why the earlier raise from 24 px to 26 px never fixed the clipping it was aimed at, and the comment recording that change says as much without knowing why: the tile grew and the content box did not, because the padding was never coming from the rule that set the size.
+  - **The lesson is about the file, not the bar.** A selector that reads as authoritative counts for nothing; only its position does. The `.icon` and `.text` classes were already arranged correctly, which is what made the overlay rule the odd one out rather than the pattern — it was appended near the top when it was written. Moved below the base rules with the reason attached.
+  - Guarded by asserting the **measured content box**, not "the padding is zero": a rule about where the setter lives would have passed on the build where the generic rule was winning. The test's first version also measured hidden tiles — half the bar is absent by design — and reported a negative content box for them, which is worth knowing before writing the next one.
+  - Cost: S
+
 - [ ] **B50** `P2` `brush` The simulated Watercolor brush is all but invisible `evidence: TheSimulatedWatercolourActuallyDepositsPigment`
   - Repro: pick Watercolor, set the colour to black, and draw. What lands is a ghost — measured at **9 out of 255** maximum darkening on a 400 × 200 canvas at the brush's own 42 px size, with its wet-edge tip registered. `Watercolor (flat)`, the cheap counterpart, reaches **127** on the same stroke; Gouache reaches 117 and Oil 156, so this is not "simulated media are pale", it is this one preset.
   - Not a preview artefact, and that was worth ruling out before writing it down — the preview shrinks the brush and a medium's lattice is size-dependent, so the measurement above was taken at true size through `BrushEngine.StampStroke`, not off a tile.

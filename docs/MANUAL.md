@@ -434,6 +434,12 @@ Effect brushes (**Smudge**, **Blur**) swap the bar for their own controls —
 strength, radius, and for smudge how much of its own colour it adds. A smudge
 has no opacity in the usual sense, so showing you one would be a lie.
 
+**Smearing or dulling** is on the **⚙ → Effects** page rather than on the bar.
+Smearing drags a sample along the stroke so detail streaks; dulling lays down
+the colour under the dab so detail dissolves, which is what a blender is. It
+lives with the brush because it is what makes a brush *that* brush — the three
+values on the bar are the ones you adjust mid-drawing.
+
 **Flow on an effect brush is not flow on a paint brush.** On a paint brush it is
 how much pigment a dab lays; on a smudge or a blender it is how hard each dab
 *pulls*, and because dabs overlap roughly ten deep the pulls compound along the

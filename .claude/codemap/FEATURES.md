@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2208 tests, derived from the suite itself. Each line is a
+2214 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1176,6 +1176,16 @@ regression even when every test still compiles.
 - An Empty Bar Overflows Nothing — `:49`
 - The Order Is Kept — `:55`
 
+## OverlayBarLayoutTests
+`tests/Lightbox.App.Tests/OverlayBarLayoutTests.cs`
+
+- Every Shortcut Tile Leaves Room For Its Glyph — `:79`
+- The Shortcut Tiles Do Not Override The One Place That Sizes Them — `:102`
+- The Zoom Readout Is Wide Enough To Read At Full Percent — `:122`
+- The Zoom Readout Turns And Grows The Other Way On ASide Bar — `:142`
+- The Readout Keeps The Tile Width Across The Bar — `:168`
+- Changing The Zoom Keeps The Readouts Own Layout — `:182`
+
 ## PaletteDockerTests
 `tests/Lightbox.App.Tests/PaletteDockerTests.cs`
 
@@ -1819,10 +1829,10 @@ regression even when every test still compiles.
 - Every Group In The Bar Shares One Vertical Centre — `:83`
 - Nothing In The Bar Asks For More Height Than The Bar Has — `:104`
 - Every Tile In An Overlay Bar Is The Same Square — `:123`
-- The Brush Parameter Flyout Is Not Pinned To One Height — `:155`
-- Deleting The Paper Leaves Transparency Rather Than White — `:172`
-- Putting The Paper Back Is Undo And The Document Is Opaque Again — `:190`
-- Deleting An Ordinary Layer Does Not Touch The Paper — `:204`
+- The Brush Parameter Flyout Is Not Pinned To One Height — `:163`
+- Deleting The Paper Leaves Transparency Rather Than White — `:180`
+- Putting The Paper Back Is Undo And The Document Is Opaque Again — `:198`
+- Deleting An Ordinary Layer Does Not Touch The Paper — `:212`
 
 ## FillToolTests
 `tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`

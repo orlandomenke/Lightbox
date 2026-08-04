@@ -209,7 +209,10 @@ public partial class MainWindow : Window
 
         Canvas.ViewChanged += () =>
         {
-            ZoomLabel.Content = $"{Canvas.ZoomPercent:0}%";
+            // The text, not the Content: the readout's content is a TextBlock that carries
+            // its own width and rotation, and assigning a string over it would put the
+            // squeezed, unrotated version back.
+            ZoomLabelText.Text = $"{Canvas.ZoomPercent:0}%";
             MirrorButton.Background = Canvas.IsMirrored
                 ? new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#4a6ea9"))
                 : Avalonia.Media.Brushes.Transparent;

@@ -43,33 +43,6 @@
     <Setter Property="Width" Value="64" />
     <Setter Property="HorizontalContentAlignment" Value="Right" />
   </Style>
-  <!--
-    The canvas overlay bars are a grid of icon tiles, so every tile is the
-    same square.
-
-    They were sizing to their glyph, and glyphs are not the same width: ◉ and
-    ▶ measured 25, an emoji like 🎥 or 🔒 measured more, and the bar's own ▾
-    and ✕ measured 24. Nothing was wrong with any one of them, which is how a
-    ragged column of buttons survives every review that looks at one control
-    at a time. A fixed square is the only thing that makes a tile grid read as
-    a grid.
-  -->
-  <!--
-    26 rather than 24, and it is the same argument one size up. At 24 the taller
-    glyphs were *clipped* rather than ragged — a 16px emoji with an ascender does
-    not fit a 24px tile once the border and the line box are paid for — so the
-    fixed square was doing its job and the square was too small. Raised here, in
-    the one place that decides it, so every tile moves together and the grid
-    still reads as a grid.
-  -->
-  <Style Selector="controls|CanvasOverlayBar Button, controls|CanvasOverlayBar ToggleButton">
-    <Setter Property="Width" Value="26" />
-    <Setter Property="Height" Value="26" />
-    <Setter Property="Padding" Value="0" />
-    <Setter Property="HorizontalContentAlignment" Value="Center" />
-    <Setter Property="VerticalContentAlignment" Value="Center" />
-    <Setter Property="ClipToBounds" Value="False" />
-  </Style>
 
   <Style Selector="Slider.param">
     <Setter Property="Width" Value="96" />
@@ -136,6 +109,49 @@
     <Setter Property="Height" Value="24" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
+  </Style>
+
+  <!--
+    The canvas overlay bars are a grid of icon tiles, so every tile is the
+    same square.
+
+    They were sizing to their glyph, and glyphs are not the same width: ◉ and
+    ▶ measured 25, an emoji like 🎥 or 🔒 measured more, and the bar's own ▾
+    and ✕ measured 24. Nothing was wrong with any one of them, which is how a
+    ragged column of buttons survives every review that looks at one control
+    at a time. A fixed square is the only thing that makes a tile grid read as
+    a grid.
+  -->
+  <!--
+    26 rather than 24, and it is the same argument one size up. At 24 the taller
+    glyphs were *clipped* rather than ragged — a 16px emoji with an ascender does
+    not fit a 24px tile once the border and the line box are paid for — so the
+    fixed square was doing its job and the square was too small. Raised here, in
+    the one place that decides it, so every tile moves together and the grid
+    still reads as a grid.
+  -->
+  <!--
+    BELOW the plain Button and ToggleButton rules, and it has to be.
+
+    **Avalonia resolves competing styles by order, not by specificity** — the
+    last matching setter wins — and this block used to sit above them. So the
+    generic `Padding="8,0"` overrode the `Padding="0"` here, every overlay tile
+    spent 16 of its 26 px on padding, and the wide emoji were cut off. The
+    selector looks more specific and counts for nothing; only its position does.
+    That is why the raise from 24 to 26 did not fix the clipping it was aimed at:
+    the tile grew and the content box did not.
+
+    Anything targeted enough to beat a base rule belongs after it. The `.icon`
+    and `.text` classes above are already arranged that way, which is what made
+    this one the odd rule out rather than the pattern.
+  -->
+  <Style Selector="controls|CanvasOverlayBar Button, controls|CanvasOverlayBar ToggleButton">
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="26" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
   </Style>
 
   <Style Selector="CheckBox">

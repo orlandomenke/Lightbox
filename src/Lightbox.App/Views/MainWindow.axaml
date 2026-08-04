@@ -616,8 +616,21 @@
             <NumericUpDown Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Increment="0.05"
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="How much of the brush's own colour it adds while smudging. Zero is a pure blender." />
-            <ComboBox ItemsSource="{Binding SmudgeModeChoices}" SelectedItem="{Binding BrushSmudgeMode}"
-                      Width="110" VerticalAlignment="Center" ToolTip.Tip="How the sample is picked up and laid down" />
+            <!--
+              Smearing-versus-dulling deliberately does NOT live here.
+
+              It was a bare ComboBox among label-slider-value groups, so it sat
+              at a different height from everything beside it and there was
+              nowhere to put its label — and it is the same control the ⚙
+              Effects page already carries, aligned with its neighbours because
+              that page is a column of labelled rows. Two copies of one setting
+              buys a misaligned bar and a second place to look.
+
+              It also is not the thing you reach for mid-stroke. Strength,
+              radius and colour rate are adjusted constantly; whether a smudge
+              smears or dulls is what makes it that brush, and it belongs with
+              the brush rather than on the bar.
+            -->
           </StackPanel>
         </StackPanel>
 
@@ -1623,12 +1636,26 @@
                 The one wide readout. It turns to fit a narrow bar, with its
                 feet towards the canvas, because that is the side you are
                 reading it from.
+
+                Its slot is longer than a tile along whichever way the bar runs,
+                and it has to be: the rotation is a RenderTransform, which
+                happens after layout, so with the tile's 26 px square the text
+                was measured and clipped to two characters and only then turned.
+                "100%" was unreadable and rotating it changed nothing. The
+                length goes on the button and the natural width goes on the
+                TextBlock inside, which overhangs the narrow direction — allowed,
+                because overlay tiles already turn clipping off for glyphs.
               -->
-              <Button x:Name="ZoomLabel" Content="100%" Click="OnResetView"
+              <Button x:Name="ZoomLabel" Click="OnResetView"
+                      Width="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.ReadoutWidth}}"
+                      Height="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.ReadoutHeight}}"
                       ToolTip.Tip="Current zoom — click to reset the whole view">
-                <Button.RenderTransform>
-                  <RotateTransform Angle="{Binding ReadoutAngle, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}}" />
-                </Button.RenderTransform>
+                <TextBlock x:Name="ZoomLabelText" Text="100%" Width="42" FontSize="11"
+                           TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <TextBlock.RenderTransform>
+                    <RotateTransform Angle="{Binding ReadoutAngle, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}}" />
+                  </TextBlock.RenderTransform>
+                </TextBlock>
               </Button>
               <Button Content="＋" Click="OnZoomIn" ToolTip.Tip="Zoom in (mouse wheel)" />
               <Button Content="↺" Click="OnRotateCcw" ToolTip.Tip="Rotate view 15° counter-clockwise (Shift+wheel)" />
@@ -1644,15 +1671,27 @@
             absent when it would mean nothing — no camera button without a
             camera, no transport on a document nobody is going to play.
           -->
+          <!--
+            No Padding on these, deliberately. The tile size is decided in one
+            place — Density.axaml's overlay-bar rule, which sets a 26 px square
+            and zero padding *because* a 16 px glyph with an ascender does not
+            fit anything smaller once the border and line box are paid for.
+            Every button in here used to add Padding="6,2" back inline, which
+            beats a style, and 12 px of horizontal padding off a 26 px tile
+            leaves 14 px for the glyph: the geometric ones fitted and the wide
+            emoji (🎥, 🔒) were cut off. The bug was one local override against
+            the single place that decides, which is the same shape as a shortcut
+            wired past ShortcutMap.
+          -->
           <controls:CanvasOverlayBar x:Name="ShortcutBar" OverlayId="Shortcuts" Title="Shortcuts">
             <StackPanel Spacing="2"
                         Orientation="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
-              <ToggleButton Content="◉" IsChecked="{Binding ActiveLayerOnion}" Padding="6,2"
+              <ToggleButton Content="◉" IsChecked="{Binding ActiveLayerOnion}"
                             ToolTip.Tip="Onion skin on the active layer" />
-              <ToggleButton Content="🎥" IsChecked="{Binding ViewThroughCamera}" Padding="6,2"
+              <ToggleButton Content="🎥" IsChecked="{Binding ViewThroughCamera}"
                             IsVisible="{Binding HasCamera}"
                             ToolTip.Tip="View through the camera" />
-              <Button Content="{Binding PlayPauseGlyph}" Padding="6,2"
+              <Button Content="{Binding PlayPauseGlyph}"
                       Command="{Binding TogglePlaybackCommand}"
                       IsVisible="{Binding ShowsTransport}"
                       ToolTip.Tip="Play / pause (Space)" />
@@ -1663,7 +1702,7 @@
               -->
               <!-- Absent unless a guide has been placed: nothing to snap to
                    means nothing to switch. -->
-              <ToggleButton Content="⌗" IsChecked="{Binding SnapToGuides}" Padding="6,2"
+              <ToggleButton Content="⌗" IsChecked="{Binding SnapToGuides}"
                             IsVisible="{Binding HasGuides}"
                             ToolTip.Tip="Snap to guides" />
               <!--
@@ -1673,13 +1712,13 @@
                 and off the rig cannot move, so two buttons about moving it
                 would be two dead buttons.
               -->
-              <ToggleButton Content="⌐" IsChecked="{Binding Workspace.GuidesVisible}" Padding="6,2"
+              <ToggleButton Content="⌐" IsChecked="{Binding Workspace.GuidesVisible}"
                             IsVisible="{Binding Workspace.RulersVisible}"
                             ToolTip.Tip="Show guides (Ctrl+;) — hidden ones still snap" />
-              <ToggleButton Content="🔒" IsChecked="{Binding Workspace.GuidesLocked}" Padding="6,2"
+              <ToggleButton Content="🔒" IsChecked="{Binding Workspace.GuidesLocked}"
                             IsVisible="{Binding Workspace.RulersVisible}"
                             ToolTip.Tip="Lock guides (Ctrl+Alt+;) — pin them where they are" />
-              <ToggleButton Content="⊞" IsChecked="{Binding ReferenceGridEditMode}" Padding="6,2"
+              <ToggleButton Content="⊞" IsChecked="{Binding ReferenceGridEditMode}"
                             IsVisible="{Binding HasReferences}"
                             ToolTip.Tip="Edit the reference grid — drag the boxes, drag a corner to resize, right-click for the pivot. Esc leaves." />
             </StackPanel>

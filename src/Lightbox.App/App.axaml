@@ -33,6 +33,15 @@
                 than opening a second copy. It renders as the title until you
                 click it, so a header still reads as a title.
 
+                The switcher's negative margin is doing real work. It had no left
+                padding, so on hover — the only time its box is visible — the
+                title sat hard against the edge of the highlight and read as
+                clipped. Padding alone would have pushed the text 6 px right of
+                where a plain, unswitchable docker's title sits, so headers would
+                stop lining up with each other. Shifting the box left by the same
+                amount keeps the text where it was and puts the breathing room
+                inside the highlight instead.
+
                 Everything that is not a control in this strip is grip — press
                 and pull to move the panel. The threshold lives in Docker so a
                 click to focus is not a tear-out.
@@ -51,7 +60,8 @@
                             IsVisible="{TemplateBinding ShowSwitcher}"
                             PlaceholderText="{TemplateBinding Title}"
                             MinWidth="0" MinHeight="20" Height="20" FontSize="12" FontWeight="SemiBold"
-                            Background="Transparent" BorderThickness="0" Padding="0,0,2,0"
+                            Background="Transparent" BorderThickness="0"
+                            Padding="6,0,4,0" Margin="-6,0,0,0"
                             VerticalAlignment="Center"
                             ToolTip.Tip="Show a different panel here — the two trade places">
                     <ComboBox.ItemTemplate>

@@ -125,11 +125,19 @@ public sealed class ToolBarAlignmentTests : BrushStateIsolated
         // They sized to their glyph, and glyphs are not the same width: ◉ and
         // ▶ came out 25, an emoji wider still, the bar's own ▾ and ✕ 24. A
         // tile grid only reads as a grid if the tiles match.
+        //
+        // The zoom readout is excluded, and it is the exception this rule needed
+        // all along rather than a hole in it. It shows "100%", which does not fit
+        // a 26 px square — being held to one is why most of the value was
+        // unreadable. It is a readout, not a tile: it keeps the tile measurement
+        // across the bar so the column still lines up, and grows along the bar,
+        // which OverlayBarLayoutTests checks in both orientations.
         var window = Open();
 
         var sizes = window.GetVisualDescendants().OfType<CanvasOverlayBar>()
             .SelectMany(b => b.GetVisualDescendants().OfType<TemplatedControl>())
             .Where(c => c is Button or ToggleButton && c.IsVisible && c.Bounds.Width > 0)
+            .Where(c => c.Name != "ZoomLabel")
             .Select(c => (c.Bounds.Width, c.Bounds.Height))
             .Distinct()
             .ToList();
