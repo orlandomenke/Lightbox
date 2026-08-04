@@ -18,6 +18,64 @@ It re-exposes drawings that already exist, which is the half of frame-by-frame
 work a symbol cannot carry — a symbol carries drawings, a timing preset carries
 their spacing.
 
+## Q20 · What frame bounds does an Asset project export from an unbounded canvas?
+
+**Blocks:** the infinite canvas in Pillar 0 — `docs/DESIGN-infinite-canvas.md`
+specifies everything else and stops here.
+
+`CLAUDE.md` makes both of these first-class, and this is the one place they meet
+head-on. **Assets** — "the canvas *is* the output. There is no camera, frame
+bounds must stay consistent, and every frame is a deliverable." An **infinite
+canvas** is defined by not having bounds. A sprite sheet is defined by having
+consistent ones. So "the asset workflow loses" is not an available answer.
+
+It cannot be answered from the code, because the code has never had to say what
+the edge of a drawing is — `Scene.Width`/`Scene.Height` have always answered it
+and an unbounded canvas removes the answer rather than changing it.
+
+**(a) Bounds of ink, per scene.** Export the rectangle that encloses every
+stroke in the sequence, identical for every frame. Needs nothing authored and it
+is what an artist means by "the drawing". The risk is that it is *derived*: add
+one stray mark in frame 40 and every previously exported frame changes size,
+silently, which is exactly the kind of thing that breaks a game build.
+
+**(b) An authored export region.** A rectangle the artist places once, saved with
+the project. Stable by construction — the property assets need — and it makes
+the bounds a thing you can see and drag rather than a consequence. Costs a UI
+surface and one more thing to set up before the first export.
+
+**(c) The camera, when one exists; ink otherwise.** Reuses machinery that is
+already built, keyframed and exported. But `CLAUDE.md` says a camera is
+shot-level machinery that must stay absent from asset work — this would make the
+asset target depend on the one thing it was defined as not having.
+
+**Recommend (b)**, on the grounds that consistency is the requirement rather
+than convenience, and only (b) gives it by construction. (a) is the better
+default *inside* (b) — an authored region that starts at the bounds of ink is
+one click rather than a blank rectangle.
+
+## Q21 · Is the infinite canvas a document property or a project-type default?
+
+**Blocks:** nothing yet — it decides a default rather than a capability, and the
+design can be built before it is answered.
+
+The reach rule settles the hard half already: every feature is reachable in every
+project type, so this is not "who is allowed an infinite canvas". It is what a
+new document starts with, and whether turning it on later is a document edit or a
+project setting.
+
+**(a) A document property, off by default everywhere.** Matches the camera
+exactly — absent from the file until authored, askable for anywhere. Simplest,
+and "optional means absent" falls out for free.
+
+**(b) A project-type default.** A storyboard or an illustration starts unbounded,
+a sprite project starts fixed. More convenient on day one, and it puts a
+behaviour an artist has to reason about into a manifest they rarely open.
+
+**Recommend (a)** until somebody asks for (b), because (a) is a prerequisite for
+(b) rather than an alternative to it: a project type can only default a property
+that already exists.
+
 ## Q19 · Are Linux and macOS shipping targets, or only development ones? — **answered (a)**
 
 **Answered 2026-08-04: (a), development targets only — Windows is what ships.**

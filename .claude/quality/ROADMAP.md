@@ -118,7 +118,11 @@ not to rebuild. What is missing is everything that *makes* a tip.
 ### Canvas
 
 - [x] Large canvas optimization `evidence: ComposeRing, FrameBitmapCache, CanvasQuality, LargeCanvasPerformanceTests`
-- [?] Infinite canvas
+- [ ] Infinite canvas `evidence: TileStore, TileGrid, StrokeIndex, TileStoreTests, InfiniteCanvasTests, AnUntouchedTileIsNeverAllocated, RecompositingCostsWhatIsOnScreenNotWhatExists, AFixedSizeDocumentWritesNoCanvasKey, ATiledRenderIsBitIdenticalToAnUntiledOne`
+  - Specified in `docs/DESIGN-infinite-canvas.md`, and it was `[?]` until it was measured. **Not an optimisation — a model that cannot be expressed.** `_cache.Get(frame, scene.Width, scene.Height)` allocates one bitmap per layer at document size, and an unbounded canvas has no width to pass. Culling cannot help, because the allocation happens before anything knows what is on screen.
+  - The measurement that settles the order: recompositing is **`n^1.05` in canvas area, cliff at 1440p, 1344% of the playback budget at 8K**, while committing a stroke on the same axis is **`n^0.22`**. Drawing is already canvas-size independent and the drawing floor needs nothing; *showing* the canvas is proportional to the document rather than to the window. One 3-layer frame at 8K is 380 MB against a 512 MB cache — the wall is reached before infinity is.
+  - So tiling is the precondition and culling is the consequence, in that order. A tile is a cache entry rather than a document change: invariant 1 holds, and dropping every tile loses nothing but time.
+  - Blocked on **Q20** — what bounds an Asset project exports from an unbounded canvas, since a sprite sheet is *defined* by consistent frame bounds and this is not derivable from the code.
 - [x] Canvas rotation `evidence: CanvasViewTests, CanvasControl`
 - [x] Canvas mirroring `evidence: MirrorButton, IsMirrored, CanvasViewTests`
 - [x] Render at any output scale without changing the mark `evidence: OutputScaleTests, AHigherOutputScale_RendersTheSameMark, ScalingTheCoordinatesInstead_ProducesADifferentMark`
