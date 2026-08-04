@@ -2522,6 +2522,50 @@ public sealed partial class MainViewModel : ObservableObject
         return true;
     }
 
+    /// <summary>
+    /// Remove several presets at once. Returns how many went.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not a loop over <see cref="DeletePreset"/>, and the difference is the point of the
+    /// method.</b> Each single delete persists the whole store, refreshes the tag list and
+    /// raises five property notifications; clearing an imported collection of fifty-six that
+    /// way writes the file fifty-six times and rebuilds the tag list fifty-six times, on the
+    /// UI thread, which is the same shape of stall as the import that put them there.
+    /// </para>
+    /// <para>
+    /// Built-ins are skipped rather than reverted. On a single delete "give me back the one
+    /// that shipped" is the obvious reading of the button; inside a multi-selection it is
+    /// not — somebody clearing a folder of imports did not ask for a shipped brush to be
+    /// silently restored to factory settings on the way past.
+    /// </para>
+    /// </remarks>
+    public int DeletePresets(IEnumerable<BrushPreset> presets)
+    {
+        var ids = presets.Where(p => !p.IsBuiltIn).Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
+        if (ids.Count == 0) return 0;
+
+        var removed = _userPresets.RemoveAll(p => ids.Contains(p.Id));
+        if (removed == 0) return 0;
+
+        for (var i = BrushPresetChoices.Count - 1; i >= 0; i--)
+        {
+            if (ids.Contains(BrushPresetChoices[i].Id)) BrushPresetChoices.RemoveAt(i);
+        }
+
+        if (SelectedBrushPreset is { } selected && ids.Contains(selected.Id))
+        {
+            _applyingPreset = true;
+            SelectedBrushPreset = null;
+            _applyingPreset = false;
+        }
+
+        RefreshTagChoices();
+        NotifyPresetProperties();
+        PersistBrushState();
+        return removed;
+    }
+
     // ---- tags -------------------------------------------------------------------
 
     /// <summary>Every tag any preset carries, in use order. What the picker filters by.</summary>
@@ -2638,46 +2682,52 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Import brush files (.abr/.gbr/.gih/.kpp) into presets. Unsupported or
-    /// broken files are skipped and counted, never fatal.
+    /// Import brush files (.abr/.gbr/.gih/.kpp) into presets, on this thread.
     /// </summary>
+    /// <remarks>
+    /// Kept for callers with a handful of files and no window to hold — the MCP surface and
+    /// the tests. <b>Anything an artist starts should use
+    /// <see cref="ImportBrushFilesAsync"/></b>: the reading is what made the window stop
+    /// answering the compositor on a fifty-six brush collection, and this overload does it
+    /// right here.
+    /// </remarks>
     public (int Added, int Failed) ImportBrushFiles(IEnumerable<(string Name, byte[] Bytes)> files)
     {
-        var presets = new List<BrushPreset>();
-        var failed = 0;
-        foreach (var (name, bytes) in files)
-        {
-            try
-            {
-                foreach (var imported in Lightbox.Import.BrushImport.Read(name, bytes))
-                {
-                    presets.Add(new BrushPreset
-                    {
-                        Name = imported.Name,
-                        Tool = ToolKind.Brush,
-                        TipPng = imported.TipPngBase64,
-                        Settings = new BrushSettings
-                        {
-                            Size = Math.Clamp(imported.SizePx, 1, 500),
-                            Spacing = imported.Spacing,
-                            Opacity = imported.Opacity,
-                            Flow = imported.Flow,
-                            Hardness = imported.TipPngBase64 is null ? 0.8 : 1,
-                            TipId = imported.TipPngBase64 is null ? null : Ids.NewId("tip"),
-                        },
-                    });
-                }
-            }
-            catch
-            {
-                failed++;
-            }
-        }
-        var added = AddImportedPresets(presets);
-        AiStatus = failed == 0
-            ? $"Imported {added} brush(es)."
-            : $"Imported {added} brush(es); {failed} file(s) could not be read.";
-        return (added, failed);
+        var outcome = BrushImportJob.Read(files.ToList());
+        var added = AddImportedPresets(outcome.Presets);
+        AiStatus = BrushImportJob.Summarise(outcome);
+        return (added, outcome.Unreadable.Count);
+    }
+
+    /// <summary>
+    /// Import brush files off the UI thread, reporting progress as it goes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The reading runs on a worker; only the two steps that touch bound state — adding to
+    /// <c>BrushPresetChoices</c> and persisting — happen back here, once, when it is done.
+    /// That is the whole fix for the reported "the main window became transparent as if about
+    /// to crash": nothing was crashing, the UI thread was simply inside a parser for several
+    /// seconds and had stopped painting.
+    /// </para>
+    /// <para>
+    /// <b>Cancellable, because an import of the wrong folder is a real mistake to make.</b>
+    /// Giving up keeps the brushes already read rather than throwing them away — they are
+    /// what the artist would have got if they had picked fewer files, and discarding them
+    /// would make the cancel button cost work rather than save it.
+    /// </para>
+    /// </remarks>
+    public async Task<(int Added, BrushImportOutcome Outcome)> ImportBrushFilesAsync(
+        IReadOnlyList<(string Name, byte[] Bytes)> files,
+        IProgress<BrushImportProgress>? progress = null,
+        CancellationToken cancel = default)
+    {
+        var outcome = await Task.Run(() => BrushImportJob.Read(files, progress, cancel), cancel)
+            .ConfigureAwait(true);
+
+        var added = AddImportedPresets(outcome.Presets);
+        AiStatus = BrushImportJob.Summarise(outcome);
+        return (added, outcome);
     }
 
     /// <summary>

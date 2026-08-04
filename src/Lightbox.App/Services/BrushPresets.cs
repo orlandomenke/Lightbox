@@ -446,8 +446,22 @@ public static class PresetStore
         }
     }
 
+    /// <summary>
+    /// How many times the store has been written this process.
+    /// </summary>
+    /// <remarks>
+    /// A test seam, and a narrow one on purpose. The thing worth guarding is that a bulk
+    /// operation saves <em>once</em>: removing an imported collection of fifty-six used to
+    /// rewrite the whole file per brush, each write larger than the last, and nothing about
+    /// the result distinguished that from doing it properly. Counting writes is the only
+    /// honest way to assert it — a timing test would be measuring the disk, and a file watcher
+    /// coalesces events and answers too late.
+    /// </remarks>
+    internal static int Writes { get; private set; }
+
     public static void Save(State state, string? path = null)
     {
+        Writes++;
         try
         {
             path ??= StorePath;

@@ -202,6 +202,7 @@
       </MenuItem>
       <MenuItem Header="_Edit">
         <MenuItem Header="_Configure…" Click="OnConfigureClicked" />
+        <MenuItem Header="Brush _library…" Click="OnBrushLibraryClicked" />
         <MenuItem Header="Brush _tips…" Click="OnBrushTipsClicked" />
         <Separator />
         <!-- Autosave. Zero is a real answer, not a mistake — someone working
@@ -430,6 +431,14 @@
                   </ItemsControl>
                   <TextBlock x:Name="BrushFilterEmpty" DockPanel.Dock="Bottom" IsVisible="False"
                              Text="No brush matches." Opacity="0.5" FontSize="11" Margin="0,6,0,0" />
+                  <!--
+                    The way out of the picker, same as the tip picker's own. It
+                    is where you are when you notice you have brushes you do not
+                    want, so it is where the button to deal with them belongs.
+                  -->
+                  <Button DockPanel.Dock="Bottom" Content="Brush library…" Click="OnBrushLibraryClicked"
+                          HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                          ToolTip.Tip="Import, rename and remove brushes" />
                   <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <!--
                       A grid of marks, not a list of names. The names in an
@@ -1204,9 +1213,17 @@
                       <Button x:Name="DeletePresetButton" Content="Delete this brush" Click="OnDeletePresetClicked"
                               HorizontalAlignment="Left"
                               ToolTip.Tip="Removes a brush you made. A shipped brush is reverted instead — it is not yours to delete." />
-                      <Button Content="Import brushes… (.abr .gbr .gih .kpp)" Click="OnImportBrushesClicked"
+                      <!--
+                        Import moved into the library window rather than staying
+                        here. This page edits the brush in your hand; importing
+                        forty of somebody else's is the other kind of job, it
+                        needs a progress bar and somewhere to put the result,
+                        and it used to leave you with forty brushes and no way
+                        to remove them.
+                      -->
+                      <Button Content="Brush library…" Click="OnBrushLibraryClicked"
                               HorizontalAlignment="Stretch"
-                              ToolTip.Tip="Photoshop and Krita/GIMP brushes: tip shapes and basic settings import; engine-specific features do not map 1:1" />
+                              ToolTip.Tip="Everything you have: import Photoshop, GIMP and Krita brushes, rename them, and remove the ones you do not want" />
                     </StackPanel>
 
                   </Panel>

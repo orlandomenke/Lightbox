@@ -62,6 +62,30 @@ public sealed class BrushChoice
 
     public string CostBadge => Preset.CostBadge;
 
+    /// <summary>
+    /// Where this brush came from — the thing that decides what may be done to it.
+    /// </summary>
+    /// <remarks>
+    /// "Built-in" is the load-bearing case. A shipped brush cannot be renamed or removed, and
+    /// saying so on the row is cheaper than a refusal after the click.
+    /// </remarks>
+    public string Origin => Preset.IsBuiltIn ? "Built-in" : Preset.TipPng is not null ? "Imported" : "Yours";
+
+    /// <summary>The size and whatever it was filed under, for a list row.</summary>
+    /// <remarks>
+    /// One line rather than two controls: in a library of sixty rows the tags are what
+    /// somebody scans for, and giving them their own chip strip per row would triple the row
+    /// height for information most rows do not have.
+    /// </remarks>
+    public string SizeAndTags
+    {
+        get
+        {
+            var size = $"{Preset.Settings.Size:0.#} px";
+            return Preset.Tags is { Count: > 0 } tags ? $"{size} · {string.Join(", ", tags)}" : size;
+        }
+    }
+
     /// <summary>Everything the picture cannot say, on hover.</summary>
     public string Tip
     {

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2214 tests, derived from the suite itself. Each line is a
+2230 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -275,6 +275,26 @@ regression even when every test still compiles.
 - An Untagged Brush Is Hidden By Any Tag Filter And Found By Name — `:69`
 - Tag Matching Ignores Case And Surrounding Space — `:76`
 - Nothing Matching Is An Empty List Rather Than Everything — `:87`
+
+## BrushLibraryTests _Category=Performance_
+`tests/Lightbox.App.Tests/BrushLibraryTests.cs`
+
+- Reading Brushes Reports Progress Per File — `:61`
+- ABad File Is Named Rather Than Counted And Does Not Stop The Rest — `:83`
+- Many Bad Files Do Not Produce AParagraph — `:105`
+- Giving Up Keeps What Was Already Read — `:117`
+- Nothing To Import Says So Rather Than Claiming Success — `:137`
+- Importing Off The Thread Still Lands Every Brush In The List — `:146`
+- Removing ACollection Saves Once Rather Than Once Per Brush — `:159`
+- Removing ASelection Leaves The Shipped Brushes Alone — `:180`
+- Removing The Brush In Your Hand Lets Go Of It — `:198`
+- The Library Lists Every Brush With Its Mark — `:230`
+- ARow Says Where The Brush Came From Because That Decides What You May Do To It — `:241`
+- Selecting AShipped Brush Offers No Rename And Says Why — `:254`
+- Renaming An Imported Brush Sticks — `:273`
+- Removing From The Library Takes Them Out Of The Picker Too — `:295`
+- The Progress Bar Is Gone When The Import Is — `:318`
+- Reading ACollection Sized Import Costs Real Time — `:334`
 
 ## BrushMemoryTests
 `tests/Lightbox.App.Tests/BrushMemoryTests.cs`

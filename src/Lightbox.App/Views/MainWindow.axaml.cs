@@ -1589,32 +1589,10 @@ public partial class MainWindow : Window
         TextureSourceNote.Text = name is null ? "" : $"Paper: {name}";
     }
 
-    private async void OnImportBrushesClicked(object? sender, RoutedEventArgs e)
-    {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Import brushes",
-            AllowMultiple = true,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("Brush files")
-                {
-                    Patterns = ["*.abr", "*.gbr", "*.gih", "*.kpp"],
-                },
-            ],
-        });
-        if (files.Count == 0) return;
-
-        var payloads = new List<(string, byte[])>();
-        foreach (var file in files)
-        {
-            await using var stream = await file.OpenReadAsync();
-            using var memory = new MemoryStream();
-            await stream.CopyToAsync(memory);
-            payloads.Add((file.Name, memory.ToArray()));
-        }
-        _vm.ImportBrushFiles(payloads);
-    }
+    // Brush import used to live here, straight off a button in the brush options: pick files,
+    // parse them all on this thread, add them. That is what made the window go transparent on
+    // a fifty-six brush collection, and it also left the artist with fifty-six brushes and
+    // nowhere to remove them. Both halves now live in BrushLibraryWindow.
 
     // ---- palette ---------------------------------------------------------------
 
@@ -2557,6 +2535,27 @@ public partial class MainWindow : Window
     /// </summary>
     private async void OnBrushTipsClicked(object? sender, RoutedEventArgs e) =>
         await new BrushTipsWindow(_vm).ShowDialog(this);
+
+    /// <summary>
+    /// The brush library — import, rename, remove.
+    /// </summary>
+    /// <remarks>
+    /// Reached from three places on purpose: the Edit menu, the brush options page, and the
+    /// bottom of the picker flyout. The picker is where an artist is standing when they notice
+    /// they have forty brushes they did not choose, and making them close it and go to a menu
+    /// is the friction that left the collection sitting there.
+    /// <para>
+    /// The picker's flyout is hidden first. Opening a modal from inside a flyout leaves the
+    /// flyout floating over it, which looks like two windows arguing.
+    /// </para>
+    /// </remarks>
+    private async void OnBrushLibraryClicked(object? sender, RoutedEventArgs e)
+    {
+        if (BrushPickerButton?.Flyout is { } picker) picker.Hide();
+        await new BrushLibraryWindow(_vm).ShowDialog(this);
+        RefreshBrushPickerButton();
+        RefreshPresetPage();
+    }
 
     // ---- transform session (window side) --------------------------------------
 

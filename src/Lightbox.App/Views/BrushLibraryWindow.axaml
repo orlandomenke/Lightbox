@@ -1,0 +1,92 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:Lightbox.App.Views"
+        x:Class="Lightbox.App.Views.BrushLibraryWindow"
+        Title="Brush library"
+        Width="720" Height="620"
+        WindowStartupLocation="CenterOwner">
+
+  <DockPanel Margin="12">
+
+    <!--
+      The bar an artist works from. Import is first because it is why most
+      people open this window; delete is beside the count it applies to, so
+      "Remove 12" is the confirmation rather than a dialog asking whether you
+      meant it.
+    -->
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+      <Button x:Name="ImportButton" Content="Import brushes…" Click="OnImport"
+              ToolTip.Tip="Photoshop .abr, GIMP .gbr/.gih and Krita .kpp. Tip shapes and basic settings come across; engine-specific behaviour does not map 1:1." />
+      <Button x:Name="RemoveButton" Content="Remove" Click="OnRemove" IsEnabled="False"
+              ToolTip.Tip="Removes the selected brushes. Brushes that ship with Lightbox are left alone — revert those from the brush options instead." />
+      <TextBlock x:Name="CountLabel" VerticalAlignment="Center" Opacity="0.65" FontSize="11" />
+    </StackPanel>
+
+    <!--
+      Progress lives in the window rather than over it. An import is
+      interruptible work an artist started on purpose, so it reports where it
+      is and offers a way out — a modal spinner would take the window away and
+      still not say which of fifty-six files it was on.
+    -->
+    <Border x:Name="ProgressRow" DockPanel.Dock="Top" IsVisible="False"
+            Background="#1f1f1f" CornerRadius="4" Padding="8,6" Margin="0,0,0,10">
+      <DockPanel>
+        <Button x:Name="CancelButton" DockPanel.Dock="Right" Content="Stop" Click="OnCancelImport"
+                Margin="8,0,0,0"
+                ToolTip.Tip="Stops reading. The brushes already read are kept." />
+        <TextBlock x:Name="ProgressLabel" DockPanel.Dock="Top" FontSize="11" Margin="0,0,0,4" />
+        <ProgressBar x:Name="ImportProgress" Minimum="0" Maximum="1" Height="6" />
+      </DockPanel>
+    </Border>
+
+    <TextBox x:Name="SearchBox" DockPanel.Dock="Top" PlaceholderText="Search brushes"
+             Margin="0,0,0,8" TextChanged="OnSearchChanged" />
+
+    <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,10,0,0">
+      <!--
+        Rename appears only with exactly one brush selected, because renaming
+        twelve at once has no sensible meaning and a field that silently applies
+        to whichever of them was last clicked is worse than no field. Absent
+        rather than disabled — the same rule the camera follows.
+      -->
+      <DockPanel x:Name="RenameRow" IsVisible="False">
+        <Button x:Name="RenameButton" DockPanel.Dock="Right" Content="Rename" Click="OnRename" Margin="6,0,0,0" />
+        <TextBox x:Name="RenameBox" PlaceholderText="Name" KeyDown="OnRenameKey" />
+      </DockPanel>
+      <TextBlock x:Name="ShippedNote" IsVisible="False" FontSize="11" Opacity="0.6"
+                 TextWrapping="Wrap"
+                 Text="Brushes that ship with Lightbox cannot be renamed or removed here. Edit one from the brush options and it keeps your version; Revert gives back the original." />
+      <Button Content="Close" Click="OnClose" Classes="text" HorizontalAlignment="Right" />
+    </StackPanel>
+
+    <!--
+      A row here rather than the picker's tile grid, and on purpose: this window
+      is for renaming and weeding, which are list jobs. The mark still shows,
+      because "which of these forty is the one I want rid of" is the same
+      question the picker answers with a picture.
+    -->
+    <ListBox x:Name="BrushList" SelectionMode="Multiple" Background="Transparent"
+             SelectionChanged="OnSelectionChanged">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="views:BrushChoice">
+          <DockPanel Margin="0,1" ToolTip.Tip="{Binding Tip}">
+            <Border DockPanel.Dock="Left" Width="120" Height="42" Background="#f2f0ec"
+                    CornerRadius="3" Margin="0,0,10,0">
+              <Image Source="{Binding Preview}" Stretch="None"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <TextBlock DockPanel.Dock="Right" Text="{Binding Origin}" VerticalAlignment="Center"
+                       FontSize="10" Opacity="0.5" Margin="8,0,4,0" />
+            <TextBlock DockPanel.Dock="Right" Text="{Binding CostBadge}" Foreground="#d9a05b"
+                       FontSize="11" VerticalAlignment="Center" Margin="6,0,0,0" />
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding SizeAndTags}" FontSize="10" Opacity="0.55"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </DockPanel>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </DockPanel>
+</Window>

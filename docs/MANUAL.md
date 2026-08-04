@@ -675,10 +675,38 @@ brush's own settings, so turning the medium off moves it to the fast group and
 turning it on moves it back. Every simulated medium also has a **(flat)**
 counterpart that gets close to the look for none of the cost.
 
+### The brush library
+
+**Edit → Brush library…**, or the button at the bottom of the brush picker. It is
+everything you have — the brushes that ship, the ones you made, and the ones you
+imported — and it is where you import, rename and remove them.
+
+Select several with Ctrl or Shift and **Remove** takes them all in one go, which
+is the point: a collection you decided against is fifty-something brushes, not
+one. The brushes that ship with Lightbox are left alone by that button, and the
+window says so before you click rather than after — those are reverted from the
+brush options instead, not deleted.
+
+**Rename appears only with one brush selected.** Renaming twelve at once has no
+sensible meaning, and an imported pack's names are usually the reason you want
+this: whoever made it called them what suited them.
+
 ### Brush importers
 
 **.abr** (Photoshop), **.gbr** / **.gih** (GIMP) and **.kpp** (Krita) import
 directly. What comes across is what those formats actually carry.
+
+**A big collection takes real time, and the bar tells you how much.** The cost is
+the tip: decoding it and re-encoding it, per brush, and it grows with the tip's
+area — measured at roughly a quarter-second per brush at a 300 px tip, so a
+fifty-six brush pack is around fifteen seconds. That work now happens in the
+background with a progress bar naming the file it is on, and **Stop** keeps
+whatever it has already read. It used to happen on the drawing thread, which is
+why the window looked like it was about to crash.
+
+A file it cannot read is **named, not counted** — a pack usually fails in a
+pattern, and "3 files could not be read" out of fifty-six tells you nothing you
+can act on.
 
 ### What a stroke is
 
