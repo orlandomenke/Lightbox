@@ -126,6 +126,29 @@ not to rebuild. What is missing is everything that *makes* a tip.
   - Needs one place that maps (tool, modifiers, what is under the pointer) to a cursor, so the answer cannot disagree between the canvas control and the view model. Testable without a window if the mapping is pure, which is the shape `RigOverlay.CursorFor` already uses.
   - Depends on the icon set below for the artwork, but not for the mechanism: it can ship with system cursors and get custom ones later.
 
+### Film-scale line quality
+
+**The one place Pillar 0's bar is deliberately raised above "credible".** Everything
+else here is what a painting app is expected to have; these three are what a
+drawing has to survive being projected. The deliverable is a theatre screen, and
+a line that reads fine at 100% on a monitor is being judged at forty feet.
+
+Per the rule in *Reach and configuration* below, none of this is film-only: it is
+available in every project, defaulted for the ones that need it.
+
+- [ ] Zooming in re-stamps the line rather than magnifying it `evidence: ViewRenderScale, ZoomFidelityTests, AZoomedLineIsReStampedRatherThanMagnified, ZoomingPastDocumentResolutionIsBoundedWork`
+  - **The record is already resolution-independent and the screen is not.** A stroke is coordinates plus a brush, invariant 7 makes output scale a canvas transform, and `OutputScaleTests` proves a 2× render is the same mark rendered sharper. But `CanvasQuality.Full` is documented as *"always composite at document resolution"* — so that is the ceiling on screen, and zooming to 400% on a 4K canvas magnifies finished pixels instead of re-stamping the dabs. The information to draw a crisp line at that magnification is sitting in the document, unused.
+  - The reason this is a real feature and not a one-line change is invariant 6: painting is bounded work. Re-stamping at 4× the device resolution over a viewport is affordable; doing it per pointer event over a whole 8K canvas is not. So it needs a render scale derived from the *view*, applied to the *visible region*, with the existing `FrameBitmapCache`/`ComposeRing` machinery taught the difference between "document pixels" and "device pixels" — which today it conflates.
+  - **The trap is invariant 7 the other way round.** Rendering the visible region at 4× must scale the surface, never the coordinates: doubling a coordinate re-rolls every `Hash01` dab dynamic and gives a *different mark*, which at a zoom boundary would show as a visible seam where the texture changes. `OutputScaleTests` already renders it the wrong way round on purpose; a zoom-fidelity test needs the same guard.
+- [ ] A drawn line can be re-shaped and keeps the mark it was drawn with `evidence: PathEditSession, StrokeReshapeTests, ReshapingALineKeepsItsBrush, AReshapedStrokeSurvivesAReload`
+  - Vector manipulation with the texture of charcoal, pencil or paint. **Half of this already exists and is worth saying so:** a stroke on a `VectorFrame` is the same `Stroke` record with the same `BrushSettings` as a raster one, stamped by the same engine — so a vector line already carries real media rather than a flat outline. Nothing needs a second engine.
+  - What is missing is the editing: there is no tool that takes a finished stroke's points and lets an artist drag them. `VectorFrame` holds `List<Stroke>` and nothing reaches into one after it is drawn.
+  - **The design question this raises is genuinely hard, and it is the reason this is not a small item.** Every dab dynamic — scatter, size, roundness, rotation, all three colour jitters — is seeded from dab position via `Hash01`. Move a control point and the dabs near it re-seed, so *the texture changes where the line moves*. That is correct under invariant 2 and wrong to an artist, who expects to nudge a line and see the same line somewhere else. The options are a per-stroke seed origin that travels with the edit, seeding from arc length rather than position, or accepting the change and saying so. This needs a decision in `QUESTIONS.md` before it needs code.
+- [ ] Sub-pixel stroke precision that holds up at 8K `evidence: ChordTolerance, SubPixelPrecisionTests, TheChordToleranceFollowsTheOutputScale, ALongCurveHasNoFlatSpotsAtEightK`
+  - The geometry is already in doubles and there are six stabilisation modes, so this is not "add smoothing" — it is one number. `GeometryOps.Densify` defaults to `maxChord = 2.0` **document pixels**, and that tolerance does not know the output scale: render or zoom at 4× and every chord becomes 8 device pixels, so a curve that is smooth in the file has visible flat spots on screen and in the export. The same 2 px is simultaneously too coarse at 8K and wasteful on a thumbnail.
+  - So the tolerance wants to be derived from the scale the render is happening at, and stored per stroke where it reaches pixels (invariant 4) rather than read from global state. The cost is real and bounded — halving the chord roughly doubles the dab count — which makes it a per-preset trade with a badge, like the other expensive options.
+  - Anti-aliasing is a `bool` today. A theatre-screen line probably wants more than one answer there too, but that is a second measurement and not this item.
+
 ### Colour
 
 - [x] Color picker with history `evidence: ColorPickerViewModel, ColorSwatch`
@@ -754,6 +777,47 @@ Three consequences worth stating before anyone builds against the design:
    colour, file format and selection are common today, which is exactly what
    the design assumes. No restructuring is needed there — only above it.
 
+### Reach and configuration — the split nobody has made yet
+
+Features have arrived here from two directions: some from a frustration somebody
+actually had, some from research into what a production needs. Nobody has yet
+said **which features belong to which kinds of work**, and the absence shows up
+as a question that gets answered differently each time it comes up.
+
+The decision, and it applies to everything from here on:
+
+> **Every feature is reachable in every project type. A project type sets
+> defaults, never availability.**
+
+An artist doing a comic who wants an exposure sheet gets one. Somebody drawing a
+single illustration who wants the camera can have it. What a project type decides
+is what is *on*, what is *in front of you*, and what a new document starts with —
+not what the application is capable of.
+
+**How this composes with "optional means absent", which it does not contradict:**
+
+| Rule | What it governs |
+| --- | --- |
+| *Optional means absent, not disabled* | The **record**. An unused feature writes no keys, ever. |
+| *Every feature is reachable* | The **capability**. No feature is locked behind a project type. |
+
+Both hold at once, and the camera is already the proof: absent from the file
+until authored, absent from the UI until asked for, and available to ask for in
+any document. What must not happen is the third thing — a capability that cannot
+be reached because of a value in a manifest.
+
+**One place already breaks this rule, and it is worth naming rather than
+quietly fixing.** `CharacterLibrary.Scan` returns nothing unless
+`Manifest.Type == AssetLibrary`, and the test guarding it says that is
+"what makes the project type mean something rather than being a label on an
+enum." That was a reasonable reading of the design then and it is the opposite of
+the rule above. Under the rule, a project's characters are offerable from any
+project and the Asset Library type *defaults to publishing them* — which is what
+somebody actually wants when they file a character in a game project and then
+need it in a short.
+
+### The container and the types
+
 - [x] `Project` container above `Doc` (scenes, characters, assets) `evidence: ProjectManifest, Character, DocumentRef, ProjectTests`
 - [x] Project type recorded on the document, absent by default `evidence: ProjectType, AProjectWithNoTypeWritesNoTypeKey`
 - [?] Named workspaces, persisted
@@ -762,6 +826,17 @@ Three consequences worth stating before anyone builds against the design:
 - [?] Panel tools and speech balloons
 - [?] Print workflow (CMYK, bleed, DPI targets)
 - [x] Asset Library project type `evidence: CharacterLibrary, OnlyAssetLibraryProjectsOfferTheirCharacters`
+
+### Making reach unconditional
+
+- [ ] One registry of features, their defaults per project type, and nothing gated `evidence: FeatureDefaults, FeatureKey, FeatureDefaultsTests, EveryFeatureIsReachableInEveryProjectType, AProjectTypeSetsDefaultsRatherThanAvailability, AFeatureLeftAtItsDefaultWritesNoKey`
+  - The registry is the point, and it is the same argument as `ShortcutMap`: the reason to have one is that something else enumerates it. The Configure window needs to list what can be turned on, the new-document path needs the defaults for a type, and the manual needs to say which is which. Three places deriving that from one table cannot disagree; three places each deciding for themselves already have.
+  - Derived defaults, not copied ones. A document stores only what its artist changed, so a default that moves in a later version moves for every document that never overrode it — the same reason `BrushCostOf` computes rather than stores.
+- [ ] Changing a project's type changes defaults and never removes work `evidence: ProjectTypeChangeTests, ChangingProjectTypeKeepsEverythingAlreadyAuthored, ChangingProjectTypeMovesOnlyUntouchedDefaults`
+  - The consequence of the rule that costs the most to get wrong. If availability were gated, switching a project from Shot to Asset would have to decide what happens to the camera somebody keyframed. With reach unconditional there is nothing to decide: the camera stays, it is simply no longer part of what a new document in that project starts with.
+- [ ] A project's characters are offerable from any project type `evidence: CharacterLibraryReachTests, AnyProjectCanPublishItsCharacters, TheAssetLibraryTypeDefaultsToPublishing`
+  - The one existing violation, fixed rather than left as a footnote. `CharacterLibrary.Scan` currently returns nothing unless the manifest says `AssetLibrary`, so a character filed in a game project is unreachable from the short that needs it — and the only way out is to change the project's type, which is a decision about the whole project made to solve one lookup.
+  - `OnlyAssetLibraryProjectsOfferTheirCharacters` is the test that pins the old behaviour, and it should be **rewritten rather than deleted**: the thing worth guarding is that the Asset Library type still *defaults* to publishing, which is the part that made the type mean something.
 
 ---
 

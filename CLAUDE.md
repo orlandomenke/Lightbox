@@ -34,6 +34,32 @@ is **opt-in and absent until asked for**. A document that never adds a camera
 must serialize, render and export exactly as it does today, and must never
 show camera UI or pay for one. "Optional" here means absent, not disabled.
 
+### Absent by default is not the same as out of reach
+
+There is a third thing that is neither, and it is the one to refuse:
+
+> **Every feature is reachable in every project type. A project type sets
+> defaults, never availability.**
+
+An artist doing a comic who wants an exposure sheet gets one; somebody drawing a
+single illustration who wants a camera can have it. A project type decides what
+is *on*, what is *in front of you*, and what a new document starts with — never
+what the application can do.
+
+These two rules govern different things and both hold at once:
+
+| Rule | What it governs |
+| --- | --- |
+| *Optional means absent, not disabled* | The **record** and the **UI**. Unused writes no keys and shows no controls. |
+| *Every feature is reachable* | The **capability**. Nothing is locked behind a value in a manifest. |
+
+The camera is already the proof of all three: absent from the file until
+authored, absent from the UI until asked for, and askable for anywhere. So when
+a feature arrives framed as "this is for feature film" or "this is for games",
+that describes **which project type turns it on by default** — not who is allowed
+to have it. `ROADMAP.md` → *Reach and configuration* carries the plan and the one
+place the codebase currently breaks this.
+
 Most scope questions answer themselves once asked against these. Some worked
 examples, so the reasoning is reusable:
 
