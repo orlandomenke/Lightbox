@@ -1,6 +1,6 @@
 # Code index
 
-432 files · 107374 lines · 2250 tests.
+435 files · 107970 lines · 2263 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -337,6 +337,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - UnityConvert:34
 - `src/Lightbox.Core/Documents/Stroke.cs` (129 ln) · 84 test files
   - Stroke:9, BakedSample:121
+- `src/Lightbox.Core/Geometry/TileGrid.cs` (125 ln) · 1 test files
+  - TileGrid:33
 - `src/Lightbox.Core/Timeline/ExposureSheet.cs` (125 ln) · 4 test files
   - ExposureSheet:8
 - `src/Lightbox.Core/Projects/Project.cs` (120 ln) · 9 test files
@@ -434,6 +436,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipImageSettings:15, TipImageResult:43, TipFromImage:68
 - `src/Lightbox.Raster/BrushPreviewRenderer.cs` (248 ln) · 2 test files
   - BrushPreviewRenderer:34
+- `src/Lightbox.Raster/TileStore.cs` (174 ln) · 1 test files
+  - TileStore:37
 - `src/Lightbox.Raster/Tips/TipCatalogue.cs` (135 ln) · 3 test files
   - TipCatalogue:32
 - `src/Lightbox.Raster/FrameRasterizer.cs` (128 ln) · 23 test files
