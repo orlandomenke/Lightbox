@@ -246,8 +246,9 @@ anchor is the one thing the file cannot represent.
   `[Trait("Category", "Performance")]`. They are deliberately loose — they
   catch order-of-magnitude regressions, not drift.
 - The app runs headless for visual checks under Xvfb; see `MANUAL_TESTING.md`.
-- Work happens on a branch off `main`, merged back when it is green.
-  `feature/ui-dockers` was the long-lived UI branch and has landed.
+- Work happens on a branch off `main`, merged back when its **objective** is
+  complete — green is necessary and is not the bar. `feature/ui-dockers` was
+  the long-lived UI branch and has landed.
 
 ### Branches, merges and pull requests
 
@@ -260,6 +261,21 @@ still hanging around.
 
 It does not merge or open a PR unless that was the actual request — those are
 the two git actions other people see.
+
+**A branch is one objective, and its name says which** — `<type>/<id>-<slug>`,
+as in `fix/B39-effect-brush-scratch`. The agent has the full convention and
+the mechanical checks; the part worth knowing before you start is the reason.
+Branches were once named after the chat that made them
+(`claude/codespaces-agentic-setup-fjq295`), which records **provenance rather
+than scope** — and a name that states no objective cannot be departed from, so
+every one of them drifted. One carried a brush-compositor fix and a packaging
+change whose file sets shared *no directory at all*. The one branch named for
+its objective, `net10-upgrade`, is the one that did exactly what it said.
+
+So: if the sentence describing the branch needs an "and", it is two branches.
+Finding a second thing to fix mid-branch is normal — it is a new branch, not a
+new commit. Above **four** unmerged branches the agent warns, because four is
+where a person stops holding the set in their head.
 
 ### Touching anything AI: two agents, on purpose
 
