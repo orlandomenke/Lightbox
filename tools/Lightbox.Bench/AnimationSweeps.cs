@@ -142,11 +142,89 @@ public static class AnimationSweeps
     public static IEnumerable<Scenario> All()
     {
         yield return Layers();
+        yield return CanvasSize();
         yield return OnionDepth();
         yield return StrokesPerFrame();
         yield return SceneLength();
         yield return Playback();
         yield return Scrubbing();
+    }
+
+    // ---- how big can the canvas get before the model stops working -----------
+
+    /// <summary>
+    /// Recompositing and cache residency, swept by <em>canvas area</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The dimension the map was missing, and the one an infinite canvas is
+    /// entirely about.</b> There was already a canvas-size sweep —
+    /// <c>DrawingSweeps.CanvasArea</c> — and it measures committing a stroke,
+    /// which is the one path that is <em>immune</em> to canvas size by design:
+    /// it sits at exponent 0.14 because a stroke costs what it touched. So the
+    /// map said "canvas size is covered" while the two paths that genuinely
+    /// scale with area had never been swept along it.
+    /// </para>
+    /// <para>
+    /// Both halves are reported because they fail differently and only one of
+    /// them is a time. The <b>exponent</b> says whether a repaint is
+    /// proportional to the document rather than to the window — near 1 means
+    /// every pixel is touched whether or not anybody can see it. The
+    /// <b>gauge</b> says how much memory one frame of one scene costs, and that
+    /// is the harder wall: a layer bitmap is allocated at full document size,
+    /// so it grows with area regardless of how much of it holds ink or is
+    /// on screen.
+    /// </para>
+    /// <para>
+    /// Three layers and one frame on purpose. The point is the per-pixel cost
+    /// of area, so everything else is held still — and a deeper scene at 8K
+    /// would spend the sweep re-measuring cache eviction (B28) rather than
+    /// this.
+    /// </para>
+    /// </remarks>
+    private static Scenario CanvasSize()
+    {
+        Scene? scene = null;
+        Rig? rig = null;
+
+        return new Scenario(
+            "Recomposite the whole frame, by canvas size",
+            "canvas megapixels ×10",
+            // 960×540, 1920×1080, 2560×1440, 3840×2160, 7680×4320 — tenths of a
+            // megapixel, so the axis is area rather than a width that hides a
+            // squaring. Same units as DrawingSweeps.CanvasArea, so the two
+            // curves can be read against each other.
+            [5, 21, 37, 83, 332],
+            Cadence.WhilePlaying,
+            Setup: n =>
+            {
+                var (w, h) = n switch
+                {
+                    5 => (960, 540),
+                    21 => (1920, 1080),
+                    37 => (2560, 1440),
+                    83 => (3840, 2160),
+                    _ => (7680, 4320),
+                };
+                scene = SceneOf(3, frames: 1, strokesPerFrame: 40, w: w, h: h);
+                rig = new Rig(w, h);
+                Composite(rig.Target, scene, rig.Cache, 0); // warm: blending, not rasterising
+                return rig;
+            },
+            Work: _ => Composite(rig!.Target, scene!, rig.Cache, 0),
+            Note: "**Near 1 is the finding, not a regression.** A full recomposite is proportional to the "
+                + "document because every layer bitmap is the size of the document — so the cost of a "
+                + "repaint is set by how big the canvas is rather than by how much of it is visible. That "
+                + "is affordable while a document is a page and is the thing an infinite canvas cannot do "
+                + "at all, which is why the gauge matters more than the milliseconds here: one frame of a "
+                + "three-layer scene at 8K is already most of the 512 MB cache budget, and an unbounded "
+                + "canvas has no size to allocate. Tiling is the precondition, and culling is what tiles "
+                + "make possible.")
+        {
+            Gauge = () => rig?.Cache.CachedBytes ?? 0,
+            GaugeUnit = "cache MB",
+            Iterations = 8,
+        };
     }
 
     // ---- how many layers can a frame carry -----------------------------------
