@@ -38,6 +38,13 @@ synthetic pen and hover input through Xvfb is unreliable here. Those never
 auto-close; a human verifies and ticks the box. Reach for it rarely: it is the
 only place in this file where a claim is the best evidence available.
 
+**A report from outside this repo's tooling — a person, or an agent that has
+not read this file — goes to `INBOX.md`, not here.** It cannot know a real
+test name or a free id, so an entry it writes directly would either fail
+`bugs.py check` or accidentally resolve against the wrong test. A periodic
+session formalizes each inbox entry into a real one, following the rules
+above, and deletes it from the inbox once it does.
+
 ```bash
 python3 scripts/bugs.py check          # status; exits 1 on drift, a reused id or missing evidence
 python3 scripts/bugs.py sync           # rewrite the marks and re-sort open above fixed
