@@ -543,6 +543,14 @@ size and roundness variation and no heading at all — a wash edge is not
 directional. All of that variation is seeded from where each dab lands, so a
 mark is varied and still replays identically.
 
+**Bristle drag and pickup are not on the medium page**, and that is deliberate
+rather than missing. Both need the paint to be pushed along the stroke's own
+direction, which the medium pass does not yet do, so the sliders that used to be
+there moved and changed nothing. A control that does nothing is worse than one
+that is absent: it teaches you the panel cannot be trusted. For the *look* of a
+dragged bristle, use the bristle tip with **Angle follows direction** — which is
+what Oil already does.
+
 **scatter**, **roundness**, and for a smudge, **colour rate** and **smudge
 length**. Untick one and pressure stops touching it entirely.
 

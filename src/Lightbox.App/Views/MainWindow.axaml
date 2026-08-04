@@ -1129,23 +1129,29 @@
                                            Increment="0.05" FormatString="0.00" Width="64" />
                             <Slider Value="{Binding MediumRelief}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
-                          <DockPanel ToolTip.Tip="Streaking along the stroke, as bristles comb the paint.">
-                            <TextBlock Text="Bristle drag" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumBristleDrag}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
-                            <Slider Value="{Binding MediumBristleDrag}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
+                          <!--
+                            Bristle drag and Pickup are deliberately NOT here.
+
+                            Both are the directional advection loop in
+                            DESIGN-fluid-media.md piece (3), which is sequenced
+                            last and behind two open questions — so the engine
+                            reads neither, and a slider bound to one was a
+                            control that did nothing. Measured at the time as
+                            **0 of 41 600 pixels different** between all-zero
+                            and all-one. Charter O7: a setting that does nothing
+                            is worse than an absent one, because it teaches an
+                            artist that the panel lies.
+
+                            The *look* of a dragged bristle is already reachable
+                            by a different route — `TipShape.Bristle` with
+                            `AngleFollowsDirection` — which is why only Pickup
+                            really needs the loop. B23.
+                          -->
                           <DockPanel ToolTip.Tip="Paint on the brush at the start. Below 1 the brush runs out — that is dry-brush.">
                             <TextBlock Text="Paint load" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" Width="64" />
                             <Slider Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="How much of what is already on the canvas the brush picks up and drags.">
-                            <TextBlock Text="Pickup" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPickup}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
-                            <Slider Value="{Binding MediumPickup}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                         </StackPanel>
                       </StackPanel>

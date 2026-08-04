@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2230 tests, derived from the suite itself. Each line is a
+2237 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1930,6 +1930,14 @@ regression even when every test still compiles.
 - The Importer Can Be Declined — `:494`
 - Exporting Twice Produces The Same Sidecar — `:504`
 
+## UnreadSettingsTests
+`tests/Lightbox.App.Tests/UnreadSettingsTests.cs`
+
+- ASetting The Engine Ignores Is Not Offered To The Artist — `:54`
+- No Shipped Brush Sets ASetting The Engine Ignores — `:73`
+- The Unread List Does Not Outlive The Settings On It — `:98`
+- ASetting That Was Implemented Is Not Still Listed As Unread — `:113`
+
 ## UnrealExportTests
 `tests/Lightbox.App.Tests/UnrealExportTests.cs`
 
@@ -2117,6 +2125,13 @@ regression even when every test still compiles.
 - Importing Copies Rather Than Links — `:236`
 - Importing Carries Variants And Rebases Their Overrides — `:253`
 - Importing Twice Gives Two Characters With Distinct Folders — `:277`
+
+## CiRuntimeTests
+`tests/Lightbox.Core.Tests/CiRuntimeTests.cs`
+
+- The Job That Runs Tests Asks For The Runtime Those Tests Need — `:59`
+- The Sdk Is Still Named Too — `:81`
+- The Eight Point Zero Runtime Is Still Actually Required — `:91`
 
 ## CollisionShapeTests
 `tests/Lightbox.Core.Tests/CollisionShapeTests.cs`

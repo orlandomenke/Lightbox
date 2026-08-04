@@ -2091,22 +2091,16 @@ public sealed partial class MainViewModel : ObservableObject
         set => SetBrush(s => s.Medium.Relief = Math.Clamp(value, 0, 1));
     }
 
-    public double MediumBristleDrag
-    {
-        get => GetBrush(s => s.Medium.BristleDrag);
-        set => SetBrush(s => s.Medium.BristleDrag = Math.Clamp(value, 0, 1));
-    }
+    // No MediumBristleDrag or MediumPickup, and their absence is the fix rather than an
+    // oversight. Both settings exist on the record and the engine reads neither — they
+    // are the directional advection loop that DESIGN-fluid-media.md sequences last —
+    // so exposing them gave an artist two sliders that moved and changed nothing.
+    // Charter O7, and B23. `MediumSettings` says the same thing at the declarations.
 
     public double MediumPaintLoad
     {
         get => GetBrush(s => s.Medium.PaintLoad);
         set => SetBrush(s => s.Medium.PaintLoad = Math.Clamp(value, 0, 1));
-    }
-
-    public double MediumPickup
-    {
-        get => GetBrush(s => s.Medium.Pickup);
-        set => SetBrush(s => s.Medium.Pickup = Math.Clamp(value, 0, 1));
     }
 
     public double MediumPressureWater
@@ -2374,8 +2368,7 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(MediumPigmentDensity), nameof(MediumGranularity), nameof(MediumHiding),
         nameof(MediumPhysicalMixing),
         nameof(MediumPaper), nameof(MediumPaperScale), nameof(MediumPaperInfluence),
-        nameof(MediumBody), nameof(MediumRelief), nameof(MediumBristleDrag),
-        nameof(MediumPaintLoad), nameof(MediumPickup),
+        nameof(MediumBody), nameof(MediumRelief), nameof(MediumPaintLoad),
         nameof(MediumPressureWater), nameof(MediumPressureMix), nameof(MediumRewetting),
     ];
 

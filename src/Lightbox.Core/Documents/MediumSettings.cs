@@ -122,6 +122,20 @@ public sealed class MediumSettings
     public double Relief { get; set; }
 
     /// <summary>0..1: streaking along the stroke direction, as bristles comb the paint.</summary>
+    /// <remarks>
+    /// <b>Reserved — the engine reads this and nothing happens (B23).</b> It belongs to the
+    /// directional advection loop, `DESIGN-fluid-media.md` piece (3), which is sequenced last
+    /// and sits behind two open questions. Kept on the record so a document written when it
+    /// was offered still round-trips, and kept out of the UI so nobody is given a slider that
+    /// does nothing — charter O7.
+    /// <para>
+    /// The *look* of a dragged bristle is already reachable another way:
+    /// <c>TipShape.Bristle</c> with <c>AngleFollowsDirection</c>, which is what the shipped
+    /// Oil preset uses. Anything wiring this up must read the stroke's direction, which
+    /// <c>MediumSimulator</c> deliberately does not know — it works off the scratch surface's
+    /// coverage, so a comb needs a direction the pass never learns.
+    /// </para>
+    /// </remarks>
     public double BristleDrag { get; set; }
 
     /// <summary>
@@ -131,6 +145,12 @@ public sealed class MediumSettings
     public double PaintLoad { get; set; } = 1;
 
     /// <summary>0..1: how much of what is already on the canvas the brush picks up and drags.</summary>
+    /// <remarks>
+    /// <b>Reserved — read by nothing (B23),</b> for the same reason as
+    /// <see cref="BristleDrag"/>: it is the advection loop. Unlike bristle drag there is no
+    /// cheap substitute for it, so this is the one of the pair that genuinely waits on
+    /// `DESIGN-fluid-media.md` piece (3).
+    /// </remarks>
     public double Pickup { get; set; }
 
     // ---- how pressure reaches the medium ---------------------------------------

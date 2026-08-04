@@ -274,7 +274,7 @@ public static class BuiltInPresets
                     Paper = PaperKind.ColdPress, PaperScale = 10, PaperInfluence = 0.35,
                     Body = 0.35, Relief = 0.2, PaintLoad = 0.85,
                     // Body colour: pressure decides how much it picks up.
-                    PressureWater = 0.15, PressureMix = 0.8, Pickup = 0.25, Rewetting = 0.35,
+                    PressureWater = 0.15, PressureMix = 0.8, Rewetting = 0.35,
                 },
             },
         },
@@ -299,8 +299,11 @@ public static class BuiltInPresets
                     Absorbency = 0.9, EdgePull = 0.02,
                     PigmentDensity = 1, Granularity = 0.1, Hiding = 0.95,
                     Paper = PaperKind.Canvas, PaperScale = 8, PaperInfluence = 0.6,
-                    Body = 0.8, Relief = 0.6, BristleDrag = 0.5,
-                    PaintLoad = 0.6, Pickup = 0.4,
+                    Body = 0.8, Relief = 0.6, PaintLoad = 0.6,
+                    // No BristleDrag or Pickup: the engine reads neither, so setting
+                    // them wrote two keys on every oil stroke promising behaviour that
+                    // does not exist. The dragged-bristle *look* comes from the tip
+                    // above instead. B23.
                     // Barely engages the canvas under a light touch, drags it
                     // thoroughly under a firm one.
                     PressureWater = 0.05, PressureMix = 0.9, Rewetting = 0.55,
