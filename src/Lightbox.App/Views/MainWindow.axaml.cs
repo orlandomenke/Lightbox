@@ -855,7 +855,7 @@ public partial class MainWindow : Window
             // The window's own close button closes the panel. Park it first so
             // the panel outlives the window that was showing it.
             if (!_floating.Remove(floated, out var w)) return;
-            Park(w.Release());
+            if (w.Release() is { } released) Park(released);
             _vm.Workspace.SetVisible(floated, false);
         };
         window.Moved += floated =>
@@ -871,10 +871,27 @@ public partial class MainWindow : Window
         window.Show(this);
     }
 
+    /// <summary>The panels currently in windows of their own.</summary>
+    internal IReadOnlyCollection<FloatingPanelWindow> FloatingWindowsForTests => _floating.Values;
+
+    /// <summary>
+    /// Take a panel out of its own window, because the layout no longer says it floats.
+    /// </summary>
+    /// <remarks>
+    /// <b>Only parks what the window still holds, and that is the whole fix for B48.</b>
+    /// Two different journeys end here and they need opposite things. Closing the window is
+    /// closing the panel, so the panel has to be parked or it goes with the window. But
+    /// <em>docking</em> a floating panel reaches here too — and by then
+    /// <see cref="ApplyDockLayout"/> has already detached the panel from this window and
+    /// put it in a strip, so the window has no content left. Parking unconditionally
+    /// therefore did two wrong things at once: it dereferenced a null content, and had it
+    /// not thrown it would have pulled the freshly docked panel straight back out of the
+    /// strip and into the pool, leaving it in the layout and invisible.
+    /// </remarks>
     private void CloseFloating(DockPanelId id)
     {
         if (!_floating.Remove(id, out var window)) return;
-        Park(window.Release());
+        if (window.Release() is { } panel) Park(panel);
         window.Close();
     }
 

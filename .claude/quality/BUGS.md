@@ -67,6 +67,15 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ## Open
 
+- [x] **B48** `P1` `ui` Docking a floating panel crashed the application `evidence: FloatingPanelTests, APanelCanBeTornOutAndDockedAgainWithoutCrashing, ADockedPanelIsInTheStripRatherThanParkedInThePool, FloatingAndDockingRepeatedlyStaysStable`
+  - Repro: drag a panel out so it floats in its own window, then drag its header back onto a dock zone. `NullReferenceException`, and the manual promised this worked.
+  - **Two bugs on one line, and the crash was the less serious of them.** `CloseFloating` did `Park(window.Release())`. Docking a floating panel reaches it through `ApplyDockLayout`, which detaches every panel it is about to restrip — so the window's `Content` was already gone and `Release` had nothing to give back.
+  - `Release` was `(Docker)Content!` and **the cast did not throw**: casting a null reference succeeds and yields null, so the `!` silenced the warning and passed the null along. The exception surfaced two frames later in `MainWindow.Detach`, a long way from the line that was wrong — which is the general lesson worth keeping. A `!` does not assert; it suppresses, and it moves the failure somewhere less informative.
+  - The second bug is what a crash fix alone would have left: even without the throw, parking whatever the window handed back would have pulled the freshly docked panel **straight out of the strip it was just dropped into** and stored it in the pool — present in the layout and invisible. Two journeys end in `CloseFloating` and they need opposite things: closing the window must park the panel, docking it must not.
+  - Fix: `Release` returns a nullable and `CloseFloating` parks only what the window still holds.
+  - **`FloatingPanelWindow` was the one control in the docking system the codemap listed as `[NO TESTS]`**, which is where I looked first and where it was. The round trip is now covered six ways, including three trips in a row — once is a crash, three times is the state machine. Five of the six fail against the old code, and the failure cascades: the crash left the layout half-applied and took nine tests down with it.
+  - Cost: S
+
 - [x] **B47** `P1` `project` Save as had no shortcut, and export and status never checked for a file `evidence: SaveRequirement, SaveGate, SaveFirstDialog, SaveFactsFor, SaveRequirementTests, SaveAndStatusGateTests, ShortcutRegistrationTests, AFileThatIsNoLongerThereIsNotTheSameAsNeverSaved, AStatusChangeAsksAboutItsOwnRowRatherThanTheActiveTab`
   - Repro, as reported: Ctrl+Shift+S does nothing. Then, separately: export and auto-export happily run on a drawing that was never saved, and a status can be set on one.
   - Cause of the first half, and it is duller than a broken handler: `Ctrl+S` was an `InputGesture` on the Save menu item and was never in `ShortcutMap`. So it could not be rebound, it did not appear in the shortcut editor — and because nothing enumerated it, nobody ever asked the next question, which is that **Save as had no gesture at all.** It was not a broken shortcut; it was never a shortcut. Found by writing the guard for the process rule rather than by looking for it.

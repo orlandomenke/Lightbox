@@ -45,9 +45,25 @@ public sealed class FloatingPanelWindow : Window
     /// docked again, so the window can be closed without the panel going with
     /// it.
     /// </summary>
-    public Docker Release()
+    /// <returns>
+    /// The panel, or <c>null</c> when the window is no longer holding one.
+    /// </returns>
+    /// <remarks>
+    /// <b>Nullable because "somebody already took it" is a normal state, not a bug</b>
+    /// (B48). Docking a floating panel runs the layout pass first, and that pass detaches
+    /// every panel it is about to put in a strip — so by the time this is called the
+    /// content is gone and the panel is somewhere better.
+    /// <para>
+    /// This was <c>(Docker)Content!</c>, and the interesting part is that the cast did not
+    /// throw: casting a null reference succeeds and yields null, so the <c>!</c> silenced
+    /// the warning and handed the null on. The crash surfaced two frames later in
+    /// <c>MainWindow.Detach</c>, which is a long way from the line that was wrong. Returning
+    /// a nullable is the honest signature — there really is nothing to hand back.
+    /// </para>
+    /// </remarks>
+    public Docker? Release()
     {
-        var panel = (Docker)Content!;
+        var panel = Content as Docker;
         Content = null;
         Dismissed = null;
         Moved = null;
