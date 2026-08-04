@@ -1517,18 +1517,22 @@ public partial class MainWindow : Window
         if (BrushPresetList is null) return;
 
         var matches = BrushFilter.Apply(_vm.BrushPresetChoices, BrushSearchBox.Text, _brushTagFilter);
+        // Mapped through BrushChoice so each row carries a picture of its mark. The
+        // previews are cached on the preset's id and settings, so filtering — which is
+        // what somebody does constantly in here — re-uses them rather than re-rendering.
+        var tiles = matches.Select(BrushChoice.For).ToList();
 
         _pickingBrush = true;
-        BrushPresetList.ItemsSource = matches;
-        BrushPresetList.SelectedItem = matches.FirstOrDefault(p => p.Id == _vm.SelectedBrushPreset?.Id);
+        BrushPresetList.ItemsSource = tiles;
+        BrushPresetList.SelectedItem = tiles.FirstOrDefault(t => t.Preset.Id == _vm.SelectedBrushPreset?.Id);
         _pickingBrush = false;
 
-        BrushFilterEmpty.IsVisible = matches.Count == 0;
+        BrushFilterEmpty.IsVisible = tiles.Count == 0;
     }
 
     private void OnBrushPresetPicked(object? sender, SelectionChangedEventArgs e)
     {
-        if (_pickingBrush || BrushPresetList?.SelectedItem is not BrushPreset preset) return;
+        if (_pickingBrush || BrushPresetList?.SelectedItem is not BrushChoice { Preset: { } preset }) return;
         // ApplyPreset rather than the property, so picking the brush you are
         // already on puts it back — which is the obvious way to undo a nudge
         // once there is a dot telling you the brush has been nudged.

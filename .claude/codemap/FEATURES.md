@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2182 tests, derived from the suite itself. Each line is a
+2208 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -289,6 +289,23 @@ regression even when every test still compiles.
 - ANew Document In The Project Is Fed That Brush — `:150`
 - AProject With Nothing Recorded Leaves The Brush Alone — `:168`
 - Switching To Per Project Mid Session Hands Back What Is Already There — `:182`
+
+## BrushPickerTests _Category=Performance_
+`tests/Lightbox.App.Tests/BrushPickerTests.cs`
+
+- Opening The Picker Fills It With Tiles Rather Than Bare Presets — `:64`
+- Every Brush On Offer Has APicture Of Its Mark — `:78`
+- Every Built In Brush Leaves AMark On Its Tile — `:148`
+- The Shipped Blur Brush Actually Softens What It Passes Over — `:174`
+- The Tile Names The Brush And Its Real Size — `:189`
+- Picking ATile Applies That Brush — `:205`
+- The Picker Opens On The Brush You Are Already Using — `:220`
+- Searching Narrows The Grid And Still Gives Tiles — `:234`
+- No Match Says So Rather Than Showing An Empty Grid — `:253`
+- The Same Brush Reuses Its Picture Rather Than Redrawing It — `:267`
+- Editing ABrush Changes Its Picture — `:286`
+- An Imported Brush Shows Its Own Tip Rather Than ARound Dab — `:308`
+- ACollection Sized Picker Opens Without Stalling — `:367`
 
 ## BrushComparisonTests
 `tests/Lightbox.App.Tests/BrushPresetEditingTests.cs`
@@ -994,7 +1011,8 @@ regression even when every test still compiles.
 - Blur Shows Mid Drag — `:111`
 - An Abandoned Smudge Leaves No Trace — `:143`
 - ALive Blur Does Not Cover More Ground Than The Mark That Commits — `:214`
-- The Effect Brushes Ship With AFlow An Artist Can Steer — `:251`
+- The Pulling Brushes Ship With AFlow An Artist Can Steer — `:255`
+- Blur Ships With ARadius You Can Actually See — `:288`
 
 ## LongStrokeCostTests _Category=Performance_
 `tests/Lightbox.App.Tests/LongStrokeCostTests.cs`
@@ -2739,6 +2757,22 @@ regression even when every test still compiles.
 - Abr V6 Imports Raw Sampled Brush — `:94`
 - Kpp Imports Parameter Subset — `:124`
 - Unsupported Extension Throws — `:152`
+
+## BrushPreviewRendererTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/BrushPreviewRendererTests.cs`
+
+- APreview Actually Has AMark On It — `:39`
+- The Mark Stays Inside The Tile — `:49`
+- No Brush In The Range Runs Off The Tile — `:69`
+- An Effect Brush Gets Something To Work On Rather Than Blank Paper — `:88`
+- An Effect Brush Keeps Its Real Size Wherever It Already Fits — `:109`
+- ABigger Brush Always Reads Bigger Right Across The Range — `:140`
+- The Whole Range Still Fits Inside The Tile — `:152`
+- Size Is Shown On ACurve Rather Than Linearly — `:173`
+- Two Different Brushes Do Not Produce The Same Picture — `:189`
+- The Same Brush Renders The Same Picture Twice — `:216`
+- ABrush The Engine Cannot Honour Gives ABlank Tile Rather Than Throwing — `:234`
+- Sixty Previews Render Fast Enough To Open APicker — `:250`
 
 ## BrushTipSamplingTests
 `tests/Lightbox.Raster.Tests/BrushTipSamplingTests.cs`

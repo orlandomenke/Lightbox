@@ -105,6 +105,18 @@ public static class BrushComparison
     public static bool SameMark(BrushSettings a, BrushSettings b) =>
         Canonicalise(a) == Canonicalise(b);
 
+    /// <summary>
+    /// A short string that changes whenever the mark would.
+    /// </summary>
+    /// <remarks>
+    /// For caching a rendered preview of the brush. Deriving it from the same canonical
+    /// form <see cref="SameMark"/> uses is the point: a key that missed a field would show
+    /// the artist a picture of a brush they had already changed, and a hand-written key is
+    /// exactly the list somebody forgets to extend.
+    /// </remarks>
+    public static string Fingerprint(BrushSettings settings) =>
+        Canonicalise(settings).GetHashCode().ToString("x8");
+
     private static string Canonicalise(BrushSettings settings)
     {
         var copy = settings.Clone();
@@ -346,9 +358,15 @@ public static class BuiltInPresets
         {
             Id = "builtin-blur",
             Name = "Blur",
-            // Flow is the blur sigma: sigma = Flow * Size / 4, so 0.7 on a
-            // 24 px brush was a 4 px sigma per dab, applied at every dab.
-            Settings = new BrushSettings { Size = 24, Flow = 0.1, Spacing = 0.12, Kind = BrushKind.Blur },
+            // Flow is the blur sigma: sigma = Flow * Size / 4, so 0.35 on a 24 px
+            // brush is a 2 px softening. It was 0.1 — a 0.6 px sigma, which is
+            // no visible blur at all — on the reasoning that the blur is
+            // "applied at every dab" and would stack. It does not: StampBlur
+            // snapshots the layer once before the stroke and draws that same
+            // snapshot per dab with SKBlendMode.Src (the B37 fix), so every dab
+            // replaces its area with a single pass and the sigma is exactly what
+            // one dab gives. See B49.
+            Settings = new BrushSettings { Size = 24, Flow = 0.35, Spacing = 0.12, Kind = BrushKind.Blur },
         },
     ];
 

@@ -12,7 +12,7 @@ namespace Lightbox.App.Tests;
 /// wet-media work established, applied to the tools that still broke it.
 /// </summary>
 [Collection("BrushState")]
-public class LiveToolPreviewTests : BrushStateIsolated
+public class LiveToolPreviewTests(ITestOutputHelper output) : BrushStateIsolated
 {
     private static MainViewModel Painted()
     {
@@ -215,7 +215,7 @@ public class LiveToolPreviewTests : BrushStateIsolated
     {
         var vm = Painted();
         Pick(vm, "Blur");
-        vm.BrushFlow = 0.6;   // high enough that compounding is unmistakable
+        vm.BrushFlow = 0.6;   // a wide sigma, so any extra pass would be unmistakable
 
         RenderSnapshot? latest = null;
         vm.SnapshotChanged += s => latest = s;
@@ -239,25 +239,68 @@ public class LiveToolPreviewTests : BrushStateIsolated
     }
 
     /// <summary>
-    /// The defaults for the three effect brushes are low, because flow on these
-    /// is how hard each dab pulls and the dabs overlap ten deep.
+    /// The pulling brushes ship with a low flow, because flow on those is how hard each dab
+    /// drags and the dabs overlap ten deep.
     /// </summary>
     /// <remarks>
-    /// Guarded rather than merely set: a default nudged back up would be
-    /// invisible in every other test, and it is the one number that decides
-    /// whether these tools are steerable at all.
+    /// Guarded rather than merely set: a default nudged back up would be invisible in every
+    /// other test, and it is the one number that decides whether these tools are steerable
+    /// at all.
+    /// <para>
+    /// <b>Blur is deliberately not in this list any more</b> — see the test below. It was,
+    /// and that is how it came to ship at a flow that made it do nothing.
+    /// </para>
     /// </remarks>
     [AvaloniaFact]
-    public void TheEffectBrushesShipWithAFlowAnArtistCanSteer()
+    public void ThePullingBrushesShipWithAFlowAnArtistCanSteer()
     {
         var vm = VmLayers.BareVm();
-        foreach (var name in new[] { "Smudge", "Blender", "Blur" })
+        foreach (var name in new[] { "Smudge", "Blender" })
         {
             var preset = vm.BrushPresetChoices.First(p => p.Name == name);
             Assert.True(
                 preset.Settings.Flow <= 0.1,
-                $"{name} ships with flow {preset.Settings.Flow:F2}; effect brushes need 0.1 or less");
+                $"{name} ships with flow {preset.Settings.Flow:F2}; a pulling brush needs 0.1 or less");
             Assert.True(preset.Settings.Flow > 0, $"{name} ships with no flow at all");
         }
+    }
+
+    /// <summary>
+    /// Blur's flow is a radius, not a pull, and it does not compound — so the bound runs the
+    /// other way.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// B49. This test used to hold Blur to the same ceiling as smudge and the blender, on the
+    /// reasoning that flow on an effect brush compounds across overlapping dabs.
+    /// <b>Blur is the one that does not.</b> <c>StampBlur</c> snapshots the layer once before
+    /// the stroke and draws that same snapshot per dab with <c>SKBlendMode.Src</c> — the B37
+    /// fix, deliberately — so every dab replaces its circle with a single pass and the
+    /// softness an artist gets is the softness of one dab, however long the stroke.
+    /// </para>
+    /// <para>
+    /// Stated as a sigma rather than a flow, because sigma is what a person sees: the flow
+    /// number means nothing without the size beside it, and a bound on the flow alone would
+    /// pass on a 4 px brush that softens by a tenth of a pixel.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void BlurShipsWithARadiusYouCanActuallySee()
+    {
+        var vm = VmLayers.BareVm();
+        var blur = vm.BrushPresetChoices.First(p => p.Name == "Blur").Settings;
+
+        // The engine's own formula — StampBlur: sigma = Flow × Size / 4.
+        var sigma = blur.Flow * blur.Size / 4;
+        output.WriteLine($"Blur ships at flow {blur.Flow:F2} on {blur.Size} px — sigma {sigma:F2} px");
+
+        Assert.True(
+            sigma >= 1.5,
+            $"Blur's sigma is {sigma:F2} px, which is not a visible softening — it shipped at "
+            + "0.6 px once and the brush appeared to do nothing at all");
+        Assert.True(
+            sigma <= 4,
+            $"Blur's sigma is {sigma:F2} px — a single dab that wipes out that much detail is "
+            + "a smear rather than a softening, and it costs a full-layer blur per dab");
     }
 }

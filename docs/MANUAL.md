@@ -382,6 +382,25 @@ General, Effects, Medium, Pen pressure, Presets.
 The brush button opens a flyout, not a dropdown: once you have forty brushes,
 scrolling is the wrong verb.
 
+Every brush is a **tile with a picture of its own mark on it** — one swash,
+drawn by the real engine with that brush's tip, edge, texture, scatter and
+wetness. A collection you imported arrived with names somebody else chose, and
+"Wet bristle 04" and "Wet bristle 07" are genuinely different brushes with
+nothing in the words to say how. The picture is what you choose by.
+
+Two things the tile deliberately does not promise:
+
+- **It is not to scale.** A 300 px brush at true size fills the tile with the
+  flat middle of a mark, which is the least useful part of it, so size is
+  mapped onto a range the tile can draw — a heavier brush always reads heavier,
+  but the width is not the number. The number is in the corner of the tile.
+- **Smudge, blur and the blender are drawn over a test pattern**, because they
+  move what is already there rather than laying anything down. On clean paper
+  their tiles would be blank.
+
+Everything else is the brush's own, because the tile goes through the same
+engine your canvas does.
+
 - **Search** matches names and tags.
 - **Tag chips** across the top narrow the list. Pick several and you get all of
   them — "inking *or* roughs" — because asking for a brush that is both is
@@ -415,14 +434,22 @@ Effect brushes (**Smudge**, **Blur**) swap the bar for their own controls —
 strength, radius, and for smudge how much of its own colour it adds. A smudge
 has no opacity in the usual sense, so showing you one would be a lie.
 
-**Flow on an effect brush is not flow on a paint brush,** and it ships an order
-of magnitude lower for that reason: Smudge 0.08, Blender 0.06, Blur 0.10. On a
-paint brush flow is how much pigment a dab lays; on these it is how hard each
-dab *pulls*, and because dabs overlap roughly ten deep the pulls compound along
-the stroke. A value that looks like a gentle nudge on one dab is a shove by the
-time ten have landed — which is why these tools used to feel impossible to
-steer. If you want a stronger effect, prefer a slower hand or a second pass over
-raising flow; that is what gives a smudge somewhere to go.
+**Flow on an effect brush is not flow on a paint brush.** On a paint brush it is
+how much pigment a dab lays; on a smudge or a blender it is how hard each dab
+*pulls*, and because dabs overlap roughly ten deep the pulls compound along the
+stroke. A value that looks like a gentle nudge on one dab is a shove by the time
+ten have landed — which is why these ship an order of magnitude lower: Smudge
+0.08, Blender 0.06. If you want a stronger effect, prefer a slower hand or a
+second pass over raising flow; that is what gives a smudge somewhere to go.
+
+**Blur is the exception, and it works the other way round.** Its flow is the
+softening radius — sigma, in pixels, is roughly flow × size ÷ 4 — and it does
+*not* compound: a blur takes one reading of the layer before the stroke and every
+dab replaces its own circle with a single pass of that. So the softness you get
+is the softness of one dab, however long you draw and however many times you go
+back over it. It ships at **0.35**, about two pixels at the default size. It was
+0.10 for a while, which is well under a pixel, and the brush appeared to do
+nothing at all.
 
 **These defaults are deliberately conservative and you may well want to raise
 them.** They were chosen while an effect brush still stacked opacity with every
