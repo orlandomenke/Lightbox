@@ -99,12 +99,23 @@ jobs:
           -c Release -r win-x64 --self-contained true
           -p:PublishTrimmed=false -p:DebugType=none
           -o publish/win-x64
+      # Into the SAME folder as the app, not a subfolder — that is B32's fix and
+      # it is the net10.0 upgrade that made it possible. A self-contained app
+      # only looks for its runtime beside its own executable, so `mcp/` could
+      # never reach the parent's copy and had to carry a second one: 35.3 MB of
+      # a 105 MB bundle. While the app was net8.0 and the server net10.0 those
+      # two copies were genuinely different files and merging them would have
+      # broken whichever executable lost. Both are net10.0 now, so the runtime
+      # files are byte-identical, the second publish overwrites them with the
+      # same bytes, and the two deps.json/runtimeconfig.json pairs have distinct
+      # names and coexist. Measured: the server adds 4 MB instead of 35.3, and
+      # the bundle drops from 105 MB zipped to 74.
       - name: Publish MCP server into the same bundle
         run: >
           dotnet publish src/Lightbox.Mcp/Lightbox.Mcp.csproj
           -c Release -r win-x64 --self-contained true
           -p:PublishTrimmed=false -p:DebugType=none
-          -o publish/win-x64/mcp
+          -o publish/win-x64
       # The artifact (= downloaded zip) name says what kind of build this is:
       #   release-main-…      build of main, for release-style testing
       #   bugfix-<branch>-…   build of a fix/, bugfix/ or hotfix/ branch

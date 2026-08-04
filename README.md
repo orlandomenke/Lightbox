@@ -30,7 +30,7 @@ Every code push builds a self-contained Windows bundle in CI:
 2. Unzip anywhere in your user profile, e.g. `%LOCALAPPDATA%\Lightbox`.
 3. Run `Lightbox.App.exe`. Nothing is installed, no .NET required, no admin.
 
-**How long a bundle lasts.** One is about 105 MB, so they are pruned rather than kept: a branch keeps its **3 newest**, `main`'s are kept 30 days and everyone else's 5, and any feature-branch bundle over a week old is deleted whatever branch it came from. A documentation-only push does not build one at all. If you need a bundle for a commit that has aged out, re-run the workflow from the Actions tab (**Run workflow**) — `workflow_dispatch` always builds.
+**How long a bundle lasts.** One is about 74 MB, so they are pruned rather than kept: a branch keeps its **3 newest**, `main`'s are kept 30 days and everyone else's 5, and any feature-branch bundle over a week old is deleted whatever branch it came from. A documentation-only push does not build one at all. If you need a bundle for a commit that has aged out, re-run the workflow from the Actions tab (**Run workflow**) — `workflow_dispatch` always builds.
 
 **If the storage quota fills anyway**, run **Actions ▸ cleanup artifacts ▸ Run workflow**. It prunes on its own without building anything, which matters because the build workflow's own prune cannot rescue a full quota — that prune runs beside an upload, and once the quota is full the upload fails first.
 
@@ -81,7 +81,7 @@ Prefer building yourself? Install the .NET SDK per-user (no admin) with the offi
 
 ## Use Claude without an API key — the MCP server
 
-If you have the **Claude Desktop app** (Pro is enough), your subscription can drive Lightbox directly — no API key. The bundle ships an MCP server (`mcp\Lightbox.Mcp.exe`) that exposes Lightbox to Claude as tools: `get_scene`, `get_frame_strokes`, `render_frame` (Claude *sees* your drawing), `insert_inbetweens`, and `draw_strokes`. Everything Claude does arrives through the same validation and undo path as your own edits — one Ctrl+Z removes it.
+If you have the **Claude Desktop app** (Pro is enough), your subscription can drive Lightbox directly — no API key. The bundle ships an MCP server (`Lightbox.Mcp.exe`, beside `Lightbox.App.exe`) that exposes Lightbox to Claude as tools: `get_scene`, `get_frame_strokes`, `render_frame` (Claude *sees* your drawing), `insert_inbetweens`, and `draw_strokes`. Everything Claude does arrives through the same validation and undo path as your own edits — one Ctrl+Z removes it.
 
 Setup:
 
@@ -92,12 +92,20 @@ Setup:
 {
   "mcpServers": {
     "lightbox": {
-      "command": "C:\\Users\\you\\AppData\\Local\\Lightbox\\mcp\\Lightbox.Mcp.exe",
+      "command": "C:\\Users\\you\\AppData\\Local\\Lightbox\\Lightbox.Mcp.exe",
       "args": []
     }
   }
 }
 ```
+
+> **Upgrading from a bundle built before this changed?** The server used to sit
+> in an `mcp\` subfolder, so an older config points at
+> `…\Lightbox\mcp\Lightbox.Mcp.exe`. Drop the `mcp\` and it works. The move is
+> what stopped the bundle shipping a second copy of .NET — 105 MB down to 74 —
+> because a self-contained executable only finds its runtime beside itself, so a
+> subfolder had to carry its own. Claude Desktop does not report a bad `command`
+> loudly: the server simply fails to start and the Lightbox tools are missing.
 
 3. Fully quit Claude Desktop (from the tray) and reopen — servers load at startup.
 4. Draw two keyframes in Lightbox, then ask Claude something like:
