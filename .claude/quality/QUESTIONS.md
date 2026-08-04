@@ -18,10 +18,25 @@ It re-exposes drawings that already exist, which is the half of frame-by-frame
 work a symbol cannot carry — a symbol carries drawings, a timing preset carries
 their spacing.
 
-## Q19 · Are Linux and macOS shipping targets, or only development ones?
+## Q19 · Are Linux and macOS shipping targets, or only development ones? — **answered (a)**
+
+**Answered 2026-08-04: (a), development targets only — Windows is what ships.**
+The glibc floor is accepted and closes as not-applicable, on this question's own
+reasoning rather than in spite of it: `build.yml` publishes exactly one artifact,
+`win-x64`, so nothing crosses the floor and a rising one cannot lose a user who
+has nothing to download. Anyone on Linux today built from source and therefore
+has a .NET SDK, which puts their distro far above either number.
+
+The consequences, so they are not re-derived: the `net10.0` upgrade is unblocked
+and has landed; **B32**'s fix points **up** (the solution moved to `net10.0`
+rather than the MCP server moving down to `net8.0`); and a `linux-x64` publish
+job stays the separate concern `DESIGN-net10-upgrade.md` files it as, rather than
+becoming part of the upgrade. Revisit if a Linux or macOS artifact is ever
+shipped — that, not the glibc number, is the thing that would make the floor
+matter.
 
 **Blocks:** the `net10.0` decision in `docs/DESIGN-net10-upgrade.md`, and
-whether **B32**'s fix points up or down.
+whether **B32**'s fix points up or down. *(Both now resolved by the answer above.)*
 
 The upgrade is otherwise clean. Avalonia 12.1.1 and SkiaSharp 3.119.4 both
 publish explicit `net10.0` dependency groups, every .NET 9 and .NET 10 breaking
