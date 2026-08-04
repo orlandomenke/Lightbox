@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2270 tests, derived from the suite itself. Each line is a
+2275 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -3248,6 +3248,15 @@ regression even when every test still compiles.
 - Ink Bounds Is Null Until Something Is Drawn — `:254`
 - Dropping ATile Releases Its Bytes — `:266`
 - The Tile Size Is AParameter Rather Than Baked In — `:283`
+
+## TiledRasterizerTests
+`tests/Lightbox.Raster.Tests/TiledRasterizerTests.cs`
+
+- ATiled Render Is Bit Identical To An Untiled One — `:74`
+- The Tile Size Does Not Change The Render — `:99`
+- Empty Parts Of The Document Are Never Allocated — `:118`
+- An Empty Stroke List Renders An Empty Store And An Empty Image — `:148`
+- An Effect Brush Across ATile Boundary Is Measured Rather Than Assumed — `:173`
 
 ## TipCatalogueTests
 `tests/Lightbox.Raster.Tests/TipCatalogueTests.cs`
