@@ -229,20 +229,92 @@ public class TiledRasterizerTests(ITestOutputHelper output)
             $"effect brush across a tile seam: identical={same}, {differing} px differ, " +
             $"worst alpha delta {worst}, {confined:P0} of them inside the smudge's own footprint");
 
-        // B59. This is asserted as the KNOWN-BAD state rather than left as a
-        // no-op, because a test that cannot fail is the thing this repo's own
-        // measurement rules warn about — "assert the faint mark is present as
-        // well as fainter". Two claims, and the second is the diagnosis:
-        Assert.False(
-            same,
-            "the tiled effect-brush render is now identical — B59 has been fixed, so tighten this "
-            + "test into an equality and close the bug rather than leaving a guard that passes for "
-            + "the wrong reason");
+        // B59 is closed by routing effect brushes through the whole-frame path,
+        // so this is now an equality — the state the earlier version of this test
+        // said to tighten it to.
         Assert.True(
-            confined > 0.99,
-            $"only {confined:P0} of the differences fall inside the smudge's own footprint. B59 is a "
-            + "read-neighbourhood defect, so it can only change pixels the effect brush itself "
-            + "touched. Differences outside that mean the tiled path is wrong about something "
-            + "other than sampling, and the paint-stroke tests above would not catch it.");
+            same,
+            $"an effect brush rendered through tiles differs from the untiled render in {differing} "
+            + $"pixels (worst alpha delta {worst}, {confined:P0} inside the smudge's own footprint). "
+            + "B59 has reopened: check that TiledRasterizer.CanTile still refuses effect brushes.");
+        Assert.Equal(0, differing);
+    }
+
+    /// <summary>
+    /// The refusal itself, so the fallback cannot be removed by accident.
+    /// </summary>
+    /// <remarks>
+    /// The equality above would still pass if somebody made effect brushes tile
+    /// *correctly*, which is the intended end state — but it would also pass if
+    /// they made <c>Rasterize</c> ignore tiling entirely. This pins which of the
+    /// two is happening, so the day B59 is fixed properly this test fails and
+    /// says so rather than going quietly green.
+    /// </remarks>
+    [Fact]
+    public void EffectBrushesAreRefusedByTheTiledPathUntilB59IsFixedProperly()
+    {
+        var paint = new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = "#000000",
+            Brush = new BrushSettings { Size = 20, Hardness = 1, Opacity = 1, Flow = 1, Spacing = 0.2 },
+            Points = [new StrokePoint(10, 10, 1), new StrokePoint(60, 60, 1)],
+        };
+        var smudge = new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = "#000000",
+            Brush = new BrushSettings { Kind = BrushKind.Smudge, Size = 30, Flow = 0.5, Spacing = 0.1 },
+            Points = [new StrokePoint(20, 20, 1), new StrokePoint(70, 70, 1)],
+        };
+
+        Assert.True(TiledRasterizer.CanTile([paint]));
+        Assert.False(TiledRasterizer.CanTile([paint, smudge]));
+        Assert.False(TiledRasterizer.CanTile([smudge]));
+    }
+
+    /// <summary>
+    /// The fallback must not throw away the memory property: a frame with an
+    /// effect brush still stores only the tiles that hold ink.
+    /// </summary>
+    [Fact]
+    public void TheWholeFrameFallbackStillStoresOnlyTilesWithInk()
+    {
+        var strokes = new List<Stroke>
+        {
+            new()
+            {
+                Tool = ToolKind.Brush,
+                Color = "#3070c0",
+                Brush = new BrushSettings { Size = 40, Hardness = 0.5, Opacity = 1, Flow = 1, Spacing = 0.15 },
+                Points = [new StrokePoint(60, 60, 1), new StrokePoint(140, 100, 1)],
+            },
+            new()
+            {
+                Tool = ToolKind.Brush,
+                Color = "#000000",
+                Brush = new BrushSettings
+                {
+                    Kind = BrushKind.Smudge, Size = 30, Flow = 0.5, Spacing = 0.1, SmudgeLength = 0.7,
+                },
+                Points = [new StrokePoint(70, 70, 1), new StrokePoint(130, 95, 1)],
+            },
+        };
+
+        using var store = new TileStore(new TileGrid(256));
+        TiledRasterizer.Rasterize(store, strokes, Info);
+
+        var spans = store.Grid.CountCovering(0, 0, W, H);
+        output.WriteLine($"whole-frame fallback stored {store.TileCount} tiles of {spans} the document spans");
+
+        Assert.True(store.TileCount >= 1, "the drawing vanished");
+        Assert.True(
+            store.TileCount < spans,
+            $"the fallback stored all {spans} tiles — the blank ones are being kept, so a frame with "
+            + "one smudge costs a full document-sized allocation in the store as well as during the render");
+
+        using var untiled = FrameRasterizer.Rasterize(strokes, W, H);
+        using var tiled = TiledRasterizer.Flatten(store, W, H);
+        Assert.Equal(Fingerprint(untiled), Fingerprint(tiled));
     }
 }

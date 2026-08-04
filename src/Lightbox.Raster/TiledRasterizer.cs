@@ -1,5 +1,4 @@
 using Lightbox.Core.Documents;
-using Lightbox.Core.Geometry;
 using SkiaSharp;
 
 namespace Lightbox.Raster;
@@ -14,8 +13,8 @@ namespace Lightbox.Raster;
 /// composite to exactly what <see cref="FrameRasterizer.Rasterize"/> produces —
 /// a tiled render is a different *arrangement* of the same work, and the moment
 /// it is a different *result* the application has two renderers that will drift.
-/// `ATiledRenderIsBitIdenticalToAnUntiledOne` is the guard, and it is the reason
-/// this class does almost nothing clever.
+/// <c>ATiledRenderIsBitIdenticalToAnUntiledOne</c> is the guard, and it is the
+/// reason this class does almost nothing clever.
 /// </para>
 /// <para>
 /// <b>Translate the surface, never the geometry.</b> A tile is rendered by
@@ -38,23 +37,69 @@ namespace Lightbox.Raster;
 public static class TiledRasterizer
 {
     /// <summary>
-    /// Stamp a stroke list into a tile store.
+    /// Whether this stroke list can be rendered tile by tile at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>False when any stroke is an effect brush, and the cause is an
+    /// assumption in the engine rather than a property of tiles (B59).</b>
+    /// <c>SampleAverage</c> indexes its read bitmap with the dab's *document*
+    /// position — <c>Math.Clamp((int)(pos.X + dx * spread), 0, pixels.Width - 1)</c>
+    /// — and <c>LerpDab</c> does the same with its device rects. That is correct
+    /// exactly while the read bitmap's origin is the document's origin, which was
+    /// true of every caller that existed before tiling and is false of a tile.
+    /// </para>
+    /// <para>
+    /// So an effect brush cannot be handed a tile — and it cannot be handed an
+    /// offset scratch either. That was tried and measured: rendering the
+    /// neighbourhood into a shifted scratch made the result *worse*, 3265 wrong
+    /// pixels against 3876 but with the worst alpha delta rising from 191 to a
+    /// full 255, because a sample read from the wrong place is further from the
+    /// truth than one clamped short.
+    /// </para>
+    /// <para>
+    /// The real fix is to thread a read origin through the effect path so the
+    /// engine stops assuming, and it is deliberately not in this change: it edits
+    /// the hottest and most invariant-critical file in the repository, and
+    /// bundling it with the branch that discovered the assumption would put a
+    /// diagnosis and a piece of surgery in one diff.
+    /// </para>
+    /// </remarks>
+    public static bool CanTile(IReadOnlyList<Stroke> strokes)
+    {
+        foreach (var stroke in strokes)
+        {
+            if (stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur) return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Fill a store with a frame's pixels, tile by tile where that is sound and
+    /// through a whole-frame render where it is not.
     /// </summary>
     /// <param name="region">
-    /// Which part of the document to build, or null for all of it. This is the
-    /// hook culling will use; it changes nothing about what a tile contains, only
-    /// which tiles are built.
+    /// Which part of the document to build, or null for all of it. The hook
+    /// culling will use. Ignored on the whole-frame path, which has to render
+    /// everything to be correct — another reason to want B59 fixed properly.
     /// </param>
-    /// <remarks>
-    /// Only tiles a stroke actually reaches are rented, so an empty region of the
-    /// document costs nothing — that is <c>TileStore</c>'s promise carried
-    /// through the render rather than restated.
-    /// </remarks>
     public static void Rasterize(
         TileStore store,
         IReadOnlyList<Stroke> strokes,
         SKImageInfo info,
         SKRectI? region = null)
+    {
+        if (!CanTile(strokes))
+        {
+            RasterizeWhole(store, strokes, info);
+            return;
+        }
+        RasterizeByTile(store, strokes, info, region);
+    }
+
+    /// <summary>The tiled path: each tile replays only the strokes that reach it.</summary>
+    private static void RasterizeByTile(
+        TileStore store, IReadOnlyList<Stroke> strokes, SKImageInfo info, SKRectI? region)
     {
         var index = StrokeIndex.Of(strokes, info, store.Grid);
         var area = region ?? SKRectI.Create(0, 0, info.Width, info.Height);
@@ -64,11 +109,10 @@ public static class TiledRasterizer
         foreach (var coord in store.Grid.Covering(area.Left, area.Top, area.Width, area.Height))
         {
             var (originX, originY) = store.Grid.OriginOf(coord);
-            var tileRect = SKRectI.Create(originX, originY, size, size);
+            var reaching = index.Intersecting(SKRectI.Create(originX, originY, size, size)).ToList();
 
-            // Which strokes reach this tile, in record order. Empty means the
-            // tile stays unallocated, which is the whole economy of the design.
-            var reaching = index.Intersecting(tileRect).ToList();
+            // No strokes here, so the tile stays unallocated. That is the whole
+            // economy of the design, and it is enforced here rather than trusted.
             if (reaching.Count == 0) continue;
 
             var tile = store.Rent(coord);
@@ -85,11 +129,72 @@ public static class TiledRasterizer
     }
 
     /// <summary>
+    /// Fill a store from a whole-frame render, for the frames <see cref="CanTile"/>
+    /// refuses.
+    /// </summary>
+    /// <remarks>
+    /// Correct by construction — the pixels come from the untiled path, so they
+    /// cannot disagree with it — and it costs one document-sized allocation while
+    /// it runs. That is the trade this fallback makes: a frame with an effect
+    /// brush keeps today's peak memory, and every other frame gets the tiled
+    /// profile. Blank tiles are still never stored, so what stays *resident* is
+    /// proportional to ink even here.
+    /// </remarks>
+    public static void RasterizeWhole(
+        TileStore store, IReadOnlyList<Stroke> strokes, SKImageInfo info)
+    {
+        using var whole = FrameRasterizer.Rasterize(strokes, info.Width, info.Height);
+        Absorb(store, whole);
+    }
+
+    /// <summary>Slice a rendered bitmap into the store, skipping tiles with no ink.</summary>
+    private static void Absorb(TileStore store, SKBitmap source)
+    {
+        var size = store.Grid.TileSize;
+        foreach (var coord in store.Grid.Covering(0, 0, source.Width, source.Height))
+        {
+            var (originX, originY) = store.Grid.OriginOf(coord);
+            var w = Math.Min(size, source.Width - originX);
+            var h = Math.Min(size, source.Height - originY);
+            if (w <= 0 || h <= 0) continue;
+            if (!AnyInk(source, originX, originY, w, h)) continue;
+
+            var tile = store.Rent(coord);
+            using var canvas = new SKCanvas(tile);
+            using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+            canvas.DrawBitmap(
+                source,
+                SKRect.Create(originX, originY, w, h),
+                SKRect.Create(0, 0, w, h),
+                replace);
+            canvas.Flush();
+        }
+    }
+
+    /// <summary>Whether any pixel in this rectangle is not fully transparent.</summary>
+    private static bool AnyInk(SKBitmap source, int x0, int y0, int w, int h)
+    {
+        using var pixels = source.PeekPixels();
+        if (pixels is null) return true;   // cannot tell, so keep the tile
+        var span = pixels.GetPixelSpan();
+        var rowBytes = pixels.RowBytes;
+        for (var y = y0; y < y0 + h; y++)
+        {
+            var row = y * rowBytes;
+            for (var x = x0; x < x0 + w; x++)
+            {
+                if (span[row + x * 4 + 3] != 0) return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Composite a tile store back into one document-sized bitmap.
     /// </summary>
     /// <remarks>
-    /// For comparing against the untiled path and for the callers that still want
-    /// a whole bitmap. It is not what the compositor will do — that draws the
+    /// For comparing against the untiled path and for callers that still want a
+    /// whole bitmap. It is not what the compositor will do — that draws the
     /// visible tiles straight onto the canvas surface and never flattens — but a
     /// render that cannot be flattened cannot be proved identical to anything.
     /// </remarks>

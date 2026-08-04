@@ -1,6 +1,6 @@
 # Code index
 
-439 files · 108679 lines · 2275 tests.
+439 files · 108856 lines · 2277 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -436,6 +436,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipImageSettings:15, TipImageResult:43, TipFromImage:68
 - `src/Lightbox.Raster/BrushPreviewRenderer.cs` (248 ln) · 2 test files
   - BrushPreviewRenderer:34
+- `src/Lightbox.Raster/TiledRasterizer.cs` (216 ln) · 1 test files
+  - TiledRasterizer:37
 - `src/Lightbox.Raster/TileStore.cs` (174 ln) · 2 test files
   - TileStore:37
 - `src/Lightbox.Raster/StrokeIndex.cs` (151 ln) · 1 test files
@@ -446,8 +448,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameRasterizer:10
 - `src/Lightbox.Raster/Media/Impasto.cs` (128 ln) · 1 test files
   - Impasto:40
-- `src/Lightbox.Raster/TiledRasterizer.cs` (111 ln) · 1 test files
-  - TiledRasterizer:38
 - `src/Lightbox.Raster/TextureRegistry.cs` (107 ln) · 2 test files
   - TextureRegistry:25, Field:28
 - `src/Lightbox.Raster/SymbolRegistry.cs` (95 ln) · 7 test files
