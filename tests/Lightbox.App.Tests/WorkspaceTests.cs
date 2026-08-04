@@ -238,15 +238,28 @@ public sealed class WorkspaceTests : BrushStateIsolated
                 ["Not set", "Design", "Draft", "In development", "Review", "Ready", "Reopened"],
                 options.Select(i => i.Header?.ToString()).ToList());
 
-            var row = vm.ProjectDocker.Selected!;
+            // Duplicate left the selection on the copy, and a copy is explicitly not on
+            // disk yet — DuplicateSelected says "Save to write it to disk". So this is the
+            // refusal case, through the real menu: a status is a message to a designer
+            // about a file, and there is no file. Headless resolves the prompt as
+            // dismissed, which is the "Revert status change" answer.
+            var copy = vm.ProjectDocker.Selected!;
+            Assert.Null(copy.Animation!.Status);
             Click(options, "Ready");
-            Assert.Equal(Lightbox.Core.Projects.AssetStatus.Ready, row.Status);
+            Assert.Null(copy.Status);
+            Assert.Null(copy.Animation!.Status);
+
+            // Once it is written, the same click sticks.
+            vm.Save();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Click(options, "Ready");
+            Assert.Equal(Lightbox.Core.Projects.AssetStatus.Ready, copy.Status);
             // Written through to the manifest, not only onto the row.
-            Assert.Equal(Lightbox.Core.Projects.AssetStatus.Ready, row.Animation!.Status);
+            Assert.Equal(Lightbox.Core.Projects.AssetStatus.Ready, copy.Animation!.Status);
 
             Click(options, "Not set");
-            Assert.Null(row.Status);
-            Assert.Null(row.Animation!.Status);
+            Assert.Null(copy.Status);
+            Assert.Null(copy.Animation!.Status);
         }
         finally
         {

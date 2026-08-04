@@ -24,11 +24,11 @@ namespace Lightbox.App.Tests;
 /// does not open", and it is really "Save As was never a shortcut".
 /// </para>
 /// <para>
-/// <b>The one exemption is debt, listed rather than filtered away.</b> It is the only
-/// existing offender and it is what SAVE1 fixes; the list exists so a <em>new</em> one
-/// cannot be added quietly, and so removing an entry from it is a visible act. It started
-/// with two, and the self-clearing check below caught the second on its first run —
-/// <c>Ctrl+R</c> was already registered and never needed exempting at all.
+/// <b>The exemption list is empty, and that is the state to keep it in.</b> It existed for
+/// exactly as long as it took SAVE1 to register Save and add Save as; it stays here because
+/// the alternative to an empty list is a filter, and a filter hides what an empty list
+/// advertises. Both checks below still run against it, so an entry added later has to earn
+/// its place and cannot outlive its reason.
 /// </para>
 /// </remarks>
 public class ShortcutRegistrationTests
@@ -37,10 +37,7 @@ public class ShortcutRegistrationTests
     /// <remarks>
     /// Shrink this list, never grow it. Each entry is a key an artist cannot rebind.
     /// </remarks>
-    private static readonly Dictionary<string, string> KnownUnregistered = new()
-    {
-        ["Ctrl+S"] = "File ▸ Save — see SAVE1, which also has to add Save As",
-    };
+    private static readonly Dictionary<string, string> KnownUnregistered = new();
 
     private static string ViewsDirectory()
     {

@@ -216,6 +216,7 @@ public partial class MainWindow : Window
         };
 
         _shortcuts.Load();
+        ShowSaveGestures();
         KeyDown += OnKeyDown;
         RecentMenu.SubmenuOpened += (_, _) => RefreshRecentMenu();
         ConvertProjectMenu.SubmenuOpened += (_, _) => RefreshConvertMenu();
@@ -2375,6 +2376,17 @@ public partial class MainWindow : Window
 
         switch (_shortcuts.IdFor(e, CurrentShortcutContext()))
         {
+            case "file.save":
+                // Deliberately the same path as the menu item rather than _vm.Save(): a
+                // document with nowhere to go has to reach the picker, and duplicating
+                // that decision here is how the two drift apart.
+                OnSaveInPlaceClicked(this, e);
+                e.Handled = true;
+                break;
+            case "file.saveAs":
+                _ = SaveDocumentAsAsync();
+                e.Handled = true;
+                break;
             case "canvas.transform":
                 if (!_vm.TransformActive) _vm.BeginTransform();
                 break;
@@ -2507,8 +2519,12 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private async void OnConfigureClicked(object? sender, RoutedEventArgs e) =>
+    private async void OnConfigureClicked(object? sender, RoutedEventArgs e)
+    {
         await new ConfigureWindow(_shortcuts, _vm).ShowDialog(this);
+        // A rebind has to reach the menu labels, or they advertise the old key.
+        ShowSaveGestures();
+    }
 
     /// <summary>
     /// The tip workshop. A window rather than a docker because making a tip is
@@ -2680,6 +2696,65 @@ public partial class MainWindow : Window
         await SaveDocumentAsAsync();
     }
 
+    /// <summary>
+    /// Make sure the document is on disk before something outside the app is told about it.
+    /// </summary>
+    /// <param name="action">
+    /// What was attempted, phrased to follow "before" — "exporting", "marking this Ready".
+    /// </param>
+    /// <param name="refuseLabel">What refusing does, named after the thing it undoes.</param>
+    /// <returns>
+    /// True when the document is saved and the caller may go ahead; false when the artist
+    /// declined, in which case the caller must undo whatever prompted this.
+    /// </returns>
+    /// <remarks>
+    /// Shared by the export and the status change on purpose. Both are claims about a file
+    /// made to somebody else — an engine, a designer waiting on the asset — and two
+    /// implementations of "is it saved?" would eventually disagree about it.
+    /// </remarks>
+    private async Task<bool> EnsureSavedAsync(
+        string action, string refuseLabel, (string? FilePath, bool HasUnsavedEdits)? about = null)
+    {
+        // The row being marked when there is one, otherwise the document in front. Asking
+        // about the active tab while marking a different row is the near-miss this avoids.
+        var facts = about ?? (_vm.SaveTargetTab?.FilePath, _vm.SaveTargetTab?.IsDirty ?? false);
+        var gate = Services.SaveRequirement.For(facts.FilePath, facts.HasUnsavedEdits);
+
+        if (gate == Services.SaveGate.SaveInPlaceFirst)
+        {
+            // It already has a home, so no dialog: asking permission to write where the
+            // artist already said it goes is a click in the way.
+            _vm.Save();
+            return true;
+        }
+        if (!Services.SaveRequirement.NeedsTheArtist(gate)) return true;
+
+        var choice = await new SaveFirstDialog(
+            Services.SaveRequirement.Explain(gate, action), refuseLabel)
+            .ShowDialog<SaveFirstChoice?>(this);
+        if (choice != SaveFirstChoice.SaveAs) return false;
+
+        await SaveDocumentAsAsync();
+        // Saved, or the picker was cancelled too — either way the answer is whether there
+        // is a file now, not whether a button was pressed.
+        return _vm.SaveTargetTab?.FilePath is { Length: > 0 };
+    }
+
+    /// <summary>
+    /// Put the current Save / Save as gestures on their menu items.
+    /// </summary>
+    /// <remarks>
+    /// Read from <see cref="Services.ShortcutMap"/> rather than written in the XAML, which
+    /// is the whole point of registering them: an artist who rebinds Save sees the new key
+    /// on the menu instead of a label that lies. Refreshed after the Configure window
+    /// closes for the same reason.
+    /// </remarks>
+    private void ShowSaveGestures()
+    {
+        SaveMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.save")?.Current;
+        SaveAsMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.saveAs")?.Current;
+    }
+
     private async void OnNewProjectClicked(object? sender, RoutedEventArgs e)
     {
         var suggested = _vm.ActiveTab?.Title is { Length: > 0 } t && !t.StartsWith("Untitled") ? t : "Project";
@@ -2814,11 +2889,24 @@ public partial class MainWindow : Window
     /// handlers. A tag that does not parse does nothing rather than guessing a status, so
     /// a typo in the XAML is inert instead of quietly marking things Design.
     /// </remarks>
-    private void OnProjectStatusSet(object? sender, RoutedEventArgs e)
+    private async void OnProjectStatusSet(object? sender, RoutedEventArgs e)
     {
         if (_vm.ProjectDocker.Selected is not { } row) return;
         if ((sender as Control)?.Tag as string is not { } tag) return;
         if (!Enum.TryParse<Lightbox.Core.Projects.AssetStatus>(tag, out var status)) return;
+
+        // A status is a message to a designer: "this drawing is finished, go and use it".
+        // It is worth nothing if the drawing was never written down, and Ready in
+        // particular fires an auto-export of a file that is not there. So the status does
+        // not change at all until there is one — no half state to explain afterwards.
+        if (!await EnsureSavedAsync(
+                $"marking this {Lightbox.Core.Projects.AssetStatuses.Label(status)}",
+                "Revert status change",
+                _vm.SaveFactsFor(row)))
+        {
+            _vm.AiStatus = "Status unchanged — the drawing has not been saved.";
+            return;
+        }
 
         _vm.SetProjectStatus(row, status);
     }
@@ -2948,6 +3036,10 @@ public partial class MainWindow : Window
     /// </remarks>
     private async void OnExportSheetClicked(object? sender, RoutedEventArgs e)
     {
+        // Asked before the settings dialog rather than after: finding out that the drawing
+        // was never saved is worse after picking a preset and a filename than before.
+        if (!await EnsureSavedAsync("exporting", "Don't export")) return;
+
         var dialog = new ExportWindow();
         await dialog.ShowDialog(this);
         if (dialog.Chosen is not { } preset) return;

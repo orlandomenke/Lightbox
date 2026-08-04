@@ -160,8 +160,13 @@
           resolve, and the list changes every time anything is opened anyway.
         -->
         <MenuItem x:Name="RecentMenu" Header="Open _recent" />
-        <MenuItem Header="_Save" Click="OnSaveInPlaceClicked" InputGesture="Ctrl+S" />
-        <MenuItem Header="Save _as…" Click="OnSaveClicked" />
+        <!--
+          No InputGesture on either: both live in ShortcutMap so they show up in the
+          shortcut editor and can be rebound. The labels come from the map for the same
+          reason — a remapped key that still advertises Ctrl+S is worse than no label.
+        -->
+        <MenuItem x:Name="SaveMenu" Header="_Save" Click="OnSaveInPlaceClicked" />
+        <MenuItem x:Name="SaveAsMenu" Header="Save _as…" Click="OnSaveClicked" />
         <Separator />
         <MenuItem Header="New _project…" Click="OnNewProjectClicked" />
         <MenuItem Header="Open p_roject…" Click="OnOpenProjectClicked" />

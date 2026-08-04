@@ -6704,6 +6704,40 @@ public sealed partial class MainViewModel : ObservableObject
     /// something Ready never needed it open.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Where a project row's document lives, and whether the file is behind the edits.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The facts <see cref="Services.SaveRequirement"/> needs, for <em>this row</em> rather
+    /// than for whatever tab happens to be in front. Marking a row Ready is a statement
+    /// about that row's drawing, and gating it on the active tab would ask about the wrong
+    /// file — which is exactly the kind of near-miss that reads as the app being random.
+    /// </para>
+    /// <para>
+    /// A row whose document is open answers from the tab, because that is where the unsaved
+    /// edits are. Otherwise the answer is the project's own path for it: a freshly added
+    /// animation has a <c>DocumentRef</c> before it has a file, so this returns a path that
+    /// does not exist yet and the gate reports it honestly.
+    /// </para>
+    /// </remarks>
+    public (string? FilePath, bool HasUnsavedEdits) SaveFactsFor(ProjectRow row)
+    {
+        if (row.Animation is not { } reference) return (null, false);
+
+        if (Tabs.FirstOrDefault(t => t.Source?.Id == reference.Id) is { } open)
+        {
+            return (open.FilePath ?? Resolve(reference), open.IsDirty);
+        }
+        // Not open, so nothing can be unsaved about it beyond whether it was ever written.
+        return (Resolve(reference), false);
+
+        string? Resolve(DocumentRef r) =>
+            ProjectDocker.RootPath is { Length: > 0 } root && r.Path is { Length: > 0 }
+                ? System.IO.Path.Combine(root, r.Path.Replace('/', System.IO.Path.DirectorySeparatorChar))
+                : null;
+    }
+
     public void SetProjectStatus(ProjectRow row, AssetStatus? status)
     {
         if (row.Animation is not { } reference) return;

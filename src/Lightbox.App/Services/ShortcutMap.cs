@@ -106,6 +106,13 @@ public sealed class ShortcutMap
             new("canvas.nudgeDown", "Nudge selection down", "Canvas", G(Key.Down), ShortcutContext.Canvas),
             new("docker.layerAbove", "Select the layer above", "Dockers", G(Key.Up), ShortcutContext.LayersDocker),
             new("docker.layerBelow", "Select the layer below", "Dockers", G(Key.Down), ShortcutContext.LayersDocker),
+
+            // Registered rather than written onto the menu items, which is where Ctrl+S
+            // lived and why it could not be rebound — and why nobody noticed that Save as
+            // had no gesture at all. ShortcutRegistrationTests now fails a gesture that is
+            // declared in XAML and missing from here.
+            new("file.save", "Save", "File", G(Key.S, KeyModifiers.Control)),
+            new("file.saveAs", "Save as…", "File", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift)),
         ];
     }
 

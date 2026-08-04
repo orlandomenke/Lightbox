@@ -1370,11 +1370,41 @@ this page at all.
 
 | Command | What it does |
 | --- | --- |
-| **Save** | Writes in place. With a project open, writes the project and only the documents that changed. |
-| **Save as…** | Picks a new path. |
+| **Save** — Ctrl+S | Writes in place. With a project open, writes the project and only the documents that changed. A drawing that has never been saved has nowhere to go, so this opens **Save as…** instead of quietly doing nothing. |
+| **Save as…** — Ctrl+Shift+S | Picks a new path. |
 | **Export document…** | Writes a standalone `.lightbox.json` with every referenced swatch, gradient, brush tip and clip region **inlined**. |
 | **Export PNGs…** | Every frame as a numbered PNG, into a folder you pick. |
 | **Export for a game engine…** | Sprite sheet, sidecar, and optionally the Unity importer. |
+
+Both keys can be rebound like any other — they are in **Edit ▸ Configure ▸
+Shortcuts** under *File*, and the menu shows whatever you set them to rather
+than the factory key.
+
+### Nothing leaves the app until the drawing is on disk
+
+**Exporting, and marking an asset Ready, are both statements about a file.** An
+export says "this is what the drawing looks like"; a status says "this is
+finished, go and use it" — and with auto-export on, that second one immediately
+writes a sheet for a game engine to pick up. Neither means anything if the
+drawing itself was never saved.
+
+So both check first, and there are only two answers:
+
+- **Save file as…** — pick a path, and what you were doing carries on.
+- **Revert status change** (or **Don't export**) — nothing happens, and the
+  status goes back to what it was.
+
+There is deliberately no "do it anyway". A status change is **prohibited** until
+the drawing has a file: the alternative is a designer told an asset is ready,
+pointing at nothing.
+
+If the drawing has a file and you have unsaved changes, it just saves them —
+no dialog. You already said where the file goes, so asking again would be a
+click in the way.
+
+One case worth knowing because the wording differs: if the file you saved to has
+since been **moved or deleted**, you are asked again rather than having it
+written silently back to a folder you emptied on purpose.
 
 ### Export for a game engine
 

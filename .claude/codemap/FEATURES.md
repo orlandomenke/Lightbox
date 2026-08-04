@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2160 tests, derived from the suite itself. Each line is a
+2176 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1369,6 +1369,30 @@ regression even when every test still compiles.
 - Editing APlaced Grid Is Undoable — `:457`
 - Turning AGrids Snapping Off Leaves The Stroke Alone — `:471`
 
+## SaveAndStatusGateTests
+`tests/Lightbox.App.Tests/SaveAndStatusGateTests.cs`
+
+- Save And Save As Are Both Registered With The Keys An Artist Expects — `:59`
+- The Two Save Keys Do Not Collide With Each Other Or With The Select Tool — `:74`
+- Both Are Rebindable Which Is The Whole Point Of Registering Them — `:90`
+- The Menu Shows The Gesture It Will Actually Respond To — `:101`
+- Neither Save Item Carries AHard Coded Gesture Any More — `:114`
+- An Unsaved Document Is What The Gate Sees For The Document In Front — `:135`
+- AStatus Change Asks About Its Own Row Rather Than The Active Tab — `:150`
+- ARow With No Document At All Is Not Treated As Saved — `:170`
+
+## SaveRequirementTests
+`tests/Lightbox.App.Tests/SaveRequirementTests.cs`
+
+- ADocument That Was Never Saved Has To Be Asked About — `:21`
+- ASaved And Unchanged Document Is Ready To Go — `:29`
+- Edits The File Does Not Have Are Written Without Asking — `:37`
+- AFile That Is No Longer There Is Not The Same As Never Saved — `:49`
+- Only The Two Gates That Need An Answer Block — `:62`
+- An Explanation Says What Was Being Attempted — `:73`
+- AReady Document Has Nothing To Explain — `:84`
+- The Two Blocking Gates Give Different Reasons — `:90`
+
 ## PlaybackEvictionTests
 `tests/Lightbox.App.Tests/ScanEvictionTests.cs`
 
@@ -1432,9 +1456,9 @@ regression even when every test still compiles.
 ## ShortcutRegistrationTests
 `tests/Lightbox.App.Tests/ShortcutRegistrationTests.cs`
 
-- Every Gesture In The Xaml Is Also In The Shortcut Registry — `:72`
-- The Exemption List Describes Gestures That Are Actually There — `:93`
-- An Exempted Gesture Stops Being Exempt Once It Is Registered — `:108`
+- Every Gesture In The Xaml Is Also In The Shortcut Registry — `:69`
+- The Exemption List Describes Gestures That Are Actually There — `:90`
+- An Exempted Gesture Stops Being Exempt Once It Is Registered — `:105`
 
 ## DeltaCommitTests
 `tests/Lightbox.App.Tests/SmoothingAndCommitTests.cs`
@@ -1917,9 +1941,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:145`
 - The Canvas Gets The Room Left Over By The Strips — `:168`
 - The Project Row Menu Actually Does Something When Clicked — `:192`
-- The New Menu Actually Makes Things — `:258`
-- The Reference Panel Is Absent Until It Is Asked For — `:301`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:317`
+- The New Menu Actually Makes Things — `:271`
+- The Reference Panel Is Absent Until It Is Asked For — `:314`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:330`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
