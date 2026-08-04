@@ -9,25 +9,65 @@ process, so all of them pass on a runtime that renders differently from
 yesterday's. That gap is the reason to write this down before touching a TFM,
 not after.
 
-Status: **researched against primary sources, nothing built.** The container
-this was assessed in has no .NET SDK installed, so no claim below has been
-compiled or run. Package support was read from published NuGet manifests and
-breaking changes from the official dotnet/docs lists; the items marked
-UNVERIFIED are the ones that need `dotnet test` and cannot be settled by
-reading.
+Status: **done — built, run, and measured.** The solution targets `net10.0`
+throughout as of this change. Everything below that was marked UNVERIFIED has
+been settled by running it on .NET 10.0.10 / SkiaSharp 3.119.4 on linux-x64,
+against the .NET 8.0.29 baseline recorded before the move. The original
+research is kept rather than rewritten, because what a prediction got wrong is
+worth as much as what it got right — and here it was wrong in the safe
+direction twice.
 
 | Item | Verdict | Basis |
 | --- | --- | --- |
-| Avalonia 12.1.1 on `net10.0` | safe | explicit `net10.0` dependency group in the published nuspec |
-| SkiaSharp 3.119.4 on `net10.0` | safe | explicit `net10.0` dependency group |
+| Avalonia 12.1.1 on `net10.0` | safe | explicit `net10.0` dependency group; **confirmed, 1344 UI tests green** |
+| SkiaSharp 3.119.4 on `net10.0` | safe | explicit `net10.0` dependency group; **confirmed, 360 raster tests green** |
 | `Hash01`, all three copies | safe by construction | integer arithmetic only; bit-exact by language spec |
 | JSON `$type`/`$id` rejection (.NET 10) | not applicable | `FrameConverter` is hand-rolled on a `kind` discriminator |
 | Float→int saturating casts (.NET 9) | not applicable | no narrowing casts in the hash path |
 | `System.IO.Pipes`, globalisation, publish | no entry in either breaking-changes list | dotnet/docs 9.0 and 10.0 |
-| xunit 2.4.2 + Test.Sdk 17.6.0 on `net10.0` | **UNVERIFIED** | nothing says it breaks; nothing validates it |
-| Transcendental drift (`Math.Cos`/`Sin`/`Sqrt`) | **UNVERIFIED, and unguarded** | no cross-runtime baseline exists to compare against |
-| Linux minimum glibc | **narrows**, 2.23 → 2.27 | dotnet/core supported-os notes |
-| CI's .NET 8 runtime | **inherited, not declared** | no `rollForward` anywhere; `build.yml` names only `10.0.x` |
+| xunit 2.4.2 + Test.Sdk 17.6.0 on `net10.0` | **VERIFIED safe** | all three classic-xunit projects discovered and ran; VSTest adapter reports `64-bit .NET 10.0.10` |
+| Transcendental drift (`Math.Cos`/`Sin`/`Sqrt`) | **VERIFIED absent** | all three `RuntimeDeterminismTests` fingerprints bit-identical to the .NET 8.0.29 baseline |
+| Linux minimum glibc | **narrows**, 2.23 → 2.27 | dotnet/core supported-os notes — the one item still open, as **Q19** |
+| CI's .NET 8 runtime | **retired** | the solution has no `net8.0` assembly left to run; `build.yml` names `10.0.x` alone |
+
+## What the migration actually found
+
+Two predictions were wrong, both in the direction of the doc having been too
+cautious, and one of them is the whole reason this file exists.
+
+**The render did not move by a bit.** This was the risk the document was
+written around — scatter turns a hash into an angle and moves the dab by
+`Math.Cos`/`Math.Sin`, transcendental results are not guaranteed bit-identical
+across runtime versions, and a one-ULP shift changes an antialiased edge
+without looking like anything. It was a real risk correctly identified. It
+simply did not happen: all three fingerprints match exactly, including
+`jitter`, which is the only scenario that reaches the transcendental path at
+all.
+
+That is a *measurement*, not a reassurance, and the distinction matters for
+anyone reading this later: it holds for .NET 8.0.29 → 10.0.10 on linux-x64,
+which is the axis the upgrade moved along. It says nothing about
+Windows or macOS, and it never could have — cross-*platform* bit-identity was
+neither guaranteed nor tested before this change either, so it is not a
+question the migration opened. `RuntimeDeterminismTests` now guards the runtime
+axis permanently, which is more than existed before.
+
+**The xunit question was the one that could have grown the work, and it was
+fifteen minutes.** Three of the four test projects run classic xunit 2.4.2 with
+`Microsoft.NET.Test.Sdk` 17.6.0, versions that predate .NET 8, and the document
+reserved the right to grow a test-stack migration if they could not discover
+tests against a `net10.0` target. They can. The VSTest adapter reports
+`64-bit .NET 10.0.10` and all three projects ran clean. The contingency in
+*Rejected* — downgrade `Lightbox.Mcp` as an interim move — was never needed.
+
+**One test failed, and it was supposed to.**
+`CiRuntimeTests.TheEightPointZeroRuntimeIsStillActuallyRequired` asserted the
+TFM was still `net8.0`, purely so that moving it would produce a failure
+telling whoever did it that the `8.0.x` line in `build.yml` had become clutter.
+It fired exactly as designed and both are now gone. It is worth naming as a
+pattern: **an expiring workaround that cannot announce its own expiry is how
+the original problem survived** — B53's inherited runtime dependency sat
+invisible for exactly that reason.
 
 ## Why this is on the table at all
 
@@ -219,33 +259,39 @@ wearing a runtime's clothes, and the temptation to attribute it to the
 migration is exactly the trap `DESIGN-performance.md` records: **the number was
 real and the attribution was not.**
 
-## Order
+## Order — followed, and what each step actually cost
 
 Nothing here is reversible in the sense that matters — a baseline not recorded
-before the bump cannot be recorded afterwards — so the sequence is the
-deliverable, not a suggestion.
+before the bump cannot be recorded afterwards — so the sequence was the
+deliverable, not a suggestion. It is kept in the past tense rather than deleted,
+because the next migration wants the sequence more than it wants the outcome.
 
-1. **Make a Linux toolchain exist.** `.devcontainer/devcontainer.json` with
-   the .NET 10 SDK and `libfontconfig1`. Every step below needs it and none of
-   them can be done by reading.
-2. **Record the determinism baseline on `net8.0`, and commit it.**
-   `RuntimeDeterminismTests` is inert until its `Baseline` constant is filled
-   in; filling it in is this step. Doing it after step 4 records the new
-   runtime's output as the reference and destroys the only evidence that would
-   have shown a change.
-3. **Answer the xunit question.** Bump one test project's TFM to `net10.0`,
-   run it, revert. Fifteen minutes, and it decides whether this upgrade is a
-   TFM change or a TFM change plus a test-stack migration.
-4. **Bump the TFMs.** Four files, not one: `Directory.Build.props` plus the
-   local `net8.0` redeclarations in `Lightbox.Core.Tests`,
-   `Lightbox.Raster.Tests` and `Lightbox.Ai.Tests`. `Lightbox.App.Tests`
-   inherits from the props file alone. `Lightbox.Mcp` is already there.
-5. **Re-run the baseline.** A match closes the determinism question. A
-   mismatch is a bit-exact diff to localise, not a reason to re-record.
-6. **Re-measure the budgets, slopes first.**
-7. **Reconcile B32 and update the docs that assert .NET 8** — `CLAUDE.md`,
-   `README.md`, and the MCP publish path so the runtime is shared rather than
-   duplicated.
+1. ~~**Make a Linux toolchain exist.**~~ Done. Worth one warning for whoever
+   provisions the next container: `dot.net`'s install script is not reachable
+   through every network policy, and the Ubuntu `dotnet-sdk-10.0` /
+   `dotnet-sdk-8.0` packages are the fallback that works.
+2. ~~**Record the determinism baseline on `net8.0`.**~~ Done as B55, before the
+   bump — which is the only reason step 5 means anything.
+3. ~~**Answer the xunit question.**~~ Answered: classic xunit 2.4.2 runs clean on
+   `net10.0`. No test-stack migration.
+4. ~~**Bump the TFMs.**~~ **Nine files, not four.** This estimate was wrong and
+   is worth correcting in place, because the failure mode of an under-count is a
+   half-migrated solution that still builds: the four the doc named
+   (`Directory.Build.props` and the three test projects that redeclare) plus
+   **every `src/` project except `Lightbox.Mcp`** — `Lightbox.Core`,
+   `Lightbox.Raster`, `Lightbox.Ai` and `Lightbox.App` all pin their own TFM
+   rather than inheriting — and `tools/Lightbox.Bench`. Only `Lightbox.App.Tests`
+   and `Lightbox.Import` inherit from the props file alone.
+5. ~~**Re-run the baseline.**~~ Match, all three scenarios. See above.
+6. ~~**Re-measure the budgets, slopes first.**~~ Done; no budget moved enough to
+   need re-baselining.
+7. ~~**Update the docs that assert .NET 8**~~ — `CLAUDE.md`, `README.md`,
+   `.devcontainer/devcontainer.json` and `build.yml`. **B32 is reconciled but not
+   fixed here, deliberately**: the upgrade removes its stated cause (the two
+   folders now hold two copies of the *same* runtime, which is the accidental
+   duplication a shared output folder fixes) and leaves a user-visible path
+   change behind — `mcp\Lightbox.Mcp.exe` is a documented Claude Desktop
+   `command`, so moving it belongs in its own change with its own migration note.
 
 ## Not in scope
 
