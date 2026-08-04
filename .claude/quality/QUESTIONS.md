@@ -18,10 +18,36 @@ It re-exposes drawings that already exist, which is the half of frame-by-frame
 work a symbol cannot carry — a symbol carries drawings, a timing preset carries
 their spacing.
 
-## Q20 · What frame bounds does an Asset project export from an unbounded canvas?
+## Q20 · What frame bounds does an Asset project export from an unbounded canvas? — **answered (b), and the question was half wrong**
 
-**Blocks:** the infinite canvas in Pillar 0 — `docs/DESIGN-infinite-canvas.md`
-specifies everything else and stops here.
+**Answered 2026-08-04.** Two corrections, and the second one dissolves most of it.
+
+**The premise was too narrow.** This was framed as a game-animation problem, and
+the tool is a drawing, painting *and* animation application. An infinite canvas
+belongs to the **Shot** target — a world the camera frames, delivered as video —
+not to the Asset one, where the canvas *is* the output. The game export pipeline
+is already built and is not what this feature serves.
+
+**And the conflict is not a project-type gate.** An unbounded canvas and a fixed
+frame-bounds sprite export are **mutually exclusive by construction**, in every
+project type — that is a fact about the two features, not about a manifest. So
+nothing is gated: the pair is declared incompatible, the refusal names the fix,
+and authoring an export region resolves it. Reach survives untouched, and
+*Making reach unconditional* stands as written. Recorded as its own roadmap item.
+
+So the answer is **(b), an authored export region** — arrived at from the other
+direction than expected. It is not the rule for deriving bounds from an
+unbounded canvas; it is the thing an artist authors to *make* the canvas bounded
+where a bounded answer is required. (a) is still the right starting value for
+that region — bounds-of-ink as a first guess, then draggable — but it cannot be
+the mechanism, because a derived bound changes silently when a stray mark lands
+in frame 40, and a game build cannot take that.
+
+**Blocks:** nothing now. `docs/DESIGN-infinite-canvas.md` can be built against
+this.
+
+*The analysis below is what the answer was reached from, kept for the reasoning.
+Its framing is the one the answer corrects: it treats the asset case as central.*
 
 `CLAUDE.md` makes both of these first-class, and this is the one place they meet
 head-on. **Assets** — "the canvas *is* the output. There is no camera, frame
@@ -54,10 +80,38 @@ than convenience, and only (b) gives it by construction. (a) is the better
 default *inside* (b) — an authored region that starts at the bounds of ink is
 one click rather than a blank rectangle.
 
-## Q21 · Is the infinite canvas a document property or a project-type default?
+## Q21 · Is the infinite canvas a document property or a project-type default? — **answered (c), both, and they are not alternatives**
 
-**Blocks:** nothing yet — it decides a default rather than a capability, and the
-design can be built before it is answered.
+**Answered 2026-08-04: both — and the question contained a false choice.**
+"Document property *or* project default" reads as two designs; it is one. The
+reach rule already says exactly this: a project type decides *what is on, what
+is in front of you, and what a new document starts with — never what the
+application can do*. So the **property lives on the document** (that is the
+capability, available everywhere) and a **project supplies the default** (that
+is what a new document starts with). Answering "both" is the rule applied, not
+a compromise between two readings.
+
+Both cases the answer came from are real and neither needs a mechanism the
+other lacks: somebody making *one* infinite-canvas animation turns the property
+on for that document, and somebody producing a run of product or service
+animations sets it once on the project so every new document starts that way
+rather than switching it on each time.
+
+**The mechanism exists and is proven, which is why this is cheap.** A project
+already feeds new documents a default brush — `BrushScope`,
+`BrushScopeDefaults`, guarded by `ANewDocumentInTheProjectIsFedThatBrush`, and
+by `AProjectThatNeverAsksForThisWritesNoBrushKey` so an unused default writes
+nothing. An infinite-canvas default is the same shape against the same
+precedent. Note it is the **project** that carries it, not only the project
+*type*: a studio's own project can default to unbounded whatever type it is,
+which is what the reach rule means by defaults never deciding availability.
+
+**Blocks:** nothing. It was never a blocker — a project type can only default a
+property that exists, so the document property comes first under either answer.
+
+
+*The analysis below is what the answer was reached from, kept for the reasoning
+rather than as a live recommendation — (a) and (b) turned out to be one design.*
 
 The reach rule settles the hard half already: every feature is reachable in every
 project type, so this is not "who is allowed an infinite canvas". It is what a

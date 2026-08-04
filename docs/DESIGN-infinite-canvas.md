@@ -85,10 +85,29 @@ infinite canvas is the same kind of thing, and the same test applies —
 serialise a fixed-size document and assert the JSON is unchanged.
 
 **"Assets — the canvas *is* the output. There is no camera, frame bounds must
-stay consistent, and every frame is a deliverable."** This is the one that does
-not resolve on its own. A sprite sheet is defined by having consistent frame
-bounds; an infinite canvas is defined by not having bounds. Both are first-class
-here, so the answer cannot be "the asset workflow loses". It is **Q20**.
+stay consistent, and every frame is a deliverable."** A sprite sheet is defined
+by having consistent frame bounds; an infinite canvas is defined by not having
+bounds. **Q20** settled this, and it settled the framing as much as the answer:
+
+- **This is a Shot feature.** The application is a drawing, painting *and*
+  animation tool, and an infinite canvas serves the target whose deliverable is
+  **video** — a world the camera frames. The game export pipeline is already
+  built and is not what this is for. The original framing treated
+  infinite-canvas-in-a-sprite-project as the central problem; it is not the
+  central case at all.
+- **The conflict is an incompatibility, not a project-type gate.** Unbounded
+  canvas and fixed frame-bounds export are mutually exclusive **by
+  construction, in every project type** — a fact about the two features rather
+  than about a manifest. So nothing is locked behind a project type, the reach
+  rule survives, and *Making reach unconditional* stands. The pair is declared
+  incompatible, the refusal names the fix, and **authoring an export region
+  resolves it**. That is what separates a conflict from a gate: there is always
+  a way through, it is just a thing the artist has to say rather than one the
+  application guesses.
+
+The consequence for this design is small and worth stating: an unbounded canvas
+does not need a rule for *deriving* export bounds. It needs the *absence* of one
+to be refusable with a reason.
 
 The third rule the design has to satisfy is invariant 1: **the stroke record is
 the document**. Tiles are *derived pixels*, exactly like the frame cache is
@@ -151,10 +170,20 @@ redefining what a document is rather than how it is drawn.
 
 ## Open questions
 
-- **Q20** — what frame bounds does an Asset project export from an unbounded
-  canvas? Bounds-of-ink, an authored region, or the camera when one exists.
-  These give different pixels for the same drawing and it is not derivable from
-  the code.
+- ~~**Q20**~~ — **answered**. An authored export region, reached as the
+  resolution of a declared feature incompatibility rather than as a rule for
+  deriving bounds. Nothing here is blocked on it.
 - **Q21** — is the infinite canvas a *document property* an artist turns on, or
   a *project-type default*? The reach rule says every feature is available
-  everywhere; this decides only what a new document starts with.
+  everywhere; this decides only what a new document starts with. It does not
+  block the build — a project type can only default a property that exists, so
+  the property comes first either way.
+
+## Depends on
+
+**Feature incompatibilities, declared between features** — the roadmap item
+under *Making reach unconditional*. This design assumes a place to say
+"unbounded canvas excludes fixed frame-bounds export" and to refuse it with its
+reason. Without that, the only ways to express the constraint are a silent
+failure or a project-type gate, and the second one breaks the reach rule to
+solve a problem that is not about project types.
