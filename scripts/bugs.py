@@ -137,6 +137,35 @@ def duplicate_ids(bugs: list[Bug]) -> dict[str, list[Bug]]:
     return {i: b for i, b in seen.items() if len(b) > 1}
 
 
+QUESTIONS = ROOT / ".claude" / "quality" / "QUESTIONS.md"
+
+# ## Q18 · Do flat point arrays cost schema adherence?
+QUESTION = re.compile(r"^## (?P<id>Q\d+) · (?P<title>.*?)\s*$")
+
+
+def duplicate_questions() -> dict[str, list[str]]:
+    """The same detector pointed at `QUESTIONS.md`, because it happened twice.
+
+    `duplicate_ids` above exists because two bugs shared **B39**. Two questions then
+    shared **Q19** — "are Linux and macOS shipping targets" and "when a textured line
+    is re-shaped, may its texture change" — for exactly the same reason: a new entry
+    numbered by eye against a file long enough that the last id is off-screen. A
+    question id is cited from `CLAUDE.md`, from design docs, from bug entries and from
+    the roadmap, so a reused one sends a reader to the wrong argument.
+
+    Checked here rather than in a script of its own: this is the file that already
+    knows how to say "renumber all but one", and a second script is a second thing to
+    remember to run.
+    """
+    if not QUESTIONS.exists():
+        return {}
+    seen: dict[str, list[str]] = {}
+    for line in QUESTIONS.read_text(encoding="utf-8").splitlines():
+        if match := QUESTION.match(line):
+            seen.setdefault(match["id"], []).append(match["title"])
+    return {i: t for i, t in seen.items() if len(t) > 1}
+
+
 OPEN_HEADING = "## Open"
 FIXED_HEADING = "## Fixed"
 
@@ -274,6 +303,7 @@ def cmd_check() -> int:
     unverifiable = [b for b in bugs if b.unverifiable]
     wrong_domain = bad_domains(bugs)
     duplicates = duplicate_ids(bugs)
+    clashing_questions = duplicate_questions()
 
     open_bugs = [b for b in bugs if b.status != "x"]
     counts = {p: sum(1 for b in open_bugs if b.priority == p) for p in ("P1", "P2", "P3", "P4")}
@@ -293,13 +323,17 @@ def cmd_check() -> int:
         titles = " / ".join(b.title[:44] for b in clashing)
         print(f"  DUPLICATE ID {bug_id}  used {len(clashing)} times: {titles}")
         print("               renumber all but one — an id is cited from tests and docs")
+    for question_id, titles in clashing_questions.items():
+        print(f"  DUPLICATE Q  {question_id}  used {len(titles)} times: "
+              + " / ".join(t[:40] for t in titles))
+        print("               renumber all but one — QUESTIONS.md ids are cited by name")
     for bug in drifted:
         want = "fixed" if bug.status == "x" else "open"
         print(f"  DRIFTED      {bug.id}  marked '{bug.mark}' but the code says {want}")
         if bug.missing:
             print(f"               missing: {', '.join(bug.missing)}")
 
-    if drifted or unverifiable or wrong_domain or duplicates:
+    if drifted or unverifiable or wrong_domain or duplicates or clashing_questions:
         # sync fixes drift and placement; the rest need a person, so say so honestly
         # rather than pointing at a command that will not help.
         if drifted:

@@ -67,26 +67,36 @@ public class RuntimeDeterminismTests(ITestOutputHelper output)
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Empty is the shipped state and it is deliberate: a value invented by
-    /// anything other than a real run on the runtime being left behind is worse
-    /// than no value, because it would fail for a reason nobody could act on.
-    /// While it is empty <see cref="TheFingerprint_MatchesTheRecordedBaseline"/>
-    /// logs what it computed and passes — it is an instrument, not yet a guard.
+    /// <b>Recorded on .NET 8.0.29 / SkiaSharp 3.119.4, linux-x64, before any
+    /// TargetFramework moves.</b> That is what the stored value is evidence
+    /// <em>about</em> — the numbers mean nothing without the runtime they came
+    /// from, since a mismatch is only diagnosable against a named starting
+    /// point. Debug and Release produce the same three hashes, checked when
+    /// this was taken, so the guard does not depend on configuration.
     /// </para>
     /// <para>
-    /// To record it: run this class on the current runtime, take the block the
-    /// test logs, and paste it here. That is step 2 of the order in
-    /// <c>docs/DESIGN-net10-upgrade.md</c> and it only counts if it happens
-    /// before the TFM bump in step 4.
+    /// Empty was the shipped state until now, and deliberately: a value
+    /// invented by anything other than a real run on the runtime being left
+    /// behind is worse than no value, because it would fail for a reason nobody
+    /// could act on. While empty,
+    /// <see cref="TheFingerprint_MatchesTheRecordedBaseline"/> logged what it
+    /// computed and passed — an instrument rather than a guard. Filling it in is
+    /// step 2 of the order in <c>docs/DESIGN-net10-upgrade.md</c>, and it only
+    /// counts because it happened before the TFM bump in step 4. B55.
     /// </para>
     /// <para>
     /// A mismatch after an <em>intentional</em> engine change is expected and
     /// the entry is re-recorded — with the pixel change reviewed on its own
     /// merits first, because "re-record the baseline" is also exactly what
-    /// somebody would do to make a real regression go quiet.
+    /// somebody would do to make a real regression go quiet. Which scenarios
+    /// moved is the diagnosis: see the class remarks.
     /// </para>
     /// </remarks>
-    private const string Baseline = "";
+    private const string Baseline = """
+        jitter=B2F2F836E09EF4470E1EEC395DA260D553E5655F7AD63DC082CDE28B5075F938
+        soft=C6FB71EEB611233A6B1369EEFE77269BC6E2391ED53E38F0AF1F048B954CA9ED
+        hard-aa=0BD3880B4B3938EFA38A1662882109017A8E878C33F3FF0F06493789A7210334
+        """;
 
     /// <summary>Everything stochastic on at once — the only scenario that reaches
     /// <c>Math.Cos</c>/<c>Math.Sin</c> through scatter.</summary>
@@ -193,9 +203,30 @@ public class RuntimeDeterminismTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The baseline is still recorded, because the cheapest way to silence a
+    /// real pixel regression is to empty it — at which point
+    /// <see cref="TheFingerprint_MatchesTheRecordedBaseline"/> goes back to
+    /// logging and passing, and the silence looks exactly like health.
+    /// </summary>
+    /// <remarks>
+    /// Emptying it is never needed to re-record either: the fingerprint test
+    /// writes what it computed <em>before</em> it asserts, so a failing run
+    /// already prints the block to paste.
+    /// </remarks>
+    [Fact]
+    public void TheBaseline_IsStillRecorded()
+    {
+        Assert.False(
+            string.IsNullOrWhiteSpace(Baseline),
+            "the recorded baseline has been emptied — that turns the fingerprint test back "
+            + "into an instrument that cannot fail. Re-record it from the block the "
+            + "fingerprint test logs rather than blanking it.");
+    }
+
+    /// <summary>
     /// The stored value from the runtime this was recorded on. Inert until
-    /// <see cref="Baseline"/> is filled in — see its remarks for why that is
-    /// the shipped state and how to record it.
+    /// <see cref="Baseline"/> is filled in — see its remarks for why that was
+    /// the shipped state and how it was recorded.
     /// </summary>
     [Fact]
     public void TheFingerprint_MatchesTheRecordedBaseline()

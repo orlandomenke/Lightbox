@@ -397,7 +397,10 @@ public sealed partial class MainViewModel : ObservableObject
             leaving.SavedLayerIndex = ActiveLayerIndex;
         }
         AttachEditor(value.Editor);
-        ActiveLayerIndex = Math.Clamp(value.SavedLayerIndex, 0, Scene.Layers.Count - 1);
+        // B56, and note that the line below it already had the guard: a document with no layers
+        // is loadable, `Clamp(0, 0, -1)` throws, and the frame clamp beside this one was written
+        // defensively while the layer clamp was not.
+        ActiveLayerIndex = Math.Clamp(value.SavedLayerIndex, 0, Math.Max(0, Scene.Layers.Count - 1));
         CurrentFrameIndex = Math.Clamp(value.SavedFrameIndex, 0, Math.Max(0, Scene.FrameCount - 1));
         RecallDocumentBrush();
         _switchingTabs = false;
@@ -989,6 +992,10 @@ public sealed partial class MainViewModel : ObservableObject
     private void MarkDocumentEdited()
     {
         _autosave.MarkDirty();
+        // B31: the encoded reference views are only valid while the drawing is. This is the
+        // funnel that sees a stroke commit — OnDocumentChanged returns early for those — so a
+        // cache invalidated anywhere else would hand a model art that had since changed.
+        InvalidateReferenceViewCache();
         if (_switchingTabs || ActiveTab is not { } tab) return;
         // Here rather than in OnDocumentChanged: stroke commits take that
         // method's scoped-edit early return, and a stroke is exactly the edit
@@ -1104,6 +1111,22 @@ public sealed partial class MainViewModel : ObservableObject
     public IReadOnlyList<ReferenceSheet> ReferenceSheetsView =>
         (SaveTargetTab?.Doc ?? Doc).ReferenceSheets.ToList();
 
+    /// <remarks>
+    /// <para>
+    /// These two write straight to <c>Doc.ReferenceSheets</c> rather than going through
+    /// <c>DocumentEditor</c>, which is why they announce the edit themselves. That was already
+    /// true of undo — adding a sheet is not undoable — and B31 gave it a second consequence: the
+    /// encoded reference views are cached, and a document edit that does not reach
+    /// <see cref="MarkDocumentEdited"/> is a document edit the cache never hears about.
+    /// </para>
+    /// <para>
+    /// Harmless today, since both only add an <em>empty</em> container under a fresh id and
+    /// there is nothing stale to serve. It is the day somebody adds "duplicate view", cloning an
+    /// existing view's layers, that this path would quietly serve the original's picture — so
+    /// the call goes in now, while it costs one line, rather than in the commit that would need
+    /// to know to add it.
+    /// </para>
+    /// </remarks>
     public void AddReferenceSheet()
     {
         var target = SaveTargetTab ?? Tabs[0];
@@ -1112,15 +1135,18 @@ public sealed partial class MainViewModel : ObservableObject
             Name = $"Character {target.Doc.ReferenceSheets.Count + 1}",
         });
         target.IsDirty = true;
+        MarkDocumentEdited();
         OnPropertyChanged(nameof(ReferenceSheetsView));
     }
 
+    /// <inheritdoc cref="AddReferenceSheet"/>
     public void AddReferenceView(ReferenceSheet sheet)
     {
         var target = SaveTargetTab ?? Tabs[0];
         var view = ReferenceView.Create($"view {sheet.Views.Count + 1}", Scene.Width, Scene.Height);
         sheet.Views.Add(view);
         target.IsDirty = true;
+        MarkDocumentEdited();
         OnPropertyChanged(nameof(ReferenceSheetsView));
         OpenReferenceView(view);
     }
@@ -1165,7 +1191,77 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Flatten one character-sheet view to PNG (for AI reference and MCP).</summary>
-    public string RenderReferenceViewPng(ReferenceView view)
+    /// <summary>
+    /// The longest edge of a reference image sent to a model.
+    /// </summary>
+    /// <remarks>
+    /// <b>Capped on the way out, never on the view.</b> An artist's sheet stays whatever size
+    /// they drew it; this is only what leaves the machine. Providers bill by area regardless
+    /// of file size, so per `docs/DESIGN-ai-payload.md` a 768 px long edge is **442 image
+    /// tokens against 691, and 244 KB against 333 KB** for a 960×540 view. Line art survives
+    /// the downscale — it is the shape the model is being asked to read, not the pixels.
+    /// </remarks>
+    private const int ReferenceLongEdge = 768;
+
+    /// <summary>
+    /// Encoded reference views, keyed by view id.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// B31. <c>Compose</c> + PNG + base64 cost <b>52 ms for one 960×540 view</b>, and it ran
+    /// on the UI thread before every AI call — about 100 ms of stall for the default two
+    /// views, producing byte-identical output each time because the sheet had not changed.
+    /// <c>_cache.Get</c> already memoised the per-layer render; what was uncached was the
+    /// expensive half.
+    /// </para>
+    /// <para>
+    /// <b>Invalidated from <see cref="MarkDocumentEdited"/>, not <c>OnDocumentChanged</c>.</b>
+    /// The bug entry proposed the latter and it would have been wrong in the dangerous
+    /// direction: <c>OnDocumentChanged</c> takes an early return for scoped edits, and a
+    /// stroke commit is exactly that — so a cache hung off it would survive the edit and hand
+    /// the model a picture of art the artist had already changed. Wrong quietly, which is
+    /// worse than slow. <c>MarkDocumentEdited</c> exists precisely because it catches what the
+    /// other one misses, and its own comment says so.
+    /// </para>
+    /// <para>
+    /// Cleared wholesale rather than per view, because over-invalidating costs one re-encode
+    /// and under-invalidating costs correctness.
+    /// </para>
+    /// </remarks>
+    private readonly Dictionary<string, string> _referenceViewPngs = new(StringComparer.Ordinal);
+
+    /// <summary>Throw away encoded reference views — something in the document moved.</summary>
+    private void InvalidateReferenceViewCache() => _referenceViewPngs.Clear();
+
+    /// <summary>
+    /// Run the edit funnel, for a test that changes the model directly.
+    /// </summary>
+    /// <remarks>
+    /// Some edits an artist makes to a sheet — hiding one of its layers, for instance — are
+    /// property sets on the record rather than commands on this view model, and they reach the
+    /// funnel through the UI that made them. A test poking the record has no UI, so it needs a
+    /// way to say "and that was an edit" without a second copy of what an edit means.
+    /// </remarks>
+    internal void MarkDocumentEditedForTests() => MarkDocumentEdited();
+
+    /// <summary>One view as base64 PNG, at the size it was drawn.</summary>
+    /// <remarks>
+    /// <b>Uncapped, and that is the contract.</b> This overload is what the MCP surface answers
+    /// <c>render_reference_view</c> with, and an agent asking for a picture of a view should get
+    /// the view — the 768 px cap belongs to an AI *request*, where it exists because providers
+    /// bill by area. Capping here instead shrank the MCP reply as a side effect of B31 and was
+    /// caught by <c>RenderReferenceView_ProducesDecodablePng</c>, which had asserted the
+    /// authored width since the feature landed. The cap is applied at
+    /// <see cref="EncodedReferenceView"/>, one call site, where the reason for it is true.
+    /// </remarks>
+    public string RenderReferenceViewPng(ReferenceView view) => RenderReferenceViewPng(view, 0);
+
+    /// <summary>One view as base64 PNG, no wider or taller than <paramref name="longEdge"/>.</summary>
+    /// <remarks>
+    /// <paramref name="longEdge"/> of 0 or less means the authored size. Explicit rather than
+    /// defaulted, so a new caller has to say which of the two it wants.
+    /// </remarks>
+    public string RenderReferenceViewPng(ReferenceView view, int longEdge)
     {
         var passes = new List<RenderPass>();
         foreach (var layer in view.Layers)
@@ -1175,22 +1271,66 @@ public sealed partial class MainViewModel : ObservableObject
             if (frame is null) continue;
             passes.Add(new RenderPass(_cache.Get(frame, view.Width, view.Height), null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
         }
+
+        // Composed at the authored size so the warm per-layer cache entries are the ones every
+        // other consumer already made, then scaled once. Scaling the composed surface rather
+        // than the geometry is the same rule as invariant 7 — no stroke coordinate is touched,
+        // and this is an outbound image rather than a document render.
         using var image = SceneRenderer.Compose(view.Width, view.Height, passes);
-        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
+        using var sized = Downscaled(image, longEdge);
+        using var data = (sized ?? image).Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
             ?? throw new InvalidOperationException("PNG encode failed.");
         return Convert.ToBase64String(data.AsSpan());
     }
 
+    /// <summary>The image no larger than <paramref name="longEdge"/>, or null if it already is.</summary>
+    private static SkiaSharp.SKImage? Downscaled(SkiaSharp.SKImage image, int longEdge)
+    {
+        var longest = Math.Max(image.Width, image.Height);
+        if (longEdge <= 0 || longest <= longEdge) return null;
+
+        var scale = longEdge / (double)longest;
+        var w = Math.Max(1, (int)Math.Round(image.Width * scale));
+        var h = Math.Max(1, (int)Math.Round(image.Height * scale));
+
+        var info = new SkiaSharp.SKImageInfo(w, h, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Premul);
+        using var surface = SkiaSharp.SKSurface.Create(info);
+        if (surface is null) return null; // no surface, no downscale — send the full size
+        surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
+        // Mipmapped linear: a plain bilinear minification of line art drops thin strokes
+        // entirely, which is the one thing the model must not lose.
+        surface.Canvas.DrawImage(
+            image,
+            new SkiaSharp.SKRect(0, 0, w, h),
+            new SkiaSharp.SKSamplingOptions(SkiaSharp.SKFilterMode.Linear, SkiaSharp.SKMipmapMode.Linear));
+        surface.Canvas.Flush();
+        return surface.Snapshot();
+    }
+
     /// <summary>Up to two rendered character-sheet views to ride along with AI requests.</summary>
+    /// <remarks>
+    /// Encoded once per view and reused until the document changes — see
+    /// <see cref="_referenceViewPngs"/>. The first call after an edit pays; the ones after it
+    /// do not, which is the whole of B31.
+    /// </remarks>
     private IReadOnlyList<string>? CollectReferenceImages()
     {
         var views = (SaveTargetTab?.Doc ?? Doc).ReferenceSheets
             .SelectMany(s => s.Views)
             .Where(v => v.Layers.Any(l => l.Visible))
             .Take(2)
-            .Select(RenderReferenceViewPng)
+            .Select(EncodedReferenceView)
             .ToList();
         return views.Count > 0 ? views : null;
+    }
+
+    private string EncodedReferenceView(ReferenceView view)
+    {
+        if (_referenceViewPngs.TryGetValue(view.Id, out var cached)) return cached;
+        // The one place the cap applies: this is a request, and a request is billed by area.
+        var encoded = RenderReferenceViewPng(view, ReferenceLongEdge);
+        _referenceViewPngs[view.Id] = encoded;
+        return encoded;
     }
 
     /// <summary>The color docker's state, kept in sync with <see cref="ColorHex"/>.</summary>
@@ -7511,7 +7651,11 @@ public sealed partial class MainViewModel : ObservableObject
         while (LayerRows.Count > layers.Count) LayerRows.RemoveAt(LayerRows.Count - 1);
         while (LayerRows.Count < layers.Count) LayerRows.Add(new LayerRow(this));
 
-        var active = Math.Clamp(ActiveLayerIndex, 0, layers.Count - 1);
+        // Math.Max, because a document with no layers is loadable and `Clamp(_, 0, -1)` throws.
+        // `new Doc()` has an empty layer list and nothing in `DocJson` backfills one, so a
+        // `.lightbox.json` with `"layers": []` — hand-edited, machine-written, or from a version
+        // that allowed it — took down File → Open with an ArgumentException about 0 and -1. B56.
+        var active = Math.Clamp(ActiveLayerIndex, 0, Math.Max(0, layers.Count - 1));
         for (var i = 0; i < LayerRows.Count; i++)
         {
             var row = LayerRows[i];

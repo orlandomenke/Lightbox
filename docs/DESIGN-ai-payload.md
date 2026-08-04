@@ -107,26 +107,55 @@ exactly, with no risk to the wire format at all.
 
 ## What is worth doing to the images
 
-They are 87% of the bytes for 5% of the cost, and there is one measured defect
-among them.
+They are 87% of the bytes for 5% of the cost, and there was one measured defect
+among them. **Both of the mechanical items below have landed** (B31); the
+numbers are kept as recorded rather than rewritten, because what the fix is
+worth is only legible against what it cost before.
 
-**The encode happens on the UI thread before every call.**
-`CollectReferenceImages` renders, composes, PNG-encodes and base64s up to two
-views synchronously in `AiInbetweenAsync` before the request is built — about
+**The encode used to happen on the UI thread before every call.**
+`CollectReferenceImages` rendered, composed, PNG-encoded and base64'd up to two
+views synchronously in `AiInbetweenAsync` before the request was built — about
 52 ms each at 960×540, so **~100 ms of stall on every AI call**, repeated
-identically each time because nothing changed between calls. A content-keyed
-cache removes all of it. This is the only thing in this document that is a
-defect rather than a preference (**B31**).
+identically each time because nothing changed between calls. It is now memoised
+per view and thrown away by `MarkDocumentEdited`: measured **225 ms cold, 0.03 ms
+warm**. `ReferenceImagePayloadTests` guards both halves.
 
-**Cap the long edge.** Views are sent at their authored size, and a view is
-960×540 by default but nothing stops it being 4K. Billing is by area
-regardless of file size, so a cap is both a token and a byte win: 768 px long
-edge is 442 tokens against 691, and 244 KB against 333 KB. Line art survives
-the downscale; it is the shape the model needs, not the pixels.
+The invalidation is the part that was worth testing hardest, and it is the one
+place this document's own plan was wrong. It proposed hanging invalidation off
+`OnDocumentChanged`; that method takes an early return for scoped edits, and a
+stroke commit is exactly that — so a cache keyed there would have survived the
+edit it exists to notice, and handed the model a picture of art the artist had
+already changed. Nothing in the result would say so; it would read as a worse
+inbetween. `MarkDocumentEdited` is the real per-edit funnel.
+
+**The long edge is capped on the way out**, on the request rather than on the
+view, so the artist's sheet stays whatever size they drew it. Views were sent at
+their authored size, and a view is 960×540 by default but nothing stops it being
+4K. Billing is by area regardless of file size, so the cap is both a token and a
+byte win: 768 px long edge is 442 tokens against 691, and 244 KB against 333 KB.
+Measured on a 1920×1080 view it sends **7 KB instead of 115 KB**. Line art
+survives the downscale — asserted rather than assumed, by counting dark pixels
+in the downscaled reference against an empty sheet of the same size.
+
+A cap is a ceiling and not a target: a 400×300 sheet is sent at 400×300.
+Upscaling would spend tokens on pixels the artist never drew.
+
+**768 is not settled, and it is now written down as unsettled — Q21.**
+art-director rendered a face close-up and a naturally-small head through the
+real path at authored, 768 and 512: a body silhouette survives even 512, but
+eyebrows vanish and eyes turn to grey smudges on the faces, because mipmapped
+minification greys a thin dark line toward the ground instead of keeping it
+crisp-and-small. The caveat belongs with it — those lines were drawn at pressure
+0.25–0.5, and pressure drives flow as well as size here, so they were hairline
+already; the cap made a marginal line invisible rather than a solid line
+marginal. Both halves are in `QUESTIONS.md` along with the four ways out, and
+the token arithmetic that makes 1024 cost about 1.3%.
 
 **WebP halves the bytes and doubles the encode** — 196 KB against 333 KB, but
-106 ms against 52 ms. On the UI thread that is a bad trade. Once the cache
-above exists the encode happens once, and it becomes free to reconsider.
+106 ms against 52 ms. On the UI thread that was a bad trade. The cache now
+exists, so the encode is paid once per edit rather than once per call, and the
+trade is open again — but the cap took most of the bytes already, and bytes are
+the 5% half. Reconsider it when the upload is what somebody is waiting on.
 
 **Not JPEG.** Ringing around black lines on white is exactly the artefact that
 makes a drawing harder to read, and the model is being asked to read it
@@ -139,13 +168,15 @@ image tokens per call. Small, but it costs one field.
 
 ## Order
 
-1. **B31** — cache the encoded reference views. A measured 100 ms of UI stall
-   before every AI call, and the only defect here.
-2. **Cap the reference long edge**, with the cap on the request rather than on
-   the view: the artist's sheet stays whatever size they drew it.
+1. ~~**B31** — cache the encoded reference views.~~ **Done.** 225 ms cold,
+   0.03 ms warm.
+2. ~~**Cap the reference long edge**, on the request rather than on the view.~~
+   **Done**, in the same commit: 768 px, 7 KB instead of 115 KB on a 1080p view.
 3. **Send the strokes that need judgement**, not the frame. The 6× win, and
    the one that needs design rather than a constant.
-4. **Prompt caching** on the providers that offer it.
+4. **Prompt caching** on the providers that offer it. **Now cheaper than it
+   was** — the reference images are byte-identical across a session *and* the
+   same string instance, so there is nothing left to compute before caching them.
 5. **Q18** — the flat-array encoding, once somebody has A/B'd adherence
    against a real provider.
 

@@ -127,6 +127,40 @@ public class DocumentTabTests
         Assert.Equal(320, vm.Doc.Scene.Width);
         Assert.False(vm.ActiveTab.IsDirty);
     }
+
+    /// <summary>
+    /// A document with no layers opens instead of taking the application down.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// B56, found sideways while writing a B31 test: <c>SyncLayerRows</c> ran
+    /// <c>Math.Clamp(ActiveLayerIndex, 0, layers.Count - 1)</c>, and with no layers that is
+    /// <c>Clamp(0, 0, -1)</c> — an <c>ArgumentException</c> reading "'0' cannot be greater than
+    /// -1", thrown out of a property setter deep under <c>ActiveTab</c>.
+    /// </para>
+    /// <para>
+    /// Reachable rather than theoretical: nothing in <c>DocJson</c> backfills a layer, so any
+    /// <c>.lightbox.json</c> whose scene carries <c>"layers": []</c> does this — hand-edited,
+    /// written by a script or an agent, or saved by a version that allowed the state. The
+    /// message names neither the file nor layers, which is the part that would have cost an
+    /// afternoon.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ADocumentWithNoLayersOpensRatherThanThrowing()
+    {
+        var vm = new MainViewModel(null);
+        var layerless = new Doc();   // Scene.Layers is empty and nothing fills it in
+        Assert.Empty(layerless.Scene.Layers);
+
+        vm.OpenDocumentTab(layerless, "/projects/hand-edited.lightbox.json");
+
+        Assert.Same(layerless, vm.Doc);
+        Assert.Empty(vm.LayerRows);
+        // And it is still usable: the next document opens on top of it.
+        vm.OpenDocumentTab(DocumentFactory.CreateDoc(120, 90, 4), null);
+        Assert.Single(vm.Doc.Scene.Layers);
+    }
 }
 
 public class BackgroundColorTests

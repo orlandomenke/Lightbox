@@ -1344,6 +1344,12 @@ is chosen the AI controls are disabled and say where to choose it.
 Anything the AI produces arrives as ordinary strokes — undoable, editable, and
 subject to every rule your own strokes are.
 
+**What gets sent.** Along with the frames, the **first two views on your character
+sheets that have a visible layer** go out as pictures, so the model can see who it
+is drawing. They are sent at up to 768 pixels on the long edge — your sheet keeps
+whatever size you drew it at, and only the copy in the request is smaller. Hide
+every layer in a view and it stops being sent.
+
 ### Turning AI off
 
 **Edit ▸ Configure ▸ AI ▸ Use AI assistance.** On by default. Off removes the

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2237 tests, derived from the suite itself. Each line is a
+2247 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -616,14 +616,14 @@ regression even when every test still compiles.
 ## BackgroundColorTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Scene Background Round Trips And Tints The Snapshot — `:135`
-- Transparent Background Renders Transparent Pixels — `:153`
+- Scene Background Round Trips And Tints The Snapshot — `:169`
+- Transparent Background Renders Transparent Pixels — `:187`
 
 ## ColorWheelFidelityTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Wheel Value Is Not Rewritten While Dragging — `:169`
-- Slider Channels Are Not Rewritten While Editing — `:188`
+- Wheel Value Is Not Rewritten While Dragging — `:203`
+- Slider Channels Are Not Rewritten While Editing — `:222`
 
 ## DocumentTabTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
@@ -635,6 +635,7 @@ regression even when every test still compiles.
 - Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:84`
 - Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:100`
 - Open Document Tab Uses File Name And Keeps Existing Tabs — `:119`
+- ADocument With No Layers Opens Rather Than Throwing — `:150`
 
 ## EngineApiTests
 `tests/Lightbox.App.Tests/EngineApiTests.cs`
@@ -1313,6 +1314,18 @@ regression even when every test still compiles.
 - AGizmo Sits Where Its Drawing Is — `:328`
 - An Unplaced Pivot Still Gets AMark — `:354`
 - Generating Keyframes Is One Undo Step — `:376`
+
+## ReferenceImagePayloadTests
+`tests/Lightbox.App.Tests/ReferenceImagePayloadTests.cs`
+
+- Reference Views Are Encoded Once Not Per Call — `:96`
+- The Encoded View Is Reused While The Sheet Is Unchanged — `:125`
+- Editing The Drawing Throws The Encoded View Away — `:140`
+- Hiding ALayer Changes What Is Sent — `:159`
+- The Long Edge Is Capped On The Way Out Rather Than On The View — `:177`
+- ASmall View Is Not Upscaled To The Cap — `:206`
+- Two Tabs Whose Views Share An Id Do Not Share APicture — `:219`
+- The Downscaled Reference Still Has The Drawing In It — `:284`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
@@ -3124,8 +3137,9 @@ regression even when every test still compiles.
 ## RuntimeDeterminismTests
 `tests/Lightbox.Raster.Tests/RuntimeDeterminismTests.cs`
 
-- The Fingerprint Is Stable Within ARun — `:180`
-- The Fingerprint Matches The Recorded Baseline — `:201`
+- The Fingerprint Is Stable Within ARun — `:190`
+- The Baseline Is Still Recorded — `:217`
+- The Fingerprint Matches The Recorded Baseline — `:232`
 
 ## SampleSourceTests
 `tests/Lightbox.Raster.Tests/SampleSourceTests.cs`
