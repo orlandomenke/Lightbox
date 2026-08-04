@@ -2142,9 +2142,9 @@ regression even when every test still compiles.
 ## CiRuntimeTests
 `tests/Lightbox.Core.Tests/CiRuntimeTests.cs`
 
-- The Job That Runs Tests Asks For The Runtime Those Tests Need — `:59`
-- The Sdk Is Still Named Too — `:81`
-- The Eight Point Zero Runtime Is Still Actually Required — `:91`
+- The Job That Runs Tests Asks For The Runtime Those Tests Need — `:79`
+- The Sdk Is Still Named Too — `:101`
+- The Retired Eight Point Zero Runtime Has Not Come Back — `:122`
 
 ## CollisionShapeTests
 `tests/Lightbox.Core.Tests/CollisionShapeTests.cs`

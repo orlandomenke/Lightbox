@@ -2,7 +2,7 @@
 
 An **AI-native, raster-first** art and animation application — in the spirit of Krita/Photoshop, built for hand-drawn frame-by-frame animation where inbetweens are near-indistinguishable from the original drawings.
 
-Built with **C# / .NET 8**, **Avalonia** (Windows · macOS · Linux), and **SkiaSharp**.
+Built with **C# / .NET 10**, **Avalonia** (Windows · macOS · Linux), and **SkiaSharp**.
 
 ## The core ideas
 
@@ -146,15 +146,13 @@ dotnet test             # run all test suites (fully headless-safe)
 dotnet run --project src/Lightbox.App   # launch the app
 ```
 
-**Two .NET versions, and both are needed.** The **.NET 10 SDK** builds the repo
-— Avalonia 12's source generators need newer Roslyn than the .NET 8 SDK ships,
-which is why CI installs `10.0.x`. The **.NET 8 runtime** runs it: every project
-but `Lightbox.Mcp` targets `net8.0`, and .NET does not roll a `net8.0` assembly
-forward onto a 10.0 runtime, so an SDK-10-only machine compiles the whole
-solution and then fails to launch a single test. On Linux, SkiaSharp also needs
-`libfontconfig1`.
+**One .NET version: the .NET 10 SDK.** Every project targets `net10.0`, so the
+SDK that builds the repo carries the runtime that runs it. This used to be two
+questions — the solution targeted `net8.0` while Avalonia 12's source generators
+needed the newer Roslyn only the 10.0 SDK ships, so a machine with one of them
+compiled or ran but not both. On Linux, SkiaSharp also needs `libfontconfig1`.
 
-The easiest way to get all three is the devcontainer — open the repo in GitHub
+The easiest way to get both is the devcontainer — open the repo in GitHub
 Codespaces, or in VS Code with the Dev Containers extension, and
 `.devcontainer/devcontainer.json` provisions them. `dotnet test` needs no
 display; the UI suite drives Avalonia headlessly.
