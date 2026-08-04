@@ -330,3 +330,84 @@ with no cost-at-scale sweep. Otherwise the highest-priority open bugs are both
 P2: B50 (Watercolor brush nearly invisible — art-direction work with a veto
 attached, not a code fix) and B29 (full recomposite ~20 ms/layer blocks
 playhead dragging, `evidence: manual`).
+
+## Round 3 — 2026-08-04 — the sweep that shouldn't be written
+
+Found: the round was asked for as a sweep — round 2 closed naming the rig
+overlay as an unswept dimension on a `WhileDrawing`-cadence path. **The
+premise was false in a more interesting way than the sweep would have been.**
+Nothing draws the rig overlay per frame because *nothing draws it at all*:
+`RigMarks`, `RigEditMode`, `SelectedRigMarkId`, `AddAnchorAt`, `AddShapeAt`
+and `HasRig` have no consumer outside `MainViewModel.Rig.cs` and its own
+tests — no binding, nothing in `CanvasControl.cs`, no menu item, no
+`ShortcutMap` entry. An artist cannot switch the mode on, so an artist cannot
+place a socket or a hitbox on the canvas at all.
+
+`ROADMAP.md` marked it `[x]` and said in prose "**The canvas overlay is
+built**" — while the collision-shapes item three lines above said "the one
+canvas overlay **still to be built**". Both were in the file at once.
+
+Did:
+- **Wrote no sweep, and measured instead of guessing whether one was owed.**
+  Driving the real view model at 2 / 10 / 50 / 200 / 600 marks, `PressRig`
+  costs 0.0025 / 0.0078 / 0.15 / 0.05 / 0.17 ms against a 16 ms frame — no
+  cliff within ten times any real character rig, so a scenario in the harness
+  would have measured a path nobody can walk *and* found nothing. Allocation
+  is the one number that grows cleanly (~0.26 KB per mark per press, 11.6 KB
+  at 50, 156 KB at 600) and is worth a look only once the overlay is wired to
+  hover. All of it recorded on the roadmap item so the next person does not
+  re-derive it. Charter **O9** explicitly allows this — "records in the
+  roadmap item why it does not need one" — and this is the first time that
+  branch has been taken.
+- **B58** (P2, `ui`): the rig overlay is unreachable. Three unresolved
+  anchors name the missing pieces — `RigOverlayPainter`,
+  `TheRigOverlayReachesTheCanvas`, `RigEditModeIsBindable` — left in place
+  rather than dropped, the way `NormalMapPanel` is on the normal-map item.
+  `roadmap.py sync` derived the box down to `[~]` from those anchors; the
+  mark was not typed.
+- Corrected the contradictory prose on the socket-system item.
+
+Rejected:
+- **Writing the sweep as asked.** A `WhileDrawing` scenario for a path with
+  no per-frame caller measures a hypothesis, and the harness would then carry
+  a scenario whose shape changes the moment the overlay is actually built.
+  The measurement above is the part worth keeping, and the roadmap item is
+  the right place for it.
+- **Fixing B58 in this round.** It is a painter, pointer wiring, a menu home
+  and a shortcut — and *where the mode lives* is a product decision, not a
+  derivable one. Filing it beats guessing at it.
+
+Gates: build ✓ tests ✓ (2405 passing, unchanged — this round touched no
+production code) perf n/a (nothing measured changed) leaks n/a (no code in
+the diff) inventory ✓ roadmap ✓ (`check` passes; 165 built / 5 partial,
+was 166/4) bugs ✓.
+
+Sharpened: **charter O10 — an evidence anchor must name a surface an artist
+can reach.** This is the gate that failed: sixteen anchors on the rig item,
+every one a type, a decision or a unit test, so the box went green the moment
+the logic compiled. It is O7 (*test what a setting does, not that it
+changed*) one level up — the whole feature rather than one setting. Every
+item claiming a user-visible capability now owes at least one anchor that
+fails until the capability is reachable. Worth noting how close this came to
+being missed: `RigEditingTests` carries the comment "the canvas is handed an
+empty list", describing an integration that has never existed, and it reads
+as reassurance.
+
+Bugs: B58 recorded. None closed.
+Roadmap: "Hitbox and hurtbox editor" `[x]` → `[~]`; socket-system prose
+corrected.
+Questions raised: none — B58's open decision (where the rig mode lives in the
+UI) belongs to whoever builds it, and is recorded on the bug rather than as a
+blocking question.
+Next: **B58** is now the strongest candidate and the one with a user-visible
+payoff — a built, tested, unreachable feature is the cheapest kind of feature
+to finish. After it, the P2s are B50 (Watercolor, art-direction) and B29
+(recomposite cost, `evidence: manual`).
+
+**Worth carrying forward:** this is the second round running where the
+recorded note about a defect was confidently wrong about *where* it lived —
+B39's "no headless test can reach it", and now "an unswept dimension" for a
+feature with no per-frame path. Both notes were written in good faith by
+something that had looked at the right file and drawn the wrong boundary.
+Reading the note is not the same as checking the premise, and both times
+checking it took one grep.
