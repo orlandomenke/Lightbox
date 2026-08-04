@@ -284,6 +284,163 @@ public class LiveToolPreviewTests(ITestOutputHelper output) : BrushStateIsolated
     /// pass on a 4 px brush that softens by a tenth of a pixel.
     /// </para>
     /// </remarks>
+    // ---- B39 · effect brushes on a partially-transparent wash -------------
+
+    /// <summary>
+    /// A soft, partially-transparent wash — not a hard opaque bar. Every
+    /// discriminating case for B39 needs this: an opaque source makes opaque
+    /// output correct, so <see cref="Painted"/>'s hard bar cannot show the
+    /// failure the report described, and neither can a test built on it —
+    /// which is exactly what every pre-existing App-level effect-brush test
+    /// was built on.
+    /// </summary>
+    private static MainViewModel WashPainted(out byte peakAlpha)
+    {
+        var vm = VmLayers.BareVm();
+        vm.SmoothStrokes = false;
+        vm.ColorHex = "#000000";
+        vm.BrushSize = 200;
+        vm.BrushHardness = 0.3;
+        vm.BrushOpacity = 1;
+        vm.BrushFlow = 0.24;
+        vm.BrushWetEdge = 0;
+        vm.BrushGranulation = 0;
+        vm.BrushScatter = 0;
+        vm.AntiAliasing = true;
+
+        // One soft dab: a radial wash with a gradient edge, not a bar.
+        vm.BeginStroke(300, 270, 1);
+        vm.EndStroke();
+
+        RenderSnapshot? snap = null;
+        vm.SnapshotChanged += s => snap = s;
+        vm.PublishSnapshot();
+        using var bmp = SKBitmap.FromImage(snap!.Image);
+        peakAlpha = PeakAlpha(bmp);
+        return vm;
+    }
+
+    private static byte PeakAlpha(SKBitmap bmp)
+    {
+        byte peak = 0;
+        for (var y = 0; y < bmp.Height; y++)
+            for (var x = 0; x < bmp.Width; x++)
+            {
+                var a = bmp.GetPixel(x, y).Alpha;
+                if (a > peak) peak = a;
+            }
+        return peak;
+    }
+
+    private static (byte Peak, int Opaque) Survey(SKBitmap bmp)
+    {
+        byte peak = 0;
+        var opaque = 0;
+        for (var y = 0; y < bmp.Height; y++)
+            for (var x = 0; x < bmp.Width; x++)
+            {
+                var a = bmp.GetPixel(x, y).Alpha;
+                if (a > peak) peak = a;
+                if (a > 250) opaque++;
+            }
+        return (peak, opaque);
+    }
+
+    /// <summary>
+    /// B39: dragging an effect brush across a soft wash must never produce a
+    /// pixel more opaque than the wash itself — a smudge or blur moves
+    /// colour, it does not manufacture alpha. Driven through the real
+    /// live-preview pipeline (<c>_liveComposite</c>,
+    /// <c>FrameRasterizer.AppendDraft</c>, the publish path) rather than
+    /// <c>BrushEngine.StampStroke</c> directly: <c>EffectArtefactTests</c>
+    /// already proved the engine clean in isolation at this exact
+    /// configuration, so this is the layer above it — the one B39's own notes
+    /// point at next — and not a restatement of that coverage.
+    /// </summary>
+    [AvaloniaFact]
+    public void AnEffectBrushMidDrag_CannotExceedTheWashItStartedFrom()
+    {
+        var vm = WashPainted(out var peakAlpha);
+        Assert.True(peakAlpha is > 20 and < 200, $"the wash fixture itself is not soft ({peakAlpha})");
+        Pick(vm, "Smudge");
+        vm.BrushSmudgeLength = 0.6;
+        vm.BrushSmudgeRadius = 0.6;
+
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+
+        // Diagonally across the wash's edge and out into bare canvas — the
+        // arrangement EffectArtefactTests found the bug in, driven as a real
+        // drag: many pointer events, none of them ending the stroke.
+        vm.BeginStroke(260, 230, 1);
+        for (var i = 1; i <= 40; i++) vm.MoveStroke(260 + i * 3.0, 230 + i * 2.0, 0.8);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        using var during = SKBitmap.FromImage(latest!.Image);
+        var (peak, opaque) = Survey(during);
+        output.WriteLine($"mid-drag: peak {peak} (wash {peakAlpha}), {opaque} px opaque");
+        Assert.True(opaque == 0,
+            $"the live smudge left {opaque} opaque pixels mid-drag on a wash whose peak is {peakAlpha}");
+        Assert.True(peak <= peakAlpha + 4,
+            $"the live smudge reached alpha {peak} from a wash of {peakAlpha}");
+
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        using var committed = SKBitmap.FromImage(latest!.Image);
+        var (peakCommitted, opaqueCommitted) = Survey(committed);
+        output.WriteLine($"committed: peak {peakCommitted} (wash {peakAlpha}), {opaqueCommitted} px opaque");
+        Assert.True(opaqueCommitted == 0,
+            $"the committed smudge left {opaqueCommitted} opaque pixels — the artefact survived release");
+        Assert.True(peakCommitted <= peakAlpha + 4,
+            $"the committed smudge reached alpha {peakCommitted} from a wash of {peakAlpha}");
+    }
+
+    /// <summary>
+    /// B39 follow-up, found by an adversarial review of the fix above rather
+    /// than by a report: abandoning a Blur/Smudge stroke without
+    /// <see cref="MainViewModel.EndStroke"/> — starting playback mid-drag, or
+    /// switching documents mid-drag — used to leave <c>_liveComposite</c>
+    /// non-null forever, because only <c>BeginStroke</c> and
+    /// <c>EndStroke</c> cleared it and <c>_strokeBuilder.Cancel()</c> knows
+    /// nothing about it. After the fix above, a stale non-null
+    /// <c>_liveComposite</c> silently suppresses the overlay for every
+    /// ordinary stroke, gradient or shape drag that follows — on any
+    /// document — until ink happens to reset it. `ClearLiveEffectState`
+    /// closes that: every place that abandons a stroke calls it.
+    /// </summary>
+    [AvaloniaFact]
+    public void AbandoningAnEffectBrushDoesNotBlockTheNextOrdinaryStroke()
+    {
+        var vm = Painted();
+        Pick(vm, "Smudge");
+        vm.BrushSmudgeLength = 0.9;
+
+        vm.BeginStroke(180, 100, 1);
+        vm.MoveStroke(180, 150, 1);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        vm.PlayCommand.Execute(null);  // abandons the smudge via StartPlayback -> Cancel()
+        vm.PauseCommand.Execute(null);
+
+        // Not another brush stroke: BeginStroke unconditionally clears
+        // _liveComposite itself (it has to, to start its own preview), which
+        // would mask the gap regardless of whether Cancel() was fixed. The
+        // gradient tool never touches _liveComposite, so it is the one that
+        // actually exercises whether abandoning the smudge cleaned up after
+        // itself.
+        vm.ActiveTool = ToolId.Gradient;
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+
+        vm.BeginGradient(400, 300);
+        vm.MoveGradient(460, 300);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        using var during = SKBitmap.FromImage(latest!.Image);
+        Assert.True(during.GetPixel(430, 300).Alpha > 0,
+            "a gradient drag after an abandoned smudge did not show live — _liveComposite was left stale");
+    }
+
     [AvaloniaFact]
     public void BlurShipsWithARadiusYouCanActuallySee()
     {

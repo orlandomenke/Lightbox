@@ -222,6 +222,58 @@ public class OutputScaleTests
     /// clip — invisible at 1x, where the two spaces coincide, which is exactly
     /// why this is asserted at 2x.
     /// </summary>
+    /// <summary>
+    /// B56: `StampSmudge` put <c>outputScale</c> on the canvas transform AND
+    /// <c>LerpDab</c> separately multiplied every coordinate by the same
+    /// factor — a dab landed at outputScale² instead of outputScale. Found
+    /// while eliminating causes for B39 (it is not that bug: B39 reproduces
+    /// at outputScale 1, where a squared factor is still 1). Dormant until
+    /// something renders an effect brush above 1x — nothing in the app does
+    /// today — which is exactly why <see cref="AHigherOutputScale_RendersTheSameMark"/>
+    /// never caught it: it never exercises <see cref="BrushKind.Smudge"/>.
+    /// </summary>
+    [Fact]
+    public void ASmudgeAtHigherOutputScale_LandsInTheSamePlace()
+    {
+        SKBitmap Composite(double scale)
+        {
+            var blob = new Stroke
+            {
+                Tool = ToolKind.Fill,
+                Color = "#1040a0",
+                Points =
+                [
+                    new StrokePoint(40, 30, 1), new StrokePoint(160, 30, 1),
+                    new StrokePoint(160, 110, 1), new StrokePoint(40, 110, 1),
+                ],
+                Brush = new BrushSettings { Opacity = 1, AntiAlias = false },
+            };
+            var smudge = new Stroke
+            {
+                Tool = ToolKind.Brush,
+                Color = "#000000",
+                Points = Enumerable.Range(0, 30)
+                    .Select(i => new StrokePoint(50 + i * 3.0, 40 + i * 2.0, 0.8))
+                    .ToList(),
+                Brush = new BrushSettings
+                {
+                    Kind = BrushKind.Smudge, Size = 24, Hardness = 0.6, Flow = 0.8, Spacing = 0.15,
+                    SmudgeLength = 0.6, SmudgeRadius = 0.6,
+                },
+            };
+            return FrameRasterizer.Rasterize([blob, smudge], W, H, scale);
+        }
+
+        using var once = Composite(1.0);
+        using var twice = ToReference(Composite(2.0));
+
+        var diff = MeanDifference(once, twice);
+        var pattern = GridDisagreement(InkGrid(once), InkGrid(twice));
+
+        Assert.True(diff < 14, $"2x smudge differs by {diff:0.0}/255 on average — the dab landed somewhere else");
+        Assert.True(pattern <= 6, $"2x smudge put its mark in {pattern} different cells than 1x");
+    }
+
     [Fact]
     public void AClippedStroke_ClipsToTheSameRegionAtEveryScale()
     {

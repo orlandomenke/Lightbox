@@ -78,6 +78,21 @@ scale instead of behaviour: a dimension nobody swept is a cliff nobody knows
 about, and every one found so far was found by looking rather than by an
 artist reporting it.
 
+**O10 · An evidence anchor must name a surface an artist can reach.** A
+roadmap item whose anchors are all types, decisions and unit tests will go
+green the moment the logic compiles, whether or not anything shows it. The rig
+overlay is the worked example: sixteen anchors, all resolving, ~30 passing
+tests, one `[x]` — and `RigMarks`, `RigEditMode` and `AddAnchorAt` had no
+consumer outside the view model and its own tests, so an artist could not
+switch the mode on, let alone place a hitbox. A test even carried the comment
+"the canvas is handed an empty list" about an integration that did not exist.
+This is **O7 one level up**: O7 says test what a *setting* does rather than
+that it changed; O10 says the same of a *feature*. So every item claiming a
+user-visible capability carries at least one anchor that fails until the
+capability is reachable — a painter, a published-snapshot test, a `ShortcutMap`
+entry, a binding. Anchors for parts not yet built are left in place
+unresolved, never dropped, which is what makes `[~]` mean something.
+
 **O8 · Draw a curve, not just a line.** Every brush pixel test in this
 repository drew a straight stroke, and the arc artifact of M16b lived
 undetected in the dab walk the whole time because a straight path is the one

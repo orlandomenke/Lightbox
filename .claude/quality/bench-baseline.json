@@ -1,5 +1,6 @@
 {
-  "calibrationMs": 28.9,
+  "calibrationMs": 24.3,
+  "partial": false,
   "scenarios": [
     {
       "name": "Recomposite the whole frame",
@@ -8,17 +9,17 @@
       "budgetMs": 83.3,
       "exponent": 0.99,
       "cliff": 4,
-      "worstP95Calibrated": 16.459,
+      "worstP95Calibrated": 18.728,
       "maxSwept": 24
     },
     {
-      "name": "Draw a frame with onion skin",
+      "name": "Recomposite a frame with onion skin",
       "dimension": "ghosts each side",
-      "cadence": "WhileDrawing",
-      "budgetMs": 16.0,
-      "exponent": 0.84,
-      "cliff": 0,
-      "worstP95Calibrated": 28.136,
+      "cadence": "WhilePlaying",
+      "budgetMs": 83.3,
+      "exponent": 0.88,
+      "cliff": 1,
+      "worstP95Calibrated": 48.365,
       "maxSwept": 5
     },
     {
@@ -26,9 +27,9 @@
       "dimension": "strokes",
       "cadence": "PerAction",
       "budgetMs": 100.0,
-      "exponent": 1.03,
-      "cliff": 100,
-      "worstP95Calibrated": 55.136,
+      "exponent": 1.04,
+      "cliff": 50,
+      "worstP95Calibrated": 64.215,
       "maxSwept": 800
     },
     {
@@ -36,9 +37,9 @@
       "dimension": "frames",
       "cadence": "PerSession",
       "budgetMs": 2000.0,
-      "exponent": 1.87,
+      "exponent": 1.93,
       "cliff": 24,
-      "worstP95Calibrated": 399.973,
+      "worstP95Calibrated": 498.26,
       "maxSwept": 96
     },
     {
@@ -46,9 +47,9 @@
       "dimension": "frames in the scene",
       "cadence": "WhilePlaying",
       "budgetMs": 83.3,
-      "exponent": 0.84,
+      "exponent": 0.85,
       "cliff": 48,
-      "worstP95Calibrated": 4.994,
+      "worstP95Calibrated": 9.319,
       "maxSwept": 96
     },
     {
@@ -56,12 +57,52 @@
       "dimension": "frames in the scene",
       "cadence": "WhileDrawing",
       "budgetMs": 16.0,
-      "exponent": 0.82,
+      "exponent": 0.84,
       "cliff": 12,
-      "worstP95Calibrated": 4.277,
+      "worstP95Calibrated": 9.015,
       "maxSwept": 96
+    },
+    {
+      "name": "Commit a stroke, by canvas size",
+      "dimension": "canvas megapixels \u00d710",
+      "cadence": "PerAction",
+      "budgetMs": 100.0,
+      "exponent": 0.14,
+      "cliff": null,
+      "worstP95Calibrated": 0.75,
+      "maxSwept": 83
+    },
+    {
+      "name": "Commit a stroke, by brush size",
+      "dimension": "brush diameter px",
+      "cadence": "PerAction",
+      "budgetMs": 100.0,
+      "exponent": 0.42,
+      "cliff": null,
+      "worstP95Calibrated": 1.362,
+      "maxSwept": 300
+    },
+    {
+      "name": "Commit a stroke, by how long it is",
+      "dimension": "dabs",
+      "cadence": "PerAction",
+      "budgetMs": 100.0,
+      "exponent": 0.9,
+      "cliff": null,
+      "worstP95Calibrated": 3.425,
+      "maxSwept": 400
+    },
+    {
+      "name": "Commit a watercolour stroke, by flow steps",
+      "dimension": "flow steps",
+      "cadence": "PerAction",
+      "budgetMs": 100.0,
+      "exponent": 0.63,
+      "cliff": 32,
+      "worstP95Calibrated": 4.538,
+      "maxSwept": 32
     }
   ],
-  "sha": "dc51d5e1d745a1e862abadc96a000d31b28feaf8",
-  "takenAt": "2026-08-02T23:05:37+00:00"
+  "sha": "7d4cce88b966cb3e2fe5c19b9f4fc13ac836f29d",
+  "takenAt": "2026-08-04T10:41:32+00:00"
 }
