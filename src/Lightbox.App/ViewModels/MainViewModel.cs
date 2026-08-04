@@ -519,6 +519,7 @@ public sealed partial class MainViewModel : ObservableObject
         _clock.Stop();
         IsPlaying = false;
         _strokeBuilder.Cancel();
+        ClearLiveEffectState();
         _editor.Changed -= OnDocumentChanged;
         _editor = editor;
         _editor.Changed += OnDocumentChanged;
@@ -5300,9 +5301,20 @@ public sealed partial class MainViewModel : ObservableObject
         }, Avalonia.Threading.DispatcherPriority.Default);
     }
 
-    public void EndStroke()
+    /// <summary>
+    /// Drop the Blur/Smudge live preview and the ordinary-paint dab-walk
+    /// bookkeeping. <see cref="EndStroke"/> calls this after a real commit;
+    /// anything that abandons a stroke without going through it —
+    /// <see cref="AttachEditor"/> on a tab switch, <see cref="StartPlayback"/>
+    /// — must call it too. <c>_strokeBuilder.Cancel()</c> alone leaves
+    /// <see cref="_liveComposite"/> non-null, and every publish after that
+    /// treats a non-null <see cref="_liveComposite"/> as "an effect brush is
+    /// live on this layer" — which, left stale, silently suppressed the
+    /// overlay for every ordinary stroke, gradient and shape drag afterward,
+    /// on any document, until ink happened to reset it (B39's fix).
+    /// </summary>
+    private void ClearLiveEffectState()
     {
-        var stroke = _strokeBuilder.End();
         _liveComposite?.Dispose();
         _liveComposite = null;
         _liveEffectBase?.Dispose();
@@ -5313,6 +5325,12 @@ public sealed partial class MainViewModel : ObservableObject
         _liveTailRegion = null;
         _liveDabs = null;
         ResetLivePostProcess();
+    }
+
+    public void EndStroke()
+    {
+        var stroke = _strokeBuilder.End();
+        ClearLiveEffectState();
         if (stroke is null) return;
         var target = PaintTarget();
         if (target is null) return;
@@ -5429,6 +5447,7 @@ public sealed partial class MainViewModel : ObservableObject
         _playDirection = direction;
         if (IsPlaying) return;
         _strokeBuilder.Cancel();
+        ClearLiveEffectState();
         IsPlaying = true;
         _clock.Start(Scene.Fps, PlaybackSpeedPercent);
         PublishSnapshot();
@@ -8683,51 +8702,67 @@ public sealed partial class MainViewModel : ObservableObject
             // Live stroke: the dabs live in their own scratch and composite
             // over the layer here. The layer bitmap is never copied for a
             // preview — a full-canvas copy costs ~1 s at 4K.
+            //
+            // Skipped entirely once _liveComposite has taken over this layer
+            // (B39): a blur or smudge REPLACES the layer rather than
+            // overlaying it, so bmp is already the whole answer above. If
+            // _liveScratch still held dabs from whatever ordinary stroke ran
+            // immediately before — BeginStroke clears it for every tool
+            // except Blur/Smudge, since those never draw into it — building
+            // an overlay from it here composited that stale content a SECOND
+            // time over _liveComposite, which already carried it once. Over a
+            // wash the two SrcOver passes measured 61 -> 108, and a harder
+            // edge reaches fully opaque: the hard-edged black band and the
+            // "smaller black dash" the report showed are exactly the shape of
+            // dab patches left over from the previous stroke.
             StrokeOverlay? overlay = null;
-            // The shape tool's drag preview. It was rendering into the scratch
-            // and never being shown: the overlay only knew about a gradient
-            // drag or a live brush stroke, and a shape is neither — so the
-            // rectangle appeared out of nowhere on release. Same shape of
-            // overlay as the gradient's, for the same reason.
-            if (_liveScratch is not null && _liveShape is { } shaping && layer.Id == ActiveLayer.Id)
+            if (_liveComposite is null)
             {
-                overlay = new StrokeOverlay(
-                    _liveScratch,
-                    shaping.Brush.Opacity,
-                    shaping.Tool == ToolKind.Eraser,
-                    shaping.AlphaLocked,
-                    shaping.ClipId is null ? null : ClipRegionRegistry.Resolve(shaping.ClipId));
-            }
-            else if (_liveScratch is not null && _liveGradient is { } drag && layer.Id == ActiveLayer.Id)
-            {
-                // The gradient tool's drag preview. Opacity and the alpha lock
-                // ride on the overlay, exactly as they do for a brush stroke,
-                // so the preview and the commit agree.
-                overlay = new StrokeOverlay(
-                    _liveScratch,
-                    drag.Brush.Opacity,
-                    false,
-                    drag.AlphaLocked,
-                    drag.ClipId is null ? null : ClipRegionRegistry.Resolve(drag.ClipId));
-            }
-            else if (_liveScratch is not null && _strokeBuilder.IsActive
-                && _strokeBuilder.Current is { } live && layer.Id == ActiveLayer.Id)
-            {
-                // Prefer the fully rendered stroke when a pass has completed —
-                // medium, wet edge and texture included — and fall back to raw
-                // dabs only for the first few events of a heavy brush, before
-                // the first pass lands.
-                var source = _livePostStampedCount > 0 && _livePostScratch is not null
-                    ? _livePostScratch
-                    : _liveScratch;
-                // Everything the commit will mask the stroke with, applied
-                // now: an artist cannot judge a mark they are not being shown.
-                overlay = new StrokeOverlay(
-                    source,
-                    live.Brush.Opacity,
-                    live.Tool == ToolKind.Eraser,
-                    live.AlphaLocked,
-                    live.ClipId is null ? null : ClipRegionRegistry.Resolve(live.ClipId));
+                // The shape tool's drag preview. It was rendering into the scratch
+                // and never being shown: the overlay only knew about a gradient
+                // drag or a live brush stroke, and a shape is neither — so the
+                // rectangle appeared out of nowhere on release. Same shape of
+                // overlay as the gradient's, for the same reason.
+                if (_liveScratch is not null && _liveShape is { } shaping && layer.Id == ActiveLayer.Id)
+                {
+                    overlay = new StrokeOverlay(
+                        _liveScratch,
+                        shaping.Brush.Opacity,
+                        shaping.Tool == ToolKind.Eraser,
+                        shaping.AlphaLocked,
+                        shaping.ClipId is null ? null : ClipRegionRegistry.Resolve(shaping.ClipId));
+                }
+                else if (_liveScratch is not null && _liveGradient is { } drag && layer.Id == ActiveLayer.Id)
+                {
+                    // The gradient tool's drag preview. Opacity and the alpha lock
+                    // ride on the overlay, exactly as they do for a brush stroke,
+                    // so the preview and the commit agree.
+                    overlay = new StrokeOverlay(
+                        _liveScratch,
+                        drag.Brush.Opacity,
+                        false,
+                        drag.AlphaLocked,
+                        drag.ClipId is null ? null : ClipRegionRegistry.Resolve(drag.ClipId));
+                }
+                else if (_liveScratch is not null && _strokeBuilder.IsActive
+                    && _strokeBuilder.Current is { } live && layer.Id == ActiveLayer.Id)
+                {
+                    // Prefer the fully rendered stroke when a pass has completed —
+                    // medium, wet edge and texture included — and fall back to raw
+                    // dabs only for the first few events of a heavy brush, before
+                    // the first pass lands.
+                    var source = _livePostStampedCount > 0 && _livePostScratch is not null
+                        ? _livePostScratch
+                        : _liveScratch;
+                    // Everything the commit will mask the stroke with, applied
+                    // now: an artist cannot judge a mark they are not being shown.
+                    overlay = new StrokeOverlay(
+                        source,
+                        live.Brush.Opacity,
+                        live.Tool == ToolKind.Eraser,
+                        live.AlphaLocked,
+                        live.ClipId is null ? null : ClipRegionRegistry.Resolve(live.ClipId));
+                }
             }
 
             // A transform in progress: show the drag, not just the box around

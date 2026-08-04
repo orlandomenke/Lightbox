@@ -1,6 +1,6 @@
 # Code index
 
-432 files · 107022 lines · 2247 tests.
+432 files · 107271 lines · 2250 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,8 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9236 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4111, TransformParts:6211
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9271 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4112, TransformParts:6230
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (3663 ln) · 10 test files
   - MainWindow:18
 - `src/Lightbox.App/Views/MainWindow.axaml` (3119 ln) · **no tests**
@@ -154,7 +154,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushChoice:26
 - `src/Lightbox.App/Services/BrushImportJob.cs` (144 ln) · 1 test files
   - BrushImportProgress:11, BrushImportOutcome:23, BrushImportJob:52
-- `src/Lightbox.App/ViewModels/Tools.cs` (137 ln) · 20 test files
+- `src/Lightbox.App/ViewModels/Tools.cs` (137 ln) · 21 test files
   - ToolId:4, CanvasQuality:46, TransformScope:59, TransformSampling:85, SelectVariant:98, HoldDrawing:117
 - `src/Lightbox.App/Controls/DockStrip.cs` (132 ln) · 1 test files
   - DockStrip:24
@@ -238,7 +238,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
-- `src/Lightbox.App/App.axaml.cs` (30 ln) · 1 test files
+- `src/Lightbox.App/App.axaml.cs` (30 ln) · 2 test files
   - App:8
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml` (26 ln) · **no tests**
   - Message, RevertButton, SaveButton
@@ -414,7 +414,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Raster
 
-- `src/Lightbox.Raster/BrushEngine.cs` (1820 ln) · 20 test files
+- `src/Lightbox.Raster/BrushEngine.cs` (1825 ln) · 21 test files
   - BrushEngine:25
 - `src/Lightbox.Raster/Media/FluidLattice.cs` (1083 ln) · 2 test files
   - FluidLattice:59
@@ -436,7 +436,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushPreviewRenderer:34
 - `src/Lightbox.Raster/Tips/TipCatalogue.cs` (135 ln) · 3 test files
   - TipCatalogue:32
-- `src/Lightbox.Raster/FrameRasterizer.cs` (128 ln) · 22 test files
+- `src/Lightbox.Raster/FrameRasterizer.cs` (128 ln) · 23 test files
   - FrameRasterizer:10
 - `src/Lightbox.Raster/Media/Impasto.cs` (128 ln) · 1 test files
   - Impasto:40
@@ -450,7 +450,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushTipRegistry:12
 - `src/Lightbox.Raster/ReferenceStripRegistry.cs` (50 ln) · **no tests**
   - ReferenceStripRegistry:22
-- `src/Lightbox.Raster/BlendModes.cs` (49 ln) · 26 indirect only
+- `src/Lightbox.Raster/BlendModes.cs` (49 ln) · 27 indirect only
   - BlendModes:15
 - `src/Lightbox.Raster/ClipRegionRegistry.cs` (27 ln) · 3 test files
   - ClipRegionRegistry:12

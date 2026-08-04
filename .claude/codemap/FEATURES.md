@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2247 tests, derived from the suite itself. Each line is a
+2250 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1033,7 +1033,9 @@ regression even when every test still compiles.
 - An Abandoned Smudge Leaves No Trace — `:143`
 - ALive Blur Does Not Cover More Ground Than The Mark That Commits — `:214`
 - The Pulling Brushes Ship With AFlow An Artist Can Steer — `:255`
-- Blur Ships With ARadius You Can Actually See — `:288`
+- An Effect Brush Mid Drag Cannot Exceed The Wash It Started From — `:361`
+- Abandoning An Effect Brush Does Not Block The Next Ordinary Stroke — `:412`
+- Blur Ships With ARadius You Can Actually See — `:445`
 
 ## LongStrokeCostTests _Category=Performance_
 `tests/Lightbox.App.Tests/LongStrokeCostTests.cs`
@@ -2999,8 +3001,9 @@ regression even when every test still compiles.
 - Scaling The Coordinates Instead Produces ADifferent Mark — `:160`
 - Output Scale One Is Untouched — `:180`
 - AHigher Output Scale Actually Resolves More Detail — `:193`
-- AClipped Stroke Clips To The Same Region At Every Scale — `:226`
-- An Alpha Locked Stroke Stays Inside Existing Paint At Every Scale — `:270`
+- ASmudge At Higher Output Scale Lands In The Same Place — `:236`
+- AClipped Stroke Clips To The Same Region At Every Scale — `:278`
+- An Alpha Locked Stroke Stays Inside Existing Paint At Every Scale — `:322`
 
 ## PaintLoadTests
 `tests/Lightbox.Raster.Tests/PaintLoadTests.cs`

@@ -1348,9 +1348,17 @@ public static class BrushEngine
     /// strength. Replayed in stroke order this is fully deterministic.
     /// </summary>
     /// <param name="outputScale">
-    /// Dab geometry stays in document coordinates under a canvas transform, as
-    /// everywhere else; only the reads from <paramref name="pixels"/> — which
-    /// is at output resolution — are mapped into it.
+    /// Unlike the other stamp paths, this one never puts the factor on the
+    /// canvas transform. <see cref="LerpDab"/> writes through raw pixel spans
+    /// on both <paramref name="target"/> and <paramref name="pixels"/> — a
+    /// device-pixel patch, indexed by device-pixel bounds from
+    /// <c>GetDeviceClipBounds</c> — so <em>every</em> coordinate, read or
+    /// write, is converted to device pixels by hand before it touches memory.
+    /// Scaling the canvas as well (B56) made a dab land at outputScale²
+    /// instead of outputScale — invisible at 1x, where the two coincide, and
+    /// invisible today because nothing in the app renders an effect brush at
+    /// any other scale. Found while eliminating causes for B39, which it is
+    /// not: B39 reproduces at outputScale 1.
     /// </param>
     private static void StampSmudge(SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale)
     {
@@ -1358,10 +1366,7 @@ public static class BrushEngine
         var strength = Math.Clamp(brush.Flow, 0, 1);
         if (strength <= 0) return;
 
-        target.Save();
-        if (outputScale != 1.0) target.Scale((float)outputScale);
-        try { StampSmudgeDabs(target, pixels, stroke, outputScale, strength); }
-        finally { target.Restore(); }
+        StampSmudgeDabs(target, pixels, stroke, outputScale, strength);
     }
 
     private static void StampSmudgeDabs(
