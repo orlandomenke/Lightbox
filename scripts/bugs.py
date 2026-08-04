@@ -120,20 +120,149 @@ def bad_domains(bugs: list[Bug]) -> list[Bug]:
     return [b for b in bugs if b.domain not in DOMAINS]
 
 
+def duplicate_ids(bugs: list[Bug]) -> dict[str, list[Bug]]:
+    """Ids used twice.
+
+    Two entries once shared **B39** — an effect-brush artefact and a CI runtime
+    mismatch — and nothing noticed, because every other check in here looks at one
+    entry at a time. An id is how a bug is referred to from a test name, a design doc
+    and a commit message, so a reused one silently points at the wrong defect: the
+    `.NET 8` entry cited a doc that cited it back, while a test file claimed the same
+    number for something unrelated. Cheap to detect, and impossible to spot by eye in
+    a file this long.
+    """
+    seen: dict[str, list[Bug]] = {}
+    for bug in bugs:
+        seen.setdefault(bug.id, []).append(bug)
+    return {i: b for i, b in seen.items() if len(b) > 1}
+
+
+OPEN_HEADING = "## Open"
+FIXED_HEADING = "## Fixed"
+
+
+def _entry_block(lines: list[str], start: int) -> tuple[list[str], int]:
+    """One entry: its header line plus the indented notes under it.
+
+    A bug is a header and however many `  - …` lines of reasoning follow it, so
+    relocating one means moving the block rather than the line. Trailing blanks are
+    dropped here and re-added on assembly, which is what keeps the spacing even
+    however many times this runs.
+    """
+    block = [lines[start]]
+    i = start + 1
+    while i < len(lines) and (lines[i].startswith("  ") or not lines[i].strip()):
+        # Stop at a blank line that is followed by something which is not a note —
+        # that blank belongs to the next entry or the next heading, not to this one.
+        if not lines[i].strip():
+            nxt = next((l for l in lines[i + 1:] if l.strip()), "")
+            if not nxt.startswith("  "):
+                break
+        block.append(lines[i])
+        i += 1
+    while block and not block[-1].strip():
+        block.pop()
+    return block, i
+
+
+def _sort_key(header: str) -> int:
+    """Newest first, which is the order the file already used by hand."""
+    m = ENTRY.match(header)
+    return -int(m.group("id")[1:]) if m else 0
+
+
+def relocate(lines: list[str], bugs: list[Bug]) -> list[str] | None:
+    """
+    Put every open entry under `## Open` and every closed one under `## Fixed`.
+
+    <b>The file said this already happened and it did not.</b> `## Fixed` has carried
+    the sentence "entries move here when sync closes them" since it was added, while
+    sync only ever rewrote a checkbox in place — so closed bugs piled up at the top
+    and the section that was supposed to hold them stayed empty. Documented behaviour
+    that does not exist is the same defect this whole file exists to prevent, one
+    level up.
+
+    Returns None when nothing needs moving, so `sync` can stay quiet.
+    """
+    try:
+        open_at = lines.index(OPEN_HEADING)
+        fixed_at = lines.index(FIXED_HEADING)
+    except ValueError:
+        return None  # a ledger without the two sections is left exactly as it is
+
+    status = {b.line_no: b.status for b in bugs}
+    blocks: list[tuple[str, list[str]]] = []
+    prose: dict[str, list[str]] = {OPEN_HEADING: [], FIXED_HEADING: []}
+    section = None
+
+    i = open_at
+    while i < len(lines):
+        line = lines[i]
+        if line in (OPEN_HEADING, FIXED_HEADING):
+            section = line
+            i += 1
+            continue
+        if ENTRY.match(line):
+            block, i = _entry_block(lines, i)
+            blocks.append((FIXED_HEADING if status.get(i - len(block)) == "x" else OPEN_HEADING, block))
+            continue
+        # Section prose — the note under each heading. Kept with its heading rather
+        # than treated as an entry, so the explanations do not migrate.
+        #
+        # The rule between the sections is structure, not prose, and skipping it here
+        # is load-bearing: collecting it meant assembly wrote a fresh `---` under a
+        # `---` it had just kept, so every run added one and `sync` was never
+        # idempotent. Caught by running it twice and diffing, which is the only way
+        # that class of bug shows up.
+        if section is not None and line.strip() and line.strip() != "---":
+            prose[section].append(line)
+        i += 1
+
+    rebuilt = lines[:open_at]
+    for heading in (OPEN_HEADING, FIXED_HEADING):
+        rebuilt.append(heading)
+        rebuilt.append("")
+        if prose[heading]:
+            rebuilt.extend(prose[heading])
+            rebuilt.append("")
+        mine = [b for where, b in blocks if where == heading]
+        mine.sort(key=lambda b: _sort_key(b[0]))
+        for block in mine:
+            rebuilt.extend(block)
+            rebuilt.append("")
+        if heading == OPEN_HEADING:
+            rebuilt.append("---")
+            rebuilt.append("")
+
+    while rebuilt and not rebuilt[-1].strip():
+        rebuilt.pop()
+    return rebuilt if rebuilt != lines else None
+
+
 def cmd_sync() -> None:
     lines, bugs = parse()
     resolve(bugs)
     changed = [b for b in bugs if b.status != b.mark]
     for bug in changed:
         lines[bug.line_no] = bug.render()
-    if changed:
+        bug.mark = bug.status  # so relocate sees the new state, not the stale mark
+
+    moved = relocate(lines, bugs)
+    if moved is not None:
+        lines = moved
+
+    if changed or moved is not None:
         BUGS.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        print(f"Updated {len(changed)} of {len(bugs)} bugs:")
-        for bug in changed:
-            verb = "CLOSED " if bug.status == "x" else "REOPENED"
-            print(f"  {verb} {bug.id}  {bug.title}")
-            if bug.missing:
-                print(f"           missing: {', '.join(bug.missing)}")
+        if changed:
+            print(f"Updated {len(changed)} of {len(bugs)} bugs:")
+            for bug in changed:
+                verb = "CLOSED " if bug.status == "x" else "REOPENED"
+                print(f"  {verb} {bug.id}  {bug.title}")
+                if bug.missing:
+                    print(f"           missing: {', '.join(bug.missing)}")
+        if moved is not None:
+            fixed = sum(1 for b in bugs if b.status == "x")
+            print(f"Sorted the ledger — {len(bugs) - fixed} open above the rule, {fixed} fixed below.")
     else:
         print(f"Ledger already current — {len(bugs)} bugs.")
 
@@ -144,6 +273,7 @@ def cmd_check() -> int:
     drifted = [b for b in bugs if b.status != b.mark]
     unverifiable = [b for b in bugs if b.unverifiable]
     wrong_domain = bad_domains(bugs)
+    duplicates = duplicate_ids(bugs)
 
     open_bugs = [b for b in bugs if b.status != "x"]
     counts = {p: sum(1 for b in open_bugs if b.priority == p) for p in ("P1", "P2", "P3", "P4")}
@@ -159,14 +289,21 @@ def cmd_check() -> int:
         print("               no evidence: — name the regression test that closes it")
     for bug in wrong_domain:
         print(f"  BAD DOMAIN   {bug.id}  '{bug.domain}' is not one of {sorted(DOMAINS)}")
+    for bug_id, clashing in duplicates.items():
+        titles = " / ".join(b.title[:44] for b in clashing)
+        print(f"  DUPLICATE ID {bug_id}  used {len(clashing)} times: {titles}")
+        print("               renumber all but one — an id is cited from tests and docs")
     for bug in drifted:
         want = "fixed" if bug.status == "x" else "open"
         print(f"  DRIFTED      {bug.id}  marked '{bug.mark}' but the code says {want}")
         if bug.missing:
             print(f"               missing: {', '.join(bug.missing)}")
 
-    if drifted or unverifiable or wrong_domain:
-        print("\nRun: python3 scripts/bugs.py sync")
+    if drifted or unverifiable or wrong_domain or duplicates:
+        # sync fixes drift and placement; the rest need a person, so say so honestly
+        # rather than pointing at a command that will not help.
+        if drifted:
+            print("\nRun: python3 scripts/bugs.py sync")
         return 1
     return 0
 

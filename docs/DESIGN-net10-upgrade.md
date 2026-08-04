@@ -86,7 +86,7 @@ framework rather than about the SDK choice that caused it.
 already had what it needed. That is an inherited dependency, not a declared
 one, and it has an expiry date: when GitHub drops .NET 8 from the runner image
 after November 2026, `build.yml` starts failing for a reason nothing in it
-mentions. Recorded as **B39**.
+mentions. Recorded as **B53**.
 
 The upgrade makes this go away — a solution that is entirely `net10.0` needs
 exactly one runtime, which is the SDK's own. Until then `.devcontainer` installs
