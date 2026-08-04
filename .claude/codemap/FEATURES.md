@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2263 tests, derived from the suite itself. Each line is a
+2270 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -3171,6 +3171,17 @@ regression even when every test still compiles.
 - AThick Brush Shows It Worst — `:113`
 - AStraight Stroke Is Untouched — `:125`
 - ADrawn Corner Is Still ACorner — `:154`
+
+## StrokeIndexTests
+`tests/Lightbox.Raster.Tests/StrokeIndexTests.cs`
+
+- AQuery Returns Strokes In Record Order — `:39`
+- AStroke Spanning Many Cells Is Returned Once — `:60`
+- AQuery Agrees With Checking Every Stroke By Hand — `:85`
+- AQuery Outside Everything Returns Nothing — `:124`
+- AStroke That Reaches Nothing Is Recorded Rather Than Skipped — `:138`
+- Negative Coordinates Index And Query The Same As Positive Ones — `:152`
+- ATile Sized Query Touches AFraction Of ABusy Drawing — `:176`
 
 ## SymbolFlattenTests
 `tests/Lightbox.Raster.Tests/SymbolFlattenTests.cs`
