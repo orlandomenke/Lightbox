@@ -128,10 +128,6 @@ decision goes to `QUESTIONS.md` and is left alone.
   - **Fixed**: `SaveDocumentAsAsync` takes an optional suggested name and `OnAddReferenceSheet` passes the sheet's, so the picker opens already filled in. Neither prompt is removed — they ask different questions, *what is this called* and *where does it go*, and only the second arriving blank was wrong.
   - `evidence: manual` in effect, and said plainly rather than dressed up: the file picker is a `StorageProvider` dialog and nothing headless can open one. `CharacterSheetFileTests` still pins what B66 decides; what nobody can assert here is what the box is prefilled with. Cost: S
 
-- [ ] **B77** `P3` `ui` The colour switcher appears only for the brush tool `evidence: ToolOptionsBarTests, TheColourSwitcherIsShownForEveryToolThatUsesColour`
-  - Flood fill and the shape tools paint with the foreground colour and do not show the switcher, so changing colour for them means selecting the brush, changing it, and selecting the tool again.
-  - The reporter asks for it to be a persistent block on the left of the tool options bar rather than a per-tool control — always visible, whatever is selected. That is the simpler rule as well as the requested one: a control that is always there needs no per-tool table to be kept in step, which is the drift `ShortcutMap` exists to prevent elsewhere. Cost: S
-
 - [ ] **B76** `P2` `project` A new document is written to disk the moment it is created `evidence: UnsavedDocumentTests, ANewDocumentIsNotOnDiskUntilItIsSaved, AnUnsavedDocumentIsShownAsPendingInTheDocker, DiscardingAnUnsavedDocumentRemovesItFromTheDocker`
   - Reported: creating a new document writes it immediately, so a file exists before the artist has decided anything — including a name, which is B65 arriving from the other direction.
   - The reporter specified the whole behaviour, and it is coherent enough to build to: a new document is **not** on disk; a change raises the unsaved badge; closing it or the application opens the unsaved-changes dialog; Save opens Save As because there is no file yet.
@@ -270,6 +266,15 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 Entries move here when `sync` closes them; the evidence stays so a deleted
 test reopens the bug.
+
+- [x] **B77** `P3` `ui` The colour switcher appears only for the brush tool `evidence: ToolOptionsBarTests, TheColourSwitcherIsShownForEveryToolThatUsesColour`
+  - Flood fill and the shape tools paint with the foreground colour and do not show the switcher, so changing colour for them means selecting the brush, changing it, and selecting the tool again.
+  - The reporter asks for it to be a persistent block on the left of the tool options bar rather than a per-tool control — always visible, whatever is selected. That is the simpler rule as well as the requested one: a control that is always there needs no per-tool table to be kept in step, which is the drift `ShortcutMap` exists to prevent elsewhere. Cost: S
+  - **Fixed exactly as asked.** The pair, the picker dropdown and ⇄ moved out of the brush section into a block docked to the left of the bar, with a rule after it so the tool's own options read as a separate group. Nothing conditional: no `IsVisible` anywhere on it or its ancestors.
+  - **Also out of the `OverflowBar`**, which was not in the report and matters. The bar's job is to drop whatever does not fit into its ▾, and colour is the last control that should ever go there — it is the one thing every painting tool shares. Docked left means the tool's options begin in a fixed place whatever is selected, rather than shifting as colour appeared and disappeared.
+  - **Tested through the real window rather than by reading the XAML, because what broke was a *parent's* visibility.** `IsVisible` on the swatch itself was true the entire time the bug existed, so an assertion about the element would have passed throughout; `IsEffectivelyVisible` walks the chain, which is where the `IsBrushTool` binding sat. Reverting the XAML fails 7 of the 10 new tests — Fill, Shape, Gradient and all four non-colour tools — and the three that still pass are the brush, the one-pair count and the per-tool controls, which is the right shape.
+  - The theory names the colour tools individually rather than reading some `UsesColour` flag, for the reason the fix exists: a flag is the table that drifts, and a test that read it would agree with it when it was wrong. A second theory asserts the stronger property the reporter actually asked for — the block stays put on the eraser, select, move and picker too.
+  - Two failure modes worth guarding that "is it visible" does not catch: leaving the original in place would give the brush **two** pairs, so the count is asserted; and moving a block out of a panel is how a sibling gets taken with it, so the brush picker's own presence and its absence on the fill tool are asserted too.
 
 - [x] **B73** `P2` `brush` Fast strokes trail behind the pen `evidence: StrokeLatencyTests, TheFirstFrameOfABurstIsNotStale, APenBurstIsOneFrameNotOnePerEvent, WhenTheBurstHasDrainedTheMarkReachesThePen`
   - Reported for ordinary brushes and for media brushes, with the stabiliser on and off — so it is not stabilisation lag, which is the obvious suspect and would be the wrong fix.

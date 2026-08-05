@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2319 tests, derived from the suite itself. Each line is a
+2323 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1901,6 +1901,14 @@ regression even when every test still compiles.
 - Deleting The Paper Leaves Transparency Rather Than White — `:180`
 - Putting The Paper Back Is Undo And The Document Is Opaque Again — `:198`
 - Deleting An Ordinary Layer Does Not Touch The Paper — `:212`
+
+## ToolOptionsBarTests
+`tests/Lightbox.App.Tests/ToolOptionsBarTests.cs`
+
+- The Colour Switcher Is Shown For Every Tool That Uses Colour — `:65`
+- The Colour Switcher Stays Put For Every Other Tool Too — `:99`
+- There Is Exactly One Colour Pair — `:121`
+- The Tools Own Options Are Still There — `:145`
 
 ## FillToolTests
 `tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`
