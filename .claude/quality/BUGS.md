@@ -224,9 +224,10 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Expected behaviour: all top-level folders created in the project folder should appear at the project root, not nested within other folders.
   - Cost: S
 
-- [ ] **B83** `P2` `project` New project is created with incorrect default subfolders `evidence: ProjectCreationTests, NewProjectHasCleanDockerStructure, NoUnwantedDefaultFoldersCreated, AllDefaultFoldersAreListedInProjectFile`
-  - Reported: when creating a new project, it is created with incorrect default subfolders, specifically a "characters" folder that should not be there. Additionally, every top folder created in the project folder should be included in Project.lbproj, and the project docker should be empty when starting a new project.
-  - The root cause is that default subfolders are being created that the user did not request, and they are not properly reflected in the project structure.
+- [ ] **B83** `P2` `project` New project is created with unwanted default subfolders `evidence: ProjectCreationTests, NewProjectHasCorrectDefaultStructure, NoUnwantedAssetFoldersCreated, AllDefaultFoldersAreListedInProjectFile`
+  - Reported: when creating a new project, default subfolders are created that the user did not request — specifically **characters**, **shots**, **scene**, and **animation** folders. The palette folder with default swatches should exist, but work-related folders should only be created when explicitly requested by the user.
+  - Additionally, every top folder created in the project folder should be included in Project.lbproj, and the project docker should show only system-required defaults, not asset folders the user must create themselves.
+  - The root cause is that asset-organization folders are being created as defaults when they should be on-demand.
   - Cost: M
 
 - [ ] **B63** `P3` `project` Most of the create-in-project menu produces nothing, and it does not say which entries are folders `evidence: ProjectCreateMenuTests, EveryCreateEntryProducesSomethingOnDisk, TheCreateMenuSaysWhichEntriesAreFolders`
