@@ -17,10 +17,52 @@ ROOT = Path(__file__).resolve().parent.parent
 MAP = ROOT / ".claude" / "codemap" / "map.json"
 
 
+def _ensure_current() -> None:
+    """Rebuild the index if the tree has moved under it.
+
+    WHY THIS EXISTS, and it is the whole point of the module's promise. Both
+    ledgers claim a checkbox is *derived* from the code. What they actually derive
+    it from is `map.json` — which is **gitignored**, so `git switch` never touches
+    it. Resolve against a leftover map and the derivation is real, current and
+    about a tree nobody is looking at.
+
+    It happened, and in both directions at once. On 2026-08-05 a `bugs.py check`
+    on a freshly pulled `main` reported `DRIFTED B58 marked ' ' but the code says
+    fixed` and `DRIFTED B77 marked 'x' but the code says open`. Neither was true:
+    the map on disk had been built on a feature branch that contained B58's fix
+    and predated B77's tests. One `codemap.py build` cleared both and changed no
+    committed file — which is the tell, because a wrong answer that leaves no
+    trace is the kind nobody catches.
+
+    Rebuilding rather than refusing, because refusing turns `bugs.py check` in CI
+    into a failure about tooling instead of a report about bugs — and because the
+    session-start hook already rebuilds on the same staleness signal, so this is
+    the existing rule applied at the point of use rather than a new one. It costs
+    a second or two; a stale answer costs an investigation.
+    """
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import codemap
+    except Exception:
+        # A resolver that cannot import the builder still resolves — against
+        # whatever map exists. Better a possibly-stale answer than no answer.
+        return
+
+    reason = codemap.is_stale()
+    if not reason:
+        return
+    print(f"evidence: the code index is stale ({reason}) — rebuilding", file=sys.stderr)
+    try:
+        codemap.build()
+    except Exception as error:  # noqa: BLE001 - never block a report on the builder
+        print(f"evidence: could not rebuild the index ({error})", file=sys.stderr)
+
+
 class Index:
     """Everything the code index knows that an evidence anchor might name."""
 
     def __init__(self) -> None:
+        _ensure_current()
         if not MAP.exists():
             sys.exit("No code index — run: python3 scripts/codemap.py build")
         data = json.loads(MAP.read_text(encoding="utf-8"))
