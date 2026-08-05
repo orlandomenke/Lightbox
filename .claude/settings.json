@@ -20,6 +20,18 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/after-build.sh",
+            "timeout": 240
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -36,6 +48,8 @@
     "allow": [
       "Bash(python3 scripts/codemap.py:*)",
       "Bash(python3 scripts/roadmap.py:*)",
+      "Bash(python3 scripts/bugs.py:*)",
+      "Bash(python3 scripts/branchstate.py:*)",
       "Bash(dotnet build:*)",
       "Bash(dotnet test:*)",
       "Bash(git status:*)",
