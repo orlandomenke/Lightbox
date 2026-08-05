@@ -140,7 +140,7 @@ in the downscaled reference against an empty sheet of the same size.
 A cap is a ceiling and not a target: a 400×300 sheet is sent at 400×300.
 Upscaling would spend tokens on pixels the artist never drew.
 
-**768 is not settled, and it is now written down as unsettled — Q21.**
+**768 is not settled, and it is now written down as unsettled — Q27.**
 art-director rendered a face close-up and a naturally-small head through the
 real path at authored, 768 and 512: a body silhouette survives even 512, but
 eyebrows vanish and eyes turn to grey smudges on the faces, because mipmapped

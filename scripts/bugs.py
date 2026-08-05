@@ -87,6 +87,25 @@ class Bug:
     def unverifiable(self) -> bool:
         return not self.evidence
 
+    @property
+    def partly_resolved(self) -> bool:
+        """Some anchors resolve and some do not — two very different stories.
+
+        Either the fix is half-landed, which `status` already reports as open and
+        correctly, or **one of the names is wrong**, in which case the entry can never
+        close however green the suite is. B27 sat open for exactly that: its list named
+        the private method `BleedReach` beside three real tests, and `codemap.py` indexes
+        public symbols only, so the anchor was unresolvable by construction while the
+        behaviour had been fixed and guarded all along.
+
+        Reported but never fatal, and that distinction was learned immediately: a bug filed
+        before its fix is written names new test methods *and* often an existing test file, so
+        it resolves partially the moment it is written. Six of them appeared the day this check
+        did. Failing on that would make `check` cry wolf on ordinary planned work, so this is a
+        diagnostic for a person reading the report, not a rule.
+        """
+        return bool(self.resolved) and bool(self.missing)
+
     def render(self) -> str:
         tail = f" `evidence: {', '.join(self.evidence)}`" if self.evidence else ""
         return f"- [{self.status}] **{self.id}** `{self.priority}` `{self.domain}` {self.title}{tail}"
@@ -304,6 +323,7 @@ def cmd_check() -> int:
     wrong_domain = bad_domains(bugs)
     duplicates = duplicate_ids(bugs)
     clashing_questions = duplicate_questions()
+    partial = [b for b in bugs if b.partly_resolved]
 
     open_bugs = [b for b in bugs if b.status != "x"]
     counts = {p: sum(1 for b in open_bugs if b.priority == p) for p in ("P1", "P2", "P3", "P4")}
@@ -317,6 +337,11 @@ def cmd_check() -> int:
     for bug in unverifiable:
         print(f"  UNVERIFIABLE {bug.id}  {bug.title}")
         print("               no evidence: — name the regression test that closes it")
+    for bug in partial:
+        print(f"  PARTIAL EVID {bug.id}  {bug.title}")
+        print(f"               resolves {', '.join(bug.resolved)} but not {', '.join(bug.missing)}")
+        print("               half-landed fix, a bug filed ahead of its tests, or a name that "
+              "can never resolve — a private method is invisible here")
     for bug in wrong_domain:
         print(f"  BAD DOMAIN   {bug.id}  '{bug.domain}' is not one of {sorted(DOMAINS)}")
     for bug_id, clashing in duplicates.items():
@@ -333,6 +358,7 @@ def cmd_check() -> int:
         if bug.missing:
             print(f"               missing: {', '.join(bug.missing)}")
 
+    # `partial` is deliberately absent from this condition — see `partly_resolved`.
     if drifted or unverifiable or wrong_domain or duplicates or clashing_questions:
         # sync fixes drift and placement; the rest need a person, so say so honestly
         # rather than pointing at a command that will not help.

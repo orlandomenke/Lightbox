@@ -67,11 +67,19 @@ public static class FrameRasterizer
     /// the effect once per pointer event instead of once per stroke. Defaults
     /// to <paramref name="layer"/>, which is right for every other brush.
     /// </param>
-    public static void AppendDraft(SKBitmap layer, Stroke stroke, SKBitmap? readFrom = null)
+    /// <param name="dabs">
+    /// The whole stroke already walked, when the caller is tracking a drag. Effect brushes need the
+    /// commit's dab positions and a per-segment walk cannot give them (B54); null walks here.
+    /// </param>
+    /// <param name="fromDab">The first dab not settled yet — see <see cref="BrushEngine.StampStroke"/>.</param>
+    public static void AppendDraft(
+        SKBitmap layer, Stroke stroke, SKBitmap? readFrom = null,
+        IReadOnlyList<BrushEngine.Dab>? dabs = null, int fromDab = 0)
     {
         var info = new SKImageInfo(layer.Width, layer.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(layer);
-        BrushEngine.StampStroke(canvas, stroke, info, readFrom ?? layer, draft: true);
+        BrushEngine.StampStroke(
+            canvas, stroke, info, readFrom ?? layer, draft: true, draftDabs: dabs, draftFromDab: fromDab);
         canvas.Flush();
     }
 

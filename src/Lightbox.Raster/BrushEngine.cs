@@ -60,9 +60,20 @@ public static class BrushEngine
     /// to its own layer — the same mark it would have made before the option
     /// existed, rather than nothing.
     /// </param>
+    /// <param name="draftDabs">
+    /// The whole stroke already walked, for a live-preview effect pass. Only the effect brushes read
+    /// it, and only when <paramref name="draft"/> is set: they need the <em>commit's</em> dab
+    /// positions, which a per-segment walk cannot produce (B54). Null walks the stroke here.
+    /// </param>
+    /// <param name="draftFromDab">
+    /// The first dab in <paramref name="draftDabs"/> that is not settled yet. Dabs before it were
+    /// stamped by an earlier pointer event and must not be drawn again — an antialiased rim redrawn
+    /// with <c>Src</c> does not land where it did the first time.
+    /// </param>
     public static void StampStroke(
         SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels = null,
-        bool draft = false, double outputScale = 1.0, SKBitmap? backdrop = null)
+        bool draft = false, double outputScale = 1.0, SKBitmap? backdrop = null,
+        IReadOnlyList<Dab>? draftDabs = null, int draftFromDab = 0)
     {
         if (stroke.Points.Count == 0) return;
 
@@ -92,7 +103,16 @@ public static class BrushEngine
             {
                 using var owned = SampledSource(stroke, targetPixels, backdrop, info);
                 var read = owned ?? targetPixels;
-                if (draft) WithHardClip(target, stroke, 1.0, () => StampBlurDraft(target, read, stroke, info));
+                if (draft)
+                {
+                    // Whole-stroke dabs, so densification and spacing are the commit's (B54). A
+                    // caller with no range of its own stamps all of them, which is what a
+                    // single-shot draft render means.
+                    var walk = draftDabs ?? WalkDabs(stroke);
+                    WithHardClip(
+                        target, stroke, 1.0,
+                        () => StampBlurDraft(target, read, stroke, info, walk, draftFromDab));
+                }
                 else WithHardClip(target, stroke, outputScale, () => StampBlur(target, read, stroke, info, outputScale));
                 return;
             }
@@ -621,7 +641,15 @@ public static class BrushEngine
     public readonly record struct Dab(SKPoint Pos, double Pressure, double Heading, double Load);
 
     /// <summary>Every dab of a stroke, in order.</summary>
-    public static List<Dab> WalkDabs(Stroke stroke)
+    /// <param name="densify">
+    /// A per-stroke densify cache, for the live preview. Null re-densifies from scratch, which is
+    /// what every committed render wants — it walks a stroke once. Passing one is B46: the walk has
+    /// to cover the whole stroke on every pointer event (BR1), and densifying it again each time
+    /// was 0.84 ms of a 1.15 ms walk at 600 points, all but a fraction of it recomputation. The
+    /// output is value-identical either way, which is what lets the live path use the cache and the
+    /// commit not.
+    /// </param>
+    public static List<Dab> WalkDabs(Stroke stroke, IncrementalDensify? densify = null)
     {
         var brush = stroke.Brush;
         var dabs = new List<Dab>();
@@ -636,7 +664,7 @@ public static class BrushEngine
         // paint actually took after spacing and smoothing have had their say.
         double travelled = 0;
 
-        foreach (var (pos, pressure) in DabPositions(stroke))
+        foreach (var (pos, pressure) in DabPositions(stroke, densify))
         {
             if (previous is { } from)
             {
@@ -1644,12 +1672,58 @@ public static class BrushEngine
     /// Live-preview blur: identical per-dab work, but the pre-stroke snapshot
     /// copies only the segment's reachable region instead of the full canvas.
     /// </summary>
-    private static void StampBlurDraft(SKCanvas target, SKBitmap pixels, Stroke stroke, SKImageInfo info)
+    /// <remarks>
+    /// <para>
+    /// <b>B54, and its filed cause was wrong.</b> The entry blamed the cropped snapshot — a dab near
+    /// the crop's edge sampling the boundary rather than the real neighbourhood — and quoted 88 px
+    /// of over-coverage. Measured, the crop is innocent: hand this method a whole stroke in one call
+    /// and it reproduces the committed render <em>to the pixel</em>.
+    /// </para>
+    /// <para>
+    /// What was wrong is that it used to be handed <b>the newest segment</b> and walk it from
+    /// scratch. Two consequences, both measured on a checkered bar at a 147 px brush against the
+    /// commit: <c>GeometryOps.Densify</c> saw a two-point list and returned it unchanged, and the
+    /// spacing phase restarted at that segment's first point — so the dabs landed elsewhere, giving
+    /// <b>1148 px the preview blurred that the commit did not</b> and 610 the other way. And every
+    /// dab was re-drawn on every event through an <em>antialiased</em> clip with
+    /// <c>SKBlendMode.Src</c>, which is not idempotent at partial coverage α
+    /// (<c>α·blurred + (1-α)·what is already there</c>), so rims crept to 223 of 255.
+    /// </para>
+    /// <para>
+    /// This is BR1 — "the dab walk restarts every pointer event" — which was fixed for paint and
+    /// left true for effects. The fix is the same shape: the caller walks the <b>whole</b> stroke,
+    /// so densification and spacing are the commit's, and passes the range that is not settled yet.
+    /// Backward context was tried instead and does not work: 2, 3, 4 and 5 points of overlap give
+    /// 1579 / 1105 / 2518 / 1728 differing pixels — it wobbles rather than converging, because a
+    /// walk's <em>phase</em> is what is wrong and no amount of lookbehind repairs a phase.
+    /// </para>
+    /// </remarks>
+    private static void StampBlurDraft(
+        SKCanvas target, SKBitmap pixels, Stroke stroke, SKImageInfo info,
+        IReadOnlyList<Dab> dabs, int from)
     {
         var brush = stroke.Brush;
         var sigma = (float)(Math.Clamp(brush.Flow, 0, 1) * Math.Max(1, brush.Size) / 4);
         if (sigma <= 0) return;
-        if (SegmentBounds(stroke, info, DabReach(brush) + sigma * 4) is not { } rect) return;
+        from = Math.Max(0, from);
+        if (from >= dabs.Count) return;
+
+        // **Only the unsettled dabs, and that is a measured trade rather than a preference.**
+        // Replaying every dab of the stroke each event makes the preview *pixel-identical* to the
+        // commit — 0 px, all four cases — and costs 194 ms an event by the 300th point of a 147 px
+        // blur, against 20.8 ms for this range. Twelve frames of a 60 Hz budget is not a preview, so
+        // exactness loses to invariant 6 here and the residue is written down instead: coverage is
+        // exact, and the rim of the mark can sit up to 127 of 255 from the commit over a few hundred
+        // pixels, because a pixel the commit reached with three overlapping dabs is reached here by
+        // one and reads `α·blurred + (1-α)·pre-stroke`.
+        //
+        // The region those dabs can reach, plus the blur's own spread so a dab at its edge still
+        // sees real neighbours rather than the crop.
+        if (RangeBounds(dabs, from, brush, info) is not { } dabReach) return;
+        var rect = SKRectI.Intersect(
+            SKRectI.Inflate(dabReach, (int)Math.Ceiling(sigma * 4), (int)Math.Ceiling(sigma * 4)),
+            new SKRectI(0, 0, info.Width, info.Height));
+        if (rect.Width <= 0 || rect.Height <= 0) return;
 
         using var subset = new SKBitmap();
         if (!pixels.ExtractSubset(subset, rect)) return;
@@ -1662,14 +1736,41 @@ public static class BrushEngine
             BlendMode = SKBlendMode.Src,
         };
 
-        foreach (var (pos, pressure) in DabPositions(stroke))
+        // Under the dabs about to be drawn, back to the pre-stroke pixels: they are the only ones
+        // ever drawn twice, since the settled ones behind them are never revisited, so this is the
+        // whole of what stops a rim creeping across a drag.
+        //
+        // **Clipped to the dabs and not to `rect`.** Restoring the padded rectangle reverts ground
+        // earlier dabs blurred correctly and this call does not re-stamp it, which is a worse bug
+        // than the one being fixed — 20,710 px of gap trailing the brush at a 147 px size. Widening
+        // the range back to every dab overlapping the rectangle instead reaches 10,738 px out by
+        // 255. Aliased on purpose: a partially restored rim would then be blended a second time by
+        // the dab drawn over it.
+        using (var covered = new SKPath())
         {
-            var radius = (float)RadiusAt(brush, pressure);
+            for (var i = from; i < dabs.Count; i++)
+            {
+                var r = (float)RadiusAt(brush, dabs[i].Pressure);
+                if (r > 0) covered.AddCircle(dabs[i].Pos.X, dabs[i].Pos.Y, r);
+            }
+            if (!covered.IsEmpty)
+            {
+                target.Save();
+                target.ClipPath(covered, antialias: false);
+                using var restore = new SKPaint { BlendMode = SKBlendMode.Src };
+                target.DrawImage(snapshot, rect.Left, rect.Top, restore);
+                target.Restore();
+            }
+        }
+
+        for (var i = from; i < dabs.Count; i++)
+        {
+            var radius = (float)RadiusAt(brush, dabs[i].Pressure);
             if (radius <= 0) continue;
             target.Save();
             using (var clip = new SKPath())
             {
-                clip.AddCircle(pos.X, pos.Y, radius);
+                clip.AddCircle(dabs[i].Pos.X, dabs[i].Pos.Y, radius);
                 target.ClipPath(clip, antialias: true);
             }
             target.DrawImage(snapshot, rect.Left, rect.Top, blurPaint);
@@ -1732,9 +1833,14 @@ public static class BrushEngine
     /// recorded point and breaks at deliberate corners, so a drawn rectangle
     /// keeps its corners and the record still says where the pen was.
     /// </remarks>
-    public static IEnumerable<(SKPoint Pos, double Pressure)> DabPositions(Stroke stroke)
+    /// <param name="densify">
+    /// A per-stroke cache for the live preview; null densifies from scratch. See
+    /// <see cref="WalkDabs(Stroke, IncrementalDensify?)"/>.
+    /// </param>
+    public static IEnumerable<(SKPoint Pos, double Pressure)> DabPositions(
+        Stroke stroke, IncrementalDensify? densify = null)
     {
-        var pts = GeometryOps.Densify(stroke.Points);
+        var pts = densify is null ? GeometryOps.Densify(stroke.Points) : densify.Of(stroke.Points);
         var brush = stroke.Brush;
         var first = pts[0];
         var firstPressure = Math.Max(first.Pressure, MinPressure);

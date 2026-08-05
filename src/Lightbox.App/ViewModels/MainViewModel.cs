@@ -4450,6 +4450,26 @@ public sealed partial class MainViewModel : ObservableObject
     /// cost 3.2× more per event at the end than at the start, which invariant 6 forbids.
     /// </remarks>
     private List<BrushEngine.Dab>? _liveDabs;
+
+    /// <summary>
+    /// The densify cache for the stroke in hand (B46).
+    /// </summary>
+    /// <remarks>
+    /// One per view model rather than one per stroke: it keys off the points it last saw, so a new
+    /// stroke simply looks like a wholesale change and rebuilds. Kept alive between strokes so the
+    /// common case allocates nothing.
+    /// </remarks>
+    private readonly Lightbox.Core.Geometry.IncrementalDensify _liveDensify = new();
+
+    /// <summary>The effect draft's own dab bookkeeping, mirroring <see cref="_liveDabs"/>.</summary>
+    /// <remarks>
+    /// Separate because the two paths are exclusive — a stroke is either an effect or paint — and
+    /// sharing one field would make whichever ran second compare against the other's walk. B54.
+    /// </remarks>
+    private List<BrushEngine.Dab>? _liveEffectDabs;
+
+    /// <summary>How many effect dabs are already on the composite and must not be drawn again.</summary>
+    private int _liveEffectSettled;
     private bool _snapshotQueued;
 
     // ---- live post-processing (medium, wet edge, texture, granulation) --------
@@ -4610,6 +4630,8 @@ public sealed partial class MainViewModel : ObservableObject
         _liveStableDabs = 0;
         _liveTailRegion = null;
         _liveDabs = null;
+        _liveEffectDabs = null;
+        _liveEffectSettled = 0;
         FlushLivePreview();
         PublishSnapshot();
     }
@@ -5093,7 +5115,26 @@ public sealed partial class MainViewModel : ObservableObject
             // path gives it the very bitmap it is writing, and the draft has to
             // match or the preview stops matching the commit.
             var readFrom = live.Brush.Kind == BrushKind.Blur ? _liveEffectBase : null;
-            FrameRasterizer.AppendDraft(_liveComposite, tail, readFrom);
+            if (live.Brush.Kind == BrushKind.Blur)
+            {
+                // B54: the whole stroke, walked with the shared densify cache, so the dabs land
+                // where the commit will put them — a per-segment walk restarts the spacing phase
+                // and Densify sees two points, which was 1148 px of over-coverage. Only the dabs
+                // that are not settled yet are stamped, so nothing is drawn twice except the
+                // provisional tail, and that gets the pre-stroke pixels restored under it.
+                var walk = BrushEngine.WalkDabs(live, _liveDensify);
+                FrameRasterizer.AppendDraft(_liveComposite, live, readFrom, walk, _liveEffectSettled);
+                _liveEffectSettled = BrushEngine.StableCount(walk, _liveEffectDabs);
+                _liveEffectDabs = walk;
+            }
+            else
+            {
+                // Smudge carries its colour from dab to dab and reads the bitmap it is writing, so
+                // it cannot be replayed from a settled index the way a blur can. Left on the
+                // segment feed deliberately; its own live-versus-commit fidelity is a separate
+                // question from B54, which was filed against the blur.
+                FrameRasterizer.AppendDraft(_liveComposite, tail, readFrom);
+            }
         }
         else if (_liveScratchCanvas is not null)
         {
@@ -5132,7 +5173,11 @@ public sealed partial class MainViewModel : ObservableObject
         if (_liveScratchCanvas is null) return;
 
         // One walk, then every question answered from its result.
-        var dabs = BrushEngine.WalkDabs(live);
+        // The walk reuses the densified prefix rather than rebuilding it, which is B46: the whole
+        // stroke has to be walked every pointer event (BR1) and re-densifying it was 0.84 ms of a
+        // 1.15 ms walk at 600 points, all but a fraction of it recomputing spans that cannot have
+        // changed.
+        var dabs = BrushEngine.WalkDabs(live, _liveDensify);
         var stable = BrushEngine.StableCount(dabs, _liveDabs);
         _liveDabs = dabs;
 
@@ -5367,6 +5412,8 @@ public sealed partial class MainViewModel : ObservableObject
         _liveStableDabs = 0;
         _liveTailRegion = null;
         _liveDabs = null;
+        _liveEffectDabs = null;
+        _liveEffectSettled = 0;
         ResetLivePostProcess();
     }
 
