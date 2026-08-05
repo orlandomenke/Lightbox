@@ -105,6 +105,16 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### brush
 
+- [ ] **B90** `P2` `brush` Smudge and blender use length parameter instead of strength `evidence: BrushParameterTests, SmudgeAndBlenderUseStrengthNotLength, StrengthControlsBlendingIntensity, LengthIsNotASmudgeParameter`
+  - Reported: smudge and blender brushes have a length setting, which is not the expected behaviour. They should use a strength value to control blending intensity, not a fixed length that changes the expected interaction model.
+  - The artist expects strength/intensity to control how much blending or smudging happens, not a length that constrains the operation to a fixed distance.
+  - Cost: M
+
+- [ ] **B89** `P2` `brush` Smudge and blender preview still changes on mouse release/pen lift `evidence: EffectPreviewMatchesCommitTests, ASmudgePreviewStaysSameOnRelease, ABlenderPreviewStaysSameOnRelease, NoSettlingVisibleBetweenPreviewAndCommit`
+  - Reported: when releasing the pen or lifting the mouse on a smudge or blender stroke, the preview changes slightly — the effect "settles" on release. What the artist sees while smudging or blending should match exactly what appears when the stroke commits.
+  - Related to but distinct from **B69** — this specifically addresses the visible settling that occurs at pen lift, which may be a remaining aspect of the broader effect-brush preview matching issue.
+  - Cost: M
+
 - [ ] **B69** `P2` `brush` An effect brush changes what it painted when the pen lifts `evidence: EffectPreviewMatchesCommitTests, ASmudgePreviewMatchesItsCommit, ABlenderPreviewMatchesItsCommit, TheAffectedAreaDoesNotChangeOnRelease`
   - Reported for blur, smudge and blender together: "click and release changes the effected area. The strokes seem to settle on release. What we paint should be what we see. No post-processing settling of any kind."
   - **Related to B54 and deliberately not merged into it.** B54 is the measured blur instance — the draft snapshot is cropped per segment, so the live blur over-covers by ~88 px — and it is `P3` because the number is smaller than what was reported. This entry is the artist-facing statement of the whole family, across all three effect brushes, and it is the one that says what "fixed" means: the preview and the commit produce the same pixels. B54 can close without this one closing.
