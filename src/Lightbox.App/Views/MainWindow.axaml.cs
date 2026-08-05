@@ -218,6 +218,9 @@ public partial class MainWindow : Window
             }
         };
         _vm.Workspace.Changed += ApplyDockLayout;
+        // B67. The canvas framing belongs to the document, and the window is the
+        // only thing that holds both a tab and a CanvasControl.
+        _vm.TabSwitched += CarryTheViewBetweenTabs;
         InitialisePanels();
         InitialiseOverlays();
         ApplyDockLayout();
@@ -310,6 +313,22 @@ public partial class MainWindow : Window
     /// that survive this are bugs in the model, which is tested without a
     /// window at all.
     /// </summary>
+    /// <summary>
+    /// Put the canvas framing down on the tab being left, and pick up the one
+    /// belonging to the tab being entered.
+    /// </summary>
+    /// <remarks>
+    /// <b>B67.</b> A document nobody has framed yet opens fitted rather than at
+    /// whatever the last one was left at — which is the reported defect, and is
+    /// why the stored value is nullable rather than defaulted.
+    /// </remarks>
+    private void CarryTheViewBetweenTabs(ViewModels.DocumentTab? leaving, ViewModels.DocumentTab arriving)
+    {
+        if (leaving is not null) leaving.State.View = Canvas.Framing;
+        if (arriving.State.View is { } framed) Canvas.Framing = framed;
+        else Canvas.ResetView();
+    }
+
     private void ApplyDockLayout()
     {
         var layout = _vm.Workspace.Layout;

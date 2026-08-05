@@ -425,20 +425,43 @@ public sealed partial class MainViewModel : ObservableObject
         if (value.Editor == _editor) return;
 
         _switchingTabs = true;
-        if (Tabs.FirstOrDefault(t => t.Editor == _editor) is { } leaving)
+        var leaving = Tabs.FirstOrDefault(t => t.Editor == _editor);
+        if (leaving is not null)
         {
-            leaving.SavedFrameIndex = CurrentFrameIndex;
-            leaving.SavedLayerIndex = ActiveLayerIndex;
+            leaving.State.FrameIndex = CurrentFrameIndex;
+            leaving.State.LayerIndex = ActiveLayerIndex;
+            leaving.State.ReferenceIndex = ActiveReferenceIndex;
         }
         AttachEditor(value.Editor);
         // B56, and note that the line below it already had the guard: a document with no layers
         // is loadable, `Clamp(0, 0, -1)` throws, and the frame clamp beside this one was written
         // defensively while the layer clamp was not.
-        ActiveLayerIndex = Math.Clamp(value.SavedLayerIndex, 0, Math.Max(0, Scene.Layers.Count - 1));
-        CurrentFrameIndex = Math.Clamp(value.SavedFrameIndex, 0, Math.Max(0, Scene.FrameCount - 1));
+        ActiveLayerIndex = Math.Clamp(value.State.LayerIndex, 0, Math.Max(0, Scene.Layers.Count - 1));
+        CurrentFrameIndex = Math.Clamp(value.State.FrameIndex, 0, Math.Max(0, Scene.FrameCount - 1));
+        // B67. Not clamped, because the index is already bounds-checked where it
+        // is read and an out-of-range value means "this document has fewer
+        // strips than that one did" rather than an error to repair.
+        ActiveReferenceIndex = value.State.ReferenceIndex;
         RecallDocumentBrush();
         _switchingTabs = false;
+        // After the switch, so a handler asking the view model anything sees the
+        // arriving document rather than a half-swapped one. The canvas framing
+        // rides on this: it is view-only state (invariant 5) and belongs to the
+        // window, which is the only thing that owns a CanvasControl.
+        TabSwitched?.Invoke(leaving, value);
     }
+
+    /// <summary>
+    /// A different document became active: <c>(leaving, arriving)</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>B67.</b> Exists because the canvas framing is per document and the
+    /// view model must not know what a canvas is. Both tabs are handed over
+    /// because a subscriber has to put something down before it picks the next
+    /// one up, and by the time <c>PropertyChanged</c> fires for
+    /// <see cref="ActiveTab"/> the tab being left has already been forgotten.
+    /// </remarks>
+    public event Action<DocumentTab?, DocumentTab>? TabSwitched;
 
     // ---- whose brush is it (Q9) -------------------------------------------------
 
@@ -612,12 +635,11 @@ public sealed partial class MainViewModel : ObservableObject
         doc.Scene.Ppi = settings.Ppi;
         doc.Scene.BackgroundColor = settings.BackgroundColor;
         doc.Scene.TransparentBackground = settings.TransparentBackground;
-        AddTab(new DocumentTab(new DocumentEditor(doc), settings.Name)
-        {
-            // Land on something paintable. The paper is layer 0 and locked, so
-            // selecting it would make the very first stroke bounce.
-            SavedLayerIndex = FirstPaintableLayer(doc),
-        });
+        var fresh = new DocumentTab(new DocumentEditor(doc), settings.Name);
+        // Land on something paintable. The paper is layer 0 and locked, so
+        // selecting it would make the very first stroke bounce.
+        fresh.State.LayerIndex = FirstPaintableLayer(doc);
+        AddTab(fresh);
         // The kind of work chosen at creation is a reason to offer that kind's
         // panels — offered, not imposed, which is why it is a choice on the
         // dialog and defaults to leaving the arrangement alone.
@@ -641,13 +663,19 @@ public sealed partial class MainViewModel : ObservableObject
         var tab = Tabs[0];
         tab.Editor = new DocumentEditor(doc) { MaxUndo = tab.Editor.MaxUndo };
         tab.Title = settings.Name;
-        tab.SavedLayerIndex = FirstPaintableLayer(doc);
+        tab.State.LayerIndex = FirstPaintableLayer(doc);
+        // B67. A different document in the same tab, so the framing the blank
+        // one was left at is not this one's. Same reasoning as the tab switch —
+        // it is the *document* the view belongs to, not the slot.
+        tab.State.View = null;
         // Attached directly, not through ActivateTab: the tab is already the
         // active one, so the property setter sees no change and the view model
         // would keep pointing at the editor that was just replaced.
         AttachEditor(tab.Editor);
         ActiveLayerIndex = FirstPaintableLayer(doc);
         CurrentFrameIndex = 0;
+        // Nothing to put down — the record it belonged to is gone.
+        TabSwitched?.Invoke(null, tab);
         if (settings.Workspace == WorkspaceChoice.ProjectDefaults)
         {
             Workspace.UseDefaultFor(settings.ProjectType);
@@ -1691,11 +1719,9 @@ public sealed partial class MainViewModel : ObservableObject
             ActiveTab = already;
             return;
         }
-        AddTab(new DocumentTab(new DocumentEditor(doc), reference.Name)
-        {
-            Source = reference,
-            SavedLayerIndex = FirstPaintableLayer(doc),
-        });
+        var opened = new DocumentTab(new DocumentEditor(doc), reference.Name) { Source = reference };
+        opened.State.LayerIndex = FirstPaintableLayer(doc);
+        AddTab(opened);
     }
 
     /// <summary>

@@ -634,6 +634,33 @@ public sealed class CanvasControl : Control
 
     public bool IsMirrored => _mirrored;
 
+    /// <summary>
+    /// The whole view transform as one value, so a document can be left framed
+    /// the way the artist framed it.
+    /// </summary>
+    /// <remarks>
+    /// <b>B67.</b> Zoom, rotation, mirror and pan were four private fields on a
+    /// control that outlives every document it shows, so framing a face at 400%
+    /// in one drawing opened the next one at 400% too. Reading and writing them
+    /// as a group is what makes "put this down, pick that up" a single
+    /// assignment rather than four that can drift apart.
+    ///
+    /// Still view-only, and this is the property that could quietly stop being
+    /// so: the setter touches nothing but these four fields and a repaint.
+    /// </remarks>
+    public ViewModels.CanvasViewState Framing
+    {
+        get => new(_zoom, _rotationDeg, _mirrored, _pan.X, _pan.Y);
+        set
+        {
+            _zoom = Math.Clamp(value.Zoom, MinZoom, MaxZoom);
+            _rotationDeg = value.RotationDeg;
+            _mirrored = value.Mirrored;
+            _pan = new Vector(value.PanX, value.PanY);
+            ViewUpdated();
+        }
+    }
+
     public CanvasControl()
     {
         // The brush cursor drawn by the render op replaces the OS cursor.

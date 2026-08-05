@@ -157,6 +157,29 @@ bug: before the fix there was no way to get to any of the rest.
 - [ ] Place a socket while parked on a **held** frame, then re-time the sequence.
       The mark travels with its drawing, and the hold stays a hold.
 
+## Per-document framing (B67)
+
+The mechanism has tests; what they cannot reach is the one line in
+`MainWindow.axaml.cs` that subscribes the window to `TabSwitched` — a
+`MainWindow` cannot be constructed headlessly, so if that line were deleted the
+suite would stay green and nothing here would work. **These checks are that
+line.**
+
+- [ ] Zoom one document to ~400% and frame a detail. **File ▸ New**: the new
+      document opens fitted at 100%, not at 400%.
+- [ ] Switch back: the first document is at 400%, on the same detail. Switch
+      forward again: the second is still at 100%.
+- [ ] Mirror (`M`) and rotate one document. The other tab is neither mirrored nor
+      rotated, and both come back correctly on return.
+- [ ] Pan one document far off-centre. It comes back off-centre, not re-centred.
+- [ ] Close the document and reopen the file: it opens **fitted**. Framing lasts
+      the session, and is not written into the file.
+- [ ] Import a reference into two documents, select a later strip in the one with
+      more, then switch. The document with fewer strips still shows *its*
+      reference rather than nothing.
+- [ ] The brush is the deliberate exception: change the size, switch tabs, and it
+      is still the size you set. That is Q9, not a regression.
+
 ## Cross-platform notes
 
 - Linux: needs `libfontconfig1` (`apt install libfontconfig1`).
