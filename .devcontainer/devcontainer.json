@@ -2,31 +2,23 @@
   // Lightbox in a Linux container — Codespaces, or any devcontainer host.
   //
   // Everything CI needs and nothing it does not. The three things that are not
-  // obvious are commented where they appear; see docs/DESIGN-net10-upgrade.md
-  // for why the SDK version and the target framework are different questions.
+  // obvious are commented where they appear.
   "name": "Lightbox",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
 
   "features": {
-    // TWO SDKs, deliberately.
+    // ONE SDK, and that is the point of the net10.0 upgrade rather than an
+    // omission. Every project targets net10.0, so the SDK that builds the repo
+    // carries the runtime that runs it.
     //
-    // 10.0 is what BUILDS the repo: Avalonia 12's source generators need newer
-    // Roslyn than the .NET 8 SDK ships, which is why .github/workflows/build.yml
-    // installs 10.0.x even though the solution targets net8.0.
-    //
-    // 8.0 is what RUNS it. Every project except Lightbox.Mcp targets net8.0, no
-    // runtimeconfig sets rollForward, and the default (Minor) does not cross
-    // major versions — so a net8.0 test assembly needs the 8.0 runtime present
-    // and will not fall back to 10.0. Install only 10.0 here and the build
-    // succeeds while `dotnet test` fails to launch its host, which reads as a
-    // broken test rather than a missing runtime.
-    //
-    // CI gets away with naming only 10.0.x because the ubuntu-latest runner
-    // image preinstalls .NET 8. That is an inherited dependency rather than a
-    // declared one, and it expires when GitHub drops 8.0 from the image.
+    // This used to install 8.0 alongside, because the solution targeted net8.0
+    // while Avalonia 12's source generators needed the newer Roslyn only the
+    // 10.0 SDK ships — and a net8.0 assembly does not roll forward onto a 10.0
+    // runtime (rollForward defaults to Minor, which will not cross a major
+    // version). Installing one of the two produced a container that either
+    // compiled or ran, never both. See docs/DESIGN-net10-upgrade.md.
     "ghcr.io/devcontainers/features/dotnet:2": {
-      "version": "10.0",
-      "additionalVersions": "8.0"
+      "version": "10.0"
     }
   },
 

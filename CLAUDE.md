@@ -2,7 +2,7 @@
 
 A raster + vector desktop application for **frame-by-frame animation** and
 **digital painting**, with AI assistance throughout — most visibly filling in
-the inbetweens. C#/.NET 8, Avalonia 12, SkiaSharp.
+the inbetweens. C#/.NET 10, Avalonia 12, SkiaSharp.
 
 ## What it is for, and how that settles arguments
 
@@ -233,18 +233,21 @@ anchor is the one thing the file cannot represent.
 
 - Build: `dotnet build Lightbox.sln`
 - Test: `dotnet test` (all four suites must stay green)
-- **The .NET 10 SDK builds this and the .NET 8 runtime runs it.** The TFM is
-  `net8.0` (except `Lightbox.Mcp`), but Avalonia 12's source generators need a
-  newer Roslyn than the .NET 8 SDK ships, and a `net8.0` assembly does not roll
-  forward onto a 10.0 runtime — so both are required, and a machine with only
-  one compiles or runs but not both. `.devcontainer/devcontainer.json` has them;
-  `docs/DESIGN-net10-upgrade.md` has the reasoning and the upgrade assessment.
+- **One .NET, and it is 10.** Every project targets `net10.0`, so the SDK that
+  builds this carries the runtime that runs it. That was not always true — the
+  solution targeted `net8.0` while needing the 10.0 SDK for Avalonia 12's
+  source generators, which meant a machine with only one of them compiled or
+  ran but not both. `docs/DESIGN-net10-upgrade.md` records the migration and,
+  more usefully, the evidence: the render is **bit-identical** across the two
+  runtimes, pinned by `RuntimeDeterminismTests` against a fingerprint recorded
+  on .NET 8 before the move.
 - Performance budgets run inside the normal suite, tagged
   `[Trait("Category", "Performance")]`. They are deliberately loose — they
   catch order-of-magnitude regressions, not drift.
 - The app runs headless for visual checks under Xvfb; see `MANUAL_TESTING.md`.
-- Work happens on a branch off `main`, merged back when it is green.
-  `feature/ui-dockers` was the long-lived UI branch and has landed.
+- Work happens on a branch off `main`, merged back when its **objective** is
+  complete — green is necessary and is not the bar. `feature/ui-dockers` was
+  the long-lived UI branch and has landed.
 
 ### Branches, merges and pull requests
 
@@ -255,6 +258,21 @@ rather than doing them by hand — its own definition says what it covers.
 does not need asking for. **Merging to `main` needs an explicit instruction to
 merge**; "it's finished" and a green suite are a request for a PR, not for a
 merge.
+
+**A branch is one objective, and its name says which** — `<type>/<id>-<slug>`,
+as in `fix/B39-effect-brush-scratch`. The agent has the full convention and
+the mechanical checks; the part worth knowing before you start is the reason.
+Branches were once named after the chat that made them
+(`claude/codespaces-agentic-setup-fjq295`), which records **provenance rather
+than scope** — and a name that states no objective cannot be departed from, so
+every one of them drifted. One carried a brush-compositor fix and a packaging
+change whose file sets shared *no directory at all*. The one branch named for
+its objective, `net10-upgrade`, is the one that did exactly what it said.
+
+So: if the sentence describing the branch needs an "and", it is two branches.
+Finding a second thing to fix mid-branch is normal — it is a new branch, not a
+new commit. Above **four** unmerged branches the agent warns, because four is
+where a person stops holding the set in their head.
 
 ### Touching anything AI: two agents, on purpose
 

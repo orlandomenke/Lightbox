@@ -55,6 +55,127 @@ tests pass.
 
 Push with `git push -u origin <branch-name>`.
 
+## A branch is one objective, and its name says which
+
+This section exists because the repository failed it, and the evidence is in
+the history rather than in anybody's opinion.
+
+**The failure.** Branches were named after the *chat that created them* —
+`claude/codespaces-agentic-setup-fjq295`,
+`claude/agentic-system-skills-improve-cb9p5x`,
+`claude/ai-animation-inbetweens-14vd6m`. A name like that records **provenance,
+not scope**: it says who was typing, and nothing about what changed. Every one
+of them then drifted, because a name that does not state an objective cannot
+be departed from:
+
+| Branch | Name promised | Actually carried |
+| --- | --- | --- |
+| `codespaces-agentic-setup-…` | dev-environment setup | B39 (brush compositor) + B32 (packaging) |
+| `agentic-system-skills-improve-…` | agent/skill tooling | B39 + B57 (brush/raster) + B58 (roadmap/docs) |
+| `ai-animation-inbetweens-…` | inbetweening | B31 payload + B55 fingerprint + B56 crash-on-open |
+| `net10-upgrade` | the .NET 10 upgrade | **the .NET 10 upgrade** |
+
+The last row is the point. One branch was named for its objective, and it is
+the only one that did exactly what it said.
+
+### The naming convention
+
+```
+<type>/<id>-<slug>          fix/B39-effect-brush-scratch
+<type>/<slug>               chore/net10-upgrade
+```
+
+`<type>` is one of **feat, fix, perf, refactor, docs, test, chore, ci** — the
+Conventional Commits set, because it is the one every reviewer already knows.
+`<id>` is the ledger id when the work has one (`B39`, `B57`) or the roadmap
+item; omit it when it genuinely has none. `<slug>` is two to four words of
+what changes, in kebab-case.
+
+Three things a branch name may never be: **a chat or session name**, a bare
+id with no words (`fix-3` tells a reader nothing), or a person. If a name is
+proposed that matches `claude/`, `session`, or a random suffix like `-fjq295`,
+rename it before pushing and say why.
+
+### One objective, and how to tell mechanically
+
+**A branch carries one objective. A second objective is a second branch.**
+"Divert" and "while I was in there" are the same event, and the answer to both
+is a new branch cut from `origin/<default>`.
+
+The check is not a judgement call, because file sets tell you. **Strip the
+carrier files first** — `.claude/quality/*` and `.claude/codemap/*` are touched
+by *every* change, so they show false relatedness between things that share
+nothing:
+
+```
+git show --name-only --format="" <sha> \
+  | grep -v '^$' | grep -vE '^\.claude/(quality|codemap)/'
+```
+
+Then compare the remaining directories across the branch's commits. **No shared
+directory between two commits means two objectives.** Measured on the branch
+that prompted this section:
+
+```
+B39  ->  src/Lightbox.App/ViewModels/ , tests/Lightbox.App.Tests/
+B32  ->  .github/workflows/ , README.md , MANUAL_TESTING.md
+         shared: none
+```
+
+Zero overlap. Two branches, merged as one, and nobody noticed until the history
+was audited.
+
+Two honest exceptions, so the rule is not applied stupidly:
+
+- **A change that must land atomically is one objective even across many
+  directories.** The .NET 10 upgrade touched nine project files, CI, the
+  devcontainer and four documents — and splitting it would have produced a
+  half-migrated solution that still compiled. Ask *would half of this be
+  broken?* If yes, it is one thing.
+- **A fix and its documentation are one objective.** `CLAUDE.md` requires the
+  manual, the ledger and the registries to move in the same commit. That is
+  the feature landing, not scope creep.
+
+### More than four active branches is a warning
+
+Active means **unmerged into the default**. Count it:
+
+```
+git fetch --all --prune
+git for-each-ref --format='%(refname:short)' refs/remotes/origin \
+  | grep -v 'origin/\(HEAD\|main\)$' \
+  | while read b; do
+      git merge-base --is-ancestor "$b" origin/main 2>/dev/null || echo "$b"
+    done
+```
+
+Above four, **say so in FLAGGED** with the count and the oldest, and recommend
+what to land or drop first. It is a warning, not a refusal — four is the point
+where a person stops holding the set in their head, not a limit the tool
+enforces. Fully merged branches do not count; they are cleanup, not load.
+
+### A branch merges when its objective is complete
+
+Not when the tests pass — tests passing is necessary and is not the bar. Before
+recommending a merge, all four:
+
+1. **Green.** `dotnet test Lightbox.sln -c Release` on the tip.
+2. **Anchored.** `python3 scripts/bugs.py check` and
+   `python3 scripts/roadmap.py sync` agree with the code. A fix whose evidence
+   test does not exist is not finished, it is asserted.
+3. **Landed everywhere it shows.** `CLAUDE.md` → *Land the feature, then land
+   the places it shows up*: shortcut registry, Configure window, presets,
+   workspace defaults, MCP surface, `docs/MANUAL.md`.
+4. **Whole.** The objective in the branch name is done. A branch parked
+   half-way is a branch to keep, not to merge — merging half a feature puts an
+   unreachable surface on the default branch, which is exactly B58.
+
+If a branch is complete but carries a *second* objective, do not merge it as
+one. Split it: cut a fresh branch from the default and `git cherry-pick` the
+commits belonging to each objective. That was done for B39/B32 today and it
+resolved without conflict, because commits that share no directories do not
+collide.
+
 ## Creating a branch
 
 Branch from the current `origin/<default>`, not from whatever happens to be
@@ -62,10 +183,11 @@ checked out — a branch cut from another feature branch inherits its review.
 
 ```
 git fetch origin <default>
-git checkout -b <name> origin/<default>
+git checkout -b <type>/<id>-<slug> origin/<default>
 ```
 
-Name it for the work, not the ticket: `reference-grid-gizmos`, not `fix-3`.
+Before you create it, ask for the objective in one sentence. If that sentence
+needs an "and", it is two branches — say so and create the first.
 
 ## Landing finished work — the PR is the route
 
@@ -250,10 +372,19 @@ a rewrite**, or when it is **fully merged and still there**, or when it has
 be lost. Age alone is not a problem; a branch nobody has touched but that is
 zero behind is fine.
 
-Two more now that a PR is how work lands: **commits pushed with no PR open**
-is work nobody has been asked to look at, and **an open PR whose branch is far
-behind the base** is a review of something that no longer merges. Both are
-quiet, and both are why a branch sits for a fortnight.
+Three more, from the section above, and they are cheap to check every time:
+
+- **A name that states no objective** — `claude/*`, a session id, a random
+  suffix. Flag it with the rename you would use.
+- **A branch carrying two objectives** — run the directory check across its
+  commits. Flag it with the proposed split, not just the observation.
+- **More than four unmerged branches** — flag the count, the oldest, and which
+  to land first.
+
+And two that follow from a PR being how work lands: **commits pushed with no
+PR open** is work nobody has been asked to look at, and **an open PR whose
+branch is far behind the base** is a review of something that no longer
+merges. Both are quiet, and both are why a branch sits for a fortnight.
 
 ## Report
 
@@ -266,12 +397,16 @@ DID
 STATE
   <branch>  <ahead>/<behind> vs <base>  <last commit date>  <merged? y/n>  <PR #n open|merged|none>
   ...
+  active (unmerged): <n>            WARN above 4
 FLAGGED
   <branch> — <why it needs attention, and what to do about it>
   ...            (or: nothing stale)
 BLOCKED
   <what you did not do, and what you need to proceed>
 ```
+
+`active (unmerged)` is always present, even at zero. A count that only appears
+when it is bad is a count nobody trusts when it is missing.
 
 If tests failed, put the failing test names in BLOCKED and do not soften it.
 Reporting a merge you did not make as done is the single worst thing you can

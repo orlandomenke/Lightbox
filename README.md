@@ -2,7 +2,7 @@
 
 An **AI-native, raster-first** art and animation application — in the spirit of Krita/Photoshop, built for hand-drawn frame-by-frame animation where inbetweens are near-indistinguishable from the original drawings.
 
-Built with **C# / .NET 8**, **Avalonia** (Windows · macOS · Linux), and **SkiaSharp**.
+Built with **C# / .NET 10**, **Avalonia** (Windows · macOS · Linux), and **SkiaSharp**.
 
 ## The core ideas
 
@@ -30,7 +30,7 @@ Every code push builds a self-contained Windows bundle in CI:
 2. Unzip anywhere in your user profile, e.g. `%LOCALAPPDATA%\Lightbox`.
 3. Run `Lightbox.App.exe`. Nothing is installed, no .NET required, no admin.
 
-**How long a bundle lasts.** One is about 105 MB, so they are pruned rather than kept: a branch keeps its **3 newest**, `main`'s are kept 30 days and everyone else's 5, and any feature-branch bundle over a week old is deleted whatever branch it came from. A documentation-only push does not build one at all. If you need a bundle for a commit that has aged out, re-run the workflow from the Actions tab (**Run workflow**) — `workflow_dispatch` always builds.
+**How long a bundle lasts.** One is about 74 MB, so they are pruned rather than kept: a branch keeps its **3 newest**, `main`'s are kept 30 days and everyone else's 5, and any feature-branch bundle over a week old is deleted whatever branch it came from. A documentation-only push does not build one at all. If you need a bundle for a commit that has aged out, re-run the workflow from the Actions tab (**Run workflow**) — `workflow_dispatch` always builds.
 
 **If the storage quota fills anyway**, run **Actions ▸ cleanup artifacts ▸ Run workflow**. It prunes on its own without building anything, which matters because the build workflow's own prune cannot rescue a full quota — that prune runs beside an upload, and once the quota is full the upload fails first.
 
@@ -81,7 +81,7 @@ Prefer building yourself? Install the .NET SDK per-user (no admin) with the offi
 
 ## Use Claude without an API key — the MCP server
 
-If you have the **Claude Desktop app** (Pro is enough), your subscription can drive Lightbox directly — no API key. The bundle ships an MCP server (`mcp\Lightbox.Mcp.exe`) that exposes Lightbox to Claude as tools: `get_scene`, `get_frame_strokes`, `render_frame` (Claude *sees* your drawing), `insert_inbetweens`, and `draw_strokes`. Everything Claude does arrives through the same validation and undo path as your own edits — one Ctrl+Z removes it.
+If you have the **Claude Desktop app** (Pro is enough), your subscription can drive Lightbox directly — no API key. The bundle ships an MCP server (`Lightbox.Mcp.exe`, beside `Lightbox.App.exe`) that exposes Lightbox to Claude as tools: `get_scene`, `get_frame_strokes`, `render_frame` (Claude *sees* your drawing), `insert_inbetweens`, and `draw_strokes`. Everything Claude does arrives through the same validation and undo path as your own edits — one Ctrl+Z removes it.
 
 Setup:
 
@@ -92,12 +92,20 @@ Setup:
 {
   "mcpServers": {
     "lightbox": {
-      "command": "C:\\Users\\you\\AppData\\Local\\Lightbox\\mcp\\Lightbox.Mcp.exe",
+      "command": "C:\\Users\\you\\AppData\\Local\\Lightbox\\Lightbox.Mcp.exe",
       "args": []
     }
   }
 }
 ```
+
+> **Upgrading from a bundle built before this changed?** The server used to sit
+> in an `mcp\` subfolder, so an older config points at
+> `…\Lightbox\mcp\Lightbox.Mcp.exe`. Drop the `mcp\` and it works. The move is
+> what stopped the bundle shipping a second copy of .NET — 105 MB down to 74 —
+> because a self-contained executable only finds its runtime beside itself, so a
+> subfolder had to carry its own. Claude Desktop does not report a bad `command`
+> loudly: the server simply fails to start and the Lightbox tools are missing.
 
 3. Fully quit Claude Desktop (from the tray) and reopen — servers load at startup.
 4. Draw two keyframes in Lightbox, then ask Claude something like:
@@ -146,15 +154,13 @@ dotnet test             # run all test suites (fully headless-safe)
 dotnet run --project src/Lightbox.App   # launch the app
 ```
 
-**Two .NET versions, and both are needed.** The **.NET 10 SDK** builds the repo
-— Avalonia 12's source generators need newer Roslyn than the .NET 8 SDK ships,
-which is why CI installs `10.0.x`. The **.NET 8 runtime** runs it: every project
-but `Lightbox.Mcp` targets `net8.0`, and .NET does not roll a `net8.0` assembly
-forward onto a 10.0 runtime, so an SDK-10-only machine compiles the whole
-solution and then fails to launch a single test. On Linux, SkiaSharp also needs
-`libfontconfig1`.
+**One .NET version: the .NET 10 SDK.** Every project targets `net10.0`, so the
+SDK that builds the repo carries the runtime that runs it. This used to be two
+questions — the solution targeted `net8.0` while Avalonia 12's source generators
+needed the newer Roslyn only the 10.0 SDK ships, so a machine with one of them
+compiled or ran but not both. On Linux, SkiaSharp also needs `libfontconfig1`.
 
-The easiest way to get all three is the devcontainer — open the repo in GitHub
+The easiest way to get both is the devcontainer — open the repo in GitHub
 Codespaces, or in VS Code with the Dev Containers extension, and
 `.devcontainer/devcontainer.json` provisions them. `dotnet test` needs no
 display; the UI suite drives Avalonia headlessly.

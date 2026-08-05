@@ -92,4 +92,4 @@ rendering, and input feel that a headless environment cannot verify.
 ## Windows bundle (no admin)
 
 - [ ] The Actions artifact unzips and `Lightbox.App.exe` starts on a machine with no .NET installed and no admin rights.
-- [ ] `mcp\Lightbox.Mcp.exe` works as the Claude Desktop MCP command from the same bundle.
+- [ ] `Lightbox.Mcp.exe` works as the Claude Desktop MCP command from the same bundle, at the bundle root beside `Lightbox.App.exe` (it moved out of `mcp\` — B32).

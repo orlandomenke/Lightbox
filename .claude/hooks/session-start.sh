@@ -4,8 +4,8 @@
 # WHY THIS EXISTS. The remote container ships without .NET, so the first thing
 # that ran `dotnet` used to discover that and install it by hand, mid-task.
 # That happened for real on 2026-08-04: a performance agent spent a large part
-# of a 132k-token run apt-getting two SDKs before it could measure anything.
-# An install is not information — nothing about it belongs in an agent's
+# of a 132k-token run apt-getting SDKs before it could measure anything. An
+# apt transcript is not information — nothing about it belongs in an agent's
 # context — and it recurs on every fresh container until something else does
 # it. That something is this.
 #
@@ -24,32 +24,35 @@ if [ "$(id -u)" -ne 0 ]; then
   command -v sudo >/dev/null 2>&1 && SUDO="sudo"
 fi
 
-# TWO SDKs, deliberately — the same split .devcontainer/devcontainer.json and
-# docs/DESIGN-net10-upgrade.md explain. 10.0 BUILDS the repo, because Avalonia
-# 12's source generators need newer Roslyn than the .NET 8 SDK ships. 8.0 RUNS
-# it, because every project except Lightbox.Mcp targets net8.0 and nothing sets
-# rollForward, so a net8.0 test assembly will not start on a 10.0 runtime.
-# Install only one and you get a build that cannot test, or a test host with
-# nothing to build it — both of which read as a broken repo rather than a
-# missing runtime.
-have_build_sdk() { dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; }
-have_run_time()  { dotnet --list-runtimes 2>/dev/null | grep -q '^Microsoft\.NETCore\.App 8\.'; }
+# ONE SDK, and it is 10 — the rule CLAUDE.md states and
+# docs/DESIGN-net10-upgrade.md records. Every project targets net10.0, and CI
+# installs a single 10.0.x for the same reason.
+#
+# Do not "helpfully" add dotnet-sdk-8.0 back. The solution used to need both —
+# 10 to build, because Avalonia 12's source generators want newer Roslyn than
+# the 8 SDK ships, and 8 to run, because the assemblies targeted net8.0 and
+# nothing set rollForward. The net10 upgrade closed that split deliberately.
+# An 8.0 install now costs an SDK's worth of download for nothing, and a
+# runtime check that demands it would never be satisfied — so this hook would
+# reinstall on every single session, which is precisely the cost it exists to
+# remove.
+have_sdk() { dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; }
 
-if command -v dotnet >/dev/null 2>&1 && have_build_sdk && have_run_time; then
-  echo "toolchain: .NET 10 SDK and .NET 8 runtime already present"
+if command -v dotnet >/dev/null 2>&1 && have_sdk; then
+  echo "toolchain: .NET 10 SDK already present"
 else
-  echo "toolchain: installing .NET SDKs 10.0 and 8.0"
+  echo "toolchain: installing the .NET 10 SDK"
   export DEBIAN_FRONTEND=noninteractive
   $SUDO apt-get update -qq
-  # Ubuntu 24.04 carries both in its own archive, so no Microsoft feed and no
-  # install script is needed.
+  # Ubuntu 24.04 carries it in its own archive, so no Microsoft feed and no
+  # install script.
   #
   # libfontconfig1 is SkiaSharp's native dependency and is present in the base
   # image today. It is named anyway because without it text rendering fails at
   # RUNTIME rather than at build time, which is an expensive way to discover a
   # base-image change.
   $SUDO apt-get install -y -qq --no-install-recommends \
-    dotnet-sdk-10.0 dotnet-sdk-8.0 libfontconfig1
+    dotnet-sdk-10.0 libfontconfig1
   $SUDO rm -rf /var/lib/apt/lists/*
 fi
 
@@ -59,9 +62,9 @@ fi
 # Gated on the restore having actually happened, not on the toolchain being
 # present, because this hook runs SYNCHRONOUSLY: an unconditional restore is
 # ~14 s added to every session start, paid to re-confirm a warm cache. Measured
-# at 15.4 s total before this check and well under a second after it.
-# `project.assets.json` is what restore writes, so its presence is the fact
-# rather than a marker of our own that could drift from it.
+# at 15.4 s total before this check and 13 ms after it. `project.assets.json`
+# is what restore writes, so its presence is the fact rather than a marker of
+# our own that could drift from it.
 cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}"
 if [ ! -f src/Lightbox.Core/obj/project.assets.json ]; then
   echo "toolchain: warming the NuGet cache"

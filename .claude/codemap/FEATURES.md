@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2250 tests, derived from the suite itself. Each line is a
+2283 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1278,6 +1278,9 @@ regression even when every test still compiles.
 - Opening Externally Says So When The File Is Not Written Yet — `:423`
 - Duplicating An Animation Copies Its Art Into The Same Character — `:441`
 - Duplicating Writes The Copy On The Next Save — `:474`
+- Deleting AFolder On Disk Removes It From The Docker — `:501`
+- The Docker Refreshes Without Being Reopened — `:530`
+- An Unsaved Project Does Not Report Every Row As Missing — `:556`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
@@ -1328,6 +1331,13 @@ regression even when every test still compiles.
 - ASmall View Is Not Upscaled To The Cap — `:206`
 - Two Tabs Whose Views Share An Id Do Not Share APicture — `:219`
 - The Downscaled Reference Still Has The Drawing In It — `:284`
+
+## CharacterSheetFileTests
+`tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
+
+- ACharacter Sheet Outside AProject Prompts To Save — `:220`
+- ACharacter Sheet In AProject Is Written On Creation — `:240`
+- ACharacter Sheet Asks For Its Name Before Its Location — `:271`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
@@ -2144,9 +2154,9 @@ regression even when every test still compiles.
 ## CiRuntimeTests
 `tests/Lightbox.Core.Tests/CiRuntimeTests.cs`
 
-- The Job That Runs Tests Asks For The Runtime Those Tests Need — `:59`
-- The Sdk Is Still Named Too — `:81`
-- The Eight Point Zero Runtime Is Still Actually Required — `:91`
+- The Job That Runs Tests Asks For The Runtime Those Tests Need — `:79`
+- The Sdk Is Still Named Too — `:101`
+- The Retired Eight Point Zero Runtime Has Not Come Back — `:122`
 
 ## CollisionShapeTests
 `tests/Lightbox.Core.Tests/CollisionShapeTests.cs`
@@ -3172,6 +3182,17 @@ regression even when every test still compiles.
 - AStraight Stroke Is Untouched — `:125`
 - ADrawn Corner Is Still ACorner — `:154`
 
+## StrokeIndexTests
+`tests/Lightbox.Raster.Tests/StrokeIndexTests.cs`
+
+- AQuery Returns Strokes In Record Order — `:39`
+- AStroke Spanning Many Cells Is Returned Once — `:60`
+- AQuery Agrees With Checking Every Stroke By Hand — `:85`
+- AQuery Outside Everything Returns Nothing — `:124`
+- AStroke That Reaches Nothing Is Recorded Rather Than Skipped — `:138`
+- Negative Coordinates Index And Query The Same As Positive Ones — `:152`
+- ATile Sized Query Touches AFraction Of ABusy Drawing — `:176`
+
 ## SymbolFlattenTests
 `tests/Lightbox.Raster.Tests/SymbolFlattenTests.cs`
 
@@ -3220,6 +3241,34 @@ regression even when every test still compiles.
 - Granulation Is Deterministic And Anchored To The Document — `:82`
 - Paper Texture Commit Does Not Stall The Pen — `:101`
 - Textured Stroke Commit Does Not Stall The Pen — `:121`
+
+## TileStoreTests
+`tests/Lightbox.Raster.Tests/TileStoreTests.cs`
+
+- ATile Address Rounds Toward Negative Infinity — `:36`
+- Tiles Left Of The Origin Are Full Width And Do Not Overlap — `:48`
+- ARectangle Covers The Tiles It Touches And No Others — `:67`
+- An Empty Rectangle Covers Nothing — `:86`
+- An Untouched Tile Is Never Allocated — `:100`
+- Memory Follows Ink Rather Than Area — `:149`
+- Renting Twice Returns The Same Tile Rather Than ASecond One — `:178`
+- AFresh Tile Contributes Nothing So Absent And Blank Composite The Same — `:202`
+- Intersecting Returns Only Tiles That Exist And Are In The Rectangle — `:227`
+- Intersecting Empty Space Returns Nothing And Allocates Nothing — `:243`
+- Ink Bounds Is Null Until Something Is Drawn — `:254`
+- Dropping ATile Releases Its Bytes — `:266`
+- The Tile Size Is AParameter Rather Than Baked In — `:283`
+
+## TiledRasterizerTests
+`tests/Lightbox.Raster.Tests/TiledRasterizerTests.cs`
+
+- ATiled Render Is Bit Identical To An Untiled One — `:74`
+- The Tile Size Does Not Change The Render — `:99`
+- Empty Parts Of The Document Are Never Allocated — `:118`
+- An Empty Stroke List Renders An Empty Store And An Empty Image — `:148`
+- An Effect Brush Across ATile Boundary Is Measured Rather Than Assumed — `:173`
+- Effect Brushes Are Refused By The Tiled Path Until B59 Is Fixed Properly — `:254`
+- The Whole Frame Fallback Still Stores Only Tiles With Ink — `:281`
 
 ## TipCatalogueTests
 `tests/Lightbox.Raster.Tests/TipCatalogueTests.cs`

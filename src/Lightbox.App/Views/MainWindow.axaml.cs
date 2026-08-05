@@ -1375,7 +1375,28 @@ public partial class MainWindow : Window
 
     // ---- character sheets -----------------------------------------------------
 
-    private void OnAddReferenceSheet(object? sender, RoutedEventArgs e) => _vm.AddReferenceSheet();
+    /// <summary>
+    /// Create a character sheet: name it first, then make sure the document it
+    /// lives in has somewhere on disk to live.
+    /// </summary>
+    /// <remarks>
+    /// <b>B66.</b> A sheet is part of its document (Q25 answered (a)), so an
+    /// untitled document meant the work existed nowhere. The order is the fix:
+    /// the name is asked for before anything is written — B65's rule on this
+    /// surface — and the save is offered only once the sheet exists, so
+    /// cancelling the save keeps the work rather than discarding it.
+    /// </remarks>
+    private async void OnAddReferenceSheet(object? sender, RoutedEventArgs e)
+    {
+        var suggested = $"Character {_vm.ReferenceSheetsView.Count + 1}";
+        var name = await PromptForText("New character sheet", "Name", suggested);
+        if (name is null) return;   // cancelled: nothing is created
+
+        var needsAFile = _vm.AReferenceSheetWouldBeUnsaved;
+        var sheet = _vm.AddReferenceSheet(name);
+        // B78: the picker opens already named, rather than asking a second time.
+        if (needsAFile) await SaveDocumentAsAsync(sheet.Name);
+    }
 
     private void OnAddReferenceView(object? sender, RoutedEventArgs e)
     {
@@ -2639,16 +2660,64 @@ public partial class MainWindow : Window
         _vm.NewDocument(settings);
     }
 
+    /// <summary>What the artist chose when told the document has unsaved changes.</summary>
+    private enum UnsavedChoice
+    {
+        /// <summary>Closed the dialog, or pressed Escape. The document stays open.</summary>
+        Cancel,
+
+        /// <summary>Close it and lose the edits.</summary>
+        Discard,
+
+        /// <summary>Write it first, then close.</summary>
+        Save,
+    }
+
     private async void OnCloseTabClicked(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not DocumentTab tab) return;
-        if (tab.IsDirty && !await ConfirmDiscardAsync(tab.Title)) return;
+        if (!tab.IsDirty)
+        {
+            _vm.CloseTab(tab);
+            return;
+        }
+
+        switch (await ConfirmDiscardAsync(tab.Title))
+        {
+            case UnsavedChoice.Cancel:
+                return;
+
+            case UnsavedChoice.Save:
+                // Save acts on the active document, so the tab being closed has
+                // to be the active one — otherwise pressing Save on tab B's
+                // dialog would write tab A and close B unsaved, which is the
+                // failure this whole entry is about wearing a different hat.
+                _vm.ActiveTab = tab;
+                await SaveOrSaveAsAsync(tab.Title);
+
+                // Still dirty means the file picker was cancelled. Closing now
+                // would discard the work the artist just asked to keep, so the
+                // close is abandoned instead — Cancel on the picker cancels the
+                // close, which is the only reading that does not lose anything.
+                if (tab.IsDirty) return;
+                break;
+
+            case UnsavedChoice.Discard:
+                break;
+        }
         _vm.CloseTab(tab);
     }
 
-    private async Task<bool> ConfirmDiscardAsync(string title)
+    /// <remarks>
+    /// <b>B75.</b> This offered Discard and Cancel only, so the artist who wanted
+    /// to keep the work had to cancel, save by hand and close again — and the one
+    /// who did not read carefully lost it. Save is the default button because it
+    /// is the outcome that cannot destroy anything; Discard is the one that
+    /// needs deliberate aim.
+    /// </remarks>
+    private async Task<UnsavedChoice> ConfirmDiscardAsync(string title)
     {
-        var result = false;
+        var result = UnsavedChoice.Cancel;
         var dialog = new Window
         {
             Title = "Unsaved changes",
@@ -2657,9 +2726,11 @@ public partial class MainWindow : Window
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
+        var save = new Button { Content = "Save", MinWidth = 80, IsDefault = true };
         var discard = new Button { Content = "Discard changes", MinWidth = 120 };
         var cancel = new Button { Content = "Cancel", MinWidth = 80, IsCancel = true };
-        discard.Click += (_, _) => { result = true; dialog.Close(); };
+        save.Click += (_, _) => { result = UnsavedChoice.Save; dialog.Close(); };
+        discard.Click += (_, _) => { result = UnsavedChoice.Discard; dialog.Close(); };
         cancel.Click += (_, _) => dialog.Close();
         dialog.Content = new StackPanel
         {
@@ -2669,7 +2740,7 @@ public partial class MainWindow : Window
             {
                 new TextBlock
                 {
-                    Text = $"“{title}” has unsaved changes. Close it anyway?",
+                    Text = $"“{title}” has unsaved changes.",
                     TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 },
                 new StackPanel
@@ -2677,7 +2748,10 @@ public partial class MainWindow : Window
                     Orientation = Avalonia.Layout.Orientation.Horizontal,
                     Spacing = 8,
                     HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                    Children = { discard, cancel },
+                    // Discard sits furthest from Save on purpose: the destructive
+                    // button should not be the one a fast hand lands on next to
+                    // the safe one.
+                    Children = { discard, cancel, save },
                 },
             },
         };
@@ -2687,12 +2761,27 @@ public partial class MainWindow : Window
 
     private async void OnSaveClicked(object? sender, RoutedEventArgs e) => await SaveDocumentAsAsync();
 
-    private async Task SaveDocumentAsAsync()
+    /// <param name="suggestedName">
+    /// What to put in the picker's name box, when the caller already asked the
+    /// artist for a name.
+    /// </param>
+    /// <remarks>
+    /// <b>B78.</b> B66 added a name prompt before creating a character sheet and
+    /// then offered this dialog for a document with no file — so the artist typed
+    /// a name and was immediately asked for one again, with the first answer
+    /// thrown away. The two prompts ask different questions, *what is this
+    /// called* and *where does it go*, and the second should arrive already
+    /// answering the first. Two correct prompts in sequence are one bad prompt.
+    /// </remarks>
+    private async Task SaveDocumentAsAsync(string? suggestedName = null)
     {
+        var stem = string.IsNullOrWhiteSpace(suggestedName)
+            ? _vm.ActiveTab?.Title ?? "untitled"
+            : suggestedName.Trim();
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save animation",
-            SuggestedFileName = $"{_vm.ActiveTab?.Title ?? "untitled"}.lightbox.json",
+            SuggestedFileName = $"{stem}.lightbox.json",
             FileTypeChoices = [LightboxFileType],
         });
         if (file is null) return;
@@ -2707,7 +2796,20 @@ public partial class MainWindow : Window
     // ---- projects --------------------------------------------------------------
 
     /// <summary>Ctrl+S: save without a picker when the tab already knows where it lives.</summary>
-    private async void OnSaveInPlaceClicked(object? sender, RoutedEventArgs e)
+    private async void OnSaveInPlaceClicked(object? sender, RoutedEventArgs e) =>
+        await SaveOrSaveAsAsync();
+
+    /// <summary>
+    /// Save where the document already lives, or ask where to put it.
+    /// </summary>
+    /// <remarks>
+    /// The rule the Save button has always followed, extracted so the
+    /// unsaved-changes dialog gives the same answer (B75). Two places deciding
+    /// separately what Save means is how they come to disagree — and the one
+    /// that would have been written second is the one an artist meets while
+    /// losing work.
+    /// </remarks>
+    private async Task SaveOrSaveAsAsync(string? suggestedName = null)
     {
         if (_vm.CanSaveInPlace)
         {
@@ -2716,7 +2818,7 @@ public partial class MainWindow : Window
         }
         // Nowhere to put it yet, so Save falls through to Save as… rather than
         // silently doing nothing.
-        await SaveDocumentAsAsync();
+        await SaveDocumentAsAsync(suggestedName);
     }
 
     /// <summary>

@@ -1128,16 +1128,59 @@ public sealed partial class MainViewModel : ObservableObject
     /// to know to add it.
     /// </para>
     /// </remarks>
-    public void AddReferenceSheet()
+    /// <summary>
+    /// A character sheet was created on a document that has no file behind it.
+    /// </summary>
+    /// <remarks>
+    /// <b>B66.</b> A sheet lives in <c>Doc.ReferenceSheets</c>, so it is saved
+    /// when its document is saved and nowhere otherwise — and on an untitled
+    /// document that is nowhere at all. Reported as "character sheets are not
+    /// saved to disk", which is true and is a property of the document rather
+    /// than of the sheet. Q25 answered (a): sheets stay part of a document, and
+    /// the fix is to make sure the document has somewhere to live rather than to
+    /// give the sheet a file of its own.
+    /// </remarks>
+    public event Action? ReferenceSheetNeedsAFile;
+
+    /// <summary>
+    /// Whether a sheet created now would have nothing on disk behind it.
+    /// </summary>
+    /// <remarks>
+    /// Both halves matter and neither is enough alone. <c>FilePath</c> is null
+    /// for a document that has never been saved; <c>Source</c> is null for one
+    /// that is not in a project. A document in a project is saved by the
+    /// project, so it needs no prompt even before its first write — which is the
+    /// "in a project, a character sheet is directly added" half of the report.
+    /// </remarks>
+    public bool AReferenceSheetWouldBeUnsaved =>
+        (SaveTargetTab ?? Tabs[0]) is { FilePath: null, Source: null };
+
+    /// <param name="name">
+    /// What to call it. Null keeps the old numbered default, which is what the
+    /// existing callers pass and what B65's rule says a *new* surface should
+    /// stop doing — the prompt supplies a real name before anything is written.
+    /// </param>
+    public ReferenceSheet AddReferenceSheet(string? name = null)
     {
         var target = SaveTargetTab ?? Tabs[0];
-        target.Doc.ReferenceSheets.Add(new ReferenceSheet
+        var needsAFile = AReferenceSheetWouldBeUnsaved;
+
+        var sheet = new ReferenceSheet
         {
-            Name = $"Character {target.Doc.ReferenceSheets.Count + 1}",
-        });
+            Name = string.IsNullOrWhiteSpace(name)
+                ? $"Character {target.Doc.ReferenceSheets.Count + 1}"
+                : name.Trim(),
+        };
+        target.Doc.ReferenceSheets.Add(sheet);
         target.IsDirty = true;
         MarkDocumentEdited();
         OnPropertyChanged(nameof(ReferenceSheetsView));
+
+        // Announced after the sheet exists, not before: if the artist cancels the
+        // save the work is still there to save later, which is the opposite of
+        // creating nothing and telling them why.
+        if (needsAFile) ReferenceSheetNeedsAFile?.Invoke();
+        return sheet;
     }
 
     /// <inheritdoc cref="AddReferenceSheet"/>

@@ -202,3 +202,88 @@ public class ReferenceAiTests
         Assert.True(render.Ok);
     }
 }
+
+/// <summary>
+/// B66: a character sheet is part of a document (Q25 answered (a)), so the
+/// thing that has to exist on disk is the document it lives in.
+/// </summary>
+public class CharacterSheetFileTests
+{
+
+    // ---- B66: a sheet has somewhere to live ---------------------------------
+
+    /// <summary>
+    /// The reported defect, as the condition the UI acts on: a sheet created on
+    /// an untitled standalone document has no file behind it.
+    /// </summary>
+    [AvaloniaFact]
+    public void ACharacterSheetOutsideAProjectPromptsToSave()
+    {
+        var vm = new MainViewModel(null);
+        var asked = 0;
+        vm.ReferenceSheetNeedsAFile += () => asked++;
+
+        Assert.True(vm.AReferenceSheetWouldBeUnsaved, "a fresh document already has a file somehow");
+        vm.AddReferenceSheet("Knight");
+
+        Assert.Equal(1, asked);
+        // The sheet exists regardless — the save is offered after it is made, so
+        // cancelling keeps the work rather than discarding it.
+        Assert.Contains(vm.ReferenceSheetsView, s => s.Name == "Knight");
+    }
+
+    /// <summary>
+    /// The other half of the report: in a project a sheet is added directly,
+    /// because the project saves the document it lives in.
+    /// </summary>
+    [AvaloniaFact]
+    public void ACharacterSheetInAProjectIsWrittenOnCreation()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-b66-{Guid.NewGuid():N}.lbproj");
+        try
+        {
+            var vm = new MainViewModel(null);
+            vm.NewProject(root, "Knight");
+            vm.ProjectDocker.AddAnimationCommand.Execute(null);
+
+            var asked = 0;
+            vm.ReferenceSheetNeedsAFile += () => asked++;
+
+            Assert.False(
+                vm.AReferenceSheetWouldBeUnsaved,
+                "a document inside a project was reported as having nowhere to live");
+            vm.AddReferenceSheet("Knight sheet");
+
+            Assert.Equal(0, asked);
+            Assert.Contains(vm.ReferenceSheetsView, s => s.Name == "Knight sheet");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// B65's ordering rule on this surface: the name is supplied before anything
+    /// is written, rather than being a number to correct afterwards.
+    /// </summary>
+    [AvaloniaFact]
+    public void ACharacterSheetAsksForItsNameBeforeItsLocation()
+    {
+        var vm = new MainViewModel(null);
+
+        var named = vm.AddReferenceSheet("Rusty knight");
+        Assert.Equal("Rusty knight", named.Name);
+
+        // Whitespace is not a name, and an empty prompt must not produce a sheet
+        // called "   ". It falls back to the numbered default rather than
+        // refusing, because the sheet is already wanted by this point.
+        var blank = vm.AddReferenceSheet("   ");
+        Assert.StartsWith("Character ", blank.Name);
+
+        // The old parameterless call still means what it did, so nothing that
+        // already added a sheet changed behaviour.
+        var legacy = vm.AddReferenceSheet();
+        Assert.StartsWith("Character ", legacy.Name);
+    }
+}

@@ -485,4 +485,86 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         Assert.True(File.Exists(Path.Combine(
             _root, copy.Path.Replace('/', Path.DirectorySeparatorChar))));
     }
+
+    // ---- B61: the docker against what is actually on disk --------------------
+
+    /// <summary>
+    /// The reported defect: a document deleted from disk goes on being listed.
+    /// </summary>
+    /// <remarks>
+    /// The reporter's own follow-up is what this asserts rather than what it
+    /// first looked like — after a restart the files on disk were correct, so
+    /// nothing was wrong with what got written. The docker was describing the
+    /// manifest and calling it the disk.
+    /// </remarks>
+    [AvaloniaFact]
+    public void DeletingAFolderOnDiskRemovesItFromTheDocker()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.SaveProject();
+
+        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+        var path = vm.ProjectDocker.PathOf(row);
+        Assert.NotNull(path);
+        Assert.True(File.Exists(path), "the animation was never written, so this tests nothing");
+        Assert.False(row.Missing);
+
+        File.Delete(path!);
+        vm.ProjectDocker.Refresh();
+
+        var after = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+        Assert.True(
+            after.Missing,
+            "the docker still presents a document whose file has been deleted as though it were there");
+        Assert.True(vm.ProjectDocker.HasMissing);
+        Assert.Equal(1, vm.ProjectDocker.MissingCount);
+    }
+
+    /// <summary>
+    /// The other half, and the one that makes the flag worth having: a refresh
+    /// must not need the application to be restarted.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheDockerRefreshesWithoutBeingReopened()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.SaveProject();
+
+        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+        var path = vm.ProjectDocker.PathOf(row)!;
+        File.Delete(path);
+        vm.ProjectDocker.Refresh();
+        Assert.True(vm.ProjectDocker.HasMissing);
+
+        // And it recovers: putting the file back clears the flag on the next
+        // refresh, so this reports the world rather than latching on first sight.
+        File.WriteAllText(path, "{}");
+        vm.ProjectDocker.Refresh();
+        Assert.False(vm.ProjectDocker.HasMissing);
+        Assert.Equal(0, vm.ProjectDocker.MissingCount);
+    }
+
+    /// <summary>
+    /// An unsaved project has nothing on disk, and marking every row missing
+    /// there would be true and useless.
+    /// </summary>
+    [AvaloniaFact]
+    public void AnUnsavedProjectDoesNotReportEveryRowAsMissing()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+
+        // No SaveProject: nothing has been written anywhere yet.
+        vm.ProjectDocker.Refresh();
+
+        Assert.False(
+            vm.ProjectDocker.HasMissing,
+            "an unsaved project reported its rows as missing from disk, which is true of all of them "
+            + "and tells the artist nothing they can act on");
+    }
 }

@@ -10,6 +10,181 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q25 · Is a character sheet a document, or part of one? — **answered (a)**
+
+**Answered 2026-08-04: (a), it stays part of a document.** No format change, no
+new project-manifest slot, and no new docker row type that is not a file. The
+reported pain is losing work — *"character sheets are not saved to disk"* — and
+that is fixed by making sure there is a file behind the document the sheet lives
+in, which costs one prompt.
+
+The docker-visibility half of the report is answered rather than implemented: a
+character sheet **is** visible in the project docker, as the document that
+contains it. If sheets later need to be shared between documents, that is the
+argument for (b) and it is a better one than this.
+
+**B66 is unblocked** and is now two ordinary pieces: ask for the name before
+writing anything (B65's rule on another surface), and prompt to save a document
+that has never been saved so the sheet has somewhere to live.
+
+**Blocks:** nothing.
+
+The report says: *"Outside of a project (single file) a character sheet is a
+manually saved document. Creating a character sheet should directly prompt
+saving. In a project, a character sheet is directly added, similar to how the
+project dockers add them directly."*
+
+That describes a character sheet as **a document with its own file**. The code
+has it as **part of a document**: a `ReferenceSheet` lives in
+`Doc.ReferenceSheets`, so it is saved when its document is saved and has no file
+of its own. The project manifest holds `DocumentRef` (animations, shots,
+project documents) and `Character` — there is no slot a reference sheet could
+occupy, which is why it cannot appear in the project docker today.
+
+So the two halves of the report need different things, and only one is a defect:
+
+**(a) It stays part of a document, and the bug is that an unsaved document loses
+it.** Then the fix is the prompt: creating a sheet on a never-saved document
+prompts to save, so there is a file behind the work. Nothing in the format
+changes, nothing new appears in the project docker, and "not visible in the
+project docker" is answered with *it is inside a document, and the document is
+listed*. Cheapest by a wide margin.
+
+**(b) It becomes a document in its own right** — its own file, its own
+`DocumentRef`, listed in the docker beside animations. Matches the report's
+wording most literally and makes "add it directly in a project" fall out for
+free. It is a **format change**: sheets move out of `Doc`, existing documents
+need migrating, and `CLAUDE.md`'s rule that a proposal requiring a format change
+has "drifted into redefining what a document is" applies squarely.
+
+**(c) Both — it stays in the document and the docker learns to show it.** No
+format change, and the docker gains a row type that is not a file, which every
+path that maps a row to a path (`PathOf`, reveal, copy path, rename in **B64**)
+then has to have an answer for.
+
+**Recommend (a)**, because the reported pain is losing work — "character sheets
+are not saved to disk" — and (a) fixes exactly that at the cost of one prompt.
+The docker visibility that (b) and (c) buy is a smaller complaint, and (b) spends
+a format migration on it. If sheets later need to be shared between documents,
+that is the argument for (b) and it is a better one than this.
+
+## Q22 · Is a "Document" called a Workfile, and what else is in that menu? — **answered (a)**
+
+**Answered 2026-08-04: (a), *Document* stays.** Fix the grouping and the dead
+entries; do not rename. The report says the *menu* is undecipherable rather than
+the *word*, and folders being visually indistinguishable from files is the
+complaint the fix should answer first. (b) stays available if the confusion
+survives that — but two names for one thing is usually the cause of the next
+confusion, and `Document` is load-bearing in the manual, the roadmap,
+`DocumentRef` and the MCP surface.
+
+**B63 is unblocked entirely**: both halves are now ordinary work.
+
+**Blocks:** nothing.
+
+Raised in a report: the create-in-project menu is "undecipherable — what is a
+folder and what is a workfile", with a suggestion to rename *Document* to
+*Workfile*.
+
+The defect underneath is filed (**B63**: entries that produce nothing, and no
+visual split between folders and files). What cannot be decided from the code is
+the vocabulary. *Document* is used throughout the manual, the roadmap and the
+serialization (`DocumentRef`, `NewDocumentSettings`), so a rename is not a label
+change — it is a rename across the UI, the docs and the artist's mental model.
+
+**(a) Keep *Document*.** Fix only the grouping and the dead entries. Cheapest,
+and the word is already established everywhere else in the product.
+**(b) Rename to *Workfile* in the UI only.** The record keeps `Document`. Solves
+the reported confusion at the cost of two names for one thing, which is the
+thing that usually causes the next confusion.
+**(c) Rename everywhere.** Consistent, and it touches the manual, the roadmap,
+the MCP surface and every serialized name — an expensive change to make for a
+menu.
+
+**Recommend (a) plus B63's grouping fix**, on the grounds that the report says
+the *menu* is undecipherable rather than the *word* — folders and files being
+visually indistinguishable is the complaint the fix should answer first. If the
+confusion survives that, (b) is still available.
+
+## Q23 · How does a tab say whether its document belongs to a project? — **answered (a)**
+
+**Answered 2026-08-04: (a), a badge on the tab.** What was asked for, and the
+whole of the reported need: self-contained, no OS interaction, sitting exactly
+where the ambiguity is. The window title (b) is deliberately not taken now —
+Avalonia sets it per window rather than per tab, so with several tabs open it can
+only ever describe the active one, and that is a second design rather than a
+free addition.
+
+Worth building *after* **B67**, not before: when dockers become document-scoped
+the panels visibly change as tabs switch, and the badge is what stops that
+reading as a bug. Filed as roadmap work rather than a bug — nothing is broken,
+something is absent.
+
+**Blocks:** nothing.
+
+Reported alongside **B67**: "there is no good way to identify open documents
+(tabs) as part of a project or not. A small boxed P in the tab would already
+help a lot. In the title bar of the OS would be a great additional position."
+
+The reporter has proposed a design, which makes this a question about *how far*
+rather than *whether*. It matters more once B67 lands, because when dockers
+become document-scoped the panels an artist sees will change as they switch
+tabs, and a visible reason for the change is what stops that reading as a bug.
+
+**(a) A badge on the tab.** What was asked for. Self-contained, no OS
+interaction, and it sits exactly where the ambiguity is.
+**(b) Badge plus the window title.** The title bar is where every other
+application says which file is open, and Avalonia sets it per window rather than
+per tab — so with multiple tabs it can only describe the active one. That is
+probably fine and is worth saying out loud rather than discovering.
+**(c) The project name rather than a badge.** More informative and much wider;
+tabs are already short on room.
+
+**Recommend (a) first**, because it is the whole of the reported need and is
+cheap, with (b) as a follow-up once B67 makes project membership matter visibly.
+
+## Q24 · What is a saved brush setting scoped to, and does saving it need a button? — **answered: automatic**
+
+**Answered 2026-08-04: automatic persistence, no button.** Brush tuning survives
+a restart on its own; there is no explicit *save settings* action and therefore
+no second mechanism with a different lifetime competing with the first. The
+reported pain was losing settings on restart, and that needs no new concept.
+
+The scope question the button would have forced is deferred with it. `BrushScope`
+already feeds a new document the project's brush
+(`ANewDocumentInTheProjectIsFedThatBrush`), so per-project exists; per-file does
+not, and nothing now requires choosing between them. **B71** is therefore the
+whole of the work, and it keeps the rule that a brush left at its defaults writes
+no keys.
+
+**Blocks:** nothing.
+
+Reported: "individual brush settings need to be cached for the duration of the
+session… when brush settings are changed, present the user a save settings
+button next to the all brush settings. This is stored per file and/or per
+project."
+
+Two decisions are tangled here and only the first is required by the bug.
+
+**Automatic or explicit.** B71 as filed makes tuning survive a restart
+automatically. An explicit *save* button is a different promise — it says the
+tuning is a named thing an artist commits to, and that unsaved changes are
+discardable. Both are defensible; shipping both without deciding gives an artist
+two mechanisms with different lifetimes and no way to tell which one is holding
+their brush.
+
+**And what the scope is.** `BrushScope`/`BrushScopeDefaults` already exist —
+a project feeds a new document its brush, guarded by
+`ANewDocumentInTheProjectIsFedThatBrush` — so *per project* is built. *Per file*
+is not, and the report asks for "per file and/or per project", which is the part
+that needs a person: the two disagree the moment a document in a project is
+opened, and something has to win.
+
+**Recommend automatic persistence (B71) first and the button deferred**, because
+the reported pain is losing settings on restart and that needs no new concept.
+If the button still seems wanted afterwards, it is a small addition to a
+mechanism that exists rather than a second one competing with it.
+
 ## Q11 · What a "reusable animation preset" would be that a cycle symbol is not — **answered (b)**
 
 **Answered 2026-08-03: (b), a timing preset, and the other line is struck as (a).**
@@ -18,10 +193,137 @@ It re-exposes drawings that already exist, which is the half of frame-by-frame
 work a symbol cannot carry — a symbol carries drawings, a timing preset carries
 their spacing.
 
-## Q19 · Are Linux and macOS shipping targets, or only development ones?
+## Q20 · What frame bounds does an Asset project export from an unbounded canvas? — **answered (b), and the question was half wrong**
+
+**Answered 2026-08-04.** Two corrections, and the second one dissolves most of it.
+
+**The premise was too narrow.** This was framed as a game-animation problem, and
+the tool is a drawing, painting *and* animation application. An infinite canvas
+belongs to the **Shot** target — a world the camera frames, delivered as video —
+not to the Asset one, where the canvas *is* the output. The game export pipeline
+is already built and is not what this feature serves.
+
+**And the conflict is not a project-type gate.** An unbounded canvas and a fixed
+frame-bounds sprite export are **mutually exclusive by construction**, in every
+project type — that is a fact about the two features, not about a manifest. So
+nothing is gated: the pair is declared incompatible, the refusal names the fix,
+and authoring an export region resolves it. Reach survives untouched, and
+*Making reach unconditional* stands as written. Recorded as its own roadmap item.
+
+So the answer is **(b), an authored export region** — arrived at from the other
+direction than expected. It is not the rule for deriving bounds from an
+unbounded canvas; it is the thing an artist authors to *make* the canvas bounded
+where a bounded answer is required. (a) is still the right starting value for
+that region — bounds-of-ink as a first guess, then draggable — but it cannot be
+the mechanism, because a derived bound changes silently when a stray mark lands
+in frame 40, and a game build cannot take that.
+
+**Blocks:** nothing now. `docs/DESIGN-infinite-canvas.md` can be built against
+this.
+
+*The analysis below is what the answer was reached from, kept for the reasoning.
+Its framing is the one the answer corrects: it treats the asset case as central.*
+
+`CLAUDE.md` makes both of these first-class, and this is the one place they meet
+head-on. **Assets** — "the canvas *is* the output. There is no camera, frame
+bounds must stay consistent, and every frame is a deliverable." An **infinite
+canvas** is defined by not having bounds. A sprite sheet is defined by having
+consistent ones. So "the asset workflow loses" is not an available answer.
+
+It cannot be answered from the code, because the code has never had to say what
+the edge of a drawing is — `Scene.Width`/`Scene.Height` have always answered it
+and an unbounded canvas removes the answer rather than changing it.
+
+**(a) Bounds of ink, per scene.** Export the rectangle that encloses every
+stroke in the sequence, identical for every frame. Needs nothing authored and it
+is what an artist means by "the drawing". The risk is that it is *derived*: add
+one stray mark in frame 40 and every previously exported frame changes size,
+silently, which is exactly the kind of thing that breaks a game build.
+
+**(b) An authored export region.** A rectangle the artist places once, saved with
+the project. Stable by construction — the property assets need — and it makes
+the bounds a thing you can see and drag rather than a consequence. Costs a UI
+surface and one more thing to set up before the first export.
+
+**(c) The camera, when one exists; ink otherwise.** Reuses machinery that is
+already built, keyframed and exported. But `CLAUDE.md` says a camera is
+shot-level machinery that must stay absent from asset work — this would make the
+asset target depend on the one thing it was defined as not having.
+
+**Recommend (b)**, on the grounds that consistency is the requirement rather
+than convenience, and only (b) gives it by construction. (a) is the better
+default *inside* (b) — an authored region that starts at the bounds of ink is
+one click rather than a blank rectangle.
+
+## Q21 · Is the infinite canvas a document property or a project-type default? — **answered (c), both, and they are not alternatives**
+
+**Answered 2026-08-04: both — and the question contained a false choice.**
+"Document property *or* project default" reads as two designs; it is one. The
+reach rule already says exactly this: a project type decides *what is on, what
+is in front of you, and what a new document starts with — never what the
+application can do*. So the **property lives on the document** (that is the
+capability, available everywhere) and a **project supplies the default** (that
+is what a new document starts with). Answering "both" is the rule applied, not
+a compromise between two readings.
+
+Both cases the answer came from are real and neither needs a mechanism the
+other lacks: somebody making *one* infinite-canvas animation turns the property
+on for that document, and somebody producing a run of product or service
+animations sets it once on the project so every new document starts that way
+rather than switching it on each time.
+
+**The mechanism exists and is proven, which is why this is cheap.** A project
+already feeds new documents a default brush — `BrushScope`,
+`BrushScopeDefaults`, guarded by `ANewDocumentInTheProjectIsFedThatBrush`, and
+by `AProjectThatNeverAsksForThisWritesNoBrushKey` so an unused default writes
+nothing. An infinite-canvas default is the same shape against the same
+precedent. Note it is the **project** that carries it, not only the project
+*type*: a studio's own project can default to unbounded whatever type it is,
+which is what the reach rule means by defaults never deciding availability.
+
+**Blocks:** nothing. It was never a blocker — a project type can only default a
+property that exists, so the document property comes first under either answer.
+
+
+*The analysis below is what the answer was reached from, kept for the reasoning
+rather than as a live recommendation — (a) and (b) turned out to be one design.*
+
+The reach rule settles the hard half already: every feature is reachable in every
+project type, so this is not "who is allowed an infinite canvas". It is what a
+new document starts with, and whether turning it on later is a document edit or a
+project setting.
+
+**(a) A document property, off by default everywhere.** Matches the camera
+exactly — absent from the file until authored, askable for anywhere. Simplest,
+and "optional means absent" falls out for free.
+
+**(b) A project-type default.** A storyboard or an illustration starts unbounded,
+a sprite project starts fixed. More convenient on day one, and it puts a
+behaviour an artist has to reason about into a manifest they rarely open.
+
+**Recommend (a)** until somebody asks for (b), because (a) is a prerequisite for
+(b) rather than an alternative to it: a project type can only default a property
+that already exists.
+
+## Q19 · Are Linux and macOS shipping targets, or only development ones? — **answered (a)**
+
+**Answered 2026-08-04: (a), development targets only — Windows is what ships.**
+The glibc floor is accepted and closes as not-applicable, on this question's own
+reasoning rather than in spite of it: `build.yml` publishes exactly one artifact,
+`win-x64`, so nothing crosses the floor and a rising one cannot lose a user who
+has nothing to download. Anyone on Linux today built from source and therefore
+has a .NET SDK, which puts their distro far above either number.
+
+The consequences, so they are not re-derived: the `net10.0` upgrade is unblocked
+and has landed; **B32**'s fix points **up** (the solution moved to `net10.0`
+rather than the MCP server moving down to `net8.0`); and a `linux-x64` publish
+job stays the separate concern `DESIGN-net10-upgrade.md` files it as, rather than
+becoming part of the upgrade. Revisit if a Linux or macOS artifact is ever
+shipped — that, not the glibc number, is the thing that would make the floor
+matter.
 
 **Blocks:** the `net10.0` decision in `docs/DESIGN-net10-upgrade.md`, and
-whether **B32**'s fix points up or down.
+whether **B32**'s fix points up or down. *(Both now resolved by the answer above.)*
 
 The upgrade is otherwise clean. Avalonia 12.1.1 and SkiaSharp 3.119.4 both
 publish explicit `net10.0` dependency groups, every .NET 9 and .NET 10 breaking

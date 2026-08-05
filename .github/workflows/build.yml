@@ -24,28 +24,19 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
         with:
-          # Both, and both are load-bearing — see docs/DESIGN-net10-upgrade.md.
+          # One line now, and that is the point of the upgrade rather than an
+          # oversight — see docs/DESIGN-net10-upgrade.md.
           #
-          # The 10.0 SDK is what *builds* this: Avalonia 12's source generators
-          # need a newer Roslyn than the .NET 8 SDK ships, even though the code
-          # targets net8.0.
-          #
-          # The 8.0 runtime is what *runs* the tests. A net8.0 assembly does not
-          # roll forward onto a 10.0 runtime — RollForward defaults to Minor,
-          # which will not cross a major version, and nothing here sets it — so
-          # the 10.0 SDK alone compiles the whole solution and then runs not one
-          # test, failing with a missing-framework error that reads like a broken
-          # test project rather than a missing runtime.
-          #
-          # This step used to name 10.0.x alone and pass anyway, because
-          # ubuntu-latest preinstalls .NET 8: the dependency was inherited from
-          # the runner image rather than declared here. That is fine until the
-          # image drops it after .NET 8 leaves support in November 2026, at which
-          # point this workflow breaks for a reason its own YAML never mentioned.
-          # Declared now, where it is used. B53.
-          dotnet-version: |
-            8.0.x
-            10.0.x
+          # The solution targets net10.0 throughout, so the SDK that builds it
+          # carries the runtime that runs it and there is nothing left to
+          # declare separately. This used to name 8.0.x as well, because a
+          # net8.0 test assembly does not roll forward onto a 10.0 runtime
+          # (RollForward defaults to Minor, which will not cross a major
+          # version) — so the 10.0 SDK alone compiled everything and then ran
+          # not one test. B53 was that dependency being inherited from the
+          # ubuntu-latest image rather than declared here; moving the TFM
+          # retires the requirement instead of declaring it.
+          dotnet-version: 10.0.x
       - name: SkiaSharp native dependency
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
       - run: dotnet test Lightbox.sln -c Release
@@ -108,12 +99,23 @@ jobs:
           -c Release -r win-x64 --self-contained true
           -p:PublishTrimmed=false -p:DebugType=none
           -o publish/win-x64
+      # Into the SAME folder as the app, not a subfolder — that is B32's fix and
+      # it is the net10.0 upgrade that made it possible. A self-contained app
+      # only looks for its runtime beside its own executable, so `mcp/` could
+      # never reach the parent's copy and had to carry a second one: 35.3 MB of
+      # a 105 MB bundle. While the app was net8.0 and the server net10.0 those
+      # two copies were genuinely different files and merging them would have
+      # broken whichever executable lost. Both are net10.0 now, so the runtime
+      # files are byte-identical, the second publish overwrites them with the
+      # same bytes, and the two deps.json/runtimeconfig.json pairs have distinct
+      # names and coexist. Measured: the server adds 4 MB instead of 35.3, and
+      # the bundle drops from 105 MB zipped to 74.
       - name: Publish MCP server into the same bundle
         run: >
           dotnet publish src/Lightbox.Mcp/Lightbox.Mcp.csproj
           -c Release -r win-x64 --self-contained true
           -p:PublishTrimmed=false -p:DebugType=none
-          -o publish/win-x64/mcp
+          -o publish/win-x64
       # The artifact (= downloaded zip) name says what kind of build this is:
       #   release-main-…      build of main, for release-style testing
       #   bugfix-<branch>-…   build of a fix/, bugfix/ or hotfix/ branch

@@ -118,7 +118,11 @@ not to rebuild. What is missing is everything that *makes* a tip.
 ### Canvas
 
 - [x] Large canvas optimization `evidence: ComposeRing, FrameBitmapCache, CanvasQuality, LargeCanvasPerformanceTests`
-- [?] Infinite canvas
+- [~] Infinite canvas `evidence: TileStore, TileGrid, StrokeIndex, TileStoreTests, InfiniteCanvasTests, AnUntouchedTileIsNeverAllocated, RecompositingCostsWhatIsOnScreenNotWhatExists, AFixedSizeDocumentWritesNoCanvasKey, ATiledRenderIsBitIdenticalToAnUntiledOne`
+  - Specified in `docs/DESIGN-infinite-canvas.md`, and it was `[?]` until it was measured. **Not an optimisation — a model that cannot be expressed.** `_cache.Get(frame, scene.Width, scene.Height)` allocates one bitmap per layer at document size, and an unbounded canvas has no width to pass. Culling cannot help, because the allocation happens before anything knows what is on screen.
+  - The measurement that settles the order: recompositing is **`n^1.05` in canvas area, cliff at 1440p, 1344% of the playback budget at 8K**, while committing a stroke on the same axis is **`n^0.22`**. Drawing is already canvas-size independent and the drawing floor needs nothing; *showing* the canvas is proportional to the document rather than to the window. One 3-layer frame at 8K is 380 MB against a 512 MB cache — the wall is reached before infinity is.
+  - So tiling is the precondition and culling is the consequence, in that order. A tile is a cache entry rather than a document change: invariant 1 holds, and dropping every tile loses nothing but time.
+  - Blocked on **Q20** — what bounds an Asset project exports from an unbounded canvas, since a sprite sheet is *defined* by consistent frame bounds and this is not derivable from the code.
 - [x] Canvas rotation `evidence: CanvasViewTests, CanvasControl`
 - [x] Canvas mirroring `evidence: MirrorButton, IsMirrored, CanvasViewTests`
 - [x] Render at any output scale without changing the mark `evidence: OutputScaleTests, AHigherOutputScale_RendersTheSameMark, ScalingTheCoordinatesInstead_ProducesADifferentMark`
@@ -128,6 +132,10 @@ not to rebuild. What is missing is everything that *makes* a tip.
   - **The half that matters more is the refusal.** Painting on a hidden layer, a locked layer, an alpha-locked layer with nothing under the brush, filling outside a selection: these currently do nothing and say nothing, and silence is indistinguishable from a broken app. A forbidden cursor turns "it is not working" into "it will not do that here", which the artist can act on. B2's lesson written down as a rule — *even refusing would be better than nothing*.
   - Needs one place that maps (tool, modifiers, what is under the pointer) to a cursor, so the answer cannot disagree between the canvas control and the view model. Testable without a window if the mapping is pure, which is the shape `RigOverlay.CursorFor` already uses.
   - Depends on the icon set below for the artwork, but not for the mechanism: it can ship with system cursors and get custom ones later.
+- [?] Resize canvas and resize image
+  - Resize canvas expands the image with the value added to the x or y. It keeps the DPI and all other canvas related configurations. The content on the canvas stays put. The user wants to be able to select; all direction, down, to either side or up. There should be a preview.
+  - Resize image scales the entire image and changes the dpi of the docment if any is given. and we can optionally constrain the proportions.
+  - For both we can We can chose to resize only x, y or by default link the two so it scales uniformly. And after confirming resize or rescale the canvas is resets to the viewport. 
 
 ### Film-scale line quality
 
@@ -838,6 +846,12 @@ need it in a short.
 - [ ] One registry of features, their defaults per project type, and nothing gated `evidence: FeatureDefaults, FeatureKey, FeatureDefaultsTests, EveryFeatureIsReachableInEveryProjectType, AProjectTypeSetsDefaultsRatherThanAvailability, AFeatureLeftAtItsDefaultWritesNoKey`
   - The registry is the point, and it is the same argument as `ShortcutMap`: the reason to have one is that something else enumerates it. The Configure window needs to list what can be turned on, the new-document path needs the defaults for a type, and the manual needs to say which is which. Three places deriving that from one table cannot disagree; three places each deciding for themselves already have.
   - Derived defaults, not copied ones. A document stores only what its artist changed, so a default that moves in a later version moves for every document that never overrode it — the same reason `BrushCostOf` computes rather than stores.
+- [ ] Features that cannot both be on say so, and a project type never decides it `evidence: FeatureConflict, FeatureConflicts, FeatureConflictTests, TurningOnAFeatureNamesWhatItExcludes, AConflictHoldsInEveryProjectType, AConflictIsRefusedWithItsReasonRatherThanHidden, AuthoringTheMissingThingResolvesTheConflict`
+  - **The category the reach rule did not have a word for, and the reason it looks like a hard limit when it is not.** *Defaults* cover a feature that is off and could be on. What they do not cover is two features that are **mutually exclusive by construction** — an unbounded canvas and a fixed frame-bounds sprite export are not "one is off by default", they contradict each other, and no project type is involved in that being true.
+  - So the limit is declared **between features**, never on a project type: `unbounded canvas` excludes `fixed frame-bounds export`, in a game project and in a short alike. Nothing is locked behind a value in a manifest, which is what the rule above actually forbids, and *Making reach unconditional* stands as written.
+  - **Refused with its reason, never hidden.** A greyed control that does not say why is the same failure as B2 and as the cursor item in Pillar 0 — silence is indistinguishable from a broken app. "Sprite export needs consistent frame bounds; this canvas is unbounded. Author an export region." names the fix.
+  - **A conflict is resolvable, and that is what separates it from a gate.** Authoring the missing thing clears it. That is why this is not a hard limit wearing a different word: there is always a way through, it is just a thing the artist has to say rather than a thing the application guesses.
+  - Same registry as the defaults above, second table. One place enumerates what can be turned on, what a type starts with, and what excludes what — three questions the Configure window, the new-document path and the manual all ask, and three places deriving them separately already disagree.
 - [ ] Changing a project's type changes defaults and never removes work `evidence: ProjectTypeChangeTests, ChangingProjectTypeKeepsEverythingAlreadyAuthored, ChangingProjectTypeMovesOnlyUntouchedDefaults`
   - The consequence of the rule that costs the most to get wrong. If availability were gated, switching a project from Shot to Asset would have to decide what happens to the camera somebody keyframed. With reach unconditional there is nothing to decide: the camera stays, it is simply no longer part of what a new document in that project starts with.
 - [ ] A project's characters are offerable from any project type `evidence: CharacterLibraryReachTests, AnyProjectCanPublishItsCharacters, TheAssetLibraryTypeDefaultsToPublishing`
