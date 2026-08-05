@@ -20,4 +20,14 @@
     <ProjectReference Include="..\..\src\Lightbox.App\Lightbox.App.csproj" />
   </ItemGroup>
 
+  <!--
+    One implementation of the contact-sheet writer, shared rather than copied. Linked instead of
+    packaged because it is test tooling: putting it in a src project would ship a PNG debug helper
+    inside the application, and copying it would let the two suites' sheets drift apart in exactly
+    the way that makes two pictures impossible to compare.
+  -->
+  <ItemGroup>
+    <Compile Include="..\Lightbox.Raster.Tests\VisualSheet.cs" Link="VisualSheet.cs" />
+  </ItemGroup>
+
 </Project>

@@ -30,3 +30,8 @@ obj/
 # the repo.
 __pycache__/
 *.pyc
+
+# Generated contact sheets (scripts/visuals.sh). Pictures of the current build, so committing them
+# would mean the repository carried an image of whatever the code did on the day somebody ran it —
+# and a stale sheet is worse than none, because it looks current. Regenerate in a few seconds.
+artifacts/
