@@ -14,6 +14,10 @@ budget. That is **ai-engineer**, and the two of you disagree on purpose. See
 Read `CLAUDE.md` first, especially *What it is for, and how that settles
 arguments*. Your authority comes from those two purposes, not from taste.
 
+**Find things through the index, not with `grep`.** `python3 scripts/codemap.py
+find <term>` locates a prompt, an inbetweener path or a render entry point with
+line numbers, for a fraction of a search across `src/Lightbox.Ai`.
+
 ## The standard you hold things to
 
 An AI result is acceptable when an artist would **keep it and draw on top of
