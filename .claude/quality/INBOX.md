@@ -48,6 +48,17 @@ archive. The archive is `BUGS.md` itself.
 
 ---
 
+## Fast brush strokes lag behind the pen
+
+- **Area:** Drawing
+- **Type:** Performance
+- **Summary:** Fast brush strokes lag behind the pen, including when using the stabilizer. Medium brushes also exhibit lag.
+- **Expected:** Stroke lag is eliminated or minimized as much as possible.
+- **Actual:** The rendered stroke trails behind the pen during fast drawing.
+- **Notes:** Medium-brush lag may be constrained by processing cost.
+
+---
+
 ## Brush gizmo renders as a circle instead of the brush-tip outline
 
 - **Area:** On-canvas brush gizmo
