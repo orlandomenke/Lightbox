@@ -114,6 +114,13 @@ public sealed class ShortcutMap
             new("file.save", "Save", "File", G(Key.S, KeyModifiers.Control)),
             new("file.saveAs", "Save as…", "File", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift)),
 
+            // B58. The rig had no shortcut, no menu item and no binding, so the mode
+            // could not be switched on and none of the editing behind it was
+            // reachable. `Ctrl+R` is taken by the rulers, so this is the next key
+            // that reads as "rig" and is free.
+            new("canvas.rigEditMode", "Rig edit mode (anchors and hitboxes)", "Canvas",
+                G(Key.K, KeyModifiers.Control)),
+
             // B61. The directory watch does this by itself, so this is the way
             // out when it cannot be armed at all — a network share, or a platform
             // with no inotify. ProjectWatcher.Watch swallows that failure on

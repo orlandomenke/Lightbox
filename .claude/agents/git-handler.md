@@ -89,15 +89,25 @@ the only one that did exactly what it said.
 ### The naming convention
 
 ```
-<type>/<id>-<slug>          fix/B39-effect-brush-scratch
-<type>/<slug>               chore/net10-upgrade
+<type>/<domain>/<id>-<slug>   fix/brush/B39-effect-brush-scratch
+<type>/<slug>                 chore/net10-upgrade
 ```
 
 `<type>` is one of **feat, fix, perf, refactor, docs, test, chore, ci** — the
 Conventional Commits set, because it is the one every reviewer already knows.
-`<id>` is the ledger id when the work has one (`B39`, `B57`) or the roadmap
-item; omit it when it genuinely has none. `<slug>` is two to four words of
-what changes, in kebab-case.
+`<domain>` is the bug's own domain from `BUGS.md` — **brush, timeline, layers,
+canvas, transform, colour, export, project, ui, ai** — so the branch, the ledger
+entry and `bugs.py mine <domain>` all say the same word. `<id>` is the ledger id
+when the work has one (`B39`, `B57`) or the roadmap item; omit both it and the
+domain when the work genuinely has neither, which is what `chore/` branches
+usually are. `<slug>` is two to four words of what changes, in kebab-case.
+
+**Why the domain is in the name.** Work is picked up by area, not by number, and a
+branch list reading `fix/B67-…`, `fix/B62-…`, `fix/B58-…` says nothing about which
+parts of the application are in flight — so two branches heading for the same file
+are invisible until they conflict. That happened: four branches were open at once,
+two of them editing `MainWindow.axaml` and two editing `CanvasControl.cs`, and
+nothing in their names said so.
 
 Three things a branch name may never be: **a chat or session name**, a bare
 id with no words (`fix-3` tells a reader nothing), or a person. If a name is

@@ -213,10 +213,37 @@ def _entry_block(lines: list[str], start: int) -> tuple[list[str], int]:
     return block, i
 
 
-def _sort_key(header: str) -> int:
-    """Newest first, which is the order the file already used by hand."""
+#: Priority order for sorting. Anything unrecognised sorts last rather than first,
+#: because an entry with a malformed priority should not lead the section.
+_PRIORITY_ORDER = {"P1": 0, "P2": 1, "P3": 2, "P4": 3}
+
+#: Emitted per domain group. Regenerated every sync, so it is structure rather than
+#: prose and the parser drops it on the way in.
+SUBHEADING = re.compile(r"^### ")
+
+
+def _sort_key(header: str) -> tuple[str, int, int]:
+    """By domain, then priority, then newest first.
+
+    <b>Domain first because that is how the ledger is read.</b> Nobody opens this
+    file asking "what is the highest-numbered bug"; they open it about to edit the
+    brush engine, or the project docker, and they want that area's defects together
+    — which is what `bugs.py mine <domain>` already answers on the command line and
+    what the file itself did not. Grouping by domain also makes an entry filed under
+    the wrong one obvious on sight, where before it was a token in a line of tokens.
+
+    Priority second so the order inside a group is the order to work in, and id
+    descending last so a tie is broken by recency, which is the order the file used
+    by hand before any of this was mechanical.
+    """
     m = ENTRY.match(header)
-    return -int(m.group("id")[1:]) if m else 0
+    if not m:
+        return ("", 99, 0)
+    return (
+        m.group("domain"),
+        _PRIORITY_ORDER.get(m.group("priority"), 98),
+        -int(m.group("id")[1:]),
+    )
 
 
 def relocate(lines: list[str], bugs: list[Bug]) -> list[str] | None:
@@ -254,6 +281,13 @@ def relocate(lines: list[str], bugs: list[Bug]) -> list[str] | None:
             block, i = _entry_block(lines, i)
             blocks.append((FIXED_HEADING if status.get(i - len(block)) == "x" else OPEN_HEADING, block))
             continue
+        # A domain subheading is emitted by this function, so it must not be read
+        # back as prose — collecting it would append one copy per run and `sync`
+        # would stop being idempotent, which is the exact bug the `---` note below
+        # records. Structure out, structure in.
+        if SUBHEADING.match(line):
+            i += 1
+            continue
         # Section prose — the note under each heading. Kept with its heading rather
         # than treated as an entry, so the explanations do not migrate.
         #
@@ -275,7 +309,17 @@ def relocate(lines: list[str], bugs: list[Bug]) -> list[str] | None:
             rebuilt.append("")
         mine = [b for where, b in blocks if where == heading]
         mine.sort(key=lambda b: _sort_key(b[0]))
+        # One subheading per domain, written as the group starts. A heading with
+        # nothing under it is impossible by construction, which is the point of
+        # emitting it here rather than iterating DOMAINS: a domain with no bugs in
+        # this section simply never appears.
+        current_domain = None
         for block in mine:
+            domain = _sort_key(block[0])[0]
+            if domain and domain != current_domain:
+                current_domain = domain
+                rebuilt.append(f"### {domain}")
+                rebuilt.append("")
             rebuilt.extend(block)
             rebuilt.append("")
         if heading == OPEN_HEADING:

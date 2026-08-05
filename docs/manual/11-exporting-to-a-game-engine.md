@@ -261,9 +261,22 @@ on.
 
 #### Placing them: the rig overlay
 
+Turn it on with **View ▸ Rig ▸ Edit anchors and hitboxes**, or **Ctrl+K**. It is
+a mode rather than a held key: while it is on, dragging on the canvas moves rig
+marks instead of drawing, so you cannot lay down half a stroke while reaching for
+a socket. Turn it off and the overlay goes away completely — nothing sits over the
+drawing when you are not editing the rig.
+
+The same submenu adds a mark in the middle of the canvas — **Add anchor** or
+**Add collision shape** — and deletes the selected one. Both arrive draggable.
+
 Sockets and collision rectangles are placed on the canvas, with one set of
 gestures for both — an anchor is a point and a shape is a rectangle, and the
 overlay treats a point as a rectangle with no size.
+
+Anchors draw as blue crosses and shapes as orange rectangles, so the two kinds
+never blur together; the selected one turns white. An anchor inside a shape is
+drawn on top of it, which matches what a click picks up.
 
 - **Click** a mark to select it. A selected rectangle grows corner handles.
 - **Drag** the body to move; drag a corner to resize. The opposite corner stays
