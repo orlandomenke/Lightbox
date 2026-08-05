@@ -82,6 +82,29 @@ reported 100% coverage on an empty image.
 - [ ] Save produces a `.lightbox.json`; open it in a text editor — it should be readable JSON with strokes and points.
 - [ ] Re-opening the file restores the animation pixel-identically (strokes re-render through the same brush pipeline).
 
+## The brush ring (B72, B74)
+
+Everything here is checked by eye on purpose. The ring is drawn in the canvas's
+render op rather than into the published snapshot, and the suite runs on
+Avalonia's headless *software* drawing, so no test can capture the frame. The
+silhouette is asserted exactly in `BrushTipOutlineTests` and the wiring in
+`BrushGizmoTests`; whether it *looks* right is this list.
+
+- [ ] Hover the canvas, then drag the brush-size slider. The ring resizes as you
+      drag, **without** moving the pointer. (B72 — it used to wait for a move.)
+- [ ] Same with `[` and `]`.
+- [ ] Pick a brush with a chisel tip. The ring is a chisel at the tip's angle, not
+      a circle. Turn **Tip rotation**: the ring turns with it.
+- [ ] Set **Roundness** to about 0.3 on a round brush. The ring flattens into an
+      ellipse.
+- [ ] Import an `.abr` or `.gbr` tip and select it. The ring outlines that tip's
+      actual shape. A tip with holes — a bristle or a ring — shows its holes.
+- [ ] The ring is an outline at every size; nothing is filled in, and at a 300 px
+      brush the line is still about one pixel rather than fat.
+- [ ] Switch to the eraser. The ring shows the *eraser's* tip and size, and
+      switching back shows the brush's again.
+- [ ] Zoom to 800% and to 10%. The ring tracks the mark's on-screen size at both.
+
 ## Cross-platform notes
 
 - Linux: needs `libfontconfig1` (`apt install libfontconfig1`).

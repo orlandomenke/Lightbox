@@ -1626,7 +1626,10 @@
              canvas draws nothing and takes no pointer events, which reads
              exactly like a broken renderer. -->
         <Panel x:Name="CanvasHost" Grid.Column="4">
-          <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}" />
+          <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}"
+                                BrushCursorTipId="{Binding BrushCursorTipId}"
+                                BrushCursorRoundness="{Binding BrushCursorRoundness}"
+                                BrushCursorAngle="{Binding BrushCursorAngle}" />
           <!--
             Rulers, on top of the canvas rather than beside it, so turning them
             on cannot renumber the grid columns the docking rework already got
