@@ -275,8 +275,17 @@ branches collide there by construction. Resolving it is mechanical and the
 resolution is never a hand-merge: take either side and run
 `python3 scripts/codemap.py build`, which derives the file from the merged tree.
 
-**A branch is one objective, and its name says which** — `<type>/<id>-<slug>`,
-as in `fix/B39-effect-brush-scratch`. The agent has the full convention and
+**A branch is one objective, and its name says which** — `<type>/<domain>/<id>-<slug>`
+for a bug, as in `fix/brush/B39-effect-brush-scratch`, and `<type>/<slug>` for work
+that has no ledger id.
+
+**The domain is in the name for the same reason `BUGS.md` groups by it**: work is
+picked up by area, not by number. A branch list reading `fix/B67-…`, `fix/B62-…`,
+`fix/B58-…` says nothing about which parts of the application are in flight, so two
+branches heading for the same file are invisible until they collide. With the domain
+in front, four open branches are legible at a glance. Use the domains `bugs.py`
+already knows — brush, timeline, layers, canvas, transform, colour, export, project,
+ui, ai — so the branch, the ledger entry and `bugs.py mine <domain>` all agree. The agent has the full convention and
 the mechanical checks; the part worth knowing before you start is the reason.
 Branches were once named after the chat that made them
 (`claude/codespaces-agentic-setup-fjq295`), which records **provenance rather
