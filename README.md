@@ -24,7 +24,7 @@ Built with **C# / .NET 10**, **Avalonia** (Windows · macOS · Linux), and **Ski
 
 ## Run on Windows — no admin rights needed
 
-Every code push builds a self-contained Windows bundle in CI:
+Every pull request and every push to `main` builds a self-contained Windows bundle in CI (a branch with no PR open does not — use **Actions ▸ build ▸ Run workflow**, which always builds):
 
 1. Repo → **Actions** tab → newest green `build` run → **Artifacts** → download `Lightbox-win-x64-…` (you must be signed in to GitHub).
 2. Unzip anywhere in your user profile, e.g. `%LOCALAPPDATA%\Lightbox`.
