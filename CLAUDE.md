@@ -103,6 +103,28 @@ constraint fighting it.
 When a request genuinely does not resolve against these, it belongs in
 `.claude/quality/QUESTIONS.md` rather than in a guess.
 
+**Ask it in the conversation first, with a recommendation, and write the file
+afterwards — never the other way round.** A question written straight to
+`QUESTIONS.md` and mentioned in passing is a decision the owner has to go
+looking for, and the file then records deliberation nobody took part in.
+Asking first makes the file record an *answer*; asking after makes it record a
+guess waiting to be corrected.
+
+Two things that make the asking worth the interruption:
+
+- **Lead with a recommendation and the reason for it.** "Here are three
+  options" hands the work back. "(b), because it grows into tagging rather than
+  being replaced by it" is a position that can be agreed with in one word or
+  argued down in two.
+- **Separate what needs deciding from what does not.** Q28 had three live
+  options and one part that was not a preference at all — whichever won,
+  `Flatten` still has to inline resolved references or invariant 1 stops
+  holding. Saying so keeps the question about the actual choice.
+
+Batch them: several questions in one exchange costs one interruption, and the
+answers are usually related enough that seeing them together improves all of
+them.
+
 ## Start here, not with a search
 
 `.claude/codemap/` is a generated index of the whole solution. Reading it

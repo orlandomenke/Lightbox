@@ -720,7 +720,24 @@ the cheap interim if a setting is too much for now.
 
 ---
 
-## Q28 · What is a reference bound to, when a project is a production?
+## Q28 · What is a reference bound to, when a project is a production? — **answered (b)**
+
+**Answered 2026-08-05: (b), a binding list.** A reference names any number of
+targets — the project, one or more folders, specific documents — because
+"multiple folder" was in the request and no single-scope field can express it
+without duplicating the reference.
+
+The reason it beat tags, which is where the wider vision points: a binding list
+**grows into** tagging rather than being replaced by it. A tag becomes a fourth
+kind of target, so `binds: tag/prop` arrives later without touching the model or
+migrating a file. Choosing tags first would have made every reference's reach
+depend on a tag somebody else edited — action at a distance, and the shape
+invariant 4 is suspicious of.
+
+What still needs deciding when it is built: what happens to a binding whose
+folder is deleted while another binding survives. Not a blocker — a reference
+with no remaining bindings is simply project-wide or orphaned, and either is a
+one-line rule — but it should be chosen deliberately rather than fallen into.
 
 Raised 2026-08-05, alongside Q29 and the scope note in the ledger's project
 entries. **Not answerable from the code**, because the code has only ever had
@@ -768,7 +785,20 @@ decision.
 
 ---
 
-## Q29 · Is the project docker the whole surface, or the quick view of one?
+## Q29 · Is the project docker the whole surface, or the quick view of one? — **answered (a)**
+
+**Answered 2026-08-05: (a), settle the split first and build the hierarchy
+shared.** The folder hierarchy is Core model code that both surfaces read, not
+a docker view model that a window later borrows.
+
+The division: **the docker does what you do while drawing** — find it, open it,
+move it, rename it — and **the window does what you do between drawings**:
+bulk operations, tagging, reference binding, status across the production.
+
+This is sequencing rather than taste. Hierarchy is the one piece both surfaces
+need, so building it into the docker first is how it ends up with two
+implementations — and the second one is always written by somebody who cannot
+change the first.
 
 Raised 2026-08-05 by the owner: *"the project docker is part of a larger
 project window where we can do advanced operations. The docker is the quick
