@@ -6,7 +6,7 @@ chat — the loop reads this file at the start of every round and treats an
 answered question as settled.
 
 Questions are removed once implemented, with the decision recorded in
-`LOOP.md`.
+`DECISIONS.md`.
 
 ---
 
@@ -440,7 +440,7 @@ without changing the mechanism.
 brush setting.** `0` means the paint is dry the moment the pen lifts — exactly
 today's behaviour — and `N` means the next `N` strokes can still pick it up.
 
-Kept here rather than moved to `LOOP.md` because the decision is settled and
+Kept here rather than moved to `DECISIONS.md` because the decision is settled and
 the *implementation is not startable*: `MediumSimulator` is a static pure
 function of (coverage, existing pixels, paper, settings) that builds its
 lattice per stroke and discards it. There is no state between strokes for a

@@ -6,7 +6,8 @@ every session, and without quietly breaking what already works.
 ```
 .claude/
   codemap/        generated index — read this instead of searching
-  quality/        the standards, the journal, and the open questions
+  quality/        the standards, the journal, the settled decisions and the
+                  open questions
   agents/         specialists that read a lot and report a little
   skills/improve/ the loop: audit → fix → verify → reflect
   workflows/      deterministic multi-agent orchestration
