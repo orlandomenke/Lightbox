@@ -108,6 +108,33 @@ between them.
 - [ ] Rebind F5 in **Edit ▸ Configure ▸ Shortcuts** and confirm the new key
       works and F5 no longer does.
 
+## The rig overlay (B58)
+
+The whole point of B58 is that this was unreachable, so the first item is the
+bug: before the fix there was no way to get to any of the rest.
+
+- [ ] **View ▸ Rig ▸ Edit anchors and hitboxes** exists, and `Ctrl+K` toggles it.
+      Rebind it in **Edit ▸ Configure ▸ Shortcuts** and confirm the new key works.
+- [ ] With the mode on, **Add anchor** puts a blue cross in the middle of the
+      canvas and **Add collision shape** puts an orange rectangle there. Both are
+      draggable straight away.
+- [ ] Drag the shape's body to move it; drag a corner to resize. The opposite
+      corner stays put, and dragging past it flips the rectangle rather than
+      inverting it.
+- [ ] The selected mark is white and the shape shows four corner handles.
+      Unselected shapes have none.
+- [ ] A drag is **one** undo step, not one per pointer event. `Ctrl+Z` once puts
+      it back where it was.
+- [ ] Click an anchor sitting inside a shape: the anchor is what gets selected,
+      and it is drawn on top.
+- [ ] Zoom to 800% and 10%. Crosses and handles stay the same size on screen.
+- [ ] With the mode on, dragging on empty canvas must **not** paint. Turn the mode
+      off and confirm the same drag does paint again.
+- [ ] Turn the mode off with marks placed: the overlay disappears entirely, rather
+      than staying faintly over the drawing.
+- [ ] Place a socket while parked on a **held** frame, then re-time the sequence.
+      The mark travels with its drawing, and the hold stays a hold.
+
 ## Cross-platform notes
 
 - Linux: needs `libfontconfig1` (`apt install libfontconfig1`).
