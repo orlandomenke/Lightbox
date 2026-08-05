@@ -113,6 +113,13 @@ public sealed class ShortcutMap
             // declared in XAML and missing from here.
             new("file.save", "Save", "File", G(Key.S, KeyModifiers.Control)),
             new("file.saveAs", "Save as…", "File", G(Key.S, KeyModifiers.Control | KeyModifiers.Shift)),
+
+            // B61. The directory watch does this by itself, so this is the way
+            // out when it cannot be armed at all — a network share, or a platform
+            // with no inotify. ProjectWatcher.Watch swallows that failure on
+            // purpose so a project still opens, and a swallowed failure with no
+            // manual path is just the bug again with better manners.
+            new("project.refresh", "Re-read the project from disk", "Dockers", G(Key.F5)),
         ];
     }
 

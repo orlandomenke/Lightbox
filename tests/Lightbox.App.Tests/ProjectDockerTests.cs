@@ -17,13 +17,35 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
     private readonly string _root = Path.Combine(
         Path.GetTempPath(), $"lightbox-app-proj-{Guid.NewGuid():N}.lbproj");
 
+    /// <summary>
+    /// Every view model this class built, so its directory watch can be handed
+    /// back rather than left to a finalizer.
+    /// </summary>
+    /// <remarks>
+    /// <b>B61.</b> Each open project arms one <c>FileSystemWatcher</c>, which on
+    /// Linux is one inotify instance, and the default limit is <b>128 per
+    /// user</b> — this class alone opens thirty-one. Relying on the GC to stay
+    /// under that would work until it did not, and the failure mode is the worst
+    /// available: <c>ProjectWatcher.Watch</c> swallows the resulting
+    /// <c>IOException</c> on purpose, so a network share degrades to a manual
+    /// refresh instead of refusing to open the project. Exhaust the limit and
+    /// tests would go on passing while watching nothing.
+    /// </remarks>
+    private readonly List<MainViewModel> _built = [];
+
     public new void Dispose()
     {
+        foreach (var vm in _built) vm.ProjectDocker.Dispose();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
         base.Dispose();
     }
 
-    private static MainViewModel Vm() => new(null) { SmoothStrokes = false };
+    private MainViewModel Vm()
+    {
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        _built.Add(vm);
+        return vm;
+    }
 
     // ---- absence ------------------------------------------------------------
 
@@ -566,6 +588,288 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
             vm.ProjectDocker.HasMissing,
             "an unsaved project reported its rows as missing from disk, which is true of all of them "
             + "and tells the artist nothing they can act on");
+    }
+
+    // ---- B61: and something has to call Refresh ------------------------------
+
+    /// <summary>
+    /// The watch follows the project, and null — the ordinary state — watches
+    /// nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The three tests above drive <c>Refresh()</c> by hand, which is why the
+    /// <c>Missing</c> flag landed while the reported behaviour did not change:
+    /// <b>nothing in the running application ever called it.</b> A grep for
+    /// <c>.Refresh()</c> across <c>src/</c> found the symbol browser and the
+    /// shortcut editor and no project docker at all.
+    /// </para>
+    /// <para>
+    /// Armed on <c>Adopt</c> because that is the one funnel every project arrives
+    /// through — <c>NewProject</c> and <c>OpenProject</c> both go through it — so
+    /// a future third way in cannot forget. And released when the project goes,
+    /// because a document-first application that never opens a project must not
+    /// hold an OS handle for a folder it does not have.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheWatchFollowsTheProjectAndNotTheApplication()
+    {
+        var vm = Vm();
+        Assert.False(vm.ProjectDocker.Watcher.IsWatching, "a watch was armed before any project existed");
+        Assert.Null(vm.ProjectDocker.Watcher.Root);
+
+        vm.NewProject(_root, "Knight");
+        Assert.True(
+            vm.ProjectDocker.Watcher.IsWatching,
+            "no directory watch was armed, so nothing will ever call Refresh and B61 is unchanged");
+        Assert.Equal(_root, vm.ProjectDocker.Watcher.Root);
+
+        vm.ProjectDocker.Adopt(null);
+        Assert.False(vm.ProjectDocker.Watcher.IsWatching, "closing the project left the folder watched");
+        Assert.Null(vm.ProjectDocker.Watcher.Root);
+    }
+
+    /// <summary>
+    /// A burst of disk events costs one re-read, not one each.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The half of B61 that decides whether the fix is an improvement or a stall.
+    /// A checkout, an unzip or the project's own save fires one event per file
+    /// and arrives as hundreds within a few milliseconds; a docker that re-reads
+    /// per event turns someone else's `git switch` into a freeze.
+    /// </para>
+    /// <para>
+    /// Counted rather than timed, and driven through <c>Notify</c>/<c>Flush</c>
+    /// rather than through the filesystem, so this measures the coalescing and
+    /// not the machine or the OS. <b>A count and not a flag</b>: "it refreshed"
+    /// is also true when it refreshed two hundred times, which is the defect.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ABurstOfDiskEventsCostsOneRefresh()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        var watcher = vm.ProjectDocker.Watcher;
+
+        var before = watcher.Refreshes;
+        for (var i = 0; i < 200; i++) watcher.Notify();
+        Assert.True(watcher.Pending, "200 events left nothing waiting, so none of them registered");
+        Assert.Equal(before, watcher.Refreshes);   // nothing re-read *during* the burst
+
+        watcher.Flush();
+
+        // Exactly one, and the "not vacuous" half: zero would also satisfy "at
+        // most one", and zero is a watcher wired to nothing.
+        Assert.Equal(before + 1, watcher.Refreshes);
+        Assert.False(watcher.Pending);
+
+        // And a flush with nothing waiting is free, so an idle project does not
+        // re-read on a timer.
+        watcher.Flush();
+        Assert.Equal(before + 1, watcher.Refreshes);
+    }
+
+    /// <summary>
+    /// End to end: a file deleted behind the application's back reaches the row,
+    /// with nothing calling <c>Refresh</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two tests above are exact and neither touches the operating system, so
+    /// between them they would pass on a build where <c>FileSystemWatcher</c> was
+    /// constructed and never subscribed to. This is the one that says an inotify
+    /// event actually arrives and reaches the row.
+    /// </para>
+    /// <para>
+    /// <b>Asserted on the outcome rather than on the event, deliberately.</b>
+    /// Counting events would need this test to tell the delete's from the save's,
+    /// which arrive on their own schedule; <c>HasMissing</c> cannot be true before
+    /// the delete however many times the docker re-reads, so the outcome is
+    /// unambiguous where a count would need care. The half before the delete is
+    /// what makes that airtight: pumping and flushing while the file exists must
+    /// leave the flag alone.
+    /// </para>
+    /// <para>
+    /// <b>What is not asserted here: the debounce timer firing.</b> This flushes
+    /// explicitly, because whether a <c>DispatcherTimer</c> ticks under a headless
+    /// pump is a fact about Avalonia's test harness rather than about B61, and a
+    /// test that depends on it would fail for reasons nobody could read. The logic
+    /// that timer drives is <see cref="ABurstOfDiskEventsCostsOneRefresh"/>; the
+    /// wiring between them is one line and is checked by hand
+    /// (<c>MANUAL_TESTING.md</c>).
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ADeletionOnDiskReachesTheRowWithoutARefreshCall()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.SaveProject();
+
+        var watcher = vm.ProjectDocker.Watcher;
+        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+        var path = vm.ProjectDocker.PathOf(row)!;
+        Assert.True(File.Exists(path), "the animation was never written, so this tests nothing");
+
+        // While the file is there, no amount of watching and re-reading may raise
+        // the flag. This is what stops the assertion below being satisfied by a
+        // stray refresh rather than by the deletion.
+        Drain(watcher, until: () => vm.ProjectDocker.HasMissing, TimeSpan.FromMilliseconds(400));
+        Assert.False(
+            vm.ProjectDocker.HasMissing,
+            "a row whose file is present was reported missing, so the assertion below would prove nothing");
+
+        File.Delete(path);
+
+        var noticed = Drain(watcher, until: () => vm.ProjectDocker.HasMissing, TimeSpan.FromSeconds(5));
+        Assert.True(
+            noticed,
+            "five seconds after a file was deleted from the project folder the docker still presented it "
+            + "as though it were there — no filesystem event reached the watcher, which is B61 exactly");
+        Assert.Equal(1, vm.ProjectDocker.MissingCount);
+    }
+
+    /// <summary>
+    /// A re-read keeps the rows it already had, and only those that still stand
+    /// for the same thing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Found by breaking an unrelated test, which is why it is written down
+    /// here.</b> Arming the watch made a save trigger a re-read, the re-read
+    /// rebuilt every row from scratch, and
+    /// <c>WorkspaceTests.TheProjectRowMenuActuallyDoesSomethingWhenClicked</c>
+    /// started failing: it held a row, clicked Status ▸ Ready through the real
+    /// menu, and the click landed on a row that had already been discarded. On
+    /// screen that is invisible — the list looks right — and the interaction is
+    /// silently addressing an object nobody can see any more.
+    /// </para>
+    /// <para>
+    /// It also falsified the reasoning written into <c>ProjectWatcher</c>, which
+    /// had argued that self-inflicted events were harmless because "a re-read is
+    /// idempotent". The cost was right and the side effect was missed, which is
+    /// the shape this repository keeps paying for. A re-read is idempotent
+    /// <em>now</em>.
+    /// </para>
+    /// <para>
+    /// The second half is the one a naive fix gets wrong: keyed reuse alone would
+    /// keep the row when a document is re-filed under another character, because
+    /// <c>Move</c> deliberately keeps the document's id. That row is a different
+    /// row — differently indented, no longer loose — so identity has to be the
+    /// underlying objects rather than the key.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ARefreshKeepsTheRowsThatStillStandForTheSameThing()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.SaveProject();
+
+        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+        vm.ProjectDocker.Selected = row;
+        // Interaction state lives on the row, so a replaced row silently loses it.
+        row.IsRenaming = true;
+
+        vm.ProjectDocker.Refresh();
+
+        Assert.Same(row, vm.ProjectDocker.Rows.First(r => r.Animation is not null));
+        Assert.Same(row, vm.ProjectDocker.Selected);
+        Assert.True(
+            row.IsRenaming,
+            "a re-read discarded the row a rename was in progress on, so the edit box was editing "
+            + "an object no longer in the list");
+
+        // And the negative: re-filed under nothing, the id is unchanged and the row
+        // is not the same row. Found by id rather than by position — project-level
+        // documents are listed after the characters, so the row order changes too.
+        var id = row.Animation!.Id;
+        var moved = vm.ProjectDocker.Move(row, null);
+        Assert.True(moved, "the document was not re-filed, so the check below proves nothing");
+        var after = vm.ProjectDocker.Rows.Single(r => r.Animation?.Id == id);
+        Assert.NotSame(row, after);
+        Assert.True(after.IsLoose, "a document moved to the project should read as a project-level row");
+    }
+
+    /// <summary>
+    /// The manual re-read exists, says what it found, and is rebindable.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not a nicety — the watch's failure path depends on it.</b>
+    /// <c>ProjectWatcher.Watch</c> swallows an <c>IOException</c> so a project on a
+    /// network share or a platform without inotify still opens instead of
+    /// refusing to. That is the right trade only if there is another way to get a
+    /// current view; without one, the swallow turns B61 into a bug with no
+    /// workaround.
+    /// </para>
+    /// <para>
+    /// The registry half is <c>CLAUDE.md</c>'s rule about landing the places a
+    /// feature shows up, and it is the one with a history here: a command wired
+    /// straight to a gesture works perfectly and is invisible to the whole
+    /// configuration system, which is how <c>Ctrl+Shift+S</c> came to have no
+    /// binding at all.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void AManualReReadIsReachableAndReportsWhatItFound()
+    {
+        var map = new Lightbox.App.Services.ShortcutMap();
+        var refresh = map.Definitions.FirstOrDefault(d => d.Id == "project.refresh");
+        Assert.NotNull(refresh);
+        Assert.Equal(Avalonia.Input.Key.F5, refresh!.Default!.Key);
+
+        var vm = Vm();
+
+        // With no project it must be inert rather than throwing: the shortcut is
+        // global, and F5 in a document-first session with no project is ordinary.
+        vm.ProjectDocker.RefreshFromDiskCommand.Execute(null);
+        Assert.Equal(string.Empty, vm.ProjectDocker.Status);
+
+        vm.NewProject(_root, "Knight");
+        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.SaveProject();
+
+        vm.ProjectDocker.RefreshFromDiskCommand.Execute(null);
+        Assert.Contains("everything is where the project says", vm.ProjectDocker.Status);
+
+        var path = vm.ProjectDocker.PathOf(vm.ProjectDocker.Rows.First(r => r.Animation is not null))!;
+        File.Delete(path);
+        vm.ProjectDocker.RefreshFromDiskCommand.Execute(null);
+
+        // Says the number, because "refreshed" with nothing else to show is
+        // indistinguishable from a button wired to nothing.
+        Assert.Contains("1 item is not on disk", vm.ProjectDocker.Status);
+    }
+
+    /// <summary>
+    /// Pump the dispatcher and flush the watcher until <paramref name="until"/>
+    /// holds or the deadline passes. Returns whether it held.
+    /// </summary>
+    /// <remarks>
+    /// The watcher raises on a thread-pool thread and marshals to the UI thread,
+    /// which in a headless test is this thread — so its post does not run until
+    /// something pumps it. This is what pumping looks like. The deadline guards
+    /// against a hang; it is not a latency measurement, and nothing asserts how
+    /// long the loop took.
+    /// </remarks>
+    private static bool Drain(
+        Lightbox.App.Services.ProjectWatcher watcher, Func<bool> until, TimeSpan deadline)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            watcher.Flush();
+            if (until()) return true;
+            if (clock.Elapsed >= deadline) return false;
+            Thread.Sleep(10);
+        }
     }
 
     // ---- B65: the name is asked for before anything is written ---------------

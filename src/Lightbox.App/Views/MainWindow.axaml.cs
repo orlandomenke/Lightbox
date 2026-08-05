@@ -2413,6 +2413,13 @@ public partial class MainWindow : Window
             case "canvas.transform":
                 if (!_vm.TransformActive) _vm.BeginTransform();
                 break;
+            case "project.refresh":
+                // Harmless with no project — the command guards on it — so this
+                // does not need a HasProject check that could drift from the one
+                // in the view model.
+                _vm.ProjectDocker.RefreshFromDiskCommand.Execute(null);
+                e.Handled = true;
+                break;
             case "canvas.pickColor":
                 _vm.ActiveTool = ToolId.Picker;
                 break;

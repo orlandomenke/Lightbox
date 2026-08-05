@@ -82,6 +82,32 @@ reported 100% coverage on an empty image.
 - [ ] Save produces a `.lightbox.json`; open it in a text editor — it should be readable JSON with strokes and points.
 - [ ] Re-opening the file restores the animation pixel-identically (strokes re-render through the same brush pipeline).
 
+## Project panel against the disk (B61)
+
+The one link no test asserts is the debounce **timer** firing: whether a
+`DispatcherTimer` ticks under a headless pump is a fact about Avalonia's test
+harness rather than about the fix, so a test resting on it would fail for
+reasons nobody could read. The coalescing it drives is covered by
+`ProjectDockerTests.ABurstOfDiskEventsCostsOneRefresh`, and the event actually
+arriving by `ADeletionOnDiskReachesTheRowWithoutARefreshCall`. This is the line
+between them.
+
+- [ ] With a project open, delete one of its animation files in a file manager.
+      Within about a second, and **without touching Lightbox**, that row reads
+      *not on disk*. It must not disappear.
+- [ ] Put the file back. The flag clears on its own, so this reports the world
+      rather than latching on first sight.
+- [ ] Switch a git branch, or unzip something, inside the project folder. The
+      panel updates once and does not stutter — a burst has to cost one re-read,
+      not one per file.
+- [ ] Start a rename (right-click ▸ Rename…), then save with `Ctrl+S` while the
+      edit box is open. The row being renamed must still be the row you were
+      editing.
+- [ ] Press **F5**, and click **⟳** in the panel header. Both report what they
+      found in the panel's status line.
+- [ ] Rebind F5 in **Edit ▸ Configure ▸ Shortcuts** and confirm the new key
+      works and F5 no longer does.
+
 ## Cross-platform notes
 
 - Linux: needs `libfontconfig1` (`apt install libfontconfig1`).

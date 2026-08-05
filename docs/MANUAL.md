@@ -301,6 +301,19 @@ The **🗁** at the right of the panel's header opens the project folder itself 
 the one path that is always there, however little of the project has been
 created yet.
 
+**The panel keeps up with the folder on its own.** Lightbox watches the project
+directory, so a document you delete in a file manager, a folder another program
+writes, or a branch you switch in git all show up without reopening anything.
+A row whose file is no longer there is marked **not on disk** rather than
+removed: "this is in your project and I cannot find it" is the true statement,
+and taking it out of the project stays your decision.
+
+**⟳** in the header, or **F5**, re-reads on demand and says what it found. You
+should rarely need it — it is there for the places a directory watch cannot be
+set up, a network share being the usual one, where a project still opens
+normally and this is how you get a current view. Like every shortcut in
+Lightbox, F5 is rebindable in **Edit ▸ Configure ▸ Shortcuts**.
+
 **Drag a document onto another character** to re-file it, or onto a
 project-level row to take it out of every character. It keeps its identity, so
 a tab already showing it stays bound to it. The file on disk is not moved
