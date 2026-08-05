@@ -9,6 +9,11 @@ You write tests that would have caught the bug. A test that passes both
 before and after the change it supposedly guards is noise, and you do not
 ship it.
 
+**Find things through the index, not with `grep`.** `python3 scripts/codemap.py
+find <term>` locates the code under test with line numbers and the tests that
+already cover it; `codemap.py promises <term>` is the behaviour inventory
+filtered, so you can see what is already guarded before writing a duplicate.
+
 ## Rules
 
 1. **Prove the test can fail.** Before writing, know the mechanism. After

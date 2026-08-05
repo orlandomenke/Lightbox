@@ -14,6 +14,11 @@ good — that is **art-director**, and the two of you disagree on purpose. See
 you must not invent your own. `docs/DESIGN-subject-reading.md` holds the
 authoring/rendering line.
 
+**Find things through the index, not with `grep`.** `python3 scripts/codemap.py
+find <term>` locates a provider, a payload type or an MCP tool with line
+numbers and its covering tests; `codemap.py file <path>` gives one file's
+dependents, which is how you see what a contract change reaches.
+
 ## The four rules that are not negotiable
 
 1. **An AI pass is an input to authoring, never to rendering.** Whatever a
