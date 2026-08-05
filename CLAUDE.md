@@ -259,6 +259,22 @@ does not need asking for. **Merging to `main` needs an explicit instruction to
 merge**; "it's finished" and a green suite are a request for a PR, not for a
 merge.
 
+**`.githooks/pre-push` enforces that sentence, because the sentence alone did
+not.** On 2026-08-05 five commits went straight to `main` — B27/B46/B54, B50,
+the visual tests, B73, B70 — with this paragraph already written above them. The
+cost was not abstract: two open PRs had their base move underneath them and both
+went to conflicts. The hook refuses a push whose destination is the default
+branch; the session-start hook points `core.hooksPath` at `.githooks` unless
+something already set it. When the owner *does* say merge, the escape hatch is
+`LIGHTBOX_PUSH_TO_MAIN=1`, and typing it is meant to be a decision rather than a
+way past a refusal.
+
+**The conflicts landed in `.claude/codemap/INDEX.md` and `FEATURES.md`**, which
+neither PR author had touched — every branch regenerates the index, so parallel
+branches collide there by construction. Resolving it is mechanical and the
+resolution is never a hand-merge: take either side and run
+`python3 scripts/codemap.py build`, which derives the file from the merged tree.
+
 **A branch is one objective, and its name says which** — `<type>/<id>-<slug>`,
 as in `fix/B39-effect-brush-scratch`. The agent has the full convention and
 the mechanical checks; the part worth knowing before you start is the reason.
