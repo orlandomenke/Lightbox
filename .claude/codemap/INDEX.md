@@ -1,6 +1,6 @@
 # Code index
 
-439 files · 109409 lines · 2287 tests.
+441 files · 109818 lines · 2293 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -59,7 +59,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MainViewModel:20
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (811 ln) · 87 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (811 ln) · 88 test files
   - SpriteTrim:12, SpritePack:37, SpriteSheetOptions:63, SpriteSheetResult:103, SpriteSheetExporter:152, SheetDocument:683, SheetFrame:689, SheetMeta:722 …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (802 ln) · 4 test files
   - ProjectRow:19, ProjectViewModel:162, NewItemKind:396
@@ -271,7 +271,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectIo:31, ConversionReport:544
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (632 ln) · 8 test files
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 73 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 74 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
@@ -335,9 +335,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - UnrealConvert:31
 - `src/Lightbox.Core/Export/UnityConvert.cs` (138 ln) · 2 test files
   - UnityConvert:34
-- `src/Lightbox.Core/Documents/Stroke.cs` (129 ln) · 86 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (129 ln) · 87 test files
   - Stroke:9, BakedSample:121
-- `src/Lightbox.Core/Geometry/TileGrid.cs` (125 ln) · 3 test files
+- `src/Lightbox.Core/Geometry/TileGrid.cs` (125 ln) · 4 test files
   - TileGrid:33
 - `src/Lightbox.Core/Timeline/ExposureSheet.cs` (125 ln) · 4 test files
   - ExposureSheet:8
@@ -387,7 +387,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeInterpolator:6
 - `src/Lightbox.Core/Geometry/ColorOps.cs` (29 ln) · 1 test files
   - ColorOps:3
-- `src/Lightbox.Core/Documents/ToolKind.cs` (23 ln) · 68 test files
+- `src/Lightbox.Core/Documents/ToolKind.cs` (23 ln) · 69 test files
   - ToolKind:3
 - `src/Lightbox.Core/Inbetween/Easing.cs` (20 ln) · 9 test files
   - Easing:3, EasingOps:11
@@ -424,7 +424,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FloodFill:13, Options:15, Result:21, ContourTracer:297
 - `src/Lightbox.Raster/Tips/TipGenerator.cs` (420 ln) · 3 test files
   - TipGenerator:33
-- `src/Lightbox.Raster/Media/PaperField.cs` (406 ln) · 3 test files
+- `src/Lightbox.Raster/Media/PaperField.cs` (406 ln) · 4 test files
   - PaperField:26, Tile:81
 - `src/Lightbox.Raster/Media/PigmentModel.cs` (356 ln) · 3 test files
   - Pigment:31
@@ -436,15 +436,17 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipImageSettings:15, TipImageResult:43, TipFromImage:68
 - `src/Lightbox.Raster/BrushPreviewRenderer.cs` (248 ln) · 2 test files
   - BrushPreviewRenderer:34
-- `src/Lightbox.Raster/TiledRasterizer.cs` (216 ln) · 1 test files
+- `src/Lightbox.Raster/TiledRasterizer.cs` (216 ln) · 2 test files
   - TiledRasterizer:37
-- `src/Lightbox.Raster/TileStore.cs` (174 ln) · 2 test files
+- `src/Lightbox.Raster/TileStore.cs` (175 ln) · 3 test files
   - TileStore:37
 - `src/Lightbox.Raster/StrokeIndex.cs` (151 ln) · 1 test files
   - StrokeIndex:37
+- `src/Lightbox.Raster/TileCompositor.cs` (147 ln) · 1 test files
+  - TileCompositor:52
 - `src/Lightbox.Raster/Tips/TipCatalogue.cs` (135 ln) · 3 test files
   - TipCatalogue:32
-- `src/Lightbox.Raster/FrameRasterizer.cs` (128 ln) · 24 test files
+- `src/Lightbox.Raster/FrameRasterizer.cs` (128 ln) · 25 test files
   - FrameRasterizer:10
 - `src/Lightbox.Raster/Media/Impasto.cs` (128 ln) · 1 test files
   - Impasto:40

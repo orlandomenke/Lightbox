@@ -272,6 +272,13 @@ decision goes to `QUESTIONS.md` and is left alone.
   - After: a 40 px stroke reaches **58 px** at 24 steps against 40 with no flow — 45%, against 20% before — and it keeps growing with the control (44 → 52 → 62 across 4, 12 and 32 steps) rather than flattening at 48 whatever you asked for. Cost: M
   - The lesson is the one this session keeps relearning: the measurement was real and the attribution was not. Two constants would have been changed on the strength of a plausible story if the front had not been measured first.
 
+- [ ] **B81** `P3` `project` Two questions are called Q20 and two are called Q21, so a cross-reference can land on the wrong one `evidence: manual`
+  - Repro: `python3 scripts/bugs.py check` already reports it — `DUPLICATE Q Q20 used 2 times`. `QUESTIONS.md` has **Q20** at both *"What frame bounds does an Asset project export from an unbounded canvas?"* and *"When a textured line is re-shaped, may its texture change?"*, and **Q21** at both *"Is the infinite canvas a document property or a project-type default?"* and *"How big does a reference the model has to read need to be?"*.
+  - It is already wrong in the docs rather than merely risky: `docs/DESIGN-ai-payload.md` cites **Q21** meaning reference-image size while `docs/DESIGN-infinite-canvas.md` and `ROADMAP.md` cite **Q21** meaning the canvas property. Same token, two referents, no way for a reader to tell which without opening the file and guessing from context.
+  - Cause: the file's own convention is that *"questions are removed once implemented, with the decision recorded in `LOOP.md`"*. Removing an answered question frees its number, and the next question took it while the answered one was still there — so the collision is the removal step not having happened, rather than anybody mis-numbering.
+  - Fix: renumber the later pair to Q26/Q27 (highest is Q25) and update the seven cross-references — `BUGS.md`, `ROADMAP.md`, `docs/DESIGN-ai-payload.md`, `docs/DESIGN-infinite-canvas.md`, `src/Lightbox.Raster/TileStore.cs`. Which of each pair keeps its number is a judgement about which is more cited, so it wants an owner rather than a guess. Then make `bugs.py check`'s duplicate report fail the gate instead of only printing, or it recurs. Cost: S
+  - P3 because it misleads a reader rather than breaking a build, and the affected references are all in documents an agent reads before working. Left unfixed it gets worse monotonically: every new citation of Q20 or Q21 is another one that has to be disambiguated by hand. The infinite-canvas references were qualified in place as a stopgap, which is a workaround and is not the fix.
+
 ---
 
 ## Fixed
