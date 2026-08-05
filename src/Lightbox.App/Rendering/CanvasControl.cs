@@ -27,6 +27,52 @@ namespace Lightbox.App.Rendering;
 /// </summary>
 public sealed class CanvasControl : Control
 {
+    /// <summary>
+    /// Repaint when a property that is only read at draw time changes.
+    /// </summary>
+    /// <remarks>
+    /// <b>B72.</b> <see cref="BrushCursorSize"/> is read inside
+    /// <see cref="Render"/> and nothing invalidated when it changed, so the ring
+    /// kept its old size until the pointer moved and invalidated for its own
+    /// reasons. The view model was right, the binding was right, and the canvas
+    /// was showing a stale answer to the one question the gizmo exists to answer.
+    /// <para>
+    /// A <c>StyledProperty</c> does not imply a repaint — that is what
+    /// <c>AffectsRender</c> is for, and its absence is invisible in every test
+    /// that moves a pointer before looking. <see cref="LazyRadius"/> was in the
+    /// same position and is listed for the same reason rather than because anybody
+    /// reported it.
+    /// </para>
+    /// </remarks>
+    /// <remarks>
+    /// A named list rather than an inline argument list, because it is the thing
+    /// that goes wrong: a new property read inside <see cref="Render"/> and not
+    /// added here is invisible to every test that moves a pointer before looking,
+    /// which is every test. <c>CanvasCursorTests</c> asserts the membership, and
+    /// what that guards is the registration rather than Avalonia's own plumbing —
+    /// worth saying, because the two are easy to conflate.
+    /// </remarks>
+    /// <remarks>
+    /// Filled in the static constructor rather than here: static field
+    /// initializers run in declaration order, and the properties this names are
+    /// declared below — so an initializer would capture five nulls and
+    /// <c>AffectsRender</c> would register nothing at all. It compiled.
+    /// </remarks>
+    public static readonly AvaloniaProperty[] RepaintOnChange;
+
+    static CanvasControl()
+    {
+        RepaintOnChange =
+        [
+            BrushCursorSizeProperty,
+            BrushCursorTipIdProperty,
+            BrushCursorRoundnessProperty,
+            BrushCursorAngleProperty,
+            LazyRadiusProperty,
+        ];
+        AffectsRender<CanvasControl>(RepaintOnChange);
+    }
+
     /// <summary>Current tool size in document units — drives the brush-shape cursor.</summary>
     public static readonly StyledProperty<double> BrushCursorSizeProperty =
         AvaloniaProperty.Register<CanvasControl, double>(nameof(BrushCursorSize), 6.0);
@@ -35,6 +81,51 @@ public sealed class CanvasControl : Control
     {
         get => GetValue(BrushCursorSizeProperty);
         set => SetValue(BrushCursorSizeProperty, value);
+    }
+
+    /// <summary>
+    /// The tip the cursor should outline, or null for the round dab.
+    /// </summary>
+    /// <remarks>
+    /// <b>B74.</b> An id rather than a shape: the outline is traced from the tip
+    /// bitmap the engine actually stamps
+    /// (<see cref="Lightbox.Raster.BrushTipOutline"/>), so the preview cannot
+    /// disagree with the mark. Passing a shape down from the view model would be a
+    /// second description of the same thing.
+    /// </remarks>
+    public static readonly StyledProperty<string?> BrushCursorTipIdProperty =
+        AvaloniaProperty.Register<CanvasControl, string?>(nameof(BrushCursorTipId));
+
+    public string? BrushCursorTipId
+    {
+        get => GetValue(BrushCursorTipIdProperty);
+        set => SetValue(BrushCursorTipIdProperty, value);
+    }
+
+    /// <summary>How flat the dab is: 1 round, below that an ellipse.</summary>
+    /// <remarks>
+    /// The nominal value from the brush, not <c>RoundnessAt</c>'s per-dab result.
+    /// That one is jittered from the dab's position by <c>Hash01</c>, and a cursor
+    /// that flickered as the pointer moved would be reporting the jitter rather
+    /// than the brush.
+    /// </remarks>
+    public static readonly StyledProperty<double> BrushCursorRoundnessProperty =
+        AvaloniaProperty.Register<CanvasControl, double>(nameof(BrushCursorRoundness), 1.0);
+
+    public double BrushCursorRoundness
+    {
+        get => GetValue(BrushCursorRoundnessProperty);
+        set => SetValue(BrushCursorRoundnessProperty, value);
+    }
+
+    /// <summary>The dab's angle in degrees, so a chisel is previewed at its angle.</summary>
+    public static readonly StyledProperty<double> BrushCursorAngleProperty =
+        AvaloniaProperty.Register<CanvasControl, double>(nameof(BrushCursorAngle));
+
+    public double BrushCursorAngle
+    {
+        get => GetValue(BrushCursorAngleProperty);
+        set => SetValue(BrushCursorAngleProperty, value);
     }
 
     /// <summary>Pulled-string dead-zone radius in document pixels (0 = gizmo hidden).</summary>
@@ -1180,7 +1271,11 @@ public sealed class CanvasControl : Control
         if (_hoverPoint is { } p)
         {
             var radius = (float)Math.Max(1.0, BrushCursorSize / 2 * FitScale() * _zoom);
-            cursor = new BrushCursor((float)p.X, (float)p.Y, radius);
+            cursor = new BrushCursor(
+                (float)p.X, (float)p.Y, radius,
+                (float)Math.Clamp(BrushCursorRoundness, 0.05, 1.0),
+                (float)BrushCursorAngle,
+                TipOutlinePath(BrushCursorTipId));
         }
         var view = new ViewState(
             snapshot.DocWidth,
@@ -1237,6 +1332,53 @@ public sealed class CanvasControl : Control
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, Guides, _draftGuide));
+    }
+
+    /// <summary>
+    /// The tip's outline as a unit-space path, built once per tip.
+    /// </summary>
+    /// <remarks>
+    /// <b>B74.</b> <c>BrushTipOutline</c> caches the trace; this caches the
+    /// <see cref="SKPath"/> built from it, because <c>Render</c> runs on every
+    /// pointer move and building a few hundred-segment path per frame is the same
+    /// mistake one level up. Keyed by tip id, and only ever holding one — the
+    /// cursor shows one brush at a time, so a dictionary would be a cache with no
+    /// second entry.
+    /// </remarks>
+    private string? _outlineTipId;
+    private SKPath? _outlinePath;
+
+    private SKPath? TipOutlinePath(string? tipId)
+    {
+        if (string.IsNullOrEmpty(tipId))
+        {
+            _outlinePath?.Dispose();
+            _outlinePath = null;
+            _outlineTipId = null;
+            return null;
+        }
+        if (string.Equals(tipId, _outlineTipId, StringComparison.Ordinal)) return _outlinePath;
+
+        _outlinePath?.Dispose();
+        _outlinePath = null;
+        _outlineTipId = tipId;
+
+        if (Lightbox.Raster.BrushTipOutline.Of(tipId) is not { Count: > 0 } contours) return null;
+
+        var path = new SKPath();
+        foreach (var contour in contours)
+        {
+            if (contour.Count < 3) continue;
+            path.MoveTo((float)contour[0].X, (float)contour[0].Y);
+            for (var i = 1; i < contour.Count; i++)
+            {
+                path.LineTo((float)contour[i].X, (float)contour[i].Y);
+            }
+            path.Close();
+        }
+        _outlinePath = path.IsEmpty ? null : path;
+        if (_outlinePath is null) path.Dispose();
+        return _outlinePath;
     }
 
     // ---- view <-> document transform ---------------------------------------
@@ -1957,8 +2099,20 @@ public sealed class CanvasControl : Control
 
     // ---- render-thread blit -------------------------------------------------
 
-    /// <summary>Brush cursor in view space (radius already view-scaled).</summary>
-    private readonly record struct BrushCursor(float X, float Y, float Radius);
+    /// <summary>
+    /// Brush cursor in view space (radius already view-scaled).
+    /// </summary>
+    /// <remarks>
+    /// <b>B74.</b> <see cref="Outline"/> is the tip's silhouette in unit space,
+    /// already traced and cached by <c>BrushTipOutline</c>, or null for a brush
+    /// with no tip — where <see cref="Roundness"/> and <see cref="AngleDeg"/>
+    /// describe the ellipse the engine's round dab actually is.
+    /// </remarks>
+    private readonly record struct BrushCursor(
+        float X, float Y, float Radius,
+        float Roundness = 1f,
+        float AngleDeg = 0f,
+        SKPath? Outline = null);
 
     /// <summary>Pulled-string gizmo, all in document space: dead zone around the cursor, string, anchor.</summary>
     private readonly record struct LazyGizmo(
@@ -2426,11 +2580,6 @@ public sealed class CanvasControl : Control
         }
 
         /// <summary>
-        /// The tool cursor: today the brush footprint is always a circle, so a
-        /// dark/light double ring keeps it visible on any background. New brush
-        /// shapes plug in here.
-        /// </summary>
-        /// <summary>
         /// The transparency checkerboard, behind the page. Drawn here rather
         /// than composited into the document, because it is a way of *seeing*
         /// the artwork, not part of it — the same reason zoom and rotation
@@ -2466,6 +2615,32 @@ public sealed class CanvasControl : Control
             canvas.Restore();
         }
 
+        /// <summary>
+        /// The tool cursor: the shape of the mark, outlined dark over light so it
+        /// stays visible on any background.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>B74.</b> This drew two concentric circles whatever the brush was, and
+        /// its own comment said so — "today the brush footprint is always a circle
+        /// … new brush shapes plug in here". It had not been a circle for a long
+        /// time: a tip, a roundness below 1 or an angle each make the dab something
+        /// else, and the gizmo went on confidently reporting a circle.
+        /// </para>
+        /// <para>
+        /// Three cases, in the order they cost anything: a traced tip outline, an
+        /// ellipse when roundness is below 1, and the circle for the ordinary round
+        /// dab — which is drawn as a circle rather than as a degenerate ellipse so
+        /// the overwhelmingly common brush keeps exactly the two draw calls it had.
+        /// </para>
+        /// <para>
+        /// <b>Outline only, and stroked rather than filled</b>, because the
+        /// reporter was explicit and because a filled preview hides the artwork
+        /// underneath at the moment an artist is deciding where to put a mark. The
+        /// light ring is drawn inside the dark one by the stroke width, which is
+        /// what makes the pair read as one edge instead of two.
+        /// </para>
+        /// </remarks>
         private static void DrawBrushCursor(SKCanvas canvas, BrushCursor c)
         {
             using var dark = new SKPaint
@@ -2482,6 +2657,46 @@ public sealed class CanvasControl : Control
                 StrokeWidth = 1.2f,
                 Color = new SKColor(255, 255, 255, 200),
             };
+
+            if (c.Outline is { } outline)
+            {
+                // Unit space to view space: the diameter is 2r, and the tip's own
+                // aspect is already in the traced contour — so roundness flattens
+                // it further rather than defining it, exactly as the engine
+                // multiplies roundness onto whatever tip it is stamping.
+                canvas.Save();
+                canvas.Translate(c.X, c.Y);
+                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
+                canvas.Scale(c.Radius * 2, c.Radius * 2 * c.Roundness);
+                // The stroke is scaled with the canvas, so undo it in the paint or
+                // a big brush gets a fat ring and a small one gets none.
+                dark.StrokeWidth = 1.2f / (c.Radius * 2);
+                light.StrokeWidth = 1.2f / (c.Radius * 2);
+                canvas.DrawPath(outline, dark);
+                canvas.Restore();
+
+                canvas.Save();
+                canvas.Translate(c.X, c.Y);
+                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
+                var inner = Math.Max(0.5f, c.Radius - 1.2f);
+                canvas.Scale(inner * 2, inner * 2 * c.Roundness);
+                canvas.DrawPath(outline, light);
+                canvas.Restore();
+                return;
+            }
+
+            if (c.Roundness < 0.999f || c.AngleDeg != 0)
+            {
+                canvas.Save();
+                canvas.Translate(c.X, c.Y);
+                if (c.AngleDeg != 0) canvas.RotateDegrees(c.AngleDeg);
+                canvas.DrawOval(new SKRect(-c.Radius, -c.Radius * c.Roundness, c.Radius, c.Radius * c.Roundness), dark);
+                var r = Math.Max(0.5f, c.Radius - 1.2f);
+                canvas.DrawOval(new SKRect(-r, -r * c.Roundness, r, r * c.Roundness), light);
+                canvas.Restore();
+                return;
+            }
+
             canvas.DrawCircle(c.X, c.Y, c.Radius, dark);
             canvas.DrawCircle(c.X, c.Y, Math.Max(0.5f, c.Radius - 1.2f), light);
         }

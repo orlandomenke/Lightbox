@@ -768,6 +768,31 @@ fraction behind the cursor. That is the last stroke of the brush waiting until i
 knows which way you turned, and it is deliberate — the alternative is stamps that
 visibly jump into place.
 
+### The ring on the canvas
+
+The outline that follows the pointer is the brush's own footprint, not a stand-in
+for it:
+
+- **The size is the size**, taken from the same call the engine makes for each
+  dab. With a pen it tracks live pressure while you draw and shows the maximum
+  while you hover, so it stays useful for aiming; **Configure ▸ Canvas** turns
+  the pressure tracking off if you prefer a fixed target.
+- **The shape is the tip's shape.** A chisel is previewed as a chisel, a bristle
+  comb keeps its gaps, and an imported `.abr` or `.gbr` tip is outlined from the
+  same image the brush stamps — so the ring cannot disagree with the mark. A
+  brush with no tip shows the ellipse the round dab genuinely is, flattened by
+  **Roundness** and turned by **Tip rotation**.
+- **It is an outline, never a fill**, so nothing is hidden at the moment you are
+  deciding where to put a mark.
+
+Two things it deliberately does not show, because they belong to the mark rather
+than to the brush: the per-dab jitter on roundness and rotation, which would make
+the ring wobble as you moved; and the angle a direction-following tip takes, since
+a hovering pointer has no direction yet.
+
+The ring updates the moment you change a setting — you do not have to move the
+pointer to see the new size.
+
 ### Drawing fast
 
 A pen reports its position at a fixed rate, so the faster you draw, the further

@@ -1,6 +1,6 @@
 # Code index
 
-451 files · 113297 lines · 2323 tests.
+454 files · 114167 lines · 2333 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,14 +47,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9388 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4155, TransformParts:6347
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3791 ln) · 11 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9425 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4192, TransformParts:6384
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3791 ln) · 12 test files
   - MainWindow:18, UnsavedChoice:2671
-- `src/Lightbox.App/Views/MainWindow.axaml` (3152 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3155 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
-- `src/Lightbox.App/Rendering/CanvasControl.cs` (2489 ln) · 6 test files
-  - CanvasControl:28, CanvasToolMode:492, GridGesture:548, TxDrag:695, DrawOp:2019
+- `src/Lightbox.App/Rendering/CanvasControl.cs` (2704 ln) · 7 test files
+  - CanvasControl:28, CanvasToolMode:583, GridGesture:639, TxDrag:786, DrawOp:2173
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (938 ln) · 4 test files
   - ProjectRow:19, ProjectViewModel:197, NewItemKind:532
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
@@ -89,9 +89,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ExportWindow:33
 - `src/Lightbox.App/Services/GameMakerExporter.cs` (312 ln) · 2 test files
   - GameMakerExportOptions:9, GameMakerExportResult:27, GameMakerExporter:77, StripRecord:85, GameMakerBlock:98
-- `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 11 indirect only
+- `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 12 indirect only
   - RampTrack:10, GradientRamp:41
-- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 91 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 92 test files
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (281 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
@@ -222,13 +222,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SequenceExporter:20
 - `src/Lightbox.App/Docking/OverlayConverters.cs` (61 ln) · 1 test files
   - OverlayConverters:7
-- `src/Lightbox.App/Views/NewProjectPanel.axaml.cs` (61 ln) · 11 indirect only
+- `src/Lightbox.App/Views/NewProjectPanel.axaml.cs` (61 ln) · 12 indirect only
   - NewProjectSettings:8, NewProjectPanel:16, TypeChoice:18, PanelChoice:34
 - `src/Lightbox.App/Rendering/ThumbnailRenderer.cs` (60 ln) · 4 indirect only
   - ThumbnailRenderer:7
 - `src/Lightbox.App/Input/StrokeBuilder.cs` (58 ln) · 4 indirect only
   - StrokeBuilder:10
-- `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 11 indirect only
+- `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 12 indirect only
   - SaveFirstChoice:7, SaveFirstDialog:32
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml` (50 ln) · **no tests**
   - ApplyButton, CameraBox, ChangesPanel, DrawnOnList, DrawnOnPanel, FpsBox, GuidesBox, LayerPropertiesBox …
@@ -240,15 +240,15 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
-- `src/Lightbox.App/App.axaml.cs` (30 ln) · 4 test files
+- `src/Lightbox.App/App.axaml.cs` (30 ln) · 6 test files
   - App:8
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml` (26 ln) · **no tests**
   - Message, RevertButton, SaveButton
-- `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 11 indirect only
+- `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 12 indirect only
   - NewProjectDialog:10
-- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (24 ln) · 16 test files
+- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (24 ln) · 17 test files
   - RenderSnapshot:16
-- `src/Lightbox.App/Views/NewDocumentDialog.axaml.cs` (22 ln) · 11 indirect only
+- `src/Lightbox.App/Views/NewDocumentDialog.axaml.cs` (22 ln) · 12 indirect only
   - NewDocumentDialog:15
 - `src/Lightbox.App/Views/NewDocumentDialog.axaml` (17 ln) · **no tests**
   - Fields
@@ -420,7 +420,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Raster
 
-- `src/Lightbox.Raster/BrushEngine.cs` (2161 ln) · 25 test files
+- `src/Lightbox.Raster/BrushEngine.cs` (2161 ln) · 27 test files
   - BrushEngine:25, DabShape:1416
 - `src/Lightbox.Raster/Media/FluidLattice.cs` (1083 ln) · 2 test files
   - FluidLattice:59
@@ -448,6 +448,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TileCompositor:52
 - `src/Lightbox.Raster/StrokeIndex.cs` (151 ln) · 1 test files
   - StrokeIndex:37
+- `src/Lightbox.Raster/BrushTipOutline.cs` (150 ln) · 1 test files
+  - BrushTipOutline:42
 - `src/Lightbox.Raster/FrameRasterizer.cs` (136 ln) · 27 test files
   - FrameRasterizer:10
 - `src/Lightbox.Raster/Tips/TipCatalogue.cs` (135 ln) · 3 test files
@@ -460,11 +462,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolRegistry:24
 - `src/Lightbox.Raster/PaletteRegistry.cs` (79 ln) · 6 test files
   - PaletteRegistry:25
-- `src/Lightbox.Raster/BrushTipRegistry.cs` (51 ln) · 4 test files
+- `src/Lightbox.Raster/BrushTipRegistry.cs` (51 ln) · 5 test files
   - BrushTipRegistry:12
 - `src/Lightbox.Raster/ReferenceStripRegistry.cs` (50 ln) · **no tests**
   - ReferenceStripRegistry:22
-- `src/Lightbox.Raster/BlendModes.cs` (49 ln) · 31 indirect only
+- `src/Lightbox.Raster/BlendModes.cs` (49 ln) · 33 indirect only
   - BlendModes:15
 - `src/Lightbox.Raster/ClipRegionRegistry.cs` (27 ln) · 3 test files
   - ClipRegionRegistry:12
