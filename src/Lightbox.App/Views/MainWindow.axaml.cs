@@ -2660,16 +2660,64 @@ public partial class MainWindow : Window
         _vm.NewDocument(settings);
     }
 
+    /// <summary>What the artist chose when told the document has unsaved changes.</summary>
+    private enum UnsavedChoice
+    {
+        /// <summary>Closed the dialog, or pressed Escape. The document stays open.</summary>
+        Cancel,
+
+        /// <summary>Close it and lose the edits.</summary>
+        Discard,
+
+        /// <summary>Write it first, then close.</summary>
+        Save,
+    }
+
     private async void OnCloseTabClicked(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not DocumentTab tab) return;
-        if (tab.IsDirty && !await ConfirmDiscardAsync(tab.Title)) return;
+        if (!tab.IsDirty)
+        {
+            _vm.CloseTab(tab);
+            return;
+        }
+
+        switch (await ConfirmDiscardAsync(tab.Title))
+        {
+            case UnsavedChoice.Cancel:
+                return;
+
+            case UnsavedChoice.Save:
+                // Save acts on the active document, so the tab being closed has
+                // to be the active one — otherwise pressing Save on tab B's
+                // dialog would write tab A and close B unsaved, which is the
+                // failure this whole entry is about wearing a different hat.
+                _vm.ActiveTab = tab;
+                await SaveOrSaveAsAsync(tab.Title);
+
+                // Still dirty means the file picker was cancelled. Closing now
+                // would discard the work the artist just asked to keep, so the
+                // close is abandoned instead — Cancel on the picker cancels the
+                // close, which is the only reading that does not lose anything.
+                if (tab.IsDirty) return;
+                break;
+
+            case UnsavedChoice.Discard:
+                break;
+        }
         _vm.CloseTab(tab);
     }
 
-    private async Task<bool> ConfirmDiscardAsync(string title)
+    /// <remarks>
+    /// <b>B75.</b> This offered Discard and Cancel only, so the artist who wanted
+    /// to keep the work had to cancel, save by hand and close again — and the one
+    /// who did not read carefully lost it. Save is the default button because it
+    /// is the outcome that cannot destroy anything; Discard is the one that
+    /// needs deliberate aim.
+    /// </remarks>
+    private async Task<UnsavedChoice> ConfirmDiscardAsync(string title)
     {
-        var result = false;
+        var result = UnsavedChoice.Cancel;
         var dialog = new Window
         {
             Title = "Unsaved changes",
@@ -2678,9 +2726,11 @@ public partial class MainWindow : Window
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
+        var save = new Button { Content = "Save", MinWidth = 80, IsDefault = true };
         var discard = new Button { Content = "Discard changes", MinWidth = 120 };
         var cancel = new Button { Content = "Cancel", MinWidth = 80, IsCancel = true };
-        discard.Click += (_, _) => { result = true; dialog.Close(); };
+        save.Click += (_, _) => { result = UnsavedChoice.Save; dialog.Close(); };
+        discard.Click += (_, _) => { result = UnsavedChoice.Discard; dialog.Close(); };
         cancel.Click += (_, _) => dialog.Close();
         dialog.Content = new StackPanel
         {
@@ -2690,7 +2740,7 @@ public partial class MainWindow : Window
             {
                 new TextBlock
                 {
-                    Text = $"“{title}” has unsaved changes. Close it anyway?",
+                    Text = $"“{title}” has unsaved changes.",
                     TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 },
                 new StackPanel
@@ -2698,7 +2748,10 @@ public partial class MainWindow : Window
                     Orientation = Avalonia.Layout.Orientation.Horizontal,
                     Spacing = 8,
                     HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                    Children = { discard, cancel },
+                    // Discard sits furthest from Save on purpose: the destructive
+                    // button should not be the one a fast hand lands on next to
+                    // the safe one.
+                    Children = { discard, cancel, save },
                 },
             },
         };
@@ -2743,7 +2796,20 @@ public partial class MainWindow : Window
     // ---- projects --------------------------------------------------------------
 
     /// <summary>Ctrl+S: save without a picker when the tab already knows where it lives.</summary>
-    private async void OnSaveInPlaceClicked(object? sender, RoutedEventArgs e)
+    private async void OnSaveInPlaceClicked(object? sender, RoutedEventArgs e) =>
+        await SaveOrSaveAsAsync();
+
+    /// <summary>
+    /// Save where the document already lives, or ask where to put it.
+    /// </summary>
+    /// <remarks>
+    /// The rule the Save button has always followed, extracted so the
+    /// unsaved-changes dialog gives the same answer (B75). Two places deciding
+    /// separately what Save means is how they come to disagree — and the one
+    /// that would have been written second is the one an artist meets while
+    /// losing work.
+    /// </remarks>
+    private async Task SaveOrSaveAsAsync(string? suggestedName = null)
     {
         if (_vm.CanSaveInPlace)
         {
@@ -2752,7 +2818,7 @@ public partial class MainWindow : Window
         }
         // Nowhere to put it yet, so Save falls through to Save as… rather than
         // silently doing nothing.
-        await SaveDocumentAsAsync();
+        await SaveDocumentAsAsync(suggestedName);
     }
 
     /// <summary>

@@ -95,6 +95,12 @@ decision goes to `QUESTIONS.md` and is left alone.
   - **Fixed**: `SaveDocumentAsAsync` takes an optional suggested name and `OnAddReferenceSheet` passes the sheet's, so the picker opens already filled in. Neither prompt is removed — they ask different questions, *what is this called* and *where does it go*, and only the second arriving blank was wrong.
   - `evidence: manual` in effect, and said plainly rather than dressed up: the file picker is a `StorageProvider` dialog and nothing headless can open one. `CharacterSheetFileTests` still pins what B66 decides; what nobody can assert here is what the box is prefilled with. Cost: S
 
+- [ ] **B80** `P2` `ui` Closing the application discards unsaved work without asking `evidence: manual`
+  - Found while fixing B75, by looking for the other caller of the unsaved-changes dialog and finding there is none: `MainWindow` has no `OnClosing` override and nothing subscribes to `Closing`. Closing a *tab* asks; closing the *window* does not, so quitting with edits in flight loses them silently.
+  - Worse than B75 and filed separately rather than folded into it. B75 is a dialog offering the wrong buttons — the artist is at least told. This asks nothing at all, and the reporter's B76 expectations name it explicitly: *"closing the document **or application** then opens the unsaved-changes dialog"*.
+  - The fix has a shape B75 does not: one dirty tab is B75's dialog again, but *several* wants one prompt listing them rather than a chain of modal boxes, and the whole thing has to be cancellable — refusing the close after the artist backs out of one save. `Window.Closing` with `e.Cancel = true` and an async re-close is the usual Avalonia pattern, because the event cannot be awaited.
+  - `evidence: manual`: a window-close handler and the dialogs it raises are not reachable headlessly, which is the same limit B75 and B78 record. Cost: M
+
 - [ ] **B79** `P2` `ui` The unsaved badge stays on a document that has just been saved `evidence: DocumentTabTests, SavingClearsTheUnsavedBadge, ASheetEditStillRaisesTheBadge`
   - Reported: the dot survives a save when nothing has changed since. The reporter also checked the opposite case and found it correct — editing an attached character sheet *does* raise the badge — so the signal works and only the clearing is wrong.
   - **This is worse than an untidy dot.** A badge that is on when nothing is dirty teaches the artist to ignore it, and the one time it means something is the time work is lost. That is why it is `P2` on a one-pixel symptom.
@@ -109,10 +115,14 @@ decision goes to `QUESTIONS.md` and is left alone.
   - **And they specified what the project docker does with it, which is the part that needs care.** An unsaved document is still *listed* — greyed, badged, with a tooltip saying it is not on disk — and turns normal when saved. Discarding it removes the row. That is a third row state beside B61's `Missing`, and the two must not be conflated: `Missing` means *this was on disk and is gone*, pending means *this was never written*. B61's `Dirty` check already separates them, and this is the entry that gives the second state a face.
   - Folders stay immediate — the reporter is explicit that folders are written in real time. Cost: L
 
-- [ ] **B75** `P2` `ui` Closing a document with unsaved changes offers no way to save it `evidence: CloseDocumentTests, TheUnsavedDialogOffersSave, SavingANewDocumentFromTheDialogOpensSaveAs`
+- [ ] **B75** `P2` `ui` Closing a document with unsaved changes offers no way to save it `evidence: manual`
   - Reported: the confirmation offers **Discard Changes** and **Cancel** only. The artist who wants to keep the work has to cancel, save by hand, and close again — and the one who does not notice loses it.
   - Save on a document with a file writes it; Save on a new one opens Save As, which is the same rule B76 and B66 both land on: a document with nowhere to go asks where before it writes.
-  - `P2` rather than `P1` because Cancel exists, so the work can be rescued by someone who reads the dialog. It is a trap rather than a guillotine. Cost: S
+  - `P2` rather than `P1` because Cancel exists, so the work can be rescued by someone who reads the dialog. It is a trap rather than a guillotine.
+  - **Fixed.** The dialog returns a three-way choice instead of a bool, and Save is the **default** button — the outcome that cannot destroy anything should be the one Enter lands on, and Discard is placed furthest from it so a fast hand does not find the destructive button beside the safe one.
+  - Save reuses the rule the Save button already followed, extracted as `SaveOrSaveAsAsync`: write where the document lives, or ask where to put it. Two places deciding separately what Save means is how they come to disagree, and the second one written is the one an artist meets while losing work.
+  - **Two things the fix had to get right that the report did not mention.** Save acts on the *active* document, so the tab being closed is activated first — otherwise Save on tab B's dialog writes tab A and closes B unsaved, which is this same bug wearing a different hat. And cancelling the file picker leaves the tab dirty, which now **abandons the close** rather than proceeding: the artist asked to keep the work, and no reading of "cancel the save" ends with the work discarded.
+  - `evidence: manual`, for the reason B78 records: the dialog and the picker are not reachable headlessly. Cost: S
 
 - [ ] **B73** `P2` `brush` Fast strokes trail behind the pen `evidence: manual`
   - Reported for ordinary brushes and for media brushes, with the stabiliser on and off — so it is not stabilisation lag, which is the obvious suspect and would be the wrong fix.
