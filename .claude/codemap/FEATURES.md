@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2304 tests, derived from the suite itself. Each line is a
+2307 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2370,7 +2370,7 @@ regression even when every test still compiles.
 - ARewritten Tail Invalidates Far Enough Back — `:97`
 - AShorter List Is Handled Rather Than Indexed Past — `:116`
 - Under Three Points Behaves Like Densify — `:137`
-- The Walk Stops Growing With The Stroke — `:151`
+- The Walk Stops Growing With The Stroke — `:170`
 
 ## NormalMapTests
 `tests/Lightbox.Core.Tests/NormalMapTests.cs`
@@ -2920,6 +2920,13 @@ regression even when every test still compiles.
 - The Live Preview Accumulation Cannot Raise Alpha Either — `:168`
 - The Reported Configuration Cannot Raise Alpha Either — `:208`
 - The Stroke Still Does Something — `:268`
+
+## EffectBrushTipTests _Category=Visual_
+`tests/Lightbox.Raster.Tests/EffectBrushTipTests.cs`
+
+- ATip Changes What An Effect Brush Touches — `:126`
+- AFollowing Tip Turns With The Stroke — `:177`
+- An Untipped Effect Brush Is Unchanged — `:239`
 
 ## EffectOnTranslucentArtTests
 `tests/Lightbox.Raster.Tests/EffectOnTranslucentArtTests.cs`

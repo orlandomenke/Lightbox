@@ -146,28 +146,49 @@ public class IncrementalDensifyTests(ITestOutputHelper output)
         Assert.Same(one, cache.Of(one));
     }
 
+    /// <summary>
+    /// A prefix of one array, without copying it.
+    /// </summary>
+    /// <remarks>
+    /// <b>This exists because the first version of the timing test below measured the wrong thing.</b>
+    /// It built each prefix with <c>points.Take(k).ToList()</c> <em>inside</em> the timed region — an
+    /// O(k) copy that grows linearly by construction — and then reported the growth as the cache
+    /// re-densifying. It flaked at a 13.7× ratio on a loaded machine, and every millisecond of that
+    /// was the test's own allocation. The number was real and the attribution was not, which is the
+    /// lesson this repository keeps paying for; here it cost a red suite rather than a wrong fix.
+    /// </remarks>
+    private sealed class Prefix(List<StrokePoint> all, int length) : IReadOnlyList<StrokePoint>
+    {
+        public StrokePoint this[int index] => all[index];
+        public int Count { get; } = length;
+        public IEnumerator<StrokePoint> GetEnumerator() => all.Take(Count).GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
     [Fact]
     [Trait("Category", "Performance")]
     public void TheWalkStopsGrowingWithTheStroke()
     {
         // Loose on purpose: this catches the order-of-magnitude regression of somebody making the
         // cache rebuild, not drift. The ratio is what matters — a full re-densify is linear in the
-        // stroke, so the last events of a long stroke cost many times the first ones.
+        // stroke, so the last events of a long stroke would cost many times the first ones.
         var points = Arc(600);
         var cache = new IncrementalDensify();
-        cache.Of(points.Take(3).ToList());
+        cache.Of(new Prefix(points, 3));
 
         double Cost(int from, int to)
         {
+            // Prefixes built outside the clock. Timing an allocation that grows with the stroke and
+            // calling the result "the cache" is how the first version of this test lied.
+            var views = Enumerable.Range(from, to - from).Select(k => new Prefix(points, k)).ToList();
             var sw = Stopwatch.StartNew();
-            for (var k = from; k < to; k++) cache.Of(points.Take(k).ToList());
+            foreach (var view in views) cache.Of(view);
             sw.Stop();
-            return sw.Elapsed.TotalMilliseconds / (to - from);
+            return sw.Elapsed.TotalMilliseconds / views.Count;
         }
 
         var early = Cost(4, 54);
-        // Walk the middle so the cache is warm at the far end, then measure there.
-        Cost(54, 550);
+        Cost(54, 550);          // walk the middle so the cache is warm at the far end
         var late = Cost(550, 600);
 
         output.WriteLine($"append cost: first 50 events {early:F4} ms, last 50 {late:F4} ms");

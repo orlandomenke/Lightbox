@@ -1015,17 +1015,7 @@ public static class BrushEngine
         // Pressure fattens the dab toward circular rather than thinning it:
         // a flat brush pressed down spreads, and a curve that squashed instead
         // would make a hard press narrower than a light one.
-        var roundness = Math.Clamp(brush.Roundness, 0.05, 1);
-        if (PressureResponse.IsDriven(brush, BrushDynamic.Roundness))
-        {
-            var open = PressureResponse.Factor(brush, BrushDynamic.Roundness, pressure);
-            roundness = Math.Clamp(roundness + (1 - roundness) * open, 0.05, 1);
-        }
-        if (brush.RoundnessJitter > 0)
-        {
-            roundness *= 1 - Hash01(pos.X, pos.Y, 13) * Math.Clamp(brush.RoundnessJitter, 0, 1);
-            roundness = Math.Clamp(roundness, 0.05, 1);
-        }
+        var roundness = RoundnessAt(brush, pos, pressure);
 
         if (tip is not null)
         {
@@ -1397,6 +1387,91 @@ public static class BrushEngine
         StampSmudgeDabs(target, pixels, stroke, outputScale, strength);
     }
 
+    /// <summary>
+    /// The shape of one dab, sampled per pixel: a tip's own alpha when the brush has one, and the
+    /// radial hardness falloff when it does not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B70.</b> A tip changed a paint dab and was silently ignored by smudge, blur and the
+    /// blender — <c>StampSmudge</c> built its dab from <c>RadiusAt</c> and a falloff, and neither
+    /// consulted <c>BrushTipRegistry</c>. So a chisel or a bristle did nothing on exactly the
+    /// brushes whose whole job is to push existing paint around, and said nothing about it.
+    /// </para>
+    /// <para>
+    /// Sampled rather than drawn, because these paths composite per pixel: the smudge deposit is a
+    /// weighted move toward a colour, so what a tip contributes is a <em>weight</em>, not a shape to
+    /// blit. Nearest-neighbour on purpose — the weight is multiplied into a lerp that is already
+    /// smooth, and a bilinear fetch here would cost four reads per pixel to soften an edge the
+    /// falloff has already softened.
+    /// </para>
+    /// <para>
+    /// Rotation follows the same three rules a paint dab uses, in the same order, so a tip behaves
+    /// the same whichever brush picks it up: the brush's own <c>TipRotationDeg</c>, the stroke's
+    /// heading when <c>AngleFollowsDirection</c> is set, and jitter seeded from the dab's position
+    /// through <c>Hash01</c> — never from an index or a clock, so invariant 2 holds and a re-render
+    /// puts every bristle back where it was.
+    /// </para>
+    /// </remarks>
+    private readonly struct DabShape
+    {
+        private readonly SKBitmap? _tip;
+        private readonly float _cx, _cy, _cos, _sin, _invX, _invY, _hardness;
+
+        internal DabShape(
+            BrushSettings brush, SKPoint deviceCentre, float deviceRadius, float roundness,
+            double headingDeg)
+        {
+            _tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
+            _cx = deviceCentre.X;
+            _cy = deviceCentre.Y;
+            _hardness = (float)Math.Clamp(brush.Hardness, 0, 1);
+
+            var rotation = brush.TipRotationDeg;
+            if (brush.AngleFollowsDirection && !double.IsNaN(headingDeg)) rotation += headingDeg;
+            if (brush.RotationJitter > 0)
+            {
+                rotation += (Hash01(deviceCentre.X, deviceCentre.Y, 3) - 0.5) * 360 * brush.RotationJitter;
+            }
+            var radians = rotation * Math.PI / 180;
+            _cos = (float)Math.Cos(radians);
+            _sin = (float)Math.Sin(radians);
+
+            // The same scale StampDab applies: the tip is fitted to the dab's diameter on its longer
+            // side, then squashed by roundness. Inverted here, since this maps pixels back to texels.
+            var fitted = _tip is null ? 1f : deviceRadius * 2 / Math.Max(_tip.Width, _tip.Height);
+            _invX = fitted <= 0 ? 0 : 1 / fitted;
+            _invY = fitted <= 0 || roundness <= 0 ? 0 : 1 / (fitted * roundness);
+        }
+
+        /// <summary>Whether this dab is masked by a tip rather than by a falloff.</summary>
+        internal bool HasTip => _tip is not null;
+
+        /// <summary>
+        /// Coverage at a device pixel, 0..1. <paramref name="falloff"/> is the radial weight the
+        /// caller already computed, returned unchanged when there is no tip.
+        /// </summary>
+        internal float At(int x, int y, float falloff)
+        {
+            if (_tip is null) return falloff;
+
+            // Into the dab's own frame, then out of its rotation and scale.
+            var dx = x + 0.5f - _cx;
+            var dy = y + 0.5f - _cy;
+            var lx = (dx * _cos + dy * _sin) * _invX;
+            var ly = (-dx * _sin + dy * _cos) * _invY;
+
+            var tx = (int)MathF.Round(lx + _tip.Width / 2f);
+            var ty = (int)MathF.Round(ly + _tip.Height / 2f);
+            if (tx < 0 || ty < 0 || tx >= _tip.Width || ty >= _tip.Height) return 0;
+
+            // A tip is a grayscale coverage map: its alpha is the shape. Multiplied by the falloff
+            // rather than replacing it, so Hardness still softens a tipped effect dab the way it
+            // softens a tipped paint dab.
+            return _tip.GetPixel(tx, ty).Alpha / 255f * falloff;
+        }
+    }
+
     private static void StampSmudgeDabs(
         SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale, double strength)
     {
@@ -1416,10 +1491,22 @@ public static class BrushEngine
 
         SKColor carried = default;
         var hasColor = false;
+        // Heading is tracked here rather than taken from the walk because this path iterates
+        // positions: a tip that follows the stroke needs a direction, and B70 is about tips.
+        SKPoint? previous = null;
+        var heading = double.NaN;
         foreach (var (pos, pressure) in DabPositions(stroke))
         {
             var radius = (float)RadiusAt(brush, pressure);
             if (radius <= 0) continue;
+            if (previous is { } from)
+            {
+                float hx = pos.X - from.X, hy = pos.Y - from.Y;
+                // A stalled pen keeps the last heading; recomputing from a zero-length step would
+                // snap the tip to zero degrees, which is the same rule the dab walk uses.
+                if (hx * hx + hy * hy > 0.0001f) heading = Math.Atan2(hy, hx) * 180 / Math.PI;
+            }
+            previous = pos;
 
             var s = (float)outputScale;
             var sample = SampleAverage(
@@ -1448,7 +1535,8 @@ public static class BrushEngine
 
             if (deposit.Alpha > 0)
             {
-                LerpDab(target, pixels, pos, radius, brush, deposit, strength, outputScale);
+                LerpDab(
+                    target, pixels, pos, radius, brush, deposit, strength, outputScale, heading, pressure);
             }
 
             // How much of the carried colour survives into the next dab. At 0
@@ -1513,7 +1601,8 @@ public static class BrushEngine
     /// </remarks>
     private static void LerpDab(
         SKCanvas target, SKBitmap read, SKPoint pos, float radius, BrushSettings brush,
-        SKColor deposit, double strength, double outputScale)
+        SKColor deposit, double strength, double outputScale, double headingDeg = double.NaN,
+        double pressure = 1)
     {
         // The target is written through its own bitmap rather than the canvas,
         // so flush anything the canvas still holds first.
@@ -1529,6 +1618,11 @@ public static class BrushEngine
         var hardness = (float)Math.Clamp(brush.Hardness, 0, 1);
         var w0 = (float)Math.Clamp(strength, 0, 1);
         if (w0 <= 0) return;
+
+        // B70: the dab's shape, which is the tip's alpha when the brush has one. Built once per dab
+        // — the transform is per dab, only the sampling is per pixel.
+        var shape = new DabShape(
+            brush, new SKPoint(cx, cy), r, (float)RoundnessAt(brush, pos, pressure), headingDeg);
 
         var left = Math.Max(clip.Left, (int)MathF.Floor(cx - r));
         var top = Math.Max(clip.Top, (int)MathF.Floor(cy - r));
@@ -1588,6 +1682,8 @@ public static class BrushEngine
                         : 1f - (d - hardness) / (1f - hardness);
                     w = w0 * Math.Clamp(falloff, 0f, 1f);
                 }
+
+                w = shape.At(x, y, w);
 
                 if (w <= 0f)
                 {
@@ -1650,12 +1746,36 @@ public static class BrushEngine
         var whole = new SKRect(0, 0, info.Width, info.Height);
         var sampling = new SKSamplingOptions(SKFilterMode.Linear);
 
+        var tip = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
+        var tipBitmap = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
+
         target.Save();
         if (outputScale != 1.0) target.Scale((float)outputScale);
+        var previous = (SKPoint?)null;
+        var heading = double.NaN;
         foreach (var (pos, pressure) in DabPositions(stroke))
         {
             var radius = (float)RadiusAt(brush, pressure);
             if (radius <= 0) continue;
+            if (previous is { } from)
+            {
+                float hx = pos.X - from.X, hy = pos.Y - from.Y;
+                if (hx * hx + hy * hy > 0.0001f) heading = Math.Atan2(hy, hx) * 180 / Math.PI;
+            }
+            previous = pos;
+
+            if (tip is not null && tipBitmap is not null)
+            {
+                // B70: through the tip's own shape rather than a circle. A layer is needed because
+                // the mask has to *subtract* — DstIn against the target itself would erase whatever
+                // the tip does not cover, which is the layer the artist is blurring. The layer is
+                // the dab's own bounds, so the cost tracks the dab and not the canvas (invariant 6).
+                DrawBlurredThroughTip(
+                    target, snapshot, whole, sampling, blurPaint, tip, tipBitmap, brush,
+                    pos, radius, pressure, heading);
+                continue;
+            }
+
             target.Save();
             using (var clip = new SKPath())
             {
@@ -1763,10 +1883,26 @@ public static class BrushEngine
             }
         }
 
+        var tip = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
+        var tipBitmap = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
+        var whole = new SKRect(rect.Left, rect.Top, rect.Left + rect.Width, rect.Top + rect.Height);
+        var sampling = new SKSamplingOptions(SKFilterMode.Linear);
+
         for (var i = from; i < dabs.Count; i++)
         {
             var radius = (float)RadiusAt(brush, dabs[i].Pressure);
             if (radius <= 0) continue;
+
+            if (tip is not null && tipBitmap is not null)
+            {
+                // B70, and through the same helper as the commit — a preview that masked a dab
+                // differently from the render would be B54 again in a new place.
+                DrawBlurredThroughTip(
+                    target, snapshot, whole, sampling, blurPaint, tip, tipBitmap, brush,
+                    dabs[i].Pos, radius, dabs[i].Pressure, dabs[i].Heading);
+                continue;
+            }
+
             target.Save();
             using (var clip = new SKPath())
             {
@@ -1776,6 +1912,74 @@ public static class BrushEngine
             target.DrawImage(snapshot, rect.Left, rect.Top, blurPaint);
             target.Restore();
         }
+    }
+
+    /// <summary>
+    /// One blur dab shaped by the brush's tip: the blurred snapshot, kept only where the tip covers.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A layer, and it cannot be avoided.</b> What is wanted is
+    /// <c>dst = lerp(dst, blurred, tipAlpha)</c>, and Skia has no blend mode for that against an
+    /// existing surface. Drawing the tip with <c>DstIn</c> straight onto the target would erase
+    /// everything the tip does not cover — which is the artist's painting. So the blurred content is
+    /// built in a layer the size of the dab, masked there, and composited over.
+    /// </para>
+    /// <para>
+    /// The layer is the dab's own bounds rather than the canvas or the stroke, so the cost tracks
+    /// the mark and invariant 6 holds. It is also only taken when the brush <em>has</em> a tip: a
+    /// round blur still goes through the cheap circle clip, so nothing that works today pays for
+    /// this.
+    /// </para>
+    /// </remarks>
+    private static void DrawBlurredThroughTip(
+        SKCanvas target, SKImage snapshot, SKRect whole, SKSamplingOptions sampling, SKPaint blurPaint,
+        SKImage tip, SKBitmap tipBitmap, BrushSettings brush,
+        SKPoint pos, float radius, double pressure, double heading)
+    {
+        var roundness = (float)RoundnessAt(brush, pos, pressure);
+        var rotation = brush.TipRotationDeg;
+        if (brush.AngleFollowsDirection && !double.IsNaN(heading)) rotation += heading;
+        if (brush.RotationJitter > 0)
+        {
+            rotation += (Hash01(pos.X, pos.Y, 3) - 0.5) * 360 * brush.RotationJitter;
+        }
+
+        // Generous enough for a rotated tip's corner: the half-diagonal, not the radius.
+        var reach = radius * 1.5f + 2;
+        var bounds = new SKRect(pos.X - reach, pos.Y - reach, pos.X + reach, pos.Y + reach);
+
+        target.Save();
+        target.ClipRect(bounds);
+        target.SaveLayer();
+
+        // The blurred pixels, then the tip taking away everything it does not cover.
+        target.DrawImage(snapshot, whole, sampling, blurPaint);
+
+        // **A shader over the whole bounds, not the tip drawn at its own size.** Drawing the tip
+        // image with DstIn only masks the pixels that image covers, so the ring between the tip's
+        // rect and the dab's bounds kept its blur — measured at 19,646 px touched against the round
+        // dab's 9,823, which is the opposite of the fix. As a shader with Decal tiling the tip reads
+        // as transparent outside itself, so one DrawRect masks the whole layer.
+        var scale = radius * 2 / Math.Max(tipBitmap.Width, tipBitmap.Height);
+        var local = SKMatrix.CreateTranslation(-tipBitmap.Width / 2f, -tipBitmap.Height / 2f)
+            .PostConcat(SKMatrix.CreateScale(scale, scale * roundness))
+            .PostConcat(SKMatrix.CreateRotationDegrees((float)rotation))
+            .PostConcat(SKMatrix.CreateTranslation(pos.X, pos.Y));
+        using (var shader = SKShader.CreateImage(
+            tip, SKShaderTileMode.Decal, SKShaderTileMode.Decal, TipSampling, local))
+        using (var mask = new SKPaint
+        {
+            BlendMode = SKBlendMode.DstIn,
+            Shader = shader,
+            IsAntialias = brush.AntiAlias,
+        })
+        {
+            target.DrawRect(bounds, mask);
+        }
+
+        target.Restore();   // composites the masked layer over the target
+        target.Restore();
     }
 
     // ---- shared ---------------------------------------------------------------
@@ -1788,6 +1992,32 @@ public static class BrushEngine
     /// </summary>
     public static double RadiusAt(BrushSettings brush, double pressure) =>
         brush.Size * PressureResponse.Factor(brush, BrushDynamic.Size, pressure) / 2;
+
+    /// <summary>
+    /// How squashed this dab is, 0.05..1 — the other half of the dab's shape.
+    /// </summary>
+    /// <remarks>
+    /// One implementation, because two paths need it and they must agree: a paint dab draws it as a
+    /// canvas scale and an effect dab samples it per pixel (B70). Pressure fattens the dab toward
+    /// circular rather than thinning it — a flat brush pressed down spreads, and a curve that
+    /// squashed instead would make a hard press narrower than a light one. Jitter is seeded from the
+    /// dab's position through <c>Hash01</c>, so invariant 2 holds.
+    /// </remarks>
+    private static double RoundnessAt(BrushSettings brush, SKPoint pos, double pressure)
+    {
+        var roundness = Math.Clamp(brush.Roundness, 0.05, 1);
+        if (PressureResponse.IsDriven(brush, BrushDynamic.Roundness))
+        {
+            var open = PressureResponse.Factor(brush, BrushDynamic.Roundness, pressure);
+            roundness = Math.Clamp(roundness + (1 - roundness) * open, 0.05, 1);
+        }
+        if (brush.RoundnessJitter > 0)
+        {
+            roundness *= 1 - Hash01(pos.X, pos.Y, 13) * Math.Clamp(brush.RoundnessJitter, 0, 1);
+            roundness = Math.Clamp(roundness, 0.05, 1);
+        }
+        return roundness;
+    }
 
     // The base is clamped before the response, not after. Clamping the product
     // instead would let an out-of-range Flow of 2 come back as 1 at half

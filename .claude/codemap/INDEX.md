@@ -1,6 +1,6 @@
 # Code index
 
-446 files · 111253 lines · 2304 tests.
+447 files · 111774 lines · 2307 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -59,7 +59,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MainViewModel:20
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (811 ln) · 91 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (811 ln) · 92 test files
   - SpriteTrim:12, SpritePack:37, SpriteSheetOptions:63, SpriteSheetResult:103, SpriteSheetExporter:152, SheetDocument:683, SheetFrame:689, SheetMeta:722 …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (802 ln) · 4 test files
   - ProjectRow:19, ProjectViewModel:162, NewItemKind:396
@@ -271,7 +271,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectIo:31, ConversionReport:544
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (632 ln) · 8 test files
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 76 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 77 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
@@ -335,14 +335,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - UnrealConvert:31
 - `src/Lightbox.Core/Export/UnityConvert.cs` (138 ln) · 2 test files
   - UnityConvert:34
-- `src/Lightbox.Core/Documents/Stroke.cs` (129 ln) · 89 test files
+- `src/Lightbox.Core/Geometry/IncrementalDensify.cs` (132 ln) · 1 test files
+  - IncrementalDensify:48
+- `src/Lightbox.Core/Documents/Stroke.cs` (129 ln) · 90 test files
   - Stroke:9, BakedSample:121
 - `src/Lightbox.Core/Geometry/TileGrid.cs` (125 ln) · 3 test files
   - TileGrid:33
 - `src/Lightbox.Core/Timeline/ExposureSheet.cs` (125 ln) · 4 test files
   - ExposureSheet:8
-- `src/Lightbox.Core/Geometry/IncrementalDensify.cs` (124 ln) · 1 test files
-  - IncrementalDensify:40
 - `src/Lightbox.Core/Projects/Project.cs` (120 ln) · 9 test files
   - Project:15
 - `src/Lightbox.Core/Documents/Guide.cs` (114 ln) · 4 test files
@@ -389,7 +389,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeInterpolator:6
 - `src/Lightbox.Core/Geometry/ColorOps.cs` (29 ln) · 1 test files
   - ColorOps:3
-- `src/Lightbox.Core/Documents/ToolKind.cs` (23 ln) · 71 test files
+- `src/Lightbox.Core/Documents/ToolKind.cs` (23 ln) · 72 test files
   - ToolKind:3
 - `src/Lightbox.Core/Inbetween/Easing.cs` (20 ln) · 9 test files
   - Easing:3, EasingOps:11
@@ -418,8 +418,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Raster
 
-- `src/Lightbox.Raster/BrushEngine.cs` (1931 ln) · 24 test files
-  - BrushEngine:25
+- `src/Lightbox.Raster/BrushEngine.cs` (2161 ln) · 25 test files
+  - BrushEngine:25, DabShape:1416
 - `src/Lightbox.Raster/Media/FluidLattice.cs` (1083 ln) · 2 test files
   - FluidLattice:59
 - `src/Lightbox.Raster/FloodFill.cs` (433 ln) · 2 test files
@@ -456,11 +456,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolRegistry:24
 - `src/Lightbox.Raster/PaletteRegistry.cs` (79 ln) · 6 test files
   - PaletteRegistry:25
-- `src/Lightbox.Raster/BrushTipRegistry.cs` (51 ln) · 3 test files
+- `src/Lightbox.Raster/BrushTipRegistry.cs` (51 ln) · 4 test files
   - BrushTipRegistry:12
 - `src/Lightbox.Raster/ReferenceStripRegistry.cs` (50 ln) · **no tests**
   - ReferenceStripRegistry:22
-- `src/Lightbox.Raster/BlendModes.cs` (49 ln) · 30 indirect only
+- `src/Lightbox.Raster/BlendModes.cs` (49 ln) · 31 indirect only
   - BlendModes:15
 - `src/Lightbox.Raster/ClipRegionRegistry.cs` (27 ln) · 3 test files
   - ClipRegionRegistry:12
