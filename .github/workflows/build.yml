@@ -37,8 +37,22 @@ permissions:
   actions: write
 
 jobs:
+  # `changes` first, because `test` now asks it whether there is anything to
+  # test. It is a git diff and costs about five seconds, so the serialisation
+  # is cheaper than the four minutes it saves on a documentation-only change.
   test:
     runs-on: ubuntu-latest
+    needs: changes
+    # Nothing in the suite reads docs/ or .claude/ — checked, not assumed: the
+    # only repo files any test opens are .github/workflows/build.yml and
+    # Lightbox.App.csproj, both read by CiRuntimeTests, and both count as *code*
+    # under the filter below. So a workflow edit still runs the tests written to
+    # guard workflow edits, while a BUGS.md edit does not run 2451 tests that
+    # cannot see it.
+    #
+    # The job is skipped rather than removed, so it still reports a conclusion
+    # and a required-check rule has something to read.
+    if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
