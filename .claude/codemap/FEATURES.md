@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2323 tests, derived from the suite itself. Each line is a
+2340 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -275,6 +275,15 @@ regression even when every test still compiles.
 - An Untagged Brush Is Hidden By Any Tag Filter And Found By Name — `:69`
 - Tag Matching Ignores Case And Surrounding Space — `:76`
 - Nothing Matching Is An Empty List Rather Than Everything — `:87`
+
+## BrushGizmoTests
+`tests/Lightbox.App.Tests/BrushGizmoTests.cs`
+
+- The Gizmo Follows The Brush Size Without APointer Move — `:78`
+- The Gizmo Outlines The Tip Rather Than ACircle — `:114`
+- The Eraser Gets Its Own Ring — `:158`
+- The Canvas Is Bound To Every Part Of The Ring — `:182`
+- ABrush Change Announces The Rings Shape And Not Only Its Size — `:208`
 
 ## BrushLibraryTests _Category=Performance_
 `tests/Lightbox.App.Tests/BrushLibraryTests.cs`
@@ -1417,6 +1426,17 @@ regression even when every test still compiles.
 - Deleting Takes The Declaration And Every Placement Of It — `:235`
 - Pushing Across Visits Every Drawing Once Even On2s — `:252`
 - Pushing With Nothing Selected Does Nothing — `:271`
+
+## RigOverlayPainterTests
+`tests/Lightbox.App.Tests/RigOverlayPainterTests.cs`
+
+- The Rig Overlay Reaches The Canvas — `:89`
+- Only The Selected Shape Shows Handles — `:119`
+- An Anchors Cross Is Screen Sized Rather Than Document Sized — `:144`
+- An Anchor Inside AShape Is Still Visible — `:165`
+- Rig Edit Mode Is Bindable — `:205`
+- The Canvas Is Handed The Marks — `:238`
+- APress In Rig Mode Selects AMark Instead Of Painting — `:284`
 
 ## RigOverlayTests
 `tests/Lightbox.App.Tests/RigOverlayTests.cs`
@@ -2884,6 +2904,15 @@ regression even when every test still compiles.
 - The Same Brush Renders The Same Picture Twice — `:216`
 - ABrush The Engine Cannot Honour Gives ABlank Tile Rather Than Throwing — `:234`
 - Sixty Previews Render Fast Enough To Open APicker — `:250`
+
+## BrushTipOutlineTests _Category=Performance_
+`tests/Lightbox.Raster.Tests/BrushTipOutlineTests.cs`
+
+- ABar Tip Outlines As ABar And Not As ACircle — `:83`
+- ANon Square Tip Keeps The Aspect The Engine Stamps It At — `:116`
+- AHollow Tip Keeps Its Hole — `:144`
+- Nothing To Outline Is Null Rather Than ACircle — `:185`
+- The Trace Is Paid Once Per Tip And Not Per Frame — `:211`
 
 ## BrushTipSamplingTests
 `tests/Lightbox.Raster.Tests/BrushTipSamplingTests.cs`

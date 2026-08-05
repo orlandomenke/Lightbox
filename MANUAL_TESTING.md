@@ -82,6 +82,28 @@ reported 100% coverage on an empty image.
 - [ ] Save produces a `.lightbox.json`; open it in a text editor — it should be readable JSON with strokes and points.
 - [ ] Re-opening the file restores the animation pixel-identically (strokes re-render through the same brush pipeline).
 
+## The brush ring (B72, B74)
+
+Everything here is checked by eye on purpose. The ring is drawn in the canvas's
+render op rather than into the published snapshot, and the suite runs on
+Avalonia's headless *software* drawing, so no test can capture the frame. The
+silhouette is asserted exactly in `BrushTipOutlineTests` and the wiring in
+`BrushGizmoTests`; whether it *looks* right is this list.
+
+- [ ] Hover the canvas, then drag the brush-size slider. The ring resizes as you
+      drag, **without** moving the pointer. (B72 — it used to wait for a move.)
+- [ ] Same with `[` and `]`.
+- [ ] Pick a brush with a chisel tip. The ring is a chisel at the tip's angle, not
+      a circle. Turn **Tip rotation**: the ring turns with it.
+- [ ] Set **Roundness** to about 0.3 on a round brush. The ring flattens into an
+      ellipse.
+- [ ] Import an `.abr` or `.gbr` tip and select it. The ring outlines that tip's
+      actual shape. A tip with holes — a bristle or a ring — shows its holes.
+- [ ] The ring is an outline at every size; nothing is filled in, and at a 300 px
+      brush the line is still about one pixel rather than fat.
+- [ ] Switch to the eraser. The ring shows the *eraser's* tip and size, and
+      switching back shows the brush's again.
+- [ ] Zoom to 800% and to 10%. The ring tracks the mark's on-screen size at both.
 ## Project panel against the disk (B61)
 
 The one link no test asserts is the debounce **timer** firing: whether a
@@ -107,6 +129,33 @@ between them.
       found in the panel's status line.
 - [ ] Rebind F5 in **Edit ▸ Configure ▸ Shortcuts** and confirm the new key
       works and F5 no longer does.
+
+## The rig overlay (B58)
+
+The whole point of B58 is that this was unreachable, so the first item is the
+bug: before the fix there was no way to get to any of the rest.
+
+- [ ] **View ▸ Rig ▸ Edit anchors and hitboxes** exists, and `Ctrl+K` toggles it.
+      Rebind it in **Edit ▸ Configure ▸ Shortcuts** and confirm the new key works.
+- [ ] With the mode on, **Add anchor** puts a blue cross in the middle of the
+      canvas and **Add collision shape** puts an orange rectangle there. Both are
+      draggable straight away.
+- [ ] Drag the shape's body to move it; drag a corner to resize. The opposite
+      corner stays put, and dragging past it flips the rectangle rather than
+      inverting it.
+- [ ] The selected mark is white and the shape shows four corner handles.
+      Unselected shapes have none.
+- [ ] A drag is **one** undo step, not one per pointer event. `Ctrl+Z` once puts
+      it back where it was.
+- [ ] Click an anchor sitting inside a shape: the anchor is what gets selected,
+      and it is drawn on top.
+- [ ] Zoom to 800% and 10%. Crosses and handles stay the same size on screen.
+- [ ] With the mode on, dragging on empty canvas must **not** paint. Turn the mode
+      off and confirm the same drag does paint again.
+- [ ] Turn the mode off with marks placed: the overlay disappears entirely, rather
+      than staying faintly over the drawing.
+- [ ] Place a socket while parked on a **held** frame, then re-time the sequence.
+      The mark travels with its drawing, and the hold stays a hold.
 
 ## Cross-platform notes
 

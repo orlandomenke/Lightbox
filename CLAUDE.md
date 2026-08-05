@@ -275,6 +275,23 @@ branches collide there by construction. Resolving it is mechanical and the
 resolution is never a hand-merge: take either side and run
 `python3 scripts/codemap.py build`, which derives the file from the merged tree.
 
+**`python3 scripts/branchstate.py` answers "would this merge?" before a reviewer
+does**, and separates the two kinds of conflict — authored files, which need a
+decision, from the generated index, which needs a rebuild. A `PostToolUse` hook
+runs it after any `dotnet build` or `dotnet test` that passed, alongside re-deriving
+the ledgers, so both facts arrive when the code has just changed rather than when
+somebody remembers to look. It stays silent unless something moved, refuses to
+touch anything while a build is red, and refuses again mid-merge — rewriting
+`BUGS.md` while somebody resolves a conflict in `BUGS.md` would destroy the
+resolution.
+
+**The derived ledgers resolve against `map.json`, which is gitignored, so a branch
+switch leaves it describing a tree nobody is looking at.** That produced two
+opposite lies in one `bugs.py check` — a bug reported fixed that was not, and one
+reported open that was. `evidence.py` now rebuilds when the index is stale rather
+than answering from it, because a wrong answer that leaves no trace in the diff is
+the kind nobody catches.
+
 **A branch is one objective, and its name says which** — `<type>/<domain>/<id>-<slug>`
 for a bug, as in `fix/brush/B39-effect-brush-scratch`, and `<type>/<slug>` for work
 that has no ledger id.
