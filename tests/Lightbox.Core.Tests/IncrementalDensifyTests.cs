@@ -165,18 +165,44 @@ public class IncrementalDensifyTests(ITestOutputHelper output)
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
+    /// <summary>
+    /// An append at the end of a long stroke costs a fraction of re-densifying it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The comparison is against a reference measured in the same breath, not against this test's
+    /// own earlier self.</b> The first version compared the last fifty appends of a 600-point stroke
+    /// to the first fifty and allowed a 6× spread. Both numbers are around 0.02–0.07 ms, and the four
+    /// test assemblies run in parallel, so under full-solution load the spread reached <b>14.6×</b> on
+    /// a branch whose only source change was a bench file — red for reasons that had nothing to do
+    /// with the code. Widening the threshold was the wrong repair: it would have kept a measurement
+    /// whose noise is the same size as its signal.
+    /// </para>
+    /// <para>
+    /// What the cache actually claims is that an append is much cheaper than the
+    /// <see cref="GeometryOps.Densify"/> it replaces — 0.067 ms against 0.84 ms as measured when B46
+    /// landed. Timing both on the same machine at the same moment makes CPU contention a common
+    /// factor that cancels in the ratio, and it is the claim in the class's own remarks rather than a
+    /// proxy for it. A cache that regressed into rebuilding lands at a ratio near 1, nowhere near the
+    /// 4× allowed here.
+    /// </para>
+    /// <para>
+    /// The clock-free half of the same property — <em>how many spans</em> an append recomputes — is
+    /// <see cref="OnlyTheTailIsRecomputedWhenAPointIsAppended"/>, and that is the assertion that
+    /// catches a regression precisely. This one exists for the part that test cannot see: the linear
+    /// scan in <c>FirstDifference</c> and the linear copy into <c>_seen</c> are real work outside the
+    /// interpolation, and only a clock notices if one of them grows a constant.
+    /// </para>
+    /// </remarks>
     [Fact]
     [Trait("Category", "Performance")]
-    public void TheWalkStopsGrowingWithTheStroke()
+    public void AnAppendCostsAFractionOfReDensifying()
     {
-        // Loose on purpose: this catches the order-of-magnitude regression of somebody making the
-        // cache rebuild, not drift. The ratio is what matters — a full re-densify is linear in the
-        // stroke, so the last events of a long stroke would cost many times the first ones.
         var points = Arc(600);
         var cache = new IncrementalDensify();
         cache.Of(new Prefix(points, 3));
 
-        double Cost(int from, int to)
+        double Appends(int from, int to)
         {
             // Prefixes built outside the clock. Timing an allocation that grows with the stroke and
             // calling the result "the cache" is how the first version of this test lied.
@@ -187,14 +213,31 @@ public class IncrementalDensifyTests(ITestOutputHelper output)
             return sw.Elapsed.TotalMilliseconds / views.Count;
         }
 
-        var early = Cost(4, 54);
-        Cost(54, 550);          // walk the middle so the cache is warm at the far end
-        var late = Cost(550, 600);
+        double FullDensifies(int n)
+        {
+            var sw = Stopwatch.StartNew();
+            for (var i = 0; i < n; i++) GeometryOps.Densify(points);
+            sw.Stop();
+            return sw.Elapsed.TotalMilliseconds / n;
+        }
 
-        output.WriteLine($"append cost: first 50 events {early:F4} ms, last 50 {late:F4} ms");
+        var early = Appends(4, 54);
+        Appends(54, 550);       // walk the middle so the cache is warm at the far end
+        var late = Appends(550, 600);
+        var reference = FullDensifies(50);
+
+        output.WriteLine(
+            $"append cost: first 50 events {early:F4} ms, last 50 {late:F4} ms; "
+            + $"a full Densify of the same 600 points {reference:F4} ms "
+            + $"({reference / Math.Max(late, 1e-6):F1}× the late append)");
+
+        // Not vacuous: the reference has to be doing real work, or "much cheaper than nothing" would
+        // pass on a Densify that had been turned into a no-op.
+        Assert.True(reference > 0.05, $"a full Densify measured {reference:F4} ms — the reference is not real work");
+
         Assert.True(
-            late < early * 6 + 0.05,
-            $"an append late in the stroke cost {late:F4} ms against {early:F4} ms early on — "
-            + "the cache is re-densifying rather than extending");
+            late * 4 < reference,
+            $"an append late in a 600-point stroke cost {late:F4} ms against {reference:F4} ms to "
+            + "re-densify the whole thing — the cache is rebuilding rather than extending");
     }
 }
