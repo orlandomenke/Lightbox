@@ -38,6 +38,30 @@ archive. The archive is `BUGS.md` itself.
 
 <!-- Append new reports below this line, oldest first. -->
 
+## Character sheet name is requested again when saving
+
+- **Area:** Character sheet saving
+- **Type:** UX
+- **Summary:** After a character sheet has been named through the name prompt, the save dialog asks for the name again. The sheet name should be used as the document name.
+- **Evidence:** Reported behavior: a name was set through the character-sheet name prompt before the save dialog appeared.
+- **Expected:** The save dialog uses the existing character-sheet name as the document name.
+- **Actual:** The name must be entered again in the save dialog.
+
+---
+
+## Unsaved-changes badge remains after document is saved
+
+- **Area:** Document tab
+- **Type:** Bug
+- **Summary:** The unsaved-changes badge remains visible after saving a document that has no further changes.
+- **Evidence:** Reported behavior: the badge remains after saving. Changing an attached character sheet correctly results in the badge being shown.
+- **Expected:** The badge is hidden after a save when neither the document nor its related character sheet has changed.
+- **Actual:** The badge remains visible after saving.
+- **Notes:** Brush-setting changes are saved separately and are not part of this badge mechanism.
+
+---
+
+
 ## Needs a decision
 
 <!-- Reports that could not be turned into a BUGS.md entry without a human call. -->
