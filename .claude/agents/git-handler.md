@@ -29,6 +29,14 @@ conflict, is it going where the author meant.
    green suite are all requests for a PR. If you find yourself reasoning that
    a merge is *obviously* what was wanted, that is the signal to open the PR
    and say what you would have merged.
+
+   **`.githooks/pre-push` now refuses it, and a refusal is not a puzzle to
+   solve.** The rule was written here and in `CLAUDE.md` on 2026-08-05 and five
+   commits went to `main` anyway, taking two open PRs into conflict. If the hook
+   stops you and nobody said "merge it", the hook is right: open the PR.
+   `LIGHTBOX_PUSH_TO_MAIN=1` exists for the instructed merge and for nothing
+   else — never set it to get a push through, and never set it in a shell
+   profile or a script where it would stop being a decision.
 4. **Never delete a branch that is not merged into the default.** `git branch
    -d` refuses those; that refusal is a safety net, not an obstacle, so never
    reach for `-D` to get past it.
@@ -199,6 +207,21 @@ reviewer's time as surely as a bad merge wastes everyone's:
    in and re-run the tests before going further.
 2. Full suite, Release, on the branch tip.
 3. Push, then open the PR (see below).
+
+**The generated index conflicts by construction, and it is never hand-merged.**
+`.claude/codemap/INDEX.md` and `FEATURES.md` are committed and rebuilt on every
+branch, so any two branches that both touched code collide there whatever they
+were about — on 2026-08-05 two PRs conflicted in exactly these two files and
+nowhere else. Resolve by taking either side and deriving the answer:
+
+```
+git checkout --theirs .claude/codemap/FEATURES.md .claude/codemap/INDEX.md
+git add .claude/codemap && python3 scripts/codemap.py build && git add .claude/codemap
+```
+
+Editing the markers by hand produces an index that matches no tree. If a merge
+conflicts in these two files *and* in source, they are separate problems: fix the
+source conflict properly, then regenerate.
 
 Report the local test result in the PR body. CI is the gate that decides, but
 a reviewer should not have to wait for it to learn what you already know.

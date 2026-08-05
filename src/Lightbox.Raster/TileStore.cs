@@ -135,7 +135,8 @@ public sealed class TileStore : IDisposable
     /// Tile-granular by construction, so it is the bounds of the tiles that hold
     /// ink rather than of the ink itself. That is the honest thing for it to be:
     /// a tighter answer would have to inspect pixels, and the two have different
-    /// uses — this one sizes a walk, and export bounds (Q20) are authored rather
+    /// uses — this one sizes a walk, and export bounds (Q20, the export-bounds
+    /// one — there are two) are authored rather
     /// than derived precisely because a derived bound moves when a stray mark
     /// lands.
     /// </remarks>

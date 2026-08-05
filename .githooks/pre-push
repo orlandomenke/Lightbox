@@ -1,0 +1,70 @@
+#!/bin/bash
+# Refuse a push straight to the default branch.
+#
+# WHY THIS EXISTS. `CLAUDE.md` and `.claude/agents/git-handler.md` both already
+# say it: finished work becomes a pull request, that is the standing route, and
+# merging to the default branch needs an explicit instruction to merge. On
+# 2026-08-05 an agent pushed five commits directly to `main` anyway — B27/B46/B54,
+# B50, the visual tests, B73 and B70 — and the cost was not abstract. Two open
+# pull requests had their base move underneath them mid-review and both went to
+# conflicts, in generated files neither author had touched.
+#
+# The rule was not missing. The *enforcement* was, and a rule written in prose is
+# exactly the thing that just failed, so this is the same rule expressed somewhere
+# it cannot be forgotten in the middle of a task.
+#
+# THE ESCAPE HATCH IS DELIBERATE. Merging to the default branch is legitimate when
+# the owner asks for it, so this must be possible — just never by accident:
+#
+#     LIGHTBOX_PUSH_TO_MAIN=1 git push origin main
+#
+# Typing that is a decision. Reaching for it because a push was refused is not; if
+# nobody said "merge it", the refusal is correct and the answer is a pull request.
+set -uo pipefail
+
+# The default branch, asked rather than assumed — `origin/HEAD` is what a clone
+# records. Falls back to main, which is what this repository uses.
+default_ref=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || true)
+default_branch=${default_ref##*/}
+[ -n "$default_branch" ] || default_branch=main
+protected="refs/heads/$default_branch"
+
+# stdin carries one line per ref being pushed: <local ref> <local sha> <remote
+# ref> <remote sha>. Only the remote ref matters — pushing a local `main` to some
+# other branch is fine, and pushing a differently-named local branch to `main` is
+# the case a name check would miss.
+blocked=""
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  [ "$remote_ref" = "$protected" ] && blocked="$remote_ref"
+done
+
+[ -n "$blocked" ] || exit 0
+
+if [ "${LIGHTBOX_PUSH_TO_MAIN:-}" = "1" ]; then
+  echo "pre-push: pushing to $default_branch, as LIGHTBOX_PUSH_TO_MAIN=1 asks." >&2
+  exit 0
+fi
+
+cat >&2 <<EOF
+
+pre-push: refusing to push to '$default_branch'.
+
+  Finished work becomes a pull request, and that is the standing route — it does
+  not need asking for. Merging to '$default_branch' needs an explicit instruction
+  to merge; "it's finished", "ship it" and a green suite are requests for a pull
+  request, not for a merge.
+
+  Put the work on a branch named for its objective and open a pull request:
+
+      git switch -c <type>/<id>-<slug>      e.g. fix/B39-effect-brush-scratch
+      git push -u origin <type>/<id>-<slug>
+
+  If the owner did ask for the merge:
+
+      LIGHTBOX_PUSH_TO_MAIN=1 git push origin $default_branch
+
+  Why this is a hook and not just a paragraph: .githooks/pre-push says what the
+  paragraph cost the last time it was the only thing standing here.
+
+EOF
+exit 1

@@ -1,11 +1,16 @@
 # The infinite canvas: what it costs today, and what has to change first
 
-Status: **measured and specified, nothing built.** The roadmap carried this as
-`- [?] Infinite canvas` — one line, no description, no evidence anchors — and
-`[?]` in that file means *"no evidence declared, unverifiable, add anchors or
-admit it is a wish"*. This document is the item being specified rather than
-implemented, and the numbers below are the reason the shape of it is not a
-matter of taste.
+Status: **the engine and the cull are built; nothing is wired in yet.** The
+roadmap carried this as `- [?] Infinite canvas` — one line, no description, no
+evidence anchors — and `[?]` in that file means *"no evidence declared,
+unverifiable, add anchors or admit it is a wish"*. The numbers below are the
+reason the shape of it is not a matter of taste, and they are still the numbers:
+**nothing in `src/` calls the tiled path**, so the `n^1.05` measured here is
+what the application still does. `TileGrid`, `TileStore`, `StrokeIndex`,
+`TiledRasterizer` and `TileCompositor` exist and are guarded; the six
+`_cache.Get` sites in `MainViewModel` are unchanged. Prediction 1 is proved as a
+property of the compositor and **not yet as a property of the app** — see
+*What is proved, and what that does not yet mean* below.
 
 ## The measurement, and the one it corrects
 
@@ -87,7 +92,8 @@ serialise a fixed-size document and assert the JSON is unchanged.
 **"Assets — the canvas *is* the output. There is no camera, frame bounds must
 stay consistent, and every frame is a deliverable."** A sprite sheet is defined
 by having consistent frame bounds; an infinite canvas is defined by not having
-bounds. **Q20** settled this, and it settled the framing as much as the answer:
+bounds. **Q20** *(export bounds from an unbounded canvas)* settled this, and
+it settled the framing as much as the answer:
 
 - **This is a Shot feature.** The application is a drawing, painting *and*
   animation tool, and an infinite canvas serves the target whose deliverable is
@@ -125,12 +131,32 @@ new code path. A tile is a fixed square — 256² or 512², to be measured, not
 guessed — addressed by integer grid coordinates that can go negative, because
 an infinite canvas has no origin corner.
 
-**Culling is then a rectangle intersection.** Given the view transform, the
-visible document rectangle is already computable — `CameraTransform.DeviceBounds`
-does the equivalent for dirty regions — so compositing walks the tiles the
-viewport touches and nothing else. The exponent that should fall out is the one
-the drawing path already has: cost proportional to what is *seen*, not to what
-*exists*.
+**Culling is then a rectangle intersection.** Compositing walks the tiles the
+viewport touches and nothing else, and the exponent that should fall out is the
+one the drawing path already has: cost proportional to what is *seen*, not to
+what *exists*. `TileCompositor` does exactly that, and
+`RecompositingCostsWhatIsOnScreenNotWhatExists` holds it.
+
+> **Correction.** This paragraph originally read "given the view transform, the
+> visible document rectangle is already computable — `CameraTransform.DeviceBounds`
+> does the equivalent for dirty regions". **Both halves were wrong, and the error
+> was a conflation.** `CameraTransform` takes a `CameraFraming` — the *authored*
+> camera, which is a document property. The **view** transform is zoom, pan,
+> rotation and mirror, and it lives in `CanvasControl` (`_zoom`), *downstream* of
+> compositing. `MainViewModel` learns only a scalar, through `SetDisplayScale`;
+> it never learns which part of the document is on screen.
+>
+> So the visible rectangle is not computable at composite time, and for a
+> document with no camera — the ordinary case, and every asset document —
+> `cameraView` is null and the compose surface is `scene.Width × scene.Height`,
+> the whole document. The canvas pans and zooms the finished snapshot afterwards.
+>
+> The consequence is scope, not soundness: the compositor is right and has
+> nothing to cull against yet. Making the visible rectangle reach the composite
+> is **B82**, and it is architectural rather than a wiring step — it changes what
+> a `RenderSnapshot` is. Every claim in this document that depends on culling
+> being *reachable* depends on B82; the claims about the compositor itself stand
+> on their own tests.
 
 **Strokes need a spatial index, or rasterising a tile is O(all strokes).** A
 tile has to know which strokes reach it. Every stroke's bounds are already
@@ -154,6 +180,44 @@ Written down before building, because a design that cannot fail is not a design:
 4. **B30 improves as a side effect.** If it does not, the spatial index is not
    doing what this document says it is.
 
+## What is proved, and what that does not yet mean
+
+Scored against the four predictions above, because a design that writes
+predictions down and then does not mark them is worse than one that never wrote
+them.
+
+Measured on .NET 10.0.110 / linux-x64, whole solution green — 2463 tests, 0
+failures, `RuntimeDeterminismTests` still matching the .NET 8.0.29 baseline.
+
+| Prediction | Status |
+| --- | --- |
+| 1 · recompositing flat in canvas size | **proved of `TileCompositor`, not of the application** |
+| 2 · memory proportional to ink | **proved** — `AnUntouchedTileIsNeverAllocated`, `PanningAcrossEmptySpaceAllocatesNothing` |
+| 3 · a fixed-size document is bit-identical | **proved**, whole-frame and per-region |
+| 4 · B30 improves | **not yet** — nothing calls the tiled path |
+
+**Prediction 1 is the one to read carefully, because it is half-done in a way
+that is easy to over-claim.** `RecompositingCostsWhatIsOnScreenNotWhatExists`
+holds a viewport still, grows the store twenty-five-fold, and gets identical
+work. That is the culling property, exactly as specified. It is *not* the
+measurement in the table at the top of this document: that one is `n^1.05` in
+milliseconds through `MainViewModel`, and it is unchanged, because
+`_cache.Get(frame, scene.Width, scene.Height)` still runs at all six of its call
+sites. The compositor cannot make the application faster until something calls
+it.
+
+So the honest statement is: **the mechanism is proved and the improvement is
+not**. Re-running the canvas-size sweep now would produce the same curve and
+would not be evidence against the design — it would be evidence that the
+wiring, which is the next step, has not happened.
+
+**Prediction 1 is also counted rather than timed, on purpose.** A duration
+assertion on a shared runner measures the runner, and worse, it would pass on a
+compositor that walked every tile in the store quickly — which is precisely the
+failure that matters when "every tile" has no upper bound. `Composite` returns
+its tile count so the claim can be asserted exactly. The timing evidence belongs
+to the sweep, after wiring.
+
 ## Not in scope, deliberately
 
 **Infinite *time*.** The scene's frame count is a separate axis with its own
@@ -170,14 +234,25 @@ redefining what a document is rather than how it is drawn.
 
 ## Open questions
 
-- ~~**Q20**~~ — **answered**. An authored export region, reached as the
+Both IDs below are **ambiguous in the tracker** and are qualified here for that
+reason: `QUESTIONS.md` carries two Q20s and two Q21s, and the other pair is
+about line texture and reference-image size. See **B81**.
+
+- ~~**Q20**~~ *(export bounds from an unbounded canvas)* — **answered**. An
+  authored export region, reached as the
   resolution of a declared feature incompatibility rather than as a rule for
   deriving bounds. Nothing here is blocked on it.
-- **Q21** — is the infinite canvas a *document property* an artist turns on, or
-  a *project-type default*? The reach rule says every feature is available
-  everywhere; this decides only what a new document starts with. It does not
-  block the build — a project type can only default a property that exists, so
-  the property comes first either way.
+- ~~**Q21**~~ *(document property or project default)* — **answered, and the
+  question contained a false choice.** Not
+  *document property or project default* but both: the property lives on the
+  document, which is the capability, and a **project** supplies what a new
+  document starts with — the same shape as `BrushScope`/`BrushScopeDefaults`,
+  down to an unused default writing no key. The property still comes first,
+  because a default can only default something that exists.
+
+Neither is open. This section is kept because a design that records which
+questions it was blocked on is easier to re-enter than one that quietly
+absorbed the answers.
 
 ## Depends on
 
