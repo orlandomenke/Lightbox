@@ -38,15 +38,23 @@ archive. The archive is `BUGS.md` itself.
 
 <!-- Append new reports below this line, oldest first. -->
 
-## Layer-name rename exits immediately on double-click
+## Brush gizmo size updates only after mouse movement
 
-- **Area:** Layers
-- **Type:** Regression
-- **Summary:** Double-clicking a layer name to rename it immediately exits rename mode, preventing layer renaming.
-- **Evidence:** Reported after recent changes.
-- **Steps:** Double-click a layer name.
-- **Expected:** The layer name enters rename mode and can be edited.
-- **Actual:** Rename mode exits immediately.
+- **Area:** On-canvas brush gizmo
+- **Type:** Bug
+- **Summary:** Changing brush size does not immediately update the on-canvas brush gizmo. It updates only after the mouse is moved.
+- **Expected:** The gizmo updates in real time to represent the brush tip with an outline only.
+- **Actual:** The gizmo size changes only after mouse movement.
+
+---
+
+## Brush gizmo renders as a circle instead of the brush-tip outline
+
+- **Area:** On-canvas brush gizmo
+- **Type:** Bug
+- **Summary:** The on-canvas brush gizmo is rendered as a circle rather than the brush tip’s outline.
+- **Expected:** The gizmo represents the brush tip using outlines only.
+- **Actual:** The gizmo is rendered as a circle.
 
 ---
 
