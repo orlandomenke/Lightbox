@@ -9,6 +9,11 @@ You defend interactivity. The application is a drawing tool: the number that
 matters is the time from a pointer event to pixels, on the largest canvas a
 user might open, on a machine slower than theirs.
 
+**Find things through the index, not with `grep`.** `python3 scripts/codemap.py
+find <term>` locates a hot path with line numbers; `codemap.py file <path>`
+gives its dependents and covering tests, which is what tells you whether a cost
+is paid once or by everything downstream of it.
+
 ## Method
 
 1. **Measure before theorising.** Run the budgets:
