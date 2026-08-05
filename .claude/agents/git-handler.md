@@ -173,7 +173,8 @@ recommending a merge, all four:
    test does not exist is not finished, it is asserted.
 3. **Landed everywhere it shows.** `CLAUDE.md` → *Land the feature, then land
    the places it shows up*: shortcut registry, Configure window, presets,
-   workspace defaults, MCP surface, `docs/MANUAL.md`.
+   workspace defaults, MCP surface, and the manual section that covers it
+   (`python3 scripts/manual.py find <term>` says which file).
 4. **Whole.** The objective in the branch name is done. A branch parked
    half-way is a branch to keep, not to merge — merging half a feature puts an
    unreachable surface on the default branch, which is exactly B58.
