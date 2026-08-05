@@ -717,3 +717,77 @@ ai-engineer can price a cap and cannot price a worse inbetween. **(c) is the one
 I would open the argument with**, because it is the only option that does not
 pretend a face turnaround and a walk-cycle sheet want the same number. (b) is
 the cheap interim if a setting is too much for now.
+
+---
+
+## Q28 · What is a reference bound to, when a project is a production?
+
+Raised 2026-08-05, alongside Q29 and the scope note in the ledger's project
+entries. **Not answerable from the code**, because the code has only ever had
+one answer and it was chosen when a project meant one character.
+
+A `ReferenceSheet` lives in `Doc.ReferenceSheets` — it belongs to **one
+document**. That was coherent when Pillar 1 said a project *is* a character:
+the turnaround belonged to the animation you were drawing.
+
+It stops being coherent the moment a project is a production. The reporter's
+own examples are the argument: a character sheet should reach **every animation
+of that character**, a level design should reach **the environment it
+describes**, and on a film an art-direction board is wanted **project-wide**.
+The type is also wider than "character sheet" — level designs, world designs,
+environmental sketches are the same kind of thing pointed at something else.
+
+So the question is not *should a reference be shared* but **what does a
+reference name as its scope**, and the options differ in what they cost:
+
+**(a) A scope field on the reference: project, folder, or document.** One
+nullable key, absent by default, and it reads like the camera does. Cheapest,
+and it cannot express "these three folders" — which the reporter asked for by
+name ("or multiple folder").
+
+**(b) A list of bindings.** A reference names any number of folders, documents
+or the project. Expresses everything asked for. The cost is that a reference
+stops being ownable by anything, so deleting a folder has to answer what
+happens to a reference that named it and one other.
+
+**(c) Tags on both sides.** A reference carries tags; a folder or document
+carries tags; a reference shows where the tags meet. This is where the owner's
+"custom tags and be able to tag" points, and it is the only option where
+"every character animation" is expressible without listing them. It is also the
+one that can surprise: adding a tag to a folder silently changes what a
+document sees, which is the *shape* invariant 4 is suspicious of.
+
+**What makes this urgent rather than interesting:** invariant 1. A document
+currently re-renders from its own record, and a reference resolved through a
+project, a folder or a tag is a document that does not. The camera precedent
+says how that is repaid — `ProjectIo.Flatten` inlines everything referenced when
+a document leaves the app — so whichever option wins, **Flatten has to inline
+resolved references and there must be a pixel-identity test for it**, or the
+escape hatch rots silently. That part is not a preference and does not need a
+decision.
+
+---
+
+## Q29 · Is the project docker the whole surface, or the quick view of one?
+
+Raised 2026-08-05 by the owner: *"the project docker is part of a larger
+project window where we can do advanced operations. The docker is the quick
+overview and document/hierarchy helper."*
+
+Recorded rather than answered, because it decides where the open project bugs
+land and they should not each guess. B86 (drag/drop, subfolders,
+collapse/expand), B87 (permanent delete with confirmation), B64 (rename), B63
+(the create menu) are all currently filed against *the docker*. If a project
+window exists, some of them belong there instead — a delete that prompts about
+a folder full of files is a poor fit for a sidebar, and a bulk retag is not a
+docker operation at all.
+
+The split that seems to hold, and is offered as a starting point rather than a
+conclusion: **the docker does what you do while drawing** — find it, open it,
+move it, rename it — and **the window does what you do between drawings**:
+bulk operations, tagging, reference binding, status across the production,
+whatever an artist would stop drawing to do.
+
+The reason to settle it before B86 rather than after: hierarchy is the one
+piece both surfaces need, and building it into the docker first is how it ends
+up with two implementations.
