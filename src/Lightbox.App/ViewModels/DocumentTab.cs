@@ -111,8 +111,17 @@ public sealed partial class DocumentTab : ObservableObject
     /// </summary>
     public Lightbox.Core.Projects.DocumentRef? Source { get; set; }
 
-    /// <summary>Playhead/layer selection remembered while another tab is active.</summary>
-    internal int SavedFrameIndex;
-
-    internal int SavedLayerIndex;
+    /// <summary>
+    /// Where the artist was in this document — playhead, layer, reference and
+    /// canvas framing — put down on the way out of the tab and picked up on the
+    /// way back in.
+    /// </summary>
+    /// <remarks>
+    /// <b>B67.</b> Was two loose ints (<c>SavedFrameIndex</c>,
+    /// <c>SavedLayerIndex</c>) and grew a third and a fourth. One object so
+    /// there is a single answer to "what belongs to a document rather than to
+    /// the process", and so the next thing to join the list is a field rather
+    /// than another pair of save/restore lines to forget.
+    /// </remarks>
+    internal DocumentScopedState State { get; } = new();
 }
