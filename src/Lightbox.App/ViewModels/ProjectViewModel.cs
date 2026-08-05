@@ -62,12 +62,47 @@ public sealed partial class ProjectRow : ObservableObject
     /// How long it runs, already formatted, or null when nothing knows.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Null rather than "0:00". A running time that quietly reports the shots
     /// it could not measure as zero is the number somebody schedules against.
+    /// </para>
+    /// <para>
+    /// Settable and observable so a re-read can update a row in place rather than
+    /// replacing it — see <see cref="ProjectViewModel.Refresh"/> and
+    /// <see cref="Describes"/>.
+    /// </para>
     /// </remarks>
-    public string? Duration { get; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDuration))]
+    private string? _duration;
 
     public bool HasDuration => Duration is { Length: > 0 };
+
+    /// <summary>
+    /// Whether this row and <paramref name="other"/> stand for exactly the same
+    /// thing in the same place.
+    /// </summary>
+    /// <remarks>
+    /// <b>B61.</b> A re-read used to rebuild every row from scratch, which is
+    /// correct on screen and destroys object identity — and the docker's
+    /// interactions live on the row instance. A rename in progress
+    /// (<see cref="IsRenaming"/>), an open context menu acting on
+    /// <c>Selected</c>, a status flyout mid-click: each of them holds a row, and
+    /// each of them silently addressed a discarded object the moment anything
+    /// touched the project folder. Once a save arms a directory watch, that is
+    /// every save.
+    /// <para>
+    /// The identity is the underlying objects rather than the key, because a key
+    /// can outlive a role: <see cref="ProjectViewModel.Move"/> keeps a document's
+    /// id and changes the character above it, so the same id becomes a differently
+    /// indented row that is no longer <see cref="IsLoose"/>. Reference equality on
+    /// all three says that exactly, and anything it says no to gets a fresh row.
+    /// </para>
+    /// </remarks>
+    internal bool Describes(ProjectRow other) =>
+        ReferenceEquals(Character, other.Character)
+        && ReferenceEquals(Scene, other.Scene)
+        && ReferenceEquals(Animation, other.Animation);
 
     public bool IsScene => Scene is not null && Animation is null;
 
@@ -159,7 +194,7 @@ public sealed partial class ProjectRow : ObservableObject
 /// disabled. Someone who opened the app to draw one picture must never be shown
 /// a character tree.
 /// </summary>
-public sealed partial class ProjectViewModel : ObservableObject
+public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 {
     private readonly Func<Doc> _newDocument;
     private readonly Action<DocumentRef, Doc> _open;
@@ -170,6 +205,7 @@ public sealed partial class ProjectViewModel : ObservableObject
         _newDocument = newDocument;
         _open = open;
         _changed = changed;
+        Watcher = new Services.ProjectWatcher(Refresh);
     }
 
     [ObservableProperty]
@@ -211,6 +247,31 @@ public sealed partial class ProjectViewModel : ObservableObject
 
     public IReadOnlySet<string> Dirty => _dirty;
 
+    /// <summary>
+    /// Release the directory watch.
+    /// </summary>
+    /// <remarks>
+    /// A view model with an OS handle in it owes the caller a way to give it
+    /// back. Nothing in the running application needs this — the watch follows
+    /// the project and the process outlives it — but a test that opens forty
+    /// projects would otherwise leave forty inotify instances to a finalizer, and
+    /// the platform limit is 128 per user. Cheap to offer, expensive to discover
+    /// the absence of.
+    /// </remarks>
+    public void Dispose() => Watcher.Dispose();
+
+    /// <summary>
+    /// Notices when the project folder changes on disk and calls
+    /// <see cref="Refresh"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>B61.</b> Owned here rather than by <c>MainViewModel</c> because
+    /// <see cref="Adopt"/> is the single funnel every project arrives through, so
+    /// this is the one place that cannot be bypassed by a future caller. Exposed
+    /// so a test can flush its debounce; nothing else should reach into it.
+    /// </remarks>
+    public Services.ProjectWatcher Watcher { get; }
+
     public void Adopt(Project? project)
     {
         Project = project;
@@ -221,38 +282,88 @@ public sealed partial class ProjectViewModel : ObservableObject
     /// <summary>Note that a document changed, so the next save writes it and only it.</summary>
     public void MarkDirty(DocumentRef reference) => _dirty.Add(reference.Id);
 
-    public void MarkAllSaved() => _dirty.Clear();
+    /// <summary>
+    /// Everything is written. Clears the dirty set — and arms the directory
+    /// watch, which is the first moment it can be armed.
+    /// </summary>
+    /// <remarks>
+    /// <b>B61, and it was a test that found this.</b> <c>Adopt</c> looks like the
+    /// only place a watch is needed, and for <c>OpenProject</c> it is. But
+    /// <c>ProjectIo.Create</c> builds a <c>Project</c> without creating its folder,
+    /// and <c>NewProject</c> adopts before it saves — so at <c>Adopt</c> time a new
+    /// project's root <em>does not exist yet</em> and there is nothing to watch. A
+    /// freshly created project would have gone unwatched for its whole session,
+    /// which is the same class of miss as the one B61 already is: a fix that works
+    /// on the path somebody tested and not on the one they use.
+    /// <para>
+    /// This is the right funnel rather than a convenient one: an empty dirty set
+    /// means every document is on disk, so it is exactly the condition under which
+    /// the folder is there to be watched. <c>Watch</c> is idempotent on the same
+    /// root, so calling it after every save costs a string comparison.
+    /// </para>
+    /// </remarks>
+    public void MarkAllSaved()
+    {
+        _dirty.Clear();
+        Watcher.Watch(Project?.Root);
+    }
 
     partial void OnProjectChanged(Project? value)
     {
         Rebuild();
         OnPropertyChanged(nameof(HasScenes));
+        // B61. Follows the project rather than the application: closing a project
+        // stops the watch, and null — the ordinary state — watches nothing at
+        // all. A document-first app that never opens a project must not hold an
+        // OS handle for a folder it does not have.
+        Watcher.Watch(value?.Root);
     }
 
     private void Rebuild()
     {
         var keep = Selected?.Key;
+
+        // B61. A row that stands for the same thing is kept rather than replaced,
+        // because a re-read now happens whenever the folder changes — including on
+        // every save — and the docker's interactions live on the row instance. See
+        // ProjectRow.Describes for what "the same thing" means and what it cost to
+        // find out.
+        var previous = new List<ProjectRow>(Rows);
         Rows.Clear();
+
+        void Add(ProjectRow fresh)
+        {
+            if (previous.FirstOrDefault(p => p.Describes(fresh)) is { } kept)
+            {
+                kept.Name = fresh.Name;
+                kept.Status = fresh.Status;
+                kept.Duration = fresh.Duration;
+                Rows.Add(kept);
+                return;
+            }
+            Rows.Add(fresh);
+        }
+
         foreach (var character in Project?.Characters ?? [])
         {
-            Rows.Add(new ProjectRow(character));
+            Add(new ProjectRow(character));
             foreach (var animation in character.Animations)
-                Rows.Add(new ProjectRow(character, animation) { Status = animation.Status });
+                Add(new ProjectRow(character, animation) { Status = animation.Status });
         }
         // Scenes after the characters, because the characters are what a
         // project is named after and a film's shot list is the second axis
         // rather than the first. Absent entirely when there are none.
         foreach (var scene in Project?.Scenes ?? [])
         {
-            Rows.Add(new ProjectRow(scene, RunningTime(scene)));
+            Add(new ProjectRow(scene, RunningTime(scene)));
             foreach (var shot in scene.Shots)
-                Rows.Add(new ProjectRow(scene, shot, ShotTime(shot)) { Status = shot.Status });
+                Add(new ProjectRow(scene, shot, ShotTime(shot)) { Status = shot.Status });
         }
         // Project-level documents last, unindented — they belong to the
         // project, not under anything.
         foreach (var document in Project?.Manifest.Documents ?? [])
         {
-            Rows.Add(new ProjectRow(null, document) { Status = document.Status });
+            Add(new ProjectRow(null, document) { Status = document.Status });
         }
         MarkMissing();
         Selected = Rows.FirstOrDefault(r => r.Key == keep);
@@ -274,6 +385,31 @@ public sealed partial class ProjectViewModel : ObservableObject
     /// path rather than three that can disagree.
     /// </remarks>
     public void Refresh() => Rebuild();
+
+    /// <summary>
+    /// Re-read on purpose — the F5 the artist presses, and the toolbar button.
+    /// </summary>
+    /// <remarks>
+    /// <b>The fallback the directory watch needs to have.</b>
+    /// <c>Services.ProjectWatcher.Watch</c> swallows an <c>IOException</c> so a
+    /// project on a network share still opens rather than refusing to; without a
+    /// manual path that swallow would leave an artist with B61 and no way out at
+    /// all, which is a worse bug wearing better manners. Reports what it did,
+    /// because a refresh that finds nothing wrong is otherwise indistinguishable
+    /// from a button that does nothing.
+    /// </remarks>
+    [RelayCommand]
+    private void RefreshFromDisk()
+    {
+        if (Project is null) return;
+        Refresh();
+        Status = MissingCount switch
+        {
+            0 => "Re-read from disk — everything is where the project says.",
+            1 => "Re-read from disk — 1 item is not on disk.",
+            var n => $"Re-read from disk — {n} items are not on disk.",
+        };
+    }
 
     /// <summary>
     /// Set <see cref="ProjectRow.Missing"/> against the filesystem.
