@@ -88,15 +88,20 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ## Open
 
-- [ ] **B78** `P3` `ui` The character sheet name is asked for twice `evidence: CharacterSheetFileTests, TheSaveDialogIsOfferedTheSheetsName`
+- [ ] **B78** `P3` `ui` The character sheet name is asked for twice `evidence: manual`
   - **A regression from B66, shipped hours earlier, and reported immediately.** B66 added a name prompt before creating a character sheet and then offered Save As for a document with no file. Both are right on their own; together the artist types a name, and is then asked for a name again by the file picker with none of the first one carried across.
   - The fix is to seed the save dialog with the sheet's name rather than to remove either prompt: the two are asking different questions — what the sheet is called, and where the document goes — and the second should arrive already answered.
-  - Worth naming as the shape rather than the incident: **two correct prompts in sequence are one bad prompt.** The B66 test suite pinned the decision each dialog makes and could not see the pair, because neither dialog is reachable headlessly. Cost: S
+  - Worth naming as the shape rather than the incident: **two correct prompts in sequence are one bad prompt.** The B66 test suite pinned the decision each dialog makes and could not see the pair, because neither dialog is reachable headlessly.
+  - **Fixed**: `SaveDocumentAsAsync` takes an optional suggested name and `OnAddReferenceSheet` passes the sheet's, so the picker opens already filled in. Neither prompt is removed — they ask different questions, *what is this called* and *where does it go*, and only the second arriving blank was wrong.
+  - `evidence: manual` in effect, and said plainly rather than dressed up: the file picker is a `StorageProvider` dialog and nothing headless can open one. `CharacterSheetFileTests` still pins what B66 decides; what nobody can assert here is what the box is prefilled with. Cost: S
 
 - [ ] **B79** `P2` `ui` The unsaved badge stays on a document that has just been saved `evidence: DocumentTabTests, SavingClearsTheUnsavedBadge, ASheetEditStillRaisesTheBadge`
   - Reported: the dot survives a save when nothing has changed since. The reporter also checked the opposite case and found it correct — editing an attached character sheet *does* raise the badge — so the signal works and only the clearing is wrong.
   - **This is worse than an untidy dot.** A badge that is on when nothing is dirty teaches the artist to ignore it, and the one time it means something is the time work is lost. That is why it is `P2` on a one-pixel symptom.
-  - Brush settings are saved separately and must not feed this badge (Q24), so the fix has to be about which edits mark the tab rather than about clearing harder. Cost: S
+  - Brush settings are saved separately and must not feed this badge (Q24), so the fix has to be about which edits mark the tab rather than about clearing harder.
+  - **The obvious cause is eliminated, by probe rather than by reading.** `NotifySaved` sets `tab.IsDirty = false`, and `IsDirty` carries `[NotifyPropertyChangedFor(nameof(DisplayTitle))]`, so the wiring is right — and a headless probe confirmed it: add a sheet, assert the badge is up, call `NotifySaved`, and the badge clears. That path is not the bug, so a fix aimed at it would have been a fix aimed at nothing.
+  - What that leaves, in order of suspicion: something **after** the save re-marking the tab — `_autosave.MarkDirty()`, `RebakeLiveSamples()` on the way out of an edit funnel, or a snapshot publish landing on the dispatcher after `NotifySaved` has run; and `SaveTargetTab`, which resolves a Reference tab to `ActiveTab.Owner` — so a save made while a character sheet tab is focused clears the *owner's* flag, and if the report's badge is on a different tab than the one being cleared, both halves of what was observed are true at once. That second one matches the reporter's note that a sheet edit correctly raises the badge.
+  - The probe was deleted rather than kept: a test that passes against the bug is not a regression test, it is a claim that the bug is elsewhere, and leaving it would read as coverage. Cost: S
 
 - [ ] **B76** `P2` `project` A new document is written to disk the moment it is created `evidence: UnsavedDocumentTests, ANewDocumentIsNotOnDiskUntilItIsSaved, AnUnsavedDocumentIsShownAsPendingInTheDocker, DiscardingAnUnsavedDocumentRemovesItFromTheDocker`
   - Reported: creating a new document writes it immediately, so a file exists before the artist has decided anything — including a name, which is B65 arriving from the other direction.

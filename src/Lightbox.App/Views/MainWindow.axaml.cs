@@ -1393,8 +1393,9 @@ public partial class MainWindow : Window
         if (name is null) return;   // cancelled: nothing is created
 
         var needsAFile = _vm.AReferenceSheetWouldBeUnsaved;
-        _vm.AddReferenceSheet(name);
-        if (needsAFile) await SaveDocumentAsAsync();
+        var sheet = _vm.AddReferenceSheet(name);
+        // B78: the picker opens already named, rather than asking a second time.
+        if (needsAFile) await SaveDocumentAsAsync(sheet.Name);
     }
 
     private void OnAddReferenceView(object? sender, RoutedEventArgs e)
@@ -2707,12 +2708,27 @@ public partial class MainWindow : Window
 
     private async void OnSaveClicked(object? sender, RoutedEventArgs e) => await SaveDocumentAsAsync();
 
-    private async Task SaveDocumentAsAsync()
+    /// <param name="suggestedName">
+    /// What to put in the picker's name box, when the caller already asked the
+    /// artist for a name.
+    /// </param>
+    /// <remarks>
+    /// <b>B78.</b> B66 added a name prompt before creating a character sheet and
+    /// then offered this dialog for a document with no file — so the artist typed
+    /// a name and was immediately asked for one again, with the first answer
+    /// thrown away. The two prompts ask different questions, *what is this
+    /// called* and *where does it go*, and the second should arrive already
+    /// answering the first. Two correct prompts in sequence are one bad prompt.
+    /// </remarks>
+    private async Task SaveDocumentAsAsync(string? suggestedName = null)
     {
+        var stem = string.IsNullOrWhiteSpace(suggestedName)
+            ? _vm.ActiveTab?.Title ?? "untitled"
+            : suggestedName.Trim();
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save animation",
-            SuggestedFileName = $"{_vm.ActiveTab?.Title ?? "untitled"}.lightbox.json",
+            SuggestedFileName = $"{stem}.lightbox.json",
             FileTypeChoices = [LightboxFileType],
         });
         if (file is null) return;
