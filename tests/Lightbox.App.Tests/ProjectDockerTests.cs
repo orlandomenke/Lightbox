@@ -64,7 +64,18 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
     /// </remarks>
     private void WithKnight(MainViewModel vm)
     {
-        ProjectIo.AddCharacter(vm.ProjectDocker.Project!, "Knight");
+        var project = vm.ProjectDocker.Project!;
+        var knight = ProjectIo.AddCharacter(project, "Knight");
+        // And the adopted document goes under it. That is the arrangement these
+        // tests were written around; the only change is that they now ask for it
+        // instead of NewProject inventing it.
+        foreach (var adopted in project.Manifest.Documents.ToList())
+        {
+            ProjectIo.MoveDocument(project, adopted, knight);
+        }
+        // Written, not merely recorded: NewProject saves on the way out, so
+        // anything added afterwards exists in the manifest and not on disk — and
+        // the docker would rightly report it missing.
         vm.SaveProject(everything: true);
         vm.ProjectDocker.Refresh();
     }

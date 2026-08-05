@@ -18,6 +18,31 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public sealed class WorkspaceTests : BrushStateIsolated
 {
+    /// <summary>
+    /// A character called Knight owning the adopted document.
+    /// </summary>
+    /// <remarks>
+    /// <b>B83/B84.</b> <c>NewProject</c> used to invent this character from the
+    /// project's own name, which put the artist's first drawing at
+    /// <c>characters/knight/animations/</c> and created two folders nobody asked
+    /// for. These tests are about the menus rather than about that invention, so
+    /// they now ask for the arrangement they always assumed.
+    /// </remarks>
+    private static void WithKnight(MainViewModel vm)
+    {
+        var project = vm.ProjectDocker.Project!;
+        var knight = Lightbox.Core.Projects.ProjectIo.AddCharacter(project, "Knight");
+        foreach (var adopted in project.Manifest.Documents.ToList())
+        {
+            Lightbox.Core.Projects.ProjectIo.MoveDocument(project, adopted, knight);
+        }
+        vm.SaveProject(everything: true);
+        vm.ProjectDocker.Refresh();
+        // Selected, because "add an animation" with nothing selected invents a
+        // character to hang it on — and these tests count characters.
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.IsCharacter);
+    }
+
     private static (MainWindow Window, MainViewModel Vm) Open()
     {
         var window = new MainWindow();
@@ -201,6 +226,7 @@ public sealed class WorkspaceTests : BrushStateIsolated
         {
             var (w, vm) = Open();
             vm.NewProject(root, "Knight");
+            WithKnight(vm);
             vm.Save();
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
@@ -278,6 +304,7 @@ public sealed class WorkspaceTests : BrushStateIsolated
         {
             var (w, vm) = Open();
             vm.NewProject(root, "Knight");
+            WithKnight(vm);
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
             var button = w.GetVisualDescendants().OfType<Button>()

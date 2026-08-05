@@ -1284,44 +1284,44 @@ regression even when every test still compiles.
 ## ProjectDockerTests
 `tests/Lightbox.App.Tests/ProjectDockerTests.cs`
 
-- The App Opens With No Project — `:75`
-- With No Project ADocument Saves And Loads Exactly As Before — `:88`
-- New Project Adopts The Document Already Open — `:104`
-- The Docker Lists Characters With Their Animations Under Them — `:131`
-- Adding An Animation Opens It As ATab Bound To Its Slot — `:145`
-- Opening An Animation Twice Focuses The Tab Rather Than Duplicating It — `:160`
-- File New Still Makes AStandalone Document With AProject Open — `:177`
-- Two Animations Under One Character Paint From One Palette — `:194`
-- Save Writes The Project Without APicker — `:232`
-- Without AProject Or APath There Is Nothing To Save In Place — `:249`
-- AProject Reopens With Its Characters And Animations — `:257`
-- Removing An Animation Leaves Its File On Disk — `:279`
-- The New Menu Offers One Entry Per Place Work Can Land — `:299`
-- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:316`
-- ALoose Document Gets Its Own Row With No Character Above It — `:334`
-- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:349`
-- Moving ADocument To The Project Takes It Out Of Every Character — `:375`
-- Moving ADocument Where It Already Is Does Nothing — `:390`
-- AMoved Document Survives ASave And Reopen — `:400`
-- Renaming ARow Writes Through — `:421`
-- Every Row Knows Where It Is On Disk — `:437`
-- With No Project There Is No Path To Show — `:457`
-- Copy Path Gives The Selected Rows File — `:467`
-- Opening Externally Says So When The File Is Not Written Yet — `:480`
-- Duplicating An Animation Copies Its Art Into The Same Character — `:498`
-- Duplicating Writes The Copy On The Next Save — `:532`
-- Deleting AFolder On Disk Removes It From The Docker — `:560`
-- The Docker Refreshes Without Being Reopened — `:589`
-- An Unsaved Project Does Not Report Every Row As Missing — `:615`
-- The Watch Follows The Project And Not The Application — `:654`
-- ABurst Of Disk Events Costs One Refresh — `:689`
-- ADeletion On Disk Reaches The Row Without ARefresh Call — `:744`
-- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:805`
-- AManual Re Read Is Reachable And Reports What It Found — `:858`
-- Creating An Item Asks For Its Name First — `:919`
-- The Suggested Name Matches The Numbered Fallback — `:939`
-- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:956`
-- The Unnamed Command Still Creates The Numbered Default — `:973`
+- The App Opens With No Project — `:86`
+- With No Project ADocument Saves And Loads Exactly As Before — `:99`
+- New Project Adopts The Document Already Open — `:115`
+- The Docker Lists Characters With Their Animations Under Them — `:142`
+- Adding An Animation Opens It As ATab Bound To Its Slot — `:156`
+- Opening An Animation Twice Focuses The Tab Rather Than Duplicating It — `:171`
+- File New Still Makes AStandalone Document With AProject Open — `:188`
+- Two Animations Under One Character Paint From One Palette — `:205`
+- Save Writes The Project Without APicker — `:243`
+- Without AProject Or APath There Is Nothing To Save In Place — `:260`
+- AProject Reopens With Its Characters And Animations — `:268`
+- Removing An Animation Leaves Its File On Disk — `:290`
+- The New Menu Offers One Entry Per Place Work Can Land — `:310`
+- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:327`
+- ALoose Document Gets Its Own Row With No Character Above It — `:345`
+- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:360`
+- Moving ADocument To The Project Takes It Out Of Every Character — `:386`
+- Moving ADocument Where It Already Is Does Nothing — `:401`
+- AMoved Document Survives ASave And Reopen — `:411`
+- Renaming ARow Writes Through — `:432`
+- Every Row Knows Where It Is On Disk — `:448`
+- With No Project There Is No Path To Show — `:468`
+- Copy Path Gives The Selected Rows File — `:478`
+- Opening Externally Says So When The File Is Not Written Yet — `:491`
+- Duplicating An Animation Copies Its Art Into The Same Character — `:509`
+- Duplicating Writes The Copy On The Next Save — `:543`
+- Deleting AFolder On Disk Removes It From The Docker — `:571`
+- The Docker Refreshes Without Being Reopened — `:600`
+- An Unsaved Project Does Not Report Every Row As Missing — `:626`
+- The Watch Follows The Project And Not The Application — `:665`
+- ABurst Of Disk Events Costs One Refresh — `:700`
+- ADeletion On Disk Reaches The Row Without ARefresh Call — `:755`
+- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:816`
+- AManual Re Read Is Reachable And Reports What It Found — `:869`
+- Creating An Item Asks For Its Name First — `:930`
+- The Suggested Name Matches The Numbered Fallback — `:950`
+- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:967`
+- The Unnamed Command Still Creates The Numbered Default — `:984`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
@@ -2091,18 +2091,18 @@ regression even when every test still compiles.
 ## WorkspaceTests
 `tests/Lightbox.App.Tests/WorkspaceTests.cs`
 
-- Panels Land In The Strip The Layout Names — `:43`
-- Moving APanel Moves The Control — `:55`
-- An Empty Edge Collapses And AFilled One Opens — `:67`
-- Closing APanel Parks It Rather Than Destroying It — `:89`
-- The Header Switcher Trades Two Panels Places — `:108`
-- Every Panel Except The Timeline Offers ASwitcher — `:124`
-- The Project Panel Appears As Soon As There Is AProject — `:145`
-- The Canvas Gets The Room Left Over By The Strips — `:168`
-- The Project Row Menu Actually Does Something When Clicked — `:192`
-- The New Menu Actually Makes Things — `:271`
-- The Reference Panel Is Absent Until It Is Asked For — `:328`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:344`
+- Panels Land In The Strip The Layout Names — `:68`
+- Moving APanel Moves The Control — `:80`
+- An Empty Edge Collapses And AFilled One Opens — `:92`
+- Closing APanel Parks It Rather Than Destroying It — `:114`
+- The Header Switcher Trades Two Panels Places — `:133`
+- Every Panel Except The Timeline Offers ASwitcher — `:149`
+- The Project Panel Appears As Soon As There Is AProject — `:170`
+- The Canvas Gets The Room Left Over By The Strips — `:193`
+- The Project Row Menu Actually Does Something When Clicked — `:217`
+- The New Menu Actually Makes Things — `:297`
+- The Reference Panel Is Absent Until It Is Asked For — `:355`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:371`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
