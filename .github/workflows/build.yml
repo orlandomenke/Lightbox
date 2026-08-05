@@ -87,6 +87,11 @@ jobs:
       - name: SkiaSharp native dependency
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
       - run: dotnet test Lightbox.sln -c Release
+      # The branch-name rules in branchstate.py have no C# suite to live in, and
+      # a heuristic with no test is how the first version came to fire on
+      # `chore/ledger-by-domain`. Costs a second.
+      - name: Branch-name rules
+        run: python3 scripts/branchstate.py selftest
 
   # Is there anything in this push that could change the bundle? A Windows
   # build of a Markdown edit is 105 MB of storage for a file nobody ships.
