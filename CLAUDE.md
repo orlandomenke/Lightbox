@@ -129,8 +129,7 @@ Rebuild by hand with `python3 scripts/codemap.py build` after large changes.
 reaching for `grep` out of habit.** Two rules, both learned by breaking them:
 
 - **Search the index before the source.** `codemap.py find X` answers "where does
-  X live" for a fraction of a grep over a 20k-line solution, and the whole reason
-  the file exists is that the grep gets re-paid every session.
+  X live" for a fraction of a repo-wide grep.
 - **Read `HOTSPOTS.md` before editing, not after.** It is the only thing that says
   *this file is dangerous* — and its top two entries are XAML files with hundreds
   of commits and, for a long time, no test files at all. A session that added a
@@ -253,14 +252,12 @@ anchor is the one thing the file cannot represent.
 ### Branches, merges and pull requests
 
 Delegate them to the **git-handler** agent (`.claude/agents/git-handler.md`)
-rather than doing them by hand. It cuts branches from the current default,
-checks divergence before it does anything, refuses to merge a red suite,
-builds the merged tree before pushing, writes PR bodies against the repo's
-template, and reports which branches have gone stale or are already merged and
-still hanging around.
+rather than doing them by hand — its own definition says what it covers.
 
-It does not merge or open a PR unless that was the actual request — those are
-the two git actions other people see.
+**Finished work becomes a pull request, and that is the standing route** — it
+does not need asking for. **Merging to `main` needs an explicit instruction to
+merge**; "it's finished" and a green suite are a request for a PR, not for a
+merge.
 
 **A branch is one objective, and its name says which** — `<type>/<id>-<slug>`,
 as in `fix/B39-effect-brush-scratch`. The agent has the full convention and
@@ -280,13 +277,8 @@ where a person stops holding the set in their head.
 ### Touching anything AI: two agents, on purpose
 
 AI work is reviewed by a **pair**, `.claude/agents/ai-engineer.md` and
-`.claude/agents/art-director.md`, and they are meant to disagree.
-
-- **ai-engineer** owns the machinery: what is sent, what it costs, what the
-  contract is, what happens when it fails, and the line that keeps a model out
-  of the render path.
-- **art-director** owns the result: does the inbetween read at 12 fps, is it
-  actually *between* the keys, is it on-model, does the mark say anything.
+`.claude/agents/art-director.md` — machinery and result respectively, per their
+own descriptions — and they are meant to disagree.
 
 Either alone fails in a direction you can predict. Alone, the engineer
 optimises until the output is cheap and lifeless; alone, the director asks for
@@ -305,12 +297,9 @@ Gate G12 in the charter makes this non-optional for a diff touching
 most of these arguments before they start: **images are ~87% of a request's
 bytes and ~5% of its tokens; strokes are the reverse.** So "make the payload
 smaller" is not a goal — it is two goals that recommend opposite changes, and a
-proposal that has not said which one it means is not ready.
-
-The corollaries, all measured: compression is not worth it (82% off the bytes,
-nothing off the tokens, and the upload is 0.3 s beside a minute of generation);
-GraphQL does not apply (there is no API of ours in the path); and the biggest
-lever by six times is **sending fewer strokes**, not encoding them better.
+proposal that has not said which one it means is not ready. The corollaries are
+measured in that doc — compression, GraphQL and the six-times lever of sending
+fewer strokes are all settled there, so read it rather than re-deriving them.
 `AiPayloadBudgetTests` keeps the numbers honest.
 
 ### Measuring a brush: the saturation trap
@@ -372,6 +361,4 @@ exactly like a bug.
 
 ## Self-improvement loop
 
-`/improve` runs an audit → fix → verify loop that guards the behaviour
-inventory, expands tests, watches performance, and writes down the questions
-it cannot answer itself. See `.claude/skills/improve/SKILL.md`.
+`/improve` runs an audit → fix → verify loop; see `.claude/skills/improve/SKILL.md`.

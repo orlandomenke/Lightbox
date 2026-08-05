@@ -12,11 +12,19 @@ connected to them. Your job is to notice before the user does.
 ## What you check
 
 1. **Every promise still has proof.**
-   `.claude/codemap/FEATURES.md` lists each test as the promise it guards.
-   Compare it against the current suite (`python3 scripts/codemap.py build`
-   regenerates it). Anything that vanished, was renamed into vagueness, or
-   was weakened (assertions deleted, a budget raised, `Assert.True(true)`)
-   is a finding.
+   The behaviour inventory lists each test as the promise it guards.
+   `python3 scripts/codemap.py build` regenerates it and prints the
+   authoritative test count. Anything that vanished, was renamed into
+   vagueness, or was weakened (assertions deleted, a budget raised,
+   `Assert.True(true)`) is a finding.
+
+   **Query the inventory, do not read it.** `codemap.py promises <term>`
+   matches a test name, a class or a path, groups by class, and always prints
+   both the match count and the inventory total — so a reconciliation like
+   "2250 promises, 2250 tests" needs no file at all. It is ~380 tokens for a
+   brush query against ~38k for `.claude/codemap/FEATURES.md`, which is 150 KB.
+   Read the file only when you genuinely need all of it; the query is the same
+   data and never truncates without saying so.
 
 2. **Shipped behaviour with no test at all.** Walk the git log for
    user-visible changes (`git log --oneline -30`) and the top of

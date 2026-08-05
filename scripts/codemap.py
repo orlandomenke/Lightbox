@@ -21,6 +21,8 @@ Usage
     codemap.py find <term>        symbols/files matching a term, with line
                                   numbers and the tests that cover them
     codemap.py file <path>        one file's symbols, dependents and tests
+    codemap.py promises <term>    the behaviour inventory, filtered — the
+                                  queryable form of FEATURES.md
     codemap.py stale              exit 0 if the map is current, 1 if not
     codemap.py refresh            rebuild only if the map is out of date
 """
@@ -611,6 +613,69 @@ def cmd_find(term: str) -> None:
             print(f"  {human(entry['test'])}\n      {entry['file']}:{entry['line']}")
 
 
+PROMISE_CAP = 200
+
+
+def cmd_promises(term: str) -> None:
+    """
+    The behaviour inventory, filtered — what FEATURES.md says about one area.
+
+    FEATURES.md is 150 KB, which is ~38k tokens to read for a question about
+    one brush or one docker, and `write_features` shows it is a pure rendering
+    of `data["tests"]`. So this is the same inventory queried rather than
+    dumped, and the file stays exactly as it is for anything that genuinely
+    wants all of it.
+
+    Three things it does that `cmd_find` does not, each because an agent
+    checking promises needs it:
+
+    - **Matches the file path too**, so "what covers the raster engine" is
+      askable. `cmd_find` matches only the test and class name.
+    - **Groups by class**, so the output reads like the inventory section it
+      replaces rather than a flat list.
+    - **Never truncates silently.** `cmd_find` caps test hits at 20 and says
+      nothing, and a silent cap is precisely how a reader concludes a promise
+      is missing when it was only cut off — the failure this command exists to
+      avoid. The true match count and the inventory total are always printed.
+    """
+    data = load()
+    needle = term.lower()
+    hits = [
+        entry for entry in data["tests"]
+        if needle in entry["test"].lower()
+        or needle in entry["class"].lower()
+        or needle in entry["file"].lower()
+    ]
+
+    total = data["test_count"]
+    if not hits:
+        print(f"No promise matches '{term}' — {total} in the inventory.")
+        print("Try a shorter term, a class name, or part of a path.")
+        return
+
+    by_class: dict[str, list[dict]] = defaultdict(list)
+    for entry in hits:
+        by_class[f"{entry['file']}::{entry['class']}"].append(entry)
+
+    shown = hits[:PROMISE_CAP]
+    print(f"PROMISES matching '{term}' — {len(hits)} across "
+          f"{len(by_class)} test class(es), of {total} in the inventory")
+    if len(hits) > PROMISE_CAP:
+        print(f"  showing {PROMISE_CAP} of {len(hits)} — narrow the term to see the rest")
+
+    budget = {id(e) for e in shown}
+    for key in sorted(by_class):
+        entries = [e for e in by_class[key] if id(e) in budget]
+        if not entries:
+            continue
+        file_path, class_name = key.split("::")
+        traits = sorted({t for e in entries for t in e["traits"]})
+        label = f" _{', '.join(traits)}_" if traits else ""
+        print(f"\n## {class_name}{label}\n`{file_path}`")
+        for entry in sorted(entries, key=lambda e: e["line"]):
+            print(f"  - {human(entry['test'])} — `:{entry['line']}`")
+
+
 def cmd_file(target: str) -> None:
     data = load()
     info = data["files"].get(target)
@@ -685,6 +750,8 @@ def main() -> None:
         cmd_find(" ".join(args[1:]))
     elif command == "file" and len(args) > 1:
         cmd_file(args[1])
+    elif command == "promises" and len(args) > 1:
+        cmd_promises(" ".join(args[1:]))
     elif command == "stale":
         cmd_stale()
     elif command == "refresh":
@@ -699,4 +766,13 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BrokenPipeError:
+        # `codemap.py promises brush | head` closes the pipe early, which is
+        # ordinary use of a query tool and not a failure. Without this, Python
+        # prints a traceback that lands in an agent's transcript and reads as a
+        # broken command — costing tokens and inviting a pointless
+        # investigation. os._exit skips interpreter shutdown, which would
+        # otherwise try to flush to the same closed pipe and raise again.
+        os._exit(0)
