@@ -88,6 +88,60 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ## Open
 
+- [ ] **B61** `P2` `project` The project docker shows what was on disk when it opened, not what is there now `evidence: ProjectWatcher, ProjectDockerTests, DeletingAFolderOnDiskRemovesItFromTheDocker, TheDockerRefreshesWithoutBeingReopened`
+  - Reported: a project with several folders and documents; the folders and documents were deleted from disk and the docker went on listing them.
+  - **The reporter diagnosed it themselves and the diagnosis changes the fix.** Their seventh note says that after closing and reopening Lightbox, the files on disk were correct — so nothing is wrong with what is *written*, only with what is *shown*. This is a refresh problem, not a persistence one, and the same note explains several of the entries below that looked like separate defects.
+  - The docker reads the tree once and holds it. Nothing watches the directory, so any change made outside the app — another program, a file manager, a git checkout — leaves the docker asserting files that are gone and silent about files that appeared.
+  - Fix: a `FileSystemWatcher` on the project root, debounced, re-reading the affected subtree rather than the whole project. The debounce is the part worth designing: a checkout or an unzip fires hundreds of events, and re-reading per event is how a docker becomes a stall. Cost: M
+
+- [ ] **B62** `P3` `ui` Show in file manager ignores what is selected, and the project root cannot be seen at all `evidence: ProjectDockerTests, ShowInFileManagerOpensTheSelectedItem, TheProjectRootIsVisibleInTheDocker`
+  - Two halves of the same confusion. The toolbar button opens the project folder regardless of what is selected, while the useful behaviour — reveal *this* item — is buried in the right-click menu. The reporter wants them swapped, keeping the folder-level action on the context menu where it already is.
+  - The second half is why the first is worse than it sounds: the root folder is not shown in the docker, so there is no way to select it and no way to see where the project actually lives. Showing the root makes the toolbar button's old behaviour reachable by selecting it, which is what makes the swap safe rather than a removal.
+  - Cost: S
+
+- [ ] **B63** `P3` `project` Most of the create-in-project menu produces nothing, and it does not say which entries are folders `evidence: ProjectCreateMenuTests, EveryCreateEntryProducesSomethingOnDisk, TheCreateMenuSaysWhichEntriesAreFolders`
+  - Reported: of the entries in the "create something in this project" dropdown, only **Character** and **Document** actually produce a file. The rest are silent no-ops.
+  - A menu item that does nothing is worse than an absent one: the artist cannot tell whether the click missed, the feature is broken, or the thing was created somewhere they cannot see. Same shape as B2 and as the cursor item in Pillar 0 — silence is indistinguishable from a broken app.
+  - The second complaint is that the list does not distinguish a folder from a work file, so the menu reads as an undifferentiated pile. That is a labelling or grouping fix and it is cheap; the renaming question the reporter raises alongside it is a product decision and is in `QUESTIONS.md` rather than here.
+  - Fix: either implement each entry or remove it, and never leave one that resolves to nothing. Cost: M
+
+- [ ] **B64** `P3` `project` Nothing in the project docker can be renamed `evidence: RenameProjectItem, ProjectDockerTests, RenamingAnItemRenamesItOnDisk, ARenameThatWouldCollideIsRefusedWithItsReason`
+  - There is no rename at all — not in the context menu, not by slow double-click, not by F2. A docker that creates and deletes files but cannot rename one sends the artist to a file manager for an operation that belongs where the files are listed, and B61 means the docker will not notice the result until it is reopened.
+  - The rename has to reach disk, which makes it the first docker operation that can fail for reasons the app does not control — a lock, a permission, a name that is legal in the tree and not on the filesystem. Refusing with the reason is part of the fix rather than a nicety. Cost: M
+
+- [ ] **B65** `P2` `project` Creating a folder or a file never asks for a name, so everything arrives numbered `evidence: ProjectCreatePromptTests, CreatingAnItemAsksForItsNameFirst, NothingIsWrittenToDiskIfTheNameIsCancelled`
+  - Reported: creating from the project docker writes straight to disk with a default name, so a second one becomes the same name numbered, and the artist renames afterwards — except B64 says they cannot rename from the docker at all. The two together mean a project fills with `Untitled`, `Untitled (2)`, `Untitled (3)` and the only way out is a file manager.
+  - Fix: prompt before writing, and write nothing if the prompt is cancelled. The ordering is the whole bug — a name asked for *after* the file exists is a rename, which is B64. Cost: S
+
+- [ ] **B66** `P2` `project` A character sheet is never written to disk, so it cannot appear in the project docker `evidence: CharacterSheetIo, CharacterSheetTests, ACharacterSheetInAProjectIsWrittenOnCreation, ACharacterSheetOutsideAProjectPromptsToSave, ACharacterSheetAsksForItsNameBeforeItsLocation`
+  - Reported: character sheets are not saved to disk and do not show in the project docker.
+  - The reporter also specifies the behaviour they want, and it differs by context in a way worth keeping: **inside a project** a character sheet is added directly, the way the project docker already adds other items; **outside one** it is an ordinary document and creating it should prompt to save immediately rather than leaving unsaved work with no file behind it. In both cases the name is asked for before the save dialog, which is B65's ordering rule applied to the same surface.
+  - Cost: M
+
+- [ ] **B67** `P2` `ui` Docker and tool state is global, so one document's settings follow you into another `evidence: DocumentScopedState, DocumentTabTests, SwitchingTabsRestoresThatDocumentsToolState, ADocumentWithNoReferenceShowsNoReferencePanel, ZoomIsRememberedPerDocumentRatherThanShared`
+  - Reported with three examples and they are not the same feature: a reference added to one document is still shown after switching to a document that has none; brush and fill settings carry across; a zoom set in one document applies to the next.
+  - **What is right already is the useful half of the report.** Layers, Timeline and the character sheet do follow the document. So the shape of the fix exists — the defect is that the rest of the dockers and the tool state read from one process-wide store instead of from the active document, and `BrushStateIsolated` in the test suite exists because that store is process-wide.
+  - The reporter's own framing is the acceptance criterion: a new document that is not part of a project should not be showing the project docker, project symbols or another document's brush. Cost: L
+
+- [ ] **B68** `P2` `colour` Swatches are not saved — not into a project, and not into a single document `evidence: SwatchPersistenceTests, ASwatchCreatedInAProjectSurvivesReopeningIt, ASwatchCreatedInASingleDocumentIsSavedWithIt`
+  - Reported: swatches appear not to be saved on creation in a project, and not saved or loaded for a standalone file either.
+  - Distinct from **B10**, which was swatch *links* dying when a project was saved and reloaded and is fixed: this is the swatch itself never reaching the file. B10's guards (`ASavedProjectKeepsItsSwatchIds`) check that an id survives, which passes whether or not the palette entry behind it was written.
+  - `AProjectThatNeverAsksForThisWritesNoBrushKey` is the pattern the fix should follow — a palette that was never touched must still write nothing. Cost: M
+
+- [ ] **B69** `P2` `brush` An effect brush changes what it painted when the pen lifts `evidence: EffectPreviewMatchesCommitTests, ASmudgePreviewMatchesItsCommit, ABlenderPreviewMatchesItsCommit, TheAffectedAreaDoesNotChangeOnRelease`
+  - Reported for blur, smudge and blender together: "click and release changes the effected area. The strokes seem to settle on release. What we paint should be what we see. No post-processing settling of any kind."
+  - **Related to B54 and deliberately not merged into it.** B54 is the measured blur instance — the draft snapshot is cropped per segment, so the live blur over-covers by ~88 px — and it is `P3` because the number is smaller than what was reported. This entry is the artist-facing statement of the whole family, across all three effect brushes, and it is the one that says what "fixed" means: the preview and the commit produce the same pixels. B54 can close without this one closing.
+  - The mechanism is the split path: `StampBlurDraft`/the live composite run while the pointer is down and `StampBlur`/`StampSmudge` run on release, and they are different code. Anything that makes them agree fixes this; anything that only narrows the gap does not. Cost: L
+
+- [ ] **B70** `P3` `brush` A brush tip has no effect on smudge, blur or the blender `evidence: EffectBrushTipTests, ASmudgeStampsThroughItsTip, ATipChangesTheShapeOfABlurDab`
+  - Reported: setting a brush tip does not change these brushes. `StampSmudge` builds its dab from `RadiusAt` and a hardness falloff in `LerpDab`, and the blur path draws a blurred snapshot through a radial gradient — neither consults `BrushTipRegistry`, so a chisel or a bristle tip is silently ignored where a paint brush would use it.
+  - It is `P3` rather than `P2` because the mark is still a legitimate mark and nothing is corrupted; what is wrong is that a control the artist set does nothing and says nothing, which is the same silence as B63. Cost: M
+
+- [ ] **B71** `P3` `brush` Brush settings are lost when Lightbox closes `evidence: BrushSettingsPersistenceTests, BrushSettingsSurviveARestart, ABrushLeftAtItsDefaultsWritesNoKey`
+  - Reported: individual brush settings are not kept for the session, and after closing and reopening they are back to defaults.
+  - The per-document half of this is B67, and this is the other half: nothing is written at all, so even a single-document session loses tuning that took real time. The reporter also asks for an explicit *save these settings* button scoped to a file or a project — that is a product decision about scope and default, and it is in `QUESTIONS.md` rather than assumed here.
+  - Whatever is stored must follow `AProjectThatNeverAsksForThisWritesNoBrushKey`: a brush left at its defaults writes nothing. Cost: M
+
 - [ ] **B58** `P2` `ui` The rig overlay cannot be reached: anchors and collision shapes have no canvas, no menu and no shortcut `evidence: RigOverlayPainter, TheRigOverlayReachesTheCanvas, RigEditModeIsBindable`
   - `RigMarks`, `RigEditMode`, `SelectedRigMarkId`, `AddAnchorAt`, `AddShapeAt` and `HasRig` have **no consumer outside `MainViewModel.Rig.cs` and its own tests.** Verified by grepping the whole of `src` and every `.axaml`: no binding, nothing in `CanvasControl.cs` (its nineteen "rig" matches are all `Right`, `origin` and `trigger`), no menu item, no `ShortcutMap` entry. So an artist cannot switch the mode on, and therefore cannot place, select, drag or delete a socket or a hitbox on the canvas at all.
   - What *is* built is real and worth keeping: `RigOverlay` decides what a press hit and what a drag produces, `MainViewModel.Rig.cs` lands the edit on the drawing rather than the frame index, and ~30 tests cover hit order, screen-sized targets, drag maths, holds and re-times. The gap is exactly the "land the places it shows up" list in `CLAUDE.md` — the feature works and nothing shows it.

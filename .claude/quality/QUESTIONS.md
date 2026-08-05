@@ -10,6 +10,92 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q22 · Is a "Document" called a Workfile, and what else is in that menu?
+
+**Blocks:** the labelling half of **B63**. The dead-menu-item half is a defect
+and is being fixed regardless.
+
+Raised in a report: the create-in-project menu is "undecipherable — what is a
+folder and what is a workfile", with a suggestion to rename *Document* to
+*Workfile*.
+
+The defect underneath is filed (**B63**: entries that produce nothing, and no
+visual split between folders and files). What cannot be decided from the code is
+the vocabulary. *Document* is used throughout the manual, the roadmap and the
+serialization (`DocumentRef`, `NewDocumentSettings`), so a rename is not a label
+change — it is a rename across the UI, the docs and the artist's mental model.
+
+**(a) Keep *Document*.** Fix only the grouping and the dead entries. Cheapest,
+and the word is already established everywhere else in the product.
+**(b) Rename to *Workfile* in the UI only.** The record keeps `Document`. Solves
+the reported confusion at the cost of two names for one thing, which is the
+thing that usually causes the next confusion.
+**(c) Rename everywhere.** Consistent, and it touches the manual, the roadmap,
+the MCP surface and every serialized name — an expensive change to make for a
+menu.
+
+**Recommend (a) plus B63's grouping fix**, on the grounds that the report says
+the *menu* is undecipherable rather than the *word* — folders and files being
+visually indistinguishable is the complaint the fix should answer first. If the
+confusion survives that, (b) is still available.
+
+## Q23 · How does a tab say whether its document belongs to a project?
+
+**Blocks:** nothing yet; it is a feature rather than a defect, so nothing is
+filed in `BUGS.md` for it.
+
+Reported alongside **B67**: "there is no good way to identify open documents
+(tabs) as part of a project or not. A small boxed P in the tab would already
+help a lot. In the title bar of the OS would be a great additional position."
+
+The reporter has proposed a design, which makes this a question about *how far*
+rather than *whether*. It matters more once B67 lands, because when dockers
+become document-scoped the panels an artist sees will change as they switch
+tabs, and a visible reason for the change is what stops that reading as a bug.
+
+**(a) A badge on the tab.** What was asked for. Self-contained, no OS
+interaction, and it sits exactly where the ambiguity is.
+**(b) Badge plus the window title.** The title bar is where every other
+application says which file is open, and Avalonia sets it per window rather than
+per tab — so with multiple tabs it can only describe the active one. That is
+probably fine and is worth saying out loud rather than discovering.
+**(c) The project name rather than a badge.** More informative and much wider;
+tabs are already short on room.
+
+**Recommend (a) first**, because it is the whole of the reported need and is
+cheap, with (b) as a follow-up once B67 makes project membership matter visibly.
+
+## Q24 · What is a saved brush setting scoped to, and does saving it need a button?
+
+**Blocks:** the explicit-save half of **B71**. Persisting brush settings across
+a restart is filed and is being fixed regardless.
+
+Reported: "individual brush settings need to be cached for the duration of the
+session… when brush settings are changed, present the user a save settings
+button next to the all brush settings. This is stored per file and/or per
+project."
+
+Two decisions are tangled here and only the first is required by the bug.
+
+**Automatic or explicit.** B71 as filed makes tuning survive a restart
+automatically. An explicit *save* button is a different promise — it says the
+tuning is a named thing an artist commits to, and that unsaved changes are
+discardable. Both are defensible; shipping both without deciding gives an artist
+two mechanisms with different lifetimes and no way to tell which one is holding
+their brush.
+
+**And what the scope is.** `BrushScope`/`BrushScopeDefaults` already exist —
+a project feeds a new document its brush, guarded by
+`ANewDocumentInTheProjectIsFedThatBrush` — so *per project* is built. *Per file*
+is not, and the report asks for "per file and/or per project", which is the part
+that needs a person: the two disagree the moment a document in a project is
+opened, and something has to win.
+
+**Recommend automatic persistence (B71) first and the button deferred**, because
+the reported pain is losing settings on restart and that needs no new concept.
+If the button still seems wanted afterwards, it is a small addition to a
+mechanism that exists rather than a second one competing with it.
+
 ## Q11 · What a "reusable animation preset" would be that a cycle symbol is not — **answered (b)**
 
 **Answered 2026-08-03: (b), a timing preset, and the other line is struck as (a).**
