@@ -137,11 +137,6 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Reported alongside B72 and separate from it: the ring is always a circle, so a chisel, a bristle or any imported tip is previewed as something it is not. Outline only — the reporter is explicit that it should not fill.
   - Related to Pillar 0's *"the cursor says what the tool will do"*, which is a wider item about tool and refusal rather than tip shape. This is the narrow half and can land first. Cost: M
 
-- [ ] **B73** `P2` `brush` Fast strokes trail behind the pen `evidence: manual`
-  - Reported for ordinary brushes and for media brushes, with the stabiliser on and off — so it is not stabilisation lag, which is the obvious suspect and would be the wrong fix.
-  - `evidence: manual` deliberately: the existing budgets already pass. `LivePreview_PlainBrushSegment_StaysCheap` is 7 ms and `APointerEventStaysInBudgetDeepIntoALongStroke` holds well inside a frame, so whatever this is, it is not the per-event cost those measure. A test that reproduced it would have to measure *latency from input to pixel*, which nothing here does and which Xvfb cannot supply honestly.
-  - Where to look before optimising, in order: the coalescing in `RequestSnapshot` (a publish deferred to the dispatcher is a frame of latency by construction), then whether a fast drag produces one pointer event per frame or several, then the medium path — the reporter's own note is that a medium brush may simply cost what it costs, and that would be a different bug. Cost: L
-
 - [ ] **B72** `P3` `ui` The brush gizmo resizes only after the pointer moves `evidence: BrushGizmoTests, TheGizmoFollowsTheBrushSizeWithoutAPointerMove`
   - Changing brush size leaves the on-canvas ring at its old size until the pointer moves. The size is read when the gizmo is drawn and nothing redraws it when the setting changes, so the canvas is showing a stale answer to "how big is my brush" — which is the one question the gizmo exists to answer.
   - Cost: S
@@ -265,6 +260,16 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 Entries move here when `sync` closes them; the evidence stays so a deleted
 test reopens the bug.
+
+- [x] **B73** `P2` `brush` Fast strokes trail behind the pen `evidence: StrokeLatencyTests, TheFirstFrameOfABurstIsNotStale, APenBurstIsOneFrameNotOnePerEvent, WhenTheBurstHasDrainedTheMarkReachesThePen`
+  - Reported for ordinary brushes and for media brushes, with the stabiliser on and off — so it is not stabilisation lag, which is the obvious suspect and would be the wrong fix.
+  - `evidence: manual` originally, and the reasoning was half right: the existing budgets do all pass. `LivePreview_PlainBrushSegment_StaysCheap` is 7 ms and `APointerEventStaysInBudgetDeepIntoALongStroke` holds well inside a frame, so this was never the per-event cost those measure. The entry then concluded that a test "would have to measure *latency from input to pixel*, which Xvfb cannot supply honestly".
+  - **That is true of latency in milliseconds and false of latency in pointer events**, which is the reframe that made this testable. "The ink trails the pen" is a statement about *order*: events are waiting in the queue and the frame on screen does not contain them yet. Whether a published frame includes the events already queued when it was published needs no clock, no compositor and no display — it is a fact about dispatcher priority, and it is exactly reproducible.
+  - Cause, and it was the first place the entry said to look. **Avalonia runs `Render > Loaded > Default > Input > Background`** — `Default` is *above* `Input`, the reverse of WPF, where it sits below. `RequestSnapshot` posted at `Default`, so a publish jumped ahead of every pen event already queued:
+    - the frame drawn was **already behind**, published before a single queued `MoveStroke` had run, so the ink stopped where the pen had been several events ago;
+    - and because the publish ran *between* events rather than after them, a burst produced one publish per event. Measured: **11 queued events → 11 publishes**. A publish is the expensive half, so the faster the stroke the more the work multiplied and the further the lag compounded — which is why the report was about *fast* strokes specifically.
+  - Fixed: post at `DispatcherPriority.Input`. That queue is FIFO, so the publish lands behind the events already waiting — one frame covers the burst and is current — and ahead of events arriving afterwards, so a continuous drag still renders. Measured after: **11 events → 1 publish**, and the first frame reaches the last event. `Background` also drains a burst and can be starved by continuous input, which is the state an artist is in for the whole of a long stroke; `Render` is forbidden for an older reason recorded at the call site. Cost: S
+  - **What this does not explain**, so nobody closes the artist's report on the strength of it: the reporter saw it with media brushes too, and a medium may simply cost what it costs — that would be a different bug with the same symptom. Three things are now guarded and were not: staleness, work amplification, and that the mark reaches the pen at 12, 40 and 147 px once the burst drains. Stabilisation is measured separately in the same file so its designed lag can never be mistaken for this.
 
 - [x] **B66** `P2` `project` A character sheet is never written to disk, so it cannot appear in the project docker `evidence: CharacterSheetFileTests, AReferenceSheetWouldBeUnsaved, ReferenceSheetNeedsAFile, ACharacterSheetInAProjectIsWrittenOnCreation, ACharacterSheetOutsideAProjectPromptsToSave, ACharacterSheetAsksForItsNameBeforeItsLocation`
   - Reported: character sheets are not saved to disk and do not show in the project docker.
