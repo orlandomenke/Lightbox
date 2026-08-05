@@ -38,98 +38,7 @@ archive. The archive is `BUGS.md` itself.
 
 <!-- Append new reports below this line, oldest first. -->
 
-## Brush gizmo size updates only after mouse movement
-
-- **Area:** On-canvas brush gizmo
-- **Type:** Bug
-- **Summary:** Changing brush size does not immediately update the on-canvas brush gizmo. It updates only after the mouse is moved.
-- **Expected:** The gizmo updates in real time to represent the brush tip with an outline only.
-- **Actual:** The gizmo size changes only after mouse movement.
-
----
-
-## Fast brush strokes lag behind the pen
-
-- **Area:** Drawing
-- **Type:** Performance
-- **Summary:** Fast brush strokes lag behind the pen, including when using the stabilizer. Medium brushes also exhibit lag.
-- **Expected:** Stroke lag is eliminated or minimized as much as possible.
-- **Actual:** The rendered stroke trails behind the pen during fast drawing.
-- **Notes:** Medium-brush lag may be constrained by processing cost.
-
----
-
-## Brush gizmo renders as a circle instead of the brush-tip outline
-
-- **Area:** On-canvas brush gizmo
-- **Type:** Bug
-- **Summary:** The on-canvas brush gizmo is rendered as a circle rather than the brush tip’s outline.
-- **Expected:** The gizmo represents the brush tip using outlines only.
-- **Actual:** The gizmo is rendered as a circle.
-
----
-
-## Unsaved-changes dialog has no save option
-
-- **Area:** Document closing
-- **Type:** Bug
-- **Summary:** When closing a document with unsaved changes, the confirmation dialog offers only Discard Changes and Cancel.
-- **Expected:** The dialog also offers Save. For a new document, selecting Save opens the Save As dialog.
-- **Actual:** The dialog offers only Discard Changes and Cancel.
-
----
-
-## New document is saved to disk on creation
-
-- **Area:** Document saving
-- **Type:** Bug
-- **Summary:** A new document should not be saved to disk when it is created.
-- **Evidence:** Reported behavior: new documents are saved to disk on creation.
-- **Expected:** A changed new document shows the unsaved-changes badge. Closing the document or application then opens the unsaved-changes dialog; selecting Save opens Save As when the file is not already on disk.
-- **Actual:** The new document is saved to disk on creation.
-- **Notes:** In the project docker this should also be reflected as we read of disk. Creating a new document should show the document is not saved, if we discard the file without saving, the project docker also loses this file. As long as the file is opened but not saved to disk it can be shown in the project docker. Show it greyed out and with a badge. On hover we also add a tool tip stating it is not saved. If it becomes a saved document it turns white. This should reflect the all new documents are not on disk until saved. Folders are directly real-time saved to disk.
-
----
-
-Color switcher is unavailable for some color-using tools
-
-Area: Tool option bar
-
-Type: UX
-
-Summary: The color switcher is visible only when the brush tool is selected, although flood fill and shapes also use color.
-
-Expected: The color switcher appears as a persistent, separate block on the left. The color switcher is always visible irregardless of tool selected. 
-
-Actual: The color switcher is visible only for the brush tool.
-
-## Character sheet name is requested again when saving
-
-- **Area:** Character sheet saving
-- **Type:** UX
-- **Summary:** After a character sheet has been named through the name prompt, the save dialog asks for the name again. The sheet name should be used as the document name.
-- **Evidence:** Reported behavior: a name was set through the character-sheet name prompt before the save dialog appeared.
-- **Expected:** The save dialog uses the existing character-sheet name as the document name.
-- **Actual:** The name must be entered again in the save dialog.
-
----
-
-## Unsaved-changes badge remains after document is saved
-
-- **Area:** Document tab
-- **Type:** Bug
-- **Summary:** The unsaved-changes badge remains visible after saving a document that has no further changes.
-- **Evidence:** Reported behavior: the badge remains after saving. Changing an attached character sheet correctly results in the badge being shown.
-- **Expected:** The badge is hidden after a save when neither the document nor its related character sheet has changed.
-- **Actual:** The badge remains visible after saving.
-- **Notes:** Brush-setting changes are saved separately and are not part of this badge mechanism.
-
----
-
-
 ## Needs a decision
-
-<!-- Reports that could not be turned into a BUGS.md entry without a human call. -->
 
 <!-- Reports that could not be turned into a BUGS.md entry without a human call. -->
 
@@ -148,3 +57,17 @@ ever stops after switching documents, this is a second sighting, not a first** �
 and the two neighbouring entries are the ones to suspect, since B66 says a
 character sheet has no file behind it and B67 says tool state is shared between
 documents.
+
+**Batch of 2026-08-04, second pass — all eight filed, none needed a decision.**
+B72 and B74 (the brush gizmo: stale size, and a circle where the tip's outline
+belongs), B73 (fast strokes trailing the pen), B75 (no Save on the
+unsaved-changes dialog), B76 (a new document written to disk on creation, with
+the docker's pending state specified), B77 (the colour switcher only appearing
+for the brush), B78 and B79 (the character sheet name asked twice, and the
+unsaved badge surviving a save).
+
+**B78 is a regression from B66, shipped hours earlier and reported immediately.**
+Worth keeping visible rather than folding into the entry: the B66 tests pinned
+the decision each dialog makes and still could not see the pair, because neither
+dialog is reachable headlessly. Two correct prompts in sequence are one bad
+prompt, and only a person looking at the screen was ever going to catch it.

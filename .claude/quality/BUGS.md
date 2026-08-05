@@ -88,6 +88,44 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ## Open
 
+- [ ] **B78** `P3` `ui` The character sheet name is asked for twice `evidence: CharacterSheetFileTests, TheSaveDialogIsOfferedTheSheetsName`
+  - **A regression from B66, shipped hours earlier, and reported immediately.** B66 added a name prompt before creating a character sheet and then offered Save As for a document with no file. Both are right on their own; together the artist types a name, and is then asked for a name again by the file picker with none of the first one carried across.
+  - The fix is to seed the save dialog with the sheet's name rather than to remove either prompt: the two are asking different questions — what the sheet is called, and where the document goes — and the second should arrive already answered.
+  - Worth naming as the shape rather than the incident: **two correct prompts in sequence are one bad prompt.** The B66 test suite pinned the decision each dialog makes and could not see the pair, because neither dialog is reachable headlessly. Cost: S
+
+- [ ] **B79** `P2` `ui` The unsaved badge stays on a document that has just been saved `evidence: DocumentTabTests, SavingClearsTheUnsavedBadge, ASheetEditStillRaisesTheBadge`
+  - Reported: the dot survives a save when nothing has changed since. The reporter also checked the opposite case and found it correct — editing an attached character sheet *does* raise the badge — so the signal works and only the clearing is wrong.
+  - **This is worse than an untidy dot.** A badge that is on when nothing is dirty teaches the artist to ignore it, and the one time it means something is the time work is lost. That is why it is `P2` on a one-pixel symptom.
+  - Brush settings are saved separately and must not feed this badge (Q24), so the fix has to be about which edits mark the tab rather than about clearing harder. Cost: S
+
+- [ ] **B76** `P2` `project` A new document is written to disk the moment it is created `evidence: UnsavedDocumentTests, ANewDocumentIsNotOnDiskUntilItIsSaved, AnUnsavedDocumentIsShownAsPendingInTheDocker, DiscardingAnUnsavedDocumentRemovesItFromTheDocker`
+  - Reported: creating a new document writes it immediately, so a file exists before the artist has decided anything — including a name, which is B65 arriving from the other direction.
+  - The reporter specified the whole behaviour, and it is coherent enough to build to: a new document is **not** on disk; a change raises the unsaved badge; closing it or the application opens the unsaved-changes dialog; Save opens Save As because there is no file yet.
+  - **And they specified what the project docker does with it, which is the part that needs care.** An unsaved document is still *listed* — greyed, badged, with a tooltip saying it is not on disk — and turns normal when saved. Discarding it removes the row. That is a third row state beside B61's `Missing`, and the two must not be conflated: `Missing` means *this was on disk and is gone*, pending means *this was never written*. B61's `Dirty` check already separates them, and this is the entry that gives the second state a face.
+  - Folders stay immediate — the reporter is explicit that folders are written in real time. Cost: L
+
+- [ ] **B75** `P2` `ui` Closing a document with unsaved changes offers no way to save it `evidence: CloseDocumentTests, TheUnsavedDialogOffersSave, SavingANewDocumentFromTheDialogOpensSaveAs`
+  - Reported: the confirmation offers **Discard Changes** and **Cancel** only. The artist who wants to keep the work has to cancel, save by hand, and close again — and the one who does not notice loses it.
+  - Save on a document with a file writes it; Save on a new one opens Save As, which is the same rule B76 and B66 both land on: a document with nowhere to go asks where before it writes.
+  - `P2` rather than `P1` because Cancel exists, so the work can be rescued by someone who reads the dialog. It is a trap rather than a guillotine. Cost: S
+
+- [ ] **B73** `P2` `brush` Fast strokes trail behind the pen `evidence: manual`
+  - Reported for ordinary brushes and for media brushes, with the stabiliser on and off — so it is not stabilisation lag, which is the obvious suspect and would be the wrong fix.
+  - `evidence: manual` deliberately: the existing budgets already pass. `LivePreview_PlainBrushSegment_StaysCheap` is 7 ms and `APointerEventStaysInBudgetDeepIntoALongStroke` holds well inside a frame, so whatever this is, it is not the per-event cost those measure. A test that reproduced it would have to measure *latency from input to pixel*, which nothing here does and which Xvfb cannot supply honestly.
+  - Where to look before optimising, in order: the coalescing in `RequestSnapshot` (a publish deferred to the dispatcher is a frame of latency by construction), then whether a fast drag produces one pointer event per frame or several, then the medium path — the reporter's own note is that a medium brush may simply cost what it costs, and that would be a different bug. Cost: L
+
+- [ ] **B72** `P3` `ui` The brush gizmo resizes only after the pointer moves `evidence: BrushGizmoTests, TheGizmoFollowsTheBrushSizeWithoutAPointerMove`
+  - Changing brush size leaves the on-canvas ring at its old size until the pointer moves. The size is read when the gizmo is drawn and nothing redraws it when the setting changes, so the canvas is showing a stale answer to "how big is my brush" — which is the one question the gizmo exists to answer.
+  - Cost: S
+
+- [ ] **B74** `P3` `ui` The brush gizmo is a circle rather than the shape of the tip `evidence: BrushGizmoTests, TheGizmoOutlinesTheTipRatherThanACircle`
+  - Reported alongside B72 and separate from it: the ring is always a circle, so a chisel, a bristle or any imported tip is previewed as something it is not. Outline only — the reporter is explicit that it should not fill.
+  - Related to Pillar 0's *"the cursor says what the tool will do"*, which is a wider item about tool and refusal rather than tip shape. This is the narrow half and can land first. Cost: M
+
+- [ ] **B77** `P3` `ui` The colour switcher appears only for the brush tool `evidence: ToolOptionsBarTests, TheColourSwitcherIsShownForEveryToolThatUsesColour`
+  - Flood fill and the shape tools paint with the foreground colour and do not show the switcher, so changing colour for them means selecting the brush, changing it, and selecting the tool again.
+  - The reporter asks for it to be a persistent block on the left of the tool options bar rather than a per-tool control — always visible, whatever is selected. That is the simpler rule as well as the requested one: a control that is always there needs no per-tool table to be kept in step, which is the drift `ShortcutMap` exists to prevent elsewhere. Cost: S
+
 - [ ] **B71** `P3` `brush` Brush settings are lost when Lightbox closes `evidence: BrushSettingsPersistenceTests, BrushSettingsSurviveARestart, ABrushLeftAtItsDefaultsWritesNoKey`
   - Reported: individual brush settings are not kept for the session, and after closing and reopening they are back to defaults.
   - The per-document half of this is B67, and this is the other half: nothing is written at all, so even a single-document session loses tuning that took real time. **Q24 is answered: persistence is automatic and there is no save button**, so this entry is the whole of the work — one mechanism, no second one with a different lifetime, and the per-file/per-project scope question deferred with the button that would have forced it.
