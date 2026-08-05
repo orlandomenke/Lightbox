@@ -14,6 +14,27 @@
 # idempotency check below and exits in milliseconds.
 set -euo pipefail
 
+# Point git at the committed hooks, so .githooks/pre-push is actually consulted.
+#
+# ABOVE the remote gate below on purpose: the toolchain install is a container
+# concern, but the rule that finished work becomes a pull request is not — a local
+# clone can push to main just as easily. `.githooks/pre-push` says what that cost.
+#
+# Only when nothing has set it, because core.hooksPath replaces the hooks
+# directory wholesale: setting it over somebody's existing choice would silently
+# disable every hook they had. Someone who has already pointed it elsewhere keeps
+# their own arrangement, and can add the guard to it themselves.
+(
+  cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}"
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    existing=$(git config --get core.hooksPath 2>/dev/null || true)
+    if [ -z "$existing" ]; then
+      git config core.hooksPath .githooks
+      echo "git: hooks path set to .githooks (pre-push guards the default branch)"
+    fi
+  fi
+) || true
+
 # A local machine has its own toolchain and its own opinions about it.
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
