@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2340 tests, derived from the suite itself. Each line is a
+2345 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -621,6 +621,15 @@ regression even when every test still compiles.
 - Toggle Sidebar Flips Visibility — `:162`
 - Switch Sidebar Side Flips Side — `:173`
 - Toggle Timeline Flips Visibility — `:184`
+
+## DocumentScopedStateTests
+`tests/Lightbox.App.Tests/DocumentScopedStateTests.cs`
+
+- Zoom Is Remembered Per Document Rather Than Shared — `:44`
+- The Whole Framing Travels Not Only The Zoom — `:82`
+- ADocument With No Reference Shows No Reference Panel — `:117`
+- Switching Tabs Restores That Documents Tool State — `:148`
+- The Brush Does Not Follow The Document Because Q9 Says So — `:180`
 
 ## BackgroundColorTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`

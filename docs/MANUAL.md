@@ -2120,6 +2120,17 @@ canvas, the timeline and the Layers panel.
 
 Zoom, rotation, mirror and pan are **view-only**. They never touch the document.
 
+**Each document keeps its own framing.** Zoom into a face on one drawing, switch
+tabs, and the other document is where you left it — not at your face zoom. A
+document you have not framed yet opens fitted. The same goes for the playhead,
+the selected layer and the selected reference: they belong to the drawing, not to
+the window.
+
+Framing is remembered for the session, not saved into the file — reopening
+tomorrow opens fitted. The brush is the deliberate exception and works the other
+way: it follows the tool, or the project, never the individual document — see
+*Where the brush lives* above.
+
 ---
 
 ## 16. Working with an agent (MCP)
