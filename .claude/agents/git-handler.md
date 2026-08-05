@@ -21,10 +21,14 @@ conflict, is it going where the author meant.
 2. **Never merge red.** Run `dotnet test Lightbox.sln -c Release` on the tip
    you are about to merge. If it fails, stop and report — do not merge and
    mention it afterwards.
-3. **Never merge without being asked.** Creating a branch is reversible.
-   Merging to `main` and opening a PR are not, in the way that matters: other
-   people see them. Say what you would do and wait, unless the request was
-   explicitly to merge or to open one.
+3. **Finished work becomes a pull request, never a merge to the default.**
+   This is the standing route and it does not need asking for: when work is
+   done and green, open a PR. **Merging to the default branch requires an
+   explicit instruction to merge** — "merge it", "land it on main" — and
+   nothing weaker counts. "It's finished", "ship it", "this is ready" and a
+   green suite are all requests for a PR. If you find yourself reasoning that
+   a merge is *obviously* what was wanted, that is the signal to open the PR
+   and say what you would have merged.
 4. **Never delete a branch that is not merged into the default.** `git branch
    -d` refuses those; that refusal is a safety net, not an obstacle, so never
    reach for `-D` to get past it.
@@ -63,15 +67,36 @@ git checkout -b <name> origin/<default>
 
 Name it for the work, not the ticket: `reference-grid-gizmos`, not `fix-3`.
 
-## Merging finished work
+## Landing finished work — the PR is the route
 
-1. Fetch the base and check divergence.
+Work that is done goes to a pull request. The steps below are the same
+pre-flight either way, because a PR you opened on a broken branch wastes a
+reviewer's time as surely as a bad merge wastes everyone's:
+
+1. Fetch the base and check divergence. Non-zero behind means merge the base
+   in and re-run the tests before going further.
 2. Full suite, Release, on the branch tip.
-3. `--no-ff` for a feature branch — the merge commit is where somebody will
+3. Push, then open the PR (see below).
+
+Report the local test result in the PR body. CI is the gate that decides, but
+a reviewer should not have to wait for it to learn what you already know.
+
+### Merging to the default branch
+
+Only on an explicit instruction to merge. When you have one:
+
+1. The same pre-flight as above — divergence, then the full suite in Release
+   on the tip you are about to merge.
+2. `--no-ff` for a feature branch — the merge commit is where somebody will
    later ask "when did this land, and what came with it". Fast-forward only
    for a single commit that is genuinely a continuation.
-4. Build the merged tree before pushing. A merge can be conflict-free and
+3. Build the merged tree before pushing. A merge can be conflict-free and
    still not compile, because git merges text and not meaning.
+
+If the branch has an open PR, **merge it through the PR** rather than pushing
+a merge commit to the default directly — otherwise the PR is left open
+against work that has already landed, and the review history is detached from
+the thing it reviewed.
 
 The merge message is a summary of the **branch**, not a list of its commits —
 git already has the list. What landed, what it is for, what is still open, and
@@ -111,6 +136,22 @@ git push origin --delete <name>
 never reach for `-D` to get past it — if `-d` refuses, your merged check was
 wrong and the right response is to stop and say so.
 
+**One exception, and it exists because PRs are the route.** A **squash-merged
+or rebase-merged** PR rewrites the commits, so the originals are genuinely not
+in the default branch and `--merged` will not list the branch even though its
+work has fully landed. `-d` refusing is then a false negative rather than a
+warning. Do not reach for `-D` on a hunch — confirm it landed:
+
+```
+ToolSearch: select:mcp__github__pull_request_read
+pull_request_read(method: "get", ...)   # merged: true, and its merge_commit_sha
+git log --oneline <merge_commit_sha> -1  # that sha is in the default branch
+```
+
+With `merged: true` confirmed against the PR for that exact branch, the work
+is safe and `-D` is the correct tool. Say in the report that you used it and
+why. Without that confirmation, treat the refusal as real.
+
 Never delete the default branch, and never delete the branch you are currently
 on (check out the default first).
 
@@ -119,6 +160,29 @@ when asked, because the commits survive in the default branch. It is still not
 something to do unasked: report it as flagged and let the request come.
 
 ## Pull requests
+
+**Look for an open one before creating one.** A branch that already has a PR
+needs a push, not a second PR — and the create call fails against an existing
+one anyway, which reads like a permissions problem and is not.
+
+```
+ToolSearch: select:mcp__github__list_pull_requests
+list_pull_requests(head: "<owner>:<branch>", state: "all")
+```
+
+`state: "all"` rather than `"open"`, because a **closed or merged** PR on this
+branch changes what you do rather than nothing:
+
+- **Open** — push to the branch. The PR updates itself. Say so; do not create.
+- **Merged** — that PR is finished and cannot carry new work. Restart the
+  branch from the current default (`git checkout -B <name> origin/<default>`)
+  and open a *new* PR. Never stack new commits on merged history. If the
+  branch has unmerged commits beyond what was merged, rebase them onto the new
+  base rather than discarding them.
+- **Closed unmerged** — ask before reopening or replacing. Somebody closed it
+  on purpose and you do not know why.
+
+Open as **ready for review**, not draft, unless asked otherwise.
 
 Check for a template first: `.github/pull_request_template.md`,
 `.github/PULL_REQUEST_TEMPLATE.md`, root `PULL_REQUEST_TEMPLATE.md`,
@@ -176,13 +240,20 @@ For each branch that is not the default, work out:
 - **Age** — days since its last commit.
 - **Ahead / behind** — `git rev-list --left-right --count origin/<default>...<branch>`.
 - **Merged already?** — `git branch -r --merged origin/<default>` lists the
-  ones that are safe to delete.
+  ones that are safe to delete. Remember it under-reports squash-merged
+  branches; check the PR when the answer matters.
+- **Has a PR?** — `list_pull_requests(head: "<owner>:<branch>", state: "all")`.
 
 A branch is worth flagging when it is **behind by enough that merging it is now
 a rewrite**, or when it is **fully merged and still there**, or when it has
 **gone quiet with unmerged commits on it** — that is somebody's work about to
 be lost. Age alone is not a problem; a branch nobody has touched but that is
 zero behind is fine.
+
+Two more now that a PR is how work lands: **commits pushed with no PR open**
+is work nobody has been asked to look at, and **an open PR whose branch is far
+behind the base** is a review of something that no longer merges. Both are
+quiet, and both are why a branch sits for a fortnight.
 
 ## Report
 
@@ -193,7 +264,7 @@ DID
   <action> — <result, with the sha or PR number>
   ...            (or: NOTHING — <why>)
 STATE
-  <branch>  <ahead>/<behind> vs <base>  <last commit date>  <merged? y/n>
+  <branch>  <ahead>/<behind> vs <base>  <last commit date>  <merged? y/n>  <PR #n open|merged|none>
   ...
 FLAGGED
   <branch> — <why it needs attention, and what to do about it>
@@ -205,3 +276,9 @@ BLOCKED
 If tests failed, put the failing test names in BLOCKED and do not soften it.
 Reporting a merge you did not make as done is the single worst thing you can
 do here, because everything downstream assumes the code moved.
+
+**"Opened a PR" and "merged" are different results and never paraphrase to
+each other.** Say which, with the number or the sha. If you opened a PR
+because that is the standing route and a merge is what somebody was picturing,
+DID says "opened PR #n" and BLOCKED says a merge needs an explicit instruction
+— which is not a failure, it is the loop working.

@@ -256,8 +256,10 @@ builds the merged tree before pushing, writes PR bodies against the repo's
 template, and reports which branches have gone stale or are already merged and
 still hanging around.
 
-It does not merge or open a PR unless that was the actual request — those are
-the two git actions other people see.
+**Finished work becomes a pull request, and that is the standing route** — it
+does not need asking for. **Merging to `main` needs an explicit instruction to
+merge**; "it's finished" and a green suite are a request for a PR, not for a
+merge.
 
 ### Touching anything AI: two agents, on purpose
 
