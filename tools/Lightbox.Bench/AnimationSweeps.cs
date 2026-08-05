@@ -142,6 +142,8 @@ public static class AnimationSweeps
     public static IEnumerable<Scenario> All()
     {
         yield return Layers();
+        yield return SideCompositeMiss();
+        yield return SideCompositeHit();
         yield return CanvasSize();
         yield return OnionDepth();
         yield return StrokesPerFrame();
@@ -253,6 +255,173 @@ public static class AnimationSweeps
                 + "Drawing does not pay it, because ComposeRing repaints only the region the stroke touched, "
                 + "which is the whole reason that class exists. Measuring a full recomposite against 16 ms "
                 + "would be scoring the application for work it is careful never to do.")
+        {
+            Gauge = () => rig?.Cache.CachedBytes ?? 0,
+            GaugeUnit = "cache MB",
+        };
+    }
+
+    // ---- pricing B29's own fix candidate -------------------------------------
+
+    /// <summary>
+    /// The surface every side-composite is built into, held for the life of a
+    /// value for the same reason <see cref="Target"/> is.
+    /// </summary>
+    private sealed class Sides(int w, int h) : IDisposable
+    {
+        public SKSurface Below { get; } =
+            SKSurface.Create(new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Premul))!;
+
+        public FrameBitmapCache Cache { get; } = new();
+
+        public Target Target { get; } = new(w, h);
+
+        /// <summary>The snapshot a repaint would blend. Held, so the copy-on-write cost is in the measurement.</summary>
+        public SKImage? Snapshot { get; set; }
+
+        public void Dispose()
+        {
+            Snapshot?.Dispose();
+            Below.Dispose();
+            Cache.Dispose();
+            Target.Dispose();
+        }
+    }
+
+    /// <summary>Blend n layers into the side surface and take the snapshot a repaint would use.</summary>
+    private static void BuildSide(Sides rig, Scene scene, int layers)
+    {
+        var canvas = rig.Below.Canvas;
+        canvas.Clear(SKColors.Transparent);
+        for (var l = 0; l < layers && l < scene.Layers.Count; l++)
+        {
+            var layer = scene.Layers[l];
+            if (ExposureSheet.ExposedFrame(layer, 0) is not { } frame) continue;
+            var bmp = rig.Cache.Get(frame, scene.Width, scene.Height);
+            using var paint = new SKPaint { Color = SKColors.White.WithAlpha((byte)(layer.Opacity * 255)) };
+            canvas.DrawBitmap(bmp, 0, 0, paint);
+        }
+        canvas.Flush();
+        rig.Snapshot?.Dispose();
+        rig.Snapshot = rig.Below.Snapshot();
+    }
+
+    /// <summary>
+    /// What B29's candidate costs when the cache misses: build the side
+    /// composite, then blend it plus the active layer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Read this row against <c>Recomposite the whole frame</c> at the same
+    /// layer count.</b> B29 names "a composite cache for the unchanged layers
+    /// below and above the active one" as its leading fix and marks it
+    /// unmeasured, with the instruction to measure before choosing. The blend
+    /// arithmetic was never the open question — recompositing is <c>n^0.99</c> in
+    /// layers, so N blends becoming 3 is obviously cheaper. The open question is
+    /// the <em>price of the cache</em>, and it has two parts the arithmetic does
+    /// not contain: an extra full-canvas surface per side, and Skia's
+    /// copy-on-write, which duplicates a whole pixel buffer when a live snapshot
+    /// still references the surface being drawn into. <c>ComposeRing</c> exists
+    /// because that cost is ~375 ms at 4K, and a side composite is a second place
+    /// it can happen.
+    /// </para>
+    /// <para>
+    /// So the snapshot is taken and held here rather than discarded — a rig that
+    /// dropped it would measure a cache nobody could read from and would price
+    /// the candidate too cheaply, which is the failure mode this whole file's
+    /// <c>Target</c> comment already records once.
+    /// </para>
+    /// </remarks>
+    private static Scenario SideCompositeMiss()
+    {
+        Scene? scene = null;
+        Sides? rig = null;
+
+        return new Scenario(
+            "Recomposite with a side cache, on a miss",
+            "layers",
+            [1, 2, 4, 8, 16, 24],
+            Cadence.WhilePlaying,
+            Setup: n =>
+            {
+                scene = SceneOf(n, frames: 4, strokesPerFrame: 40);
+                rig = new Sides(W, H);
+                BuildSide(rig, scene, Math.Max(0, n - 1));   // warm the frame cache
+                return rig;
+            },
+            Work: n =>
+            {
+                // The miss: everything below the active layer changed, so the
+                // side is rebuilt, and only then can the 2-blend happen.
+                BuildSide(rig!, scene!, Math.Max(0, n - 1));
+                var canvas = rig!.Target.Surface.Canvas;
+                canvas.Clear(SKColors.White);
+                if (rig.Snapshot is { } below) canvas.DrawImage(below, 0, 0);
+                if (scene!.Layers.Count > 0
+                    && ExposureSheet.ExposedFrame(scene.Layers[^1], 0) is { } active)
+                {
+                    canvas.DrawBitmap(rig.Cache.Get(active, scene.Width, scene.Height), 0, 0);
+                }
+                canvas.Flush();
+            },
+            Note: "The worst case for the candidate, and the one that decides whether it is worth "
+                + "building: every layer below the active one changed, so the cache buys nothing and "
+                + "pays for itself twice — once to rebuild the side and once to blend it. If this row "
+                + "is worse than the plain recomposite at the same layer count, the candidate loses "
+                + "whenever a frame change invalidates both sides, which is exactly B29's repro of "
+                + "dragging the playhead unless the layers are held.")
+        {
+            Gauge = () => rig?.Cache.CachedBytes ?? 0,
+            GaugeUnit = "cache MB",
+        };
+    }
+
+    /// <summary>
+    /// What B29's candidate saves when the cache hits: blend the side snapshot
+    /// plus the active layer, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// The best case, and the one an artist drawing on one layer of a deep stack
+    /// is in. The side is already correct, so a repaint is two blends whatever
+    /// the layer count — the row should be flat, and if it is not, the extra
+    /// surface is costing something the arithmetic did not predict. Read the
+    /// distance between this row and <c>Recomposite the whole frame</c> as the
+    /// ceiling on what the candidate can win.
+    /// </remarks>
+    private static Scenario SideCompositeHit()
+    {
+        Scene? scene = null;
+        Sides? rig = null;
+
+        return new Scenario(
+            "Recomposite with a side cache, on a hit",
+            "layers",
+            [1, 2, 4, 8, 16, 24],
+            Cadence.WhilePlaying,
+            Setup: n =>
+            {
+                scene = SceneOf(n, frames: 4, strokesPerFrame: 40);
+                rig = new Sides(W, H);
+                BuildSide(rig, scene, Math.Max(0, n - 1));
+                return rig;
+            },
+            Work: _ =>
+            {
+                var canvas = rig!.Target.Surface.Canvas;
+                canvas.Clear(SKColors.White);
+                if (rig.Snapshot is { } below) canvas.DrawImage(below, 0, 0);
+                if (scene!.Layers.Count > 0
+                    && ExposureSheet.ExposedFrame(scene.Layers[^1], 0) is { } active)
+                {
+                    canvas.DrawBitmap(rig.Cache.Get(active, scene.Width, scene.Height), 0, 0);
+                }
+                canvas.Flush();
+            },
+            Note: "Two blends whatever the depth, so this row is expected to be flat and the gap to "
+                + "the plain recomposite is the whole prize. It is a ceiling rather than a forecast: "
+                + "a real implementation also pays invalidation, and how often it hits depends on how "
+                + "much of the stack is held — a background held for a whole scene never invalidates, "
+                + "a stack keyed on 1s invalidates every frame.")
         {
             Gauge = () => rig?.Cache.CachedBytes ?? 0,
             GaugeUnit = "cache MB",

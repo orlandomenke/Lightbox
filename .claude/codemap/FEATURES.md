@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2295 tests, derived from the suite itself. Each line is a
+2300 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -979,17 +979,17 @@ regression even when every test still compiles.
 - Selected The Live Stroke Is Already Clipped — `:135`
 - Alpha Locked And Selected Both Masks Apply Live — `:161`
 
-## LiveMatchesCommittedTests
+## LiveMatchesCommittedTests _Category=Visual_
 `tests/Lightbox.App.Tests/LiveMatchesCommittedTests.cs`
 
-- AHard Round Ink Stroke Is The Same Live And Committed — `:232`
-- An Airbrush Keeps Its Opacity When The Pen Lifts — `:247`
-- The Live Stroke Does Not Shrink On Release — `:262`
-- AScattered Jittered Brush Does Not Reshuffle On Release — `:277`
-- ASimulated Medium Looks The Same Live And Committed — `:300`
-- Paint Load Depletes While Drawing And Not Only On Release — `:315`
-- ALong Stroke Does Not Diverge More Than AShort One — `:364`
-- Sampling Density Does Not Change Whether The Mark Matches — `:387`
+- AHard Round Ink Stroke Is The Same Live And Committed — `:203`
+- An Airbrush Keeps Its Opacity When The Pen Lifts — `:218`
+- The Live Stroke Does Not Shrink On Release — `:233`
+- AScattered Jittered Brush Does Not Reshuffle On Release — `:248`
+- ASimulated Medium Looks The Same Live And Committed — `:271`
+- Paint Load Depletes While Drawing And Not Only On Release — `:286`
+- ALong Stroke Does Not Diverge More Than AShort One — `:335`
+- Sampling Density Does Not Change Whether The Mark Matches — `:358`
 
 ## LiveMediumPixelTests
 `tests/Lightbox.App.Tests/LiveMediumPixelTests.cs`
@@ -1012,6 +1012,12 @@ regression even when every test still compiles.
 - Batched Moves Produce One Stroke With All Points — `:10`
 - Committed Pixels Match Direct Rasterization — `:30`
 - Pointer Up Without Down Is Harmless — `:56`
+
+## LivePreviewVisualTests _Category=Visual_
+`tests/Lightbox.App.Tests/LivePreviewVisualTests.cs`
+
+- What The Canvas Shows Mid Drag Against What It Keeps — `:89`
+- Every Shipped Brush Draws Its Own Stroke — `:159`
 
 ## LiveSampleRebakeTests
 `tests/Lightbox.App.Tests/LiveSampleRebakeTests.cs`
@@ -2865,6 +2871,13 @@ regression even when every test still compiles.
 - Point Sampling Is What That Rules Out — `:109`
 - AHeavily Minified Tip Keeps The Ink Density It Actually Has — `:148`
 - An Enlarged Tip Is Smoothed Rather Than Blocky — `:171`
+
+## BrushVisualTests _Category=Visual_
+`tests/Lightbox.Raster.Tests/BrushVisualTests.cs`
+
+- ADragged Blur Looks Like The Blur That Commits — `:95`
+- An Effect Brush Lands In The Same Place Whatever The Output Scale — `:169`
+- The Simulated Media Can Be Compared At True Size — `:246`
 
 ## AntiAliasTests
 `tests/Lightbox.Raster.Tests/DraftAndAaTests.cs`
