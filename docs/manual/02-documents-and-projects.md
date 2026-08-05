@@ -1,0 +1,212 @@
+# Documents and projects
+
+## Documents and projects
+
+### A document
+
+One drawing or one animation: layers, frames, and the strokes on them. Saved as
+a single `.lightbox.json` file. **File → New** makes one.
+
+The New dialog asks what the document is *for* — Illustration, Animation, Game
+art, Storyboard, Comic, Asset library, or **None**. **None is the default**, and
+it means exactly what it says: a single file, no project structure. The choice
+only affects which panels you are offered.
+
+### A project
+
+A project is the container Lightbox is really built around: **a character is
+the unit of work, not a folder of files.** A character's animations share one
+palette, one set of references and one pivot — which is the thing a folder of
+loose files cannot express.
+
+**File → New project…** creates a `.lbproj` **folder**:
+
+```
+Knight.lbproj/
+  project.json                    the index
+  characters/knight/
+    character.json                palette, pivot, animation list
+    animations/walk.lightbox.json a document, in today's ordinary format
+    references/front.png
+  palettes/palettes.json
+  gradients/gradients.json
+  assets/
+```
+
+Plain JSON throughout, and the animations are ordinary documents — so an old
+loose file *is* an animation, and a project is readable with a text editor.
+
+A project opens by reading its index only. A character with forty animations
+opens without loading forty documents; each is read when you open it.
+
+### Scenes
+
+A character groups drawings by **who**; a scene groups them by **when**. They
+cross — one scene holds several characters, one character appears in several
+scenes — so neither is a folder inside the other, and the Project panel shows
+both, characters first.
+
+**＋ New → Scene** makes one; **Shot** adds a drawing under the selected scene,
+making the first scene if there is none. Scenes are for the *shots* output
+target: a film or a show, where the canvas is a world and a camera frames part
+of it. A project making sprite sheets never needs one and, until you make one,
+has no scene rows, no running order and no reorder buttons.
+
+Each scene row shows how long it runs — `0:04.5 · 108f` — summed from its shots.
+The lengths are recorded when each shot is saved, so a shot you have never saved
+shows nothing rather than zero: a running time that quietly counts unmeasured
+shots as empty is the number somebody schedules against. **↑** and **↓** move
+the selected scene or shot in the running order.
+
+Deleting a scene keeps its shots — they become project documents. Reorganising
+a film must not be the fastest way to delete it, and the files on disk are never
+touched either way.
+
+### Templates
+
+**A template is an ordinary document with a flag set.** Not a new file type, not
+a folder, not a list built into the app. That is the whole of it, and everything
+useful follows from it: you can turn work you have *already done* into a
+template, which is where real templates come from — the third walk cycle you set
+up the same way.
+
+| | |
+| --- | --- |
+| **Make one** | **File ▸ Use as template** on any open document. It does not move and does not change; it gains a flag and starts appearing in one more list. |
+| **Start from one** | **File ▸ New from template…** lists the project's templates. Pick one and you get a **copy** — yours from the first stroke. |
+| **Edit one** | Open it and draw. It is a document; every tool works on it. |
+| **Stop being one** | Untick the same menu item. Nothing else changes. |
+
+**A template is copied, never referenced.** That is the difference from a symbol,
+which *is* a live link. Because the copy has no link back, editing a template can
+never reach into an animation somebody already started — so there is nothing to
+lock, nothing to version, and no dialog asking whether to propagate. It is also
+why you can change a template whenever you like: your edits apply to copies made
+*after* them and to nothing made before.
+
+A template carries what a document carries: the layer stack with its names,
+blend modes, opacities and locks; the exposure sheet; guides and grids; the
+camera if it has one; the canvas size and frame rate; and any drawing you want in
+it — a pivot cross, a ground line, construction guides on their own locked layer.
+
+Without a project none of this is needed: a standalone template is a file you
+Open and then Save as, which already works. What a project adds is being able to
+*list* them, so the menu items only appear when one is open.
+
+#### Updating a document from its template
+
+You fixed the template. **File ▸ Update from template…** rolls that forward into
+a document that came from it — one document at a time, when you ask, as a single
+undoable step. Nothing ever travels the other way, so a finished shot cannot
+change under you.
+
+It shows what would change and you tick what you want:
+
+| Can be pulled | |
+| --- | --- |
+| **New layers** | Added in the template's position, with anything drawn on them. A layer you have is never removed. |
+| **Layer properties** — name, blend mode, opacity, lock | Matched by layer identity, not by name, and **skipped for any layer you have drawn on** unless you tick it yourself. |
+| **Guides and grids** | Replaced wholesale. They are aids, not art. |
+| **Frame rate** | Applied. Canvas size is *not* — changing a canvas under finished drawings is a different operation with its own questions. |
+| **Camera** | Added if the document has none. An existing one is never overwritten. |
+
+**It never pulls your drawings or your timing.** Those are the work. A template's
+frames were superseded the moment you drew, and re-timing is what a timing preset
+is for.
+
+The menu item is greyed out unless this document came from a template and that
+template still exists. Deleting a template cannot break anything that was made
+from it — the option simply is not there.
+
+### Changing what a project is for
+
+**File → Project type** converts an open project between Illustration,
+Animation, Game art, Storyboard, Comic, Asset library and unset.
+
+It is a change of intent, not a migration. **No artwork is read, rewritten or
+recreated** — an illustration that becomes an animation is the same file, byte
+for byte — and nothing already authored is dropped. A camera keyframed under
+Animation is still there under Game art: the new type ignores it, it does not
+erase it, so converting back finds everything where you left it.
+
+Afterwards you are told what changed and offered the new type's panels. Offered,
+not applied: which panels you want is a preference, converting is a decision
+about the project, and rearranging your screen as a side effect of a menu item
+is not something a tool should do.
+
+**The Project panel** lists characters with their animations underneath, and
+below them any documents that belong to the project rather than to a character.
+Double-click one to open it as a tab.
+
+**＋ New** offers what to make, and each lands somewhere specific — creating
+work inside a project should not be followed by a second step that files it:
+
+| | Where it goes |
+| --- | --- |
+| **Animation** | Under the selected character |
+| **Character** | A new character, with its own animations and palette |
+| **Document** | The project itself — a background, a colour test, a one-off |
+
+**Right-click a row** for everything else:
+
+| | What it does |
+| --- | --- |
+| **Open** | As a tab in Lightbox — the same as double-clicking |
+| **Open with default app…** | Hands the file to whatever application your desktop associates with it. A `.lightbox.json` usually lands in a text editor. |
+| **Show in file manager** | Reveals it in Explorer, Finder or your Linux file manager. A character shows its folder; an animation shows its file, selected where the platform can do that. |
+| **Copy path** | The absolute path, on the clipboard |
+| **Duplicate** | Copies an animation, art and all, into the same character. A walk you want to turn into a limp starts here. The copy reaches disk on the next save. |
+| **Rename…** | Edits the name in place. Enter commits, Escape cancels. |
+| **Remove from project** | Takes it out of the index. The file stays on disk. |
+
+The **🗁** at the right of the panel's header opens the project folder itself —
+the one path that is always there, however little of the project has been
+created yet.
+
+**The panel keeps up with the folder on its own.** Lightbox watches the project
+directory, so a document you delete in a file manager, a folder another program
+writes, or a branch you switch in git all show up without reopening anything.
+A row whose file is no longer there is marked **not on disk** rather than
+removed: "this is in your project and I cannot find it" is the true statement,
+and taking it out of the project stays your decision.
+
+**⟳** in the header, or **F5**, re-reads on demand and says what it found. You
+should rarely need it — it is there for the places a directory watch cannot be
+set up, a network share being the usual one, where a project still opens
+normally and this is how you get a current view. Like every shortcut in
+Lightbox, F5 is rebindable in **Edit ▸ Configure ▸ Shortcuts**.
+
+**Drag a document onto another character** to re-file it, or onto a
+project-level row to take it out of every character. It keeps its identity, so
+a tab already showing it stays bound to it. The file on disk is not moved
+until the next save writes it to its new path, and the old one is left alone —
+the same reasoning as **－**, which removes a row from the index and never
+deletes a drawing.
+
+### Variants
+
+A variant is a version of a character that **reuses its animations** — Winter
+Armour, Damaged, Player Two. It owns overrides, not copies: it names a palette,
+and it may point specific animations at different documents. Everything it does
+not override comes from the character, so a walk cycle drawn once is the walk
+cycle of every variant, and fixing it fixes all of them.
+
+The mechanism is the live palette. A variant is mostly a different set of
+colours behind the *same swatch ids*, so switching variant repaints the same
+drawings — no second copy of the art.
+
+Shape differences colour cannot express (a helmet the base character does not
+have) are what animation overrides are for: one animation replaced wholesale,
+the rest still shared.
+
+### The character library
+
+A project whose type is **Asset library** offers its characters to other
+projects. Importing one copies it — animations, variants and the palettes they
+depend on — keeping swatch ids so the imported art still paints correctly.
+
+Import copies rather than links. A linked character that edits in place is a
+real feature and it is *Planned*; copying is honest about what this does and
+does not quietly create a link that later breaks.
+
+---

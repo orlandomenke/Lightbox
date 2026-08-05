@@ -119,7 +119,7 @@ session start when it is stale.
 | What are we building, and how far along? | read `.claude/quality/ROADMAP.md` |
 | What is known broken? | `python3 scripts/bugs.py next` |
 | What is broken in the area I am editing? | `python3 scripts/bugs.py mine <domain>` |
-| What does the app do, from the artist's side? | read `docs/MANUAL.md` |
+| What does the app do, from the artist's side? | `python3 scripts/manual.py find X`, then read that one section |
 | What does an AI request cost? | read `docs/DESIGN-ai-payload.md` — do not re-derive it |
 | What should I pick up next? | `python3 scripts/roadmap.py next` |
 
@@ -142,11 +142,19 @@ whether that test exists, and deleting the test reopens the bug. An agent
 about to edit an area runs `bugs.py mine <domain>` and fixes the open P1/P2
 bugs it finds there alongside its own work.
 
-`docs/MANUAL.md` is the user manual, and it is **part of the definition of
-done**: a change that alters what an artist sees or does updates the relevant
-section in the same commit. It describes what exists today and marks what does
-not as *Planned* — a manual that documents a feature nobody can use is worse
-than no manual, because it cannot be trusted anywhere.
+The user manual is `docs/MANUAL.md` (the index) and `docs/manual/*.md` (one
+file per section), and it is **part of the definition of done**: a change that
+alters what an artist sees or does updates the relevant **section file** in the
+same commit. Find the right one with `python3 scripts/manual.py find <term>`
+rather than opening the lot — the manual is 100 KB and no change needs all of
+it. It describes what exists today and marks what does not as *Planned* — a
+manual that documents a feature nobody can use is worse than no manual, because
+it cannot be trusted anywhere.
+
+The contents list in the index is **derived** (`manual.py sync`, checked in CI),
+so adding a section means adding a file rather than editing two places. The
+manual is also published to the repository's wiki on merge — a generated view,
+never a source; see `.github/scripts/publish-wiki.sh`.
 
 ### Land the feature, then land the places it shows up
 

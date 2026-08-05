@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 scripts/codemap.py refresh >/dev/null 2>&1; python3 scripts/roadmap.py sync >/dev/null 2>&1",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 scripts/codemap.py refresh >/dev/null 2>&1; python3 scripts/roadmap.py sync >/dev/null 2>&1; python3 scripts/manual.py sync >/dev/null 2>&1",
             "timeout": 90
           }
         ]
@@ -50,6 +50,7 @@
       "Bash(python3 scripts/roadmap.py:*)",
       "Bash(python3 scripts/bugs.py:*)",
       "Bash(python3 scripts/branchstate.py:*)",
+      "Bash(python3 scripts/manual.py:*)",
       "Bash(dotnet build:*)",
       "Bash(dotnet test:*)",
       "Bash(git status:*)",
