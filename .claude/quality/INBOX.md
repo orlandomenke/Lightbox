@@ -58,6 +58,18 @@ archive. The archive is `BUGS.md` itself.
 
 ---
 
+Color switcher is unavailable for some color-using tools
+
+Area: Tool option bar
+
+Type: UX
+
+Summary: The color switcher is visible only when the brush tool is selected, although flood fill and shapes also use color.
+
+Expected: The color switcher appears as a persistent, separate block on the left. The color switcher is always visible irregardless of tool selected. 
+
+Actual: The color switcher is visible only for the brush tool.
+
 ## Character sheet name is requested again when saving
 
 - **Area:** Character sheet saving
