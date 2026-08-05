@@ -567,4 +567,75 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
             "an unsaved project reported its rows as missing from disk, which is true of all of them "
             + "and tells the artist nothing they can act on");
     }
+
+    // ---- B65: the name is asked for before anything is written ---------------
+
+    /// <summary>
+    /// The reported defect: everything arrived numbered because nothing asked.
+    /// </summary>
+    [AvaloniaFact]
+    public void CreatingAnItemAsksForItsNameFirst()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        var docker = vm.ProjectDocker;
+
+        docker.AddItemNamed(ProjectViewModel.NewCharacterItem, "Rusty knight");
+        docker.AddItemNamed(ProjectViewModel.NewSceneItem, "The duel");
+
+        Assert.Contains(docker.Rows, r => r.IsCharacter && r.Name == "Rusty knight");
+        Assert.Contains(docker.Rows, r => r.IsScene && r.Name == "The duel");
+        // ...and nothing arrived numbered, which is the symptom that was reported.
+        Assert.DoesNotContain(docker.Rows, r => r.Name == "Character 2");
+    }
+
+    /// <summary>
+    /// The suggestion has to be what Enter would have produced anyway, or the
+    /// box is lying about the default.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheSuggestedNameMatchesTheNumberedFallback()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        var docker = vm.ProjectDocker;
+
+        var suggested = docker.SuggestedNameFor(ProjectViewModel.NewSceneItem);
+        docker.AddItemNamed(ProjectViewModel.NewSceneItem, null);   // take the default
+
+        Assert.Contains(docker.Rows, r => r.IsScene && r.Name == suggested);
+    }
+
+    /// <summary>
+    /// A blank answer is not a name. It falls back rather than creating an item
+    /// called "   ", because by this point the artist has asked for one.
+    /// </summary>
+    [AvaloniaFact]
+    public void ABlankNameFallsBackRatherThanCreatingAnUnnamedItem()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        var docker = vm.ProjectDocker;
+
+        docker.AddItemNamed(ProjectViewModel.NewCharacterItem, "   ");
+
+        Assert.DoesNotContain(docker.Rows, r => string.IsNullOrWhiteSpace(r.Name));
+        Assert.Contains(docker.Rows, r => r.IsCharacter && r.Name.StartsWith("Character "));
+    }
+
+    /// <summary>
+    /// The old command still means what it did, so nothing that already created
+    /// an item changed behaviour when the name was threaded through.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheUnnamedCommandStillCreatesTheNumberedDefault()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        var docker = vm.ProjectDocker;
+
+        docker.AddItemCommand.Execute(ProjectViewModel.NewSceneItem);
+
+        Assert.Contains(docker.Rows, r => r.IsScene && r.Name.StartsWith("Scene "));
+    }
 }

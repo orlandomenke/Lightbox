@@ -354,10 +354,11 @@ public sealed partial class ProjectViewModel : ObservableObject
     // ---- commands -----------------------------------------------------------
 
     [RelayCommand]
-    private void AddCharacter()
+    private void AddCharacter(string? name = null)
     {
         if (Project is not { } project) return;
-        var character = ProjectIo.AddCharacter(project, $"Character {project.Characters.Count() + 1}");
+        var character = ProjectIo.AddCharacter(
+            project, Named(name, $"Character {project.Characters.Count() + 1}"));
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.IsCharacter && r.Character!.Id == character.Id);
         _changed();
@@ -372,14 +373,14 @@ public sealed partial class ProjectViewModel : ObservableObject
     /// be selected.
     /// </summary>
     [RelayCommand]
-    private void AddAnimation()
+    private void AddAnimation(string? name = null)
     {
         if (Project is not { } project) return;
         var character = SelectedCharacter ?? ProjectIo.AddCharacter(project, "Character 1");
 
         var doc = _newDocument();
         var reference = ProjectIo.AddAnimation(
-            project, character, $"Animation {character.Animations.Count}", doc);
+            project, character, Named(name, $"Animation {character.Animations.Count}"), doc);
         _dirty.Add(reference.Id);
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id);
@@ -417,14 +418,55 @@ public sealed partial class ProjectViewModel : ObservableObject
 
     /// <summary>Create one of <see cref="NewItemKinds"/> in the right place.</summary>
     [RelayCommand]
-    public void AddItem(NewItemKind? kind)
+    public void AddItem(NewItemKind? kind) => AddItemNamed(kind, null);
+
+    /// <summary>
+    /// Create one of <see cref="NewItemKinds"/> under a name the artist chose.
+    /// </summary>
+    /// <param name="name">
+    /// What to call it, or null to keep the numbered default.
+    /// </param>
+    /// <remarks>
+    /// <b>B65.</b> Every creation path wrote straight to disk under
+    /// <c>Character 3</c> or <c>Scene 2</c>, so a project filled with numbered
+    /// items and the only way to correct one was a file manager — B64 says the
+    /// docker cannot rename. Asking first is the whole fix, and it is the same
+    /// ordering B66 and B78 landed on: a name is a question, not a correction.
+    /// The null default keeps <see cref="AddItem"/> meaning exactly what it did,
+    /// so nothing that already created an item changed behaviour.
+    /// </remarks>
+    public void AddItemNamed(NewItemKind? kind, string? name)
     {
-        if (kind == NewCharacterItem) AddCharacter();
-        else if (kind == NewSceneItem) AddScene();
-        else if (kind == NewShotItem) AddShot();
-        else if (kind == NewLooseDocument) AddLooseDocument();
-        else AddAnimation();
+        if (kind == NewCharacterItem) AddCharacter(name);
+        else if (kind == NewSceneItem) AddScene(name);
+        else if (kind == NewShotItem) AddShot(name);
+        else if (kind == NewLooseDocument) AddLooseDocument(name);
+        else AddAnimation(name);
     }
+
+    /// <summary>
+    /// What to put in the name box before the artist types.
+    /// </summary>
+    /// <remarks>
+    /// The number the item would have been called anyway, so the prompt is a
+    /// confirmation rather than a blank page. It is the same expression each
+    /// creator falls back to, kept here so the box and the fallback cannot drift
+    /// apart — a suggestion that differs from what Enter would produce is worse
+    /// than no suggestion.
+    /// </remarks>
+    public string SuggestedNameFor(NewItemKind? kind)
+    {
+        if (Project is not { } project) return "";
+        if (kind == NewCharacterItem) return $"Character {project.Characters.Count() + 1}";
+        if (kind == NewSceneItem) return $"Scene {project.Scenes.Count + 1}";
+        if (kind == NewShotItem) return $"Shot {(SelectedScene?.Shots.Count ?? 0) + 1}";
+        if (kind == NewLooseDocument) return $"Document {project.Manifest.Documents.Count + 1}";
+        return $"Animation {SelectedCharacter?.Animations.Count() ?? 0}";
+    }
+
+    /// <summary>A chosen name, or the numbered fallback when nothing was given.</summary>
+    private static string Named(string? name, string fallback) =>
+        string.IsNullOrWhiteSpace(name) ? fallback : name.Trim();
 
     // ---- scenes -----------------------------------------------------------------
 
@@ -432,10 +474,10 @@ public sealed partial class ProjectViewModel : ObservableObject
     public ProjectScene? SelectedScene => Selected?.Scene ?? Project?.Scenes.LastOrDefault();
 
     [RelayCommand]
-    private void AddScene()
+    private void AddScene(string? name = null)
     {
         if (Project is not { } project) return;
-        var scene = ProjectIo.AddScene(project, $"Scene {project.Scenes.Count + 1}");
+        var scene = ProjectIo.AddScene(project, Named(name, $"Scene {project.Scenes.Count + 1}"));
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.IsScene && r.Scene!.Id == scene.Id);
         _changed();
@@ -446,13 +488,13 @@ public sealed partial class ProjectViewModel : ObservableObject
     /// none — the same bargain adding an animation with no character makes.
     /// </summary>
     [RelayCommand]
-    private void AddShot()
+    private void AddShot(string? name = null)
     {
         if (Project is not { } project) return;
         var scene = SelectedScene ?? ProjectIo.AddScene(project, "Scene 1");
 
         var doc = _newDocument();
-        var reference = ProjectIo.AddShot(project, scene, $"Shot {scene.Shots.Count + 1}", doc);
+        var reference = ProjectIo.AddShot(project, scene, Named(name, $"Shot {scene.Shots.Count + 1}"), doc);
         _dirty.Add(reference.Id);
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id);
@@ -524,12 +566,12 @@ public sealed partial class ProjectViewModel : ObservableObject
     /// <summary>
     /// A document that belongs to the project rather than to a character.
     /// </summary>
-    private void AddLooseDocument()
+    private void AddLooseDocument(string? name = null)
     {
         if (Project is not { } project) return;
         var doc = _newDocument();
         var count = project.Manifest.Documents.Count + 1;
-        var reference = ProjectIo.AddDocument(project, $"Document {count}", doc);
+        var reference = ProjectIo.AddDocument(project, Named(name, $"Document {count}"), doc);
         _dirty.Add(reference.Id);
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id);

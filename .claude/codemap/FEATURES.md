@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2283 tests, derived from the suite itself. Each line is a
+2287 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1281,6 +1281,10 @@ regression even when every test still compiles.
 - Deleting AFolder On Disk Removes It From The Docker — `:501`
 - The Docker Refreshes Without Being Reopened — `:530`
 - An Unsaved Project Does Not Report Every Row As Missing — `:556`
+- Creating An Item Asks For Its Name First — `:577`
+- The Suggested Name Matches The Numbered Fallback — `:597`
+- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:614`
+- The Unnamed Command Still Creates The Numbered Default — `:631`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
@@ -2033,8 +2037,8 @@ regression even when every test still compiles.
 - The Canvas Gets The Room Left Over By The Strips — `:168`
 - The Project Row Menu Actually Does Something When Clicked — `:192`
 - The New Menu Actually Makes Things — `:271`
-- The Reference Panel Is Absent Until It Is Asked For — `:314`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:330`
+- The Reference Panel Is Absent Until It Is Asked For — `:328`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:344`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

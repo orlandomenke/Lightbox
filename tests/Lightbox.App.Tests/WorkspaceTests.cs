@@ -291,14 +291,28 @@ public sealed class WorkspaceTests : BrushStateIsolated
             Assert.Equal(["Animation", "Character", "Scene", "Shot", "Document"],
                 items.Select(i => i.Header?.ToString()).ToList());
 
-            Click(items, "Animation");
-            Assert.Equal(2, vm.ProjectDocker.Project!.Characters.First().Animations.Count);
+            // Every entry is wired to a handler. Clicking used to be assertable
+            // end-to-end here; B65 put a name prompt in front of each one, and a
+            // modal dialog cannot be answered headlessly — so the click half of
+            // this test moved to what it can still prove, and the "does it make
+            // anything" half moved down to the view model.
+            //
+            // That is a real loss of coverage and is named rather than hidden:
+            // the failure this test was written for — a menu entry bound to
+            // nothing — would now show up as a prompt that appears and creates
+            // nothing when answered, which only a person can see.
+            Assert.All(items, i => Assert.True(i.IsEnabled, $"“{i.Header}” is disabled"));
 
-            Click(items, "Character");
-            Assert.Equal(2, vm.ProjectDocker.Project.Characters.Count());
+            // The half that is still mechanical: each kind creates its thing.
+            var docker = vm.ProjectDocker;
+            docker.AddItemNamed(ProjectViewModel.NewAnimation, "Walk");
+            Assert.Equal(2, docker.Project!.Characters.First().Animations.Count);
 
-            Click(items, "Document");
-            Assert.Single(vm.ProjectDocker.Project.Manifest.Documents);
+            docker.AddItemNamed(ProjectViewModel.NewCharacterItem, "Squire");
+            Assert.Equal(2, docker.Project.Characters.Count());
+
+            docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
+            Assert.Single(docker.Project.Manifest.Documents);
         }
         finally
         {
