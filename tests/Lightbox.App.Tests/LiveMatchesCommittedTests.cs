@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Lightbox.App.Rendering;
 using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
+using Lightbox.Testing;
 using Lightbox.Core.Documents;
 using SkiaSharp;
 
@@ -28,12 +29,13 @@ namespace Lightbox.App.Tests;
 /// </para>
 /// <para>
 /// Numbers are printed rather than only asserted, and side-by-side images are written
-/// when <c>LIGHTBOX_BRUSH_IMAGES</c> names a directory — because "the assertion passed"
+/// when <c>LIGHTBOX_VISUALS</c> names a directory — because "the assertion passed"
 /// is not the same as "an artist would accept the mark", and this is the class where
 /// that difference has cost the most time.
 /// </para>
 /// </remarks>
 [Collection("BrushState")]
+[Trait("Category", "Visual")]   // writes sheets as well as asserting
 public class LiveMatchesCommittedTests : BrushStateIsolated
 {
     private readonly ITestOutputHelper _out;
@@ -159,48 +161,17 @@ public class LiveMatchesCommittedTests : BrushStateIsolated
     /// Write live | committed | difference side by side, when asked for.
     /// </summary>
     /// <remarks>
-    /// Off unless <c>LIGHTBOX_BRUSH_IMAGES</c> is set, so an ordinary test run writes
-    /// nothing. The difference panel is amplified 4× — the failures this hunts are
-    /// visible to an artist and near-invisible at 1×, which is precisely why they
-    /// survived a passing test suite for so long.
+    /// Was a private copy of this, gated on its own <c>LIGHTBOX_BRUSH_IMAGES</c>. Moved onto
+    /// <see cref="VisualSheet"/> and <c>LIGHTBOX_VISUALS</c> so there is one switch for the whole
+    /// solution: two names meant nobody could ask for "all the sheets" without first knowing which
+    /// files had one. The panels are the same three, and the difference is still amplified for the
+    /// same reason — these failures are visible to an artist and near-invisible at 1×.
     /// </remarks>
-    private static void WriteComparison(string name, SKBitmap live, SKBitmap committed)
-    {
-        var dir = Environment.GetEnvironmentVariable("LIGHTBOX_BRUSH_IMAGES");
-        if (string.IsNullOrWhiteSpace(dir)) return;
-        Directory.CreateDirectory(dir);
-
-        const int gap = 8;
-        var w = live.Width;
-        var sheet = new SKBitmap(w * 3 + gap * 2, live.Height);
-        using (var canvas = new SKCanvas(sheet))
-        {
-            canvas.Clear(new SKColor(0x20, 0x20, 0x24));
-            canvas.DrawBitmap(live, 0, 0);
-            canvas.DrawBitmap(committed, w + gap, 0);
-
-            for (var y = 0; y < live.Height; y++)
-            {
-                for (var x = 0; x < w; x++)
-                {
-                    var d = Math.Abs((255 - live.GetPixel(x, y).Red) - (255 - committed.GetPixel(x, y).Red));
-                    var v = (byte)Math.Min(255, d * 4);
-                    // Red where live is heavier, blue where the commit is — so the
-                    // direction of the error reads at a glance.
-                    var heavier = live.GetPixel(x, y).Red < committed.GetPixel(x, y).Red;
-                    sheet.SetPixel(
-                        (w + gap) * 2 + x, y,
-                        heavier ? new SKColor(v, 0, 0, 255) : new SKColor(0, 0, v, 255));
-                }
-            }
-        }
-
-        using var image = SKImage.FromBitmap(sheet);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        using var file = File.Create(Path.Combine(dir, name + ".png"));
-        data.SaveTo(file);
-        sheet.Dispose();
-    }
+    private static void WriteComparison(string name, SKBitmap live, SKBitmap committed) =>
+        VisualSheet.WriteComparison(
+            "live-vs-committed-" + name.Replace(' ', '-').ToLowerInvariant(),
+            $"Live preview against the committed render — {name}",
+            "while dragging", live, "committed", committed, amplify: 4);
 
     private Difference Measure(string label, MainViewModel vm, int points = 40)
     {

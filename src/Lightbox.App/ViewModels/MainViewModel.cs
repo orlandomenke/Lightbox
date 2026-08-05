@@ -5372,12 +5372,39 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Coalesce repaints: at most one queued snapshot at a time. Posted at
-    /// Default priority — NEVER Render priority: jobs in the dispatcher's
-    /// render phase swallow the InvalidateVisual they trigger, which leaves
-    /// the canvas permanently un-scheduled (strokes only appeared after the
-    /// next unrelated event — the "frozen cursor, no lines" bug).
+    /// Coalesce repaints: at most one queued snapshot at a time, published after the pointer events
+    /// already waiting rather than in between them.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Input priority, and B73 is why.</b> Avalonia runs
+    /// <c>Render &gt; Loaded &gt; Default &gt; Input &gt; Background</c> — <c>Default</c> is
+    /// <em>above</em> <c>Input</c> here, which is the reverse of WPF, where it sits below. This was
+    /// posted at <c>Default</c>, so a publish jumped ahead of every pen event already in the queue.
+    /// Two consequences, and the artist feels them as one thing:
+    /// </para>
+    /// <para>
+    /// The frame drawn was <b>already behind</b> — published before a single queued event had been
+    /// handled, so the ink on screen stopped where the pen had been several events ago. And because
+    /// the publish ran between events instead of after them, a burst of <em>n</em> events produced
+    /// <em>n</em> publishes rather than one: measured at <b>11 events → 11 publishes</b>. A publish
+    /// is the expensive half, so the faster the stroke the more the work multiplied, and the lag
+    /// compounded along it. That is why the report was about <em>fast</em> strokes specifically.
+    /// </para>
+    /// <para>
+    /// <c>Input</c> is right rather than merely lower because that queue is FIFO: this lands behind
+    /// the events already waiting, so one frame covers the burst and is current — and ahead of
+    /// events that arrive afterwards, so a continuous drag still renders. <c>Background</c> also
+    /// drains the burst and can be starved by continuous input, which is the state an artist is in
+    /// for the whole of a long stroke.
+    /// </para>
+    /// <para>
+    /// <b>Never Render priority</b>, whatever the latency argument: jobs in the dispatcher's render
+    /// phase swallow the <c>InvalidateVisual</c> they trigger, which leaves the canvas permanently
+    /// un-scheduled — strokes appeared only after the next unrelated event, the "frozen cursor, no
+    /// lines" bug. <c>StrokeLatencyTests</c> guards the priority from the other side.
+    /// </para>
+    /// </remarks>
     private void RequestSnapshot()
     {
         if (_snapshotQueued) return;
@@ -5386,7 +5413,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _snapshotQueued = false;
             PublishSnapshot();
-        }, Avalonia.Threading.DispatcherPriority.Default);
+        }, Avalonia.Threading.DispatcherPriority.Input);
     }
 
     /// <summary>

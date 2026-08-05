@@ -1,8 +1,35 @@
 # Manual testing checklist
 
-Everything algorithmic is covered by `dotnet test` (73 tests, headless-safe).
-The items below need a real desktop session — they exercise windowing, GPU
-rendering, and input feel that a headless environment cannot verify.
+Everything algorithmic is covered by `dotnet test` (headless-safe). The items
+below need a real desktop session — they exercise windowing, GPU rendering, and
+input feel that a headless environment cannot verify.
+
+## Before that: look at the sheets
+
+```sh
+scripts/visuals.sh            # everything, into artifacts/visuals
+scripts/visuals.sh media      # just the sheets whose test name matches "media"
+```
+
+Contact sheets rendered by the visual tests, for the checks that are about how
+something *looks* rather than whether it runs. They need no display, take a few
+seconds, and each one is produced by a test that already fails on its own — so
+the pictures are for judgement, never for coverage. What is worth opening:
+
+| Sheet | The question it answers |
+| --- | --- |
+| `blur-drag-vs-commit-*` | Does what you see while dragging a blur match what commits? (B54) |
+| `blur-drag-vs-commit-*-rim` | The same at ×8, where the residue B54 knowingly accepted lives |
+| `canvas-blur-release`, `canvas-smudge-release` | The same question through the real canvas, pen-down against released (B69) |
+| `scale-smudge`, `scale-blur` | Does an effect brush land where it was dragged when the output scale changes? (B57) |
+| `media-strip` | The simulated media at true size, with the same brush unsimulated beside them (B50) |
+| `brushes-0*` | Every shipped preset drawing its own stroke at its own size |
+
+Two habits worth keeping. **A difference panel that is flat mid-grey means
+identical** — the amplification factor is printed on it, so a shape there is a
+few 255ths and not a catastrophe. And **check that both panels have a mark in
+them**: two blank panels agree perfectly, and a probe in this repository once
+reported 100% coverage on an empty image.
 
 ## Launch
 
