@@ -1,0 +1,130 @@
+# The timeline
+
+
+## The timeline
+
+One row per layer, one cell per frame. Click a cell to go there; the current one
+is highlighted. A **keyed** cell holds a drawing; a **hold** repeats the drawing
+before it, which is what animating on 2s and 3s is made of.
+
+## Markers, notes and events
+
+A **marker** is a named point on a frame, shown as a coloured chip on the ruler.
+One thing, three uses, and which one you get depends on what you fill in:
+
+| | |
+| --- | --- |
+| A **label** | The chip on the ruler — "contact", "passing". Keep it short; it has to fit. |
+| A **note** | Prose about the frame, as long as it needs to be: *the hand pops here, fix on 2s*. It is not drawn on the ruler; it appears in the notes list and on hover. Writing a note on an unmarked frame creates the marker for you. |
+| An **event** | Tick it and the marker is exported to your game engine as an animation event — `OnFootstep` at frame 7. Off by default, because most markers are notes to yourself and a game has nothing to do with them. |
+
+Renaming a marker keeps its note and its event tick. **Next / previous marker**
+walks between them, which is what makes them useful on a long sheet rather than
+labels you have to find by eye; walking past the last one stays where it is rather
+than jumping back to the first.
+
+A **tag** is the same idea over a *range* rather than a point: a name, a start and
+an end — "walk", "run", "idle". That is what an engine calls an animation clip, and
+it is what lets one sprite sheet hold several animations. A tag can carry a note
+too, for when the remark is about the whole cycle rather than one drawing.
+
+Right-click a cel for: insert frame, extend or reduce exposure, clear, delete
+(which pulls the rest of the row back), copy, cut, paste, markers, and the
+playback range.
+
+Drag a cel along its row to move it. Shift-click for a range, then apply
+exposure changes to all of it at once.
+
+## Timing presets
+
+A **timing preset** is a pattern of hold lengths — how long each drawing in a
+run is held. `2` is on 2s. `1, 1, 2, 3, 4` is a slow-in: two snappy frames, then
+progressively longer holds.
+
+The picker and **Re-time** are on the timeline bar. Shift-click a range first,
+or use **Re-time to …** in a cel's right-click menu to do one cel.
+
+Applying one **re-spaces the drawings that are already there**. It never makes a
+drawing and never deletes one — the worst it can do to your art is change its
+timing, and one undo puts that back.
+
+**The pattern decides the length, not your selection.** Twelve drawings put on
+2s take twenty-four frames, so the row gets longer and the rest of it moves
+down; the same twelve put back on 1s take twelve, and it gets shorter. The
+status line says which way it went. If you want to *thin* a range — keep every
+second drawing and discard the rest — that is a different, deliberately
+destructive operation.
+
+Six patterns are built in: on 1s, 2s, 3s, 4s, and a slow-in and slow-out. Behind
+the **⚙** beside the picker you can save your own: type a name and a pattern
+(commas or spaces, both work) and it is there next time you open the app. Your
+own patterns can be deleted; the built-ins cannot.
+
+| Compared with | |
+| --- | --- |
+| A **symbol** | carries *drawings*. A timing preset carries their *spacing* — the half a symbol cannot express. |
+| A **template** | gives a new document its shape, once, at creation. A preset re-times drawings you already made, any time, as often as you like. |
+
+## Drawing on a hold
+
+A cel that holds an earlier drawing is not a drawing of its own, so a mark on
+one has two honest readings — and which you mean depends on how you work.
+
+By default the cel **becomes a drawing of its own** and the mark lands on it.
+That is what every animation tool does, and it is what makes the timeline show
+a drawing where you made one. The alternative silently edits the frame being
+held, so your stroke turns up on the earlier frame too and the cel you drew on
+stays empty and dark.
+
+**Edit → Configure → Timeline** switches it to *Edit the held drawing*, which
+is right when the hold is deliberate and you are still working on that one
+pose — touching it up without breaking the hold.
+
+Keying is a separate undo step from the mark that prompted it: one undo takes
+the stroke back and leaves the new drawing, a second takes the drawing away and
+restores the hold.
+
+## The timeline's size
+
+**Frames** on the timeline's own bar sets how wide a frame cell is. Narrow
+enough to see the shape of the timing on a two-hundred-frame scene, wide enough
+to read the thumbnails on a twelve-drawing cycle — it depends entirely on what
+you are doing, so it is a slider rather than a constant. The same number is in
+Edit → Configure → Timeline.
+
+## The playback range
+
+The scrub bar carries the loop bounds. **Hover it** and two grips appear — one
+at each end of the range, with a bar between them showing what will play.
+**Drag either** to move that bound; it settles onto whole frames as you go, so
+what you see while dragging is what you get. The two cannot cross: push one
+past the other and it pins a frame away.
+
+With no range set yet the grips sit on the ends of the whole timeline, so the
+first drag narrows it rather than starting from one frame somewhere arbitrary.
+
+**Alt-click** a grip, or anywhere between the two, to give the range back —
+between them is the bigger target and the region the range is actually about.
+**Right-click** the scrub bar for the same thing as a menu item.
+
+Grabbing a bound and moving the playhead are nearly the same gesture in nearly
+the same place, so the grips win where they are and clicking anywhere else on
+the bar still scrubs.
+
+The **Set playback start / end** items on a cel's context menu still work and
+do the same thing; the grips are the version you can aim.
+
+## Looping
+
+Playback loops, because a cycle is usually what you are watching and stopping
+after one pass means reaching for the button every time. **🔁** on the
+timeline bar turns it off, and it then plays the range once and stops on its
+last frame.
+
+## Playback
+
+Space plays and pauses. Transport buttons step, jump and loop. Set fps and a
+speed percentage. Holds resolve properly, so a drawing exposed on 3s stays up
+for its full three frames.
+
+---
