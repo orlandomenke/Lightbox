@@ -2370,7 +2370,7 @@ regression even when every test still compiles.
 - ARewritten Tail Invalidates Far Enough Back — `:97`
 - AShorter List Is Handled Rather Than Indexed Past — `:116`
 - Under Three Points Behaves Like Densify — `:137`
-- The Walk Stops Growing With The Stroke — `:170`
+- An Append Costs AFraction Of Re Densifying — `:199`
 
 ## NormalMapTests
 `tests/Lightbox.Core.Tests/NormalMapTests.cs`
