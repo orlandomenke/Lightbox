@@ -10,10 +10,63 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
-## Q22 · Is a "Document" called a Workfile, and what else is in that menu?
+## Q25 · Is a character sheet a document, or part of one?
 
-**Blocks:** the labelling half of **B63**. The dead-menu-item half is a defect
-and is being fixed regardless.
+**Blocks:** **B66**. The name-prompt half is ordinary work; where the sheet
+*lives* is not, and the fix cannot be written without this.
+
+The report says: *"Outside of a project (single file) a character sheet is a
+manually saved document. Creating a character sheet should directly prompt
+saving. In a project, a character sheet is directly added, similar to how the
+project dockers add them directly."*
+
+That describes a character sheet as **a document with its own file**. The code
+has it as **part of a document**: a `ReferenceSheet` lives in
+`Doc.ReferenceSheets`, so it is saved when its document is saved and has no file
+of its own. The project manifest holds `DocumentRef` (animations, shots,
+project documents) and `Character` — there is no slot a reference sheet could
+occupy, which is why it cannot appear in the project docker today.
+
+So the two halves of the report need different things, and only one is a defect:
+
+**(a) It stays part of a document, and the bug is that an unsaved document loses
+it.** Then the fix is the prompt: creating a sheet on a never-saved document
+prompts to save, so there is a file behind the work. Nothing in the format
+changes, nothing new appears in the project docker, and "not visible in the
+project docker" is answered with *it is inside a document, and the document is
+listed*. Cheapest by a wide margin.
+
+**(b) It becomes a document in its own right** — its own file, its own
+`DocumentRef`, listed in the docker beside animations. Matches the report's
+wording most literally and makes "add it directly in a project" fall out for
+free. It is a **format change**: sheets move out of `Doc`, existing documents
+need migrating, and `CLAUDE.md`'s rule that a proposal requiring a format change
+has "drifted into redefining what a document is" applies squarely.
+
+**(c) Both — it stays in the document and the docker learns to show it.** No
+format change, and the docker gains a row type that is not a file, which every
+path that maps a row to a path (`PathOf`, reveal, copy path, rename in **B64**)
+then has to have an answer for.
+
+**Recommend (a)**, because the reported pain is losing work — "character sheets
+are not saved to disk" — and (a) fixes exactly that at the cost of one prompt.
+The docker visibility that (b) and (c) buy is a smaller complaint, and (b) spends
+a format migration on it. If sheets later need to be shared between documents,
+that is the argument for (b) and it is a better one than this.
+
+## Q22 · Is a "Document" called a Workfile, and what else is in that menu? — **answered (a)**
+
+**Answered 2026-08-04: (a), *Document* stays.** Fix the grouping and the dead
+entries; do not rename. The report says the *menu* is undecipherable rather than
+the *word*, and folders being visually indistinguishable from files is the
+complaint the fix should answer first. (b) stays available if the confusion
+survives that — but two names for one thing is usually the cause of the next
+confusion, and `Document` is load-bearing in the manual, the roadmap,
+`DocumentRef` and the MCP surface.
+
+**B63 is unblocked entirely**: both halves are now ordinary work.
+
+**Blocks:** nothing.
 
 Raised in a report: the create-in-project menu is "undecipherable — what is a
 folder and what is a workfile", with a suggestion to rename *Document* to
@@ -39,10 +92,21 @@ the *menu* is undecipherable rather than the *word* — folders and files being
 visually indistinguishable is the complaint the fix should answer first. If the
 confusion survives that, (b) is still available.
 
-## Q23 · How does a tab say whether its document belongs to a project?
+## Q23 · How does a tab say whether its document belongs to a project? — **answered (a)**
 
-**Blocks:** nothing yet; it is a feature rather than a defect, so nothing is
-filed in `BUGS.md` for it.
+**Answered 2026-08-04: (a), a badge on the tab.** What was asked for, and the
+whole of the reported need: self-contained, no OS interaction, sitting exactly
+where the ambiguity is. The window title (b) is deliberately not taken now —
+Avalonia sets it per window rather than per tab, so with several tabs open it can
+only ever describe the active one, and that is a second design rather than a
+free addition.
+
+Worth building *after* **B67**, not before: when dockers become document-scoped
+the panels visibly change as tabs switch, and the badge is what stops that
+reading as a bug. Filed as roadmap work rather than a bug — nothing is broken,
+something is absent.
+
+**Blocks:** nothing.
 
 Reported alongside **B67**: "there is no good way to identify open documents
 (tabs) as part of a project or not. A small boxed P in the tab would already
@@ -65,10 +129,21 @@ tabs are already short on room.
 **Recommend (a) first**, because it is the whole of the reported need and is
 cheap, with (b) as a follow-up once B67 makes project membership matter visibly.
 
-## Q24 · What is a saved brush setting scoped to, and does saving it need a button?
+## Q24 · What is a saved brush setting scoped to, and does saving it need a button? — **answered: automatic**
 
-**Blocks:** the explicit-save half of **B71**. Persisting brush settings across
-a restart is filed and is being fixed regardless.
+**Answered 2026-08-04: automatic persistence, no button.** Brush tuning survives
+a restart on its own; there is no explicit *save settings* action and therefore
+no second mechanism with a different lifetime competing with the first. The
+reported pain was losing settings on restart, and that needs no new concept.
+
+The scope question the button would have forced is deferred with it. `BrushScope`
+already feeds a new document the project's brush
+(`ANewDocumentInTheProjectIsFedThatBrush`), so per-project exists; per-file does
+not, and nothing now requires choosing between them. **B71** is therefore the
+whole of the work, and it keeps the rule that a brush left at its defaults writes
+no keys.
+
+**Blocks:** nothing.
 
 Reported: "individual brush settings need to be cached for the duration of the
 session… when brush settings are changed, present the user a save settings
