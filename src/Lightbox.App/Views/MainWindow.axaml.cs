@@ -120,6 +120,32 @@ public partial class MainWindow : Window
         };
         _vm.ReferenceChanged += RefreshReferenceBoxes;
         _vm.GuidesChanged += RefreshGuides;
+
+        // B58. The whole reason the rig was invisible: `RigMarks` existed and
+        // nothing ever asked for it. Pushed rather than bound, following `Guides`
+        // — the list is a flattened snapshot for the render thread, not a value
+        // an artist edits.
+        _vm.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(MainViewModel.RigMarks)
+                or nameof(MainViewModel.RigEditMode)
+                or nameof(MainViewModel.SelectedRigMarkId)
+                or nameof(MainViewModel.CurrentFrameIndex))
+            {
+                RefreshRigOverlay();
+            }
+        };
+        Canvas.RigPressed += (x, y, scale) =>
+        {
+            var hit = _vm.PressRig(x, y, scale);
+            if (hit is { Id: { } id }) Canvas.BeginRigDrag(id, hit.Corner);
+            RefreshRigOverlay();
+        };
+        Canvas.RigDragged += (id, corner, dx, dy) =>
+        {
+            _vm.DragRig(id, corner, dx, dy);
+            RefreshRigOverlay();
+        };
         InitialiseRulers();
 
         // Right-click on the scrub bar: the one thing worth offering there is
@@ -2525,6 +2551,10 @@ public partial class MainWindow : Window
             case "canvas.rulers":
                 _vm.Workspace.RulersVisible = !_vm.Workspace.RulersVisible;
                 break;
+            case "canvas.rigEditMode":
+                _vm.RigEditMode = !_vm.RigEditMode;
+                e.Handled = true;
+                break;
             case "canvas.showGuides":
                 _vm.Workspace.GuidesVisible = !_vm.Workspace.GuidesVisible;
                 break;
@@ -3265,6 +3295,56 @@ public partial class MainWindow : Window
                 (float)guide.Spacing, angles));
         }
         Canvas.Guides = lines.Count > 0 ? lines : null;
+    }
+
+    /// <summary>
+    /// Add an anchor in the middle of the canvas.
+    /// </summary>
+    /// <remarks>
+    /// <b>B58.</b> The centre rather than the pointer, because a menu item has no
+    /// pointer position to speak of — it is the place you can always find, and the
+    /// mark is draggable the instant it exists. Placing by click is the canvas's
+    /// job and arrives with <c>RigEmptyPressed</c>.
+    /// </remarks>
+    private void OnAddRigAnchor(object? sender, RoutedEventArgs e)
+    {
+        var (x, y) = (_vm.Doc.Scene.Width / 2.0, _vm.Doc.Scene.Height / 2.0);
+        _vm.SelectedRigMarkId = _vm.AddAnchorAt($"anchor {(_vm.Doc.Scene.Anchors?.Count ?? 0) + 1}", x, y);
+        RefreshRigOverlay();
+    }
+
+    private void OnAddRigShape(object? sender, RoutedEventArgs e)
+    {
+        // A quarter of the canvas, centred: big enough to see and grab, small
+        // enough not to be mistaken for the frame.
+        var w = _vm.Doc.Scene.Width / 4.0;
+        var h = _vm.Doc.Scene.Height / 4.0;
+        _vm.SelectedRigMarkId = _vm.AddShapeAt(
+            $"shape {(_vm.Doc.Scene.Shapes?.Count ?? 0) + 1}",
+            (_vm.Doc.Scene.Width - w) / 2, (_vm.Doc.Scene.Height - h) / 2, w, h);
+        RefreshRigOverlay();
+    }
+
+    private void OnDeleteRigMark(object? sender, RoutedEventArgs e)
+    {
+        _vm.DeleteSelectedRigMark();
+        RefreshRigOverlay();
+    }
+
+    /// <summary>
+    /// Hand the canvas the marks to draw, or nothing at all.
+    /// </summary>
+    /// <remarks>
+    /// <b>B58.</b> One line of plumbing, and its absence is what made a whole
+    /// feature — thirty tests, a hit-tester, a drag solver and an editor path —
+    /// unreachable. `RigMarks` already returns an empty list when the mode is off,
+    /// so null and absent are the same thing here and neither needs a mode check.
+    /// </remarks>
+    private void RefreshRigOverlay()
+    {
+        Canvas.RigEditMode = _vm.RigEditMode;
+        var marks = _vm.RigMarks;
+        Canvas.RigMarks = marks.Count > 0 ? marks : null;
     }
 
     private static IReadOnlyList<double> Fan()

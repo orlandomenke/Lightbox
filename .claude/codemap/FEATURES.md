@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2333 tests, derived from the suite itself. Each line is a
+2340 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1426,6 +1426,17 @@ regression even when every test still compiles.
 - Deleting Takes The Declaration And Every Placement Of It — `:235`
 - Pushing Across Visits Every Drawing Once Even On2s — `:252`
 - Pushing With Nothing Selected Does Nothing — `:271`
+
+## RigOverlayPainterTests
+`tests/Lightbox.App.Tests/RigOverlayPainterTests.cs`
+
+- The Rig Overlay Reaches The Canvas — `:89`
+- Only The Selected Shape Shows Handles — `:119`
+- An Anchors Cross Is Screen Sized Rather Than Document Sized — `:144`
+- An Anchor Inside AShape Is Still Visible — `:165`
+- Rig Edit Mode Is Bindable — `:205`
+- The Canvas Is Handed The Marks — `:238`
+- APress In Rig Mode Selects AMark Instead Of Painting — `:284`
 
 ## RigOverlayTests
 `tests/Lightbox.App.Tests/RigOverlayTests.cs`

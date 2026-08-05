@@ -258,6 +258,32 @@
                     IsChecked="{Binding SnapToGuides, Mode=TwoWay}" />
           <MenuItem Header="Clear all guides" Command="{Binding ClearGuidesCommand}" />
         </MenuItem>
+        <!--
+          B58. The rig — sockets and collision shapes — beside the guides, for the
+          same reason: it is document data you turn on rather than a panel that
+          costs a strip to everybody who never places one.
+
+          This item existing is most of the fix. `RigEditMode`, `RigMarks`,
+          `AddAnchorAt` and the rest had no menu, no shortcut and no binding, so an
+          artist could not switch the mode on and therefore could not reach any of
+          the editing behind it. Ctrl+K, registered in `ShortcutMap` so it can be
+          found and rebound.
+        -->
+        <MenuItem Header="Rig">
+          <MenuItem Header="Edit anchors and hitboxes" ToggleType="CheckBox"
+                    InputGesture="Ctrl+K"
+                    IsChecked="{Binding RigEditMode, Mode=TwoWay}"
+                    ToolTip.Tip="Drag on the canvas to place and move sockets and collision shapes instead of drawing" />
+          <Separator />
+          <MenuItem Header="Add anchor at centre" Click="OnAddRigAnchor"
+                    IsEnabled="{Binding RigEditMode}"
+                    ToolTip.Tip="A named point — a socket, or an extra pivot" />
+          <MenuItem Header="Add collision shape at centre" Click="OnAddRigShape"
+                    IsEnabled="{Binding RigEditMode}"
+                    ToolTip.Tip="A rectangle — a hurtbox, hitbox or physics body" />
+          <MenuItem Header="Delete selected" Click="OnDeleteRigMark"
+                    IsEnabled="{Binding RigEditMode}" />
+        </MenuItem>
         <Separator />
         <!-- MenuItem.IsChecked binds one-way by default: without Mode=TwoWay the
              click only flips the checkmark locally and the docker never reopens. -->

@@ -422,6 +422,88 @@ public sealed class CanvasControl : Control
     private IReadOnlyList<GuideLine>? _guides;
 
     /// <summary>
+    /// The rig marks to draw, or null for none — in which case no rig furniture
+    /// is drawn at all.
+    /// </summary>
+    /// <remarks>
+    /// <b>B58.</b> The one thing that was missing: <c>MainViewModel.RigMarks</c>
+    /// existed, was resolved through holds, and nothing ever asked for it. A plain
+    /// property with <c>InvalidateVisual</c> in the setter rather than a
+    /// <c>StyledProperty</c>, following <see cref="Guides"/> — the list is pushed
+    /// from the window when the view model says it changed, not bound, because it
+    /// is a flattened snapshot rather than a value an artist edits.
+    /// <para>
+    /// Absent rather than empty when the mode is off: <c>RigMarks</c> returns an
+    /// empty list when <c>RigEditMode</c> is false, so nothing here needs to know
+    /// about the mode at all.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<RigMark>? RigMarks
+    {
+        get => _rigMarks;
+        set
+        {
+            _rigMarks = value;
+            InvalidateVisual();
+        }
+    }
+
+    private IReadOnlyList<RigMark>? _rigMarks;
+
+    /// <summary>
+    /// Whether a press should edit the rig instead of drawing.
+    /// </summary>
+    /// <remarks>
+    /// A mode, for the reason <c>MainViewModel.RigEditMode</c> gives: Shift, Ctrl
+    /// and Alt are already spoken for on the canvas, and a fourth meaning for one
+    /// of them is a chord nobody finds and everybody triggers by accident.
+    /// </remarks>
+    public bool RigEditMode
+    {
+        get => _rigEditMode;
+        set
+        {
+            _rigEditMode = value;
+            InvalidateVisual();
+        }
+    }
+
+    private bool _rigEditMode;
+
+    /// <summary>A press landed on the canvas in rig edit mode, in document space.</summary>
+    /// <remarks>
+    /// Void, like every other event here, so the window owns the decision. The
+    /// control then learns the answer through <see cref="BeginRigDrag"/> — the
+    /// alternative was a <c>Func</c> returning a hit, which would put the view
+    /// model's shape into the control's signature.
+    /// </remarks>
+    public event Action<double, double, double>? RigPressed;
+
+    /// <summary>A rig drag finished: the mark, the corner, and the total delta.</summary>
+    /// <remarks>
+    /// On release with the whole delta, not per pointer move, because
+    /// <c>MainViewModel.DragRig</c> is one editor step per call — a long drag
+    /// reported per event would be a hundred undo entries.
+    /// </remarks>
+    public event Action<string, RigCorner, double, double>? RigDragged;
+
+    /// <summary>An empty-canvas press in rig edit mode, for whatever the window adds there.</summary>
+    public event Action<double, double>? RigEmptyPressed;
+
+    private string? _rigDragId;
+    private RigCorner _rigDragCorner;
+    private (double X, double Y) _rigDragStart;
+
+    /// <summary>
+    /// Start dragging a mark. Called by the window once it knows what was hit.
+    /// </summary>
+    public void BeginRigDrag(string id, RigCorner corner)
+    {
+        _rigDragId = id;
+        _rigDragCorner = corner;
+    }
+
+    /// <summary>
     /// A guide being pulled out of a ruler, not yet part of the document.
     /// </summary>
     /// <remarks>
@@ -1331,7 +1413,7 @@ public sealed class CanvasControl : Control
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
-            ReferenceBoxes, _newBox, Guides, _draftGuide));
+            ReferenceBoxes, _newBox, Guides, _draftGuide, RigMarks));
     }
 
     /// <summary>
@@ -1589,6 +1671,23 @@ public sealed class CanvasControl : Control
             {
                 _aligningReference = true;
                 _alignLast = new Point(x, y);
+                e.Pointer.Capture(this);
+                e.Handled = true;
+                return;
+            }
+
+            // B58. Rig editing comes next, for the reason alignment comes first:
+            // while the mode is on the canvas is a place to place sockets and
+            // hitboxes, not a place to draw. Half a stroke laid down while
+            // reaching for an anchor is a mark to find and undo.
+            if (RigEditMode)
+            {
+                _rigDragId = null;
+                _rigDragCorner = RigCorner.None;
+                _rigDragStart = (x, y);
+                // The window answers with BeginRigDrag if the press hit something.
+                RigPressed?.Invoke(x, y, FitScale() * _zoom);
+                if (_rigDragId is null) RigEmptyPressed?.Invoke(x, y);
                 e.Pointer.Capture(this);
                 e.Handled = true;
                 return;
@@ -1938,6 +2037,18 @@ public sealed class CanvasControl : Control
             e.Handled = true;
             return;
         }
+        // B58. On release with the total delta, because DragRig is one editor step
+        // per call — reporting per pointer move would be a hundred undo entries for
+        // one drag of a hitbox.
+        if (RigEditMode && _rigDragId is { } dragged)
+        {
+            var (ux, uy) = ViewToDoc(e.GetPosition(this));
+            _rigDragId = null;
+            e.Pointer.Capture(null);
+            RigDragged?.Invoke(dragged, _rigDragCorner, ux - _rigDragStart.X, uy - _rigDragStart.Y);
+            e.Handled = true;
+            return;
+        }
         if (_gridGesture != GridGesture.None)
         {
             if (_gridGesture == GridGesture.Draw && _newBox is { } drawn && drawn.Width > 2 && drawn.Height > 2)
@@ -2179,7 +2290,8 @@ public sealed class CanvasControl : Control
         IReadOnlyList<ReferenceBox>? referenceBoxes = null,
         SKRect? newBox = null,
         IReadOnlyList<GuideLine>? guides = null,
-        GuideLine? draftGuide = null) : ICustomDrawOperation
+        GuideLine? draftGuide = null,
+        IReadOnlyList<RigMark>? rigMarks = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -2242,6 +2354,11 @@ public sealed class CanvasControl : Control
                 draftGuide is { } d ? ToPainterLine(d) : null);
             DrawCameraFrame(canvas);
             DrawGradientAxis(canvas);
+            // B58. Over the artwork and over the guides, under the selection ants:
+            // a rig is furniture you aim with, and the reason guides sit over the
+            // art (an opaque background layer) applies to sockets just as much.
+            RigOverlayPainter.Paint(canvas, rigMarks, view.Scale);
+            RigOverlayPainter.PaintLabels(canvas, rigMarks, view.Scale);
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);
