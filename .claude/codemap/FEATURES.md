@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2366 tests, derived from the suite itself. Each line is a
+2377 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1297,31 +1297,46 @@ regression even when every test still compiles.
 - AProject Reopens With Its Characters And Animations — `:268`
 - Removing An Animation Leaves Its File On Disk — `:290`
 - The New Menu Offers One Entry Per Place Work Can Land — `:310`
-- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:327`
-- ALoose Document Gets Its Own Row With No Character Above It — `:345`
-- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:360`
-- Moving ADocument To The Project Takes It Out Of Every Character — `:386`
-- Moving ADocument Where It Already Is Does Nothing — `:401`
-- AMoved Document Survives ASave And Reopen — `:411`
-- Renaming ARow Writes Through — `:432`
-- Every Row Knows Where It Is On Disk — `:448`
-- With No Project There Is No Path To Show — `:468`
-- Copy Path Gives The Selected Rows File — `:478`
-- Opening Externally Says So When The File Is Not Written Yet — `:491`
-- Duplicating An Animation Copies Its Art Into The Same Character — `:509`
-- Duplicating Writes The Copy On The Next Save — `:543`
-- Deleting AFolder On Disk Removes It From The Docker — `:571`
-- The Docker Refreshes Without Being Reopened — `:600`
-- An Unsaved Project Does Not Report Every Row As Missing — `:626`
-- The Watch Follows The Project And Not The Application — `:665`
-- ABurst Of Disk Events Costs One Refresh — `:700`
-- ADeletion On Disk Reaches The Row Without ARefresh Call — `:755`
-- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:816`
-- AManual Re Read Is Reachable And Reports What It Found — `:869`
-- Creating An Item Asks For Its Name First — `:930`
-- The Suggested Name Matches The Numbered Fallback — `:950`
-- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:967`
-- The Unnamed Command Still Creates The Numbered Default — `:984`
+- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:329`
+- ALoose Document Gets Its Own Row With No Character Above It — `:347`
+- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:362`
+- Moving ADocument To The Project Takes It Out Of Every Character — `:388`
+- Moving ADocument Where It Already Is Does Nothing — `:403`
+- AMoved Document Survives ASave And Reopen — `:413`
+- Renaming ARow Writes Through — `:434`
+- Every Row Knows Where It Is On Disk — `:450`
+- With No Project There Is No Path To Show — `:470`
+- Copy Path Gives The Selected Rows File — `:480`
+- Opening Externally Says So When The File Is Not Written Yet — `:493`
+- Duplicating An Animation Copies Its Art Into The Same Character — `:511`
+- Duplicating Writes The Copy On The Next Save — `:545`
+- Deleting AFolder On Disk Removes It From The Docker — `:573`
+- The Docker Refreshes Without Being Reopened — `:602`
+- An Unsaved Project Does Not Report Every Row As Missing — `:628`
+- The Watch Follows The Project And Not The Application — `:667`
+- ABurst Of Disk Events Costs One Refresh — `:702`
+- ADeletion On Disk Reaches The Row Without ARefresh Call — `:757`
+- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:818`
+- AManual Re Read Is Reachable And Reports What It Found — `:871`
+- Creating An Item Asks For Its Name First — `:932`
+- The Suggested Name Matches The Numbered Fallback — `:952`
+- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:969`
+- The Unnamed Command Still Creates The Numbered Default — `:986`
+
+## ProjectHierarchyTests
+`tests/Lightbox.App.Tests/ProjectHierarchyTests.cs`
+
+- AProject With No Folders Shows No Folder Rows — `:51`
+- Subfolders Can Be Created Within Folders — `:61`
+- Folders Can Be Collapsed And Expanded — `:85`
+- Collapse Survives ARefresh — `:118`
+- Folders Can Be Dragged Within Project — `:135`
+- AFolder Cannot Be Dropped On Its Own Descendant — `:160`
+- Documents Can Be Dragged Within Project — `:176`
+- Documents Created In Folders Appear In Correct Folder — `:206`
+- ADocument Made Beside Another Joins Its Folder — `:227`
+- With Nothing Selected ADocument Still Goes To The Project Root — `:250`
+- Folder Structure Reflects File System Hierarchy — `:273`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
@@ -2101,8 +2116,8 @@ regression even when every test still compiles.
 - The Canvas Gets The Room Left Over By The Strips — `:193`
 - The Project Row Menu Actually Does Something When Clicked — `:217`
 - The New Menu Actually Makes Things — `:297`
-- The Reference Panel Is Absent Until It Is Asked For — `:355`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:371`
+- The Reference Panel Is Absent Until It Is Asked For — `:358`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:374`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

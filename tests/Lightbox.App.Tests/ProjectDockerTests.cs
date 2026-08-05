@@ -318,8 +318,10 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         var vm = Vm();
         vm.NewProject(_root, "Knight");
 
+        // B86 put Folder first: it is the artist's own structure, and a
+        // production is organised by it rather than by the two fixed axes.
         Assert.Equal(
-            ["Animation", "Character", "Scene", "Shot", "Document"],
+            ["Folder", "Animation", "Character", "Scene", "Shot", "Document"],
             vm.ProjectDocker.NewItemKinds.Select(k => k.Label));
     }
 

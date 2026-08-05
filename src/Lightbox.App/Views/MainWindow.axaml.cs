@@ -3041,6 +3041,9 @@ public partial class MainWindow : Window
     private async void OnProjectNewDocument(object? sender, RoutedEventArgs e) =>
         await CreateProjectItemAsync(ProjectViewModel.NewLooseDocument);
 
+    private async void OnProjectNewFolder(object? sender, RoutedEventArgs e) =>
+        await CreateProjectItemAsync(ProjectViewModel.NewFolderItem);
+
     /// <summary>
     /// Ask what it is called, then create it.
     /// </summary>

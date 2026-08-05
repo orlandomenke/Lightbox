@@ -1858,6 +1858,11 @@
                                `$parent[Window]` binding has no window to find
                                and every entry is silently dead. -->
                           <MenuFlyout>
+                            <!-- B86. First, because a folder is the artist's own
+                                 structure and a production is organised by it
+                                 rather than by the two fixed axes below. -->
+                            <MenuItem Header="Folder" Click="OnProjectNewFolder"
+                                      ToolTip.Tip="A folder you name, inside the selected one" />
                             <MenuItem Header="Animation" Click="OnProjectNewAnimation"
                                       ToolTip.Tip="A drawing sequence under the selected character" />
                             <MenuItem Header="Character" Click="OnProjectNewCharacter"
@@ -1969,6 +1974,18 @@
                             </MenuItem>
                           </MenuFlyout>
                         </DockPanel.ContextFlyout>
+                        <!-- B86. The twisty, on folder rows only. A Button
+                             rather than a click on the glyph, because collapsing
+                             and selecting are different intentions and one
+                             gesture cannot mean both. Empty and hit-test-invisible
+                             on every other row, so nothing shifts sideways. -->
+                        <Button DockPanel.Dock="Left" Classes="text"
+                                Content="{Binding Twisty}" FontSize="9" Width="12" Padding="0"
+                                IsVisible="{Binding IsFolder}"
+                                VerticalAlignment="Center" Opacity="0.7"
+                                Command="{Binding $parent[Window].DataContext.ProjectDocker.ToggleCollapsedCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="Show or hide what is in this folder" />
                         <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.7" />
                         <!-- Status as a dot, because the column has to read down at a

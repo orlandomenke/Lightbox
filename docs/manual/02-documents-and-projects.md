@@ -14,30 +14,52 @@ only affects which panels you are offered.
 
 ### A project
 
-A project is the container Lightbox is really built around: **a character is
-the unit of work, not a folder of files.** A character's animations share one
-palette, one set of references and one pivot — which is the thing a folder of
-loose files cannot express.
+A project is a body of work: **every 2D asset in a game, an animated feature,
+an episode of a show** — or one character, if that is what you are making.
+Lightbox does not decide which, and it does not impose a shape on it.
 
-**File → New project…** creates a `.lbproj` **folder**:
+**File → New project…** creates a `.lbproj` **folder** containing almost
+nothing:
 
 ```
-Knight.lbproj/
-  project.json                    the index
-  characters/knight/
-    character.json                palette, pivot, animation list
-    animations/walk.lightbox.json a document, in today's ordinary format
-    references/front.png
-  palettes/palettes.json
-  gradients/gradients.json
-  assets/
+Production.lbproj/
+  project.json          the index
+  palettes/             the palette you start with
+  documents/            the drawing you had open, if you had one
 ```
 
-Plain JSON throughout, and the animations are ordinary documents — so an old
-loose file *is* an animation, and a project is readable with a text editor.
+**No folders you did not ask for.** There is no `characters/`, no `scenes/`, no
+`assets/` waiting to be filled in. You build the structure, and the structure is
+whatever suits the work.
 
-A project opens by reading its index only. A character with forty animations
-opens without loading forty documents; each is read when you open it.
+#### Folders
+
+**＋ New ▸ Folder** makes one, named whatever you type — *Episode 2*,
+*Act 1*, *Sc 014 — Rooftop*. Folders nest to any depth, and a new folder or
+document goes **inside whatever is selected**, so building a tree is a run of
+clicks rather than a create-then-file.
+
+The chevron on a folder row shows or hides what is in it, and stays that way
+while you work — saving does not spring everything open.
+
+Drag a folder or a document onto a folder to move it. Dropping a folder onto
+something inside itself does nothing, because there would be no way back to it.
+
+The name is yours and the folder on disk is a tidied version of it: *Act 2 —
+Interiors* becomes `act-2-interiors`. What you typed is what the panel shows.
+
+#### Characters and scenes
+
+A **character** and a **scene** are still their own things, because they carry
+more than a name: a character has a palette, a pivot and variants that inherit
+its animations, and a scene has a running order and a running time. They sit
+alongside your folders rather than inside them, for now.
+
+Plain JSON throughout, and every drawing is an ordinary document — so an old
+loose file *is* one, and a project is readable in a text editor.
+
+A project opens by reading its index only. Forty drawings open without loading
+forty files; each is read when you open it.
 
 ### Scenes
 

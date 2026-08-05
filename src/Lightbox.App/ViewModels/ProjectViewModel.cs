@@ -38,6 +38,28 @@ public sealed partial class ProjectRow : ObservableObject
         _name = animation.Name;
     }
 
+    /// <summary>A folder the artist made, at <paramref name="depth"/> from the root.</summary>
+    /// <remarks>
+    /// <b>B86.</b> Depth is carried rather than derived, because the row does not
+    /// know the manifest and asking it to would make every row hold a reference
+    /// to the project so it could walk its own ancestry on each repaint.
+    /// </remarks>
+    public ProjectRow(ProjectFolder folder, int depth)
+    {
+        Folder = folder;
+        Depth = depth;
+        _name = folder.Name;
+    }
+
+    /// <summary>A document filed in a folder.</summary>
+    public ProjectRow(ProjectFolder folder, DocumentRef document, int depth)
+    {
+        Folder = folder;
+        Animation = document;
+        Depth = depth;
+        _name = document.Name;
+    }
+
     public ProjectRow(ProjectScene scene, DocumentRef shot, string? duration)
     {
         Scene = scene;
@@ -54,6 +76,20 @@ public sealed partial class ProjectRow : ObservableObject
 
     /// <summary>The scene this row is, or the one a shot sits in.</summary>
     public ProjectScene? Scene { get; }
+
+    /// <summary>
+    /// The folder this row <em>is</em>, or the one a document is filed in.
+    /// </summary>
+    /// <remarks>
+    /// <b>B85/B86.</b> Reads the same way <see cref="Character"/> does — a row
+    /// is a container or a thing inside one — so a document's row and its
+    /// folder's row both answer "which folder is this about", which is what
+    /// creating and dropping into a folder both need.
+    /// </remarks>
+    public ProjectFolder? Folder { get; }
+
+    /// <summary>How far this row is indented, in tree levels.</summary>
+    public int Depth { get; }
 
     /// <summary>Null on a character or scene row.</summary>
     public DocumentRef? Animation { get; }
@@ -102,17 +138,34 @@ public sealed partial class ProjectRow : ObservableObject
     internal bool Describes(ProjectRow other) =>
         ReferenceEquals(Character, other.Character)
         && ReferenceEquals(Scene, other.Scene)
-        && ReferenceEquals(Animation, other.Animation);
+        && ReferenceEquals(Folder, other.Folder)
+        && ReferenceEquals(Animation, other.Animation)
+        && Depth == other.Depth;
 
     public bool IsScene => Scene is not null && Animation is null;
 
-    public bool IsCharacter => Animation is null && Scene is null;
+    /// <summary>A folder the artist made, rather than a character or a scene.</summary>
+    public bool IsFolder => Folder is not null && Animation is null;
 
-    /// <summary>A heading row — a character or a scene.</summary>
+    public bool IsCharacter => Animation is null && Scene is null && Folder is null;
+
+    /// <summary>A heading row — a character, a scene or a folder.</summary>
     public bool IsHeading => Animation is null;
 
-    /// <summary>A document with no character and no scene above it.</summary>
-    public bool IsLoose => Animation is not null && Character is null && Scene is null;
+    /// <summary>A document with nothing above it at all.</summary>
+    public bool IsLoose =>
+        Animation is not null && Character is null && Scene is null && Folder is null;
+
+    /// <summary>Whether a folder row is showing what is inside it.</summary>
+    /// <remarks>
+    /// <b>B86.</b> On the row for binding, and mirrored from the view model's own
+    /// set — the set is what survives a rebuild, since a re-read that discards
+    /// rows would otherwise expand everything the artist had collapsed. B61 is
+    /// the same lesson from the other side.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Twisty))]
+    private bool _isCollapsed;
 
     [ObservableProperty]
     private string _name;
@@ -124,10 +177,23 @@ public sealed partial class ProjectRow : ObservableObject
     [ObservableProperty]
     private bool _isRenaming;
 
-    /// <summary>A heading reads as a heading; what is under it is indented.</summary>
-    public double Indent => IsHeading || IsLoose ? 0 : 14;
+    /// <summary>
+    /// How far in this row sits, in pixels.
+    /// </summary>
+    /// <remarks>
+    /// <b>B86.</b> Was a flat "heading or not" — 0 or 14 — which is all a
+    /// two-level tree needs and cannot express a folder inside a folder. Depth
+    /// now drives it, and a document inside a folder sits one level in from the
+    /// folder itself, which is why the +1.
+    /// </remarks>
+    public double Indent => Folder is not null
+        ? (Depth + (Animation is null ? 0 : 1)) * 14
+        : IsHeading || IsLoose ? 0 : 14;
 
-    public string Glyph => IsScene ? "🎬" : IsCharacter ? "🗀" : "▣";
+    public string Glyph => IsScene ? "🎬" : IsFolder ? "🗀" : IsCharacter ? "🗀" : "▣";
+
+    /// <summary>The chevron on a folder row, or nothing on everything else.</summary>
+    public string Twisty => IsFolder ? (IsCollapsed ? "▸" : "▾") : "";
 
     /// <summary>
     /// The production status, mirrored from the manifest so the row can show it.
@@ -338,12 +404,27 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
                 kept.Name = fresh.Name;
                 kept.Status = fresh.Status;
                 kept.Duration = fresh.Duration;
+                // B86, and the same trap as the three above: a kept row keeps
+                // its own state, so anything the rebuild decided has to be
+                // copied over or the reuse silently discards it. Collapse is
+                // decided by `_collapsed`, and without this line a folder
+                // toggled shut stayed open on screen while the tree below it
+                // correctly vanished.
+                kept.IsCollapsed = fresh.IsCollapsed;
                 Rows.Add(kept);
                 return;
             }
             Rows.Add(fresh);
         }
 
+        // B86. The folder tree first: it is the structure the artist built, and
+        // a production is organised by it rather than by the two fixed axes
+        // below. Absent entirely until the first folder is made, so a project
+        // that never used one looks exactly as it did.
+        if (Project is { } withFolders)
+        {
+            EmitFolders(withFolders.Manifest, parent: null, depth: 0, Add);
+        }
         foreach (var character in Project?.Characters ?? [])
         {
             Add(new ProjectRow(character));
@@ -360,9 +441,11 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
                 Add(new ProjectRow(scene, shot, ShotTime(shot)) { Status = shot.Status });
         }
         // Project-level documents last, unindented — they belong to the
-        // project, not under anything.
+        // project, not under anything. B85: only the ones that are not filed in
+        // a folder; the rest were emitted above, under the folder they are in.
         foreach (var document in Project?.Manifest.Documents ?? [])
         {
+            if (document.FolderId is not null) continue;
             Add(new ProjectRow(null, document) { Status = document.Status });
         }
         MarkMissing();
@@ -385,6 +468,124 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// path rather than three that can disagree.
     /// </remarks>
     public void Refresh() => Rebuild();
+
+    // ---- the folder tree (B85, B86) -------------------------------------------
+
+    /// <summary>
+    /// Which folders are collapsed, by id.
+    /// </summary>
+    /// <remarks>
+    /// <b>B86.</b> Here rather than on the row, because rows are rebuilt — by a
+    /// save, by the directory watch, by any edit — and collapse that lived on
+    /// them would spring open every time the disk moved. Ids rather than folder
+    /// objects for the same reason: a reload replaces the objects and keeps the
+    /// ids.
+    /// </remarks>
+    private readonly HashSet<string> _collapsed = [];
+
+    /// <summary>
+    /// Walk the tree in display order: a folder, then what is inside it.
+    /// </summary>
+    /// <remarks>
+    /// Recursive, and safe to be: <see cref="ProjectFolders.Move"/> refuses to
+    /// make a cycle and <c>Descendants</c> tolerates one, but this walks
+    /// <em>children</em> from the root, so a cycle is simply never reached from
+    /// here — an orphaned loop does not render, which is the honest outcome for
+    /// a folder with no path back to the project.
+    /// </remarks>
+    private void EmitFolders(
+        ProjectManifest manifest, ProjectFolder? parent, int depth, Action<ProjectRow> add)
+    {
+        foreach (var folder in ProjectFolders.ChildrenOf(manifest, parent).OrderBy(f => f.Name))
+        {
+            var collapsed = _collapsed.Contains(folder.Id);
+            add(new ProjectRow(folder, depth) { IsCollapsed = collapsed });
+            if (collapsed) continue;
+            EmitFolders(manifest, folder, depth + 1, add);
+            foreach (var document in ProjectFolders.DocumentsIn(manifest, folder))
+            {
+                add(new ProjectRow(folder, document, depth) { Status = document.Status });
+            }
+        }
+    }
+
+    /// <summary>Show or hide what is inside a folder.</summary>
+    [RelayCommand]
+    public void ToggleCollapsed(ProjectRow? row)
+    {
+        if (row?.Folder is not { } folder || !row.IsFolder) return;
+        if (!_collapsed.Add(folder.Id)) _collapsed.Remove(folder.Id);
+        Rebuild();
+    }
+
+    /// <summary>Whether a folder is currently collapsed. For tests and bindings.</summary>
+    public bool IsCollapsed(ProjectFolder folder) => _collapsed.Contains(folder.Id);
+
+    /// <summary>
+    /// The folder a new thing should go into, given what is selected.
+    /// </summary>
+    /// <remarks>
+    /// <b>B85.</b> The reported defect exactly: creating a document ignored
+    /// where you were and dropped it in a top-level <c>documents/</c>. A
+    /// selected folder is the obvious answer, and so is the folder a selected
+    /// <em>document</em> sits in — "new document" next to a document means
+    /// beside it, not somewhere else.
+    /// </remarks>
+    public ProjectFolder? TargetFolder => Selected?.Folder;
+
+    /// <summary>Make a folder, inside the selected one if there is one.</summary>
+    [RelayCommand]
+    private void AddFolder(string? name = null)
+    {
+        if (Project is not { } project) return;
+        var folder = ProjectFolders.Add(project.Manifest, Named(name, "Folder"), TargetFolder);
+        // Opened, so the thing just made is not hidden by its parent's state.
+        _collapsed.Remove(folder.Id);
+        if (TargetFolder is { } parent) _collapsed.Remove(parent.Id);
+        Rebuild();
+        Selected = Rows.FirstOrDefault(r => ReferenceEquals(r.Folder, folder) && r.IsFolder);
+        _changed();
+    }
+
+    /// <summary>
+    /// Move a row into a folder, or to the project root when null.
+    /// </summary>
+    /// <remarks>
+    /// <b>B86.</b> One entry point for the drop, because a tree view offers one
+    /// gesture and the model has two operations behind it — a folder reparents,
+    /// a document is refiled and repathed. Returning false rather than throwing
+    /// is what lets a drop that cannot happen simply not happen: dragging a
+    /// folder onto its own child is an ordinary slip, not an error to report.
+    /// </remarks>
+    public bool MoveInto(ProjectRow? row, ProjectFolder? destination)
+    {
+        if (Project is not { } project || row is null) return false;
+
+        if (row is { IsFolder: true, Folder: { } folder })
+        {
+            if (!ProjectFolders.Move(project.Manifest, folder, destination)) return false;
+        }
+        else if (row.Animation is { } document)
+        {
+            // A character's animation or a scene's shot has to leave that first,
+            // or it would be in two places: the folder tree and the character.
+            if (row.Character is not null || row.Scene is not null)
+            {
+                if (!ProjectIo.MoveDocument(project, document, null)) return false;
+            }
+            if (!ProjectFolders.FileDocument(project.Manifest, document, destination)) return false;
+            _dirty.Add(document.Id);
+        }
+        else
+        {
+            // A character or a scene is not in the folder tree yet — Q30.
+            return false;
+        }
+
+        Rebuild();
+        _changed();
+        return true;
+    }
 
     /// <summary>
     /// Re-read on purpose — the F5 the artist presses, and the toolbar button.
@@ -543,6 +744,10 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public static readonly NewItemKind NewLooseDocument =
         new("Document", "Belongs to the project, not to any character");
 
+    /// <summary>B86. A folder of the artist's own, at any depth.</summary>
+    public static readonly NewItemKind NewFolderItem =
+        new("Folder", "A folder you name, inside the selected one");
+
     public static readonly NewItemKind NewSceneItem =
         new("Scene", "A run of shots — the film's second axis, alongside the characters");
 
@@ -550,7 +755,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         new("Shot", "A drawing under the selected scene");
 
     public IReadOnlyList<NewItemKind> NewItemKinds { get; } =
-        [NewAnimation, NewCharacterItem, NewSceneItem, NewShotItem, NewLooseDocument];
+        [NewFolderItem, NewAnimation, NewCharacterItem, NewSceneItem, NewShotItem, NewLooseDocument];
 
     /// <summary>Create one of <see cref="NewItemKinds"/> in the right place.</summary>
     [RelayCommand]
@@ -574,6 +779,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public void AddItemNamed(NewItemKind? kind, string? name)
     {
         if (kind == NewCharacterItem) AddCharacter(name);
+        else if (kind == NewFolderItem) AddFolder(name);
         else if (kind == NewSceneItem) AddScene(name);
         else if (kind == NewShotItem) AddShot(name);
         else if (kind == NewLooseDocument) AddLooseDocument(name);
@@ -708,6 +914,15 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         var doc = _newDocument();
         var count = project.Manifest.Documents.Count + 1;
         var reference = ProjectIo.AddDocument(project, Named(name, $"Document {count}"), doc);
+        // B85. Into the folder you were in. ProjectIo.AddDocument still puts it
+        // at `documents/`, which is right when nothing is selected and was the
+        // whole of the bug when something was — creating a document inside a
+        // folder ignored the folder and filed it at the top level.
+        if (TargetFolder is { } folder)
+        {
+            ProjectFolders.FileDocument(project.Manifest, reference, folder);
+            _collapsed.Remove(folder.Id);
+        }
         _dirty.Add(reference.Id);
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id);

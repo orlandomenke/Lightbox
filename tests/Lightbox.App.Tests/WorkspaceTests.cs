@@ -315,7 +315,10 @@ public sealed class WorkspaceTests : BrushStateIsolated
             var items = flyout.Items.OfType<MenuItem>().ToList();
             flyout.Hide();
 
-            Assert.Equal(["Animation", "Character", "Scene", "Shot", "Document"],
+            // B86. The flyout is written out in XAML rather than generated, so
+            // this is the check that a new kind actually reached the menu — a
+            // create kind the artist cannot click is not reachable at all.
+            Assert.Equal(["Folder", "Animation", "Character", "Scene", "Shot", "Document"],
                 items.Select(i => i.Header?.ToString()).ToList());
 
             // Every entry is wired to a handler. Clicking used to be assertable

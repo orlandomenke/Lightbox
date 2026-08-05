@@ -821,3 +821,54 @@ whatever an artist would stop drawing to do.
 The reason to settle it before B86 rather than after: hierarchy is the one
 piece both surfaces need, and building it into the docker first is how it ends
 up with two implementations.
+
+---
+
+## Q30 · When do characters and scenes become folders? — **parked by the owner**
+
+Raised 2026-08-05 when `ProjectFolders` landed. **Deliberately not answered
+yet**: the owner asked for it to be tracked so it can be decided when the time
+is right, rather than settled under pressure from whichever bug is in hand.
+
+**The state of things.** The project now has two hierarchies. The folder tree is
+arbitrary — any name, any depth — and `ProjectFolder`/`DocumentRef.FolderId`
+describe it. Beside it, `Character` and `ProjectScene` still build paths from
+fixed words in `ProjectIo`: `characters/<slug>/animations/<slug>.lightbox.json`
+and `scenes/<slug>/shots/<slug>.lightbox.json`. Those constants are the last of
+the naming convention.
+
+Two hierarchies is a real cost and it is worth naming rather than tolerating
+quietly: every surface has to render both, every operation has to ask which
+kind of thing it is holding, and "move this into that" has four cases instead
+of one.
+
+**What makes it more than a refactor.** A character is not only a folder. It
+carries a palette, a pivot, variants that inherit animations, and a
+`character.json` that `CharacterLibrary` reads across projects. A scene carries
+running order and a running time. Whatever replaces them has to keep all of
+that, and has to open every `.lbproj` already written.
+
+The shapes worth weighing when it is time:
+
+**(a) A character *is* a folder with character data.** `ProjectFolder` grows a
+nullable `Character` (and `Scene`), so one tree holds everything and a plain
+folder simply has neither. One hierarchy, one set of operations, and the
+migration is mechanical: read the old lists, emit folders, keep the ids.
+Riskiest at the seam — `CharacterLibrary`, variants and `SymbolScopes` all
+resolve characters by identity today.
+
+**(b) A character *has* a folder.** The character record keeps its own life and
+gains a `FolderId`; the tree is where it appears and the character is what it
+is. Cheaper and reversible, and it leaves two records describing one thing —
+which is the state that produced this question.
+
+**(c) Leave them.** Characters and scenes stay a fixed top-level convention and
+folders are for everything else. Honest for a game project with a flat asset
+pile; wrong for a feature, where "Episode 2 / Act 1 / Sc 014" is the structure
+and a character is one leaf of it.
+
+**What does not need deciding either way**, so it should not hold the question
+up: `ProjectIo.Flatten` must keep inlining everything a document references
+regardless of where it is filed, and `AProjectWrittenBeforeFoldersKeepsItsPaths`
+must keep passing. Both are invariant 1 at the boundary where a file leaves the
+app, and neither is a preference.

@@ -195,16 +195,6 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Two operations are needed: remove from project (keeps file on disk, marks it as missing) and delete permanently (removes from project and disk). The permanent delete should show a confirmation prompt for folders containing files, but empty folders can be deleted without prompting.
   - Cost: M
 
-- [ ] **B86** `P2` `project` Project docker is missing drag/drop, subfolder creation, and collapse/expand hierarchy `evidence: ProjectDockerTests, FoldersCanBeDraggedWithinProject, DocumentsCanBeDraggedWithinProject, SubfoldersCanBeCreatedWithinFolders, FoldersCanBeCollapsedAndExpanded`
-  - Reported: within the project docker, the user expects to be able to drag and drop folders and documents to organize them, create subfolders within existing folders, and collapse/expand folders to manage the hierarchy.
-  - Current behaviour is a flat list with no hierarchy support, limiting how artists can organize their projects.
-  - Cost: M
-
-- [ ] **B85** `P2` `project` Documents created in project subfolders are placed in top-level Documents folder instead `evidence: ProjectDockerTests, DocumentsCreatedInFoldersAppearInCorrectFolder, FolderStructureReflectsFileSystemHierarchy`
-  - Reported: when creating a document through the project docker within a subfolder, it ignores the location and places the document in a top-level "Documents" folder instead.
-  - This breaks the ability to organize documents by folder within a project.
-  - Cost: M
-
 - [ ] **B83** `P2` `project` New project is created with unwanted default subfolders `evidence: ProjectCreationTests, NewProjectHasCorrectDefaultStructure, NoUnwantedAssetFoldersCreated, AllDefaultFoldersAreListedInProjectFile`
   - Reported: when creating a new project, default subfolders are created that the user did not request — specifically **characters**, **shots**, **scene**, and **animation** folders. The palette folder with default swatches should exist, but work-related folders should only be created when explicitly requested by the user.
   - Additionally, every top folder created in the project folder should be included in Project.lbproj, and the project docker should show only system-required defaults, not asset folders the user must create themselves.
@@ -567,6 +557,22 @@ test reopens the bug.
   - Cause: `ProjectIo` stored shared palettes as GIMP `.gpl`. That format carries names and RGB and **cannot carry ids** — `GimpPalette.Read` mints fresh ones — so every `Stroke.SwatchId` and every `Character.PaletteId` pointed at something that no longer existed.
   - Fix: store project palettes as JSON, ids intact. `.gpl` stays what it is — an interop format for the docker's Import/Export, not a storage format.
   - Mine, from the previous commit. Found by the variant tests rather than by review. Cost: S
+
+- [x] **B86** `P2` `project` Project docker is missing drag/drop, subfolder creation, and collapse/expand hierarchy `evidence: ProjectDockerTests, FoldersCanBeDraggedWithinProject, DocumentsCanBeDraggedWithinProject, SubfoldersCanBeCreatedWithinFolders, FoldersCanBeCollapsedAndExpanded`
+  - Reported: within the project docker, the user expects to be able to drag and drop folders and documents to organize them, create subfolders within existing folders, and collapse/expand folders to manage the hierarchy.
+  - Current behaviour is a flat list with no hierarchy support, limiting how artists can organize their projects.
+  - Cost: M
+  - **Fixed.** `ProjectFolders` in Core is the tree — Q29 answered that the docker and the project window are two surfaces onto one hierarchy, so it is model code and neither surface owns it. The docker renders it before characters and scenes, indented by depth, and a **＋ New ▸ Folder** entry creates one inside whatever is selected.
+  - Collapse lives in the view model as a set of folder ids, not on the row. A re-read happens on every save (B61's watch), and collapse kept on rows would spring open each time the disk moved. That produced the one real bug found here: `Rebuild` reuses a row when it `Describes` the same thing and copies only Name/Status/Duration across, so a folder toggled shut stayed open on screen while the tree below it correctly vanished. `kept.IsCollapsed = fresh.IsCollapsed` is the fix, and it is the fourth field to need that line.
+  - `MoveInto` is one entry point for the drop, because a tree offers one gesture and the model has two operations behind it — a folder reparents, a document is refiled and repathed. It returns false rather than throwing so a drop that cannot happen simply does not: dragging a folder onto its own child is an ordinary slip, not an error worth reporting.
+  - **Still open under this id, deliberately:** dragging characters and scenes into folders. They are not in the tree yet — see **Q30**, parked by the owner. Cost: M
+
+- [x] **B85** `P2` `project` Documents created in project subfolders are placed in top-level Documents folder instead `evidence: ProjectDockerTests, DocumentsCreatedInFoldersAppearInCorrectFolder, FolderStructureReflectsFileSystemHierarchy`
+  - Reported: when creating a document through the project docker within a subfolder, it ignores the location and places the document in a top-level "Documents" folder instead.
+  - This breaks the ability to organize documents by folder within a project.
+  - Cost: M
+  - **Fixed.** `ProjectViewModel.TargetFolder` is the selected folder, or the folder a selected *document* sits in — "new document" beside a document means beside it. `AddLooseDocument` files the new reference there through `ProjectFolders.FileDocument`, which sets `FolderId` and derives the path from the folder chain. With nothing selected the old behaviour stands and the document goes to `documents/`, which `WithNothingSelectedADocumentStillGoesToTheProjectRoot` guards — "put it where I am" must not become "put it wherever I last touched".
+  - `FolderStructureReflectsFileSystemHierarchy` is the one that matters: every other assertion reads the manifest, and a manifest that is right while the save writes elsewhere is exactly what this bug was. It saves, checks the file exists at `episode-2/act-1/sc-014.lightbox.json`, reopens the project and finds the document in the same folder.
 
 - [x] **B84** `P2` `project` Project docker creates a "project" folder in the wrong location on new project `evidence: ProjectCreationTests, NewProjectFolderStructureIsCorrect, AllFoldersAppearAtProjectRoot`
   - Reported: when creating a new project, a folder named "project" is created and appears within the Characters folder instead of at the project root.
