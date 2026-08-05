@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2293 tests, derived from the suite itself. Each line is a
+2302 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2348,6 +2348,16 @@ regression even when every test still compiles.
 - Unmatched Pair With Null — `:52`
 - Empty Frames Produce Only One Sided Pairs — `:60`
 
+## IncrementalDensifyTests _Category=Performance_
+`tests/Lightbox.Core.Tests/IncrementalDensifyTests.cs`
+
+- Every Prefix Matches Densify Exactly — `:52`
+- Only The Tail Is Recomputed When APoint Is Appended — `:75`
+- ARewritten Tail Invalidates Far Enough Back — `:97`
+- AShorter List Is Handled Rather Than Indexed Past — `:116`
+- Under Three Points Behaves Like Densify — `:137`
+- The Walk Stops Growing With The Stroke — `:151`
+
 ## NormalMapTests
 `tests/Lightbox.Core.Tests/NormalMapTests.cs`
 
@@ -2971,6 +2981,12 @@ regression even when every test still compiles.
 - The Bounds Of ADab Range Cover Every Dab In It — `:185`
 - An Empty Range Has No Bounds — `:211`
 
+## LiveBlurFidelityTests
+`tests/Lightbox.Raster.Tests/LiveBlurFidelityTests.cs`
+
+- ADragged Blur Matches The Committed One — `:140`
+- One Draft Call Of AWhole Stroke Is Already Exact — `:225`
+
 ## LivePaletteTests
 `tests/Lightbox.Raster.Tests/LivePaletteTests.cs`
 
@@ -3254,7 +3270,8 @@ regression even when every test still compiles.
 - Panning Across Empty Space Allocates Nothing — `:132`
 - AViewport Straddling The Origin Draws Tiles On Both Sides — `:156`
 - AViewport With No Area Draws Nothing — `:170`
-- ACulled Composite Matches The Same Rectangle Of An Untiled Render — `:199`
+- Asking For ABitmap With No Area Is Refused — `:194`
+- ACulled Composite Matches The Same Rectangle Of An Untiled Render — `:226`
 
 ## TileStoreTests
 `tests/Lightbox.Raster.Tests/TileStoreTests.cs`

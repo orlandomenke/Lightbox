@@ -609,7 +609,7 @@ it is still a guess until somebody runs it.
 This is the standing disagreement between **ai-engineer** and **art-director**,
 and it is written here rather than settled by whichever of them ran last.
 
-## Q20 · When a textured line is re-shaped, may its texture change?
+## Q26 · When a textured line is re-shaped, may its texture change?
 
 Invariant 2 seeds every dab dynamic — scatter, size, roundness, rotation, all
 three colour jitters — from the dab's position via `Hash01`. That is what makes
@@ -657,7 +657,7 @@ re-shaped stroke has to land where the record says. (c) is the one I would open
 the argument with, on the grounds that grain belonging to the stroke is what it
 belongs to on paper, but the start-of-stroke cascade may sink it.
 
-## Q21 · How big does a reference the model has to read need to be?
+## Q27 · How big does a reference the model has to read need to be?
 
 B31 capped reference views at **768 px on the long edge** on the way into a
 request, and the number is doing real work: providers bill by area regardless of

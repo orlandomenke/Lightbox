@@ -163,38 +163,54 @@ public static class GeometryOps
         var output = new List<StrokePoint> { points[0] };
         for (var i = 0; i < points.Count - 1; i++)
         {
-            var p1 = points[i];
-            var p2 = points[i + 1];
-            var span = Dist(p1, p2);
-            // Already short enough to be its own chord, so nothing to add.
-            // Also the zero-length case, where the tangents are undefined.
-            if (span <= maxChord)
-            {
-                output.Add(p2);
-                continue;
-            }
-
-            // Outside control points. Where there is no real neighbour — the
-            // ends of the stroke, and either side of a corner that must stay
-            // sharp — the missing one is the span's own endpoint, which pins
-            // the tangent to the chord and lets that span run straighter than
-            // its neighbours.
-            //
-            // Reflecting instead (p0 = 2·p1 − p2, the textbook end condition)
-            // was tried and measured worse: on a 180 px arc sampled every 30°
-            // it took the end spans from 2.9 px off the curve to 3.8 px,
-            // because a reflected control puts the tangent on the chord of the
-            // WRONG side of the vertex.
-            var p0 = i > 0 && !IsCorner(points[i - 1], p1, p2) ? points[i - 1] : p1;
-            var p3 = i + 2 < points.Count && !IsCorner(p1, p2, points[i + 2]) ? points[i + 2] : p2;
-
-            var steps = (int)Math.Min(64, Math.Ceiling(span / maxChord));
-            for (var s = 1; s <= steps; s++)
-            {
-                output.Add(CatmullRom(p0, p1, p2, p3, (double)s / steps));
-            }
+            AppendSpan(output, points, i, maxChord);
         }
         return output;
+    }
+
+    /// <summary>
+    /// Interpolate span <paramref name="i"/> of <paramref name="points"/> onto the end of
+    /// <paramref name="output"/>, which must already end at <c>points[i]</c>.
+    /// </summary>
+    /// <remarks>
+    /// Factored out of <see cref="Densify"/> so <see cref="IncrementalDensify"/> can recompute a
+    /// tail without a second copy of the curve. <b>One implementation is the point</b>: a live
+    /// preview whose interpolation drifted from the committed render's by one point would move a
+    /// dab, and every dab dynamic is seeded from where the dab is.
+    /// </remarks>
+    internal static void AppendSpan(
+        List<StrokePoint> output, IReadOnlyList<StrokePoint> points, int i, double maxChord)
+    {
+        var p1 = points[i];
+        var p2 = points[i + 1];
+        var span = Dist(p1, p2);
+        // Already short enough to be its own chord, so nothing to add.
+        // Also the zero-length case, where the tangents are undefined.
+        if (span <= maxChord)
+        {
+            output.Add(p2);
+            return;
+        }
+
+        // Outside control points. Where there is no real neighbour — the
+        // ends of the stroke, and either side of a corner that must stay
+        // sharp — the missing one is the span's own endpoint, which pins
+        // the tangent to the chord and lets that span run straighter than
+        // its neighbours.
+        //
+        // Reflecting instead (p0 = 2·p1 − p2, the textbook end condition)
+        // was tried and measured worse: on a 180 px arc sampled every 30°
+        // it took the end spans from 2.9 px off the curve to 3.8 px,
+        // because a reflected control puts the tangent on the chord of the
+        // WRONG side of the vertex.
+        var p0 = i > 0 && !IsCorner(points[i - 1], p1, p2) ? points[i - 1] : p1;
+        var p3 = i + 2 < points.Count && !IsCorner(p1, p2, points[i + 2]) ? points[i + 2] : p2;
+
+        var steps = (int)Math.Min(64, Math.Ceiling(span / maxChord));
+        for (var s = 1; s <= steps; s++)
+        {
+            output.Add(CatmullRom(p0, p1, p2, p3, (double)s / steps));
+        }
     }
 
     /// <summary>Whether the turn at <paramref name="b"/> is sharp enough to be intent.</summary>
