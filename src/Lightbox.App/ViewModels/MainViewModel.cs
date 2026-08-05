@@ -229,6 +229,40 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// The tip the ring should outline, or null for the round dab.
+    /// </summary>
+    /// <remarks>
+    /// <b>B74.</b> Read from the same <see cref="CurrentToolSettings"/> the engine
+    /// stamps from, and passed as an id so the canvas traces the actual tip bitmap
+    /// rather than being told a shape. Null on a brush with no tip, which is the
+    /// honest answer and not a shrug — the round dab really is an ellipse.
+    /// </remarks>
+    public string? BrushCursorTipId => CurrentToolSettings.TipId;
+
+    /// <summary>How flat the ring should be: 1 round, less an ellipse.</summary>
+    /// <remarks>
+    /// The brush's nominal roundness, deliberately <b>not</b>
+    /// <c>BrushEngine.RoundnessAt</c>. That one folds in a per-dab jitter seeded
+    /// from the dab's position, so a cursor built on it would wobble as the pointer
+    /// moved and report the jitter rather than the brush — the same reason
+    /// invariant 2 exists, seen from the UI side.
+    /// </remarks>
+    public double BrushCursorRoundness => Math.Clamp(CurrentToolSettings.Roundness, 0.05, 1);
+
+    /// <summary>
+    /// The ring's angle in degrees, so a chisel is previewed at the angle it will
+    /// print at.
+    /// </summary>
+    /// <remarks>
+    /// <c>TipRotationDeg</c> only — the base rotation
+    /// <see cref="BrushEngine.StampDab"/> starts from. <c>AngleFollowsDirection</c>
+    /// adds the stroke's heading and a hovering pointer has no heading, so folding
+    /// it in here would mean inventing one; <c>RotationJitter</c> is seeded from the
+    /// dab's position and belongs to the mark rather than to the brush.
+    /// </remarks>
+    public double BrushCursorAngle => CurrentToolSettings.TipRotationDeg;
+
     /// <summary>Canvas reports what the pen is doing; the ring follows it.</summary>
     public void SetCursorPressure(double pressure, bool penDown)
     {
@@ -2537,7 +2571,10 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(BrushPressureSizeGamma), nameof(BrushPressureFlowGamma), nameof(BrushPressureHardnessGamma),
         nameof(BrushPressureAffectsSize), nameof(BrushPressureAffectsFlow), nameof(BrushPressureAffectsHardness),
         nameof(BrushBlend), nameof(BrushTextureId), nameof(HasImportedTexture),
-        nameof(BrushCursorDiameter),
+        // B74. The ring's shape comes from the brush, so it has to be re-read
+        // whenever the brush changes — same list, same reason as its diameter.
+        nameof(BrushCursorDiameter), nameof(BrushCursorTipId),
+        nameof(BrushCursorRoundness), nameof(BrushCursorAngle),
         nameof(BrushSizeJitter), nameof(BrushMinimumDiameter), nameof(BrushRoundness),
         nameof(BrushRoundnessJitter), nameof(BrushAngleFollowsDirection), nameof(BrushFlowJitter),
         nameof(BrushTextureSurface), nameof(BrushTextureScale), nameof(BrushTextureDepth),
