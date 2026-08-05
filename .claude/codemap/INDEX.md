@@ -1,6 +1,6 @@
 # Code index
 
-439 files · 108856 lines · 2277 tests.
+439 files · 109033 lines · 2280 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -63,8 +63,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SpriteTrim:12, SpritePack:37, SpriteSheetOptions:63, SpriteSheetResult:103, SpriteSheetExporter:152, SheetDocument:683, SheetFrame:689, SheetMeta:722 …
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (789 ln) · 2 test files
   - ShortcutRow:12, ShortcutGroup:24, GridRow:39, AiFieldRow:99, ConfigureWindow:150
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (665 ln) · 3 test files
-  - ProjectRow:19, ProjectViewModel:136, NewItemKind:300
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (760 ln) · 3 test files
+  - ProjectRow:19, ProjectViewModel:162, NewItemKind:395
 - `src/Lightbox.App/Services/UnityExporter.cs` (648 ln) · 11 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml.cs` (496 ln) · 1 test files

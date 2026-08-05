@@ -107,6 +107,32 @@ public sealed partial class ProjectRow : ObservableObject
 
     public bool HasStatus => Status is not null;
 
+    /// <summary>
+    /// The manifest lists this row and there is no file behind it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B61.</b> The docker is built from the manifest, so an entry survives
+    /// its file being deleted from outside the application — another program, a
+    /// file manager, a branch switch. The reporter's diagnosis is what makes this
+    /// a flag rather than a deletion: after restarting, the files on disk were
+    /// correct, so nothing is wrong with what was *written*. The manifest is
+    /// simply describing a world that has moved on.
+    /// </para>
+    /// <para>
+    /// Flagged rather than silently dropped, because the two are different
+    /// claims. A row that vanishes says "you never had this"; a row marked
+    /// missing says "this is in your project and I cannot find it", which is the
+    /// true statement and the one an artist can act on. Removing it from the
+    /// project is then a decision they make, not one a refresh makes for them.
+    /// </para>
+    /// </remarks>
+    [ObservableProperty]
+    private bool _missing;
+
+    /// <summary>What the row says when its file is gone.</summary>
+    public string MissingHint => Missing ? "not on disk" : "";
+
     public string StatusLabel => Status is { } s ? AssetStatuses.Label(s) : "";
 
     public string StatusColor => Status is { } s ? AssetStatuses.Color(s) : "#00000000";
@@ -228,10 +254,79 @@ public sealed partial class ProjectViewModel : ObservableObject
         {
             Rows.Add(new ProjectRow(null, document) { Status = document.Status });
         }
+        MarkMissing();
         Selected = Rows.FirstOrDefault(r => r.Key == keep);
         OnPropertyChanged(nameof(HasScenes));
         OnPropertyChanged(nameof(TotalRunningTime));
+        OnPropertyChanged(nameof(MissingCount));
+        OnPropertyChanged(nameof(HasMissing));
     }
+
+    /// <summary>
+    /// Re-read the project against what is on disk now.
+    /// </summary>
+    /// <remarks>
+    /// <b>B61.</b> The docker was built once from the manifest and then held, so
+    /// it went on listing folders and documents that had been deleted from disk
+    /// and stayed silent about it until the application was restarted. This is
+    /// the seam a directory watcher drives; it is public and parameterless on
+    /// purpose so the watcher, a manual refresh and a test all use the same one
+    /// path rather than three that can disagree.
+    /// </remarks>
+    public void Refresh() => Rebuild();
+
+    /// <summary>
+    /// Set <see cref="ProjectRow.Missing"/> against the filesystem.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One <c>Exists</c> per row and no directory enumeration: the manifest
+    /// already says what should be there, so this asks about exactly those paths
+    /// rather than walking the tree. That keeps a refresh proportional to the
+    /// project's size rather than to the disk's.
+    /// </para>
+    /// <para>
+    /// <b>A row with unsaved changes is never marked, and that distinction is the
+    /// whole difference between a useful flag and a noisy one.</b> "Not written
+    /// yet" and "was written and is gone" both fail a <c>File.Exists</c> and mean
+    /// opposite things: the first is every new animation between creating it and
+    /// saving, which is most of a working session. <see cref="Dirty"/> already
+    /// separates them — it is the set the project saves — so a dirty row is
+    /// skipped and only a clean row whose file has disappeared is reported.
+    /// </para>
+    /// <para>
+    /// The first cut of this checked whether the project root existed and assumed
+    /// that meant "saved". It does not: <c>NewProject</c> creates the root
+    /// immediately, so the guard never fired and every freshly added animation
+    /// reported itself missing. The test that caught it is
+    /// <c>AnUnsavedProjectDoesNotReportEveryRowAsMissing</c>.
+    /// </para>
+    /// </remarks>
+    private void MarkMissing()
+    {
+        if (Project is not { } project || string.IsNullOrEmpty(project.Root)) return;
+        if (!Directory.Exists(project.Root)) return;
+
+        foreach (var row in Rows)
+        {
+            if (row.Animation is { } animation && _dirty.Contains(animation.Id))
+            {
+                row.Missing = false;
+                continue;
+            }
+
+            var path = PathOf(row);
+            row.Missing = path is not null
+                && !string.Equals(path, project.Root, StringComparison.Ordinal)
+                && !File.Exists(path)
+                && !Directory.Exists(path);
+        }
+    }
+
+    /// <summary>How many rows name something that is not on disk.</summary>
+    public int MissingCount => Rows.Count(r => r.Missing);
+
+    public bool HasMissing => MissingCount > 0;
 
     private static string? RunningTime(ProjectScene scene)
     {

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2277 tests, derived from the suite itself. Each line is a
+2280 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1278,6 +1278,9 @@ regression even when every test still compiles.
 - Opening Externally Says So When The File Is Not Written Yet — `:423`
 - Duplicating An Animation Copies Its Art Into The Same Character — `:441`
 - Duplicating Writes The Copy On The Next Save — `:474`
+- Deleting AFolder On Disk Removes It From The Docker — `:501`
+- The Docker Refreshes Without Being Reopened — `:530`
+- An Unsaved Project Does Not Report Every Row As Missing — `:556`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
