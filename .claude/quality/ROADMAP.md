@@ -568,6 +568,15 @@ Assets, animations and scenes as first-class citizens rather than layers on a
 canvas. Also the home for everything that keeps a long project alive:
 timeline, review, versioning, collaboration.
 
+**Strategic gap noted:** Request analysis identified that production review and
+collaboration features (comments, version history, storyboard workflow) are
+largely unbuilt `[?]` and represent a gap between the game-export focus of
+Pillar 5 and studio workflows. High-value items for prioritization: **Undo
+history browser** and **Version snapshots** (project plumbing), **Frame
+comments** (collaboration), and **Storyboard view with beat-to-timeline
+conversion** (missing entirely). See `scripts/bugs.py` B83-B87 for related
+project structure bugs and `.claude/quality/comparison.md` for full analysis.
+
 ### Timeline and exposure
 
 - [x] Multi-layer timeline `evidence: LayerRow, FrameCell, TimelineExpansionTests`
@@ -601,6 +610,8 @@ timeline, review, versioning, collaboration.
 - [x] Imported animation reference, sliced into frames and laid against the timeline `evidence: ReferenceStrip, StripSlicer, StripSlicerTests, ReferenceStripTests`
 - [x] An animated symbol — a stored cycle, not a single drawing `evidence: Symbol, SymbolPlacement, FrameIndexAt, FrameOffset, SymbolRecordTests, SymbolRenderTests`
   - **Already built, and worth recording as built rather than re-asked.** `Symbol.Frames` is a list, `Symbol.Fps` sets its rate, a placement advances with the timeline, and `FrameOffset` shifts where in the cycle it starts — so one stored walk carries two characters half a stride apart. Editing one opens a cel per frame. "An animation symbol" is a symbol with more than one frame in it, not a feature to add.
+- [ ] Storyboard view with beat-to-timeline conversion — sketch and layout sequences visually, then convert to timeline frames `evidence: StoryboardPanel, StoryboardLayout, StoryboardThumbnails, BeatToFrameConversion, StoryboardTests, AStoryboardCanBeSketchedWithOneCelPerBeat, ConvertingABeatToATimelineFramePreservesTheDrawings`
+  - **High-value, high-effort.** Explicitly requested in Request 1 feature analysis as a missing production workflow. Acts as a director-friendly rough-layout view before committing to full timeline: one cel per beat/moment, laid out visually, with thumbnails for pacing. The conversion step takes a storyboard and produces corresponding timeline frames with matching content and exposure. Distinct from the timeline — the storyboard is ephemeral, the timeline is the record. Foundational for studio and film workflows where storyboards precede animatic assembly.
 - [ ] A reference layer: draw over a reusable animation that never exports `evidence: LayerRole, ReferenceLayerTests, AReferenceLayerIsNeverExported, AReferenceLayerRendersAsAGhostThroughTheOnionPath`
   - **The mechanism is already assembled; what is missing is presentation.** An animated symbol placed on a layer with `OmitFromExport = true` is *today* a reusable, live-updating, non-exporting animated underlay: edit the base run cycle once and every shot drawn over it follows, export and it is not there. Three existing parts — `Symbol` with several frames, `Layer.OmitFromExport`, and the onion-skin render path — cover it.
   - So this item is deliberately **not** a new record. It is a nullable `Layer.Role` (absent until used) with one value, `Reference`, that renders through the onion path, implies the export pin without replacing it, and shows a badge in the Layers docker. The three failures it fixes are that an underlay currently reads as artwork, that nothing points at the workflow so an artist would have to invent the recipe, and that "this layer is a guide" and "do not export this layer" are one setting wearing the wrong label.
@@ -637,8 +648,10 @@ timeline, review, versioning, collaboration.
 - [x] Autosave `evidence: AutosaveService`
 - [x] Custom shortcuts `evidence: ShortcutMap, ShortcutMapTests, ConfigureWindow`
 - [x] Context-aware shortcuts `evidence: ShortcutContext, ContextShortcutTests`
-- [?] Undo history browser
-- [?] Version snapshots
+- [ ] Undo history browser — visual timeline of document states, navigable and reviewable `evidence: UndoHistoryViewModel, UndoHistoryPanel, UndoStateSnapshots, UndoHistoryTests, ASnapshotRecordsTheDocumentState, NavigatingTheHistoryRestoresTheState, DeletingAnIntermediateStateCollapsesPrior`
+  - **High-value, medium-effort.** Partially closes Request 1's "version snapshots" feature for long projects and team hand-offs. Builds on existing `Doc.Undo` history; the missing half is a UI that shows the sequence of states and lets an artist jump to one. Each snapshot captures document bytes and metadata (timestamp, user action), displayed as a scrollable timeline with state preview. Cost is bounded per charter, since the history exists and reloading a state is one `Deserialize`.
+- [ ] Version snapshots — lightweight bookmarks of document state, distinct from full undo history `evidence: VersionSnapshot, VersionSnapshots, VersionSnapshotStore, VersionSnapshotTests, ASnapshotIsAnAuthoredMarkerNotAnUndoState, SnapshotsRoundTripThroughTheFile, DeletingASnapshotDoesNotAffectTheDocument`
+  - **Lighter than undo history browser, complementary not competing.** Undo is automatic per keystroke and navigation is "go back to what I did three minutes ago"; snapshots are *authored* ("this is where the background was locked") and span projects or sessions. Acts as a checkpoint system for long projects where re-doing work is expensive. `VersionSnapshot` record holds document bytes, user notes, and metadata; stored in `assets/versions/` folder. The history browser navigates undo; snapshots are manual milestones an artist places. Requested in Request 1 feature analysis for version control workflows.
 - [?] Backup manager
 - [?] Command palette
 - [?] Macro recording
@@ -653,8 +666,10 @@ timeline, review, versioning, collaboration.
 
 ### Collaboration
 
-- [?] Comments on frames
-- [?] Comments on layers
+- [ ] Comments on frames — annotations on specific frames for review and feedback `evidence: FrameComment, FrameComments, FrameCommentViewModel, FrameCommentTests, ACommentIsAttachedToAFrameNotADrawing, CommentsRoundTripThroughTheFile, DeletingAFrameDeletesItsComments, CommentsAreBrowsable`
+  - **High-value, medium-effort.** Unblocks Pillar 6 review workflows and is explicitly requested in Request 1 feature analysis. Distinct from marker notes: a `FrameMarker.Note` is internal (hand pointers), a frame comment is external (director feedback, revisions). Stored as `FrameComment` records on `Frame`, serialized with timestamp and optional reviewer. Displayed in the timeline footer or a dedicated Comments docker, with export-optional visibility. Complements the snapshot system for managing revisions.
+- [ ] Comments on layers — feedback and annotations per-layer, distinct from frame-level review `evidence: LayerComment, LayerComments`
+  - **Unverifiable until design clarified.** Distinct from frame comments — layer-specific feedback — but the design question is whether these are per-frame-per-layer, project-wide per-layer, or something else. Lower priority than frame comments; defer until frame comments implementation clarifies the pattern. Request 1 feature analysis identified as important for studio review workflows, but less frequently referenced than frame comments.
 - [?] Task assignments
 - [?] Review mode
 - [?] Version comparison
