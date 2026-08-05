@@ -668,7 +668,7 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
 
 - [ ] Comments on frames — annotations on specific frames for review and feedback `evidence: FrameComment, FrameComments, FrameCommentViewModel, FrameCommentTests, ACommentIsAttachedToAFrameNotADrawing, CommentsRoundTripThroughTheFile, DeletingAFrameDeletesItsComments, CommentsAreBrowsable`
   - **High-value, medium-effort.** Unblocks Pillar 6 review workflows and is explicitly requested in Request 1 feature analysis. Distinct from marker notes: a `FrameMarker.Note` is internal (hand pointers), a frame comment is external (director feedback, revisions). Stored as `FrameComment` records on `Frame`, serialized with timestamp and optional reviewer. Displayed in the timeline footer or a dedicated Comments docker, with export-optional visibility. Complements the snapshot system for managing revisions.
-- [?] Comments on layers — feedback and annotations per-layer, distinct from frame-level review `evidence: LayerComment, LayerComments`
+- [ ] Comments on layers — feedback and annotations per-layer, distinct from frame-level review `evidence: LayerComment, LayerComments`
   - **Unverifiable until design clarified.** Distinct from frame comments — layer-specific feedback — but the design question is whether these are per-frame-per-layer, project-wide per-layer, or something else. Lower priority than frame comments; defer until frame comments implementation clarifies the pattern. Request 1 feature analysis identified as important for studio review workflows, but less frequently referenced than frame comments.
 - [?] Task assignments
 - [?] Review mode
