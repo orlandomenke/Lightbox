@@ -1,6 +1,6 @@
 # Code index
 
-439 files · 109263 lines · 2283 tests.
+439 files · 109409 lines · 2287 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,7 +49,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (9314 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4155, TransformParts:6273
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3765 ln) · 10 test files
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3784 ln) · 10 test files
   - MainWindow:18, UnsavedChoice:2664
 - `src/Lightbox.App/Views/MainWindow.axaml` (3119 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
@@ -61,10 +61,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SwatchRow:15, PaletteDockerViewModel:93
 - `src/Lightbox.App/Services/SpriteSheetExporter.cs` (811 ln) · 87 test files
   - SpriteTrim:12, SpritePack:37, SpriteSheetOptions:63, SpriteSheetResult:103, SpriteSheetExporter:152, SheetDocument:683, SheetFrame:689, SheetMeta:722 …
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (802 ln) · 4 test files
+  - ProjectRow:19, ProjectViewModel:162, NewItemKind:396
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (789 ln) · 2 test files
   - ShortcutRow:12, ShortcutGroup:24, GridRow:39, AiFieldRow:99, ConfigureWindow:150
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (760 ln) · 3 test files
-  - ProjectRow:19, ProjectViewModel:162, NewItemKind:395
 - `src/Lightbox.App/Services/UnityExporter.cs` (648 ln) · 11 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml.cs` (496 ln) · 1 test files

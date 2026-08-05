@@ -2970,20 +2970,39 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnProjectNewAnimation(object? sender, RoutedEventArgs e) =>
-        _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewAnimation);
+    private async void OnProjectNewAnimation(object? sender, RoutedEventArgs e) =>
+        await CreateProjectItemAsync(ProjectViewModel.NewAnimation);
 
-    private void OnProjectNewCharacter(object? sender, RoutedEventArgs e) =>
-        _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewCharacterItem);
+    private async void OnProjectNewCharacter(object? sender, RoutedEventArgs e) =>
+        await CreateProjectItemAsync(ProjectViewModel.NewCharacterItem);
 
-    private void OnProjectNewScene(object? sender, RoutedEventArgs e) =>
-        _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewSceneItem);
+    private async void OnProjectNewScene(object? sender, RoutedEventArgs e) =>
+        await CreateProjectItemAsync(ProjectViewModel.NewSceneItem);
 
-    private void OnProjectNewShot(object? sender, RoutedEventArgs e) =>
-        _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewShotItem);
+    private async void OnProjectNewShot(object? sender, RoutedEventArgs e) =>
+        await CreateProjectItemAsync(ProjectViewModel.NewShotItem);
 
-    private void OnProjectNewDocument(object? sender, RoutedEventArgs e) =>
-        _vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewLooseDocument);
+    private async void OnProjectNewDocument(object? sender, RoutedEventArgs e) =>
+        await CreateProjectItemAsync(ProjectViewModel.NewLooseDocument);
+
+    /// <summary>
+    /// Ask what it is called, then create it.
+    /// </summary>
+    /// <remarks>
+    /// <b>B65.</b> Every one of these wrote to disk immediately under
+    /// <c>Character 3</c> or <c>Scene 2</c>, so a project filled with numbered
+    /// items and the only correction was a file manager — B64 says the docker
+    /// cannot rename. The prompt comes first and cancelling creates nothing,
+    /// which is the ordering B66 and B78 also landed on: a name is a question,
+    /// not something to fix afterwards.
+    /// </remarks>
+    private async Task CreateProjectItemAsync(ProjectViewModel.NewItemKind kind)
+    {
+        var suggested = _vm.ProjectDocker.SuggestedNameFor(kind);
+        var name = await PromptForText($"New {kind.Label.ToLowerInvariant()}", "Name", suggested);
+        if (name is null) return;   // cancelled: nothing is written
+        _vm.ProjectDocker.AddItemNamed(kind, name);
+    }
 
     private void OnProjectOpen(object? sender, RoutedEventArgs e) =>
         _vm.ProjectDocker.OpenSelectedRowCommand.Execute(null);
