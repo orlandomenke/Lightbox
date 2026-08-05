@@ -59,8 +59,9 @@ const OUTCOME = {
   },
 }
 
-const ORIENT = `Read .claude/quality/CHARTER.md, .claude/codemap/HOTSPOTS.md and
-.claude/quality/LOOP.md first. Use \`python3 scripts/codemap.py find <term>\` and
+const ORIENT = `Read .claude/quality/CHARTER.md, .claude/codemap/HOTSPOTS.md,
+.claude/quality/LOOP.md (what rounds tried) and .claude/quality/DECISIONS.md
+(what is settled) first. Use \`python3 scripts/codemap.py find <term>\` and
 \`python3 scripts/codemap.py file <path>\` instead of grepping the repository —
 the index already holds every symbol, its line, its dependents and its tests.
 \`python3 scripts/roadmap.py next\` says what is closest to done; its marks are

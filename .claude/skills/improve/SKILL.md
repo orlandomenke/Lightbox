@@ -38,7 +38,9 @@ bought less. `should-run` is a git diff against the watched paths, so it costs
 nothing on a round that never touches rendering.
 
 Read `.claude/quality/LOOP.md` for what previous rounds already tried, so you
-do not re-litigate settled decisions or re-report known gaps.
+do not re-report known gaps, and `.claude/quality/DECISIONS.md` for what is
+already settled, so you do not re-litigate it. The journal is per-round and
+perishable; the decisions are neither.
 
 `ROADMAP.md` is where the work comes from when nothing is broken. Its marks
 are derived from the code, so `next` is a real answer to "what is closest to
@@ -238,5 +240,5 @@ These are the habits that make the loop affordable to run repeatedly:
   returns twelve lines has spent its own context, not yours.
 - **Run one command that answers the question.** `dotnet test` once beats
   four filtered runs.
-- **Do not re-derive settled facts.** `LOOP.md` and `CHARTER.md` exist so
-  each round starts from the last one's conclusions.
+- **Do not re-derive settled facts.** `LOOP.md`, `DECISIONS.md` and
+  `CHARTER.md` exist so each round starts from the last one's conclusions.
