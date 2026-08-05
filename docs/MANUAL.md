@@ -505,6 +505,12 @@ opens the workshop.
 Painting with a tip copies it into the drawing, so the file keeps rendering
 even if you later delete the tip from your library.
 
+A tip shapes **smudge, blur and the blender** too, not only the brushes that
+deposit colour — a chisel smudges in a band and a bristle drags in strands, where
+before all three pushed paint around in a circle whatever tip you picked. **Angle
+follows direction** works on them as well, so a chisel turns with the stroke
+rather than staying at one angle.
+
 #### Paper texture
 
 On the **Effects** page. Pick one of the built-in surfaces, or **Paper image…**
