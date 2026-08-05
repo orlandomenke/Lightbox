@@ -132,6 +132,10 @@ not to rebuild. What is missing is everything that *makes* a tip.
   - **The half that matters more is the refusal.** Painting on a hidden layer, a locked layer, an alpha-locked layer with nothing under the brush, filling outside a selection: these currently do nothing and say nothing, and silence is indistinguishable from a broken app. A forbidden cursor turns "it is not working" into "it will not do that here", which the artist can act on. B2's lesson written down as a rule — *even refusing would be better than nothing*.
   - Needs one place that maps (tool, modifiers, what is under the pointer) to a cursor, so the answer cannot disagree between the canvas control and the view model. Testable without a window if the mapping is pure, which is the shape `RigOverlay.CursorFor` already uses.
   - Depends on the icon set below for the artwork, but not for the mechanism: it can ship with system cursors and get custom ones later.
+- [ ] Resize canvas and resize image
+  - Resize canvas expands the image with the value added to the x or y. It keeps the DPI and all other canvas related configurations. The content on the canvas stays put. The user wants to be able to select; all direction, down, to either side or up. There should be a preview.
+  - Resize image scales the entire image and changes the dpi of the docment if any is given. and we can optionally constrain the proportions.
+  - For both we can We can chose to resize only x, y or by default link the two so it scales uniformly. And after confirming resize or rescale the canvas is resets to the viewport. 
 
 ### Film-scale line quality
 
