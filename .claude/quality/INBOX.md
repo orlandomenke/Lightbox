@@ -38,6 +38,18 @@ archive. The archive is `BUGS.md` itself.
 
 <!-- Append new reports below this line, oldest first. -->
 
+## Layer-name rename exits immediately on double-click
+
+- **Area:** Layers
+- **Type:** Regression
+- **Summary:** Double-clicking a layer name to rename it immediately exits rename mode, preventing layer renaming.
+- **Evidence:** Reported after recent changes.
+- **Steps:** Double-click a layer name.
+- **Expected:** The layer name enters rename mode and can be edited.
+- **Actual:** Rename mode exits immediately.
+
+---
+
 ## Character sheet name is requested again when saving
 
 - **Area:** Character sheet saving
