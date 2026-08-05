@@ -175,6 +175,33 @@ public class TileCullingTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Asking for a bitmap of nothing is refused, where compositing nothing is
+    /// merely a no-op.
+    /// </summary>
+    /// <remarks>
+    /// The asymmetry between the two entry points is deliberate — a repaint runs
+    /// with no area mid-resize and must not fail, while a zero-area bitmap
+    /// request is a caller bug that a 1×1 of transparency would hide. Pinned
+    /// because it was not: deleting the guard left all the other tests here
+    /// green, so the contract was documented and unguarded, which is the state
+    /// this file exists to prevent elsewhere.
+    /// </remarks>
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0, 100)]
+    [InlineData(100, 0)]
+    [InlineData(-50, 100)]
+    public void AskingForABitmapWithNoAreaIsRefused(int width, int height)
+    {
+        using var store = StoreWith(Block(0, 0, 2, 2));
+
+        var error = Assert.Throws<ArgumentOutOfRangeException>(
+            () => TileCompositor.CompositeToBitmap(store, SKRectI.Create(0, 0, width, height)));
+
+        Assert.Equal("viewport", error.ParamName);
+    }
+
+    /// <summary>
     /// Culling must not change a pixel: a composited region is bit-identical to
     /// the same rectangle of an untiled render.
     /// </summary>

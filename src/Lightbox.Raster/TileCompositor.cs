@@ -80,6 +80,12 @@ public static class TileCompositor
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(store);
 
+        // Belt and braces, and worth labelling as such: TileGrid.Covering already
+        // yields nothing for a non-positive extent, so deleting this line changes
+        // no result and no test notices. It stays because it states the contract
+        // at the boundary that has it rather than borrowing it from a class two
+        // types away — and because returning before the enumerator is built is
+        // the honest expression of "no area, no work".
         if (viewport.Width <= 0 || viewport.Height <= 0) return 0;
 
         var drawn = 0;
