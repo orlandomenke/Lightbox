@@ -69,6 +69,28 @@ archive. The archive is `BUGS.md` itself.
 
 ---
 
+## Unsaved-changes dialog has no save option
+
+- **Area:** Document closing
+- **Type:** Bug
+- **Summary:** When closing a document with unsaved changes, the confirmation dialog offers only Discard Changes and Cancel.
+- **Expected:** The dialog also offers Save. For a new document, selecting Save opens the Save As dialog.
+- **Actual:** The dialog offers only Discard Changes and Cancel.
+
+---
+
+## New document is saved to disk on creation
+
+- **Area:** Document saving
+- **Type:** Bug
+- **Summary:** A new document should not be saved to disk when it is created.
+- **Evidence:** Reported behavior: new documents are saved to disk on creation.
+- **Expected:** A changed new document shows the unsaved-changes badge. Closing the document or application then opens the unsaved-changes dialog; selecting Save opens Save As when the file is not already on disk.
+- **Actual:** The new document is saved to disk on creation.
+- **Notes:** In the project docker this should also be reflected as we read of disk. Creating a new document should show the document is not saved, if we discard the file without saving, the project docker also loses this file. As long as the file is opened but not saved to disk it can be shown in the project docker. Show it greyed out and with a badge. On hover we also add a tool tip stating it is not saved. If it becomes a saved document it turns white. This should reflect the all new documents are not on disk until saved. Folders are directly real-time saved to disk.
+
+---
+
 Color switcher is unavailable for some color-using tools
 
 Area: Tool option bar
