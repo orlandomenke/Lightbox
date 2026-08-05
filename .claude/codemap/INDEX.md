@@ -1,6 +1,6 @@
 # Code index
 
-439 files · 109033 lines · 2280 tests.
+439 files · 109181 lines · 2283 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,9 +47,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9271 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4112, TransformParts:6230
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3663 ln) · 10 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9314 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4155, TransformParts:6273
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3683 ln) · 10 test files
   - MainWindow:18
 - `src/Lightbox.App/Views/MainWindow.axaml` (3119 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
@@ -281,7 +281,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameMarker:4, TagDirection:66, AnimationTag:99, Scene:136
 - `src/Lightbox.Core/Documents/ResponseCurve.cs` (294 ln) · 5 test files
   - BrushDynamic:22, ResponseCurve:70, PressureResponse:230
-- `src/Lightbox.Core/Projects/ProjectManifest.cs` (288 ln) · 16 test files
+- `src/Lightbox.Core/Projects/ProjectManifest.cs` (288 ln) · 17 test files
   - ProjectType:11, DocumentRef:29, CharacterVariant:109, Character:130, ProjectScene:200, ProjectManifest:224
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (280 ln) · 3 test files
   - GeometryOps:5

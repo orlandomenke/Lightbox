@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2280 tests, derived from the suite itself. Each line is a
+2283 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1331,6 +1331,13 @@ regression even when every test still compiles.
 - ASmall View Is Not Upscaled To The Cap — `:206`
 - Two Tabs Whose Views Share An Id Do Not Share APicture — `:219`
 - The Downscaled Reference Still Has The Drawing In It — `:284`
+
+## CharacterSheetFileTests
+`tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
+
+- ACharacter Sheet Outside AProject Prompts To Save — `:220`
+- ACharacter Sheet In AProject Is Written On Creation — `:240`
+- ACharacter Sheet Asks For Its Name Before Its Location — `:271`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`

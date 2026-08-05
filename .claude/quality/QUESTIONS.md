@@ -10,10 +10,24 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
-## Q25 · Is a character sheet a document, or part of one?
+## Q25 · Is a character sheet a document, or part of one? — **answered (a)**
 
-**Blocks:** **B66**. The name-prompt half is ordinary work; where the sheet
-*lives* is not, and the fix cannot be written without this.
+**Answered 2026-08-04: (a), it stays part of a document.** No format change, no
+new project-manifest slot, and no new docker row type that is not a file. The
+reported pain is losing work — *"character sheets are not saved to disk"* — and
+that is fixed by making sure there is a file behind the document the sheet lives
+in, which costs one prompt.
+
+The docker-visibility half of the report is answered rather than implemented: a
+character sheet **is** visible in the project docker, as the document that
+contains it. If sheets later need to be shared between documents, that is the
+argument for (b) and it is a better one than this.
+
+**B66 is unblocked** and is now two ordinary pieces: ask for the name before
+writing anything (B65's rule on another surface), and prompt to save a document
+that has never been saved so the sheet has somewhere to live.
+
+**Blocks:** nothing.
 
 The report says: *"Outside of a project (single file) a character sheet is a
 manually saved document. Creating a character sheet should directly prompt

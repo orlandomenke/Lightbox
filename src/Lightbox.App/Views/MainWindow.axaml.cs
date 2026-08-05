@@ -1375,7 +1375,27 @@ public partial class MainWindow : Window
 
     // ---- character sheets -----------------------------------------------------
 
-    private void OnAddReferenceSheet(object? sender, RoutedEventArgs e) => _vm.AddReferenceSheet();
+    /// <summary>
+    /// Create a character sheet: name it first, then make sure the document it
+    /// lives in has somewhere on disk to live.
+    /// </summary>
+    /// <remarks>
+    /// <b>B66.</b> A sheet is part of its document (Q25 answered (a)), so an
+    /// untitled document meant the work existed nowhere. The order is the fix:
+    /// the name is asked for before anything is written — B65's rule on this
+    /// surface — and the save is offered only once the sheet exists, so
+    /// cancelling the save keeps the work rather than discarding it.
+    /// </remarks>
+    private async void OnAddReferenceSheet(object? sender, RoutedEventArgs e)
+    {
+        var suggested = $"Character {_vm.ReferenceSheetsView.Count + 1}";
+        var name = await PromptForText("New character sheet", "Name", suggested);
+        if (name is null) return;   // cancelled: nothing is created
+
+        var needsAFile = _vm.AReferenceSheetWouldBeUnsaved;
+        _vm.AddReferenceSheet(name);
+        if (needsAFile) await SaveDocumentAsAsync();
+    }
 
     private void OnAddReferenceView(object? sender, RoutedEventArgs e)
     {
