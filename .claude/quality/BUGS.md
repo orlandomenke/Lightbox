@@ -190,6 +190,27 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### project
 
+- [ ] **B87** `P2` `project` No permanent delete option for files and folders `evidence: ProjectDockerTests, DeletedFilesCanBePermanentlyRemovedFromDisk, DeletedFoldersWithFilesPromptForConfirmation, EmptyFoldersAreDeletedWithoutPrompt, MissingFilesAreTrackedAndNotReloadedOnNextOpen`
+  - Reported: the RMB context menu only offers "remove from project" which keeps files on disk. There is no option to permanently delete from both project and disk, and removed files should be marked so they are not unwantedly reloaded on subsequent checks.
+  - Two operations are needed: remove from project (keeps file on disk, marks it as missing) and delete permanently (removes from project and disk). The permanent delete should show a confirmation prompt for folders containing files, but empty folders can be deleted without prompting.
+  - Cost: M
+
+- [ ] **B86** `P2` `project` Project docker is missing drag/drop, subfolder creation, and collapse/expand hierarchy `evidence: ProjectDockerTests, FoldersCanBeDraggedWithinProject, DocumentsCanBeDraggedWithinProject, SubfoldersCanBeCreatedWithinFolders, FoldersCanBeCollapsedAndExpanded`
+  - Reported: within the project docker, the user expects to be able to drag and drop folders and documents to organize them, create subfolders within existing folders, and collapse/expand folders to manage the hierarchy.
+  - Current behaviour is a flat list with no hierarchy support, limiting how artists can organize their projects.
+  - Cost: M
+
+- [ ] **B85** `P2` `project` Documents created in project subfolders are placed in top-level Documents folder instead `evidence: ProjectDockerTests, DocumentsCreatedInFoldersAppearInCorrectFolder, FolderStructureReflectsFileSystemHierarchy`
+  - Reported: when creating a document through the project docker within a subfolder, it ignores the location and places the document in a top-level "Documents" folder instead.
+  - This breaks the ability to organize documents by folder within a project.
+  - Cost: M
+
+- [ ] **B83** `P2` `project` New project is created with unwanted default subfolders `evidence: ProjectCreationTests, NewProjectHasCorrectDefaultStructure, NoUnwantedAssetFoldersCreated, AllDefaultFoldersAreListedInProjectFile`
+  - Reported: when creating a new project, default subfolders are created that the user did not request — specifically **characters**, **shots**, **scene**, and **animation** folders. The palette folder with default swatches should exist, but work-related folders should only be created when explicitly requested by the user.
+  - Additionally, every top folder created in the project folder should be included in Project.lbproj, and the project docker should show only system-required defaults, not asset folders the user must create themselves.
+  - The root cause is that asset-organization folders are being created as defaults when they should be on-demand.
+  - Cost: M
+
 - [ ] **B76** `P2` `project` A new document is written to disk the moment it is created `evidence: UnsavedDocumentTests, ANewDocumentIsNotOnDiskUntilItIsSaved, AnUnsavedDocumentIsShownAsPendingInTheDocker, DiscardingAnUnsavedDocumentRemovesItFromTheDocker`
   - Reported: creating a new document writes it immediately, so a file exists before the artist has decided anything — including a name, which is B65 arriving from the other direction.
   - The reporter specified the whole behaviour, and it is coherent enough to build to: a new document is **not** on disk; a change raises the unsaved badge; closing it or the application opens the unsaved-changes dialog; Save opens Save As because there is no file yet.
@@ -213,32 +234,6 @@ decision goes to `QUESTIONS.md` and is left alone.
 - [ ] **B64** `P3` `project` Nothing in the project docker can be renamed `evidence: RenameProjectItem, ProjectDockerTests, RenamingAnItemRenamesItOnDisk, ARenameThatWouldCollideIsRefusedWithItsReason`
   - There is no rename at all — not in the context menu, not by slow double-click, not by F2. A docker that creates and deletes files but cannot rename one sends the artist to a file manager for an operation that belongs where the files are listed, and B61 means the docker will not notice the result until it is reopened.
   - The rename has to reach disk, which makes it the first docker operation that can fail for reasons the app does not control — a lock, a permission, a name that is legal in the tree and not on the filesystem. Refusing with the reason is part of the fix rather than a nicety. Cost: M
-
-- [ ] **B87** `P2` `project` No permanent delete option for files and folders `evidence: ProjectDockerTests, DeletedFilesCanBePermanentlyRemovedFromDisk, DeletedFoldersWithFilesPromptForConfirmation, EmptyFoldersAreDeletedWithoutPrompt, MissingFilesAreTrackedAndNotReloadedOnNextOpen`
-  - Reported: the RMB context menu only offers "remove from project" which keeps files on disk. There is no option to permanently delete from both project and disk, and removed files should be marked so they are not unwantedly reloaded on subsequent checks.
-  - Two operations are needed: remove from project (keeps file on disk, marks it as missing) and delete permanently (removes from project and disk). The permanent delete should show a confirmation prompt for folders containing files, but empty folders can be deleted without prompting.
-  - Cost: M
-
-- [ ] **B86** `P2` `project` Project docker is missing drag/drop, subfolder creation, and collapse/expand hierarchy `evidence: ProjectDockerTests, FoldersCanBeDraggedWithinProject, DocumentsCanBeDraggedWithinProject, SubfoldersCanBeCreatedWithinFolders, FoldersCanBeCollapsedAndExpanded`
-  - Reported: within the project docker, the user expects to be able to drag and drop folders and documents to organize them, create subfolders within existing folders, and collapse/expand folders to manage the hierarchy.
-  - Current behaviour is a flat list with no hierarchy support, limiting how artists can organize their projects.
-  - Cost: M
-
-- [ ] **B85** `P2` `project` Documents created in project subfolders are placed in top-level Documents folder instead `evidence: ProjectDockerTests, DocumentsCreatedInFoldersAppearInCorrectFolder, FolderStructureReflectsFileSystemHierarchy`
-  - Reported: when creating a document through the project docker within a subfolder, it ignores the location and places the document in a top-level "Documents" folder instead.
-  - This breaks the ability to organize documents by folder within a project.
-  - Cost: M
-
-- [ ] **B84** `P2` `project` Project docker creates a "project" folder in the wrong location on new project `evidence: ProjectCreationTests, NewProjectFolderStructureIsCorrect, AllFoldersAppearAtProjectRoot`
-  - Reported: when creating a new project, a folder named "project" is created and appears within the Characters folder instead of at the project root.
-  - Expected behaviour: all top-level folders created in the project folder should appear at the project root, not nested within other folders.
-  - Cost: S
-
-- [ ] **B83** `P2` `project` New project is created with unwanted default subfolders `evidence: ProjectCreationTests, NewProjectHasCorrectDefaultStructure, NoUnwantedAssetFoldersCreated, AllDefaultFoldersAreListedInProjectFile`
-  - Reported: when creating a new project, default subfolders are created that the user did not request — specifically **characters**, **shots**, **scene**, and **animation** folders. The palette folder with default swatches should exist, but work-related folders should only be created when explicitly requested by the user.
-  - Additionally, every top folder created in the project folder should be included in Project.lbproj, and the project docker should show only system-required defaults, not asset folders the user must create themselves.
-  - The root cause is that asset-organization folders are being created as defaults when they should be on-demand.
-  - Cost: M
 
 - [ ] **B63** `P3` `project` Most of the create-in-project menu produces nothing, and it does not say which entries are folders `evidence: ProjectCreateMenuTests, EveryCreateEntryProducesSomethingOnDisk, TheCreateMenuSaysWhichEntriesAreFolders`
   - Reported: of the entries in the "create something in this project" dropdown, only **Character** and **Document** actually produce a file. The rest are silent no-ops.
@@ -564,6 +559,11 @@ test reopens the bug.
   - Cause: `ProjectIo` stored shared palettes as GIMP `.gpl`. That format carries names and RGB and **cannot carry ids** — `GimpPalette.Read` mints fresh ones — so every `Stroke.SwatchId` and every `Character.PaletteId` pointed at something that no longer existed.
   - Fix: store project palettes as JSON, ids intact. `.gpl` stays what it is — an interop format for the docker's Import/Export, not a storage format.
   - Mine, from the previous commit. Found by the variant tests rather than by review. Cost: S
+
+- [x] **B84** `P2` `project` Project docker creates a "project" folder in the wrong location on new project `evidence: ProjectCreationTests, NewProjectFolderStructureIsCorrect, AllFoldersAppearAtProjectRoot`
+  - Reported: when creating a new project, a folder named "project" is created and appears within the Characters folder instead of at the project root.
+  - Expected behaviour: all top-level folders created in the project folder should appear at the project root, not nested within other folders.
+  - Cost: S
 
 - [x] **B66** `P2` `project` A character sheet is never written to disk, so it cannot appear in the project docker `evidence: CharacterSheetFileTests, AReferenceSheetWouldBeUnsaved, ReferenceSheetNeedsAFile, ACharacterSheetInAProjectIsWrittenOnCreation, ACharacterSheetOutsideAProjectPromptsToSave, ACharacterSheetAsksForItsNameBeforeItsLocation`
   - Reported: character sheets are not saved to disk and do not show in the project docker.

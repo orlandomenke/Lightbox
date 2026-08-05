@@ -1,6 +1,6 @@
 # Code index
 
-458 files · 115242 lines · 2345 tests.
+459 files · 115411 lines · 2349 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,8 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9451 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4218, TransformParts:6410
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9455 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4222, TransformParts:6414
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (3890 ln) · 14 test files
   - MainWindow:18, UnsavedChoice:2720
 - `src/Lightbox.App/Views/MainWindow.axaml` (3181 ln) · **no tests**
@@ -91,7 +91,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GameMakerExportOptions:9, GameMakerExportResult:27, GameMakerExporter:77, StripRecord:85, GameMakerBlock:98
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 14 indirect only
   - RampTrack:10, GradientRamp:41
-- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 94 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 95 test files
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (281 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
@@ -273,7 +273,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Core
 
-- `src/Lightbox.Core/Projects/ProjectIo.cs` (818 ln) · 19 test files
+- `src/Lightbox.Core/Projects/ProjectIo.cs` (818 ln) · 20 test files
   - ProjectIo:31, ConversionReport:544
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (632 ln) · 8 test files
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
@@ -349,7 +349,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TileGrid:33
 - `src/Lightbox.Core/Timeline/ExposureSheet.cs` (125 ln) · 4 test files
   - ExposureSheet:8
-- `src/Lightbox.Core/Projects/Project.cs` (120 ln) · 9 test files
+- `src/Lightbox.Core/Projects/Project.cs` (120 ln) · 10 test files
   - Project:15
 - `src/Lightbox.Core/Documents/Guide.cs` (114 ln) · 4 test files
   - GuideKind:4, Guide:60

@@ -699,11 +699,15 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var project = ProjectIo.Create(name, root);
         project.Manifest.Type = type;
-        var character = ProjectIo.AddCharacter(project, name);
 
         if (SaveTargetTab is { } tab)
         {
-            var reference = ProjectIo.AddAnimation(project, character, tab.Title, tab.Doc);
+            // B83/B84. A project-level document, not an animation of an invented
+            // character. Creating one named after the project put the artist's
+            // first drawing at `characters/<project>/animations/…` and left a
+            // folder called "project" inside "characters" — which is what B84
+            // reports, and the two unrequested folders B83 counts.
+            var reference = ProjectIo.AddDocument(project, tab.Title, tab.Doc);
             tab.Source = reference;
             // The document's palettes and gradients become the project's:
             // shared is the whole reason the container exists.

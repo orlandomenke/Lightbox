@@ -47,6 +47,28 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         return vm;
     }
 
+    /// <summary>
+    /// Add the character these tests were written around, and write it.
+    /// </summary>
+    /// <remarks>
+    /// <b>B83/B84.</b> <c>NewProject</c> used to invent a character from the
+    /// project's own name, which is the bug — it put the artist's first drawing
+    /// at <c>characters/knight/animations/</c> and created two folders nobody
+    /// asked for. These tests are about characters rather than about that
+    /// invention, so they ask for one explicitly, with the name they always
+    /// assumed so their slugs and paths are unchanged.
+    ///
+    /// Saved, not merely added: <c>NewProject</c> writes on the way out, so a
+    /// character added afterwards would exist in the manifest and not on disk —
+    /// and the docker would correctly report it missing.
+    /// </remarks>
+    private void WithKnight(MainViewModel vm)
+    {
+        ProjectIo.AddCharacter(vm.ProjectDocker.Project!, "Knight");
+        vm.SaveProject(everything: true);
+        vm.ProjectDocker.Refresh();
+    }
+
     // ---- absence ------------------------------------------------------------
 
     [AvaloniaFact]
@@ -91,12 +113,17 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         vm.NewProject(_root, "Knight");
 
         Assert.True(vm.HasProject);
-        var character = Assert.Single(vm.ProjectDocker.Project!.Characters);
-        var animation = Assert.Single(character.Animations);
-        Assert.Equal(animation.Id, vm.ActiveTab!.Source?.Id);
+        // B83/B84. Adopted as a project document, not as an animation of a
+        // character invented from the project's own name — that invention is
+        // what put the first drawing at `characters/knight/animations/` and
+        // created two folders nobody asked for.
+        Assert.Empty(vm.ProjectDocker.Project!.Characters);
+        var adopted = Assert.Single(vm.ProjectDocker.Project!.Manifest.Documents);
+        Assert.Equal(adopted.Id, vm.ActiveTab!.Source?.Id);
 
-        // And it landed on disk with the work in it.
-        var saved = Lightbox.Core.Serialization.DocJson.Load(vm.ProjectDocker.Project!.PathOf(animation));
+        // And it landed on disk with the work in it — the half of this test that
+        // was always the point, and is unchanged.
+        var saved = Lightbox.Core.Serialization.DocJson.Load(vm.ProjectDocker.Project!.PathOf(adopted));
         Assert.Single(((PaintedFrame)saved.Scene.Layers[^1].Cels[0].Frame!).Strokes);
     }
 
@@ -119,6 +146,7 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
+        WithKnight(vm);
         var before = vm.Tabs.Count;
 
         vm.ProjectDocker.AddAnimationCommand.Execute(null);
@@ -230,6 +258,7 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
+        WithKnight(vm);
         vm.ProjectDocker.AddAnimationCommand.Execute(null);
         vm.BeginStroke(20, 20, 1);
         vm.MoveStroke(80, 80, 1);
@@ -288,6 +317,7 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
+        WithKnight(vm);
 
         vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewLooseDocument);
 
@@ -323,6 +353,7 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         // are drawing in.
         var vm = Vm();
         vm.NewProject(_root, "Knight");
+        WithKnight(vm);
         vm.ProjectDocker.AddCharacterCommand.Execute(null);
         var project = vm.ProjectDocker.Project!;
         var from = project.Characters.First();
@@ -345,6 +376,7 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
+        WithKnight(vm);
         var project = vm.ProjectDocker.Project!;
         var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
 
@@ -370,6 +402,7 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         // The end-to-end claim: the manifest, the file and the reload agree.
         var vm = Vm();
         vm.NewProject(_root, "Knight");
+        WithKnight(vm);
         vm.ProjectDocker.AddCharacterCommand.Execute(null);
         var to = vm.ProjectDocker.Project!.Characters.Last();
         var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
@@ -389,6 +422,7 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
+        WithKnight(vm);
         var row = vm.ProjectDocker.Rows[0];
 
         vm.ProjectDocker.Rename(row, "Sir Reginald");
@@ -404,6 +438,7 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
+        WithKnight(vm);
         var docker = vm.ProjectDocker;
         var character = docker.Rows.First(r => r.IsCharacter);
         var animation = docker.Rows.First(r => r.Animation is not null);
@@ -466,6 +501,7 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         // the walk, and the alternative was exporting and re-importing it.
         var vm = Vm();
         vm.NewProject(_root, "Knight");
+        WithKnight(vm);
         vm.BeginStroke(20, 20, 1);
         vm.MoveStroke(80, 80, 1);
         vm.EndStroke();
@@ -497,6 +533,7 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
+        WithKnight(vm);
         vm.Save();
         vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
         vm.ProjectDocker.DuplicateSelectedCommand.Execute(null);
@@ -579,6 +616,7 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
+        WithKnight(vm);
         vm.ProjectDocker.AddAnimationCommand.Execute(null);
 
         // No SaveProject: nothing has been written anywhere yet.
