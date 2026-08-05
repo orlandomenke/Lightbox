@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2307 tests, derived from the suite itself. Each line is a
+2314 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2370,7 +2370,7 @@ regression even when every test still compiles.
 - ARewritten Tail Invalidates Far Enough Back — `:97`
 - AShorter List Is Handled Rather Than Indexed Past — `:116`
 - Under Three Points Behaves Like Densify — `:137`
-- The Walk Stops Growing With The Stroke — `:170`
+- An Append Costs AFraction Of Re Densifying — `:199`
 
 ## NormalMapTests
 `tests/Lightbox.Core.Tests/NormalMapTests.cs`
@@ -3289,6 +3289,17 @@ regression even when every test still compiles.
 - Granulation Is Deterministic And Anchored To The Document — `:82`
 - Paper Texture Commit Does Not Stall The Pen — `:101`
 - Textured Stroke Commit Does Not Stall The Pen — `:121`
+
+## TileCullingTests
+`tests/Lightbox.Raster.Tests/TileCullingTests.cs`
+
+- Recompositing Costs What Is On Screen Not What Exists — `:87`
+- AWider Viewport Draws More Tiles In Proportion — `:118`
+- Panning Across Empty Space Allocates Nothing — `:132`
+- AViewport Straddling The Origin Draws Tiles On Both Sides — `:156`
+- AViewport With No Area Draws Nothing — `:170`
+- Asking For ABitmap With No Area Is Refused — `:194`
+- ACulled Composite Matches The Same Rectangle Of An Untiled Render — `:226`
 
 ## TileStoreTests
 `tests/Lightbox.Raster.Tests/TileStoreTests.cs`
