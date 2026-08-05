@@ -131,12 +131,32 @@ new code path. A tile is a fixed square — 256² or 512², to be measured, not
 guessed — addressed by integer grid coordinates that can go negative, because
 an infinite canvas has no origin corner.
 
-**Culling is then a rectangle intersection.** Given the view transform, the
-visible document rectangle is already computable — `CameraTransform.DeviceBounds`
-does the equivalent for dirty regions — so compositing walks the tiles the
-viewport touches and nothing else. The exponent that should fall out is the one
-the drawing path already has: cost proportional to what is *seen*, not to what
-*exists*.
+**Culling is then a rectangle intersection.** Compositing walks the tiles the
+viewport touches and nothing else, and the exponent that should fall out is the
+one the drawing path already has: cost proportional to what is *seen*, not to
+what *exists*. `TileCompositor` does exactly that, and
+`RecompositingCostsWhatIsOnScreenNotWhatExists` holds it.
+
+> **Correction.** This paragraph originally read "given the view transform, the
+> visible document rectangle is already computable — `CameraTransform.DeviceBounds`
+> does the equivalent for dirty regions". **Both halves were wrong, and the error
+> was a conflation.** `CameraTransform` takes a `CameraFraming` — the *authored*
+> camera, which is a document property. The **view** transform is zoom, pan,
+> rotation and mirror, and it lives in `CanvasControl` (`_zoom`), *downstream* of
+> compositing. `MainViewModel` learns only a scalar, through `SetDisplayScale`;
+> it never learns which part of the document is on screen.
+>
+> So the visible rectangle is not computable at composite time, and for a
+> document with no camera — the ordinary case, and every asset document —
+> `cameraView` is null and the compose surface is `scene.Width × scene.Height`,
+> the whole document. The canvas pans and zooms the finished snapshot afterwards.
+>
+> The consequence is scope, not soundness: the compositor is right and has
+> nothing to cull against yet. Making the visible rectangle reach the composite
+> is **B82**, and it is architectural rather than a wiring step — it changes what
+> a `RenderSnapshot` is. Every claim in this document that depends on culling
+> being *reachable* depends on B82; the claims about the compositor itself stand
+> on their own tests.
 
 **Strokes need a spatial index, or rasterising a tile is O(all strokes).** A
 tile has to know which strokes reach it. Every stroke's bounds are already
