@@ -1,6 +1,6 @@
 # Code index
 
-449 files · 112428 lines · 2314 tests.
+450 files · 113113 lines · 2319 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,20 +49,20 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (9388 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4155, TransformParts:6347
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3784 ln) · 10 test files
-  - MainWindow:18, UnsavedChoice:2664
-- `src/Lightbox.App/Views/MainWindow.axaml` (3119 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3791 ln) · 10 test files
+  - MainWindow:18, UnsavedChoice:2671
+- `src/Lightbox.App/Views/MainWindow.axaml` (3126 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2489 ln) · 6 test files
   - CanvasControl:28, CanvasToolMode:492, GridGesture:548, TxDrag:695, DrawOp:2019
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (938 ln) · 4 test files
+  - ProjectRow:19, ProjectViewModel:197, NewItemKind:532
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
   - MainViewModel:20
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
 - `src/Lightbox.App/Services/SpriteSheetExporter.cs` (811 ln) · 93 test files
   - SpriteTrim:12, SpritePack:37, SpriteSheetOptions:63, SpriteSheetResult:103, SpriteSheetExporter:152, SheetDocument:683, SheetFrame:689, SheetMeta:722 …
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (802 ln) · 4 test files
-  - ProjectRow:19, ProjectViewModel:162, NewItemKind:396
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (789 ln) · 2 test files
   - ShortcutRow:12, ShortcutGroup:24, GridRow:39, AiFieldRow:99, ConfigureWindow:150
 - `src/Lightbox.App/Services/UnityExporter.cs` (648 ln) · 11 test files
@@ -112,10 +112,12 @@ whole file. `codemap.py find <term>` answers targeted questions.
 - `src/Lightbox.App/Styles/Density.axaml` (233 ln) · **no tests**
 - `src/Lightbox.App/Services/AutoExport.cs` (227 ln) · 1 test files
   - AutoExportSettings:23, AutoExportOutcome:54, AutoExportReport:78, AutoExport:106
+- `src/Lightbox.App/Services/ShortcutMap.cs` (225 ln) · 6 test files
+  - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
 - `src/Lightbox.App/ViewModels/PaletteNode.cs` (225 ln) · 2 test files
   - PaletteScope:16, PaletteNodeKind:22, PaletteNode:39, PaletteAssignTarget:145, PaletteTarget:166, PaletteAddIntent:188, PaletteAddRequest:212, PaletteAddOutcome:222
-- `src/Lightbox.App/Services/ShortcutMap.cs` (218 ln) · 6 test files
-  - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
+- `src/Lightbox.App/Services/ProjectWatcher.cs` (224 ln) · 1 test files
+  - ProjectWatcher:61
 - `src/Lightbox.App/Views/BrushLibraryWindow.axaml.cs` (217 ln) · 1 test files
   - BrushLibraryWindow:34
 - `src/Lightbox.App/Services/ExportPreset.cs` (216 ln) · 7 test files
@@ -202,7 +204,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CameraTransform:16
 - `src/Lightbox.App/Views/BrushLibraryWindow.axaml` (92 ln) · **no tests**
   - BrushList, CancelButton, CountLabel, ImportButton, ImportProgress, ProgressLabel, ProgressRow, RemoveButton …
-- `src/Lightbox.App/Services/AutosaveService.cs` (85 ln) · 4 indirect only
+- `src/Lightbox.App/Services/AutosaveService.cs` (85 ln) · 5 indirect only
   - AutosaveService:22
 - `src/Lightbox.App/Views/StartScreen.axaml` (84 ln) · **no tests**
   - DocumentFields, DontShowBox, NoRecents, ProjectFields, RecentList, Tabs

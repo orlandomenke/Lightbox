@@ -1787,6 +1787,13 @@
                     <Button Classes="icon" DockPanel.Dock="Right" Content="🗁"
                             Command="{Binding ProjectDocker.RevealRootCommand}"
                             ToolTip.Tip="Show the project folder in the file manager" />
+                    <!-- B61. The folder is watched, so this is rarely needed —
+                         and it is the only way back when the watch could not be
+                         armed, which ProjectWatcher allows on purpose so a
+                         project on a network share still opens. -->
+                    <Button Classes="icon" DockPanel.Dock="Right" Content="⟳"
+                            Command="{Binding ProjectDocker.RefreshFromDiskCommand}"
+                            ToolTip.Tip="Re-read the project from disk (F5)" />
                     <StackPanel Orientation="Horizontal" Spacing="4">
                       <Button Classes="text" Content="＋ New ▾" ToolTip.Tip="Create something in this project">
                         <Button.Flyout>
