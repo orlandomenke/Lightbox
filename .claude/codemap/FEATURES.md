@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2349 tests, derived from the suite itself. Each line is a
+2366 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2486,6 +2486,27 @@ regression even when every test still compiles.
 - ACycle In The File Is Broken Rather Than Looped Over — `:182`
 - ADocument With No Folders Writes No Folder Keys — `:201`
 - The Hierarchy Survives ASave And AReload — `:214`
+
+## ProjectFolderTests
+`tests/Lightbox.Core.Tests/ProjectFolderTests.cs`
+
+- AProject That Never Made AFolder Writes No Folder Key — `:31`
+- AFolder That Was Never Tagged Writes No Tags Key — `:39`
+- AFolder Tree Survives ARound Trip — `:50`
+- Folders Take Any Name And Nest To Any Depth — `:71`
+- The Name Keeps Its Punctuation And The Path Does Not — `:96`
+- Two Folders Of The Same Name In One Place Are Numbered — `:108`
+- The Same Name Under ADifferent Parent Is Fine — `:120`
+- ARename That Would Collide Is Refused — `:140`
+- AFolder Moves Under Another And Back To The Root — `:155`
+- AFolder Cannot Be Moved Inside Itself Or Its Own Descendant — `:178`
+- ACycle From AHand Edited File Does Not Hang — `:201`
+- ADocument Filed In AFolder Takes That Folders Path — `:216`
+- Two Documents Of One Name In One Folder Get Distinct Files — `:232`
+- ADocument Filed At The Root Goes To Documents — `:249`
+- Removing AFolder Returns Everything That Was In It — `:275`
+- Contents Reports The Whole Subtree Before Anything Happens — `:296`
+- AProject Written Before Folders Keeps Its Paths — `:325`
 
 ## ProjectTests
 `tests/Lightbox.Core.Tests/ProjectTests.cs`
