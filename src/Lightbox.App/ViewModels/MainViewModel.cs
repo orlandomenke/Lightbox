@@ -6702,21 +6702,29 @@ public sealed partial class MainViewModel : ObservableObject
         AiStatus = $"Moving {_selectionManager.SelectedGuideIndices.Count} guide(s)";
     }
 
-    /// <summary>Update guide move by the delta since the last pointer event.</summary>
+    /// <summary>
+    /// Move the selected guides by the delta since the last pointer event.
+    /// </summary>
     /// <remarks>
-    /// Added, not assigned. The canvas reports the change since the previous
-    /// event and advances its own anchor, so whoever receives it has to
-    /// accumulate — assigning keeps only the final increment and a drag across
-    /// the canvas comes out about a pixel long. That is B109, which had the
-    /// same two lines wrong for placements.
+    /// Live on the record and accumulated, which is <see cref="DragGuide"/> for
+    /// a group — the same reason it gives: a pointer move arrives every few
+    /// milliseconds, so recording each one would bury the last real edit under
+    /// fifty identical nudges. It has to be added rather than assigned; the
+    /// canvas reports the change since the previous event and advances its own
+    /// anchor, and assigning keeps only the final increment (B109).
     /// </remarks>
     public void UpdateGuidesMove(double dx, double dy)
     {
+        foreach (var guide in SelectedGuides())
+        {
+            guide.X += dx;
+            guide.Y += dy;
+        }
         _guidesMoveDelta = (_guidesMoveDelta.X + dx, _guidesMoveDelta.Y + dy);
-        RequestSnapshot();
+        NotifyGuides();
     }
 
-    /// <summary>Commit guide moves.</summary>
+    /// <summary>Close a group guide drag: the whole of it becomes one undo step.</summary>
     public void EndGuidesMove()
     {
         var (dx, dy) = _guidesMoveDelta;
@@ -6725,42 +6733,70 @@ public sealed partial class MainViewModel : ObservableObject
         MoveGuidesBy(dx, dy);
     }
 
+    /// <summary>
+    /// The selected guides that may actually be moved.
+    /// </summary>
+    /// <remarks>
+    /// A locked guide is skipped, the way <see cref="MoveGuide"/> and
+    /// <see cref="DragGuide"/> both skip one. Locking exists so a perspective
+    /// set can be leaned on without being knocked out of place, and a group
+    /// move that ignored it would be the one gesture that could.
+    /// </remarks>
+    private List<Guide> SelectedGuides()
+    {
+        var guides = Scene.Guides;
+        if (guides is null || guides.Count == 0) return [];
+        var picked = new List<Guide>();
+        foreach (var index in _selectionManager.SelectedGuideIndices)
+        {
+            if (index < 0 || index >= guides.Count) continue;
+            if (guides[index].Locked) continue;
+            picked.Add(guides[index]);
+        }
+        return picked;
+    }
+
     private (double X, double Y) _guidesMoveDelta;
 
-    /// <summary>Apply movement delta to selected guides.</summary>
+    /// <summary>Record a finished group guide move as one step.</summary>
+    /// <remarks>
+    /// Rewound first and then replayed forward, which is what
+    /// <see cref="EndGuideDrag"/> does and for the same reason: the guides are
+    /// already sitting at the end of the drag, so undo has to return them to
+    /// where they were picked up rather than to the last pointer event. The
+    /// guides are held by reference rather than by index, because an undo can
+    /// replace the list and leave an index pointing at a different guide.
+    /// </remarks>
     private void MoveGuidesBy(double dx, double dy)
     {
-        var guides = Doc?.Scene?.Guides;
-        if (guides is null || guides.Count == 0) return;
+        var moved = SelectedGuides();
+        if (moved.Count == 0) return;
 
-        var selectedGuideIndices = _selectionManager.SelectedGuideIndices.ToList();
-        if (selectedGuideIndices.Count == 0) return;
-
+        foreach (var guide in moved)
+        {
+            guide.X -= dx;
+            guide.Y -= dy;
+        }
         _editor.PerformDelta(
             _ =>
             {
-                foreach (var guideIndex in selectedGuideIndices)
+                foreach (var guide in moved)
                 {
-                    if (guideIndex >= 0 && guideIndex < guides.Count)
-                    {
-                        guides[guideIndex].X += dx;
-                        guides[guideIndex].Y += dy;
-                    }
+                    guide.X += dx;
+                    guide.Y += dy;
                 }
                 NotifyGuides();
             },
             _ =>
             {
-                foreach (var guideIndex in selectedGuideIndices)
+                foreach (var guide in moved)
                 {
-                    if (guideIndex >= 0 && guideIndex < guides.Count)
-                    {
-                        guides[guideIndex].X -= dx;
-                        guides[guideIndex].Y -= dy;
-                    }
+                    guide.X -= dx;
+                    guide.Y -= dy;
                 }
                 NotifyGuides();
             });
+        NotifyGuides();
     }
 
     /// <summary>Begin moving selected reference boxes.</summary>
@@ -6771,15 +6807,25 @@ public sealed partial class MainViewModel : ObservableObject
         AiStatus = $"Moving {_selectionManager.SelectedRefBoxIndices.Count} reference box(es)";
     }
 
-    /// <summary>Update reference box move by the delta since the last pointer event.</summary>
-    /// <remarks>Accumulated, for the reason on <see cref="UpdateGuidesMove"/>.</remarks>
+    /// <summary>
+    /// Move the selected reference boxes by the delta since the last pointer
+    /// event.
+    /// </summary>
+    /// <remarks>
+    /// Live and accumulated, for the reason on <see cref="UpdateGuidesMove"/>.
+    /// </remarks>
     public void UpdateRefBoxesMove(double dx, double dy)
     {
+        foreach (var cell in SelectedRefBoxes())
+        {
+            cell.Dx += dx;
+            cell.Dy += dy;
+        }
         _refBoxesMoveDelta = (_refBoxesMoveDelta.X + dx, _refBoxesMoveDelta.Y + dy);
-        RequestSnapshot();
+        AfterReferenceChange();
     }
 
-    /// <summary>Commit reference box moves.</summary>
+    /// <summary>Close a group box drag: the whole of it becomes one undo step.</summary>
     public void EndRefBoxesMove()
     {
         var (dx, dy) = _refBoxesMoveDelta;
@@ -6790,45 +6836,66 @@ public sealed partial class MainViewModel : ObservableObject
 
     private (double X, double Y) _refBoxesMoveDelta;
 
-    /// <summary>Apply movement delta to selected reference boxes.</summary>
+    /// <summary>The selected boxes on the active sheet.</summary>
+    private List<ReferenceCell> SelectedRefBoxes()
+    {
+        if (ActiveReference?.Cells is not { Count: > 0 } cells) return [];
+        var picked = new List<ReferenceCell>();
+        foreach (var index in _selectionManager.SelectedRefBoxIndices)
+        {
+            if (index < 0 || index >= cells.Count) continue;
+            picked.Add(cells[index]);
+        }
+        return picked;
+    }
+
+    /// <summary>Record a finished group box move as one step.</summary>
+    /// <remarks>
+    /// <para>
+    /// <c>Dx</c>/<c>Dy</c>, which is what <see cref="MoveReferenceCell"/>
+    /// moves, and the distinction is the whole of this method. A cell's
+    /// <c>X</c>/<c>Y</c> are the window onto the sheet in sheet pixels — moving
+    /// those scrolls the photograph inside the box and leaves the box where it
+    /// was, which is a different operation and destroys the registration the
+    /// pivot exists to hold. They are also <c>int</c>, so a drag reported in
+    /// fractions of a pixel would be rounded away a frame at a time.
+    /// </para>
+    /// <para>
+    /// Rewound and replayed like the guides, for the reason on
+    /// <see cref="MoveGuidesBy"/>, and holding the cells by reference for the
+    /// same one.
+    /// </para>
+    /// </remarks>
     private void MoveRefBoxesBy(double dx, double dy)
     {
-        var activeRef = ActiveReference;
-        if (activeRef?.Cells is null || activeRef.Cells.Count == 0) return;
+        var moved = SelectedRefBoxes();
+        if (moved.Count == 0) return;
 
-        var selectedBoxIndices = _selectionManager.SelectedRefBoxIndices.ToList();
-        if (selectedBoxIndices.Count == 0) return;
-
-        var intDx = (int)Math.Round(dx);
-        var intDy = (int)Math.Round(dy);
-
+        foreach (var cell in moved)
+        {
+            cell.Dx -= dx;
+            cell.Dy -= dy;
+        }
         _editor.PerformDelta(
             _ =>
             {
-                foreach (var boxIndex in selectedBoxIndices)
+                foreach (var cell in moved)
                 {
-                    if (boxIndex >= 0 && boxIndex < activeRef.Cells.Count)
-                    {
-                        var cell = activeRef.Cells[boxIndex];
-                        cell.X += intDx;
-                        cell.Y += intDy;
-                    }
+                    cell.Dx += dx;
+                    cell.Dy += dy;
                 }
                 NotifyReference();
             },
             _ =>
             {
-                foreach (var boxIndex in selectedBoxIndices)
+                foreach (var cell in moved)
                 {
-                    if (boxIndex >= 0 && boxIndex < activeRef.Cells.Count)
-                    {
-                        var cell = activeRef.Cells[boxIndex];
-                        cell.X -= intDx;
-                        cell.Y -= intDy;
-                    }
+                    cell.Dx -= dx;
+                    cell.Dy -= dy;
                 }
                 NotifyReference();
             });
+        AfterReferenceChange();
     }
 
     /// <summary>Begin moving selected anchors.</summary>

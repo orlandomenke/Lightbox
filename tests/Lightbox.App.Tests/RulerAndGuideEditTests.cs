@@ -380,6 +380,109 @@ public class RulerAndGuideEditTests : BrushStateIsolated
         Assert.Equal(100, guide.Y, 3);
     }
 
+    // ---- moving a selected group of guides -----------------------------------------
+
+    /// <summary>
+    /// Several pointer events, because one would pass either way: the canvas
+    /// reports the change since the previous event, so a receiver that assigns
+    /// instead of accumulating keeps only the last increment (B109, filed
+    /// against the placement version of the same two lines).
+    /// </summary>
+    [AvaloniaFact]
+    public void DraggingASelectedGroupOfGuidesMovesEveryOneTheFullDistance()
+    {
+        var (_, vm) = Open();
+        var first = vm.AddGuide(GuideKind.Line, 0, 100);
+        var second = vm.AddGuide(GuideKind.Line, 0, 200);
+        var untouched = vm.AddGuide(GuideKind.Line, 0, 300);
+        vm.Selection.AddGuideToSelection(0);
+        vm.Selection.AddGuideToSelection(1);
+
+        vm.BeginGuidesMove();
+        vm.UpdateGuidesMove(0, 5);
+        vm.UpdateGuidesMove(0, 5);
+        vm.UpdateGuidesMove(0, 5);
+        vm.EndGuidesMove();
+
+        Assert.Equal(115, first.Y, 3);
+        Assert.Equal(215, second.Y, 3);
+        Assert.Equal(300, untouched.Y, 3);
+    }
+
+    /// <summary>Moved live, not only on release — the drag has to be visible.</summary>
+    [AvaloniaFact]
+    public void GuidesFollowThePointerWhileTheGroupIsBeingDragged()
+    {
+        var (_, vm) = Open();
+        var guide = vm.AddGuide(GuideKind.Line, 0, 100);
+        vm.Selection.AddGuideToSelection(0);
+
+        vm.BeginGuidesMove();
+        vm.UpdateGuidesMove(0, 30);
+
+        Assert.Equal(130, guide.Y, 3);
+    }
+
+    [AvaloniaFact]
+    public void AWholeGroupGuideDragIsOneUndoStep()
+    {
+        var (_, vm) = Open();
+        var first = vm.AddGuide(GuideKind.Line, 0, 100);
+        var second = vm.AddGuide(GuideKind.Line, 0, 200);
+        vm.Selection.AddGuideToSelection(0);
+        vm.Selection.AddGuideToSelection(1);
+
+        vm.BeginGuidesMove();
+        vm.UpdateGuidesMove(0, 10);
+        vm.UpdateGuidesMove(0, 20);
+        vm.EndGuidesMove();
+        Assert.Equal(130, first.Y, 3);
+        Assert.Equal(230, second.Y, 3);
+
+        vm.UndoCommand.Execute(null);
+
+        // Back where they were picked up, not at the last pointer event.
+        Assert.Equal(100, first.Y, 3);
+        Assert.Equal(200, second.Y, 3);
+    }
+
+    /// <summary>
+    /// Locking a guide is how a perspective set gets leaned on without being
+    /// knocked out of place, so the group move is not allowed to be the one
+    /// gesture that ignores it.
+    /// </summary>
+    [AvaloniaFact]
+    public void ALockedGuideInTheSelectionDoesNotBudge()
+    {
+        var (_, vm) = Open();
+        var locked = vm.AddGuide(GuideKind.Line, 0, 100);
+        var free = vm.AddGuide(GuideKind.Line, 0, 200);
+        locked.Locked = true;
+        vm.Selection.AddGuideToSelection(0);
+        vm.Selection.AddGuideToSelection(1);
+
+        vm.BeginGuidesMove();
+        vm.UpdateGuidesMove(0, 40);
+        vm.EndGuidesMove();
+
+        Assert.Equal(100, locked.Y, 3);
+        Assert.Equal(240, free.Y, 3);
+    }
+
+    [AvaloniaFact]
+    public void AGroupGuideDragThatWentNowhereIsNotAnEdit()
+    {
+        var (_, vm) = Open();
+        vm.AddGuide(GuideKind.Line, 0, 100);
+        vm.Selection.AddGuideToSelection(0);
+        var steps = vm.UndoDepth;
+
+        vm.BeginGuidesMove();
+        vm.EndGuidesMove();
+
+        Assert.Equal(steps, vm.UndoDepth);
+    }
+
     // ---- what the rulers show ------------------------------------------------------
 
     [AvaloniaFact]
