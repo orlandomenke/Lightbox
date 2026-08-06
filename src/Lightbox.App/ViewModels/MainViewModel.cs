@@ -65,6 +65,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly StrokeBuilder _strokeBuilder = new();
     private readonly PlaybackClock _clock = new();
     private readonly SelectionManager _selectionManager = new();
+    private readonly Lightbox.Core.Projects.FeatureDefaults _featureDefaults = new();
 
     /// <summary>Measured repaint cost, shown as headroom in the info strip.</summary>
     public PerformanceMonitor Performance { get; } = new();
@@ -9737,6 +9738,14 @@ public sealed partial class MainViewModel : ObservableObject
         var cameraView = CameraViewTransform(renderScale);
         var viewWidth = cameraView is null ? scene.Width : scene.Camera!.OutputWidth;
         var viewHeight = cameraView is null ? scene.Height : scene.Camera!.OutputHeight;
+
+        // Check if unbounded canvas is enabled and we have a viewport for culling
+        var projectType = ProjectDocker.Project?.Manifest.Type ?? Lightbox.Core.Projects.ProjectType.Animation;
+        var hasUnboundedCanvas = Doc?.GetFeature(
+            Lightbox.Core.Projects.FeatureKey.UnboundedCanvas,
+            _featureDefaults.GetDefault(projectType, Lightbox.Core.Projects.FeatureKey.UnboundedCanvas)) ?? false;
+        var useUnboundedPath = hasUnboundedCanvas && _pendingViewport is { Width: > 0, Height: > 0 };
+
         var info = new SKImageInfo(
             Math.Max(1, (int)Math.Ceiling(viewWidth * renderScale)),
             Math.Max(1, (int)Math.Ceiling(viewHeight * renderScale)),
@@ -9749,11 +9758,23 @@ public sealed partial class MainViewModel : ObservableObject
         var background = SceneRenderer.BackgroundOf(scene);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         SKRectI? usedClip = null;
-        var image = _composeRing.Publish(info, dirty, (surface, clip) =>
+
+        SKImage image;
+        if (useUnboundedPath)
         {
-            usedClip = clip;
-            SceneRenderer.ComposeInto(surface, passes, background, clip, renderScale, cameraView);
-        }, renderScale, cameraView);
+            // Unbounded canvas: use tiled compositing for only visible viewport
+            image = ComposeUnboundedSnapshot(scene, passes, background, renderScale, cameraView, seq);
+            usedClip = _pendingViewport;
+        }
+        else
+        {
+            // Bounded canvas: use full-document compositing as before
+            image = _composeRing.Publish(info, dirty, (surface, clip) =>
+            {
+                usedClip = clip;
+                SceneRenderer.ComposeInto(surface, passes, background, clip, renderScale, cameraView);
+            }, renderScale, cameraView);
+        }
         sw.Stop();
         if (Environment.GetEnvironmentVariable("LIGHTBOX_PERFTRACE") is not null)
         {
@@ -9772,6 +9793,109 @@ public sealed partial class MainViewModel : ObservableObject
             // duplicate the whole buffer.
             image.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Render passes using tiled compositing for viewport-culled rendering.
+    /// Converts layer bitmaps to TileStores and composites only visible tiles.
+    /// </summary>
+    private SKImage ComposeUnboundedSnapshot(
+        Lightbox.Core.Documents.Scene scene,
+        List<RenderPass> passes,
+        SKColor background,
+        double renderScale,
+        SKMatrix44? cameraView,
+        long seq)
+    {
+        var viewport = _pendingViewport!.Value;
+        var viewportWidth = (int)Math.Ceiling(viewport.Width * renderScale);
+        var viewportHeight = (int)Math.Ceiling(viewport.Height * renderScale);
+
+        // Create output surface sized to viewport
+        var info = new SKImageInfo(
+            Math.Max(1, viewportWidth),
+            Math.Max(1, viewportHeight),
+            SKColorType.Rgba8888,
+            SKAlphaType.Premul);
+
+        var surface = SKSurface.Create(info);
+        if (surface is null) throw new InvalidOperationException("Failed to create render surface");
+
+        var canvas = surface.Canvas;
+        canvas.Clear(background);
+
+        // For each pass, convert to TileStore and composite only visible tiles
+        foreach (var pass in passes)
+        {
+            if (pass.Bitmap is null) continue;
+
+            // Convert the pass bitmap to a TileStore
+            var tileStore = Lightbox.Raster.TileStore.FromBitmap(pass.Bitmap);
+
+            try
+            {
+                // Apply pass transform if present
+                canvas.Save();
+                if (pass.Matrix.HasValue)
+                {
+                    canvas.Concat(pass.Matrix.Value);
+                }
+
+                var paint = new SKPaint
+                {
+                    BlendMode = pass.Blend
+                };
+
+                // Apply tint if present (onion skin)
+                if (pass.Tint.HasValue)
+                {
+                    paint.ColorFilter = SKColorFilter.CreateBlendMode(pass.Tint.Value, SKBlendMode.Multiply);
+                }
+
+                // Apply opacity
+                if (pass.Opacity < 1.0)
+                {
+                    paint.Color = SKColors.White.WithAlpha((byte)(pass.Opacity * 255));
+                }
+
+                // Composite visible tiles within viewport
+                Lightbox.Raster.TileCompositor.Composite(canvas, tileStore, viewport);
+
+                paint.Dispose();
+                canvas.Restore();
+            }
+            finally
+            {
+                tileStore.Dispose();
+            }
+
+            // Handle overlay if present (live stroke preview, etc.)
+            if (pass.Overlay is { } overlay)
+            {
+                canvas.Save();
+                var overlayPaint = new SKPaint
+                {
+                    BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver
+                };
+
+                // Apply overlay opacity
+                if (overlay.Opacity < 1.0)
+                {
+                    overlayPaint.Color = SKColors.White.WithAlpha((byte)(overlay.Opacity * 255));
+                }
+
+                // Draw overlay bitmap (future: render to tiles)
+                canvas.DrawBitmap(overlay.Scratch, 0, 0, overlayPaint);
+                overlayPaint.Dispose();
+                canvas.Restore();
+            }
+        }
+
+        canvas.Flush();
+        var image = surface.Snapshot();
+        surface.Dispose();
+
+        return image;
     }
 
     /// <summary>

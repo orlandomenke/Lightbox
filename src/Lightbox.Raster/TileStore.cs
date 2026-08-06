@@ -166,6 +166,53 @@ public sealed class TileStore : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Convert a full-document bitmap to a TileStore, splitting into tile-sized chunks.
+    /// Used when transitioning from full-canvas rendering to tiled rendering for unbounded canvas.
+    /// </summary>
+    public static TileStore FromBitmap(SKBitmap bitmap, TileGrid? grid = null)
+    {
+        var store = new TileStore(grid);
+        var tileSize = store.Grid.TileSize;
+
+        // Determine which tiles this bitmap covers
+        var tilesAcross = (bitmap.Width + tileSize - 1) / tileSize;
+        var tilesDown = (bitmap.Height + tileSize - 1) / tileSize;
+
+        for (int ty = 0; ty < tilesDown; ty++)
+        {
+            for (int tx = 0; tx < tilesAcross; tx++)
+            {
+                var coord = new TileCoord(tx, ty);
+                var tile = store.Rent(coord);
+
+                // Copy the corresponding region from the source bitmap to this tile
+                var srcX = tx * tileSize;
+                var srcY = ty * tileSize;
+                var copyWidth = Math.Min(tileSize, bitmap.Width - srcX);
+                var copyHeight = Math.Min(tileSize, bitmap.Height - srcY);
+
+                if (copyWidth > 0 && copyHeight > 0)
+                {
+                    // Use pixelmap to copy pixels directly
+                    using var pixelsFrom = bitmap.PeekPixels();
+                    using var pixelsTo = tile.PeekPixels();
+
+                    for (int y = 0; y < copyHeight; y++)
+                    {
+                        for (int x = 0; x < copyWidth; x++)
+                        {
+                            var srcColor = bitmap.GetPixel(srcX + x, srcY + y);
+                            tile.SetPixel(x, y, srcColor);
+                        }
+                    }
+                }
+            }
+        }
+
+        return store;
+    }
+
     public void Dispose()
     {
         foreach (var bitmap in _tiles.Values) bitmap.Dispose();
