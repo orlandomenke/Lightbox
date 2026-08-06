@@ -14,30 +14,94 @@ only affects which panels you are offered.
 
 ### A project
 
-A project is the container Lightbox is really built around: **a character is
-the unit of work, not a folder of files.** A character's animations share one
-palette, one set of references and one pivot — which is the thing a folder of
-loose files cannot express.
+A project is a body of work: **every 2D asset in a game, an animated feature,
+an episode of a show** — or one character, if that is what you are making.
+Lightbox does not decide which, and it does not impose a shape on it.
 
-**File → New project…** creates a `.lbproj` **folder**:
+**File → New project…** creates a `.lbproj` **folder** containing almost
+nothing:
 
 ```
-Knight.lbproj/
-  project.json                    the index
-  characters/knight/
-    character.json                palette, pivot, animation list
-    animations/walk.lightbox.json a document, in today's ordinary format
-    references/front.png
-  palettes/palettes.json
-  gradients/gradients.json
-  assets/
+Production.lbproj/
+  project.json          the index
+  palettes/             the palette you start with
+  documents/            the drawing you had open, if you had one
 ```
 
-Plain JSON throughout, and the animations are ordinary documents — so an old
-loose file *is* an animation, and a project is readable with a text editor.
+**No folders you did not ask for.** There is no `characters/`, no `scenes/`, no
+`assets/` waiting to be filled in. You build the structure, and the structure is
+whatever suits the work.
 
-A project opens by reading its index only. A character with forty animations
-opens without loading forty documents; each is read when you open it.
+#### Folders
+
+**＋ New ▸ Folder** makes one, named whatever you type — *Episode 2*,
+*Act 1*, *Sc 014 — Rooftop*. Folders nest to any depth, and a new folder or
+document goes **inside whatever is selected**, so building a tree is a run of
+clicks rather than a create-then-file.
+
+The chevron on a folder row shows or hides what is in it, and stays that way
+while you work — saving does not spring everything open.
+
+Drag a folder or a document onto a folder to move it. Dropping a folder onto
+something inside itself does nothing, because there would be no way back to it.
+
+The name is yours and the folder on disk is a tidied version of it: *Act 2 —
+Interiors* becomes `act-2-interiors`. What you typed is what the panel shows.
+
+#### Naming and renaming
+
+**Everything asks for a name before it exists.** Nothing arrives as *Untitled
+(3)* to be corrected later — the box is prefilled with what it would have been
+called, so Enter is the fast path and typing is the considered one. Cancel and
+nothing is created.
+
+**Rename…** on the right-click menu, or slow double-click a row. The rename
+reaches disk: renaming a folder moves the folder and everything under it.
+
+If the name is already taken, or the file cannot be moved — open in another
+program, or a permission — the rename is **refused**, the box stays open so you
+can fix it, and the panel's status line says which of those it was. Nothing
+changes by half.
+
+Characters and scenes rename in the panel only; their folders on disk keep the
+name they were created with.
+
+#### Removing and deleting
+
+Two operations on the right-click menu, and they are not the same thing:
+
+| | |
+| --- | --- |
+| **Remove from project** | Takes it out of the panel. **The file stays on disk.** Removing a folder puts what was inside it back at the project root, so no drawing disappears with it. |
+| **Delete permanently…** | Removes it *and* deletes it from disk. |
+
+Deleting a folder that has anything in it asks first, and says how much — *"Delete 'Art' and the 1 folder and 1 document inside it?"* — because *are you sure?* tells you nothing you can weigh. An empty folder goes without asking.
+
+A removed document stays removed: reopening the project does not claim the file back, even though it is still on disk.
+
+#### Rows that have no file behind them
+
+Two of them, and they mean different things:
+
+| | |
+| --- | --- |
+| **not saved yet** | You made it and the project has not been saved since. It is in the project, it is not on disk, and **Save** writes it. Ordinary — every new folder and document says this until you save. |
+| **not on disk** | This *was* written and its file cannot be found now — deleted in a file manager, on a drive that is not mounted, or lost to a branch switch. Worth looking at. |
+
+Either way the row is dimmed, so you can see at a glance which of your work exists as files. Nothing is removed from the project on your behalf: *"this is in your project and I cannot find it"* is the true statement, and taking it out stays your decision.
+
+#### Characters and scenes
+
+A **character** and a **scene** are still their own things, because they carry
+more than a name: a character has a palette, a pivot and variants that inherit
+its animations, and a scene has a running order and a running time. They sit
+alongside your folders rather than inside them, for now.
+
+Plain JSON throughout, and every drawing is an ordinary document — so an old
+loose file *is* one, and a project is readable in a text editor.
+
+A project opens by reading its index only. Forty drawings open without loading
+forty files; each is read when you open it.
 
 ### Scenes
 
@@ -159,9 +223,20 @@ work inside a project should not be followed by a second step that files it:
 | **Rename…** | Edits the name in place. Enter commits, Escape cancels. |
 | **Remove from project** | Takes it out of the index. The file stays on disk. |
 
-The **🗁** at the right of the panel's header opens the project folder itself —
-the one path that is always there, however little of the project has been
-created yet.
+The **🗁** at the right of the panel's header shows **whatever you have
+selected** in your file manager — the same thing as **Show in file manager** on
+the right-click menu, without the right-click.
+
+**The project itself is the first row**, named after its folder on disk —
+`Production.lbproj` rather than *Production*, because that is the part you
+cannot see anywhere else. Select it and 🗁 opens the project folder, which is
+what the button used to do whatever you had picked. With nothing selected at
+all, it opens the project folder too.
+
+You can select it, drop a document onto it to take that document out of every
+character, and copy its path. You cannot rename it, remove it or delete it from
+here: that is a folder your whole project lives in, and renaming it is a thing
+to do with the application closed.
 
 **The panel keeps up with the folder on its own.** Lightbox watches the project
 directory, so a document you delete in a file manager, a folder another program
