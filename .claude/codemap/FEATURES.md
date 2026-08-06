@@ -1,10 +1,6 @@
 # Behaviour inventory
 
-<<<<<<< HEAD
-2528 tests, derived from the suite itself. Each line is a
-=======
-2578 tests, derived from the suite itself. Each line is a
->>>>>>> origin/main
+2593 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2292,20 +2288,6 @@ regression even when every test still compiles.
 ## WorkspaceTests
 `tests/Lightbox.App.Tests/WorkspaceTests.cs`
 
-<<<<<<< HEAD
-- Panels Land In The Strip The Layout Names — `:68`
-- Moving APanel Moves The Control — `:80`
-- An Empty Edge Collapses And AFilled One Opens — `:92`
-- Closing APanel Parks It Rather Than Destroying It — `:114`
-- The Header Switcher Trades Two Panels Places — `:133`
-- Every Panel Except The Timeline Offers ASwitcher — `:149`
-- The Project Panel Appears As Soon As There Is AProject — `:170`
-- The Canvas Gets The Room Left Over By The Strips — `:193`
-- The Project Row Menu Actually Does Something When Clicked — `:217`
-- The New Menu Actually Makes Things — `:306`
-- The Reference Panel Is Absent Until It Is Asked For — `:373`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:389`
-=======
 - Panels Land In The Strip The Layout Names — `:70`
 - Moving APanel Moves The Control — `:82`
 - An Empty Edge Collapses And AFilled One Opens — `:94`
@@ -2315,10 +2297,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:172`
 - The Canvas Gets The Room Left Over By The Strips — `:195`
 - The Project Row Menu Actually Does Something When Clicked — `:219`
-- The New Menu Actually Makes Things — `:344`
-- The Reference Panel Is Absent Until It Is Asked For — `:411`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:427`
->>>>>>> origin/main
+- The New Menu Actually Makes Things — `:348`
+- The Reference Panel Is Absent Until It Is Asked For — `:415`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:431`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

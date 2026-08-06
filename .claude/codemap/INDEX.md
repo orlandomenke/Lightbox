@@ -1,10 +1,6 @@
 # Code index
 
-<<<<<<< HEAD
-483 files · 125473 lines · 2528 tests.
-=======
-494 files · 128898 lines · 2578 tests.
->>>>>>> origin/main
+494 files · 129797 lines · 2593 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -51,46 +47,25 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-<<<<<<< HEAD
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9746 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4375, TransformParts:6703
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4233 ln) · 16 test files
-  - MainWindow:18, UnsavedChoice:2758
-- `src/Lightbox.App/Views/MainWindow.axaml` (3340 ln) · **no tests**
-  - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
-- `src/Lightbox.App/Rendering/CanvasControl.cs` (2848 ln) · 9 test files
-  - CanvasControl:28, CanvasToolMode:692, GridGesture:748, TxDrag:895, DrawOp:2311
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2268 ln) · 11 test files
-  - ProjectRow:19, ProjectViewModel:328, PlannedArtifact:534, NewItemKind:1284
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (910 ln) · 98 test files
-  - SpriteSheetOptions:14, SpriteSheetResult:58, SpriteSheetExporter:122, SheetDocument:782, SheetFrame:788, SheetMeta:821, SheetTag:852, SheetEvent:866 …
-- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
-  - MainViewModel:20
-=======
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (10165 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4454, TransformParts:7122
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4183 ln) · 16 test files
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4301 ln) · 16 test files
   - MainWindow:19, UnsavedChoice:2762
-- `src/Lightbox.App/Views/MainWindow.axaml` (3465 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3475 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (3451 ln) · 10 test files
   - CanvasControl:28, CanvasToolMode:846, GridGesture:903, TxDrag:1050, DrawOp:2770
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2458 ln) · 11 test files
-  - ProjectRow:20, ScopeMenuEntry:359, DeclarationRow:370, ProjectViewModel:397, NewItemKind:1474
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2587 ln) · 11 test files
+  - ProjectRow:20, ScopeMenuEntry:359, DeclarationRow:370, ProjectViewModel:397, PlannedArtifact:608, NewItemKind:1603
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
   - FrameImportChoice:12, MainViewModel:29
->>>>>>> origin/main
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (910 ln) · 99 test files
+  - SpriteSheetOptions:14, SpriteSheetResult:58, SpriteSheetExporter:122, SheetDocument:782, SheetFrame:788, SheetMeta:821, SheetTag:852, SheetEvent:866 …
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (789 ln) · 2 test files
   - ShortcutRow:12, ShortcutGroup:24, GridRow:39, AiFieldRow:99, ConfigureWindow:150
-<<<<<<< HEAD
 - `src/Lightbox.App/Services/UnityExporter.cs` (696 ln) · 14 test files
-=======
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (762 ln) · 99 test files
-  - SpriteSheetOptions:14, SpriteSheetResult:54, SpriteSheetExporter:103, SheetDocument:634, SheetFrame:640, SheetMeta:673, SheetTag:704, SheetEvent:718 …
-- `src/Lightbox.App/Services/UnityExporter.cs` (648 ln) · 14 test files
->>>>>>> origin/main
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml.cs` (496 ln) · 1 test files
   - TipScope:16, TipRow:29, BrushTipsWindow:62
@@ -116,15 +91,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GameMakerExportOptions:10, GameMakerExportResult:28, GameMakerExporter:78, StripRecord:86, GameMakerBlock:99
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 16 indirect only
   - RampTrack:10, GradientRamp:41
-<<<<<<< HEAD
 - `src/Lightbox.App/Services/GodotExporter.cs` (300 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
-- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 104 test files
-=======
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 105 test files
->>>>>>> origin/main
   - MainViewModel:32
 - `src/Lightbox.App/Docking/DockLayout.cs` (276 ln) · 3 test files
   - DockPlacement:7, DockLayout:51
@@ -138,15 +109,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - NewDocumentSettings:20, WorkspaceChoice:32, DocumentTabKind:41, DocumentTab:60
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
-<<<<<<< HEAD
-- `src/Lightbox.App/Services/ExportRunner.cs` (244 ln) · 5 test files
-  - ExportRun:17, ExportRunner:42
-- `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 3 test files
-=======
 - `src/Lightbox.App/ViewModels/SelectionManager.cs` (250 ln) · 4 indirect only
   - SelectionManager:7
+- `src/Lightbox.App/Services/ExportRunner.cs` (244 ln) · 5 test files
+  - ExportRun:17, ExportRunner:42
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
->>>>>>> origin/main
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
 - `src/Lightbox.App/Styles/Density.axaml` (233 ln) · **no tests**
 - `src/Lightbox.App/Services/ShortcutMap.cs` (232 ln) · 7 test files
@@ -302,19 +269,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Bench
 
-<<<<<<< HEAD
-- `tools/Lightbox.Bench/AnimationSweeps.cs` (605 ln) · 7 test files
+- `tools/Lightbox.Bench/AnimationSweeps.cs` (605 ln) · 9 test files
   - AnimationSweeps:18, Target:103, Rig:129, Sides:270
 - `tools/Lightbox.Bench/Harness.cs` (236 ln) · 13 test files
   - Cadence:23, Budgets:38, Sample:50, Scenario:66, Curve:96, Runner:176
-- `tools/Lightbox.Bench/DrawingSweeps.cs` (215 ln) · 7 indirect only
-=======
-- `tools/Lightbox.Bench/AnimationSweeps.cs` (605 ln) · 8 test files
-  - AnimationSweeps:18, Target:103, Rig:129, Sides:270
-- `tools/Lightbox.Bench/Harness.cs` (236 ln) · 13 test files
-  - Cadence:23, Budgets:38, Sample:50, Scenario:66, Curve:96, Runner:176
-- `tools/Lightbox.Bench/DrawingSweeps.cs` (215 ln) · 8 indirect only
->>>>>>> origin/main
+- `tools/Lightbox.Bench/DrawingSweeps.cs` (215 ln) · 9 indirect only
   - DrawingSweeps:27, Sheet:51
 - `tools/Lightbox.Bench/Program.cs` (196 ln) · **no tests**
 
@@ -430,7 +389,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameRole:8, Frame:19, VectorFrame:57, PaintedFrame:70
 - `src/Lightbox.Core/Export/GodotConvert.cs` (91 ln) · 2 test files
   - GodotConvert:24
-- `src/Lightbox.Core/Projects/AssetStatus.cs` (91 ln) · 6 test files
+- `src/Lightbox.Core/Projects/AssetStatus.cs` (91 ln) · 7 test files
   - AssetStatus:30, AssetStatuses:49
 - `src/Lightbox.Core/Timeline/OnionSkin.cs` (88 ln) · 1 test files
   - OnionSkin:27
