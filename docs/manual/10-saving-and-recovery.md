@@ -38,6 +38,21 @@ One case worth knowing because the wording differs: if the file you saved to has
 since been **moved or deleted**, you are asked again rather than having it
 written silently back to a folder you emptied on purpose.
 
+## Closing with work in flight
+
+**Closing a tab** with unsaved changes offers **Save**, **Discard changes** and
+**Cancel**. Save is what Enter does, because it is the only one that cannot lose
+anything; Discard sits at the far end so a fast hand does not find it next to
+the safe one. If Save has nowhere to write, it opens Save as… — and **cancelling
+that picker cancels the close too**, because you asked to keep the work.
+
+**Closing Lightbox** asks the same question about everything at once. One box,
+listing the documents by name rather than counting them, with **Save all** as
+the default. Cancel and the application stays open; cancel a file picker
+part-way through and the whole close is called off, with everything still there.
+
+Nothing is ever discarded without being offered to you first.
+
 ## Autosave
 
 Under **Edit**. Choose off, 30 seconds, 1, 5 or 15 minutes. Zero is a real

@@ -1,6 +1,6 @@
 # Code index
 
-464 files · 118210 lines · 2401 tests.
+465 files · 118598 lines · 2405 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,14 +49,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (9455 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4222, TransformParts:6414
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3965 ln) · 15 test files
-  - MainWindow:18, UnsavedChoice:2720
-- `src/Lightbox.App/Views/MainWindow.axaml` (3220 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4059 ln) · 15 test files
+  - MainWindow:18, UnsavedChoice:2723
+- `src/Lightbox.App/Views/MainWindow.axaml` (3251 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2848 ln) · 9 test files
   - CanvasControl:28, CanvasToolMode:692, GridGesture:748, TxDrag:895, DrawOp:2311
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1551 ln) · 8 test files
-  - ProjectRow:19, ProjectViewModel:302, NewItemKind:800
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1628 ln) · 9 test files
+  - ProjectRow:19, ProjectViewModel:328, NewItemKind:869
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
   - MainViewModel:20
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
@@ -91,7 +91,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GameMakerExportOptions:9, GameMakerExportResult:27, GameMakerExporter:77, StripRecord:85, GameMakerBlock:98
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 15 indirect only
   - RampTrack:10, GradientRamp:41
-- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 98 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 99 test files
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (281 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65

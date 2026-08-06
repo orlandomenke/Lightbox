@@ -79,6 +79,17 @@ Deleting a folder that has anything in it asks first, and says how much — *"De
 
 A removed document stays removed: reopening the project does not claim the file back, even though it is still on disk.
 
+#### Rows that have no file behind them
+
+Two of them, and they mean different things:
+
+| | |
+| --- | --- |
+| **not saved yet** | You made it and the project has not been saved since. It is in the project, it is not on disk, and **Save** writes it. Ordinary — every new folder and document says this until you save. |
+| **not on disk** | This *was* written and its file cannot be found now — deleted in a file manager, on a drive that is not mounted, or lost to a branch switch. Worth looking at. |
+
+Either way the row is dimmed, so you can see at a glance which of your work exists as files. Nothing is removed from the project on your behalf: *"this is in your project and I cannot find it"* is the true statement, and taking it out stays your decision.
+
 #### Characters and scenes
 
 A **character** and a **scene** are still their own things, because they carry

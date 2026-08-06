@@ -1931,6 +1931,13 @@
                       <Setter Property="Padding" Value="2,0" />
                       <Setter Property="MinHeight" Value="22" />
                     </Style>
+                    <!-- B76. Dimmed while there is no file behind the row,
+                         whichever of the two reasons it is. The word beside the
+                         name says which; this is what makes the distinction
+                         scannable without reading every row. -->
+                    <Style Selector="TextBlock.offDisk">
+                      <Setter Property="Opacity" Value="0.5" />
+                    </Style>
                   </ListBox.Styles>
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:ProjectRow">
@@ -2025,8 +2032,32 @@
                                    IsVisible="{Binding HasDuration}"
                                    FontSize="10" Opacity="0.55" Margin="6,0,2,0"
                                    VerticalAlignment="Center" />
+                        <!--
+                          B76, and B61's half that never reached the view. Two
+                          different absences, said differently on purpose:
+                          "not saved yet" is ordinary and "not on disk" is not,
+                          and a row that said the same thing for both would
+                          either cry wolf on every new document or bury a
+                          deleted file among them. Right-aligned so the column
+                          reads down beside the running time, and both are
+                          absent on a row whose file is where it should be.
+                        -->
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding PendingHint}"
+                                   IsVisible="{Binding Pending}"
+                                   FontSize="10" Opacity="0.5" FontStyle="Italic"
+                                   Margin="6,0,2,0" VerticalAlignment="Center"
+                                   ToolTip.Tip="In the project, not written to disk yet. Save to write it." />
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding MissingHint}"
+                                   IsVisible="{Binding Missing}"
+                                   FontSize="10" Foreground="#d08770" FontWeight="SemiBold"
+                                   Margin="6,0,2,0" VerticalAlignment="Center"
+                                   ToolTip.Tip="This is in your project and its file cannot be found. Removing it from the project stays your decision." />
                         <Panel MinHeight="20">
+                          <!-- Dimmed while it has no file, whichever reason. The
+                               word beside it says which; the dimming is what
+                               makes the row scannable without reading. -->
                           <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}"
+                                     Classes.offDisk="{Binding !IsOnDisk}"
                                      VerticalAlignment="Center" FontSize="11" />
                           <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                    IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"

@@ -177,6 +177,9 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DragOverEvent, OnCelDragOver);
         AddHandler(DragDrop.DropEvent, OnCelDrop);
         DragDrop.SetAllowDrop(Canvas, true);
+        // B80. Closing a tab asked about unsaved work and closing the window did
+        // not, so quitting mid-edit lost it silently.
+        Closing += OnWindowClosing;
         Canvas.AddHandler(DragDrop.DragOverEvent, OnCanvasColorDragOver);
         Canvas.AddHandler(DragDrop.DropEvent, OnCanvasColorDrop);
         Canvas.AddHandler(DragDrop.DragOverEvent, OnCanvasSymbolDragOver);
@@ -2771,7 +2774,17 @@ public partial class MainWindow : Window
     /// is the outcome that cannot destroy anything; Discard is the one that
     /// needs deliberate aim.
     /// </remarks>
-    private async Task<UnsavedChoice> ConfirmDiscardAsync(string title)
+    private Task<UnsavedChoice> ConfirmDiscardAsync(string title) => ConfirmDiscardAsync([title]);
+
+    /// <inheritdoc cref="ConfirmDiscardAsync(string)"/>
+    /// <remarks>
+    /// <b>B80.</b> Takes a list because closing the window can have several
+    /// documents in flight, and a chain of modal boxes — one per tab, each
+    /// answerable differently — is a worse answer than one that says how much is
+    /// at stake. The single-tab call is the same dialog with one name in it, so
+    /// the two paths cannot drift into disagreeing about what Save means.
+    /// </remarks>
+    private async Task<UnsavedChoice> ConfirmDiscardAsync(IReadOnlyList<string> titles)
     {
         var result = UnsavedChoice.Cancel;
         var dialog = new Window
@@ -2782,7 +2795,14 @@ public partial class MainWindow : Window
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
-        var save = new Button { Content = "Save", MinWidth = 80, IsDefault = true };
+        // "Save all" when there is more than one, because "Save" beside a list of
+        // four names does not say whether it means all of them or the first.
+        var save = new Button
+        {
+            Content = titles.Count > 1 ? "Save all" : "Save",
+            MinWidth = 80,
+            IsDefault = true,
+        };
         var discard = new Button { Content = "Discard changes", MinWidth = 120 };
         var cancel = new Button { Content = "Cancel", MinWidth = 80, IsCancel = true };
         save.Click += (_, _) => { result = UnsavedChoice.Save; dialog.Close(); };
@@ -2796,7 +2816,14 @@ public partial class MainWindow : Window
             {
                 new TextBlock
                 {
-                    Text = $"“{title}” has unsaved changes.",
+                    // Named rather than counted. "3 documents have unsaved
+                    // changes" is a number to weigh and the names are the thing
+                    // an artist actually recognises — and the list is what makes
+                    // Discard a decision rather than a gamble.
+                    Text = titles.Count == 1
+                        ? $"“{titles[0]}” has unsaved changes."
+                        : $"{titles.Count} documents have unsaved changes:\n"
+                          + string.Join("\n", titles.Select(t => $"    • {t}")),
                     TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 },
                 new StackPanel
@@ -2813,6 +2840,73 @@ public partial class MainWindow : Window
         };
         await dialog.ShowDialog(this);
         return result;
+    }
+
+    /// <summary>
+    /// Set once the artist has answered the unsaved-changes dialog and the close
+    /// may go ahead, so the re-close does not ask again.
+    /// </summary>
+    private bool _closeConfirmed;
+
+    /// <summary>
+    /// Closing the application asks about unsaved work, the way closing a tab does.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B80.</b> There was no handler at all — closing a *tab* asked and
+    /// closing the *window* did not, so quitting with edits in flight lost them
+    /// silently. Worse than B75, which at least told the artist something.
+    /// </para>
+    /// <para>
+    /// <b>Cancel, then re-close.</b> <c>Closing</c> cannot be awaited, so the
+    /// only way to ask a question during it is to refuse the close, ask, and
+    /// close again — which is why <see cref="_closeConfirmed"/> exists rather
+    /// than being a smell. Without it the second <c>Close()</c> re-enters here
+    /// and asks the same question for ever.
+    /// </para>
+    /// <para>
+    /// <b>A cancelled picker abandons the whole close</b>, exactly as it does for
+    /// a single tab: the artist asked to keep the work, and no reading of
+    /// "cancel the save" ends with the application exiting and the work gone.
+    /// </para>
+    /// </remarks>
+    private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (_closeConfirmed) return;
+
+        var dirty = _vm.Tabs.Where(t => t.IsDirty).ToList();
+        if (dirty.Count == 0) return;
+
+        e.Cancel = true;
+        switch (await ConfirmDiscardAsync(dirty.Select(t => t.Title).ToList()))
+        {
+            case UnsavedChoice.Cancel:
+                return;
+
+            case UnsavedChoice.Save:
+                foreach (var tab in dirty)
+                {
+                    // A project save writes every dirty document at once, so by
+                    // the time the loop reaches the second tab it is usually
+                    // already clean. Re-saving would be harmless and asking for
+                    // a filename again would not.
+                    if (!tab.IsDirty) continue;
+                    // Save acts on the active document, so the tab being saved
+                    // has to be the active one — the same trap B75 records, and
+                    // it is worse here because the loop would write one document
+                    // several times and never touch the others.
+                    _vm.ActiveTab = tab;
+                    await SaveOrSaveAsAsync(tab.Title);
+                    if (tab.IsDirty) return;
+                }
+                break;
+
+            case UnsavedChoice.Discard:
+                break;
+        }
+
+        _closeConfirmed = true;
+        Close();
     }
 
     private async void OnSaveClicked(object? sender, RoutedEventArgs e) => await SaveDocumentAsAsync();

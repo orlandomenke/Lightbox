@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2401 tests, derived from the suite itself. Each line is a
+2405 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2116,6 +2116,14 @@ regression even when every test still compiles.
 - The Runner Passes The World Height Through Rather Than Defaulting It — `:484`
 - An Unreal Preset Still Reports What It Left Out — `:501`
 - The World Height Field Is Offered For Unreal And Not Only Unity — `:513`
+
+## UnsavedDocumentTests
+`tests/Lightbox.App.Tests/UnsavedDocumentTests.cs`
+
+- ANew Document Is Not On Disk Until It Is Saved — `:61`
+- An Unsaved Document Is Shown As Pending In The Docker — `:83`
+- ADeleted File Is Missing Rather Than Pending — `:133`
+- Discarding An Unsaved Document Removes It From The Docker — `:165`
 
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`

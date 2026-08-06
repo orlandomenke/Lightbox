@@ -253,7 +253,33 @@ public sealed partial class ProjectRow : ObservableObject
     /// </para>
     /// </remarks>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MissingHint))]
+    [NotifyPropertyChangedFor(nameof(IsOnDisk))]
     private bool _missing;
+
+    /// <summary>
+    /// This has never been written — it exists in the project and not yet on disk.
+    /// </summary>
+    /// <remarks>
+    /// <b>B76,</b> and the distinction is the whole entry. <see cref="Missing"/>
+    /// means *this was on disk and is gone*, which is alarming and worth acting
+    /// on. Pending means *this has not been saved yet*, which is ordinary and
+    /// worth knowing. Conflating them would either cry wolf on every new
+    /// document or hide a deleted file among them.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PendingHint))]
+    [NotifyPropertyChangedFor(nameof(IsOnDisk))]
+    private bool _pending;
+
+    /// <summary>What the row says when it has not been written yet.</summary>
+    public string PendingHint => Pending ? "not saved yet" : "";
+
+    /// <summary>
+    /// Whether the row's file is actually there — false while pending and false
+    /// while missing, which is what a greyed row means.
+    /// </summary>
+    public bool IsOnDisk => !Pending && !Missing;
 
     /// <summary>What the row says when its file is gone.</summary>
     public string MissingHint => Missing ? "not on disk" : "";
@@ -381,6 +407,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     {
         Project = project;
         _dirty.Clear();
+        // B76. A different project's pending folders are not this one's — and an
+        // id carried across would make a saved folder read as unsaved.
+        _unwrittenFolders.Clear();
         Rebuild();
     }
 
@@ -410,6 +439,16 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public void MarkAllSaved()
     {
         _dirty.Clear();
+        // B76. Everything pending has just been written, so nothing is.
+        _unwrittenFolders.Clear();
+        // And the rows have to be told. Clearing the sets changes the *answer*
+        // to "is this on disk" without changing any row, so without this a saved
+        // document went on saying "not saved yet" until something else forced a
+        // rebuild — which is B79's shape exactly, a badge that outlives its
+        // reason, and the pair of tests here caught it on the first run.
+        MarkMissing();
+        OnPropertyChanged(nameof(MissingCount));
+        OnPropertyChanged(nameof(HasMissing));
         Watcher.Watch(Project?.Root);
     }
 
@@ -596,6 +635,10 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     {
         if (Project is not { } project) return;
         var folder = ProjectFolders.Add(project.Manifest, Named(name, "Folder"), TargetFolder);
+        // B76. In the manifest now, on disk at the next save — so the row can say
+        // "not saved yet" rather than "not on disk", which would be a lie that
+        // reads as a fault.
+        _unwrittenFolders.Add(folder.Id);
         // Opened, so the thing just made is not hidden by its parent's state.
         _collapsed.Remove(folder.Id);
         if (TargetFolder is { } parent) _collapsed.Remove(parent.Id);
@@ -703,19 +746,45 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
         foreach (var row in Rows)
         {
-            if (row.Animation is { } animation && _dirty.Contains(animation.Id))
+            var path = PathOf(row);
+            var addressable = path is not null
+                && !string.Equals(path, project.Root, StringComparison.Ordinal);
+
+            if (!addressable || File.Exists(path!) || Directory.Exists(path!))
             {
                 row.Missing = false;
+                row.Pending = false;
                 continue;
             }
 
-            var path = PathOf(row);
-            row.Missing = path is not null
-                && !string.Equals(path, project.Root, StringComparison.Ordinal)
-                && !File.Exists(path)
-                && !Directory.Exists(path);
+            // Not on disk, and B76 is about which of the two reasons that is.
+            //
+            // The test is sound because we already know the file is absent: a
+            // document that was written and then edited is in `_dirty` *and* on
+            // disk, so it took the branch above. Inside this one, "dirty" can
+            // only mean it was never written at all. Same for a folder — the
+            // manifest holds it and `ProjectIo.Save` materialises it (B83), so
+            // an unsaved one has no directory yet.
+            var neverWritten = row.Animation is { } animation
+                ? _dirty.Contains(animation.Id)
+                : row is { IsFolder: true, Folder: { } folder } && _unwrittenFolders.Contains(folder.Id);
+
+            row.Pending = neverWritten;
+            row.Missing = !neverWritten;
         }
     }
+
+    /// <summary>
+    /// Folders made since the last save, so a folder with no directory can say
+    /// which kind of absent it is.
+    /// </summary>
+    /// <remarks>
+    /// <b>B76.</b> Separate from <see cref="_dirty"/> rather than folded into it
+    /// because that set is handed to <c>ProjectIo.Save</c> to decide which
+    /// <em>documents</em> to write. Ids that match no document would be inert
+    /// today and are exactly the kind of inert that stops being inert.
+    /// </remarks>
+    private readonly HashSet<string> _unwrittenFolders = [];
 
     /// <summary>How many rows name something that is not on disk.</summary>
     public int MissingCount => Rows.Count(r => r.Missing);
@@ -1459,6 +1528,14 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         {
             return Path.Combine(
                 project.Root, animation.Path.Replace('/', Path.DirectorySeparatorChar));
+        }
+        // B76. A folder has a directory of its own, and until this answered it
+        // the folder rows all resolved to the project root — which meant they
+        // could never be reported as pending or missing, however wrong they were.
+        if (row is { IsFolder: true, Folder: { } folder })
+        {
+            var relative = ProjectFolders.PathOf(project.Manifest, folder);
+            return Path.Combine(project.Root, relative.Replace('/', Path.DirectorySeparatorChar));
         }
         return row.Character is { } character
             ? Path.Combine(project.Root, "characters", character.Slug)
