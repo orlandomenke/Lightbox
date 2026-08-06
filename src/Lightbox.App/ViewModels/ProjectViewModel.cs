@@ -1330,22 +1330,166 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     {
         if (Project is not { } project) return;
         var doc = _newDocument();
+        var reference = FileInProject(project, name, doc);
+        _open(reference, doc);
+        _changed();
+    }
+
+    /// <summary>
+    /// Put a document into the project: a row of its own, filed where the artist
+    /// is, marked not saved yet.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the docker's ＋ New ▸ Document and by <b>B99</b>'s File ▸ New, so
+    /// the two cannot disagree about where a new drawing lands or what it looks
+    /// like before it is written. The caller supplies the document because the
+    /// two get theirs from different places — the docker asks for a blank one,
+    /// File ▸ New has already built one from the dialog's settings.
+    /// </remarks>
+    private DocumentRef FileInProject(Project project, string? name, Doc doc)
+    {
         var count = project.Manifest.Documents.Count + 1;
         var reference = ProjectIo.AddDocument(project, Named(name, $"Document {count}"), doc);
         // B85. Into the folder you were in. ProjectIo.AddDocument still puts it
-        // at `documents/`, which is right when nothing is selected and was the
-        // whole of the bug when something was — creating a document inside a
-        // folder ignored the folder and filed it at the top level.
+        // in the unassigned directory, which is right when nothing is selected
+        // and was the whole of the bug when something was — creating a document
+        // inside a folder ignored the folder and filed it at the top level.
         if (TargetFolder is { } folder)
         {
             ProjectFolders.FileDocument(project.Manifest, reference, folder);
             _collapsed.Remove(folder.Id);
         }
+        // In the project, not on disk — so the row says "not saved yet" rather
+        // than "not on disk", and the next project save writes it (B76, B99).
         _dirty.Add(reference.Id);
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id);
-        _open(reference, doc);
+        return reference;
+    }
+
+    /// <summary>
+    /// Take a document the application has just created into the project.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B99.</b> File ▸ New with a project open used to make a tab and nothing
+    /// else: no manifest entry, no row, <c>Source</c> null — and
+    /// <c>SaveProject</c> writes only tabs that have a <c>Source</c>, so the one
+    /// document with nothing on disk was also the one a project save skipped.
+    /// </para>
+    /// <para>
+    /// <b>File ▸ New still means "a new document", not "an animation under the
+    /// selected character".</b> What changes is that the project now knows about
+    /// it: it is filed where the artist is, exactly as ＋ New ▸ Document is, and
+    /// it appears as an ordinary unsaved row. The rule the old comment was
+    /// protecting — that the most common action in the app must not change
+    /// meaning based on which row is selected — still holds, because a project
+    /// document is what it made before and what it makes now.
+    /// </para>
+    /// <para>
+    /// Null when there is no project, which is the ordinary state: a
+    /// document-first application must not acquire a project by making a drawing.
+    /// </para>
+    /// </remarks>
+    public DocumentRef? AdoptNewDocument(string? name, Doc doc)
+    {
+        if (Project is not { } project) return null;
+        var reference = FileInProject(project, name, doc);
         _changed();
+        return reference;
+    }
+
+    /// <summary>
+    /// A tab closed. Take its document out of the project if it was never
+    /// written — true when it did.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B99, and the owner's rule: closing a document that was never saved
+    /// removes it from the project view immediately.</b> The alternative is a row
+    /// pointing at a file that does not exist and never will, which the next
+    /// refresh would report as <em>not on disk</em> — the badge that means
+    /// something went wrong, raised by nothing going wrong.
+    /// </para>
+    /// <para>
+    /// <b>Never written is narrower than "not on disk", deliberately.</b> Both
+    /// conditions are required: the id is still in <see cref="Dirty"/>, so no
+    /// save has ever covered it, <em>and</em> there is no file at its path. A
+    /// document saved and then edited is dirty and on disk, so closing it keeps
+    /// its row; a document whose file was deleted from outside is not dirty, so
+    /// it keeps its row too and stays flagged missing — B61's rule that a
+    /// vanished file is the artist's decision to act on, not ours.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// A document was written by a save the project did not run — Save As.
+    /// False when it landed outside the project, having taken it out.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The counterpart B99 obliged and did not have.</b> Adopting a document
+    /// at creation means something has to un-adopt it when the artist gives it a
+    /// home elsewhere: without this, Save As to a folder outside the project left
+    /// the row in place pointing at a file that was never written there, still
+    /// saying "not saved yet" — and the next project save wrote a *second* copy
+    /// inside the project. That is B106's one-drawing-two-files arriving from a
+    /// different direction, so it is worth being explicit that adoption and
+    /// release are a pair.
+    /// </para>
+    /// <para>
+    /// <b>Inside the project, the record follows the file rather than the other
+    /// way round.</b> Save As into a folder of the project repaths the reference
+    /// and renames the row to match, because a panel that says <i>Rooftop</i>
+    /// while the file says <c>rooftop-v2</c> is B64's complaint exactly. It also
+    /// clears the pending mark: the document is on disk now, and only the
+    /// project's own save used to be able to say so.
+    /// </para>
+    /// </remarks>
+    public bool AdoptSavedPath(DocumentRef? reference, string fullPath)
+    {
+        if (Project is not { } project || reference is null) return false;
+
+        if (ProjectIo.RelativeInProject(project, fullPath) is not { } relative)
+        {
+            Detach(project, reference);
+            Rebuild();
+            Status = $"“{reference.Name}” was saved outside the project, so it is no longer in it.";
+            _changed();
+            return false;
+        }
+
+        reference.Path = relative;
+        reference.Name = Path.GetFileName(relative).Replace(".lightbox.json", "", StringComparison.OrdinalIgnoreCase);
+        // Which folder that directory is, if it is one the artist made. Null for
+        // the unassigned directory and for anything the manifest does not know
+        // about, which is what B83's accountability check is for.
+        var directory = relative.Contains('/') ? relative[..relative.LastIndexOf('/')] : "";
+        reference.FolderId = ProjectFolders.All(project.Manifest)
+            .FirstOrDefault(f => ProjectFolders.PathOf(project.Manifest, f) == directory)?.Id;
+        // On disk now, so the row stops saying otherwise and the next project
+        // save does not rewrite it.
+        _dirty.Remove(reference.Id);
+        Rebuild();
+        Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id) ?? Selected;
+        _changed();
+        return true;
+    }
+
+    public bool ForgetIfNeverWritten(DocumentRef? reference)
+    {
+        if (Project is not { } project || reference is null) return false;
+        if (!_dirty.Contains(reference.Id)) return false;
+        if (ProjectIo.ResolveInProject(project, reference.Path) is { } path
+            && (File.Exists(path) || Directory.Exists(path)))
+        {
+            return false;
+        }
+
+        Detach(project, reference);
+        Rebuild();
+        Status = $"“{reference.Name}” was never saved, so it is no longer in the project.";
+        _changed();
+        return true;
     }
 
     /// <summary>

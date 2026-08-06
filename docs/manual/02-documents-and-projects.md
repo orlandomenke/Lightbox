@@ -162,6 +162,23 @@ Two of them, and they mean different things:
 
 Either way the row is dimmed, so you can see at a glance which of your work exists as files. Nothing is removed from the project on your behalf: *"this is in your project and I cannot find it"* is the true statement, and taking it out stays your decision.
 
+**File → New inside a project makes a project document.** It gets a row like any
+other, filed in whatever you have selected, saying *not saved yet* until you save
+— and the project's **Save** writes it along with everything else.
+
+The one thing that *is* removed for you: **close a document you never saved and
+its row goes with it.** There is nothing to keep — no file was ever written — and
+leaving the row would mean the panel pointing at something that does not exist
+and never will. Save it once and that stops applying: closing it afterwards
+leaves it in the project, and if its file later goes missing the row stays and
+says so.
+
+**Where you save it decides whether it stays.** Save As into the project and the
+row follows the file — its name, its folder, wherever you put it. **Save As
+outside the project and it leaves the project**, because you have given it a home
+somewhere else; the file is yours and nothing is written inside the project for
+it.
+
 #### Characters and scenes
 
 A **character** and a **scene** are still their own things, because they carry
