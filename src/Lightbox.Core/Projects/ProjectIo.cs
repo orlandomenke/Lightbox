@@ -35,7 +35,36 @@ public static class ProjectIo
     private const string ManifestName = "project.json";
     private const string CharactersDir = "characters";
     private const string AnimationsDir = "animations";
-    private const string DocumentsDir = "documents";
+    /// <summary>
+    /// Where a document that belongs to the project and to no folder is filed.
+    /// </summary>
+    /// <remarks>
+    /// <b>B105.</b> Was <c>documents</c>, which is the least informative name
+    /// available in a folder full of documents — every drawing in the project is
+    /// one, so the directory read as "the documents" rather than as "the ones
+    /// you have not filed". The new name says which it is, and it says it in the
+    /// file manager, which is where the artist met it.
+    /// <para>
+    /// Public because the docker has to recognise a path as unassigned in order
+    /// to rename inside it, and a second copy of the string is a second thing to
+    /// keep in step.
+    /// </para>
+    /// </remarks>
+    public const string DocumentsDir = "unassigned-documents";
+
+    /// <summary>
+    /// What <see cref="DocumentsDir"/> was called before B105.
+    /// </summary>
+    /// <remarks>
+    /// Kept, and not only for the name: every path in a <c>.lbproj</c> written
+    /// before the rename is recorded in its manifest, so an existing project
+    /// goes on reading and writing <c>documents/</c> and nothing moves under an
+    /// artist who has not asked for anything. The one thing that had to be
+    /// taught both names is <see cref="SystemFolders"/> — B83 reports a
+    /// top-level directory the manifest cannot explain, and an old project's
+    /// <c>documents/</c> is explained.
+    /// </remarks>
+    public const string LegacyDocumentsDir = "documents";
     private const string PalettesFile = "palettes/palettes.json";
 
     /// <summary>
@@ -242,11 +271,21 @@ public static class ProjectIo
     /// lets an open tab stay bound to the document it is showing, so moving a
     /// row in the tree does not orphan the window you are drawing in.
     ///
-    /// The file on disk is not moved here. The path in the manifest is the new
-    /// one, and the next save writes the document there; the old file is left
-    /// alone, on the same reasoning that removing a row leaves it alone.
-    /// A move that deleted an artist's file because the tree was rearranged
-    /// would be a poor trade for tidiness.
+    /// <b>B106. The file moves with it.</b> This used to change the manifest and
+    /// stop, on the reasoning that a move which deleted an artist's file would
+    /// be a poor trade for tidiness — and the reasoning was sound about deleting
+    /// and wrong about the outcome. The next save wrote the document at its new
+    /// path and left the old file where it was, so one drawing became two: the
+    /// artist saw the copy they had moved and the original still sitting in the
+    /// folder they moved it out of, with no way to tell which one the app would
+    /// open. A move is a rename on disk, which is what
+    /// <see cref="MoveInProject"/> does and what renaming a folder has always
+    /// done — nothing is deleted and nothing is left behind.
+    ///
+    /// <b>The disk goes first, and the manifest only if it succeeded.</b> A
+    /// manifest pointing at a path the file never reached is the one outcome
+    /// worse than either half, because it is invisible: the panel would show the
+    /// document in its new home and the drawing would not be there.
     /// </remarks>
     public static bool MoveDocument(Project project, DocumentRef reference, Character? destination)
     {
@@ -255,20 +294,22 @@ public static class ProjectIo
         if (from is null && !atProjectLevel) return false;
         if (ReferenceEquals(from, destination)) return false;
 
+        // Worked out before anything is touched, so the move can be attempted
+        // and refused without leaving the manifest half-changed. Both branches
+        // read only state this method has not modified yet.
+        var to = destination is null
+            ? $"{DocumentsDir}/{Slug(reference.Name)}.lightbox.json"
+            : $"{CharactersDir}/{destination.Slug}/{AnimationsDir}/"
+              + $"{UniqueFileSlug(destination, Slug(reference.Name))}.lightbox.json";
+
+        if (!MoveInProject(project, reference.Path, to)) return false;
+
         from?.Animations.RemoveAll(a => a.Id == reference.Id);
         if (atProjectLevel) project.Manifest.Documents.RemoveAll(d => d.Id == reference.Id);
 
-        if (destination is null)
-        {
-            reference.Path = $"{DocumentsDir}/{Slug(reference.Name)}.lightbox.json";
-            project.Manifest.Documents.Add(reference);
-        }
-        else
-        {
-            var slug = UniqueFileSlug(destination, Slug(reference.Name));
-            reference.Path = $"{CharactersDir}/{destination.Slug}/{AnimationsDir}/{slug}.lightbox.json";
-            destination.Animations.Add(reference);
-        }
+        reference.Path = to;
+        if (destination is null) project.Manifest.Documents.Add(reference);
+        else destination.Animations.Add(reference);
         return true;
     }
 
@@ -423,6 +464,20 @@ public static class ProjectIo
     public static void Save(Project project, IReadOnlySet<string>? dirty = null)
     {
         Directory.CreateDirectory(project.Root);
+
+        // B64/B86/B87. A folder the artist made exists on disk even when it
+        // holds nothing yet. Until this, a directory only appeared when a
+        // document was written into it — so an empty folder was real in the
+        // panel and absent in a file manager, renaming one moved nothing, and
+        // deleting one deleted nothing while reporting success. Three tests
+        // passed vacuously on the strength of it.
+        foreach (var folder in ProjectFolders.All(project.Manifest))
+        {
+            if (ResolveInProject(project, ProjectFolders.PathOf(project.Manifest, folder)) is { } path)
+            {
+                Directory.CreateDirectory(path);
+            }
+        }
 
         // Resources first: writing them is what fills in Manifest.Palettes, so
         // the manifest has to be written after, not twice.
@@ -814,5 +869,182 @@ public static class ProjectIo
             var candidate = $"{wanted}-{n}";
             if (!taken.Contains(candidate)) return candidate;
         }
+    }
+
+    // ---- deleting from disk (B87) --------------------------------------------
+
+    /// <summary>
+    /// Delete something inside the project, named by its project-relative path.
+    /// True when it was there and is not now.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The containment check is the point of this method existing.</b> Every
+    /// path here comes from the manifest, and a manifest is plain JSON that a
+    /// person or an agent can edit — so a <c>path</c> of
+    /// <c>../../../Documents</c> is not a hypothetical, it is one careless
+    /// entry. The full path is resolved and compared against the resolved root
+    /// before anything is removed, and a path that escapes deletes nothing.
+    /// </para>
+    /// <para>
+    /// Everything else about it is deliberately dull: a missing file is a
+    /// success, because the artist asked for it to be gone and it is, and an
+    /// <c>IOException</c> is a false rather than a crash — a file open in
+    /// another application is a thing to report, not to die on.
+    /// </para>
+    /// </remarks>
+    public static bool DeleteInProject(Project project, string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return false;
+        if (string.IsNullOrEmpty(project.Root)) return false;
+
+        if (ResolveInProject(project, relativePath) is not { } full) return false;
+
+        try
+        {
+            if (File.Exists(full)) File.Delete(full);
+            else if (Directory.Exists(full)) Directory.Delete(full, recursive: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// A project-relative path as a full path, or null when it does not stay
+    /// inside the project.
+    /// </summary>
+    /// <remarks>
+    /// <b>B87, then B64.</b> Extracted the moment a second caller needed it,
+    /// because a containment check that exists in one place and is re-typed in
+    /// another is a containment check that will differ. Every path handed to
+    /// these comes from the manifest — plain JSON a person or an agent can edit
+    /// — so an entry of <c>../../../Documents</c> is one slip away from an
+    /// operation that deletes or overwrites a tree.
+    ///
+    /// The separator is part of the comparison on purpose:
+    /// <c>Knight.lbproj-old</c> starts with <c>Knight.lbproj</c>, so a plain
+    /// prefix test would call a sibling project "inside".
+    /// </remarks>
+    public static string? ResolveInProject(Project project, string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return null;
+        if (string.IsNullOrEmpty(project.Root)) return null;
+
+        var root = Path.GetFullPath(project.Root);
+        var full = Path.GetFullPath(Path.Combine(
+            root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+
+        var inside = full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+        return inside && full != root ? full : null;
+    }
+
+    /// <summary>
+    /// Move a file or folder inside the project. True when it moved, or when
+    /// there was nothing there to move.
+    /// </summary>
+    /// <remarks>
+    /// <b>B64.</b> A rename that only changes the manifest leaves a file called
+    /// the old thing on disk, which is half a rename and the more confusing
+    /// half — the panel and the folder disagree, and the artist believes the
+    /// panel until they open a file manager.
+    ///
+    /// **Nothing to move is a success.** A document created and renamed before
+    /// its first save has no file yet, and refusing that would make the rename
+    /// fail for the most ordinary case there is.
+    ///
+    /// <b>A project with no root on disk is the same case, one level up</b>
+    /// (B106). <c>ProjectIo.Create</c> builds a project in memory and nothing is
+    /// written until <see cref="Save"/>, so every path in it is a path that does
+    /// not exist yet. Refusing there would make moving a document fail for a
+    /// project that has never been saved — the state every new project is in for
+    /// its first few minutes. A path that leaves the project is still refused;
+    /// that is a different question and <see cref="ResolveInProject"/> answers it.
+    /// </remarks>
+    public static bool MoveInProject(Project project, string fromRelative, string toRelative)
+    {
+        if (string.IsNullOrEmpty(project.Root)) return true;
+        if (ResolveInProject(project, fromRelative) is not { } from) return false;
+        if (ResolveInProject(project, toRelative) is not { } to) return false;
+        if (string.Equals(from, to, StringComparison.Ordinal)) return true;
+
+        var isFile = File.Exists(from);
+        var isDirectory = Directory.Exists(from);
+        if (!isFile && !isDirectory) return true;
+        // Never silently write over somebody's work.
+        if (File.Exists(to) || Directory.Exists(to)) return false;
+
+        try
+        {
+            if (Path.GetDirectoryName(to) is { Length: > 0 } parent) Directory.CreateDirectory(parent);
+            if (isFile) File.Move(from, to);
+            else Directory.Move(from, to);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    // ---- what a project folder may contain (B83) ------------------------------
+
+    /// <summary>
+    /// Top-level directory names Lightbox itself owns.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B83.</b> The report asked that "every top folder created in the
+    /// project folder should be included in Project.lbproj", and the useful
+    /// reading of that is <em>accountability</em>: nothing appears at the top
+    /// of a project that the manifest cannot explain. It is what would have
+    /// caught the original defect, which was <c>characters/</c> and
+    /// <c>scenes/</c> arriving unasked.
+    /// </para>
+    /// <para>
+    /// Declared here rather than listed in <c>Folders</c>, which was the other
+    /// reading. Putting them in the artist's tree would make <c>palettes</c> a
+    /// row that can be renamed, dragged and deleted like any other, and every
+    /// operation would need a "system" flag to refuse — a lot of special-casing
+    /// to express "Lightbox owns this name".
+    /// </para>
+    /// <para>
+    /// Each is created on demand and none is a default: a new project has
+    /// <c>palettes</c> and, if a drawing was adopted, <c>documents</c>. The rest
+    /// appear when the artist makes the thing that needs them.
+    /// </para>
+    /// </remarks>
+    public static readonly IReadOnlySet<string> SystemFolders = new HashSet<string>(
+        [
+            CharactersDir, DocumentsDir, LegacyDocumentsDir, ScenesDir,
+            "palettes", "gradients", "assets", ".autosave",
+        ],
+        StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Top-level directories the manifest cannot explain. Empty is the promise.
+    /// </summary>
+    /// <remarks>
+    /// A folder is explained when Lightbox owns the name or when the artist made
+    /// it and it is in <c>Folders</c>. Anything else is either a bug that
+    /// invented a directory or something a person dropped in by hand — and the
+    /// first of those is exactly what B83 reported.
+    /// </remarks>
+    public static IReadOnlyList<string> UnaccountedFolders(Project project)
+    {
+        if (string.IsNullOrEmpty(project.Root) || !Directory.Exists(project.Root)) return [];
+
+        var mine = ProjectFolders.ChildrenOf(project.Manifest, null)
+            .Select(f => Slug(f.Name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return Directory.EnumerateDirectories(project.Root)
+            .Select(Path.GetFileName)
+            .OfType<string>()
+            .Where(name => !SystemFolders.Contains(name) && !mine.Contains(name))
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }

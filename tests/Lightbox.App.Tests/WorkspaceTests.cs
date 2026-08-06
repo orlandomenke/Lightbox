@@ -18,6 +18,31 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public sealed class WorkspaceTests : BrushStateIsolated
 {
+    /// <summary>
+    /// A character called Knight owning the adopted document.
+    /// </summary>
+    /// <remarks>
+    /// <b>B83/B84.</b> <c>NewProject</c> used to invent this character from the
+    /// project's own name, which put the artist's first drawing at
+    /// <c>characters/knight/animations/</c> and created two folders nobody asked
+    /// for. These tests are about the menus rather than about that invention, so
+    /// they now ask for the arrangement they always assumed.
+    /// </remarks>
+    private static void WithKnight(MainViewModel vm)
+    {
+        var project = vm.ProjectDocker.Project!;
+        var knight = Lightbox.Core.Projects.ProjectIo.AddCharacter(project, "Knight");
+        foreach (var adopted in project.Manifest.Documents.ToList())
+        {
+            Lightbox.Core.Projects.ProjectIo.MoveDocument(project, adopted, knight);
+        }
+        vm.SaveProject(everything: true);
+        vm.ProjectDocker.Refresh();
+        // Selected, because "add an animation" with nothing selected invents a
+        // character to hang it on — and these tests count characters.
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.IsCharacter);
+    }
+
     private static (MainWindow Window, MainViewModel Vm) Open()
     {
         var window = new MainWindow();
@@ -201,6 +226,7 @@ public sealed class WorkspaceTests : BrushStateIsolated
         {
             var (w, vm) = Open();
             vm.NewProject(root, "Knight");
+            WithKnight(vm);
             vm.Save();
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
@@ -215,8 +241,14 @@ public sealed class WorkspaceTests : BrushStateIsolated
             flyout.Hide();
 
             Assert.Equal(
+                // B87 added "Delete permanently…" beside "Remove from project".
+                // This flyout is written out in XAML, so this assertion is what
+                // proves a new entry actually reached the menu.
+                // Q30 added "Share a palette here", beside the other actions
+                // that are about where a thing sits rather than what it is.
                 ["Open", "Open with default app…", "Show in file manager", "Copy path",
-                 "Duplicate", "Rename…", "Remove from project", "Status"],
+                 "Duplicate", "Rename…", "Share a palette here", "Remove from project",
+                 "Delete permanently…", "Status"],
                 items.Select(i => i.Header?.ToString()).ToList());
 
             vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
@@ -278,6 +310,7 @@ public sealed class WorkspaceTests : BrushStateIsolated
         {
             var (w, vm) = Open();
             vm.NewProject(root, "Knight");
+            WithKnight(vm);
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
             var button = w.GetVisualDescendants().OfType<Button>()
@@ -288,7 +321,16 @@ public sealed class WorkspaceTests : BrushStateIsolated
             var items = flyout.Items.OfType<MenuItem>().ToList();
             flyout.Hide();
 
-            Assert.Equal(["Animation", "Character", "Scene", "Shot", "Document"],
+            // B86. The flyout is written out in XAML rather than generated, so
+            // this is the check that a new kind actually reached the menu — a
+            // create kind the artist cannot click is not reachable at all.
+            //
+            // B63 added the glyphs and the grouping, and the headers carry them:
+            // the menu has to say which entries are containers, and saying it in
+            // a tooltip nobody hovers is not saying it.
+            Assert.Equal(
+                ["🗀  Folder", "🗀  Character", "🗀  Scene",
+                 "▣  Animation", "▣  Shot", "▣  Document"],
                 items.Select(i => i.Header?.ToString()).ToList());
 
             // Every entry is wired to a handler. Clicking used to be assertable

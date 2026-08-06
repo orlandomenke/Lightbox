@@ -429,20 +429,43 @@ public sealed partial class MainViewModel : ObservableObject
         if (value.Editor == _editor) return;
 
         _switchingTabs = true;
-        if (Tabs.FirstOrDefault(t => t.Editor == _editor) is { } leaving)
+        var leaving = Tabs.FirstOrDefault(t => t.Editor == _editor);
+        if (leaving is not null)
         {
-            leaving.SavedFrameIndex = CurrentFrameIndex;
-            leaving.SavedLayerIndex = ActiveLayerIndex;
+            leaving.State.FrameIndex = CurrentFrameIndex;
+            leaving.State.LayerIndex = ActiveLayerIndex;
+            leaving.State.ReferenceIndex = ActiveReferenceIndex;
         }
         AttachEditor(value.Editor);
         // B56, and note that the line below it already had the guard: a document with no layers
         // is loadable, `Clamp(0, 0, -1)` throws, and the frame clamp beside this one was written
         // defensively while the layer clamp was not.
-        ActiveLayerIndex = Math.Clamp(value.SavedLayerIndex, 0, Math.Max(0, Scene.Layers.Count - 1));
-        CurrentFrameIndex = Math.Clamp(value.SavedFrameIndex, 0, Math.Max(0, Scene.FrameCount - 1));
+        ActiveLayerIndex = Math.Clamp(value.State.LayerIndex, 0, Math.Max(0, Scene.Layers.Count - 1));
+        CurrentFrameIndex = Math.Clamp(value.State.FrameIndex, 0, Math.Max(0, Scene.FrameCount - 1));
+        // B67. Not clamped, because the index is already bounds-checked where it
+        // is read and an out-of-range value means "this document has fewer
+        // strips than that one did" rather than an error to repair.
+        ActiveReferenceIndex = value.State.ReferenceIndex;
         RecallDocumentBrush();
         _switchingTabs = false;
+        // After the switch, so a handler asking the view model anything sees the
+        // arriving document rather than a half-swapped one. The canvas framing
+        // rides on this: it is view-only state (invariant 5) and belongs to the
+        // window, which is the only thing that owns a CanvasControl.
+        TabSwitched?.Invoke(leaving, value);
     }
+
+    /// <summary>
+    /// A different document became active: <c>(leaving, arriving)</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>B67.</b> Exists because the canvas framing is per document and the
+    /// view model must not know what a canvas is. Both tabs are handed over
+    /// because a subscriber has to put something down before it picks the next
+    /// one up, and by the time <c>PropertyChanged</c> fires for
+    /// <see cref="ActiveTab"/> the tab being left has already been forgotten.
+    /// </remarks>
+    public event Action<DocumentTab?, DocumentTab>? TabSwitched;
 
     // ---- whose brush is it (Q9) -------------------------------------------------
 
@@ -592,8 +615,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// and pressing the default button must not leave two tabs, one of which
     /// you never asked for.
     /// </remarks>
+    /// <remarks>
+    /// <b>B99</b> split this question in two. "Untouched" means *nothing was
+    /// drawn*, which is <see cref="DocumentTab.HasWorkToLose"/>; it is no longer
+    /// <c>IsDirty</c>, because a never-saved document badges from the moment it
+    /// exists and would make every blank document look touched.
+    /// </remarks>
     public bool OnlyAnUntouchedBlankDocument =>
-        Tabs.Count == 1 && Tabs[0].FilePath is null && !Tabs[0].IsDirty;
+        Tabs.Count == 1 && Tabs[0].FilePath is null && !Tabs[0].HasWorkToLose;
 
     public void NewDocument(NewDocumentSettings settings) => NewDocument(settings, reuseBlank: false);
 
@@ -616,12 +645,11 @@ public sealed partial class MainViewModel : ObservableObject
         doc.Scene.Ppi = settings.Ppi;
         doc.Scene.BackgroundColor = settings.BackgroundColor;
         doc.Scene.TransparentBackground = settings.TransparentBackground;
-        AddTab(new DocumentTab(new DocumentEditor(doc), settings.Name)
-        {
-            // Land on something paintable. The paper is layer 0 and locked, so
-            // selecting it would make the very first stroke bounce.
-            SavedLayerIndex = FirstPaintableLayer(doc),
-        });
+        var fresh = new DocumentTab(new DocumentEditor(doc), settings.Name);
+        // Land on something paintable. The paper is layer 0 and locked, so
+        // selecting it would make the very first stroke bounce.
+        fresh.State.LayerIndex = FirstPaintableLayer(doc);
+        AddTab(fresh);
         // The kind of work chosen at creation is a reason to offer that kind's
         // panels — offered, not imposed, which is why it is a choice on the
         // dialog and defaults to leaving the arrangement alone.
@@ -645,13 +673,19 @@ public sealed partial class MainViewModel : ObservableObject
         var tab = Tabs[0];
         tab.Editor = new DocumentEditor(doc) { MaxUndo = tab.Editor.MaxUndo };
         tab.Title = settings.Name;
-        tab.SavedLayerIndex = FirstPaintableLayer(doc);
+        tab.State.LayerIndex = FirstPaintableLayer(doc);
+        // B67. A different document in the same tab, so the framing the blank
+        // one was left at is not this one's. Same reasoning as the tab switch —
+        // it is the *document* the view belongs to, not the slot.
+        tab.State.View = null;
         // Attached directly, not through ActivateTab: the tab is already the
         // active one, so the property setter sees no change and the view model
         // would keep pointing at the editor that was just replaced.
         AttachEditor(tab.Editor);
         ActiveLayerIndex = FirstPaintableLayer(doc);
         CurrentFrameIndex = 0;
+        // Nothing to put down — the record it belonged to is gone.
+        TabSwitched?.Invoke(null, tab);
         if (settings.Workspace == WorkspaceChoice.ProjectDefaults)
         {
             Workspace.UseDefaultFor(settings.ProjectType);
@@ -675,11 +709,15 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var project = ProjectIo.Create(name, root);
         project.Manifest.Type = type;
-        var character = ProjectIo.AddCharacter(project, name);
 
         if (SaveTargetTab is { } tab)
         {
-            var reference = ProjectIo.AddAnimation(project, character, tab.Title, tab.Doc);
+            // B83/B84. A project-level document, not an animation of an invented
+            // character. Creating one named after the project put the artist's
+            // first drawing at `characters/<project>/animations/…` and left a
+            // folder called "project" inside "characters" — which is what B84
+            // reports, and the two unrequested folders B83 counts.
+            var reference = ProjectIo.AddDocument(project, tab.Title, tab.Doc);
             tab.Source = reference;
             // The document's palettes and gradients become the project's:
             // shared is the whole reason the container exists.
@@ -734,7 +772,10 @@ public sealed partial class MainViewModel : ObservableObject
             ProjectDocker.MarkAllSaved();
             foreach (var tab in Tabs)
             {
-                if (tab.Source is not null) tab.IsDirty = false;
+                // B99. A tab with no Source is not in the project, so a project
+                // save does not write it and must not claim to have. It keeps
+                // its badge, which is now the truth rather than a stale flag.
+                if (tab.Source is not null) tab.MarkSaved();
             }
             AiStatus = $"Saved “{project.Name}”.";
         }
@@ -762,7 +803,11 @@ public sealed partial class MainViewModel : ObservableObject
         set
         {
             if (SaveTargetTab is not { } tab || tab.Doc.IsTemplateDocument == value) return;
-            Core.Projects.Templates.SetTemplate(tab.Doc, value);
+            // B98. Through the editor, not around it. Dirtiness is now derived
+            // from the edit record, so a mutation that bypasses it changes the
+            // document without the badge noticing — the opposite failure to the
+            // one B98 fixes, and the more dangerous of the two.
+            tab.Editor.Perform(doc => Core.Projects.Templates.SetTemplate(doc, value));
             MarkDocumentEdited();
             OnPropertyChanged(nameof(IsActiveDocumentTemplate));
             OnPropertyChanged(nameof(TemplateLabel));
@@ -887,7 +932,7 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             DocJson.Save(tab.Doc, path);
-            tab.IsDirty = false;
+            tab.MarkSaved();
             AiStatus = $"Saved {System.IO.Path.GetFileName(path)}.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -911,7 +956,11 @@ public sealed partial class MainViewModel : ObservableObject
     public void OpenDocumentTab(Doc doc, string? filePath)
     {
         var title = filePath is null ? NextUntitledName() : TitleFromPath(filePath);
-        AddTab(new DocumentTab(new DocumentEditor(doc), title) { FilePath = filePath });
+        var tab = new DocumentTab(new DocumentEditor(doc), title) { FilePath = filePath };
+        // B99. Opened from disk means it *is* what is on disk — without this it
+        // would inherit the never-saved default and badge a file nobody touched.
+        if (filePath is not null) tab.MarkSaved();
+        AddTab(tab);
         if (filePath is not null) Remember(filePath, RecentKind.Document);
     }
 
@@ -1007,7 +1056,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (SaveTargetTab is not { } tab) return;
         tab.FilePath = filePath;
         tab.Title = TitleFromPath(filePath);
-        tab.IsDirty = false;
+        tab.MarkSaved();
         Remember(filePath, RecentKind.Document);
     }
 
@@ -1049,7 +1098,11 @@ public sealed partial class MainViewModel : ObservableObject
                 // Undo/redo replaces the wrapper doc's layer list; keep the
                 // owning document's view pointed at whatever the editor holds.
                 if (tab.View is { } view) view.Layers = Doc.Scene.Layers;
-                if (tab.Owner is { } owner) owner.IsDirty = true;
+                // The edit belongs to the owning document. B95: refresh this
+                // tab too, so the sheet an artist is looking at shows the badge
+                // rather than making them go and find the parent.
+                if (tab.Owner is { } owner) owner.RefreshDirty();
+                tab.RefreshDirty();
                 break;
 
             case DocumentTabKind.Symbol:
@@ -1061,7 +1114,11 @@ public sealed partial class MainViewModel : ObservableObject
                 break;
 
             default:
-                tab.IsDirty = true;
+                // B98. Not "this is now dirty" — "look again at whether it is".
+                // The edit that got us here already moved the editor's revision
+                // if it changed anything, and if it did not, nothing should
+                // change here either.
+                tab.RefreshDirty();
                 break;
         }
         RebakeLiveSamples();
@@ -1209,8 +1266,11 @@ public sealed partial class MainViewModel : ObservableObject
                 ? $"Character {target.Doc.ReferenceSheets.Count + 1}"
                 : name.Trim(),
         };
-        target.Doc.ReferenceSheets.Add(sheet);
-        target.IsDirty = true;
+        // B98. Through the editor rather than around it, so adding a sheet is
+        // one undoable step and moves the revision — which is what raises the
+        // badge now. Mutating the list directly left the badge to be asserted
+        // by hand, and an add that could not be undone.
+        target.Editor.Perform(doc => doc.ReferenceSheets.Add(sheet));
         MarkDocumentEdited();
         OnPropertyChanged(nameof(ReferenceSheetsView));
 
@@ -1226,20 +1286,30 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var target = SaveTargetTab ?? Tabs[0];
         var view = ReferenceView.Create($"view {sheet.Views.Count + 1}", Scene.Width, Scene.Height);
-        sheet.Views.Add(view);
-        target.IsDirty = true;
+        target.Editor.Perform(_ => sheet.Views.Add(view));
         MarkDocumentEdited();
         OnPropertyChanged(nameof(ReferenceSheetsView));
         OpenReferenceView(view);
     }
 
-    /// <summary>A sheet or view was renamed in the docker.</summary>
-    public void MarkReferenceEdited()
+    /// <summary>A sheet or view really was renamed in the docker.</summary>
+    /// <remarks>
+    /// <b>B95.</b> This used to be called from a <c>LostFocus</c> handler and to
+    /// mark the document dirty unconditionally, so clicking into a name box and
+    /// out again — typing nothing — raised the badge. Every other rename handler
+    /// in the window guards; this one did not. The caller now compares the text
+    /// and only calls when it actually changed, and the mark goes through the
+    /// editor so the rename is undoable like any other edit.
+    /// </remarks>
+    public void MarkReferenceRenamed()
     {
-        if (SaveTargetTab is { } tab) tab.IsDirty = true;
-        _autosave.MarkDirty();
+        if (SaveTargetTab is { } tab) tab.Editor.Perform(_ => { });
+        MarkDocumentEdited();
         OnPropertyChanged(nameof(ReferenceSheetsView));
     }
+
+    /// <summary>Redraw the sheet list without claiming anything changed.</summary>
+    public void RefreshReferenceList() => OnPropertyChanged(nameof(ReferenceSheetsView));
 
     /// <summary>Open (or focus) the tab editing a character-sheet view.</summary>
     public void OpenReferenceView(ReferenceView view)
@@ -1264,12 +1334,17 @@ public sealed partial class MainViewModel : ObservableObject
                 Layers = view.Layers,
             },
         };
-        AddTab(new DocumentTab(new DocumentEditor(wrapper), $"{sheet?.Name ?? "Sheet"} / {view.Name}")
+        var referenceTab = new DocumentTab(new DocumentEditor(wrapper), $"{sheet?.Name ?? "Sheet"} / {view.Name}")
         {
             Kind = DocumentTabKind.Reference,
             Owner = owner,
             View = view,
-        });
+        };
+        // B98. The owner has to know about the view, because a stroke drawn here
+        // moves *this* editor's revision while landing in the owner's document —
+        // without the registration the owner never notices it was changed.
+        owner?.Views.Add(referenceTab);
+        AddTab(referenceTab);
     }
 
     /// <summary>Flatten one character-sheet view to PNG (for AI reference and MCP).</summary>
@@ -1437,6 +1512,7 @@ public sealed partial class MainViewModel : ObservableObject
         // a reference to another, and the stroke would jump the moment anyone
         // touched the palette.
         ActiveSwatchId = null;
+        ActivePaletteId = null;
     }
 
     /// <summary>
@@ -1458,6 +1534,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public string? ActiveSwatchId { get; private set; }
 
+    /// <summary>Which palette <see cref="ActiveSwatchId"/> came from — Q30 step 2.</summary>
+    public string? ActivePaletteId { get; private set; }
+
     private bool _settingColorFromSwatch;
 
     /// <summary>The swatch and the colour it held when the current edit run began.</summary>
@@ -1476,6 +1555,10 @@ public sealed partial class MainViewModel : ObservableObject
             _settingColorFromSwatch = false;
         }
         ActiveSwatchId = swatchId;
+        // Q30 step 2: which palette, not just which swatch. Two palettes
+        // duplicated from one another share swatch ids, so a bare id stops
+        // being an answer the moment palettes are scoped.
+        ActivePaletteId = PaletteRegistry.PaletteOf(swatchId);
     }
 
     /// <summary>A structural palette edit — one undo step, then a full resync.</summary>
@@ -1516,9 +1599,30 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.PerformDelta(d => SetSwatchColor(d, id, after), d => SetSwatchColor(d, id, before));
     }
 
-    private static void SetSwatchColor(Doc doc, string swatchId, string color)
+    /// <summary>
+    /// Set a swatch wherever it actually lives — this document, or the project.
+    /// </summary>
+    /// <remarks>
+    /// <b>B103.</b> This walked <c>doc.Palettes</c> alone, which does not contain
+    /// a <em>project</em> palette's swatches. Editing looked correct because the
+    /// drag mutates the <c>Swatch</c> instance in place and the registry holds
+    /// that instance; only undo revealed that the recorded step and the object
+    /// had parted company, and undoing a project recolour appeared to do nothing.
+    /// </remarks>
+    private void SetSwatchColor(Doc doc, string swatchId, string color)
     {
+        var found = false;
         foreach (var palette in doc.Palettes)
+        {
+            foreach (var swatch in palette.Swatches)
+            {
+                if (swatch.Id != swatchId) continue;
+                swatch.Color = color;
+                found = true;
+            }
+        }
+        if (found || ProjectDocker.Project is not { } project) return;
+        foreach (var palette in project.Palettes)
         {
             foreach (var swatch in palette.Swatches)
             {
@@ -1536,7 +1640,16 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private void RepaintForSwatch(string swatchId)
     {
-        foreach (var layer in Scene.Layers)
+        // B102. Every open document, not just the active one. A shared palette
+        // is precisely what a *set* of documents paint from — that is the whole
+        // feature — so two of a character's animations being open at once is the
+        // ordinary case rather than the edge, and repainting only the focused
+        // tab leaves the other showing the old colour from cache.
+        //
+        // Still only the frames that hold a stroke referencing the swatch:
+        // walking the stroke record stays far cheaper than re-rendering frames
+        // whose pixels cannot have moved, and a wheel drag does this per event.
+        foreach (var layer in Tabs.SelectMany(t => t.Doc.Scene.Layers))
         {
             foreach (var cel in layer.Cels)
             {
@@ -1695,11 +1808,9 @@ public sealed partial class MainViewModel : ObservableObject
             ActiveTab = already;
             return;
         }
-        AddTab(new DocumentTab(new DocumentEditor(doc), reference.Name)
-        {
-            Source = reference,
-            SavedLayerIndex = FirstPaintableLayer(doc),
-        });
+        var opened = new DocumentTab(new DocumentEditor(doc), reference.Name) { Source = reference };
+        opened.State.LayerIndex = FirstPaintableLayer(doc);
+        AddTab(opened);
     }
 
     /// <summary>
@@ -1717,6 +1828,12 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public void RefreshProjectResources() => RegisterResources();
 
+    /// <summary>Whether a frame's render is still cached — B102's test probe.</summary>
+    internal bool IsFrameCached(string frameId) => _cache.Holds(frameId);
+
+    /// <summary>Paint from a palette swatch, as picking one in the panel does.</summary>
+    internal void PickSwatchForTest(string swatchId) => PaintWithSwatch(swatchId);
+
     private void RegisterResources()
     {
         // Imported textures come in with everything else the document carries,
@@ -1730,8 +1847,29 @@ public sealed partial class MainViewModel : ObservableObject
         {
             // Document first, project second, so a document's own copy of a
             // swatch id loses to the project's — the shared one is the live one.
-            palettes = palettes.Concat(project.Palettes);
-            foreach (var (id, gradient) in project.Gradients) gradients[id] = gradient;
+            //
+            // Q30 step 2: only the project palettes this document can actually
+            // see. Until now every palette went in for every document, which
+            // reads as working until a project has two characters and the
+            // goblin's reds turn up in the knight's picker. A project that
+            // declares no scopes still gets everything — that is the
+            // new-projects-only migration, at the one place a reader can tell
+            // the two shapes apart.
+            var visible = PaletteScopes.VisibleTo(
+                project.Manifest, (SaveTargetTab ?? ActiveTab)?.Source);
+            palettes = palettes.Concat(
+                visible is null
+                    ? project.Palettes
+                    : project.Palettes.Where(p => visible.Contains(p.Id)));
+            // Q30 step 4: the same scoping palettes got, for the same reason —
+            // a gradient made for the knight's shield has no business in the
+            // goblin's picker. Null still means the project scopes none.
+            var visibleGradients = GradientScopes.VisibleTo(
+                project.Manifest, (SaveTargetTab ?? ActiveTab)?.Source);
+            foreach (var (id, gradient) in project.Gradients)
+            {
+                if (visibleGradients is null || visibleGradients.Contains(id)) gradients[id] = gradient;
+            }
         }
         var resolved = palettes.ToList();
         PaletteRegistry.Reset(resolved, gradients);
@@ -2152,21 +2290,35 @@ public sealed partial class MainViewModel : ObservableObject
     public bool ShowsEffectOptions => IsBrushTool && IsEffectBrush;
 
     /// <summary>
-    /// How hard the effect bites, in the term each tool uses for it: how far
-    /// colour travels for a smudge, how much softening for a blur.
+    /// How hard the effect bites: <see cref="BrushSettings.Flow"/>, for every
+    /// effect brush.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B90.</b> This used to read and write <see cref="BrushSmudgeLength"/>
+    /// for a smudge and label itself "Length", which put a *drag distance* under
+    /// the artist's strength affordance and left the knob that actually decides
+    /// how hard each dab pulls — flow, the <c>strength</c> argument
+    /// <c>BrushEngine.StampSmudge</c> hands to <c>LerpDab</c> — unreachable from
+    /// the bar entirely. `docs/manual/04-brushes.md` already described the
+    /// behaviour this now has, so the app was the half that was wrong.
+    /// </para>
+    /// <para>
+    /// Smudge length is not lost and is not diminished: it keeps its own labelled
+    /// row on the ⚙ → Effects page beside smearing/dulling and radius, which is
+    /// where a value you set once per brush belongs. The bar carries the three
+    /// you reach for mid-stroke.
+    /// </para>
+    /// </remarks>
     public double EffectStrength
     {
-        get => IsSmudgeBrush ? BrushSmudgeLength : BrushFlow;
+        get => BrushFlow;
         set
         {
-            if (IsSmudgeBrush) BrushSmudgeLength = value;
-            else BrushFlow = Math.Clamp(value, 0.01, 1);
+            BrushFlow = value;
             OnPropertyChanged();
         }
     }
-
-    public string EffectStrengthLabel => IsSmudgeBrush ? "Length" : "Strength";
 
     public SmudgeMode BrushSmudgeMode
     {
@@ -2585,7 +2737,7 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(BrushSecondaryColor), nameof(BrushColorJitter), nameof(BrushHueJitter),
         nameof(BrushSaturationJitter), nameof(BrushBrightnessJitter),
         nameof(IsSmudgeBrush), nameof(IsEffectBrush), nameof(ShowsEffectOptions), nameof(EffectStrength),
-        nameof(EffectStrengthLabel), nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
+        nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
         nameof(BrushSmudgeRadius), nameof(BrushColorRate),
         nameof(BrushMedium), nameof(MediumIsSimulated), nameof(MediumHasBody),
         nameof(MediumWetness), nameof(MediumViscosity), nameof(MediumDrag), nameof(MediumFlowSteps),
@@ -3317,6 +3469,7 @@ public sealed partial class MainViewModel : ObservableObject
             Tool = ToolKind.Fill,
             Color = ColorHex,
             SwatchId = ActiveSwatchId,
+            PaletteId = ActivePaletteId,
             Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
             Points = [.. _selectionContours[0]],
             Holes = _selectionContours.Count > 1
@@ -3401,6 +3554,7 @@ public sealed partial class MainViewModel : ObservableObject
                 Tool = ToolKind.Fill,
                 Color = ColorHex,
                 SwatchId = ActiveSwatchId,
+                PaletteId = ActivePaletteId,
                 Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
                 Points = result.Outer,
                 Holes = result.Holes.Count > 0 ? result.Holes : null,
@@ -4511,6 +4665,30 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>How many effect dabs are already on the composite and must not be drawn again.</summary>
     private int _liveEffectSettled;
+
+    /// <summary>
+    /// What the smudge was carrying at dab <see cref="_liveEffectSettled"/>, so a resumed range
+    /// starts where a single pass would have (B69/B89).
+    /// </summary>
+    /// <remarks>
+    /// The blur needs no equivalent: its dabs read the pre-stroke pixels and are independent of one
+    /// another. A smudge's are a chain, and this is the one link that has to survive between pointer
+    /// events. It is two values, so checkpointing it every event costs nothing.
+    /// </remarks>
+    private BrushEngine.SmudgeCarry _liveSmudgeCarry;
+
+    /// <summary>
+    /// The composite's pixels under the provisional smudge tail, before it was stamped.
+    /// </summary>
+    /// <remarks>
+    /// The same lend-and-take-back the paint scratch does in <see cref="StampLiveDabs"/>, for the
+    /// same reason and with one extra: a smudge <em>reads</em> the bitmap it writes, so re-stamping
+    /// an unsettled dab over its own previous deposit compounds the smear rather than replacing it.
+    /// Restoring first is what makes the replayed range see what a single pass would have seen.
+    /// </remarks>
+    private SKBitmap? _liveSmudgeBackup;
+    private SKRectI? _liveSmudgeRegion;
+
     private bool _snapshotQueued;
 
     // ---- live post-processing (medium, wet edge, texture, granulation) --------
@@ -4673,6 +4851,8 @@ public sealed partial class MainViewModel : ObservableObject
         _liveDabs = null;
         _liveEffectDabs = null;
         _liveEffectSettled = 0;
+        _liveSmudgeCarry = default;
+        _liveSmudgeRegion = null;
         FlushLivePreview();
         PublishSnapshot();
     }
@@ -4934,6 +5114,7 @@ public sealed partial class MainViewModel : ObservableObject
             Tool = IsEraser ? ToolKind.Eraser : ToolKind.Brush,
             Color = ColorHex,
             SwatchId = ActiveSwatchId,
+            PaletteId = ActivePaletteId,
             Brush = CurrentToolSettings.Clone(),
             Points = ShapeBuilder.Outline(ActiveShape, x, y, x, y, sides: PolygonSides),
             AlphaLocked = ActiveLayer.AlphaLocked,
@@ -5037,6 +5218,7 @@ public sealed partial class MainViewModel : ObservableObject
             Tool = ToolKind.Brush,
             Color = stroke.Color,
             SwatchId = stroke.SwatchId,
+            PaletteId = stroke.PaletteId,
             ClipId = stroke.ClipId,
             Brush = stroke.Brush.Clone(),
             Points = [.. stroke.Points],
@@ -5155,27 +5337,26 @@ public sealed partial class MainViewModel : ObservableObject
             // ones left, which is how a smear travels at all — the committed
             // path gives it the very bitmap it is writing, and the draft has to
             // match or the preview stops matching the commit.
-            var readFrom = live.Brush.Kind == BrushKind.Blur ? _liveEffectBase : null;
+            // The whole stroke, walked with the shared densify cache, so the dabs land where the
+            // commit will put them — a per-segment walk restarts the spacing phase and Densify sees
+            // two points, which was 1148 px of over-coverage on the blur (B54) and the same defect
+            // on the smudge (B69/B89). Only the dabs that are not settled yet are stamped.
+            var walk = BrushEngine.WalkDabs(live, _liveDensify);
+            var settled = BrushEngine.StableCount(walk, _liveEffectDabs);
+
             if (live.Brush.Kind == BrushKind.Blur)
             {
-                // B54: the whole stroke, walked with the shared densify cache, so the dabs land
-                // where the commit will put them — a per-segment walk restarts the spacing phase
-                // and Densify sees two points, which was 1148 px of over-coverage. Only the dabs
-                // that are not settled yet are stamped, so nothing is drawn twice except the
-                // provisional tail, and that gets the pre-stroke pixels restored under it.
-                var walk = BrushEngine.WalkDabs(live, _liveDensify);
-                FrameRasterizer.AppendDraft(_liveComposite, live, readFrom, walk, _liveEffectSettled);
-                _liveEffectSettled = BrushEngine.StableCount(walk, _liveEffectDabs);
-                _liveEffectDabs = walk;
+                // A blur's dabs are independent — each reads the pre-stroke pixels — so the range
+                // is all it needs, and StampBlurDraft restores under the tail itself.
+                FrameRasterizer.AppendDraft(_liveComposite, live, _liveEffectBase, walk, _liveEffectSettled);
             }
             else
             {
-                // Smudge carries its colour from dab to dab and reads the bitmap it is writing, so
-                // it cannot be replayed from a settled index the way a blur can. Left on the
-                // segment feed deliberately; its own live-versus-commit fidelity is a separate
-                // question from B54, which was filed against the blur.
-                FrameRasterizer.AppendDraft(_liveComposite, tail, readFrom);
+                StampLiveSmudge(live, walk, settled);
             }
+
+            _liveEffectSettled = settled;
+            _liveEffectDabs = walk;
         }
         else if (_liveScratchCanvas is not null)
         {
@@ -5198,6 +5379,110 @@ public sealed partial class MainViewModel : ObservableObject
         _liveStampedCount = points.Count;
 
         if (_liveComposite is null && NeedsLivePostProcess(live.Brush)) RequestLivePostProcess();
+    }
+
+    /// <summary>
+    /// Bring the smudge composite up to date: settled dabs permanently, the provisional tail on
+    /// loan, and the carried colour checkpointed at the boundary between them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B69/B89.</b> This used to be a per-segment <c>AppendDraft</c>, which restarted the dab
+    /// walk's spacing phase, the carried colour and the heading on every pointer event, and
+    /// re-smeared the one-point overlap where segments join. All four differences appeared at once
+    /// when the pen lifted and the whole stroke was re-rendered from the record.
+    /// </para>
+    /// <para>
+    /// The three steps are ordered exactly as <see cref="StampLiveDabs"/>'s are, and for the same
+    /// reason — dabs have to reach the surface in index order for the accumulation to match a
+    /// single pass. Take back the old tail, extend the settled prefix, lend the new tail.
+    /// </para>
+    /// <para>
+    /// <b>Why this is exact rather than merely closer.</b> After the restore the composite holds
+    /// precisely "pre-stroke pixels + dabs 0..settled-1", and <see cref="_liveSmudgeCarry"/> is the
+    /// colour a single pass would be carrying at that index. Replaying the rest is then the same
+    /// sequence the commit runs. Reads that reach outside the restored region — a smudge samples up
+    /// to <c>radius × SmudgeRadius</c> away — can only touch settled pixels, which are already
+    /// final.
+    /// </para>
+    /// <para>
+    /// <b>And why not simply replay every dab each event</b>, which is exact by construction: the
+    /// blur measured that at 194 ms an event by the 300th point against 20.8 ms for the settled
+    /// range, and <c>LerpDab</c> is a per-pixel loop with the same shape of cost. Invariant 6 says
+    /// no.
+    /// </para>
+    /// </remarks>
+    private void StampLiveSmudge(Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, int settled)
+    {
+        if (_liveComposite is not { } composite) return;
+        var info = new SKImageInfo(
+            composite.Width, composite.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var canvas = new SKCanvas(composite);
+
+        // 1. Take back the tail lent out last time, so the composite is the settled prefix again.
+        //    Only the part of the buffer that tail used — the backup is sized to the largest seen,
+        //    so drawing all of it would scale a bigger image into a smaller rect.
+        if (_liveSmudgeRegion is { } lent && _liveSmudgeBackup is not null)
+        {
+            using var restore = SKImage.FromBitmap(_liveSmudgeBackup);
+            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+            canvas.DrawImage(
+                restore,
+                new SKRect(0, 0, lent.Width, lent.Height),
+                new SKRect(lent.Left, lent.Top, lent.Right, lent.Bottom),
+                src);
+            canvas.Flush();
+            _liveSmudgeRegion = null;
+        }
+
+        // 2. Everything whose position has stopped moving, permanently — and the carry it ends on
+        //    becomes the checkpoint the next event resumes from.
+        if (settled > _liveEffectSettled)
+        {
+            _liveSmudgeCarry = BrushEngine.StampSmudgeRange(
+                canvas, composite, live, dabs, _liveEffectSettled, settled, _liveSmudgeCarry);
+        }
+
+        // 3. The rest on loan, so the smear reaches the pen tip. Backed up first, because a smudge
+        //    reads what it writes: re-stamping these next event without taking them back would
+        //    compound the smear instead of replacing it.
+        if (BrushEngine.RangeBounds(dabs, settled, live.Brush, info) is { } tail)
+        {
+            canvas.Flush();
+            if (_liveSmudgeBackup is null
+                || _liveSmudgeBackup.Width < tail.Width || _liveSmudgeBackup.Height < tail.Height)
+            {
+                _liveSmudgeBackup?.Dispose();
+                _liveSmudgeBackup = new SKBitmap(new SKImageInfo(
+                    Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
+                    SKColorType.Rgba8888, SKAlphaType.Premul));
+            }
+            // A real copy, not a subset view: SKBitmap.ExtractSubset SHARES the source's pixels, so
+            // using it as the backup would make it track the composite and the rollback a no-op.
+            // The subset is taken first and only then wrapped, so no full-canvas SKImage is built.
+            using (var region = new SKBitmap())
+            {
+                if (composite.ExtractSubset(region, tail))
+                {
+                    using var pixels = region.PeekPixels();
+                    using var view = pixels is null ? null : SKImage.FromPixels(pixels);
+                    if (view is not null)
+                    {
+                        using var into = new SKCanvas(_liveSmudgeBackup);
+                        using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+                        into.DrawImage(view, 0, 0, src);
+                        into.Flush();
+                        _liveSmudgeRegion = tail;
+                    }
+                }
+            }
+
+            // The returned carry is deliberately dropped: these dabs are provisional, so the
+            // checkpoint must stay at the settled boundary.
+            BrushEngine.StampSmudgeRange(
+                canvas, composite, live, dabs, settled, dabs.Count, _liveSmudgeCarry);
+            canvas.Flush();
+        }
     }
 
     /// <summary>
@@ -5482,6 +5767,11 @@ public sealed partial class MainViewModel : ObservableObject
         _liveDabs = null;
         _liveEffectDabs = null;
         _liveEffectSettled = 0;
+        // The carry and the lent region go with the composite they described. The backup bitmap
+        // does not: it is reused across strokes and only ever written before it is read, so keeping
+        // it saves an allocation per stroke without any state surviving.
+        _liveSmudgeCarry = default;
+        _liveSmudgeRegion = null;
         ResetLivePostProcess();
     }
 
@@ -7744,7 +8034,9 @@ public sealed partial class MainViewModel : ObservableObject
         AttachEditor(tab.Editor);
         ActiveLayerIndex = 0;
         CurrentFrameIndex = 0;
-        tab.IsDirty = false;
+        // A fresh editor sits at revision 0 and this document came from disk,
+        // so that is its saved point.
+        tab.MarkSaved();
         _switchingTabs = false;
     }
 

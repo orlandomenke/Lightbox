@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2356 tests, derived from the suite itself. Each line is a
+2498 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -319,22 +319,30 @@ regression even when every test still compiles.
 - AProject With Nothing Recorded Leaves The Brush Alone — `:168`
 - Switching To Per Project Mid Session Hands Back What Is Already There — `:182`
 
+## BrushParameterTests
+`tests/Lightbox.App.Tests/BrushParameterTests.cs`
+
+- Smudge And Blender Use Strength Not Length — `:44`
+- ABlur Strength Is Still Its Flow — `:71`
+- Length Stays On The Effects Page Rather Than The Bar — `:89`
+- Strength Controls Blending Intensity — `:115`
+
 ## BrushPickerTests _Category=Performance_
 `tests/Lightbox.App.Tests/BrushPickerTests.cs`
 
 - Opening The Picker Fills It With Tiles Rather Than Bare Presets — `:64`
 - Every Brush On Offer Has APicture Of Its Mark — `:78`
-- Every Built In Brush Leaves AMark On Its Tile — `:148`
-- The Shipped Blur Brush Actually Softens What It Passes Over — `:174`
-- The Tile Names The Brush And Its Real Size — `:189`
-- Picking ATile Applies That Brush — `:205`
-- The Picker Opens On The Brush You Are Already Using — `:220`
-- Searching Narrows The Grid And Still Gives Tiles — `:234`
-- No Match Says So Rather Than Showing An Empty Grid — `:253`
-- The Same Brush Reuses Its Picture Rather Than Redrawing It — `:267`
-- Editing ABrush Changes Its Picture — `:286`
-- An Imported Brush Shows Its Own Tip Rather Than ARound Dab — `:308`
-- ACollection Sized Picker Opens Without Stalling — `:367`
+- Every Built In Brush Leaves AMark On Its Tile — `:153`
+- The Shipped Blur Brush Actually Softens What It Passes Over — `:179`
+- The Tile Names The Brush And Its Real Size — `:194`
+- Picking ATile Applies That Brush — `:210`
+- The Picker Opens On The Brush You Are Already Using — `:225`
+- Searching Narrows The Grid And Still Gives Tiles — `:239`
+- No Match Says So Rather Than Showing An Empty Grid — `:258`
+- The Same Brush Reuses Its Picture Rather Than Redrawing It — `:272`
+- Editing ABrush Changes Its Picture — `:291`
+- An Imported Brush Shows Its Own Tip Rather Than ARound Dab — `:313`
+- ACollection Sized Picker Opens Without Stalling — `:372`
 
 ## BrushComparisonTests
 `tests/Lightbox.App.Tests/BrushPresetEditingTests.cs`
@@ -564,6 +572,17 @@ regression even when every test still compiles.
 - Every Publish Is ACorrect Full Composite — `:172`
 - Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:215`
 
+## DirtyRevisionTests
+`tests/Lightbox.App.Tests/DirtyRevisionTests.cs`
+
+- Undoing Back To The Saved State Clears The Badge — `:46`
+- Redoing To The Saved State Is Still Saved — `:75`
+- Trimming The Undo Stack Does Not Fake AClean Document — `:102`
+- ADocument At Its Saved Revision Is Not Dirty — `:120`
+- Choosing ABrush Does Not Mark The Document — `:143`
+- ANever Saved Document Badges But Only Prompts Once Drawn In — `:179`
+- ASheet Edit Raises The Badge On Both Tabs — `:210`
+
 ## DockLayoutTests
 `tests/Lightbox.App.Tests/DockLayoutTests.cs`
 
@@ -622,29 +641,38 @@ regression even when every test still compiles.
 - Switch Sidebar Side Flips Side — `:173`
 - Toggle Timeline Flips Visibility — `:184`
 
+## DocumentScopedStateTests
+`tests/Lightbox.App.Tests/DocumentScopedStateTests.cs`
+
+- Zoom Is Remembered Per Document Rather Than Shared — `:44`
+- The Whole Framing Travels Not Only The Zoom — `:82`
+- ADocument With No Reference Shows No Reference Panel — `:117`
+- Switching Tabs Restores That Documents Tool State — `:148`
+- The Brush Does Not Follow The Document Because Q9 Says So — `:180`
+
 ## BackgroundColorTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Scene Background Round Trips And Tints The Snapshot — `:169`
-- Transparent Background Renders Transparent Pixels — `:187`
+- Scene Background Round Trips And Tints The Snapshot — `:184`
+- Transparent Background Renders Transparent Pixels — `:202`
 
 ## ColorWheelFidelityTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Wheel Value Is Not Rewritten While Dragging — `:203`
-- Slider Channels Are Not Rewritten While Editing — `:222`
+- Wheel Value Is Not Rewritten While Dragging — `:218`
+- Slider Channels Are Not Rewritten While Editing — `:237`
 
 ## DocumentTabTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Starts With One Clean Untitled Tab — `:12`
-- New Document Adds Tab With Settings And Activates It — `:23`
-- Painting Marks The Tab Dirty Save Clears It — `:40`
-- Switching Tabs Keeps Each Document And Its Undo History — `:58`
-- Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:84`
-- Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:100`
-- Open Document Tab Uses File Name And Keeps Existing Tabs — `:119`
-- ADocument With No Layers Opens Rather Than Throwing — `:150`
+- Starts With One Untitled Tab That Says It Is Not On Disk — `:12`
+- New Document Adds Tab With Settings And Activates It — `:29`
+- Painting Marks The Tab Dirty Save Clears It — `:49`
+- Switching Tabs Keeps Each Document And Its Undo History — `:68`
+- Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:94`
+- Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:112`
+- Open Document Tab Uses File Name And Keeps Existing Tabs — `:131`
+- ADocument With No Layers Opens Rather Than Throwing — `:165`
 
 ## EngineApiTests
 `tests/Lightbox.App.Tests/EngineApiTests.cs`
@@ -1014,6 +1042,7 @@ regression even when every test still compiles.
 
 - Mid Stroke The Published Snapshot Shows The Line — `:44`
 - Self Crossing Looks The Same Live And Committed — `:67`
+- An Effect Stroke Looks The Same Live And Committed — `:123`
 
 ## LivePreviewTests
 `tests/Lightbox.App.Tests/LivePreviewTests.cs`
@@ -1264,47 +1293,123 @@ regression even when every test still compiles.
 - AFolder Made With AProject Row Selected Belongs To The Project — `:312`
 - ASwatch Added To AProject Palette Lands In The Project — `:326`
 
+## ProjectCreateMenuTests
+`tests/Lightbox.App.Tests/ProjectCreateAndRenameTests.cs`
+
+- Every Create Entry Produces Something On Disk — `:132`
+- The Create Menu Says Which Entries Are Folders — `:166`
+
+## ProjectCreatePromptTests
+`tests/Lightbox.App.Tests/ProjectCreateAndRenameTests.cs`
+
+- Creating An Item Asks For Its Name First And Uses The Answer — `:56`
+- Nothing Is Written To Disk If The Name Is Cancelled — `:79`
+- With No Asker Attached The Suggested Name Is Used — `:103`
+
+## RenameProjectItemTests
+`tests/Lightbox.App.Tests/ProjectCreateAndRenameTests.cs`
+
+- Renaming An Item Renames It On Disk — `:196`
+- Renaming AFolder Moves It And Everything Under It — `:219`
+- ARename That Would Collide Is Refused With Its Reason — `:250`
+- AFolder Rename That Cannot Reach Disk Leaves Everything Alone — `:279`
+- Renaming Something Never Saved Still Works — `:306`
+
+## ProjectCreationTests
+`tests/Lightbox.App.Tests/ProjectCreationTests.cs`
+
+- No Unwanted Asset Folders Created — `:22`
+- New Project Has Correct Default Structure — `:50`
+- All Folders Appear At Project Root — `:75`
+- New Project Folder Structure Is Correct — `:100`
+- All Default Folders Are Listed In Project File — `:137`
+
+## ProjectDeleteTests
+`tests/Lightbox.App.Tests/ProjectDeleteTests.cs`
+
+- Deleted Files Can Be Permanently Removed From Disk — `:49`
+- Remove From Project Leaves The File Where It Is — `:77`
+- Missing Files Are Tracked And Not Reloaded On Next Open — `:106`
+- Empty Folders Are Deleted Without Prompt — `:133`
+- Deleted Folders With Files Prompt For Confirmation — `:151`
+- Deleting AFolder Takes Its Subtree And Files With It — `:178`
+- Removing AFolder Keeps Its Documents In The Project — `:209`
+- ADelete Cannot Escape The Project Folder — `:241`
+- ASibling With AMatching Prefix Is Not Inside The Project — `:270`
+
 ## ProjectDockerTests
 `tests/Lightbox.App.Tests/ProjectDockerTests.cs`
 
-- The App Opens With No Project — `:53`
-- With No Project ADocument Saves And Loads Exactly As Before — `:66`
-- New Project Adopts The Document Already Open — `:82`
-- The Docker Lists Characters With Their Animations Under Them — `:104`
-- Adding An Animation Opens It As ATab Bound To Its Slot — `:118`
-- Opening An Animation Twice Focuses The Tab Rather Than Duplicating It — `:132`
-- File New Still Makes AStandalone Document With AProject Open — `:149`
-- Two Animations Under One Character Paint From One Palette — `:166`
-- Save Writes The Project Without APicker — `:204`
-- Without AProject Or APath There Is Nothing To Save In Place — `:221`
-- AProject Reopens With Its Characters And Animations — `:229`
-- Removing An Animation Leaves Its File On Disk — `:250`
-- The New Menu Offers One Entry Per Place Work Can Land — `:270`
-- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:287`
-- ALoose Document Gets Its Own Row With No Character Above It — `:304`
-- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:319`
-- Moving ADocument To The Project Takes It Out Of Every Character — `:344`
-- Moving ADocument Where It Already Is Does Nothing — `:358`
-- AMoved Document Survives ASave And Reopen — `:368`
-- Renaming ARow Writes Through — `:388`
-- Every Row Knows Where It Is On Disk — `:403`
-- With No Project There Is No Path To Show — `:422`
-- Copy Path Gives The Selected Rows File — `:432`
-- Opening Externally Says So When The File Is Not Written Yet — `:445`
-- Duplicating An Animation Copies Its Art Into The Same Character — `:463`
-- Duplicating Writes The Copy On The Next Save — `:496`
-- Deleting AFolder On Disk Removes It From The Docker — `:523`
-- The Docker Refreshes Without Being Reopened — `:552`
-- An Unsaved Project Does Not Report Every Row As Missing — `:578`
-- The Watch Follows The Project And Not The Application — `:616`
-- ABurst Of Disk Events Costs One Refresh — `:651`
-- ADeletion On Disk Reaches The Row Without ARefresh Call — `:706`
-- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:767`
-- AManual Re Read Is Reachable And Reports What It Found — `:820`
-- Creating An Item Asks For Its Name First — `:881`
-- The Suggested Name Matches The Numbered Fallback — `:901`
-- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:918`
-- The Unnamed Command Still Creates The Numbered Default — `:935`
+- The App Opens With No Project — `:86`
+- With No Project ADocument Saves And Loads Exactly As Before — `:99`
+- New Project Adopts The Document Already Open — `:115`
+- The Docker Lists Characters With Their Animations Under Them — `:142`
+- Adding An Animation Opens It As ATab Bound To Its Slot — `:159`
+- Opening An Animation Twice Focuses The Tab Rather Than Duplicating It — `:174`
+- File New Still Makes AStandalone Document With AProject Open — `:191`
+- Two Animations Under One Character Paint From One Palette — `:208`
+- Save Writes The Project Without APicker — `:246`
+- Without AProject Or APath There Is Nothing To Save In Place — `:263`
+- AProject Reopens With Its Characters And Animations — `:271`
+- Removing An Animation Leaves Its File On Disk — `:293`
+- The New Menu Offers One Entry Per Place Work Can Land — `:316`
+- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:337`
+- ALoose Document Gets Its Own Row With No Character Above It — `:355`
+- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:370`
+- Moving ADocument To Another Character Moves Its File Rather Than Copying It — `:406`
+- Moving ADocument To The Project Takes It Out Of Every Character — `:435`
+- Moving ADocument Where It Already Is Does Nothing — `:450`
+- AMoved Document Survives ASave And Reopen — `:460`
+- Renaming ARow Writes Through — `:481`
+- Every Row Knows Where It Is On Disk — `:497`
+- With No Project There Is No Path To Show — `:517`
+- Copy Path Gives The Selected Rows File — `:527`
+- Opening Externally Says So When The File Is Not Written Yet — `:540`
+- Duplicating An Animation Copies Its Art Into The Same Character — `:558`
+- Duplicating Writes The Copy On The Next Save — `:592`
+- Deleting AFolder On Disk Removes It From The Docker — `:620`
+- The Docker Refreshes Without Being Reopened — `:649`
+- An Unsaved Project Does Not Report Every Row As Missing — `:675`
+- The Watch Follows The Project And Not The Application — `:714`
+- ABurst Of Disk Events Costs One Refresh — `:749`
+- ADeletion On Disk Reaches The Row Without ARefresh Call — `:804`
+- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:865`
+- AManual Re Read Is Reachable And Reports What It Found — `:918`
+- Creating An Item Asks For Its Name First — `:979`
+- The Suggested Name Matches The Numbered Fallback — `:999`
+- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:1016`
+- The Unnamed Command Still Creates The Numbered Default — `:1033`
+- The Project Root Is Visible In The Docker — `:1057`
+- The Project Row Cannot Be Removed Renamed Or Deleted — `:1109`
+- Show In File Manager Opens The Selected Item — `:1154`
+- Selecting AFolder Survives ARebuild — `:1207`
+
+## ProjectHierarchyTests
+`tests/Lightbox.App.Tests/ProjectHierarchyTests.cs`
+
+- AProject With No Folders Shows No Folder Rows — `:51`
+- Subfolders Can Be Created Within Folders — `:61`
+- Folders Can Be Collapsed And Expanded — `:85`
+- Collapse Survives ARefresh — `:118`
+- Folders Can Be Dragged Within Project — `:135`
+- AFolder Cannot Be Dropped On Its Own Descendant — `:160`
+- Documents Can Be Dragged Within Project — `:176`
+- Documents Created In Folders Appear In Correct Folder — `:206`
+- ADocument Made Beside Another Joins Its Folder — `:227`
+- With Nothing Selected ADocument Still Goes To The Project Root — `:250`
+- Folder Structure Reflects File System Hierarchy — `:273`
+- The Tree Indent Reaches The Row Template — `:317`
+- Moving ADocument Into AFolder Moves Its File Rather Than Copying It — `:363`
+- Moving ADocument Back To The Root Moves Its File Too — `:399`
+- AMove That Cannot Reach Disk Leaves The Tree Alone — `:430`
+- ADocument Made In AFolder Is Named After It — `:471`
+- Accepting The Offered Stem Drops The Dangling Separator — `:501`
+- With No Folder Selected The Numbered Suggestion Stands — `:526`
+- AFolder Is Not Offered An Animation Name — `:554`
+- Expanding AFolder Makes It Where New Work Lands — `:596`
+- Selecting On Toggle Does Not Stop The Toggle — `:632`
+- APress Selects Any Kind Of Row — `:662`
+- The Reveal Button Runs The Same Command As The Menu — `:695`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
@@ -1359,16 +1464,16 @@ regression even when every test still compiles.
 ## CharacterSheetFileTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
 
-- ACharacter Sheet Outside AProject Prompts To Save — `:220`
-- ACharacter Sheet In AProject Is Written On Creation — `:240`
-- ACharacter Sheet Asks For Its Name Before Its Location — `:271`
+- ACharacter Sheet Outside AProject Prompts To Save — `:224`
+- ACharacter Sheet In AProject Is Written On Creation — `:244`
+- ACharacter Sheet Asks For Its Name Before Its Location — `:275`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
 
-- Render Reference View Produces Decodable Png — `:131`
-- Ai Inbetween Carries Reference Images — `:154`
-- Ipc List And Render Expose Reference Views — `:183`
+- Render Reference View Produces Decodable Png — `:135`
+- Ai Inbetween Carries Reference Images — `:158`
+- Ipc List And Render Expose Reference Views — `:187`
 
 ## ReferenceSheetModelTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
@@ -1380,9 +1485,9 @@ regression even when every test still compiles.
 
 - Add View Opens Reference Tab Timeline Hidden — `:53`
 - Painting In Reference Tab Lands In Owning Document And Dirties Owner — `:69`
-- Save From Reference Tab Serializes The Owning Document — `:92`
-- Closing Owner Tab Closes Its Reference Tabs — `:108`
-- Opening Same View Focuses Existing Tab — `:118`
+- Save From Reference Tab Serializes The Owning Document — `:96`
+- Closing Owner Tab Closes Its Reference Tabs — `:112`
+- Opening Same View Focuses Existing Tab — `:122`
 
 ## ReferenceStripTests
 `tests/Lightbox.App.Tests/ReferenceStripTests.cs`
@@ -1539,11 +1644,20 @@ regression even when every test still compiles.
 - Scenes Move Up And Down And The Selection Follows — `:154`
 - Shots Move Within Their Scene — `:171`
 - Reordering ACharacter Row Does Nothing — `:186`
-- Deleting AScene Keeps Its Shots As Loose Documents — `:203`
-- Converting Changes The Type And Recreates No Artwork — `:221`
-- Converting Does Not Rearrange The Screen By Itself — `:239`
-- Converting Tells The Artist What Changed — `:257`
-- Converting With No Project Open Does Nothing — `:270`
+- Deleting AScene Keeps Its Shots As Loose Documents — `:205`
+- Converting Changes The Type And Recreates No Artwork — `:223`
+- Converting Does Not Rearrange The Screen By Itself — `:241`
+- Converting Tells The Artist What Changed — `:259`
+- Converting With No Project Open Does Nothing — `:272`
+
+## ScopeDeclarationTests
+`tests/Lightbox.App.Tests/ScopeDeclarationTests.cs`
+
+- Sharing APalette Onto AFolder Scopes The Project — `:43`
+- Sharing The Same Palette Twice Is One Declaration — `:71`
+- Promoting ADeclaration Reaches The Whole Project — `:86`
+- Recolouring Repaints Every Open Document That Uses The Swatch — `:112`
+- Undoing ARecolour Of AProject Palette Restores It — `:160`
 
 ## SelectionAdjustTests
 `tests/Lightbox.App.Tests/SelectionAdjustTests.cs`
@@ -1577,6 +1691,14 @@ regression even when every test still compiles.
 - Every Gesture In The Xaml Is Also In The Shortcut Registry — `:69`
 - The Exemption List Describes Gestures That Are Actually There — `:90`
 - An Exempted Gesture Stops Being Exempt Once It Is Registered — `:105`
+
+## SimulatedMediumTests
+`tests/Lightbox.App.Tests/SimulatedMediumTests.cs`
+
+- The Simulated Watercolour Actually Deposits Pigment — `:76`
+- Layering AWash Deepens It — `:105`
+- ABody Medium Stays Opaque — `:126`
+- Pigment Density Reads Like AConcentration — `:142`
 
 ## DeltaCommitTests
 `tests/Lightbox.App.Tests/SmoothingAndCommitTests.cs`
@@ -1658,15 +1780,15 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/StartScreenTests.cs`
 
 - Escape Leaves ABlank Document Rather Than Nothing — `:36`
-- Dont Show Again Is Remembered And Can Be Turned Back On — `:51`
-- Offering The Screen Does Nothing When It Is Turned Off — `:66`
-- New File Uses The Values The Screen Collected — `:80`
-- Opening ARecent Document Opens It — `:97`
-- AFile That Has Moved Says So Rather Than Doing Nothing — `:118`
-- Opening ADocument Puts It In The Recents — `:136`
-- Saving Somewhere New Records It Too — `:159`
-- Clearing The List Empties It On Disk As Well — `:182`
-- Only What Is Still On Disk Is Offered — `:205`
+- Dont Show Again Is Remembered And Can Be Turned Back On — `:53`
+- Offering The Screen Does Nothing When It Is Turned Off — `:68`
+- New File Uses The Values The Screen Collected — `:82`
+- Opening ARecent Document Opens It — `:99`
+- AFile That Has Moved Says So Rather Than Doing Nothing — `:120`
+- Opening ADocument Puts It In The Recents — `:138`
+- Saving Somewhere New Records It Too — `:161`
+- Clearing The List Empties It On Disk As Well — `:184`
+- Only What Is Still On Disk Is Offered — `:207`
 
 ## StrokeLatencyTests
 `tests/Lightbox.App.Tests/StrokeLatencyTests.cs`
@@ -1925,10 +2047,10 @@ regression even when every test still compiles.
 ## ToolOptionsBarTests
 `tests/Lightbox.App.Tests/ToolOptionsBarTests.cs`
 
-- The Colour Switcher Is Shown For Every Tool That Uses Colour — `:65`
-- The Colour Switcher Stays Put For Every Other Tool Too — `:99`
-- There Is Exactly One Colour Pair — `:121`
-- The Tools Own Options Are Still There — `:145`
+- The Parameters Button Sits Right Of The Brush Button — `:56`
+- The Parameters Button Survives Switching To The Eraser — `:84`
+- The Parameters Button Is Gone For Tools That Do Not Paint — `:100`
+- The Effect Strength Control Is Bound To Flow — `:114`
 
 ## FillToolTests
 `tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`
@@ -2045,6 +2167,14 @@ regression even when every test still compiles.
 - An Unreal Preset Still Reports What It Left Out — `:501`
 - The World Height Field Is Offered For Unreal And Not Only Unity — `:513`
 
+## UnsavedDocumentTests
+`tests/Lightbox.App.Tests/UnsavedDocumentTests.cs`
+
+- ANew Document Is Not On Disk Until It Is Saved — `:61`
+- An Unsaved Document Is Shown As Pending In The Docker — `:83`
+- ADeleted File Is Missing Rather Than Pending — `:133`
+- Discarding An Unsaved Document Removes It From The Docker — `:165`
+
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
 
@@ -2074,18 +2204,18 @@ regression even when every test still compiles.
 ## WorkspaceTests
 `tests/Lightbox.App.Tests/WorkspaceTests.cs`
 
-- Panels Land In The Strip The Layout Names — `:43`
-- Moving APanel Moves The Control — `:55`
-- An Empty Edge Collapses And AFilled One Opens — `:67`
-- Closing APanel Parks It Rather Than Destroying It — `:89`
-- The Header Switcher Trades Two Panels Places — `:108`
-- Every Panel Except The Timeline Offers ASwitcher — `:124`
-- The Project Panel Appears As Soon As There Is AProject — `:145`
-- The Canvas Gets The Room Left Over By The Strips — `:168`
-- The Project Row Menu Actually Does Something When Clicked — `:192`
-- The New Menu Actually Makes Things — `:271`
-- The Reference Panel Is Absent Until It Is Asked For — `:328`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:344`
+- Panels Land In The Strip The Layout Names — `:68`
+- Moving APanel Moves The Control — `:80`
+- An Empty Edge Collapses And AFilled One Opens — `:92`
+- Closing APanel Parks It Rather Than Destroying It — `:114`
+- The Header Switcher Trades Two Panels Places — `:133`
+- Every Panel Except The Timeline Offers ASwitcher — `:149`
+- The Project Panel Appears As Soon As There Is AProject — `:170`
+- The Canvas Gets The Room Left Over By The Strips — `:193`
+- The Project Row Menu Actually Does Something When Clicked — `:217`
+- The New Menu Actually Makes Things — `:303`
+- The Reference Panel Is Absent Until It Is Asked For — `:370`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:386`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
@@ -2310,6 +2440,15 @@ regression even when every test still compiles.
 - ADegenerate Cell Is Treated As One Pixel — `:130`
 - ABlank Tag Name Gets AUsable Placeholder — `:139`
 
+## GradientAndTemplateScopeTests
+`tests/Lightbox.Core.Tests/GradientAndTemplateScopeTests.cs`
+
+- AGradient On AFolder Reaches Every Document Under It — `:34`
+- AGradient On One Character Is Not Visible To Another — `:47`
+- ANew Document In AScope Starts From That Scopes Template — `:69`
+- Setting ATemplate Twice Leaves One Declaration — `:92`
+- Gradients Palettes References And Templates Do Not Collide — `:106`
+
 ## GradientTests
 `tests/Lightbox.Core.Tests/GradientTests.cs`
 
@@ -2329,6 +2468,14 @@ regression even when every test still compiles.
 - One Alpha Stop Holds Its Value Everywhere — `:225`
 - An Alpha Track Round Trips Through The Document — `:234`
 - AGradient With No Alpha Track Writes No Alpha Key — `:250`
+
+## GuideScopeTests
+`tests/Lightbox.Core.Tests/GuideScopeTests.cs`
+
+- AGuide Set On AFolder Reaches Every Document Under It — `:45`
+- AGuide Set On One Character Is Not Visible To Another — `:60`
+- APublished Guide Set Reaches Every Document — `:76`
+- AProject With No Guide Sets Writes No Key — `:95`
 
 ## GuideTests
 `tests/Lightbox.Core.Tests/GuideTests.cs`
@@ -2439,6 +2586,16 @@ regression even when every test still compiles.
 - Falloff Halves Each Further Ghost — `:141`
 - AFalloff Of One Makes Every Ghost Equally Visible — `:149`
 
+## PaletteScopeTests
+`tests/Lightbox.Core.Tests/PaletteScopeTests.cs`
+
+- AProject That Declares No Scopes Is Not Filtered — `:42`
+- APalette On One Character Is Not Visible To Another — `:60`
+- Two Animations Under One Folder Paint From One Palette — `:83`
+- AProject Palette Reaches Every Document — `:96`
+- ADocument The Project Does Not Know Is Not Filtered — `:112`
+- AStroke Painted From APalette Records Which One — `:130`
+
 ## PaletteTests
 `tests/Lightbox.Core.Tests/PaletteTests.cs`
 
@@ -2470,6 +2627,28 @@ regression even when every test still compiles.
 - ADocument With No Folders Writes No Folder Keys — `:201`
 - The Hierarchy Survives ASave And AReload — `:214`
 
+## ProjectFolderTests
+`tests/Lightbox.Core.Tests/ProjectFolderTests.cs`
+
+- AProject That Never Made AFolder Writes No Folder Key — `:31`
+- AFolder That Was Never Tagged Writes No Tags Key — `:39`
+- AFolder Tree Survives ARound Trip — `:50`
+- Folders Take Any Name And Nest To Any Depth — `:71`
+- The Name Keeps Its Punctuation And The Path Does Not — `:96`
+- Two Folders Of The Same Name In One Place Are Numbered — `:108`
+- The Same Name Under ADifferent Parent Is Fine — `:120`
+- ARename That Would Collide Is Refused — `:140`
+- AFolder Moves Under Another And Back To The Root — `:155`
+- AFolder Cannot Be Moved Inside Itself Or Its Own Descendant — `:178`
+- ACycle From AHand Edited File Does Not Hang — `:201`
+- ADocument Filed In AFolder Takes That Folders Path — `:216`
+- Two Documents Of One Name In One Folder Get Distinct Files — `:232`
+- ADocument Filed At The Root Goes To Documents — `:249`
+- Removing AFolder Returns Everything That Was In It — `:275`
+- Contents Reports The Whole Subtree Before Anything Happens — `:296`
+- AProject Written Before Folders Keeps Its Paths — `:325`
+- AProject Written Before The Rename Keeps Its Documents Folder — `:367`
+
 ## ProjectTests
 `tests/Lightbox.Core.Tests/ProjectTests.cs`
 
@@ -2499,6 +2678,17 @@ regression even when every test still compiles.
 - Deleting The Last Folder Reaches The Disk — `:415`
 - APalette Filed Under AMissing Folder Still Shows Up On Load — `:432`
 
+## ReferenceScopeTests
+`tests/Lightbox.Core.Tests/ReferenceScopeTests.cs`
+
+- ASheet On The Knight Folder Serves Every Drawing Under It — `:48`
+- APublished Environment Document Reaches ACharacters Drawing — `:69`
+- References Of Different Targets Are Resolved Separately — `:91`
+- References Accumulate From Every Scope Above — `:109`
+- AProject That Declares No References Is Not Filtered — `:128`
+- Only AReference Writes ATarget — `:143`
+- References And Palettes Resolve Independently — `:164`
+
 ## ReferenceStripTests
 `tests/Lightbox.Core.Tests/ReferenceStripTests.cs`
 
@@ -2517,6 +2707,20 @@ regression even when every test still compiles.
 - ADocument With No Reference Writes No Key For One — `:200`
 - Editing The Timeline Of ADocument With No Reference Is Untouched — `:212`
 - AReference Round Trips Through Json — `:224`
+
+## ResourceScopeTests
+`tests/Lightbox.Core.Tests/ResourceScopeTests.cs`
+
+- APalette On The Knight Reaches Its Animations At Any Depth — `:47`
+- Adding ALevel Between The Scope And The Document Changes Nothing — `:64`
+- Declarations Accumulate And The Nearest Wins ATie — `:79`
+- The Same Id Declared Twice Resolves To The Nearer — `:98`
+- APublished Resource Reaches ADocument In Another Branch — `:116`
+- Locality Beats Publication — `:136`
+- Resolving One Kind Ignores The Others — `:148`
+- ADocument At The Project Root Still Resolves — `:161`
+- AProject That Declares Nothing Writes No Resource Keys — `:178`
+- Only APromoted Resource Writes Its Reach — `:190`
 
 ## PressureResponseTests
 `tests/Lightbox.Core.Tests/ResponseCurveTests.cs`
@@ -2996,6 +3200,16 @@ regression even when every test still compiles.
 - An Effect Brush Does Not Make AWash More Opaque Than It Was — `:72`
 - ASmudge Still Moves Colour Rather Than Doing Nothing — `:96`
 
+## EffectPreviewMatchesCommitTests
+`tests/Lightbox.Raster.Tests/EffectPreviewMatchesCommitTests.cs`
+
+- ASmudge Preview Matches Its Commit — `:231`
+- ABlender Preview Matches Its Commit — `:240`
+- The Affected Area Does Not Change On Release — `:252`
+- No Settling Visible Between Preview And Commit — `:263`
+- ASmudge Preview Stays Same On Release — `:271`
+- ABlender Preview Stays Same On Release — `:277`
+
 ## FillStrokeTests
 `tests/Lightbox.Raster.Tests/FloodFillTests.cs`
 
@@ -3282,6 +3496,14 @@ regression even when every test still compiles.
 `tests/Lightbox.Raster.Tests/SmudgeCostTests.cs`
 
 - AWhole Smudge Stroke Stays Affordable — `:29`
+
+## SmudgeTransportTests
+`tests/Lightbox.Raster.Tests/SmudgeTransportTests.cs`
+
+- AMark Smudges Its Own Colour Rather Than ADarkened Ghost — `:102`
+- AColoured Mark Keeps Its Hue Down The Stroke — `:137`
+- Smudging Does Not Hollow Out The Body Of AMark — `:169`
+- The Trail Length Responds To Its Controls — `:201`
 
 ## StampingArcTests
 `tests/Lightbox.Raster.Tests/StampingArcTests.cs`

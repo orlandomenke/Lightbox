@@ -396,7 +396,8 @@ public static class BrushEngine
     /// refusal to render.
     /// </summary>
     public static SKColor StrokeColor(Stroke stroke) =>
-        stroke.SwatchId is { Length: > 0 } id && PaletteRegistry.ResolveSwatch(id) is { } swatch
+        stroke.SwatchId is { Length: > 0 } id
+        && PaletteRegistry.ResolveSwatch(stroke.PaletteId, id) is { } swatch
             ? ParseColor(swatch.Color)
             : ParseColor(stroke.Color);
 
@@ -1384,7 +1385,48 @@ public static class BrushEngine
         var strength = Math.Clamp(brush.Flow, 0, 1);
         if (strength <= 0) return;
 
-        StampSmudgeDabs(target, pixels, stroke, outputScale, strength);
+        StampSmudgeDabs(
+            target, pixels, stroke, outputScale, strength, WalkDabs(stroke), 0, int.MaxValue, default);
+    }
+
+    /// <summary>
+    /// What a smudge is carrying at a point in the stroke — the whole of its sequential state.
+    /// </summary>
+    /// <remarks>
+    /// A smudge is not replayable from an index the way a blur is, and this is why. A blur dab reads
+    /// the pre-stroke pixels, so dab <i>n</i> depends on nothing but its own position; a smudge dab
+    /// depends on the colour the previous dabs handed it <em>and</em> on the pixels they wrote. The
+    /// second half is the caller's problem (restore what the unsettled tail wrote, then re-stamp);
+    /// this is the first half, small enough to checkpoint every pointer event.
+    /// </remarks>
+    public readonly record struct SmudgeCarry(SKColor Colour, bool Started);
+
+    /// <summary>
+    /// Stamp dabs <paramref name="from"/> (inclusive) to <paramref name="to"/> (exclusive) of a
+    /// smudge, resuming from <paramref name="carry"/> and reporting where it ends up.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B69/B89.</b> The live preview used to hand the engine the newest <em>segment</em>, which
+    /// restarted four things every pointer event: the dab walk's spacing phase, the carried colour,
+    /// the heading, and — because the segment overlaps one point and a smudge is not idempotent —
+    /// it re-smeared the join. All four changed the moment the pen lifted and the whole stroke was
+    /// re-rendered from the record in one pass.
+    /// </para>
+    /// <para>
+    /// This is the same treatment blur got in B54, plus the piece blur does not need. The caller
+    /// walks the <b>whole</b> stroke so densification and spacing are the commit's, stamps only the
+    /// range that is not settled, and carries <see cref="SmudgeCarry"/> across events so the
+    /// resumed range sees exactly what a single pass would have handed it.
+    /// </para>
+    /// </remarks>
+    public static SmudgeCarry StampSmudgeRange(
+        SKCanvas target, SKBitmap read, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
+        SmudgeCarry carry)
+    {
+        var strength = Math.Clamp(stroke.Brush.Flow, 0, 1);
+        if (strength <= 0) return carry;
+        return StampSmudgeDabs(target, read, stroke, 1.0, strength, dabs, from, to, carry);
     }
 
     /// <summary>
@@ -1472,8 +1514,9 @@ public static class BrushEngine
         }
     }
 
-    private static void StampSmudgeDabs(
-        SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale, double strength)
+    private static SmudgeCarry StampSmudgeDabs(
+        SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale, double strength,
+        IReadOnlyList<Dab> dabs, int from, int to, SmudgeCarry carry)
     {
         var brush = stroke.Brush;
 
@@ -1489,24 +1532,18 @@ public static class BrushEngine
         var baseRate = Math.Clamp(brush.ColorRate, 0, 1);
         var ownColor = StrokeColor(stroke);
 
-        SKColor carried = default;
-        var hasColor = false;
-        // Heading is tracked here rather than taken from the walk because this path iterates
-        // positions: a tip that follows the stroke needs a direction, and B70 is about tips.
-        SKPoint? previous = null;
-        var heading = double.NaN;
-        foreach (var (pos, pressure) in DabPositions(stroke))
+        var carried = carry.Colour;
+        var hasColor = carry.Started;
+
+        // Heading comes from the walk now rather than being tracked here. It has to: a resumed
+        // range has no previous dab of its own, so recomputing locally would snap a direction-
+        // following tip to zero degrees at every pointer-event boundary — visible on a chisel or a
+        // bristle smudge (B70) and invisible on a round one, which is the worst kind of bug.
+        for (var i = Math.Max(0, from); i < Math.Min(to, dabs.Count); i++)
         {
+            var (pos, pressure, heading, _) = dabs[i];
             var radius = (float)RadiusAt(brush, pressure);
             if (radius <= 0) continue;
-            if (previous is { } from)
-            {
-                float hx = pos.X - from.X, hy = pos.Y - from.Y;
-                // A stalled pen keeps the last heading; recomputing from a zero-length step would
-                // snap the tip to zero degrees, which is the same rule the dab walk uses.
-                if (hx * hx + hy * hy > 0.0001f) heading = Math.Atan2(hy, hx) * 180 / Math.PI;
-            }
-            previous = pos;
 
             var s = (float)outputScale;
             var sample = SampleAverage(
@@ -1530,8 +1567,8 @@ public static class BrushEngine
 
             // Dulling deposits the colour under the dab rather than the
             // colour it has been carrying, which is the whole difference.
-            var deposit = dulling ? Mix(sample, carried, carryOver * 0.5) : carried;
-            if (colorRate > 0) deposit = Mix(deposit, ownColor, colorRate);
+            var deposit = dulling ? MixPigment(sample, carried, carryOver * 0.5) : carried;
+            if (colorRate > 0) deposit = MixPigment(deposit, ownColor, colorRate);
 
             if (deposit.Alpha > 0)
             {
@@ -1542,10 +1579,39 @@ public static class BrushEngine
             // How much of the carried colour survives into the next dab. At 0
             // the sample is replaced every dab and colour barely travels; at 1
             // it is dragged the length of the stroke.
-            carried = Mix(sample, carried, carryOver);
+            carried = MixPigment(sample, carried, carryOver);
         }
+
+        return new SmudgeCarry(carried, hasColor);
     }
 
+    /// <summary>
+    /// The colour under a dab: a coverage-weighted mean of five taps.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B91, and it is the whole of why a smudge used to darken what it touched.</b>
+    /// This averaged <em>unpremultiplied</em> RGB and alpha as four independent
+    /// channels. A transparent pixel has no colour — Skia hands back
+    /// <c>rgb(0,0,0)</c> for one — so every tap that landed off the edge of a mark
+    /// dragged the sampled colour toward <b>black</b> in proportion to how much bare
+    /// canvas the dab overlapped. Measured on a solid block with a dab centred on its
+    /// edge, four taps of five off the paint: a <b>white</b> block sampled
+    /// <c>rgb(50,50,50)</c> and a red one <c>rgb(40,5,5)</c>. Smudging outward did not
+    /// carry the colour out, it carried a darkened ghost of it.
+    /// </para>
+    /// <para>
+    /// Weighting each tap by its own coverage is the fix, and it is the same
+    /// arithmetic <see cref="LerpDab"/> is careful about two functions down — "lerping
+    /// premultiplied colour is the right operation as well as the fast one". The
+    /// sampler simply never got the same treatment.
+    /// </para>
+    /// <para>
+    /// Alpha is still the plain mean, and has to be: it is <em>how much</em> is under
+    /// the dab, which is exactly the unweighted average. Only the colour is a question
+    /// about the pixels that actually have one.
+    /// </para>
+    /// </remarks>
     private static SKColor SampleAverage(SKBitmap pixels, SKPoint pos, float spread)
     {
         Span<(int dx, int dy)> offsets = [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)];
@@ -1556,12 +1622,51 @@ public static class BrushEngine
             var y = Math.Clamp((int)(pos.Y + dy * spread), 0, pixels.Height - 1);
             var c = pixels.GetPixel(x, y);
             a += c.Alpha;
-            r += c.Red;
-            g += c.Green;
-            b += c.Blue;
+            r += c.Red * c.Alpha;
+            g += c.Green * c.Alpha;
+            b += c.Blue * c.Alpha;
             n++;
         }
-        return new SKColor((byte)(r / n), (byte)(g / n), (byte)(b / n), (byte)(a / n));
+        // Nothing with any coverage under the dab: no colour to report, and
+        // dividing by the summed alpha would be a divide by zero.
+        if (a == 0) return default;
+        return new SKColor((byte)(r / a), (byte)(g / a), (byte)(b / a), (byte)(a / n));
+    }
+
+    /// <summary>
+    /// Blend two colours by coverage, rather than as four independent channels.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B91's second half.</b> <see cref="Mix"/> lerps unpremultiplied RGB and alpha
+    /// separately, which is right for a gradient — its one other caller, where both
+    /// stops are colours an artist chose — and wrong for pigment, where a nearly
+    /// transparent entry should contribute nearly nothing to the hue. Carried through a
+    /// smudge dab over dab it crushed the channels: a red mark
+    /// <c>rgb(220,40,40)</c> arrived down the stroke as <c>rgb(205,6,6)</c>.
+    /// </para>
+    /// <para>
+    /// Kept separate from <see cref="Mix"/> rather than replacing it, so the gradient
+    /// path cannot be collateral damage from a smudge fix.
+    /// </para>
+    /// </remarks>
+    private static SKColor MixPigment(SKColor x, SKColor y, double t)
+    {
+        double xa = x.Alpha / 255.0, ya = y.Alpha / 255.0;
+        var a = xa + (ya - xa) * t;
+        if (a <= 0) return default;
+
+        byte Channel(byte xc, byte yc)
+        {
+            var premul = xc * xa + (yc * ya - xc * xa) * t;
+            return (byte)Math.Clamp(Math.Round(premul / a), 0, 255);
+        }
+
+        return new SKColor(
+            Channel(x.Red, y.Red),
+            Channel(x.Green, y.Green),
+            Channel(x.Blue, y.Blue),
+            (byte)Math.Clamp(Math.Round(a * 255), 0, 255));
     }
 
     /// <summary>
@@ -1694,10 +1799,19 @@ public static class BrushEngine
                     continue;
                 }
 
-                dst[pi] = (byte)(src[si] + (dr - src[si]) * w);
-                dst[pi + 1] = (byte)(src[si + 1] + (dg - src[si + 1]) * w);
-                dst[pi + 2] = (byte)(src[si + 2] + (db - src[si + 2]) * w);
-                dst[pi + 3] = (byte)(src[si + 3] + (dAl - src[si + 3]) * w);
+                // Rounded, not truncated, and that is B91's third finding. A cast to
+                // byte truncates, so every dab lost up to a whole level on every
+                // channel — a bias that only ever points one way and compounds across
+                // the ~40 dabs that overlap a pixel at ordinary spacing. It hurt small
+                // channel values hardest, because losing 1 from a premultiplied green
+                // of 6 is 17% and losing it from a red of 35 is 3%: a red mark
+                // rgb(220,40,40) desaturated to rgb(211,12,12) down the stroke while
+                // the red channel barely moved. Alpha truncates the same way, which is
+                // erosion the brush was never asked for.
+                dst[pi] = (byte)(src[si] + (dr - src[si]) * w + 0.5f);
+                dst[pi + 1] = (byte)(src[si + 1] + (dg - src[si + 1]) * w + 0.5f);
+                dst[pi + 2] = (byte)(src[si + 2] + (db - src[si + 2]) * w + 0.5f);
+                dst[pi + 3] = (byte)(src[si + 3] + (dAl - src[si + 3]) * w + 0.5f);
             }
         }
 

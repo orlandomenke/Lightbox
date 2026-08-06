@@ -1,3 +1,4 @@
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Timeline;
@@ -92,9 +93,134 @@ public sealed partial class DocumentTab : ObservableObject
     [NotifyPropertyChangedFor(nameof(DisplayTitle))]
     private string _title;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DisplayTitle))]
-    private bool _isDirty;
+    /// <summary>
+    /// The editor revision this tab was last written to disk at, or −1 for a
+    /// document that has never been written at all.
+    /// </summary>
+    /// <remarks>
+    /// <b>B99.</b> Minus one rather than zero, and the distinction is the bug:
+    /// a fresh document sits at revision 0, so a saved-at-zero default would
+    /// make "never saved" indistinguishable from "saved and untouched". A new
+    /// document has nothing on disk and must say so.
+    /// </remarks>
+    private long _savedRevision = -1;
+
+    /// <summary>
+    /// Reference tabs editing views of this document. Their edits land in this
+    /// document, so this tab is dirty while any of them is.
+    /// </summary>
+    internal List<DocumentTab> Views { get; } = [];
+
+    /// <summary>Whether this tab's own editor has moved since it was saved.</summary>
+    private bool HasOwnChanges => _savedRevision != Editor.Revision;
+
+    /// <summary>
+    /// Whether this document differs from what is on disk.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B98.</b> Derived, not assigned. It used to be a settable flag that
+    /// each edit path raised for itself, which failed in both directions: paths
+    /// that changed nothing still raised it (B79, B94, B95, B96), and no path
+    /// could lower it when an edit was undone (B97). Deriving it from
+    /// <see cref="DocumentEditor.Revision"/> means the question is answered by
+    /// the edit record rather than by whoever remembered to ask.
+    /// </para>
+    /// <para>
+    /// This is also what makes <b>Q24</b> structural. Brush settings are saved
+    /// separately and must never feed this badge; now they cannot, because
+    /// choosing a brush pushes no undo step. Nothing has to remember the rule.
+    /// </para>
+    /// </remarks>
+    public bool IsDirty => Kind switch
+    {
+        // A reference tab is a view onto its owner's document, so it is dirty
+        // exactly when the owner is. B95: the reporter found the badge on the
+        // parent and not on the sheet, and an artist looking at the sheet
+        // should not have to check another tab to learn there is unsaved work.
+        DocumentTabKind.Reference => Owner?.IsDirty ?? false,
+        // A symbol belongs to the project rather than to a file of its own, so
+        // there is nothing for it to be out of step with; the project's save
+        // writes it. Surfacing unsaved symbol work is a gap, but it belongs to
+        // the project's dirty state rather than to this tab.
+        DocumentTabKind.Symbol => false,
+        // Own edits, or an edit made through any character-sheet view of this
+        // document. A reference tab drives its own editor over a wrapper scene,
+        // so the strokes land here while the revision moves there — asking each
+        // view separately rather than summing avoids two views' movements
+        // cancelling out.
+        _ => HasOwnChanges || Views.Any(v => v.HasOwnChanges),
+    };
+
+    /// <summary>Whether this document has never been written to disk.</summary>
+    public bool IsUnsaved => Kind switch
+    {
+        DocumentTabKind.Reference => Owner?.IsUnsaved ?? false,
+        DocumentTabKind.Symbol => false,
+        _ => _savedRevision < 0,
+    };
+
+    /// <summary>
+    /// Whether closing this would lose work the artist did.
+    /// </summary>
+    /// <remarks>
+    /// <b>B99,</b> and deliberately not the same question as
+    /// <see cref="IsDirty"/>. The badge means *this differs from disk*, which a
+    /// brand-new empty document does — it has no file at all. Prompting means
+    /// *there is something to lose*, which an untouched new document has not,
+    /// and File ▸ New followed by a close should not argue about it. Same split
+    /// as B76's pending versus missing: worth knowing is not worth acting on.
+    /// </remarks>
+    public bool HasWorkToLose =>
+        (Editor.Revision > 0 || Views.Any(v => v.Editor.Revision > 0)) && IsDirty;
+
+    /// <summary>This document was written to disk as it currently stands.</summary>
+    /// <remarks>
+    /// Its views are marked too: their edits are part of this document, so a
+    /// save that wrote them has written them.
+    /// </remarks>
+    public void MarkSaved()
+    {
+        foreach (var view in Views) view.SetSavedRevision(view.Editor.Revision);
+        SetSavedRevision(Editor.Revision);
+    }
+
+    /// <summary>
+    /// Re-read the dirty state after something may have changed it — an edit,
+    /// an undo, or a save.
+    /// </summary>
+    /// <remarks>
+    /// A derived property still has to say when it changed. Every mutation
+    /// funnels through <c>MarkDocumentEdited</c> or a save, so this is called
+    /// from there rather than by subscribing to the editor — a subscription
+    /// would fire during a stroke, at pointer rate, for a badge that can only
+    /// change once per stroke.
+    /// </remarks>
+    public void RefreshDirty()
+    {
+        OnPropertyChanged(nameof(IsDirty));
+        OnPropertyChanged(nameof(IsUnsaved));
+        OnPropertyChanged(nameof(HasWorkToLose));
+        OnPropertyChanged(nameof(DisplayTitle));
+    }
+
+    private void SetSavedRevision(long revision)
+    {
+        _savedRevision = revision;
+        RefreshDirty();
+        // A view's badge mirrors its owner's, so the owner has to re-announce.
+        foreach (var view in Views) view.RefreshDirty();
+    }
+
+    /// <summary>
+    /// Adopt another tab's saved point — for a reference or symbol tab, whose
+    /// edits belong to a document it does not own.
+    /// </summary>
+    internal void AdoptSavedRevisionFrom(DocumentTab other)
+    {
+        _savedRevision = other._savedRevision;
+        RefreshDirty();
+    }
 
     [ObservableProperty]
     private bool _isActive;
@@ -111,8 +237,17 @@ public sealed partial class DocumentTab : ObservableObject
     /// </summary>
     public Lightbox.Core.Projects.DocumentRef? Source { get; set; }
 
-    /// <summary>Playhead/layer selection remembered while another tab is active.</summary>
-    internal int SavedFrameIndex;
-
-    internal int SavedLayerIndex;
+    /// <summary>
+    /// Where the artist was in this document — playhead, layer, reference and
+    /// canvas framing — put down on the way out of the tab and picked up on the
+    /// way back in.
+    /// </summary>
+    /// <remarks>
+    /// <b>B67.</b> Was two loose ints (<c>SavedFrameIndex</c>,
+    /// <c>SavedLayerIndex</c>) and grew a third and a fourth. One object so
+    /// there is a single answer to "what belongs to a document rather than to
+    /// the process", and so the next thing to join the list is a field rather
+    /// than another pair of save/restore lines to forget.
+    /// </remarks>
+    internal DocumentScopedState State { get; } = new();
 }

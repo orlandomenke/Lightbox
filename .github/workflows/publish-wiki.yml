@@ -1,0 +1,54 @@
+name: publish wiki
+
+# Mirror the manual and the design docs into the GitHub wiki.
+#
+# The repository is the source of truth and the wiki is a generated view —
+# see the header of .github/scripts/publish-wiki.sh for why that direction and
+# not the other one. The script owns only `Manual-*`, `Design-*` and
+# `_Sidebar`, so a hand-written Home page is never touched.
+#
+# NOTE: workflow_dispatch only shows a Run workflow button when this file is on
+# the repository's DEFAULT branch. On a feature branch it is invisible, however
+# correct it is — the same caveat cleanup-artifacts.yml carries.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/MANUAL.md'
+      - 'docs/manual/**'
+      - 'docs/DESIGN-*.md'
+      - 'docs/design/**'
+      - '.github/scripts/publish-wiki.sh'
+      - '.github/workflows/publish-wiki.yml'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what would change without pushing'
+        type: boolean
+        default: false
+
+# Two runs pushing to one wiki race each other, and the loser is a force-push
+# away from losing a page. One at a time, and let the newer one wait rather
+# than cancelling it — the newest content is the content we want published.
+concurrency:
+  group: publish-wiki
+  cancel-in-progress: false
+
+permissions:
+  # The wiki lives in the same repository, so this is what writing it needs.
+  # Nothing else here writes anything.
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Publish
+        env:
+          # The token goes in the URL rather than a header so the clone and the
+          # push use the same credential without a second configuration step.
+          WIKI_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git
+          DRY_RUN: ${{ inputs.dry_run }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: bash .github/scripts/publish-wiki.sh

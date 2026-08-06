@@ -87,6 +87,27 @@ jobs:
       - name: SkiaSharp native dependency
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
       - run: dotnet test Lightbox.sln -c Release
+      # The branch-name rules in branchstate.py have no C# suite to live in, and
+      # a heuristic with no test is how the first version came to fire on
+      # `chore/ledger-by-domain`. Costs a second.
+      - name: Branch-name rules
+        run: python3 scripts/branchstate.py selftest
+
+  # The derived documentation checks.
+  #
+  # A SEPARATE job rather than a step in `test`, and the reason is the `if:`
+  # above it: `test` is skipped when a push touches only docs/ and .claude/ —
+  # which is precisely when the manual's contents list drifts. A check that
+  # cannot run on a documentation-only change is not a check on documentation.
+  #
+  # No .NET and no checkout depth needed, so it costs a few seconds and runs on
+  # everything.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: The manual's contents list matches its sections
+        run: python3 scripts/manual.py check
 
   # Is there anything in this push that could change the bundle? A Windows
   # build of a Markdown edit is 105 MB of storage for a file nobody ships.

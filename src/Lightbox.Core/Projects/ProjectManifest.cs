@@ -36,6 +36,26 @@ public sealed class DocumentRef
     public string Path { get; set; } = "";
 
     /// <summary>
+    /// The folder this document is filed in, or null for the project root.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Beside <see cref="Path"/> rather than instead of it, and that is the
+    /// migration: a document written before folders existed keeps the path it
+    /// has and reports no folder, so every project on disk today opens and
+    /// saves unchanged. <see cref="Path"/> stays the truth about where the file
+    /// is; this says where the artist put it.
+    /// </para>
+    /// <para>
+    /// The two are kept in step by <see cref="ProjectFolders.FileDocument"/>,
+    /// which is the only thing that should set either — deriving the path on
+    /// every read instead would rename files underneath an artist who renamed a
+    /// folder, which is a move the project deliberately does not make.
+    /// </para>
+    /// </remarks>
+    public string? FolderId { get; set; }
+
+    /// <summary>
     /// How long the document is, refreshed whenever it is written.
     /// </summary>
     /// <remarks>
@@ -241,6 +261,29 @@ public sealed class ProjectManifest
     public List<DocumentRef> Documents { get; set; } = [];
 
     /// <summary>
+    /// The folder tree the artist built, flat, each folder naming its parent.
+    /// Null until the first one is made, so a project that never used folders
+    /// writes no folder key at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Flat with parent ids rather than nested.</b> A nested list reads
+    /// nicely and makes every other operation awkward: moving a folder becomes
+    /// a splice, a document's folder cannot be named by one id, and a
+    /// hand-edited cycle is unrepresentable in the type but perfectly
+    /// representable in the file — so the code has to defend against it anyway.
+    /// Flat means <see cref="ProjectFolders.Move"/> is one assignment, and the
+    /// one place that walks the tree is the one place that guards it.
+    /// </para>
+    /// <para>
+    /// The <em>order</em> of this list is not the display order and nothing
+    /// should read it as one. A surface sorts by name, or by whatever it
+    /// offers; the manifest only records what exists and what contains what.
+    /// </para>
+    /// </remarks>
+    public List<ProjectFolder>? Folders { get; set; }
+
+    /// <summary>
     /// The scenes, in running order. Null until one is made, so a project that
     /// is a bag of sprites writes no scene key at all.
     /// </summary>
@@ -271,6 +314,27 @@ public sealed class ProjectManifest
     /// renders from this.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Resources declared on the project itself — the scope above every folder.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q30.</b> Null and absent until something is declared. This sits beside
+    /// <see cref="Palettes"/> rather than replacing it: the old list is how
+    /// existing projects say the same thing, and Q30's migration answer was
+    /// new-projects-only, so both are read for as long as old projects exist.
+    /// </remarks>
+    public List<ScopedResource>? Resources { get; set; }
+
+    /// <summary>
+    /// Guide sets shared across the project, once there are any.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q30.</b> Null and absent until one is made — a project that never
+    /// shared a guide carries no key. Which documents may pull from which set is
+    /// <see cref="GuideScopes"/>; this is only where they live.
+    /// </remarks>
+    public List<GuideSet>? GuideSets { get; set; }
+
     public Documents.BrushSettings? Brush { get; set; }
 
     /// <summary>

@@ -178,6 +178,9 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DragOverEvent, OnCelDragOver);
         AddHandler(DragDrop.DropEvent, OnCelDrop);
         DragDrop.SetAllowDrop(Canvas, true);
+        // B80. Closing a tab asked about unsaved work and closing the window did
+        // not, so quitting mid-edit lost it silently.
+        Closing += OnWindowClosing;
         Canvas.AddHandler(DragDrop.DragOverEvent, OnCanvasColorDragOver);
         Canvas.AddHandler(DragDrop.DropEvent, OnCanvasColorDrop);
         Canvas.AddHandler(DragDrop.DragOverEvent, OnCanvasSymbolDragOver);
@@ -219,6 +222,9 @@ public partial class MainWindow : Window
             }
         };
         _vm.Workspace.Changed += ApplyDockLayout;
+        // B67. The canvas framing belongs to the document, and the window is the
+        // only thing that holds both a tab and a CanvasControl.
+        _vm.TabSwitched += CarryTheViewBetweenTabs;
         InitialisePanels();
         InitialiseOverlays();
         ApplyDockLayout();
@@ -311,6 +317,22 @@ public partial class MainWindow : Window
     /// that survive this are bugs in the model, which is tested without a
     /// window at all.
     /// </summary>
+    /// <summary>
+    /// Put the canvas framing down on the tab being left, and pick up the one
+    /// belonging to the tab being entered.
+    /// </summary>
+    /// <remarks>
+    /// <b>B67.</b> A document nobody has framed yet opens fitted rather than at
+    /// whatever the last one was left at — which is the reported defect, and is
+    /// why the stored value is nullable rather than defaulted.
+    /// </remarks>
+    private void CarryTheViewBetweenTabs(ViewModels.DocumentTab? leaving, ViewModels.DocumentTab arriving)
+    {
+        if (leaving is not null) leaving.State.View = Canvas.Framing;
+        if (arriving.State.View is { } framed) Canvas.Framing = framed;
+        else Canvas.ResetView();
+    }
+
     private void ApplyDockLayout()
     {
         var layout = _vm.Workspace.Layout;
@@ -578,6 +600,11 @@ public partial class MainWindow : Window
             },
         };
         box.Focus();
+        // B107. The caret goes after what is already there rather than to the
+        // front of it. The box is now prefilled with a derived stem — "Knight - "
+        // — and typing has to continue it; a caret at index 0 would put the
+        // artist's word in front of the name they were offered.
+        box.CaretIndex = box.Text?.Length ?? 0;
         await dialog.ShowDialog(this);
         return answer;
     }
@@ -1437,7 +1464,37 @@ public partial class MainWindow : Window
             _vm.OpenReferenceView(view);
     }
 
-    private void OnReferenceRenamed(object? sender, RoutedEventArgs e) => _vm.MarkReferenceEdited();
+    /// <summary>
+    /// The text in a sheet or view name box, captured when it took focus, so
+    /// losing focus can tell a rename from a click-through.
+    /// </summary>
+    private string? _referenceNameOnFocus;
+
+    private void OnReferenceNameFocused(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is TextBox box) _referenceNameOnFocus = box.Text ?? "";
+    }
+
+    /// <remarks>
+    /// <b>B95.</b> Bound to <c>LostFocus</c>, which fires whether or not the
+    /// artist typed anything — so this used to mark the document unsaved for
+    /// clicking into a name box and out again. Compare against what was there
+    /// on the way in, exactly as the project docker's rename does.
+    /// </remarks>
+    private void OnReferenceRenamed(object? sender, RoutedEventArgs e)
+    {
+        var before = _referenceNameOnFocus;
+        _referenceNameOnFocus = null;
+        if (sender is not TextBox box) return;
+        // The two-way binding has already written the new name by now, so the
+        // only record of the old one is what was captured on the way in.
+        if (before is null || string.Equals(before, box.Text ?? "", StringComparison.Ordinal))
+        {
+            _vm.RefreshReferenceList();
+            return;
+        }
+        _vm.MarkReferenceRenamed();
+    }
 
     // ---- brush presets --------------------------------------------------------
 
@@ -2753,7 +2810,17 @@ public partial class MainWindow : Window
     /// is the outcome that cannot destroy anything; Discard is the one that
     /// needs deliberate aim.
     /// </remarks>
-    private async Task<UnsavedChoice> ConfirmDiscardAsync(string title)
+    private Task<UnsavedChoice> ConfirmDiscardAsync(string title) => ConfirmDiscardAsync([title]);
+
+    /// <inheritdoc cref="ConfirmDiscardAsync(string)"/>
+    /// <remarks>
+    /// <b>B80.</b> Takes a list because closing the window can have several
+    /// documents in flight, and a chain of modal boxes — one per tab, each
+    /// answerable differently — is a worse answer than one that says how much is
+    /// at stake. The single-tab call is the same dialog with one name in it, so
+    /// the two paths cannot drift into disagreeing about what Save means.
+    /// </remarks>
+    private async Task<UnsavedChoice> ConfirmDiscardAsync(IReadOnlyList<string> titles)
     {
         var result = UnsavedChoice.Cancel;
         var dialog = new Window
@@ -2764,7 +2831,14 @@ public partial class MainWindow : Window
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
-        var save = new Button { Content = "Save", MinWidth = 80, IsDefault = true };
+        // "Save all" when there is more than one, because "Save" beside a list of
+        // four names does not say whether it means all of them or the first.
+        var save = new Button
+        {
+            Content = titles.Count > 1 ? "Save all" : "Save",
+            MinWidth = 80,
+            IsDefault = true,
+        };
         var discard = new Button { Content = "Discard changes", MinWidth = 120 };
         var cancel = new Button { Content = "Cancel", MinWidth = 80, IsCancel = true };
         save.Click += (_, _) => { result = UnsavedChoice.Save; dialog.Close(); };
@@ -2778,7 +2852,14 @@ public partial class MainWindow : Window
             {
                 new TextBlock
                 {
-                    Text = $"“{title}” has unsaved changes.",
+                    // Named rather than counted. "3 documents have unsaved
+                    // changes" is a number to weigh and the names are the thing
+                    // an artist actually recognises — and the list is what makes
+                    // Discard a decision rather than a gamble.
+                    Text = titles.Count == 1
+                        ? $"“{titles[0]}” has unsaved changes."
+                        : $"{titles.Count} documents have unsaved changes:\n"
+                          + string.Join("\n", titles.Select(t => $"    • {t}")),
                     TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 },
                 new StackPanel
@@ -2795,6 +2876,78 @@ public partial class MainWindow : Window
         };
         await dialog.ShowDialog(this);
         return result;
+    }
+
+    /// <summary>
+    /// Set once the artist has answered the unsaved-changes dialog and the close
+    /// may go ahead, so the re-close does not ask again.
+    /// </summary>
+    private bool _closeConfirmed;
+
+    /// <summary>
+    /// Closing the application asks about unsaved work, the way closing a tab does.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B80.</b> There was no handler at all — closing a *tab* asked and
+    /// closing the *window* did not, so quitting with edits in flight lost them
+    /// silently. Worse than B75, which at least told the artist something.
+    /// </para>
+    /// <para>
+    /// <b>Cancel, then re-close.</b> <c>Closing</c> cannot be awaited, so the
+    /// only way to ask a question during it is to refuse the close, ask, and
+    /// close again — which is why <see cref="_closeConfirmed"/> exists rather
+    /// than being a smell. Without it the second <c>Close()</c> re-enters here
+    /// and asks the same question for ever.
+    /// </para>
+    /// <para>
+    /// <b>A cancelled picker abandons the whole close</b>, exactly as it does for
+    /// a single tab: the artist asked to keep the work, and no reading of
+    /// "cancel the save" ends with the application exiting and the work gone.
+    /// </para>
+    /// </remarks>
+    private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (_closeConfirmed) return;
+
+        // B99. HasWorkToLose, not IsDirty: a never-saved document badges from
+        // the moment it exists, and File ▸ New followed by a close must not
+        // argue about a drawing nobody made. What this must still catch — and
+        // what B80 shipped unable to catch — is a new document that *has* been
+        // drawn in, which has no file at all and is the easiest work to lose.
+        var dirty = _vm.Tabs.Where(t => t.HasWorkToLose).ToList();
+        if (dirty.Count == 0) return;
+
+        e.Cancel = true;
+        switch (await ConfirmDiscardAsync(dirty.Select(t => t.Title).ToList()))
+        {
+            case UnsavedChoice.Cancel:
+                return;
+
+            case UnsavedChoice.Save:
+                foreach (var tab in dirty)
+                {
+                    // A project save writes every dirty document at once, so by
+                    // the time the loop reaches the second tab it is usually
+                    // already clean. Re-saving would be harmless and asking for
+                    // a filename again would not.
+                    if (!tab.IsDirty) continue;
+                    // Save acts on the active document, so the tab being saved
+                    // has to be the active one — the same trap B75 records, and
+                    // it is worse here because the loop would write one document
+                    // several times and never touch the others.
+                    _vm.ActiveTab = tab;
+                    await SaveOrSaveAsAsync(tab.Title);
+                    if (tab.IsDirty) return;
+                }
+                break;
+
+            case UnsavedChoice.Discard:
+                break;
+        }
+
+        _closeConfirmed = true;
+        Close();
     }
 
     private async void OnSaveClicked(object? sender, RoutedEventArgs e) => await SaveDocumentAsAsync();
@@ -2978,18 +3131,26 @@ public partial class MainWindow : Window
     {
         if ((sender as Control)?.DataContext is not ProjectRow pressed) return;
 
-        // Right-click selects first. Every item in the row's menu acts on the
-        // selection, and a menu that acted on whatever was selected before you
-        // right-clicked would delete the wrong thing sooner or later.
-        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
-        {
-            _vm.ProjectDocker.Selected = pressed;
-            return;
-        }
+        // B108. One rule, before any other question: a press on a row selects
+        // that row — either button, every kind of row. It used to select on
+        // right-click for anything and on left-click only for a document, so a
+        // left press on a folder left the selection wherever it was. Both
+        // toolbar surfaces read that selection as "where I am", which is how
+        // 🗁 came to reveal the project folder and ＋ New to file at the root
+        // while the artist was plainly looking at a folder.
+        //
+        // The decision lives in the docker (SelectFromPointer) rather than here,
+        // because synthetic pointer input is unreliable in this environment and
+        // a rule that only exists inside a pointer handler is one no test can
+        // reach.
+        _vm.ProjectDocker.SelectFromPointer(pressed);
+
+        // Right-click stops here: every item in the row's menu acts on the
+        // selection, which has just been set to the row under the pointer.
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
 
         if (pressed is not { Animation: not null } row) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
-        _vm.ProjectDocker.Selected = row;
 
         _draggedRow = row;
         try
@@ -3023,6 +3184,9 @@ public partial class MainWindow : Window
     private async void OnProjectNewDocument(object? sender, RoutedEventArgs e) =>
         await CreateProjectItemAsync(ProjectViewModel.NewLooseDocument);
 
+    private async void OnProjectNewFolder(object? sender, RoutedEventArgs e) =>
+        await CreateProjectItemAsync(ProjectViewModel.NewFolderItem);
+
     /// <summary>
     /// Ask what it is called, then create it.
     /// </summary>
@@ -3034,12 +3198,16 @@ public partial class MainWindow : Window
     /// which is the ordering B66 and B78 also landed on: a name is a question,
     /// not something to fix afterwards.
     /// </remarks>
-    private async Task CreateProjectItemAsync(ProjectViewModel.NewItemKind kind)
+    private Task CreateProjectItemAsync(ProjectViewModel.NewItemKind kind)
     {
-        var suggested = _vm.ProjectDocker.SuggestedNameFor(kind);
-        var name = await PromptForText($"New {kind.Label.ToLowerInvariant()}", "Name", suggested);
-        if (name is null) return;   // cancelled: nothing is written
-        _vm.ProjectDocker.AddItemNamed(kind, name);
+        // B65. The sequence moved into the docker so the cancel path is
+        // testable; what stays here is the dialog, which is all a window should
+        // own. Attached once rather than per call — it is the same dialog every
+        // time and re-assigning it on each click would be a subscription leak
+        // waiting to be written.
+        _vm.ProjectDocker.AskName ??= (k, suggested) =>
+            PromptForText($"New {k.Label.ToLowerInvariant()}", "Name", suggested);
+        return _vm.ProjectDocker.CreateAsync(kind);
     }
 
     private void OnProjectOpen(object? sender, RoutedEventArgs e) =>
@@ -3057,9 +3225,70 @@ public partial class MainWindow : Window
     private void OnProjectRemove(object? sender, RoutedEventArgs e) =>
         _vm.ProjectDocker.RemoveSelectedCommand.Execute(null);
 
+    /// <summary>
+    /// Delete for real, asking first when there is something inside.
+    /// </summary>
+    /// <remarks>
+    /// <b>B87.</b> The docker decides <em>whether</em> to ask and what the
+    /// question says; this only puts it on screen. A view model that opened its
+    /// own dialogs would be one no test could drive, which is the same split
+    /// B65 uses for the name prompt.
+    /// </remarks>
+    private async void OnProjectDeletePermanently(object? sender, RoutedEventArgs e)
+    {
+        var docker = _vm.ProjectDocker;
+        if (docker.DeleteNeedsConfirmation
+            && !await ConfirmAsync("Delete permanently", docker.DeleteWarning, "Delete"))
+        {
+            return;
+        }
+        docker.DeleteSelectedPermanentlyCommand.Execute(null);
+    }
+
+    /// <summary>A yes/no the artist has to mean, with the destructive verb spelled out.</summary>
+    private async Task<bool> ConfirmAsync(string title, string message, string confirmLabel)
+    {
+        var yes = false;
+        var confirm = new Button { Content = confirmLabel, IsDefault = false };
+        var cancel = new Button { Content = "Cancel", IsDefault = true, IsCancel = true };
+        var dialog = new Window
+        {
+            Title = title,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(16),
+                Spacing = 12,
+                Children =
+                {
+                    new TextBlock { Text = message, MaxWidth = 360, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Spacing = 8,
+                        Children = { cancel, confirm },
+                    },
+                },
+            },
+        };
+        // Cancel is the default and Delete is not, which is the opposite of the
+        // save dialog B75 landed: there, Enter should reach the outcome that
+        // cannot destroy anything, and here that is Cancel.
+        confirm.Click += (_, _) => { yes = true; dialog.Close(); };
+        cancel.Click += (_, _) => dialog.Close();
+        await dialog.ShowDialog(this);
+        return yes;
+    }
+
     private void OnProjectRowRename(object? sender, RoutedEventArgs e)
     {
-        if (_vm.ProjectDocker.Selected is { } row) row.IsRenaming = true;
+        // B62. The project row refuses the rename, so never open the box for it
+        // — an edit box that cannot commit is a worse answer than no box.
+        if (_vm.ProjectDocker.Selected is not { IsRoot: false } row) return;
+        row.IsRenaming = true;
     }
 
     /// <summary>
@@ -3104,8 +3333,11 @@ public partial class MainWindow : Window
         switch (e.Key)
         {
             case Key.Enter:
-                _vm.ProjectDocker.Rename(row, box.Text ?? "");
-                row.IsRenaming = false;
+                // B64. The box stays open when the rename was refused, so the
+                // artist can fix the name rather than retype it from scratch —
+                // and the docker's status line says which of the several
+                // reasons it was.
+                if (_vm.ProjectDocker.Rename(row, box.Text ?? "")) row.IsRenaming = false;
                 e.Handled = true;
                 break;
             case Key.Escape:
@@ -3119,7 +3351,10 @@ public partial class MainWindow : Window
     private void OnProjectNameLostFocus(object? sender, RoutedEventArgs e)
     {
         if (sender is not TextBox box || box.DataContext is not ProjectRow row) return;
-        if (row.IsRenaming) _vm.ProjectDocker.Rename(row, box.Text ?? "");
+        // Losing focus commits what it can and always closes the box: leaving
+        // an edit open on a row nobody is looking at is how a rename gets
+        // applied to whatever is clicked next.
+        if (row.IsRenaming && !_vm.ProjectDocker.Rename(row, box.Text ?? "")) box.Text = row.Name;
         row.IsRenaming = false;
     }
 
@@ -3172,9 +3407,17 @@ public partial class MainWindow : Window
 
         // Over nothing in particular means the project: dropping into the
         // empty space below the tree is the natural way to say "not under any
-        // character", and it is the only way to say it when every row is one.
+        // character". B62 gave it a second, more findable way — the project row
+        // has no Character either, so dropping onto it means the same thing.
         var destination = over?.Character;
-        if (ReferenceEquals(destination, dragged.Character)) return null;
+        // B94. The guard used to compare characters alone, which was the only
+        // way to group documents when it was written — B85/B86 added the folder
+        // tree beside it and this was never widened, so dragging a document
+        // within the folder it already sits in read as a real move and marked
+        // the project unsaved. Both axes, so a third could not slip past either.
+        var sameCharacter = ReferenceEquals(destination, dragged.Character);
+        var sameFolder = string.Equals(over?.Folder?.Id, dragged.Folder?.Id, StringComparison.Ordinal);
+        if (sameCharacter && sameFolder) return null;
         return (destination, true);
     }
 

@@ -50,6 +50,32 @@ public sealed class Stroke
     public string? SwatchId { get; set; }
 
     /// <summary>
+    /// Which palette that swatch came from, or null when nothing recorded it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q30 step 2, and the one hazard scoping introduces.</b> Palettes are
+    /// the deliberate exception to *resources are a library, not something
+    /// rendering reads* — live recolour is the feature, so a swatch id really is
+    /// resolved at render time. That was safe while every document saw every
+    /// palette. Once palettes are scoped, moving a document between folders
+    /// changes which swatches resolve, and a swatch id that means one colour
+    /// under the knight can mean another under the goblin.
+    /// </para>
+    /// <para>
+    /// Independently authored palettes will not collide, because swatch ids are
+    /// generated. <b>Duplicated palettes will</b> — and duplicating a palette to
+    /// tweak it is the obvious thing to do, which is what turns this from
+    /// theoretical into the next bug report.
+    /// </para>
+    /// <para>
+    /// Nullable and absent from the file unless a stroke was painted from a
+    /// palette, so nothing that paints a literal colour carries the key.
+    /// </para>
+    /// </remarks>
+    public string? PaletteId { get; set; }
+
+    /// <summary>
     /// Painted on an alpha-locked layer: this stroke may only touch pixels
     /// that already had content beneath it. Recorded here rather than read
     /// from the layer at render time, so flipping the layer's alpha lock
@@ -97,6 +123,7 @@ public sealed class Stroke
         Tool = Tool,
         Color = Color,
         SwatchId = SwatchId,
+        PaletteId = PaletteId,
         GradientId = GradientId,
         Brush = Brush.Clone(),
         Points = [.. Points],

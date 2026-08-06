@@ -38,6 +38,28 @@ public sealed partial class ProjectRow : ObservableObject
         _name = animation.Name;
     }
 
+    /// <summary>A folder the artist made, at <paramref name="depth"/> from the root.</summary>
+    /// <remarks>
+    /// <b>B86.</b> Depth is carried rather than derived, because the row does not
+    /// know the manifest and asking it to would make every row hold a reference
+    /// to the project so it could walk its own ancestry on each repaint.
+    /// </remarks>
+    public ProjectRow(ProjectFolder folder, int depth)
+    {
+        Folder = folder;
+        Depth = depth;
+        _name = folder.Name;
+    }
+
+    /// <summary>A document filed in a folder.</summary>
+    public ProjectRow(ProjectFolder folder, DocumentRef document, int depth)
+    {
+        Folder = folder;
+        Animation = document;
+        Depth = depth;
+        _name = document.Name;
+    }
+
     public ProjectRow(ProjectScene scene, DocumentRef shot, string? duration)
     {
         Scene = scene;
@@ -45,6 +67,26 @@ public sealed partial class ProjectRow : ObservableObject
         Duration = duration;
         _name = shot.Name;
     }
+
+    private ProjectRow(string name)
+    {
+        IsRoot = true;
+        _name = name;
+    }
+
+    /// <summary>The project folder itself, as a row.</summary>
+    /// <remarks>
+    /// <b>B62.</b> The tree listed everything <em>in</em> the project and not the
+    /// project, so there was no way to select it — and no way to see where it
+    /// actually lives on disk. That is what made moving the reveal action to the
+    /// selection a removal rather than a swap: the old toolbar behaviour had
+    /// nowhere to go. With a row for it, "show the project folder" is "select
+    /// this and reveal it", which is one rule instead of two.
+    /// </remarks>
+    public static ProjectRow Root(string name) => new(name);
+
+    /// <summary>Whether this row is the project itself rather than something in it.</summary>
+    public bool IsRoot { get; }
 
     /// <summary>
     /// Null on a document that belongs to the project rather than to any
@@ -54,6 +96,20 @@ public sealed partial class ProjectRow : ObservableObject
 
     /// <summary>The scene this row is, or the one a shot sits in.</summary>
     public ProjectScene? Scene { get; }
+
+    /// <summary>
+    /// The folder this row <em>is</em>, or the one a document is filed in.
+    /// </summary>
+    /// <remarks>
+    /// <b>B85/B86.</b> Reads the same way <see cref="Character"/> does — a row
+    /// is a container or a thing inside one — so a document's row and its
+    /// folder's row both answer "which folder is this about", which is what
+    /// creating and dropping into a folder both need.
+    /// </remarks>
+    public ProjectFolder? Folder { get; }
+
+    /// <summary>How far this row is indented, in tree levels.</summary>
+    public int Depth { get; }
 
     /// <summary>Null on a character or scene row.</summary>
     public DocumentRef? Animation { get; }
@@ -102,17 +158,35 @@ public sealed partial class ProjectRow : ObservableObject
     internal bool Describes(ProjectRow other) =>
         ReferenceEquals(Character, other.Character)
         && ReferenceEquals(Scene, other.Scene)
-        && ReferenceEquals(Animation, other.Animation);
+        && ReferenceEquals(Folder, other.Folder)
+        && ReferenceEquals(Animation, other.Animation)
+        && Depth == other.Depth
+        && IsRoot == other.IsRoot;
 
     public bool IsScene => Scene is not null && Animation is null;
 
-    public bool IsCharacter => Animation is null && Scene is null;
+    /// <summary>A folder the artist made, rather than a character or a scene.</summary>
+    public bool IsFolder => Folder is not null && Animation is null;
 
-    /// <summary>A heading row — a character or a scene.</summary>
+    public bool IsCharacter => Animation is null && Scene is null && Folder is null && !IsRoot;
+
+    /// <summary>A heading row — a character, a scene or a folder.</summary>
     public bool IsHeading => Animation is null;
 
-    /// <summary>A document with no character and no scene above it.</summary>
-    public bool IsLoose => Animation is not null && Character is null && Scene is null;
+    /// <summary>A document with nothing above it at all.</summary>
+    public bool IsLoose =>
+        Animation is not null && Character is null && Scene is null && Folder is null;
+
+    /// <summary>Whether a folder row is showing what is inside it.</summary>
+    /// <remarks>
+    /// <b>B86.</b> On the row for binding, and mirrored from the view model's own
+    /// set — the set is what survives a rebuild, since a re-read that discards
+    /// rows would otherwise expand everything the artist had collapsed. B61 is
+    /// the same lesson from the other side.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Twisty))]
+    private bool _isCollapsed;
 
     [ObservableProperty]
     private string _name;
@@ -124,10 +198,26 @@ public sealed partial class ProjectRow : ObservableObject
     [ObservableProperty]
     private bool _isRenaming;
 
-    /// <summary>A heading reads as a heading; what is under it is indented.</summary>
-    public double Indent => IsHeading || IsLoose ? 0 : 14;
+    /// <summary>
+    /// How far in this row sits, in pixels.
+    /// </summary>
+    /// <remarks>
+    /// <b>B86.</b> Was a flat "heading or not" — 0 or 14 — which is all a
+    /// two-level tree needs and cannot express a folder inside a folder. Depth
+    /// now drives it, and a document inside a folder sits one level in from the
+    /// folder itself, which is why the +1.
+    /// </remarks>
+    public double Indent => Folder is not null
+        ? (Depth + (Animation is null ? 0 : 1)) * 14
+        : IsHeading || IsLoose ? 0 : 14;
 
-    public string Glyph => IsScene ? "🎬" : IsCharacter ? "🗀" : "▣";
+    // 🗁 is the open folder, and it matches the toolbar button that used to be
+    // the only way to reach the project folder — the row inherited the icon
+    // along with the job (B62).
+    public string Glyph => IsRoot ? "🗁" : IsScene ? "🎬" : IsFolder ? "🗀" : IsCharacter ? "🗀" : "▣";
+
+    /// <summary>The chevron on a folder row, or nothing on everything else.</summary>
+    public string Twisty => IsFolder ? (IsCollapsed ? "▸" : "▾") : "";
 
     /// <summary>
     /// The production status, mirrored from the manifest so the row can show it.
@@ -163,7 +253,33 @@ public sealed partial class ProjectRow : ObservableObject
     /// </para>
     /// </remarks>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MissingHint))]
+    [NotifyPropertyChangedFor(nameof(IsOnDisk))]
     private bool _missing;
+
+    /// <summary>
+    /// This has never been written — it exists in the project and not yet on disk.
+    /// </summary>
+    /// <remarks>
+    /// <b>B76,</b> and the distinction is the whole entry. <see cref="Missing"/>
+    /// means *this was on disk and is gone*, which is alarming and worth acting
+    /// on. Pending means *this has not been saved yet*, which is ordinary and
+    /// worth knowing. Conflating them would either cry wolf on every new
+    /// document or hide a deleted file among them.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PendingHint))]
+    [NotifyPropertyChangedFor(nameof(IsOnDisk))]
+    private bool _pending;
+
+    /// <summary>What the row says when it has not been written yet.</summary>
+    public string PendingHint => Pending ? "not saved yet" : "";
+
+    /// <summary>
+    /// Whether the row's file is actually there — false while pending and false
+    /// while missing, which is what a greyed row means.
+    /// </summary>
+    public bool IsOnDisk => !Pending && !Missing;
 
     /// <summary>What the row says when its file is gone.</summary>
     public string MissingHint => Missing ? "not on disk" : "";
@@ -179,8 +295,23 @@ public sealed partial class ProjectRow : ObservableObject
         OnPropertyChanged(nameof(StatusColor));
     }
 
+    /// <summary>What the project row is remembered by. No id can collide with it.</summary>
+    /// <remarks><see cref="Ids.NewId"/> joins with underscores, so a slash is free.</remarks>
+    internal const string RootKey = "/";
+
     /// <summary>The id this row is remembered by across a rebuild.</summary>
-    internal string? Key => Animation?.Id ?? Scene?.Id ?? Character?.Id;
+    /// <remarks>
+    /// <b>B62 found the gap and had to close it.</b> Folder and root were both
+    /// absent here, so both keyed as null — and <c>Rebuild</c> restores the
+    /// selection with <c>FirstOrDefault(r =&gt; r.Key == keep)</c>, which matches
+    /// the <em>first</em> null-keyed row rather than the one that was selected.
+    /// Adding a root row at the top of the tree would have made that visible as a
+    /// regression: select a folder, save, and the selection jumps to the project.
+    /// The underlying fault was already there — with two folders it jumped to the
+    /// first one — so this is a fix rather than a defence.
+    /// </remarks>
+    internal string? Key =>
+        Animation?.Id ?? Scene?.Id ?? Character?.Id ?? Folder?.Id ?? (IsRoot ? RootKey : null);
 }
 
 /// <summary>
@@ -276,7 +407,135 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     {
         Project = project;
         _dirty.Clear();
+        // B76. A different project's pending folders are not this one's — and an
+        // id carried across would make a saved folder read as unsaved.
+        _unwrittenFolders.Clear();
         Rebuild();
+    }
+
+    partial void OnSelectedChanged(ProjectRow? value)
+    {
+        // The scope panel is about whatever is selected, so it has to be told.
+        OnPropertyChanged(nameof(DeclarationsOnSelected));
+        OnPropertyChanged(nameof(ShareScopeLabel));
+    }
+
+    // ---- scoped resources (Q30) ---------------------------------------------
+
+    /// <summary>
+    /// The palettes an artist can share onto the selected scope — the project's
+    /// own, since those are the ones that outlive a single document.
+    /// </summary>
+    public IReadOnlyList<Palette> ShareablePalettes =>
+        Project?.Palettes ?? (IReadOnlyList<Palette>)[];
+
+    /// <summary>
+    /// What the selected row already declares, for the panel to show and for an
+    /// artist to take back.
+    /// </summary>
+    /// <remarks>
+    /// Declarations on the row itself, not what it inherits. Showing the whole
+    /// resolved chain here would make an inherited palette look removable from a
+    /// place that never declared it.
+    /// </remarks>
+    public IReadOnlyList<ScopedResource> DeclarationsOnSelected =>
+        ScopeOfSelected() is { } folder
+            ? folder.Resources ?? (IReadOnlyList<ScopedResource>)[]
+            : Project?.Manifest.Resources ?? (IReadOnlyList<ScopedResource>)[];
+
+    /// <summary>
+    /// Which scope the selection means: a folder row is itself, and anything
+    /// else is the project.
+    /// </summary>
+    /// <remarks>
+    /// The project row and a document row both resolve to the project rather
+    /// than refusing. An artist who selected a drawing and asked to share a
+    /// palette meant *around here*, and the nearest scope that can hold one is
+    /// the answer — the alternative is a disabled menu item that says nothing.
+    /// </remarks>
+    private ProjectFolder? ScopeOfSelected() =>
+        Selected is { IsFolder: true, Folder: { } folder } ? folder : null;
+
+    /// <summary>Where a share would land, in words, for the menu to say so.</summary>
+    public string ShareScopeLabel =>
+        ScopeOfSelected() is { } folder ? folder.Name : Project?.Name ?? "the project";
+
+    /// <summary>Share a palette with everything under the selected scope.</summary>
+    /// <remarks>
+    /// <b>Q30.</b> Declaring the first one is what switches a project from *every
+    /// palette everywhere* to *scoped*, so this is the moment an old project
+    /// becomes a new one — see <c>PaletteScopes.AnyDeclared</c>. Worth knowing
+    /// because it is not reversible by deleting the declaration again: a project
+    /// with zero declarations reads as unscoped, which is the same state it
+    /// started in, so taking the last one back does restore the old behaviour.
+    /// </remarks>
+    /// <summary>The menu binds this, because a menu item hands over the object.</summary>
+    [RelayCommand]
+    private void SharePaletteEntry(Palette? palette)
+    {
+        if (palette?.Id is { Length: > 0 } id) SharePalette(id);
+    }
+
+    public void SharePalette(string paletteId, bool projectWide = false)
+    {
+        if (Project is not { } project) return;
+        var scope = ScopeOfSelected();
+        if (Already(scope, PaletteScopes.Kind, paletteId)) return;
+        ResourceScopes.Declare(
+            project.Manifest, scope, PaletteScopes.Kind, paletteId,
+            projectWide ? ResourceReach.Project : ResourceReach.Subtree);
+        AfterScopeChange(project, $"Shared with {ShareScopeLabel}.");
+    }
+
+    /// <summary>Share a reference — a sheet, a document or an image.</summary>
+    public void ShareReference(string id, string target, bool projectWide = false)
+    {
+        if (Project is not { } project) return;
+        var scope = ScopeOfSelected();
+        if (Already(scope, ReferenceScopes.Kind, id)) return;
+        ReferenceScopes.Declare(
+            project.Manifest, scope, id, target,
+            projectWide ? ResourceReach.Project : ResourceReach.Subtree);
+        AfterScopeChange(project, $"Shared with {ShareScopeLabel}.");
+    }
+
+    /// <summary>Let everything in the project see this declaration, wherever it is filed.</summary>
+    public void PromoteDeclaration(ScopedResource resource)
+    {
+        if (Project is not { } project) return;
+        ResourceScopes.Promote(resource);
+        AfterScopeChange(project, "Shared with the whole project.");
+    }
+
+    /// <summary>Take a declaration back off this scope.</summary>
+    public void UnshareDeclaration(ScopedResource resource)
+    {
+        if (Project is not { } project) return;
+        var scope = ScopeOfSelected();
+        var list = scope is null ? project.Manifest.Resources : scope.Resources;
+        if (list is null || !list.Remove(resource)) return;
+        // Emptied rather than left as an empty list, so a scope that declares
+        // nothing writes no key — the same rule the camera follows.
+        if (list.Count == 0)
+        {
+            if (scope is null) project.Manifest.Resources = null;
+            else scope.Resources = null;
+        }
+        AfterScopeChange(project, $"No longer shared with {ShareScopeLabel}.");
+    }
+
+    private bool Already(ProjectFolder? scope, string kind, string id) =>
+        (scope is null ? Project?.Manifest.Resources : scope.Resources)?
+            .Any(r => r.Kind == kind && r.Id == id) ?? false;
+
+    private void AfterScopeChange(Project project, string status)
+    {
+        Status = status;
+        OnPropertyChanged(nameof(DeclarationsOnSelected));
+        // The manifest changed, so the project is unsaved — and the resolver
+        // that decides which palettes a document paints from has to be re-run,
+        // which is what _changed does.
+        _changed();
     }
 
     /// <summary>Note that a document changed, so the next save writes it and only it.</summary>
@@ -305,6 +564,16 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public void MarkAllSaved()
     {
         _dirty.Clear();
+        // B76. Everything pending has just been written, so nothing is.
+        _unwrittenFolders.Clear();
+        // And the rows have to be told. Clearing the sets changes the *answer*
+        // to "is this on disk" without changing any row, so without this a saved
+        // document went on saying "not saved yet" until something else forced a
+        // rebuild — which is B79's shape exactly, a badge that outlives its
+        // reason, and the pair of tests here caught it on the first run.
+        MarkMissing();
+        OnPropertyChanged(nameof(MissingCount));
+        OnPropertyChanged(nameof(HasMissing));
         Watcher.Watch(Project?.Root);
     }
 
@@ -338,12 +607,31 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
                 kept.Name = fresh.Name;
                 kept.Status = fresh.Status;
                 kept.Duration = fresh.Duration;
+                // B86, and the same trap as the three above: a kept row keeps
+                // its own state, so anything the rebuild decided has to be
+                // copied over or the reuse silently discards it. Collapse is
+                // decided by `_collapsed`, and without this line a folder
+                // toggled shut stayed open on screen while the tree below it
+                // correctly vanished.
+                kept.IsCollapsed = fresh.IsCollapsed;
                 Rows.Add(kept);
                 return;
             }
             Rows.Add(fresh);
         }
 
+        // B62. The project itself, above everything in it. Present whenever a
+        // project is — it is the one row that cannot be absent, because it is
+        // the thing the panel is showing.
+        if (Project is { } withRoot) Add(ProjectRow.Root(RootLabel(withRoot)));
+        // B86. The folder tree first: it is the structure the artist built, and
+        // a production is organised by it rather than by the two fixed axes
+        // below. Absent entirely until the first folder is made, so a project
+        // that never used one looks exactly as it did.
+        if (Project is { } withFolders)
+        {
+            EmitFolders(withFolders.Manifest, parent: null, depth: 0, Add);
+        }
         foreach (var character in Project?.Characters ?? [])
         {
             Add(new ProjectRow(character));
@@ -360,9 +648,11 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
                 Add(new ProjectRow(scene, shot, ShotTime(shot)) { Status = shot.Status });
         }
         // Project-level documents last, unindented — they belong to the
-        // project, not under anything.
+        // project, not under anything. B85: only the ones that are not filed in
+        // a folder; the rest were emitted above, under the folder they are in.
         foreach (var document in Project?.Manifest.Documents ?? [])
         {
+            if (document.FolderId is not null) continue;
             Add(new ProjectRow(null, document) { Status = document.Status });
         }
         MarkMissing();
@@ -385,6 +675,204 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// path rather than three that can disagree.
     /// </remarks>
     public void Refresh() => Rebuild();
+
+    /// <summary>
+    /// What the project row is called: the folder on disk, not the manifest name.
+    /// </summary>
+    /// <remarks>
+    /// <b>B62.</b> The docker's title already shows the project's name, so
+    /// repeating it in the first row would say nothing. The reported gap was
+    /// "no way to see where the project actually lives", and
+    /// <c>Production.lbproj</c> answers that where <i>Production</i> does not.
+    /// The full path is a right-click away on Copy path.
+    /// </remarks>
+    private static string RootLabel(Project project) =>
+        string.IsNullOrEmpty(project.Root) ? "Project" : Path.GetFileName(project.Root.TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+    // ---- the folder tree (B85, B86) -------------------------------------------
+
+    /// <summary>
+    /// Which folders are collapsed, by id.
+    /// </summary>
+    /// <remarks>
+    /// <b>B86.</b> Here rather than on the row, because rows are rebuilt — by a
+    /// save, by the directory watch, by any edit — and collapse that lived on
+    /// them would spring open every time the disk moved. Ids rather than folder
+    /// objects for the same reason: a reload replaces the objects and keeps the
+    /// ids.
+    /// </remarks>
+    private readonly HashSet<string> _collapsed = [];
+
+    /// <summary>
+    /// Walk the tree in display order: a folder, then what is inside it.
+    /// </summary>
+    /// <remarks>
+    /// Recursive, and safe to be: <see cref="ProjectFolders.Move"/> refuses to
+    /// make a cycle and <c>Descendants</c> tolerates one, but this walks
+    /// <em>children</em> from the root, so a cycle is simply never reached from
+    /// here — an orphaned loop does not render, which is the honest outcome for
+    /// a folder with no path back to the project.
+    /// </remarks>
+    private void EmitFolders(
+        ProjectManifest manifest, ProjectFolder? parent, int depth, Action<ProjectRow> add)
+    {
+        foreach (var folder in ProjectFolders.ChildrenOf(manifest, parent).OrderBy(f => f.Name))
+        {
+            var collapsed = _collapsed.Contains(folder.Id);
+            add(new ProjectRow(folder, depth) { IsCollapsed = collapsed });
+            if (collapsed) continue;
+            EmitFolders(manifest, folder, depth + 1, add);
+            foreach (var document in ProjectFolders.DocumentsIn(manifest, folder))
+            {
+                add(new ProjectRow(folder, document, depth) { Status = document.Status });
+            }
+        }
+    }
+
+    /// <summary>Show or hide what is inside a folder, and select it.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B108, and it refines B86 rather than reversing it.</b> B86 put the
+    /// twisty on a Button because "collapsing and selecting are different
+    /// intentions and one gesture cannot mean both", and that is still true of
+    /// the <em>intention</em>. What it missed is the consequence: the chevron was
+    /// then the one gesture that reaches into a folder and leaves
+    /// <see cref="Selected"/> pointing somewhere else — or at nothing.
+    /// </para>
+    /// <para>
+    /// Two toolbar surfaces read that selection as <em>where I am</em>: 🗁
+    /// reveals <see cref="SelectedPath"/> and ＋ New files into
+    /// <see cref="TargetFolder"/>. So expanding Knight and pressing either one
+    /// acted on the project root — the file manager opened the project folder,
+    /// and a new document landed in <c>unassigned-documents/</c>. Both were
+    /// reported as separate bugs and they are this one line.
+    /// </para>
+    /// <para>
+    /// It stayed hidden until B104 made the tree legible. With every row drawn
+    /// flush left nobody used the chevron; with real indentation it is the first
+    /// thing an artist reaches for.
+    /// </para>
+    /// </remarks>
+    [RelayCommand]
+    public void ToggleCollapsed(ProjectRow? row)
+    {
+        if (row?.Folder is not { } folder || !row.IsFolder) return;
+        if (!_collapsed.Add(folder.Id)) _collapsed.Remove(folder.Id);
+        Rebuild();
+        // After the rebuild, because Rebuild restores the selection from the
+        // *previous* one and would otherwise overwrite this.
+        Selected = Rows.FirstOrDefault(r => r.IsFolder && ReferenceEquals(r.Folder, folder))
+            ?? Selected;
+    }
+
+    /// <summary>
+    /// A press landed on a row: that row becomes the selection.
+    /// </summary>
+    /// <remarks>
+    /// <b>B108.</b> The window's pointer handler used to set the selection for a
+    /// right-click on any row and for a left-click on a <em>document</em> only,
+    /// leaving every other row kind to whatever the ListBox happened to do. That
+    /// is the asymmetry the report named — "RMB show in file manager does work
+    /// correctly" — and the fix is one rule for both buttons and every kind of
+    /// row.
+    /// <para>
+    /// Here rather than in the window so it can be tested: synthetic pointer
+    /// input through Xvfb is unreliable in this environment, so a selection rule
+    /// that lives only in a pointer handler is a rule nothing can check.
+    /// </para>
+    /// </remarks>
+    public void SelectFromPointer(ProjectRow? row)
+    {
+        if (row is null) return;
+        Selected = row;
+    }
+
+    /// <summary>Whether a folder is currently collapsed. For tests and bindings.</summary>
+    public bool IsCollapsed(ProjectFolder folder) => _collapsed.Contains(folder.Id);
+
+    /// <summary>
+    /// The folder a new thing should go into, given what is selected.
+    /// </summary>
+    /// <remarks>
+    /// <b>B85.</b> The reported defect exactly: creating a document ignored
+    /// where you were and dropped it in a top-level <c>documents/</c>. A
+    /// selected folder is the obvious answer, and so is the folder a selected
+    /// <em>document</em> sits in — "new document" next to a document means
+    /// beside it, not somewhere else.
+    /// </remarks>
+    public ProjectFolder? TargetFolder => Selected?.Folder;
+
+    /// <summary>Make a folder, inside the selected one if there is one.</summary>
+    [RelayCommand]
+    private void AddFolder(string? name = null)
+    {
+        if (Project is not { } project) return;
+        var folder = ProjectFolders.Add(project.Manifest, Named(name, "Folder"), TargetFolder);
+        // B76. In the manifest now, on disk at the next save — so the row can say
+        // "not saved yet" rather than "not on disk", which would be a lie that
+        // reads as a fault.
+        _unwrittenFolders.Add(folder.Id);
+        // Opened, so the thing just made is not hidden by its parent's state.
+        _collapsed.Remove(folder.Id);
+        if (TargetFolder is { } parent) _collapsed.Remove(parent.Id);
+        Rebuild();
+        Selected = Rows.FirstOrDefault(r => ReferenceEquals(r.Folder, folder) && r.IsFolder);
+        _changed();
+    }
+
+    /// <summary>
+    /// Move a row into a folder, or to the project root when null.
+    /// </summary>
+    /// <remarks>
+    /// <b>B86.</b> One entry point for the drop, because a tree view offers one
+    /// gesture and the model has two operations behind it — a folder reparents,
+    /// a document is refiled and repathed. Returning false rather than throwing
+    /// is what lets a drop that cannot happen simply not happen: dragging a
+    /// folder onto its own child is an ordinary slip, not an error to report.
+    /// </remarks>
+    public bool MoveInto(ProjectRow? row, ProjectFolder? destination)
+    {
+        if (Project is not { } project || row is null) return false;
+
+        if (row is { IsFolder: true, Folder: { } folder })
+        {
+            if (!ProjectFolders.Move(project.Manifest, folder, destination)) return false;
+        }
+        else if (row.Animation is { } document)
+        {
+            // B106. Where the file has to end up, worked out before anything
+            // moves. PathFor reads the manifest without changing it and gives
+            // the same answer after the refile as before it — it dedupes against
+            // the documents already in the destination and excludes this one —
+            // so the disk can be moved first and the manifest only if it worked.
+            var to = ProjectFolders.PathFor(project.Manifest, document, destination);
+            if (!ProjectIo.MoveInProject(project, document.Path, to))
+            {
+                Status = $"Could not move “{document.Name}” on disk. It is still where it was.";
+                return false;
+            }
+            // A character's animation or a scene's shot has to leave that first,
+            // or it would be in two places: the folder tree and the character.
+            // Its own disk move is a no-op by now — the file is already at `to`,
+            // and MoveInProject treats "nothing there to move" as a success.
+            if (row.Character is not null || row.Scene is not null)
+            {
+                if (!ProjectIo.MoveDocument(project, document, null)) return false;
+            }
+            if (!ProjectFolders.FileDocument(project.Manifest, document, destination)) return false;
+            _dirty.Add(document.Id);
+        }
+        else
+        {
+            // A character or a scene is not in the folder tree yet — Q30.
+            return false;
+        }
+
+        Rebuild();
+        _changed();
+        return true;
+    }
 
     /// <summary>
     /// Re-read on purpose — the F5 the artist presses, and the toolbar button.
@@ -445,19 +933,45 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
         foreach (var row in Rows)
         {
-            if (row.Animation is { } animation && _dirty.Contains(animation.Id))
+            var path = PathOf(row);
+            var addressable = path is not null
+                && !string.Equals(path, project.Root, StringComparison.Ordinal);
+
+            if (!addressable || File.Exists(path!) || Directory.Exists(path!))
             {
                 row.Missing = false;
+                row.Pending = false;
                 continue;
             }
 
-            var path = PathOf(row);
-            row.Missing = path is not null
-                && !string.Equals(path, project.Root, StringComparison.Ordinal)
-                && !File.Exists(path)
-                && !Directory.Exists(path);
+            // Not on disk, and B76 is about which of the two reasons that is.
+            //
+            // The test is sound because we already know the file is absent: a
+            // document that was written and then edited is in `_dirty` *and* on
+            // disk, so it took the branch above. Inside this one, "dirty" can
+            // only mean it was never written at all. Same for a folder — the
+            // manifest holds it and `ProjectIo.Save` materialises it (B83), so
+            // an unsaved one has no directory yet.
+            var neverWritten = row.Animation is { } animation
+                ? _dirty.Contains(animation.Id)
+                : row is { IsFolder: true, Folder: { } folder } && _unwrittenFolders.Contains(folder.Id);
+
+            row.Pending = neverWritten;
+            row.Missing = !neverWritten;
         }
     }
+
+    /// <summary>
+    /// Folders made since the last save, so a folder with no directory can say
+    /// which kind of absent it is.
+    /// </summary>
+    /// <remarks>
+    /// <b>B76.</b> Separate from <see cref="_dirty"/> rather than folded into it
+    /// because that set is handed to <c>ProjectIo.Save</c> to decide which
+    /// <em>documents</em> to write. Ids that match no document would be inert
+    /// today and are exactly the kind of inert that stops being inert.
+    /// </remarks>
+    private readonly HashSet<string> _unwrittenFolders = [];
 
     /// <summary>How many rows name something that is not on disk.</summary>
     public int MissingCount => Rows.Count(r => r.Missing);
@@ -529,32 +1043,86 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// the point: creating work inside the project should not be followed by
     /// a second step that files it.
     /// </summary>
-    public sealed record NewItemKind(string Label, string Hint)
+    /// <param name="IsContainer">
+    /// Whether this makes something other things go <em>inside</em>, rather
+    /// than a drawing.
+    /// </param>
+    /// <remarks>
+    /// <b>B63.</b> The second half of the report: the menu "does not distinguish
+    /// a folder from a work file, so it reads as an undifferentiated pile". This
+    /// is what the grouping is derived from, so the menu cannot disagree with
+    /// what the entries actually do.
+    /// </remarks>
+    public sealed record NewItemKind(string Label, string Hint, bool IsContainer = false)
     {
         public override string ToString() => Label;
+
+        /// <summary>The same glyph the row gets, so the menu predicts the tree.</summary>
+        public string Glyph => IsContainer ? "🗀" : "▣";
     }
 
     public static readonly NewItemKind NewAnimation =
         new("Animation", "A drawing sequence under the selected character");
 
     public static readonly NewItemKind NewCharacterItem =
-        new("Character", "A new character, with its own animations and palette");
+        new("Character", "A new character, with its own animations and palette", IsContainer: true);
 
     public static readonly NewItemKind NewLooseDocument =
         new("Document", "Belongs to the project, not to any character");
 
+    /// <summary>B86. A folder of the artist's own, at any depth.</summary>
+    public static readonly NewItemKind NewFolderItem =
+        new("Folder", "A folder you name, inside the selected one", IsContainer: true);
+
     public static readonly NewItemKind NewSceneItem =
-        new("Scene", "A run of shots — the film's second axis, alongside the characters");
+        new("Scene", "A run of shots — the film's second axis, alongside the characters", IsContainer: true);
 
     public static readonly NewItemKind NewShotItem =
         new("Shot", "A drawing under the selected scene");
 
     public IReadOnlyList<NewItemKind> NewItemKinds { get; } =
-        [NewAnimation, NewCharacterItem, NewSceneItem, NewShotItem, NewLooseDocument];
+        [
+            // B63. Containers first and drawings after, because the menu should
+            // read as "where does it go" then "what is it" rather than as a pile.
+            NewFolderItem, NewCharacterItem, NewSceneItem,
+            NewAnimation, NewShotItem, NewLooseDocument,
+        ];
 
     /// <summary>Create one of <see cref="NewItemKinds"/> in the right place.</summary>
     [RelayCommand]
     public void AddItem(NewItemKind? kind) => AddItemNamed(kind, null);
+
+    /// <summary>
+    /// Ask the artist what to call it. Null means they cancelled.
+    /// </summary>
+    /// <remarks>
+    /// <b>B65.</b> Supplied by the window, because a view model that opens its
+    /// own dialogs is one no test can drive — and until this existed the
+    /// ask-then-create sequence lived in <c>MainWindow</c>, which left the
+    /// cancel path untestable. B65's own entry says so: "an entry that prompts
+    /// and then creates nothing would pass both halves, and only a person would
+    /// see it."
+    ///
+    /// Null when nothing is attached, and <see cref="CreateAsync"/> falls back
+    /// to the suggestion — the docker is built long before the window wires
+    /// anything to it, and that must not be the difference between working and
+    /// throwing.
+    /// </remarks>
+    public Func<NewItemKind, string, Task<string?>>? AskName { get; set; }
+
+    /// <summary>Ask for a name, then create — or create nothing if cancelled.</summary>
+    /// <remarks>
+    /// The ordering is the whole of B65: a name asked for <em>after</em> the
+    /// file exists is a rename, which is B64.
+    /// </remarks>
+    public async Task CreateAsync(NewItemKind? kind)
+    {
+        if (kind is null) return;
+        var suggested = SuggestedNameFor(kind);
+        var name = AskName is null ? suggested : await AskName(kind, suggested);
+        if (name is null) return;   // cancelled: nothing is written
+        AddItemNamed(kind, name);
+    }
 
     /// <summary>
     /// Create one of <see cref="NewItemKinds"/> under a name the artist chose.
@@ -574,6 +1142,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public void AddItemNamed(NewItemKind? kind, string? name)
     {
         if (kind == NewCharacterItem) AddCharacter(name);
+        else if (kind == NewFolderItem) AddFolder(name);
         else if (kind == NewSceneItem) AddScene(name);
         else if (kind == NewShotItem) AddShot(name);
         else if (kind == NewLooseDocument) AddLooseDocument(name);
@@ -584,11 +1153,28 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// What to put in the name box before the artist types.
     /// </summary>
     /// <remarks>
-    /// The number the item would have been called anyway, so the prompt is a
-    /// confirmation rather than a blank page. It is the same expression each
-    /// creator falls back to, kept here so the box and the fallback cannot drift
-    /// apart — a suggestion that differs from what Enter would produce is worse
-    /// than no suggestion.
+    /// <para>
+    /// A prompt that is already most of the answer, so naming is a confirmation
+    /// rather than a blank page. It is the same expression each creator falls
+    /// back to, kept here so the box and the fallback cannot drift apart — a
+    /// suggestion that differs from what Enter would produce is worse than no
+    /// suggestion.
+    /// </para>
+    /// <para>
+    /// <b>B107.</b> A drawing made inside a folder is offered that folder's name
+    /// and a separator — <c>Knight - </c> — because the folder is what the
+    /// drawing is <em>of</em>, and typing <c>walk</c> after it is the whole
+    /// gesture. <c>Document 7</c> was a number nobody wanted to keep, so every
+    /// document had to be renamed once by hand. The prefix is a starting point
+    /// rather than a rule: the box is ordinary text and selecting it replaces it.
+    /// </para>
+    /// <para>
+    /// <b>Folders keep their plain suggestion, on purpose.</b> Subfolders are
+    /// structural — <c>locomotion</c>, <c>combat</c> — and prefixing them would
+    /// compound down the tree into <c>Knight - Locomotion - Knight - Walk</c>.
+    /// Scenes and shots keep their numbers because a shot's number <em>is</em>
+    /// its place in the running order.
+    /// </para>
     /// </remarks>
     public string SuggestedNameFor(NewItemKind? kind)
     {
@@ -596,13 +1182,51 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         if (kind == NewCharacterItem) return $"Character {project.Characters.Count() + 1}";
         if (kind == NewSceneItem) return $"Scene {project.Scenes.Count + 1}";
         if (kind == NewShotItem) return $"Shot {(SelectedScene?.Shots.Count ?? 0) + 1}";
-        if (kind == NewLooseDocument) return $"Document {project.Manifest.Documents.Count + 1}";
-        return $"Animation {SelectedCharacter?.Animations.Count() ?? 0}";
+        // A folder had no branch at all and fell through to the animation line
+        // below, so ＋ New ▸ Folder offered "Animation 0" — the exact drift the
+        // remarks above warn about, in the one place nothing asserted.
+        if (kind == NewFolderItem) return "Folder";
+        if (kind == NewLooseDocument)
+        {
+            return TargetFolder is { } folder
+                ? Stem(folder.Name)
+                : $"Document {project.Manifest.Documents.Count + 1}";
+        }
+        // An animation lands under a character, which is the scope it is named
+        // after — Q30 answered that a character *is* a folder carrying character
+        // data, so the same rule applies to both and this is not a second one.
+        return SelectedCharacter is { } character
+            ? Stem(character.Name)
+            : $"Animation {SelectedCharacter?.Animations.Count() ?? 0}";
     }
 
+    /// <summary>
+    /// What goes between a scope's name and the rest of a derived name.
+    /// </summary>
+    /// <remarks>
+    /// Spaced, so <c>Knight - Walk</c> reads as a phrase rather than as a slug.
+    /// The path is where hyphens belong, and <c>ProjectIo.Slug</c> puts them
+    /// there: this becomes <c>knight-walk.lightbox.json</c>.
+    /// </remarks>
+    public const string NameSeparator = " - ";
+
+    /// <summary>A scope's name as the beginning of a name for something in it.</summary>
+    private static string Stem(string scope) => $"{scope}{NameSeparator}";
+
     /// <summary>A chosen name, or the numbered fallback when nothing was given.</summary>
-    private static string Named(string? name, string fallback) =>
-        string.IsNullOrWhiteSpace(name) ? fallback : name.Trim();
+    /// <remarks>
+    /// <b>B107.</b> A dangling separator is trimmed along with the whitespace,
+    /// which is what keeps the promise above — the box now offers a stem, and
+    /// pressing Enter on <c>Knight - </c> unchanged has to produce
+    /// <c>Knight</c> rather than a document called <c>Knight -</c>. Trailing
+    /// rather than anywhere: <c>Knight - walk</c> keeps its separator, because
+    /// that is the name the artist finished typing.
+    /// </remarks>
+    private static string Named(string? name, string fallback)
+    {
+        var trimmed = (name ?? "").Trim().TrimEnd('-', '–', '—', ':', '·', ' ', '\t');
+        return trimmed.Length == 0 ? fallback : trimmed;
+    }
 
     // ---- scenes -----------------------------------------------------------------
 
@@ -708,6 +1332,15 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         var doc = _newDocument();
         var count = project.Manifest.Documents.Count + 1;
         var reference = ProjectIo.AddDocument(project, Named(name, $"Document {count}"), doc);
+        // B85. Into the folder you were in. ProjectIo.AddDocument still puts it
+        // at `documents/`, which is right when nothing is selected and was the
+        // whole of the bug when something was — creating a document inside a
+        // folder ignored the folder and filed it at the top level.
+        if (TargetFolder is { } folder)
+        {
+            ProjectFolders.FileDocument(project.Manifest, reference, folder);
+            _collapsed.Remove(folder.Id);
+        }
         _dirty.Add(reference.Id);
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id);
@@ -722,14 +1355,26 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// <remarks>
     /// The document keeps its id, so a tab already showing it stays bound to
     /// it — rearranging the tree must not orphan the window you are drawing
-    /// in. The file on disk stays where it is until the next save writes it to
-    /// the new path; the old one is left alone, for the same reason removing a
-    /// row leaves it alone.
+    /// in. The file follows it (B106): a move is a rename on disk, so the
+    /// drawing ends up in one place rather than in both.
     /// </remarks>
     public bool Move(ProjectRow row, Character? destination)
     {
         if (Project is not { } project || row.Animation is not { } reference) return false;
-        if (!ProjectIo.MoveDocument(project, reference, destination)) return false;
+        // Dropping a row onto what it already belongs to is an ordinary slip in
+        // a tree view, not something to report — and separating it here is what
+        // lets everything below say "could not" and mean it.
+        if (ReferenceEquals(row.Character, destination)) return false;
+        if (!ProjectIo.MoveDocument(project, reference, destination))
+        {
+            // B106. The move can now fail for a reason the artist can act on —
+            // a file open elsewhere, a permission, a name already taken on disk
+            // — and it refuses whole rather than changing the panel and not the
+            // folder. Said out loud, because a drag that silently does nothing
+            // is indistinguishable from one that missed.
+            Status = $"Could not move “{reference.Name}”. It is still where it was.";
+            return false;
+        }
         _dirty.Add(reference.Id);
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id);
@@ -744,25 +1389,184 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     private void RemoveSelected()
     {
         if (Project is not { } project || Selected is not { } row) return;
+        // B62. The project row is a place, not a thing in the project, so every
+        // operation that removes has to say no to it. Said out loud rather than
+        // ignored: a － that does nothing is indistinguishable from a broken one.
+        if (row.IsRoot)
+        {
+            Status = "The project itself cannot be removed. Close it from the File menu.";
+            return;
+        }
         if (row.Animation is { } animation)
         {
-            row.Character?.Animations.RemoveAll(a => a.Id == animation.Id);
-            project.Manifest.Documents.RemoveAll(d => d.Id == animation.Id);
-            project.Loaded.Remove(animation.Id);
-            _dirty.Remove(animation.Id);
+            Detach(project, animation);
             // The file is deliberately left on disk. Removing a row from an
             // index is cheap to undo by hand; deleting an artist's drawing
-            // because they clicked the wrong row is not.
+            // because they clicked the wrong row is not. Delete permanently is
+            // the other menu item, and it says so (B87).
             Status = $"Removed “{animation.Name}” from the project. Its file is still on disk.";
+        }
+        else if (row is { IsFolder: true, Folder: { } folder })
+        {
+            // B87. Its documents come back to the project root rather than
+            // disappearing with it: the artist removed a folder, not the work
+            // that was in it, and a drawing with no row is a drawing that is
+            // gone as far as anyone can tell.
+            var orphaned = ProjectFolders.Remove(project.Manifest, folder);
+            foreach (var document in orphaned)
+            {
+                ProjectFolders.FileDocument(project.Manifest, document, null);
+                _dirty.Add(document.Id);
+            }
+            Status = orphaned.Count == 0
+                ? $"Removed “{folder.Name}”. Its folder is still on disk."
+                : $"Removed “{folder.Name}”. {Count(orphaned.Count, "document")} moved to the project root.";
+        }
+        else if (row.Character is { } character)
+        {
+            project.Manifest.Characters.RemoveAll(c => c.Id == character.Id);
+            Status = $"Removed “{character.Name}”. Its folder is still on disk.";
         }
         else
         {
-            project.Manifest.Characters.RemoveAll(c => c.Id == row.Character!.Id);
-            Status = $"Removed “{row.Character!.Name}”. Its folder is still on disk.";
+            // A scene row. Guarded rather than crashed on: the old code read
+            // `row.Character!` for anything that was not a document, which was
+            // a null reference the moment a scene was selected and became far
+            // easier to reach when folders arrived.
+            Status = "Removing a scene from the docker is not wired up yet.";
+            return;
         }
         Rebuild();
         _changed();
     }
+
+    // ---- deleting for real (B87) ------------------------------------------------
+
+    /// <summary>
+    /// Whether deleting what is selected should ask first.
+    /// </summary>
+    /// <remarks>
+    /// <b>B87</b>, and the reporter drew the line: a folder holding anything
+    /// asks, an empty one does not. Separated from the deleting so the
+    /// <em>decision</em> is testable and only the dialog is manual — the same
+    /// split B65 uses for the name prompt, and for the same reason.
+    /// </remarks>
+    public bool DeleteNeedsConfirmation
+    {
+        get
+        {
+            if (Project is not { } project || Selected is not { IsFolder: true, Folder: { } folder })
+            {
+                // A single document is one file and one undoable mistake; a
+                // character or scene is not deletable here at all.
+                return false;
+            }
+            var (folders, documents) = ProjectFolders.Contents(project.Manifest, folder);
+            return folders.Count > 1 || documents.Count > 0;
+        }
+    }
+
+    /// <summary>What the confirmation should say, so the artist knows the size of it.</summary>
+    public string DeleteWarning
+    {
+        get
+        {
+            if (Project is not { } project || Selected is not { IsFolder: true, Folder: { } folder })
+            {
+                return Selected?.Animation is { } document
+                    ? $"Delete “{document.Name}” from the project and from disk?"
+                    : "Delete the selected item from the project and from disk?";
+            }
+            var (folders, documents) = ProjectFolders.Contents(project.Manifest, folder);
+            var inside = new List<string>();
+            if (folders.Count > 1) inside.Add(Count(folders.Count - 1, "folder"));
+            if (documents.Count > 0) inside.Add(Count(documents.Count, "document"));
+            return inside.Count == 0
+                ? $"Delete the empty folder “{folder.Name}” from disk?"
+                : $"Delete “{folder.Name}” and the {string.Join(" and ", inside)} inside it, "
+                  + "from the project and from disk?";
+        }
+    }
+
+    /// <summary>
+    /// Remove what is selected from the project <b>and</b> from disk.
+    /// </summary>
+    /// <remarks>
+    /// <b>B87.</b> The context menu only offered "remove from project", so
+    /// deleting a file meant leaving Lightbox for a file manager. This is the
+    /// other half, and it is a separate item rather than a modifier on the
+    /// first: two operations with different consequences should not be one
+    /// gesture told apart by a held key.
+    ///
+    /// The caller confirms first when <see cref="DeleteNeedsConfirmation"/>
+    /// says so. Nothing here asks, because a view model that opens dialogs is a
+    /// view model no test can drive.
+    /// </remarks>
+    [RelayCommand]
+    public void DeleteSelectedPermanently()
+    {
+        if (Project is not { } project || Selected is not { } row) return;
+        // B62, and the one that would have been worst: deleting the project row
+        // means deleting the project folder, which is every drawing in it.
+        if (row.IsRoot)
+        {
+            Status = "The project itself cannot be deleted from here.";
+            return;
+        }
+
+        if (row.Animation is { } document)
+        {
+            var path = document.Path;
+            Detach(project, document);
+            Status = ProjectIo.DeleteInProject(project, path)
+                ? $"Deleted “{document.Name}”."
+                : $"Removed “{document.Name}” from the project, but its file could not be deleted.";
+        }
+        else if (row is { IsFolder: true, Folder: { } folder })
+        {
+            // The directory before the manifest: PathOf walks the parent chain,
+            // and a folder already taken out of the manifest has no chain to
+            // walk — it would resolve to the project root and delete the
+            // project. Order is load-bearing here, not stylistic.
+            var path = ProjectFolders.PathOf(project.Manifest, folder);
+            var (folders, documents) = ProjectFolders.Contents(project.Manifest, folder);
+            var deleted = ProjectIo.DeleteInProject(project, path);
+
+            ProjectFolders.Remove(project.Manifest, folder);
+            foreach (var inside in documents) Detach(project, inside);
+
+            Status = deleted
+                ? $"Deleted “{folder.Name}” and everything in it."
+                : $"Removed “{folder.Name}” from the project, but its folder could not be deleted.";
+            _ = folders;
+        }
+        else
+        {
+            Status = "Only documents and folders can be deleted from here.";
+            return;
+        }
+
+        Rebuild();
+        _changed();
+    }
+
+    /// <summary>Take a document out of the project without touching disk.</summary>
+    private void Detach(Project project, DocumentRef document)
+    {
+        foreach (var character in project.Manifest.Characters)
+        {
+            character.Animations.RemoveAll(a => a.Id == document.Id);
+        }
+        foreach (var scene in project.Manifest.Scenes ?? [])
+        {
+            scene.Shots.RemoveAll(s => s.Id == document.Id);
+        }
+        project.Manifest.Documents.RemoveAll(d => d.Id == document.Id);
+        project.Loaded.Remove(document.Id);
+        _dirty.Remove(document.Id);
+    }
+
+    private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 
     /// <summary>Open the selected animation as a tab.</summary>
     public void OpenSelected()
@@ -776,15 +1580,161 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         _open(reference, doc);
     }
 
-    /// <summary>Rename the selected row's character or animation in place.</summary>
-    public void Rename(ProjectRow row, string name)
+    /// <summary>
+    /// Rename a row, on disk as well as in the panel. False when it could not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B64.</b> This used to set a name in memory and stop, which is the
+    /// more confusing half of a rename: the panel says <i>Sir Reginald</i> and
+    /// the folder still says <i>knight</i>, and the artist believes the panel
+    /// until they open a file manager.
+    /// </para>
+    /// <para>
+    /// <b>The reason is part of the fix, not a nicety.</b> Renaming is the first
+    /// docker operation that can fail for reasons the app does not control — a
+    /// file open elsewhere, a permission, a name the tree accepts and the
+    /// filesystem does not — and the artist has to be told which, because
+    /// "nothing happened" is indistinguishable from "the click missed".
+    /// <see cref="Status"/> carries it and the boolean lets the caller keep the
+    /// edit box open.
+    /// </para>
+    /// </remarks>
+    public bool Rename(ProjectRow row, string name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return;
+        if (Project is not { } project) return false;
+        // B62. Renaming the project row means renaming the folder the
+        // application currently has open, which is a different operation with
+        // its own questions — not something to do behind an in-place edit box.
+        if (row.IsRoot)
+        {
+            Status = "The project folder is renamed outside Lightbox.";
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(name)) return false;
         var trimmed = name.Trim();
-        if (row.Animation is { } animation) animation.Name = trimmed;
-        else row.Character!.Name = trimmed;
-        row.Name = trimmed;
+        if (trimmed == row.Name) return true;   // not a change, not a failure
+
+        var ok = row switch
+        {
+            { IsFolder: true, Folder: { } folder } => RenameFolder(project, folder, trimmed),
+            { Animation: { } document } => RenameDocument(project, document, trimmed),
+            { Character: { } character } => Rename(character, trimmed),
+            { Scene: { } scene } => Rename(scene, trimmed),
+            _ => false,
+        };
+        if (!ok) return false;
+
+        Rebuild();
         _changed();
+        return true;
+    }
+
+    private bool Rename(Character character, string name)
+    {
+        // The character's folder is `characters/<slug>`, and moving it would
+        // repath every animation under it — Q30's territory rather than this
+        // bug's. The displayed name changes and the folder keeps its slug,
+        // which is what every version until now also did.
+        character.Name = name;
+        Status = $"Renamed to “{name}”.";
+        return true;
+    }
+
+    private bool Rename(ProjectScene scene, string name)
+    {
+        scene.Name = name;
+        Status = $"Renamed to “{name}”.";
+        return true;
+    }
+
+    private bool RenameFolder(Project project, ProjectFolder folder, string name)
+    {
+        var was = ProjectFolders.PathOf(project.Manifest, folder);
+        if (!ProjectFolders.Rename(project.Manifest, folder, name))
+        {
+            Status = $"There is already a folder called “{name}” here.";
+            return false;
+        }
+
+        var now = ProjectFolders.PathOf(project.Manifest, folder);
+        if (!ProjectIo.MoveInProject(project, was, now))
+        {
+            // Put the tree back. A manifest that says one thing while the disk
+            // says another is worse than a refused rename, because only one of
+            // those is visible.
+            ProjectFolders.Rename(project.Manifest, folder, Path.GetFileName(was));
+            Status = $"Could not rename the folder on disk. It is still “{folder.Name}”.";
+            return false;
+        }
+
+        // Everything filed below it moved with it, so their recorded paths have
+        // to follow — they are what the next save writes to.
+        foreach (var (inside, _) in DocumentsUnder(project.Manifest, folder))
+        {
+            inside.Path = ProjectFolders.PathFor(
+                project.Manifest, inside, ProjectFolders.ById(project.Manifest, inside.FolderId));
+        }
+        Status = $"Renamed to “{name}”.";
+        return true;
+    }
+
+    private bool RenameDocument(Project project, DocumentRef document, string name)
+    {
+        var was = document.Path;
+        document.Name = name;
+        var now = document.FolderId is null && !IsUnfiled(was)
+            // A character's animation or a scene's shot keeps the shape of the
+            // path it already has; only the file's own name changes.
+            ? RenamedLeaf(was, name)
+            : ProjectFolders.PathFor(
+                project.Manifest, document, ProjectFolders.ById(project.Manifest, document.FolderId));
+
+        if (!ProjectIo.MoveInProject(project, was, now))
+        {
+            document.Name = Path.GetFileNameWithoutExtension(was).Replace(".lightbox", "");
+            Status = $"Could not rename the file on disk. It is still “{document.Name}”.";
+            return false;
+        }
+        document.Path = now;
+        Status = $"Renamed to “{name}”.";
+        return true;
+    }
+
+    /// <summary>
+    /// Whether a path is in the directory that holds documents belonging to no
+    /// folder.
+    /// </summary>
+    /// <remarks>
+    /// <b>B105.</b> Both names, because the directory was renamed and a project
+    /// written before that keeps its recorded paths. One name here would have
+    /// made renaming a document in an old project take the character branch
+    /// below and derive a path from a shape it does not have.
+    /// </remarks>
+    private static bool IsUnfiled(string path) =>
+        path.StartsWith($"{ProjectIo.DocumentsDir}/", StringComparison.Ordinal)
+        || path.StartsWith($"{ProjectIo.LegacyDocumentsDir}/", StringComparison.Ordinal);
+
+    /// <summary>Swap the file's own name, keeping the folders above it.</summary>
+    private static string RenamedLeaf(string path, string name)
+    {
+        var cut = path.LastIndexOf('/');
+        var directory = cut < 0 ? "" : path[..(cut + 1)];
+        return $"{directory}{ProjectIo.Slug(name)}.lightbox.json";
+    }
+
+    private static IEnumerable<(DocumentRef Document, ProjectFolder Folder)> DocumentsUnder(
+        ProjectManifest manifest, ProjectFolder folder)
+    {
+        var (folders, documents) = ProjectFolders.Contents(manifest, folder);
+        var byId = folders.ToDictionary(f => f.Id);
+        foreach (var document in documents)
+        {
+            if (document.FolderId is { } id && byId.TryGetValue(id, out var owner))
+            {
+                yield return (document, owner);
+            }
+        }
     }
 
     // ---- production status -------------------------------------------------------
@@ -847,6 +1797,14 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             return Path.Combine(
                 project.Root, animation.Path.Replace('/', Path.DirectorySeparatorChar));
         }
+        // B76. A folder has a directory of its own, and until this answered it
+        // the folder rows all resolved to the project root — which meant they
+        // could never be reported as pending or missing, however wrong they were.
+        if (row is { IsFolder: true, Folder: { } folder })
+        {
+            var relative = ProjectFolders.PathOf(project.Manifest, folder);
+            return Path.Combine(project.Root, relative.Replace('/', Path.DirectorySeparatorChar));
+        }
         return row.Character is { } character
             ? Path.Combine(project.Root, "characters", character.Slug)
             : project.Root;
@@ -854,15 +1812,15 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
     public string? SelectedPath => PathOf(Selected);
 
-    /// <summary>Show the project folder in the desktop's file manager.</summary>
-    [RelayCommand]
-    private void RevealRoot()
-    {
-        if (RootPath is not { } root) return;
-        if (!Services.FileReveal.Reveal(root)) Status = "Could not open the file manager.";
-    }
-
     /// <summary>Show the selected row's file or folder in the file manager.</summary>
+    /// <remarks>
+    /// <b>B62.</b> There was a second command beside this one, <c>RevealRoot</c>,
+    /// which the toolbar button used — and it is gone rather than merely
+    /// unbound. <see cref="PathOf"/> already answers the project root for a null
+    /// selection and for the project row, so keeping a separate command would
+    /// have left two ways to do one thing and a button whose behaviour did not
+    /// follow the tree.
+    /// </remarks>
     [RelayCommand]
     private void RevealSelected()
     {

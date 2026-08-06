@@ -114,6 +114,23 @@ id with no words (`fix-3` tells a reader nothing), or a person. If a name is
 proposed that matches `claude/`, `session`, or a random suffix like `-fjq295`,
 rename it before pushing and say why.
 
+**`branchstate.py` checks all of this**, and prints it alongside the conflict
+report after every green build — including the one rule a person cannot check by
+eye: that the domain in the name is the domain `BUGS.md` files that bug under.
+`fix/ui/B39-…` looks perfectly well formed, and sends `bugs.py mine brush`
+looking in the wrong place.
+
+It is **advice, never a failure**. The script's exit code means *would this
+conflict*, and a name is not a merge hazard; renaming a branch already underway
+also costs a force-push and a stale pull request. So for work in flight the
+honest weight is a line saying what to do next time — but a name being fixed
+*before the first push* is free, which is when to act on it.
+
+`python3 scripts/branchstate.py selftest` runs the rules against the names that
+produced them, and CI runs it too. Add a case there when adding a rule; the
+first version of the session-suffix heuristic fired on `chore/ledger-by-domain`
+and two others, and each false positive hid the message that belonged instead.
+
 ### One objective, and how to tell mechanically
 
 **A branch carries one objective. A second objective is a second branch.**
@@ -183,7 +200,8 @@ recommending a merge, all four:
    test does not exist is not finished, it is asserted.
 3. **Landed everywhere it shows.** `CLAUDE.md` → *Land the feature, then land
    the places it shows up*: shortcut registry, Configure window, presets,
-   workspace defaults, MCP surface, `docs/MANUAL.md`.
+   workspace defaults, MCP surface, and the manual section that covers it
+   (`python3 scripts/manual.py find <term>` says which file).
 4. **Whole.** The objective in the branch name is done. A branch parked
    half-way is a branch to keep, not to merge — merging half a feature puts an
    unreachable surface on the default branch, which is exactly B58.
