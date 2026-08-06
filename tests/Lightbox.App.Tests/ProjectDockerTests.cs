@@ -187,19 +187,54 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.Equal(count, vm.Tabs.Count);
     }
 
+    /// <summary>
+    /// File ▸ New makes a <em>project document</em>, never an animation under
+    /// the selected character.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This was <c>FileNewStillMakesAStandaloneDocumentWithAProjectOpen</c>,
+    /// and B99 narrowed what it guards on the owner's decision.</b> It used to
+    /// assert that File ▸ New with a project open registered nothing at all —
+    /// null <c>Source</c>, no manifest entry — under the reason that "the most
+    /// common action in the app must not change meaning based on which row
+    /// happens to be selected". The document is now filed in the project, and it
+    /// does land in the selected folder.
+    /// </para>
+    /// <para>
+    /// <b>The original concern is kept rather than dropped, because it was the
+    /// right concern.</b> What must not change is the <em>kind</em> of thing
+    /// File ▸ New makes: a project document, whatever is selected. Selecting a
+    /// character and pressing Ctrl+N must not silently produce that character's
+    /// next animation — that is what "changes meaning based on the selected row"
+    /// meant, and it is asserted here directly instead of by proxy.
+    /// </para>
+    /// </remarks>
     [AvaloniaFact]
-    public void FileNewStillMakesAStandaloneDocumentWithAProjectOpen()
+    public void FileNewMakesAProjectDocumentAndNeverACharactersAnimation()
     {
-        // The most common action in the app must not change meaning based on
-        // which row happens to be selected.
         var vm = Vm();
         vm.NewProject(_root, "Knight");
-        var animations = vm.ProjectDocker.Project!.AllDocuments.Count();
+        WithKnight(vm);
+        var docker = vm.ProjectDocker;
+        // Pointed straight at the character, which is the arrangement that would
+        // make an "animation under the selection" mistake look correct.
+        docker.Selected = Assert.Single(docker.Rows, r => r.IsCharacter);
+        var animations = docker.Project!.Characters.SelectMany(c => c.Animations).Count();
 
         vm.NewDocument(new NewDocumentSettings("Loose", 128, 128, 12, 72, "#ffffff", false));
 
-        Assert.Null(vm.ActiveTab!.Source);
-        Assert.Equal(animations, vm.ProjectDocker.Project!.AllDocuments.Count());
+        // In the project (B99) and a document rather than an animation.
+        var made = Assert.Single(docker.Project!.Manifest.Documents, d => d.Name == "Loose");
+        Assert.Equal(made.Id, vm.ActiveTab!.Source?.Id);
+        Assert.Equal(
+            animations,
+            docker.Project!.Characters.SelectMany(c => c.Animations).Count());
+        Assert.DoesNotContain(
+            docker.Project!.Characters.SelectMany(c => c.Animations), a => a.Id == made.Id);
+        // A character is not a folder yet (Q30), so a document made while one is
+        // selected has no folder to go in and belongs to the project.
+        Assert.Null(made.FolderId);
     }
 
     // ---- sharing ------------------------------------------------------------

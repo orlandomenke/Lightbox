@@ -1,5 +1,6 @@
 using Lightbox.Core.Documents;
 using Lightbox.Core.Export;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.App.Services;
 

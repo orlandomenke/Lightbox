@@ -491,6 +491,17 @@ public static class ProjectIo
         {
             reference.Frames = project.Loaded[reference.Id].Scene.FrameCount;
             reference.Fps = project.Loaded[reference.Id].Scene.Fps;
+            // The version moves when the file does, so anything built from this
+            // document — an exported sheet — can tell it has moved on. On save
+            // rather than on edit, because an edit nobody saved has not changed
+            // what the sheet was built from; Symbol.Version bumps on save for
+            // exactly the same reason.
+            //
+            // In *this* loop rather than the one that writes the documents,
+            // because that one runs after the manifest is serialized and the
+            // bump would never reach the file — the same trap the comment above
+            // records for Frames and Fps.
+            reference.Version++;
         }
 
         DocJson.WriteAtomic(
@@ -939,6 +950,34 @@ public static class ProjectIo
 
         var inside = full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal);
         return inside && full != root ? full : null;
+    }
+
+    /// <summary>
+    /// A full path as a project-relative one with forward slashes, or null when
+    /// it is not inside the project.
+    /// </summary>
+    /// <remarks>
+    /// <b>The counterpart to <see cref="ResolveInProject"/>, and it exists for
+    /// one question: did this save land inside the project or outside it?</b>
+    /// Save As can put a document anywhere, and the two answers are opposite —
+    /// inside, the project's record of it follows the file; outside, the artist
+    /// has chosen a home elsewhere and the project should let go of it.
+    /// <para>
+    /// The same separator-aware containment test as its counterpart, for the same
+    /// reason: <c>Knight.lbproj-old</c> starts with <c>Knight.lbproj</c>, so a
+    /// plain prefix test would call a sibling project "inside".
+    /// </para>
+    /// </remarks>
+    public static string? RelativeInProject(Project project, string fullPath)
+    {
+        if (string.IsNullOrWhiteSpace(fullPath)) return null;
+        if (string.IsNullOrEmpty(project.Root)) return null;
+
+        var root = Path.GetFullPath(project.Root);
+        var full = Path.GetFullPath(fullPath);
+        if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return null;
+
+        return full[(root.Length + 1)..].Replace(Path.DirectorySeparatorChar, '/');
     }
 
     /// <summary>

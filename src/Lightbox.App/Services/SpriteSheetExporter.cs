@@ -1,3 +1,4 @@
+using Lightbox.Core.Projects;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Lightbox.App.Rendering;
@@ -8,57 +9,7 @@ using SkiaSharp;
 
 namespace Lightbox.App.Services;
 
-/// <summary>How tightly each exported cell hugs the drawing.</summary>
-public enum SpriteTrim
-{
-    /// <summary>Every cell is the full canvas. Simple, and often wasteful.</summary>
-    None,
 
-    /// <summary>
-    /// One rectangle for the whole sequence: the union of every frame's ink.
-    ///
-    /// This is the default, and the reason is that the obvious alternative is
-    /// wrong. Trimming each frame to its own tight box makes the trim follow
-    /// the drawing rather than the rig, so the character <em>jitters</em> in
-    /// the engine — every frame a different size, every frame a different
-    /// offset, and nothing moved that the animator moved.
-    /// </summary>
-    Union,
-
-    /// <summary>
-    /// Each frame trimmed to its own ink, with the offset recorded so an
-    /// importer can put it back. Tighter, and only safe because the offsets
-    /// are measured from the pivot.
-    /// </summary>
-    PerFrame,
-}
-
-/// <summary>How the cells are arranged on the sheet.</summary>
-public enum SpritePack
-{
-    /// <summary>
-    /// A uniform grid. The default, and it stays the default.
-    /// </summary>
-    /// <remarks>
-    /// Equal cells are what union bounds produce anyway, and every engine
-    /// importer in existence reads a grid — including ones that ignore the
-    /// sidecar entirely.
-    /// </remarks>
-    Grid,
-
-    /// <summary>
-    /// Bottom-left skyline packing: each sprite at its own size, tighter.
-    /// </summary>
-    /// <remarks>
-    /// Worth reaching for when the frames are <b>ragged</b> — per-frame trimming,
-    /// or a sheet holding several animations. It is only usable with the
-    /// per-sprite rects in the sidecar, so an importer that reads
-    /// <c>meta.columns</c> and divides will get this wrong; that is why a packed
-    /// sheet reports <c>columns</c> and <c>rows</c> as zero rather than a number
-    /// that would look plausible and be false.
-    /// </remarks>
-    Skyline,
-}
 
 public sealed record SpriteSheetOptions
 {
