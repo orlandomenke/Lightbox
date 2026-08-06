@@ -64,9 +64,13 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly FrameBitmapCache _cache = new();
     private readonly StrokeBuilder _strokeBuilder = new();
     private readonly PlaybackClock _clock = new();
+    private readonly SelectionManager _selectionManager = new();
 
     /// <summary>Measured repaint cost, shown as headroom in the info strip.</summary>
     public PerformanceMonitor Performance { get; } = new();
+
+    /// <summary>Unified selection manager for canvas objects.</summary>
+    public SelectionManager Selection => _selectionManager;
 
     private DocumentEditor _editor;
     private readonly ComposeRing _composeRing = new();

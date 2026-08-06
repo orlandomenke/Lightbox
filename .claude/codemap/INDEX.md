@@ -1,6 +1,6 @@
 # Code index
 
-463 files · 115852 lines · 2356 tests.
+465 files · 116135 lines · 2356 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,8 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9425 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4192, TransformParts:6384
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9429 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4196, TransformParts:6388
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (3879 ln) · 13 test files
   - MainWindow:19, UnsavedChoice:2702
 - `src/Lightbox.App/Views/MainWindow.axaml` (3181 ln) · **no tests**
@@ -146,6 +146,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PART_Clear, PART_Swatch
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln) · **no tests**
   - ColorField:29
+- `src/Lightbox.App/ViewModels/SelectionManager.cs` (162 ln) · 4 indirect only
+  - SelectionManager:7
 - `src/Lightbox.App/Rendering/GuidePainter.cs` (160 ln) · 1 test files
   - GuidePainter:26
 - `src/Lightbox.App/Docking/DockZones.cs` (159 ln) · 1 test files
@@ -178,6 +180,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipStore:32, State:45
 - `src/Lightbox.App/ViewModels/DocumentTab.cs` (118 ln) · 23 test files
   - NewDocumentSettings:19, WorkspaceChoice:31, DocumentTabKind:40, DocumentTab:59
+- `src/Lightbox.App/Rendering/SelectionRenderer.cs` (117 ln) · **no tests**
+  - SelectionRenderer:10
 - `src/Lightbox.App/Services/IpcServer.cs` (115 ln) · 1 test files
   - IpcServer:13
 - `src/Lightbox.App/Views/TipChoice.cs` (110 ln) · 1 test files
