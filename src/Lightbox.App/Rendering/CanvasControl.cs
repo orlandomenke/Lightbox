@@ -141,6 +141,23 @@ public sealed class CanvasControl : Control
     // The smoothed brush anchor while a live-smoothing stroke is active (doc space).
     private (double X, double Y)? _lazyAnchor;
 
+    /// <summary>Selection manager for object selection feedback.</summary>
+    private ViewModels.SelectionManager? _selectionManager;
+
+    /// <summary>Callback to get current placements for selection rendering.</summary>
+    private Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? _getPlacementsForSelection;
+
+    /// <summary>Set the selection manager for rendering object selection feedback.</summary>
+    public void SetSelectionManager(ViewModels.SelectionManager selectionManager)
+    {
+        _selectionManager = selectionManager;
+    }
+
+    /// <summary>Set callback to provide placements for selection rendering.</summary>
+    public void SetPlacementProvider(Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? provider)
+    {
+        _getPlacementsForSelection = provider;
+    }
 
     /// <summary>Alt was held when this stroke began, so it erases with the current brush.</summary>
     private bool _erasingThisStroke;
@@ -504,6 +521,93 @@ public sealed class CanvasControl : Control
     }
 
     /// <summary>
+    /// The rig marks a drag is currently carrying, and how far.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Chrome, not data — the same bargain <see cref="DraftGuide"/> makes, and for
+    /// the same reason: the record must not be touched per pointer event, but a mark
+    /// that does not move until you let go is one you place twice. <c>DragRig</c>'s
+    /// own remark already said live feedback "is the overlay's own business and
+    /// touches nothing"; this is the overlay finally doing it (B112).
+    /// </para>
+    /// <para>
+    /// One field covers every rig drag, single or group, because
+    /// <see cref="RigOverlay.Drag"/> is what decides what a delta means: a corner
+    /// resizes and <see cref="RigCorner.None"/> translates, so the preview is the
+    /// same arithmetic the commit will use rather than a second guess at it.
+    /// </para>
+    /// </remarks>
+    private (HashSet<string> Ids, RigCorner Corner, double Dx, double Dy)? _rigPreview;
+
+    internal void PreviewRig(IEnumerable<string> ids, RigCorner corner, double dx, double dy)
+    {
+        _rigPreview = (new HashSet<string>(ids, StringComparer.Ordinal), corner, dx, dy);
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Preview where a group drag has reached, measured from where it was picked up.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Absolute rather than a sum of the per-event increments, which is the same
+    /// choice the content move makes and for a reason B109 paid for: the pointer
+    /// handler advances its own anchor every event, so anything that adds up what it
+    /// reports is one rounding away from drifting off the pointer.
+    /// </para>
+    /// <para>
+    /// A seam rather than four lines in the pointer handler, so the arithmetic is
+    /// reachable from a test — the wiring above it is two calls, and this is the part
+    /// that can be wrong while still compiling.
+    /// </para>
+    /// </remarks>
+    /// <summary>Note where a group drag was picked up, for the preview to measure from.</summary>
+    internal void BeginRigGroupPreview(double x, double y, bool shapes)
+    {
+        if (shapes) _shapeMoveStart = (x, y);
+        else _anchorMoveStart = (x, y);
+    }
+
+    internal void TrackRigGroupPreview(double mx, double my, bool shapes)
+    {
+        if (_selectionManager is not { } selection) return;
+        var start = shapes ? _shapeMoveStart : _anchorMoveStart;
+        PreviewRig(
+            shapes ? selection.SelectedShapeIds : selection.SelectedAnchorIds,
+            RigCorner.None, mx - start.X, my - start.Y);
+    }
+
+    /// <summary>Drop the preview, because the record now holds the move.</summary>
+    internal void ClearRigPreview()
+    {
+        if (_rigPreview is null) return;
+        _rigPreview = null;
+        InvalidateVisual();
+    }
+
+    /// <summary>The marks as they should be drawn while a drag is in flight.</summary>
+    /// <remarks>
+    /// Returns the list unchanged when nothing is being dragged, so the overlay pays
+    /// nothing for a preview that does not exist. Internal rather than private so a
+    /// test can read what the overlay would draw: synthetic pointer input through
+    /// Xvfb is unreliable here, and a dropped click looks exactly like a bug.
+    /// </remarks>
+    internal IReadOnlyList<RigMark>? WithRigPreview(IReadOnlyList<RigMark>? marks)
+    {
+        if (_rigPreview is not { } preview || marks is null || marks.Count == 0) return marks;
+
+        var shown = new List<RigMark>(marks.Count);
+        foreach (var mark in marks)
+        {
+            shown.Add(mark.Id is { } id && preview.Ids.Contains(id)
+                ? RigOverlay.Drag(mark, preview.Corner, preview.Dx, preview.Dy)
+                : mark);
+        }
+        return shown;
+    }
+
+    /// <summary>
     /// A guide being pulled out of a ruler, not yet part of the document.
     /// </summary>
     /// <remarks>
@@ -556,6 +660,56 @@ public sealed class CanvasControl : Control
     public event Action? ContentMoveCancelled;
 
     private bool _movingContent;
+
+    private bool _movingGuides;
+    private (double X, double Y) _guideMoveLast;
+
+    private bool _movingRefBoxes;
+    private (double X, double Y) _refBoxMoveLast;
+
+    private bool _movingAnchors;
+    private (double X, double Y) _anchorMoveLast;
+    private (double X, double Y) _anchorMoveStart;
+
+    private bool _movingShapes;
+    private (double X, double Y) _shapeMoveLast;
+    private (double X, double Y) _shapeMoveStart;
+
+    /// <summary>Guides move started via Selection in Move mode.</summary>
+    public event Action? GuidesMovedStarted;
+
+    /// <summary>Guides moved by a delta in document pixels.</summary>
+    public event Action<double, double>? GuidesMoved;
+
+    /// <summary>Guides move finished.</summary>
+    public event Action? GuidesMovedEnded;
+
+    /// <summary>Reference boxes move started via Selection in Move mode.</summary>
+    public event Action? RefBoxesMoveStarted;
+
+    /// <summary>Reference boxes moved by a delta in document pixels.</summary>
+    public event Action<double, double>? RefBoxesMoved;
+
+    /// <summary>Reference boxes move finished.</summary>
+    public event Action? RefBoxesMovedEnded;
+
+    /// <summary>Anchors move started via Selection in Move mode.</summary>
+    public event Action? AnchorsMoveStarted;
+
+    /// <summary>Anchors moved by a delta in document pixels.</summary>
+    public event Action<double, double>? AnchorsMoved;
+
+    /// <summary>Anchors move finished.</summary>
+    public event Action? AnchorsMovedEnded;
+
+    /// <summary>Collision shapes move started via Selection in Move mode.</summary>
+    public event Action? ShapesMoveStarted;
+
+    /// <summary>Collision shapes moved by a delta in document pixels.</summary>
+    public event Action<double, double>? ShapesMoved;
+
+    /// <summary>Collision shapes move finished.</summary>
+    public event Action? ShapesMovedEnded;
 
     /// <summary>A guide was dragged, by a delta in document pixels.</summary>
     public event Action<string, double, double>? GuideMoved;
@@ -703,6 +857,7 @@ public sealed class CanvasControl : Control
         Gradient,
         Shape,
         Move,
+        Select,
     }
 
     public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
@@ -1440,7 +1595,8 @@ public sealed class CanvasControl : Control
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
-            ReferenceBoxes, _newBox, Guides, _draftGuide, RigMarks));
+            ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
+            _selectionManager, _getPlacementsForSelection));
     }
 
     /// <summary>
@@ -1529,6 +1685,105 @@ public sealed class CanvasControl : Control
     {
         var p = new Point(x, y).Transform(ViewMatrix());
         return (p.X, p.Y);
+    }
+
+    /// <summary>Find the placement at document coordinates, or null if none hit.</summary>
+    private Core.Documents.SymbolPlacement? PickPlacementAt(double x, double y)
+    {
+        if (_getPlacementsForSelection is null) return null;
+        var placements = _getPlacementsForSelection();
+        if (placements is null || placements.Count == 0) return null;
+
+        const double hitRadius = 20;  // Document units; same as half the selection box
+        foreach (var placement in placements)
+        {
+            var dx = x - placement.X;
+            var dy = y - placement.Y;
+            var distSq = dx * dx + dy * dy;
+            if (distSq <= hitRadius * hitRadius)
+                return placement;
+        }
+        return null;
+    }
+
+    private int PickGuideAt(double x, double y)
+    {
+        if (_guides is null || _guides.Count == 0) return -1;
+
+        const double hitRadius = 5;  // Document units for click tolerance on a line
+        foreach (var (index, guide) in _guides.Select((g, i) => (i, g)))
+        {
+            // For a line guide, calculate perpendicular distance from point to line
+            if (guide.Angles.Count > 0)
+            {
+                var angle = guide.Angles[0];  // Use the primary angle for distance calc
+                var radians = angle * Math.PI / 180;
+                var cos = Math.Cos(radians);
+                var sin = Math.Sin(radians);
+
+                // Distance from point (x,y) to line through (guide.X, guide.Y) at angle
+                var dx = x - guide.X;
+                var dy = y - guide.Y;
+                var perpDist = Math.Abs(dx * (-sin) + dy * cos);
+
+                if (perpDist <= hitRadius)
+                    return index;
+            }
+            else
+            {
+                // Vanishing point: simple distance to point
+                var dx = x - guide.X;
+                var dy = y - guide.Y;
+                var distSq = dx * dx + dy * dy;
+                if (distSq <= hitRadius * hitRadius)
+                    return index;
+            }
+        }
+        return -1;
+    }
+
+    private int PickRefBoxAt(double x, double y)
+    {
+        if (_referenceBoxes is null || _referenceBoxes.Count == 0) return -1;
+
+        foreach (var (index, box) in _referenceBoxes.Select((b, i) => (i, b)))
+        {
+            if (x >= box.X && x <= box.X + box.W &&
+                y >= box.Y && y <= box.Y + box.H)
+                return index;
+        }
+        return -1;
+    }
+
+    private string? PickAnchorAt(double x, double y)
+    {
+        if (_rigMarks is null || _rigMarks.Count == 0) return null;
+
+        const double hitRadius = 10;  // Document units for click tolerance on anchor point
+        foreach (var mark in _rigMarks)
+        {
+            if (mark.Kind != RigMarkKind.Anchor) continue;
+            var dx = x - mark.X;
+            var dy = y - mark.Y;
+            var distSq = dx * dx + dy * dy;
+            if (distSq <= hitRadius * hitRadius)
+                return mark.Id;
+        }
+        return null;
+    }
+
+    private string? PickShapeAt(double x, double y)
+    {
+        if (_rigMarks is null || _rigMarks.Count == 0) return null;
+
+        foreach (var mark in _rigMarks)
+        {
+            if (mark.Kind != RigMarkKind.Shape) continue;
+            if (x >= mark.X && x <= mark.X + mark.W &&
+                y >= mark.Y && y <= mark.Y + mark.H)
+                return mark.Id;
+        }
+        return null;
     }
 
     /// <summary>
@@ -1819,11 +2074,108 @@ public sealed class CanvasControl : Control
                     e.Handled = true;
                     return;
                 case CanvasToolMode.Move:
-                    // A guide under the pointer was already taken above; this
-                    // is the drawing itself.
+                    // A guide under the pointer was already taken above; this is
+                    // the drawing itself, or what is selected.
+                    //
+                    // Selected placements are deliberately not tested here.
+                    // `BeginMove` asks the view model, which is the side that
+                    // knows both what is selected and what is under the grab,
+                    // and which owns the one path a placement moves along —
+                    // deciding it here is what grew the second one (B109).
+                    // Placements still win over guides and boxes, because the
+                    // fall-through leads straight to that path.
                     e.Pointer.Capture(this);
-                    _movingContent = true;
-                    ContentMoveStarted?.Invoke(x, y, e.KeyModifiers.HasFlag(KeyModifiers.Control));
+                    var movingSelection = _selectionManager?.SelectedPlacementIds.Count is null or 0;
+                    // The same gate the single-guide grab uses at the top of
+                    // this handler: locking guides means "pin them where they
+                    // are", and a selection must not be the way round it.
+                    if (movingSelection && GuideDragEnabled && _selectionManager?.SelectedGuideIndices.Count > 0)
+                    {
+                        _movingGuides = true;
+                        _guideMoveLast = (x, y);
+                        GuidesMovedStarted?.Invoke();
+                    }
+                    else if (movingSelection && _selectionManager?.SelectedRefBoxIndices.Count > 0)
+                    {
+                        _movingRefBoxes = true;
+                        _refBoxMoveLast = (x, y);
+                        RefBoxesMoveStarted?.Invoke();
+                    }
+                    else if (movingSelection && _selectionManager?.SelectedAnchorIds.Count > 0)
+                    {
+                        _movingAnchors = true;
+                        _anchorMoveLast = (x, y);
+                        BeginRigGroupPreview(x, y, shapes: false);
+                        AnchorsMoveStarted?.Invoke();
+                    }
+                    else if (movingSelection && _selectionManager?.SelectedShapeIds.Count > 0)
+                    {
+                        _movingShapes = true;
+                        _shapeMoveLast = (x, y);
+                        BeginRigGroupPreview(x, y, shapes: true);
+                        ShapesMoveStarted?.Invoke();
+                    }
+                    else
+                    {
+                        _movingContent = true;
+                        ContentMoveStarted?.Invoke(x, y, e.KeyModifiers.HasFlag(KeyModifiers.Control));
+                    }
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.Select:
+                    if (_selectionManager is not null)
+                    {
+                        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                        var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+
+                        // Try placements first
+                        if (_getPlacementsForSelection is not null)
+                        {
+                            var placement = PickPlacementAt(x, y);
+                            if (placement is not null)
+                            {
+                                _selectionManager.SelectPlacementWithModifiers(placement.Id, shift, alt);
+                                e.Handled = true;
+                                return;
+                            }
+                        }
+
+                        // Then try guides
+                        var guideIndex = PickGuideAt(x, y);
+                        if (guideIndex >= 0)
+                        {
+                            _selectionManager.SelectGuideWithModifiers(guideIndex, shift, alt);
+                            e.Handled = true;
+                            return;
+                        }
+
+                        // Then try reference boxes
+                        var boxIndex = PickRefBoxAt(x, y);
+                        if (boxIndex >= 0)
+                        {
+                            _selectionManager.SelectRefBoxWithModifiers(boxIndex, shift, alt);
+                            e.Handled = true;
+                            return;
+                        }
+
+                        // Then try anchors
+                        var anchorId = PickAnchorAt(x, y);
+                        if (anchorId is not null)
+                        {
+                            _selectionManager.SelectAnchorWithModifiers(anchorId, shift, alt);
+                            e.Handled = true;
+                            return;
+                        }
+
+                        // Then try collision shapes
+                        var shapeId = PickShapeAt(x, y);
+                        if (shapeId is not null)
+                        {
+                            _selectionManager.SelectShapeWithModifiers(shapeId, shift, alt);
+                            e.Handled = true;
+                            return;
+                        }
+                    }
                     e.Handled = true;
                     return;
             }
@@ -1877,6 +2229,63 @@ public sealed class CanvasControl : Control
             // The brush cursor must follow the pointer no matter what state
             // we're in — repaints coalesce, so this is cheap.
             InvalidateVisual();
+
+            if (_movingGuides)
+            {
+                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var dx = mx - _guideMoveLast.X;
+                var dy = my - _guideMoveLast.Y;
+                GuidesMoved?.Invoke(dx, dy);
+                _guideMoveLast = (mx, my);
+                return;
+            }
+
+            if (_movingRefBoxes)
+            {
+                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var dx = mx - _refBoxMoveLast.X;
+                var dy = my - _refBoxMoveLast.Y;
+                RefBoxesMoved?.Invoke(dx, dy);
+                _refBoxMoveLast = (mx, my);
+                e.Handled = true;
+                return;
+            }
+
+            if (_movingAnchors)
+            {
+                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var dx = mx - _anchorMoveLast.X;
+                var dy = my - _anchorMoveLast.Y;
+                AnchorsMoved?.Invoke(dx, dy);
+                _anchorMoveLast = (mx, my);
+                TrackRigGroupPreview(mx, my, shapes: false);
+                e.Handled = true;
+                return;
+            }
+
+            if (_movingShapes)
+            {
+                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var dx = mx - _shapeMoveLast.X;
+                var dy = my - _shapeMoveLast.Y;
+                ShapesMoved?.Invoke(dx, dy);
+                _shapeMoveLast = (mx, my);
+                TrackRigGroupPreview(mx, my, shapes: true);
+                e.Handled = true;
+                return;
+            }
+
+            // A single mark being dragged. It has never previewed either — B112 is
+            // both paths, not just the group one — and it is the same mechanism.
+            if (RigEditMode && _rigDragId is { } draggedMark)
+            {
+                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                PreviewRig(
+                    [draggedMark], _rigDragCorner,
+                    mx - _rigDragStart.X, my - _rigDragStart.Y);
+                e.Handled = true;
+                return;
+            }
 
             if (_movingContent)
             {
@@ -2034,6 +2443,43 @@ public sealed class CanvasControl : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_movingGuides)
+        {
+            _movingGuides = false;
+            e.Pointer.Capture(null);
+            GuidesMovedEnded?.Invoke();
+            e.Handled = true;
+            return;
+        }
+        if (_movingRefBoxes)
+        {
+            _movingRefBoxes = false;
+            e.Pointer.Capture(null);
+            RefBoxesMovedEnded?.Invoke();
+            e.Handled = true;
+            return;
+        }
+        if (_movingAnchors)
+        {
+            _movingAnchors = false;
+            e.Pointer.Capture(null);
+            // Cleared before the commit, so the record's new position is what the
+            // next paint reads. Clearing afterwards would double the move for one
+            // frame and read as an overshoot.
+            ClearRigPreview();
+            AnchorsMovedEnded?.Invoke();
+            e.Handled = true;
+            return;
+        }
+        if (_movingShapes)
+        {
+            _movingShapes = false;
+            e.Pointer.Capture(null);
+            ClearRigPreview();
+            ShapesMovedEnded?.Invoke();
+            e.Handled = true;
+            return;
+        }
         if (_movingContent)
         {
             _movingContent = false;
@@ -2072,6 +2518,7 @@ public sealed class CanvasControl : Control
             var (ux, uy) = ViewToDoc(e.GetPosition(this));
             _rigDragId = null;
             e.Pointer.Capture(null);
+            ClearRigPreview();
             RigDragged?.Invoke(dragged, _rigDragCorner, ux - _rigDragStart.X, uy - _rigDragStart.Y);
             e.Handled = true;
             return;
@@ -2188,6 +2635,18 @@ public sealed class CanvasControl : Control
     {
         base.OnPointerCaptureLost(e);
         _panning = false;
+        if (_movingGuides)
+        {
+            _movingGuides = false;
+            // Guide move cancellation
+            return;
+        }
+        if (_movingRefBoxes)
+        {
+            _movingRefBoxes = false;
+            // Reference box move cancellation
+            return;
+        }
         if (_movingContent)
         {
             // Abandon rather than commit, for the gradient's reason: losing
@@ -2318,7 +2777,9 @@ public sealed class CanvasControl : Control
         SKRect? newBox = null,
         IReadOnlyList<GuideLine>? guides = null,
         GuideLine? draftGuide = null,
-        IReadOnlyList<RigMark>? rigMarks = null) : ICustomDrawOperation
+        IReadOnlyList<RigMark>? rigMarks = null,
+        ViewModels.SelectionManager? selectionManager = null,
+        Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? getPlacementsForSelection = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -2390,6 +2851,7 @@ public sealed class CanvasControl : Control
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);
             DrawReferenceBoxes(canvas);
+            DrawObjectSelections(canvas);
             canvas.Restore();
 
             if (cursor is { } c) DrawBrushCursor(canvas, c);
@@ -2507,6 +2969,147 @@ public sealed class CanvasControl : Control
             }
 
             if (newBox is { } drawing) canvas.DrawRect(drawing, chosen);
+        }
+
+        private void DrawObjectSelections(SKCanvas canvas)
+        {
+            if (selectionManager is null || !selectionManager.HasSelection) return;
+
+            var scale = view.Scale;
+            var reach = (view.DocW + view.DocH) * 2f;
+
+            // Draw placement selections
+            if (getPlacementsForSelection is not null)
+            {
+                var placements = getPlacementsForSelection();
+                if (placements is not null && placements.Count > 0)
+                {
+                    foreach (var placementId in selectionManager.SelectedPlacementIds)
+                    {
+                        var placement = placements.FirstOrDefault(p => p.Id == placementId);
+                        if (placement is null) continue;
+
+                        var boxSize = 40f;
+                        var left = (float)placement.X - boxSize / 2;
+                        var top = (float)placement.Y - boxSize / 2;
+
+                        using var paint = new SKPaint
+                        {
+                            Color = SKColors.Cyan,
+                            StrokeWidth = (float)(2f / scale),
+                            Style = SKPaintStyle.Stroke,
+                            IsAntialias = true,
+                        };
+
+                        canvas.DrawRect(
+                            SKRect.Create(left, top, boxSize, boxSize),
+                            paint);
+                    }
+                }
+            }
+
+            // Draw guide selections
+            if (guides is not null && guides.Count > 0)
+            {
+                foreach (var guideIndex in selectionManager.SelectedGuideIndices)
+                {
+                    if (guideIndex < 0 || guideIndex >= guides.Count) continue;
+                    var guide = guides[guideIndex];
+
+                    // Draw selected guides in yellow/gold for distinction
+                    using var paint = new SKPaint
+                    {
+                        Color = new SKColor(255, 200, 0, 200),  // Gold
+                        StrokeWidth = (float)(2f / scale),
+                        Style = SKPaintStyle.Stroke,
+                        IsAntialias = true,
+                    };
+
+                    if (guide.Angles.Count > 0)
+                    {
+                        var angle = guide.Angles[0];
+                        var radians = angle * Math.PI / 180;
+                        var dx = (float)Math.Cos(radians) * reach;
+                        var dy = (float)Math.Sin(radians) * reach;
+                        canvas.DrawLine(
+                            guide.X - dx, guide.Y - dy,
+                            guide.X + dx, guide.Y + dy,
+                            paint);
+                    }
+                    else
+                    {
+                        // Vanishing point: draw crosshairs
+                        var arm = 10f / scale;
+                        canvas.DrawLine(guide.X - arm, guide.Y, guide.X + arm, guide.Y, paint);
+                        canvas.DrawLine(guide.X, guide.Y - arm, guide.X, guide.Y + arm, paint);
+                    }
+                }
+            }
+
+            // Draw reference box selections
+            if (referenceBoxes is not null && referenceBoxes.Count > 0)
+            {
+                foreach (var boxIndex in selectionManager.SelectedRefBoxIndices)
+                {
+                    if (boxIndex < 0 || boxIndex >= referenceBoxes.Count) continue;
+                    var box = referenceBoxes[boxIndex];
+
+                    using var paint = new SKPaint
+                    {
+                        Color = new SKColor(0, 255, 0, 200),  // Green
+                        StrokeWidth = (float)(2f / scale),
+                        Style = SKPaintStyle.Stroke,
+                        IsAntialias = true,
+                    };
+
+                    canvas.DrawRect(
+                        SKRect.Create(box.X, box.Y, box.W, box.H),
+                        paint);
+                }
+            }
+
+            // Draw anchor selections
+            if (rigMarks is not null && rigMarks.Count > 0)
+            {
+                foreach (var anchorId in selectionManager.SelectedAnchorIds)
+                {
+                    var anchor = rigMarks.FirstOrDefault(m => m.Id == anchorId && m.Kind == RigMarkKind.Anchor);
+                    if (anchor.Id is null) continue;
+
+                    var hitRadius = 10f;
+                    using var paint = new SKPaint
+                    {
+                        Color = new SKColor(255, 165, 0, 200),  // Orange
+                        StrokeWidth = (float)(2f / scale),
+                        Style = SKPaintStyle.Stroke,
+                        IsAntialias = true,
+                    };
+
+                    canvas.DrawCircle((float)anchor.X, (float)anchor.Y, hitRadius, paint);
+                }
+            }
+
+            // Draw collision shape selections
+            if (rigMarks is not null && rigMarks.Count > 0)
+            {
+                foreach (var shapeId in selectionManager.SelectedShapeIds)
+                {
+                    var shape = rigMarks.FirstOrDefault(m => m.Id == shapeId && m.Kind == RigMarkKind.Shape);
+                    if (shape.Id is null) continue;
+
+                    using var paint = new SKPaint
+                    {
+                        Color = new SKColor(255, 0, 255, 200),  // Magenta
+                        StrokeWidth = (float)(2f / scale),
+                        Style = SKPaintStyle.Stroke,
+                        IsAntialias = true,
+                    };
+
+                    canvas.DrawRect(
+                        SKRect.Create((float)shape.X, (float)shape.Y, (float)shape.W, (float)shape.H),
+                        paint);
+                }
+            }
         }
 
         /// <summary>

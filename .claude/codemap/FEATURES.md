@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2527 tests, derived from the suite itself. Each line is a
+2578 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1442,21 +1442,25 @@ regression even when every test still compiles.
 - Leaving The Mode Gives The Canvas Back And Drops The Selection — `:65`
 - ABox Is Where The Compositor Puts It — `:85`
 - Clicking Inside ABox Finds It — `:101`
-- Moving ABox Moves Only That One — `:113`
-- Resizing ABox Shows More Of The Sheet Rather Than Scaling It — `:128`
-- Dragging The Other Corner Moves The Origin Too — `:145`
-- ABox Cannot Be Shrunk To Nothing — `:159`
-- Deleting ABox Leaves The Sheet Alone And Relays The Rest — `:171`
-- ABox Can Be Drawn By Hand — `:185`
-- APivot Is Placed In Sheet Pixels So The Sheet Can Move Under It — `:205`
-- Placing APivot Is Undoable — `:224`
-- Generating Keyframes Grows The Timeline To Fit The Sheet — `:237`
-- Generating Keyframes Registers The Cells On Their Pivots — `:255`
-- Aligning Twice Changes Nothing — `:282`
-- The Gizmos Are Absent Until The Mode Is On — `:302`
-- AGizmo Sits Where Its Drawing Is — `:328`
-- An Unplaced Pivot Still Gets AMark — `:354`
-- Generating Keyframes Is One Undo Step — `:376`
+- Moving AGroup Of Boxes Nudges Them And Leaves Their Window On The Sheet — `:120`
+- ASlow Group Box Drag Still Arrives Where It Was Taken — `:147`
+- AWhole Group Box Drag Is One Undo Step — `:160`
+- AGroup Box Drag That Went Nowhere Is Not An Edit — `:180`
+- Moving ABox Moves Only That One — `:195`
+- Resizing ABox Shows More Of The Sheet Rather Than Scaling It — `:210`
+- Dragging The Other Corner Moves The Origin Too — `:227`
+- ABox Cannot Be Shrunk To Nothing — `:241`
+- Deleting ABox Leaves The Sheet Alone And Relays The Rest — `:253`
+- ABox Can Be Drawn By Hand — `:267`
+- APivot Is Placed In Sheet Pixels So The Sheet Can Move Under It — `:287`
+- Placing APivot Is Undoable — `:306`
+- Generating Keyframes Grows The Timeline To Fit The Sheet — `:319`
+- Generating Keyframes Registers The Cells On Their Pivots — `:337`
+- Aligning Twice Changes Nothing — `:364`
+- The Gizmos Are Absent Until The Mode Is On — `:384`
+- AGizmo Sits Where Its Drawing Is — `:410`
+- An Unplaced Pivot Still Gets AMark — `:436`
+- Generating Keyframes Is One Undo Step — `:458`
 
 ## ReferenceImagePayloadTests
 `tests/Lightbox.App.Tests/ReferenceImagePayloadTests.cs`
@@ -1541,6 +1545,17 @@ regression even when every test still compiles.
 - Pushing Across Visits Every Drawing Once Even On2s — `:252`
 - Pushing With Nothing Selected Does Nothing — `:271`
 
+## RigMarkEditTests
+`tests/Lightbox.App.Tests/RigMarkEditTests.cs`
+
+- Moving AGroup Of Anchors Is One Undo Step — `:78`
+- Undoing An Anchor Group Move Puts Them All Back — `:105`
+- Redoing An Anchor Group Move Reapplies It Once — `:127`
+- An Anchor Group Drag That Went Nowhere Is Not An Edit — `:144`
+- Moving AGroup Of Collision Boxes Is One Undo Step — `:161`
+- Undoing ACollision Box Group Move Puts Them All Back — `:182`
+- Moving ACollision Box Leaves Its Size Alone — `:197`
+
 ## RigOverlayPainterTests
 `tests/Lightbox.App.Tests/RigOverlayPainterTests.cs`
 
@@ -1571,6 +1586,21 @@ regression even when every test still compiles.
 - An Anchor Moves Even When ACorner Is Somehow Named — `:204`
 - The Cursor Says What The Gesture Will Do — `:220`
 
+## RigPreviewTests
+`tests/Lightbox.App.Tests/RigPreviewTests.cs`
+
+- Anchors Follow The Pointer While The Group Is Being Dragged — `:40`
+- Collision Boxes Follow The Pointer While The Group Is Being Dragged — `:61`
+- The Preview Leaves The Marks It Was Given Alone — `:85`
+- Clearing The Preview Goes Back To What The Record Says — `:99`
+- With No Drag In Flight The List Is Handed Back Untouched — `:114`
+- An Empty Or Absent Overlay Previews Nothing — `:125`
+- ADragged Corner Previews AResize Rather Than AMove — `:138`
+- AGroup Preview Is Measured From Where The Drag Was Picked Up — `:156`
+- Anchors And Boxes Measure From Their Own Press — `:178`
+- AGroup Preview With No Selection Manager Does Nothing — `:210`
+- An Anchor Ignores The Corner Because It Has No Size — `:220`
+
 ## RulerAndGuideEditTests
 `tests/Lightbox.App.Tests/RulerAndGuideEditTests.cs`
 
@@ -1593,13 +1623,18 @@ regression even when every test still compiles.
 - AGrab Misses With ADrawing Tool In Hand — `:333`
 - AWhole Drag Of AGuide Is One Undo Step — `:352`
 - ALocked Guide Does Not Budge — `:371`
-- Each Straight Guide Is Marked On The Ruler It Crosses — `:386`
-- AGrid Is Not Marked On The Rulers — `:401`
-- The Rulers Track The Pointer Over The Canvas — `:414`
-- The Configure Window Lists The Grids On The Document — `:434`
-- Changing The Default Pitch Does Not Touch AGrid Already Placed — `:444`
-- Editing APlaced Grid Is Undoable — `:457`
-- Turning AGrids Snapping Off Leaves The Stroke Alone — `:471`
+- Dragging ASelected Group Of Guides Moves Every One The Full Distance — `:392`
+- Guides Follow The Pointer While The Group Is Being Dragged — `:414`
+- AWhole Group Guide Drag Is One Undo Step — `:427`
+- ALocked Guide In The Selection Does Not Budge — `:455`
+- AGroup Guide Drag That Went Nowhere Is Not An Edit — `:473`
+- Each Straight Guide Is Marked On The Ruler It Crosses — `:489`
+- AGrid Is Not Marked On The Rulers — `:504`
+- The Rulers Track The Pointer Over The Canvas — `:517`
+- The Configure Window Lists The Grids On The Document — `:537`
+- Changing The Default Pitch Does Not Touch AGrid Already Placed — `:547`
+- Editing APlaced Grid Is Undoable — `:560`
+- Turning AGrids Snapping Off Leaves The Stroke Alone — `:574`
 
 ## SaveAndStatusGateTests
 `tests/Lightbox.App.Tests/SaveAndStatusGateTests.cs`
@@ -1908,11 +1943,19 @@ regression even when every test still compiles.
 - Moving APlacement Does Not Touch The Symbol — `:253`
 - AClick That Went Nowhere Is Not An Edit — `:272`
 - Cancelling AMove Puts It Back — `:285`
-- Breaking The Link Leaves Ordinary Strokes — `:302`
-- Broken Strokes Keep Their Swatch — `:319`
-- Breaking The Link Is One Undo Step — `:339`
-- Breaking One Link Leaves Other Placements Linked — `:353`
-- AScaled Placement Bakes Its Size Into The Brush — `:366`
+- Dragging ASelected Group Moves Every One The Full Distance — `:309`
+- ASelection Makes The Move Tool Move It Wherever The Drag Starts — `:339`
+- Moving AGroup Is One Undo Step — `:357`
+- Shift Holds AGroup To One Axis — `:386`
+- ALocked Layer Refuses To Move ASelected Group — `:405`
+- AGroup Drag That Went Nowhere Is Not An Edit — `:422`
+- Cancelling AGroup Move Puts Them All Back — `:443`
+- Moving AGroup Does Not Touch The Symbol — `:468`
+- Breaking The Link Leaves Ordinary Strokes — `:489`
+- Broken Strokes Keep Their Swatch — `:506`
+- Breaking The Link Is One Undo Step — `:526`
+- Breaking One Link Leaves Other Placements Linked — `:540`
+- AScaled Placement Bakes Its Size Into The Brush — `:553`
 
 ## SymbolScopeTests
 `tests/Lightbox.App.Tests/SymbolScopeTests.cs`
@@ -3107,6 +3150,26 @@ regression even when every test still compiles.
 - Punctuation Unreal Rejects Becomes An Underscore — `:196`
 - AName With Nothing Usable In It Falls Back Rather Than Being Empty — `:206`
 - ARun Of Punctuation Collapses Rather Than Becoming ARow Of Underscores — `:214`
+
+## VersioningTests
+`tests/Lightbox.Core.Tests/VersioningTests.cs`
+
+- Create Version Increment Number And Saves Metadata — `:22`
+- Create Branch Diverges From Parent — `:38`
+- Create Branch From Nonexistent Version Throws — `:50`
+- Revert To Version Sets Active And Creates Audit Entry — `:58`
+- Revert To Version Invalid Version Throws — `:79`
+- Set Milestone Marking Version As Ready — `:89`
+- Is Version Orphaned Main Line Not Orphaned — `:100`
+- Is Version Orphaned Branch With Valid Parent Not Orphaned — `:107`
+- Is Version Orphaned Nonexistent Version Orphaned — `:116`
+- Get Active Branches Returns Versions With Divergent Children — `:122`
+- Validate Version History Consistent Tree No Errors — `:136`
+- Validate Version History Orphaned Parent Reports Error — `:148`
+- Cleanup Orphaned Versions Removes Invalid Branches — `:165`
+- Get Milestones Filters Versions By Status — `:183`
+- Version Entry Get All Descendants Recurses Tree — `:202`
+- Clear Version History Removes All Versions For Resource — `:218`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`
