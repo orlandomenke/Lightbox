@@ -457,3 +457,105 @@ logic.
   the count in the confirm** — the number is the safeguard, not a checkbox.
 
 None of the three blocks step 1 or 2, which is why they are worth landing first.
+
+
+## What an export scope actually is, and the two axes it is not
+
+Asked directly — *what is a scope, for export* — and the answer is that "scope"
+was doing three jobs at once:
+
+1. **Where the settings live** — which folder declares the preset.
+2. **What was selected** — the folder you asked to export.
+3. **What becomes one file** — is the knight one sheet, or eight?
+
+Only the third constrains anything. A sprite sheet is *one artifact from many
+documents*, so everything in it must share a cell size — you cannot resolve
+settings per document and then pack them together. A PNG sequence is one artifact
+per document and does not care.
+
+> **An export scope is the boundary of one deliverable**, and the declaration is
+> that boundary. Declaring a sheet preset on `knight/` says *everything under
+> here packs into one knight sheet*; declaring it on `knight/locomotion/` instead
+> makes locomotion its own.
+
+Nearest-wins then gives the grouping for free, and selection becomes independent:
+exporting `characters/` finds every scope at or under it and produces one artifact
+each. No declaration anywhere means per-document, which is today's behaviour and
+the migration path. It also makes the assets-versus-shots split concrete — for
+assets the grouping *is* the point, and for shots the deliverable is naturally
+per-shot so grouping never arises.
+
+### Structure is not the only axis, and on its own it is rigid
+
+The owner pushed on this and was right: grouping answers *how things package* and
+says nothing about *when they are allowed out*. Both of the real workflows —
+"let me test one animation" and "when it is ready, update everything" — are about
+**state**, not structure.
+
+`DocumentRef.Status` already exists (Design, Draft, In development, Review,
+Ready, Reopened) and `AutoExport.Decide` already fires on a status change. The
+state axis is largely built; what it lacks is a scope to belong to.
+
+So a preset carries three things rather than one:
+
+| | Comes from | Answers |
+| --- | --- | --- |
+| **Grouping** | the tree | what packages together |
+| **Filter** (`IncludeStatuses`) | status | what is allowed into the artifact |
+| **Trigger** | a status change | when it is rebuilt |
+
+**Testing one animation is a different destination, not a smaller export.** If a
+test overwrites the shipped sheet, looking at one cycle has broken the build. So
+it is its own verb: *Test export* uses the resolved preset, forces grouping to
+per-document, ignores the filter, and writes somewhere scratch. Optionally
+automatic — *In development → test export* — which is what puts a fresh frame
+where a running engine can hot-reload it.
+
+**"When ready, update everything" is where grouping earns its place.** The
+trigger is per document and the effect is per artifact: one animation reaching
+Ready means the sheet holding it is rebuilt. Grouping is what tells you *what to
+rebuild when one thing changes*, which is a build graph, and without it a status
+change cannot know what it invalidated.
+
+### Staleness: the framework already exists, in symbols
+
+The awkward case is a shipped sheet where one animation goes back to
+**Reopened**. The filter says it is no longer eligible, so a rebuild would drop
+it and leave a hole in a sheet an engine is already loading.
+
+`docs/DESIGN-symbols.md` S7 already solved this shape. `Symbol.Version` is an
+integer bumped on every edit; `SymbolPlacement.SeenVersion` records what the
+placement was made against; the two differing **is** staleness. Nothing else is
+needed — no history, no diffing, no store.
+
+The same pair generalises without inventing anything:
+
+- `DocumentRef.Version`, bumped when the document is saved.
+- The artifact records the version of each document it was built from.
+- Any difference means **the artifact is stale**, named down to which documents
+  moved.
+
+So the Reopened case answers itself: **the artifact keeps what it had and reads
+stale.** Removing work from a deliverable because somebody reopened it for polish
+is the kind of helpfulness that breaks a build at 2am; the staleness is visible
+where the hole would not be.
+
+This is also the lightweight versioning the owner asked for, and it arrives as a
+side effect rather than as a feature. Two integers per document give: export
+staleness, the market-research *character version tagging* item, and
+*frame-to-version linking* — all three of which currently assume a versioning
+system nobody has built, when the pattern has been shipping in symbols since
+Pillar 3. **Worth stating plainly: this is not a new subsystem, it is
+`Symbol.Version` applied to a second kind of thing.**
+
+It is deliberately *not* snapshots. Pillar 6's *version snapshots* and *undo
+history browser* are a different feature with a different cost — they store
+document states, and they are blocked on the undo record becoming data. A
+version integer is not blocked on anything.
+
+### Revised step 1
+
+`ExportPreset` moves to Core and gains, in one go rather than one bug report at a
+time: `Id`, `Grouping`, `IncludeStatuses`, and a trigger rule. `DocumentRef`
+gains `Version`. Both default to the behaviour that exists today, so a project
+that declares nothing exports exactly as it does now.
