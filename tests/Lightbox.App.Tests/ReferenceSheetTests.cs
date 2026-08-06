@@ -6,9 +6,23 @@ using SkiaSharp;
 
 namespace Lightbox.App.Tests;
 
+/// <summary>
+/// The reference-sheet document model, with no window in sight.
+/// </summary>
+/// <remarks>
+/// Plain <see cref="FactAttribute"/> rather than <c>[AvaloniaFact]</c>, which is the
+/// one thing in this file worth explaining. Nothing here touches Avalonia — it builds
+/// a document, round-trips it through <see cref="DocJson"/> and reads the result — so
+/// running it inside the headless session bought nothing and cost it a share of B93:
+/// on 2026-08-06 it failed once at 1 ms under full-solution load, which is a body that
+/// never ran, in a test whose assertions cannot vary between runs.
+///
+/// This is not a fix for B93. It takes one test out of the blast radius and leaves the
+/// race exactly where it is for the ~1,100 that are genuinely UI tests.
+/// </remarks>
 public class ReferenceSheetModelTests
 {
-    [AvaloniaFact]
+    [Fact]
     public void Sheets_RoundTripThroughJson_AndLegacyDocsLoadEmpty()
     {
         var doc = DocumentFactory.CreateDoc();
