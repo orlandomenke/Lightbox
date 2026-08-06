@@ -103,6 +103,49 @@ Deleting a folder that has anything in it asks first, and says how much — *"De
 
 A removed document stays removed: reopening the project does not claim the file back, even though it is still on disk.
 
+#### Which palettes a document paints from
+
+A palette declared on a folder is offered to **everything under it, at any
+depth** — put the knight's palette on the knight folder and every animation
+inside it paints from it, whether they sit directly there or three folders down.
+Rearranging the folders afterwards changes nothing.
+
+Palettes accumulate rather than replace: a document sees the studio palette on
+the project, the show's on the show folder, and the shot's extra swatches on the
+shot, all at once. Where two declare the same swatch, **the nearest one wins** —
+so a character can override one colour without copying the whole palette.
+
+A palette that everything should see, wherever it is filed, can be **published**
+to the whole project. A nearer palette still beats a published one, so publishing
+never takes an override away from somebody.
+
+Projects made before this existed are unchanged: every palette is offered to
+every document, exactly as before, until you declare a scope.
+
+**To share one:** right-click a folder and pick **Share a palette here**. Everything
+under that folder paints from it. A project that has never shared anything keeps
+offering every palette to every document, so nothing changes until you say so —
+and taking the last one back returns you to exactly that.
+
+#### References a document draws against
+
+A **reference** is something you draw against, declared on a scope the same way
+a palette is — so it reaches everything under it, at any depth. Three kinds:
+
+| | |
+| --- | --- |
+| **A sheet** | Several views on their own canvases — Front, Side, Back, Expressions. What a character sheet has always been, now filed wherever it belongs rather than trapped inside one drawing. |
+| **A document** | An ordinary drawing used as reference — one big environment layout, a style guide, a colour key. Not squeezed into a sheet, because it is not that shape. |
+| **An image** | A photo or a scan, brought in. |
+
+Put a sheet on a character's folder and every drawing under it can reach it. Put
+a reference on the project, or **publish** one from wherever it lives, and
+everything can — which is what an environment layout that both backgrounds and
+characters work from actually needs.
+
+The panel is called **Reference sheets** rather than Character sheets, because
+nothing about it was ever specific to characters.
+
 #### Rows that have no file behind them
 
 Two of them, and they mean different things:

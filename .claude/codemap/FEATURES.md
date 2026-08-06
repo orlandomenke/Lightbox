@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2441 tests, derived from the suite itself. Each line is a
+2478 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1646,6 +1646,15 @@ regression even when every test still compiles.
 - Converting Tells The Artist What Changed — `:259`
 - Converting With No Project Open Does Nothing — `:272`
 
+## ScopeDeclarationTests
+`tests/Lightbox.App.Tests/ScopeDeclarationTests.cs`
+
+- Sharing APalette Onto AFolder Scopes The Project — `:43`
+- Sharing The Same Palette Twice Is One Declaration — `:71`
+- Promoting ADeclaration Reaches The Whole Project — `:86`
+- Recolouring Repaints Every Open Document That Uses The Swatch — `:112`
+- Undoing ARecolour Of AProject Palette Restores It — `:160`
+
 ## SelectionAdjustTests
 `tests/Lightbox.App.Tests/SelectionAdjustTests.cs`
 
@@ -2200,9 +2209,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:170`
 - The Canvas Gets The Room Left Over By The Strips — `:193`
 - The Project Row Menu Actually Does Something When Clicked — `:217`
-- The New Menu Actually Makes Things — `:300`
-- The Reference Panel Is Absent Until It Is Asked For — `:367`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:383`
+- The New Menu Actually Makes Things — `:303`
+- The Reference Panel Is Absent Until It Is Asked For — `:370`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:386`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
@@ -2427,6 +2436,15 @@ regression even when every test still compiles.
 - ADegenerate Cell Is Treated As One Pixel — `:130`
 - ABlank Tag Name Gets AUsable Placeholder — `:139`
 
+## GradientAndTemplateScopeTests
+`tests/Lightbox.Core.Tests/GradientAndTemplateScopeTests.cs`
+
+- AGradient On AFolder Reaches Every Document Under It — `:34`
+- AGradient On One Character Is Not Visible To Another — `:47`
+- ANew Document In AScope Starts From That Scopes Template — `:69`
+- Setting ATemplate Twice Leaves One Declaration — `:92`
+- Gradients Palettes References And Templates Do Not Collide — `:106`
+
 ## GradientTests
 `tests/Lightbox.Core.Tests/GradientTests.cs`
 
@@ -2446,6 +2464,14 @@ regression even when every test still compiles.
 - One Alpha Stop Holds Its Value Everywhere — `:225`
 - An Alpha Track Round Trips Through The Document — `:234`
 - AGradient With No Alpha Track Writes No Alpha Key — `:250`
+
+## GuideScopeTests
+`tests/Lightbox.Core.Tests/GuideScopeTests.cs`
+
+- AGuide Set On AFolder Reaches Every Document Under It — `:45`
+- AGuide Set On One Character Is Not Visible To Another — `:60`
+- APublished Guide Set Reaches Every Document — `:76`
+- AProject With No Guide Sets Writes No Key — `:95`
 
 ## GuideTests
 `tests/Lightbox.Core.Tests/GuideTests.cs`
@@ -2556,6 +2582,16 @@ regression even when every test still compiles.
 - Falloff Halves Each Further Ghost — `:141`
 - AFalloff Of One Makes Every Ghost Equally Visible — `:149`
 
+## PaletteScopeTests
+`tests/Lightbox.Core.Tests/PaletteScopeTests.cs`
+
+- AProject That Declares No Scopes Is Not Filtered — `:42`
+- APalette On One Character Is Not Visible To Another — `:60`
+- Two Animations Under One Folder Paint From One Palette — `:83`
+- AProject Palette Reaches Every Document — `:96`
+- ADocument The Project Does Not Know Is Not Filtered — `:112`
+- AStroke Painted From APalette Records Which One — `:130`
+
 ## PaletteTests
 `tests/Lightbox.Core.Tests/PaletteTests.cs`
 
@@ -2638,6 +2674,17 @@ regression even when every test still compiles.
 - Deleting The Last Folder Reaches The Disk — `:415`
 - APalette Filed Under AMissing Folder Still Shows Up On Load — `:432`
 
+## ReferenceScopeTests
+`tests/Lightbox.Core.Tests/ReferenceScopeTests.cs`
+
+- ASheet On The Knight Folder Serves Every Drawing Under It — `:48`
+- APublished Environment Document Reaches ACharacters Drawing — `:69`
+- References Of Different Targets Are Resolved Separately — `:91`
+- References Accumulate From Every Scope Above — `:109`
+- AProject That Declares No References Is Not Filtered — `:128`
+- Only AReference Writes ATarget — `:143`
+- References And Palettes Resolve Independently — `:164`
+
 ## ReferenceStripTests
 `tests/Lightbox.Core.Tests/ReferenceStripTests.cs`
 
@@ -2656,6 +2703,20 @@ regression even when every test still compiles.
 - ADocument With No Reference Writes No Key For One — `:200`
 - Editing The Timeline Of ADocument With No Reference Is Untouched — `:212`
 - AReference Round Trips Through Json — `:224`
+
+## ResourceScopeTests
+`tests/Lightbox.Core.Tests/ResourceScopeTests.cs`
+
+- APalette On The Knight Reaches Its Animations At Any Depth — `:47`
+- Adding ALevel Between The Scope And The Document Changes Nothing — `:64`
+- Declarations Accumulate And The Nearest Wins ATie — `:79`
+- The Same Id Declared Twice Resolves To The Nearer — `:98`
+- APublished Resource Reaches ADocument In Another Branch — `:116`
+- Locality Beats Publication — `:136`
+- Resolving One Kind Ignores The Others — `:148`
+- ADocument At The Project Root Still Resolves — `:161`
+- AProject That Declares Nothing Writes No Resource Keys — `:178`
+- Only APromoted Resource Writes Its Reach — `:190`
 
 ## PressureResponseTests
 `tests/Lightbox.Core.Tests/ResponseCurveTests.cs`

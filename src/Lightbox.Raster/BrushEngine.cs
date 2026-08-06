@@ -396,7 +396,8 @@ public static class BrushEngine
     /// refusal to render.
     /// </summary>
     public static SKColor StrokeColor(Stroke stroke) =>
-        stroke.SwatchId is { Length: > 0 } id && PaletteRegistry.ResolveSwatch(id) is { } swatch
+        stroke.SwatchId is { Length: > 0 } id
+        && PaletteRegistry.ResolveSwatch(stroke.PaletteId, id) is { } swatch
             ? ParseColor(swatch.Color)
             : ParseColor(stroke.Color);
 

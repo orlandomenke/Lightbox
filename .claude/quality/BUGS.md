@@ -208,6 +208,7 @@ decision goes to `QUESTIONS.md` and is left alone.
   - P3, and deliberately: it damages nothing and blocks nothing permanently — a re-run clears it. What it costs is trust in a red build, which is the thing that makes people stop reading them.
   - Where to look first: `HeadlessUnitTestSession` rebuilds the application between tests, and the suite is heavy in process-wide statics with their own collections (`BrushState`, `FrameCacheBudget`, `ExportPresetFile`). A candidate worth ruling out before anything else is work still posted to a dispatcher whose application has been torn down — `ProjectWatcher` and `AutosaveService` both hold a `DispatcherTimer`, and `MainViewModel` constructs the former on every instance. Ruling it out is as valuable as confirming it.
   - `evidence: manual` because a test that reproduces an intermittent harness race is the thing being asked for, not a guard that can be written today. Cost: M
+  - **Sighted again locally, 2026-08-06**: `SymbolBrowserTests.TheKindFilterIsWhatTheSixLibrariesAre` failed once under full-solution load at **1 ms**, then passed 22/22 three times in isolation. Same signature — a one-millisecond failure is a body that never ran, so it is the harness building an Avalonia application on the wrong thread rather than anything the test asserts. Worth recording that it is not CI-only.
 
 - [ ] **B78** `P3` `ui` The character sheet name is asked for twice `evidence: manual`
   - **A regression from B66, shipped hours earlier, and reported immediately.** B66 added a name prompt before creating a character sheet and then offered Save As for a document with no file. Both are right on their own; together the artist types a name, and is then asked for a name again by the file picker with none of the first one carried across.
@@ -542,6 +543,18 @@ test reopens the bug.
   - Was `evidence: manual`, and no longer is. The obstacle was real — the rig is painted inside a Skia lease the headless platform never grants — but the answer was to move the painting somewhere a test can call rather than to give up: `GuidePainter` is pure Skia and takes a canvas, and `PaintDocument` owns the checkerboard/artwork/guides order, because splitting those three apart is exactly how the bug happened. Putting the guides back underneath fails five of the seven tests. Cost: S
 
 ### colour
+
+- [x] **B103** `P2` `colour` Undoing a project-palette recolour appears to do nothing `evidence: LivePaletteTests, UndoingARecolourOfAProjectPaletteRestoresIt`
+  - Found alongside B102, and it predates Q30 rather than being caused by it.
+  - `CommitSwatchEdit` records the undo step as `SetSwatchColor(d, id, colour)`, which walks `doc.Palettes` — the document's *own* palettes. A swatch belonging to a **project** palette is not in that list, so the delta finds nothing to change and the swatch keeps its new colour.
+  - It looks like it works while editing, because the drag mutates the `Swatch` instance in place and the registry holds that same instance. Only undo reveals that the record and the object have parted company.
+  - **Fixed.** `SetSwatchColor` now falls through to the project's palettes when the document's do not hold the swatch. The test uses a **project** palette deliberately: a document-palette test passed while this was broken and would have gone on passing, which is how the bug survived a suite that already covered live recolour.
+
+- [x] **B102** `P2` `colour` A swatch edit repaints only the active tab, so other open documents keep the old colour `evidence: LivePaletteTests, RecolouringRepaintsEveryOpenDocumentThatUsesTheSwatch`
+  - Found 2026-08-06 by checking rather than by a report, while answering whether palette updates sync across a scope. They sync **to disk** — the palette is shared and any file opened afterwards is correct — and they do not sync **across open tabs**.
+  - `RepaintForSwatch` walks `Scene.Layers`, which is the active document's scene. Two of a character's animations open at once, recolour a swatch, and only the focused one repaints; the other keeps cached pixels until something else invalidates them.
+  - Worse now that Q30 scopes palettes, because a shared palette is the thing a *set* of documents paint from — that is the whole feature — so the case where several of them are open is the ordinary one rather than the edge.
+  - **Fixed.** `RepaintForSwatch` walks `Tabs` rather than the active `Scene`, so every open document holding a stroke that references the swatch is invalidated. The stroke-walk that decides *which* frames stays exactly as it was — a wheel drag does this per pointer event, and re-rendering frames whose pixels cannot have moved is what that walk exists to avoid.
 
 - [x] **B22** `P2` `colour` A duplicated cel loses its link to the palette `evidence: ACloneKeepsItsLinkToThePalette, ADuplicatedCelStillPaintsFromTheSameSwatch`
   - Repro: paint with a palette swatch, duplicate the cel along the timeline (or generate an inbetween), then recolour the swatch. The original changes and the copy does not. Same for a gradient.

@@ -1508,6 +1508,7 @@ public sealed partial class MainViewModel : ObservableObject
         // a reference to another, and the stroke would jump the moment anyone
         // touched the palette.
         ActiveSwatchId = null;
+        ActivePaletteId = null;
     }
 
     /// <summary>
@@ -1529,6 +1530,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public string? ActiveSwatchId { get; private set; }
 
+    /// <summary>Which palette <see cref="ActiveSwatchId"/> came from — Q30 step 2.</summary>
+    public string? ActivePaletteId { get; private set; }
+
     private bool _settingColorFromSwatch;
 
     /// <summary>The swatch and the colour it held when the current edit run began.</summary>
@@ -1547,6 +1551,10 @@ public sealed partial class MainViewModel : ObservableObject
             _settingColorFromSwatch = false;
         }
         ActiveSwatchId = swatchId;
+        // Q30 step 2: which palette, not just which swatch. Two palettes
+        // duplicated from one another share swatch ids, so a bare id stops
+        // being an answer the moment palettes are scoped.
+        ActivePaletteId = PaletteRegistry.PaletteOf(swatchId);
     }
 
     /// <summary>A structural palette edit — one undo step, then a full resync.</summary>
@@ -1587,9 +1595,30 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.PerformDelta(d => SetSwatchColor(d, id, after), d => SetSwatchColor(d, id, before));
     }
 
-    private static void SetSwatchColor(Doc doc, string swatchId, string color)
+    /// <summary>
+    /// Set a swatch wherever it actually lives — this document, or the project.
+    /// </summary>
+    /// <remarks>
+    /// <b>B103.</b> This walked <c>doc.Palettes</c> alone, which does not contain
+    /// a <em>project</em> palette's swatches. Editing looked correct because the
+    /// drag mutates the <c>Swatch</c> instance in place and the registry holds
+    /// that instance; only undo revealed that the recorded step and the object
+    /// had parted company, and undoing a project recolour appeared to do nothing.
+    /// </remarks>
+    private void SetSwatchColor(Doc doc, string swatchId, string color)
     {
+        var found = false;
         foreach (var palette in doc.Palettes)
+        {
+            foreach (var swatch in palette.Swatches)
+            {
+                if (swatch.Id != swatchId) continue;
+                swatch.Color = color;
+                found = true;
+            }
+        }
+        if (found || ProjectDocker.Project is not { } project) return;
+        foreach (var palette in project.Palettes)
         {
             foreach (var swatch in palette.Swatches)
             {
@@ -1607,7 +1636,16 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private void RepaintForSwatch(string swatchId)
     {
-        foreach (var layer in Scene.Layers)
+        // B102. Every open document, not just the active one. A shared palette
+        // is precisely what a *set* of documents paint from — that is the whole
+        // feature — so two of a character's animations being open at once is the
+        // ordinary case rather than the edge, and repainting only the focused
+        // tab leaves the other showing the old colour from cache.
+        //
+        // Still only the frames that hold a stroke referencing the swatch:
+        // walking the stroke record stays far cheaper than re-rendering frames
+        // whose pixels cannot have moved, and a wheel drag does this per event.
+        foreach (var layer in Tabs.SelectMany(t => t.Doc.Scene.Layers))
         {
             foreach (var cel in layer.Cels)
             {
@@ -1786,6 +1824,12 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public void RefreshProjectResources() => RegisterResources();
 
+    /// <summary>Whether a frame's render is still cached — B102's test probe.</summary>
+    internal bool IsFrameCached(string frameId) => _cache.Holds(frameId);
+
+    /// <summary>Paint from a palette swatch, as picking one in the panel does.</summary>
+    internal void PickSwatchForTest(string swatchId) => PaintWithSwatch(swatchId);
+
     private void RegisterResources()
     {
         // Imported textures come in with everything else the document carries,
@@ -1799,8 +1843,29 @@ public sealed partial class MainViewModel : ObservableObject
         {
             // Document first, project second, so a document's own copy of a
             // swatch id loses to the project's — the shared one is the live one.
-            palettes = palettes.Concat(project.Palettes);
-            foreach (var (id, gradient) in project.Gradients) gradients[id] = gradient;
+            //
+            // Q30 step 2: only the project palettes this document can actually
+            // see. Until now every palette went in for every document, which
+            // reads as working until a project has two characters and the
+            // goblin's reds turn up in the knight's picker. A project that
+            // declares no scopes still gets everything — that is the
+            // new-projects-only migration, at the one place a reader can tell
+            // the two shapes apart.
+            var visible = PaletteScopes.VisibleTo(
+                project.Manifest, (SaveTargetTab ?? ActiveTab)?.Source);
+            palettes = palettes.Concat(
+                visible is null
+                    ? project.Palettes
+                    : project.Palettes.Where(p => visible.Contains(p.Id)));
+            // Q30 step 4: the same scoping palettes got, for the same reason —
+            // a gradient made for the knight's shield has no business in the
+            // goblin's picker. Null still means the project scopes none.
+            var visibleGradients = GradientScopes.VisibleTo(
+                project.Manifest, (SaveTargetTab ?? ActiveTab)?.Source);
+            foreach (var (id, gradient) in project.Gradients)
+            {
+                if (visibleGradients is null || visibleGradients.Contains(id)) gradients[id] = gradient;
+            }
         }
         var resolved = palettes.ToList();
         PaletteRegistry.Reset(resolved, gradients);
@@ -3400,6 +3465,7 @@ public sealed partial class MainViewModel : ObservableObject
             Tool = ToolKind.Fill,
             Color = ColorHex,
             SwatchId = ActiveSwatchId,
+            PaletteId = ActivePaletteId,
             Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
             Points = [.. _selectionContours[0]],
             Holes = _selectionContours.Count > 1
@@ -3484,6 +3550,7 @@ public sealed partial class MainViewModel : ObservableObject
                 Tool = ToolKind.Fill,
                 Color = ColorHex,
                 SwatchId = ActiveSwatchId,
+                PaletteId = ActivePaletteId,
                 Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
                 Points = result.Outer,
                 Holes = result.Holes.Count > 0 ? result.Holes : null,
@@ -5043,6 +5110,7 @@ public sealed partial class MainViewModel : ObservableObject
             Tool = IsEraser ? ToolKind.Eraser : ToolKind.Brush,
             Color = ColorHex,
             SwatchId = ActiveSwatchId,
+            PaletteId = ActivePaletteId,
             Brush = CurrentToolSettings.Clone(),
             Points = ShapeBuilder.Outline(ActiveShape, x, y, x, y, sides: PolygonSides),
             AlphaLocked = ActiveLayer.AlphaLocked,
@@ -5146,6 +5214,7 @@ public sealed partial class MainViewModel : ObservableObject
             Tool = ToolKind.Brush,
             Color = stroke.Color,
             SwatchId = stroke.SwatchId,
+            PaletteId = stroke.PaletteId,
             ClipId = stroke.ClipId,
             Brush = stroke.Brush.Clone(),
             Points = [.. stroke.Points],

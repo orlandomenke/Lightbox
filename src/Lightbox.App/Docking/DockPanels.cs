@@ -66,7 +66,7 @@ public static class DockPanels
         new(DockPanelId.Project, "Project", MaxExtent: null, DefaultExtent: 200, MinExtent: 120),
         new(DockPanelId.Layers, "Layers", MaxExtent: null, DefaultExtent: 260, MinExtent: 120),
         new(DockPanelId.Color, "Color", MaxExtent: 320, DefaultExtent: 300, MinExtent: 140),
-        new(DockPanelId.Sheets, "Character sheets", MaxExtent: 320, DefaultExtent: 150, MinExtent: 80),
+        new(DockPanelId.Sheets, "Reference sheets", MaxExtent: 320, DefaultExtent: 150, MinExtent: 80),
         new(DockPanelId.Palette, "Palette", MaxExtent: 320, DefaultExtent: 220, MinExtent: 110),
         new(DockPanelId.Gradient, "Gradient", MaxExtent: 320, DefaultExtent: 240, MinExtent: 120),
         new(DockPanelId.Reference, "Reference", MaxExtent: 320, DefaultExtent: 300, MinExtent: 140),

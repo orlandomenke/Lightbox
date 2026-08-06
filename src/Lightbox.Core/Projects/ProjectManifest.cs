@@ -314,6 +314,27 @@ public sealed class ProjectManifest
     /// renders from this.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Resources declared on the project itself — the scope above every folder.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q30.</b> Null and absent until something is declared. This sits beside
+    /// <see cref="Palettes"/> rather than replacing it: the old list is how
+    /// existing projects say the same thing, and Q30's migration answer was
+    /// new-projects-only, so both are read for as long as old projects exist.
+    /// </remarks>
+    public List<ScopedResource>? Resources { get; set; }
+
+    /// <summary>
+    /// Guide sets shared across the project, once there are any.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q30.</b> Null and absent until one is made — a project that never
+    /// shared a guide carries no key. Which documents may pull from which set is
+    /// <see cref="GuideScopes"/>; this is only where they live.
+    /// </remarks>
+    public List<GuideSet>? GuideSets { get; set; }
+
     public Documents.BrushSettings? Brush { get; set; }
 
     /// <summary>

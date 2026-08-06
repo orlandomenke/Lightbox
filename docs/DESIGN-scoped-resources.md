@@ -320,8 +320,28 @@ half-migrated.
    Touches Pillar 1's *"Character workspace"* and Pillar 0's *"Reference image
    panel"* (both `ReferenceSheet`, `ReferenceTabTests`), and it is where the UI
    label stops saying "Character".
-4. **Gradients, guides, export config, default templates** — mechanical once 1
-   exists, each independently landable. Two roadmap items close as a side effect:
+4. **Gradients, guides, export config, default templates** — *landed in part,
+   2026-08-06, and the split is the finding.* Gradients and default templates
+   joined by naming a kind and nothing else, which is the evidence step 1 was the
+   right shape. **Guides and export configuration could not**, for the same
+   reason both times: neither has a project-level record with an id to point at.
+   A guide lives on a document and nowhere else; export settings are chosen per
+   export. Scoping needs something that outlives one document, so those two want
+   that record built first — they are not a line of resolver away, and the next
+   person to try will otherwise rediscover it.
+
+   **Guides followed on 2026-08-06**, once `GuideSet` existed to point at: an id,
+   a name and the guides themselves, held on the manifest and absent until one is
+   made. The roadmap's `[?] Character height guide` is that and a declaration and
+   nothing else. Note the boundary holds the ordinary way here rather than the
+   palette way — guides are *copied into* a document when used, not resolved at
+   render time, because a drawing whose snapping changed when it was dragged into
+   another folder is the defect scoping exists to prevent.
+
+   **Export configuration — see the section below.** I twice described this as
+   "there is no export-settings record", which was wrong and is corrected there:
+   `ExportPreset` exists and is good. It is in the wrong assembly and is missing
+   one field. Two roadmap items close as a side effect:
    `[?] Character height guide` becomes an ordinary guide set declared on the
    knight folder, and Pillar 6's shipped template machinery gains the per-scope
    default it was missing.
@@ -361,3 +381,181 @@ not say so:
 - **Migration.** Q30 answered *new projects only*, so existing projects keep
   character palettes and `Character.References` — and the code keeps both paths.
   That is recorded in Q30 with the consequence named.
+
+
+---
+
+## Export, and what the project structure changed about it
+
+**A correction first, because I got this wrong twice.** I said there was no
+export-settings record and that one would have to be designed. There is:
+`ExportPreset` in `Lightbox.App/Services`, with `Target`, `Trim`, `Pack`,
+`Columns`, `Padding` and `Background`, a `ExportPresetStore` that persists them,
+an `ExportRunner` that is deliberately thin — *a preset in, files and a report
+out* — and an `AutoExport` that already decides *when*. Pillar 5's last mile is
+built. The plan below is therefore much smaller than the one I implied, and it
+is mostly about moving one type and adding one field.
+
+### What the new structure actually broke
+
+Nothing is broken in the sense of failing. What changed is that **three of the
+export design's assumptions were true when a project was a flat pile and are not
+true now.**
+
+| Assumption | Was fine because | Now |
+| --- | --- | --- |
+| A preset is a **user** setting, held in `ExportPresetStore` beside the app's other preferences | Every project exported roughly one way | The knight exports at one cell size and the boss at another. A preset is a property of *part of a project*, not of the person |
+| Export is a thing you do **to the open document** | There was one obvious document to mean | An artist wants *export this folder*, and "the knight's locomotion cycles" is now a thing that can be named |
+| Auto-export is one **global** on/off (`AutoExportSettings.Enabled`) | One rule could describe a whole project | A production wants finished shots exported and work-in-progress not, which is a rule about a subtree rather than about the application |
+
+### The plan, in the order the pieces depend on each other
+
+**1 · Give `ExportPreset` an `Id` and move it to Core.** It is a record of enums
+and numbers with no UI dependency, so the move is mechanical. `Name` is what it
+has today and a name is not an identity — two folders can reasonably both have a
+preset called *Sheet*, and a scope declaration has to point at one of them.
+
+**2 · Scope it.** `ExportScopes` beside the four that exist, kind `export`,
+resolved with `Nearest` rather than `Resolve` — a document exports one way at a
+time, so accumulating presets would be offering a choice nobody made. Q30's
+migration hinge applies unchanged: a project that declares none keeps using the
+user's store exactly as it does today.
+
+**3 · Export a scope, not just a document.** `ExportRunner` already takes *a
+preset and a path*, so this is a caller change rather than an engine one: walk
+the folder's documents, run each through the resolved preset, and return one
+report. **The interesting part is what it does about mixed results** — thirty
+documents where two are missing files is a report, not an exception, and
+`ExportRun` already carries `Omitted` and `Suspected` for exactly that kind of
+partial truth.
+
+**4 · Let auto-export be a rule on a scope.** `AutoExportSettings` becomes
+declarable per scope rather than only globally — *finished shots under `act-1/`
+export on status change; nothing else does*. `AutoExport.Decide` already takes
+settings as an argument, so it needs a different caller rather than different
+logic.
+
+### Three decisions I should not make alone
+
+- **Is a preset per target, or one preset with per-target overrides?** A studio
+  shipping to Unity *and* Godot wants both from one authoring pass. Per-target
+  presets are simpler and duplicate cell size and trimming; one preset with
+  overrides keeps the shared parts shared and is a more complicated record.
+  I lean **per-target presets plus scoping**, because the scope already gives
+  the sharing — declare the common one on the character, the Godot-specific one
+  on the folder that needs it — and that avoids inventing an override mechanism
+  next to one that exists.
+- **Does cell size belong to the preset or to the document?** Today's `Trim` and
+  `Pack` are preset-side, which is right for a sheet. A per-document override
+  would let one oversized attack frame break a character's grid, which is
+  exactly the consistency the *assets* output target exists to protect.
+  I lean **preset only**, and let a document that genuinely differs live under a
+  folder with its own preset.
+- **What does "export this folder" do about nested folders?** Recursive is the
+  obvious reading and is what an artist means by *export the knight*. It is also
+  how somebody accidentally writes four hundred files. I lean **recursive with
+  the count in the confirm** — the number is the safeguard, not a checkbox.
+
+None of the three blocks step 1 or 2, which is why they are worth landing first.
+
+
+## What an export scope actually is, and the two axes it is not
+
+Asked directly — *what is a scope, for export* — and the answer is that "scope"
+was doing three jobs at once:
+
+1. **Where the settings live** — which folder declares the preset.
+2. **What was selected** — the folder you asked to export.
+3. **What becomes one file** — is the knight one sheet, or eight?
+
+Only the third constrains anything. A sprite sheet is *one artifact from many
+documents*, so everything in it must share a cell size — you cannot resolve
+settings per document and then pack them together. A PNG sequence is one artifact
+per document and does not care.
+
+> **An export scope is the boundary of one deliverable**, and the declaration is
+> that boundary. Declaring a sheet preset on `knight/` says *everything under
+> here packs into one knight sheet*; declaring it on `knight/locomotion/` instead
+> makes locomotion its own.
+
+Nearest-wins then gives the grouping for free, and selection becomes independent:
+exporting `characters/` finds every scope at or under it and produces one artifact
+each. No declaration anywhere means per-document, which is today's behaviour and
+the migration path. It also makes the assets-versus-shots split concrete — for
+assets the grouping *is* the point, and for shots the deliverable is naturally
+per-shot so grouping never arises.
+
+### Structure is not the only axis, and on its own it is rigid
+
+The owner pushed on this and was right: grouping answers *how things package* and
+says nothing about *when they are allowed out*. Both of the real workflows —
+"let me test one animation" and "when it is ready, update everything" — are about
+**state**, not structure.
+
+`DocumentRef.Status` already exists (Design, Draft, In development, Review,
+Ready, Reopened) and `AutoExport.Decide` already fires on a status change. The
+state axis is largely built; what it lacks is a scope to belong to.
+
+So a preset carries three things rather than one:
+
+| | Comes from | Answers |
+| --- | --- | --- |
+| **Grouping** | the tree | what packages together |
+| **Filter** (`IncludeStatuses`) | status | what is allowed into the artifact |
+| **Trigger** | a status change | when it is rebuilt |
+
+**Testing one animation is a different destination, not a smaller export.** If a
+test overwrites the shipped sheet, looking at one cycle has broken the build. So
+it is its own verb: *Test export* uses the resolved preset, forces grouping to
+per-document, ignores the filter, and writes somewhere scratch. Optionally
+automatic — *In development → test export* — which is what puts a fresh frame
+where a running engine can hot-reload it.
+
+**"When ready, update everything" is where grouping earns its place.** The
+trigger is per document and the effect is per artifact: one animation reaching
+Ready means the sheet holding it is rebuilt. Grouping is what tells you *what to
+rebuild when one thing changes*, which is a build graph, and without it a status
+change cannot know what it invalidated.
+
+### Staleness: the framework already exists, in symbols
+
+The awkward case is a shipped sheet where one animation goes back to
+**Reopened**. The filter says it is no longer eligible, so a rebuild would drop
+it and leave a hole in a sheet an engine is already loading.
+
+`docs/DESIGN-symbols.md` S7 already solved this shape. `Symbol.Version` is an
+integer bumped on every edit; `SymbolPlacement.SeenVersion` records what the
+placement was made against; the two differing **is** staleness. Nothing else is
+needed — no history, no diffing, no store.
+
+The same pair generalises without inventing anything:
+
+- `DocumentRef.Version`, bumped when the document is saved.
+- The artifact records the version of each document it was built from.
+- Any difference means **the artifact is stale**, named down to which documents
+  moved.
+
+So the Reopened case answers itself: **the artifact keeps what it had and reads
+stale.** Removing work from a deliverable because somebody reopened it for polish
+is the kind of helpfulness that breaks a build at 2am; the staleness is visible
+where the hole would not be.
+
+This is also the lightweight versioning the owner asked for, and it arrives as a
+side effect rather than as a feature. Two integers per document give: export
+staleness, the market-research *character version tagging* item, and
+*frame-to-version linking* — all three of which currently assume a versioning
+system nobody has built, when the pattern has been shipping in symbols since
+Pillar 3. **Worth stating plainly: this is not a new subsystem, it is
+`Symbol.Version` applied to a second kind of thing.**
+
+It is deliberately *not* snapshots. Pillar 6's *version snapshots* and *undo
+history browser* are a different feature with a different cost — they store
+document states, and they are blocked on the undo record becoming data. A
+version integer is not blocked on anything.
+
+### Revised step 1
+
+`ExportPreset` moves to Core and gains, in one go rather than one bug report at a
+time: `Id`, `Grouping`, `IncludeStatuses`, and a trigger rule. `DocumentRef`
+gains `Version`. Both default to the behaviour that exists today, so a project
+that declares nothing exports exactly as it does now.
