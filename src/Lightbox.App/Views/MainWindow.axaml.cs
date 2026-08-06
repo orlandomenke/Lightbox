@@ -3142,7 +3142,10 @@ public partial class MainWindow : Window
 
     private void OnProjectRowRename(object? sender, RoutedEventArgs e)
     {
-        if (_vm.ProjectDocker.Selected is { } row) row.IsRenaming = true;
+        // B62. The project row refuses the rename, so never open the box for it
+        // — an edit box that cannot commit is a worse answer than no box.
+        if (_vm.ProjectDocker.Selected is not { IsRoot: false } row) return;
+        row.IsRenaming = true;
     }
 
     /// <summary>
@@ -3261,7 +3264,8 @@ public partial class MainWindow : Window
 
         // Over nothing in particular means the project: dropping into the
         // empty space below the tree is the natural way to say "not under any
-        // character", and it is the only way to say it when every row is one.
+        // character". B62 gave it a second, more findable way — the project row
+        // has no Character either, so dropping onto it means the same thing.
         var destination = over?.Character;
         if (ReferenceEquals(destination, dragged.Character)) return null;
         return (destination, true);

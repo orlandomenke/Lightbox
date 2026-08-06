@@ -212,9 +212,20 @@ work inside a project should not be followed by a second step that files it:
 | **Rename…** | Edits the name in place. Enter commits, Escape cancels. |
 | **Remove from project** | Takes it out of the index. The file stays on disk. |
 
-The **🗁** at the right of the panel's header opens the project folder itself —
-the one path that is always there, however little of the project has been
-created yet.
+The **🗁** at the right of the panel's header shows **whatever you have
+selected** in your file manager — the same thing as **Show in file manager** on
+the right-click menu, without the right-click.
+
+**The project itself is the first row**, named after its folder on disk —
+`Production.lbproj` rather than *Production*, because that is the part you
+cannot see anywhere else. Select it and 🗁 opens the project folder, which is
+what the button used to do whatever you had picked. With nothing selected at
+all, it opens the project folder too.
+
+You can select it, drop a document onto it to take that document out of every
+character, and copy its path. You cannot rename it, remove it or delete it from
+here: that is a folder your whole project lives in, and renaming it is a thing
+to do with the application closed.
 
 **The panel keeps up with the folder on its own.** Lightbox watches the project
 directory, so a document you delete in a file manager, a folder another program

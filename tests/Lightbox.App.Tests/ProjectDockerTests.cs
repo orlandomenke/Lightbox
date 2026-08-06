@@ -12,7 +12,7 @@ namespace Lightbox.App.Tests;
 /// when present, and one palette shared by everything under a character.
 /// </summary>
 [Collection("BrushState")]
-public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
+public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIsolated, IDisposable
 {
     private readonly string _root = Path.Combine(
         Path.GetTempPath(), $"lightbox-app-proj-{Guid.NewGuid():N}.lbproj");
@@ -145,11 +145,14 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         vm.NewProject(_root, "Knight");
         vm.ProjectDocker.AddAnimationCommand.Execute(null);
 
+        // B62 put the project itself at the top, so the shape is now
+        // project, character, adopted animation, new one.
         var rows = vm.ProjectDocker.Rows;
-        Assert.Equal(3, rows.Count); // character, adopted animation, new one
-        Assert.True(rows[0].IsCharacter);
-        Assert.False(rows[1].IsCharacter);
+        Assert.Equal(4, rows.Count);
+        Assert.True(rows[0].IsRoot);
+        Assert.True(rows[1].IsCharacter);
         Assert.False(rows[2].IsCharacter);
+        Assert.False(rows[3].IsCharacter);
     }
 
     [AvaloniaFact]
@@ -297,7 +300,10 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         var path = vm.ProjectDocker.Project!.PathOf(animation);
         Assert.True(File.Exists(path));
 
-        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => !r.IsCharacter);
+        // The animation, named as such. "Not a character" used to mean it and
+        // stopped meaning it when B62 added the project row, which is also not a
+        // character — and selects first.
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
         vm.ProjectDocker.RemoveSelectedCommand.Execute(null);
 
         Assert.Empty(vm.ProjectDocker.Project!.AllDocuments);
@@ -438,9 +444,9 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         var vm = Vm();
         vm.NewProject(_root, "Knight");
         WithKnight(vm);
-        var row = vm.ProjectDocker.Rows[0];
+        var row = Assert.Single(vm.ProjectDocker.Rows, r => r.IsCharacter);
 
-        vm.ProjectDocker.Rename(row, "Sir Reginald");
+        Assert.True(vm.ProjectDocker.Rename(row, "Sir Reginald"));
 
         Assert.Equal("Sir Reginald", vm.ProjectDocker.Project!.Characters.First().Name);
         Assert.Equal("Sir Reginald", row.Name);
@@ -994,5 +1000,195 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
         docker.AddItemCommand.Execute(ProjectViewModel.NewSceneItem);
 
         Assert.Contains(docker.Rows, r => r.IsScene && r.Name.StartsWith("Scene "));
+    }
+
+    // ---- B62: where the project is, and what the reveal button acts on -------
+
+    /// <summary>
+    /// The project itself is the first row, named after the folder on disk.
+    /// </summary>
+    /// <remarks>
+    /// <b>B62's second half</b>, and the half that makes the first half safe. The
+    /// tree listed everything <em>in</em> a project and never the project, so
+    /// there was nothing to select and no way to see where the work actually
+    /// lives. Without this row, moving the toolbar button onto the selection
+    /// would have deleted a capability rather than moved it.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheProjectRootIsVisibleInTheDocker()
+    {
+        var vm = Vm();
+        // Absent with no project, like every other piece of project UI. Optional
+        // means absent, not disabled — asserted before the project exists so the
+        // row cannot quietly become the thing that breaks document-first.
+        Assert.Empty(vm.ProjectDocker.Rows);
+
+        vm.NewProject(_root, "Knight");
+        var docker = vm.ProjectDocker;
+
+        var root = docker.Rows[0];
+        Assert.True(root.IsRoot);
+        // The folder on disk, not the manifest name: the docker's title already
+        // says "Knight", and repeating it here would answer a question nobody
+        // asked while leaving the reported one — where is it? — unanswered.
+        Assert.Equal(Path.GetFileName(_root), root.Name);
+        Assert.EndsWith(".lbproj", root.Name);
+        Assert.Equal(_root, docker.PathOf(root));
+
+        // It is a place, not a thing in the project. Every one of these would
+        // put it in a code path written for characters or documents.
+        Assert.False(root.IsCharacter);
+        Assert.False(root.IsFolder);
+        Assert.False(root.IsScene);
+        Assert.False(root.IsLoose);
+        Assert.Null(root.Animation);
+        Assert.Equal(0, root.Indent);
+        Assert.Equal("", root.Twisty);
+        // And never "not on disk" — PathOf answers the project root for several
+        // row kinds, so MarkMissing has to exclude it or the project reports
+        // itself missing.
+        Assert.False(root.Missing);
+
+        // Survives a rebuild as the same object (B61's rule: the row instance is
+        // what an open menu and an in-flight rename are holding).
+        docker.Refresh();
+        Assert.Same(root, docker.Rows[0]);
+    }
+
+    /// <summary>
+    /// The project row refuses everything that would remove, delete or rename it
+    /// — and says so.
+    /// </summary>
+    /// <remarks>
+    /// The control on the row above. Adding a selectable row to a panel whose
+    /// verbs all assume "a character, a scene or a document" is the cheap way to
+    /// turn a P3 into a P1: <c>DeleteSelectedPermanently</c> on the project row
+    /// would mean deleting the project folder, which is every drawing in it.
+    /// Silence is not enough either — a － that does nothing reads as broken.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheProjectRowCannotBeRemovedRenamedOrDeleted()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        var docker = vm.ProjectDocker;
+        var root = docker.Rows[0];
+        var before = docker.Rows.Count;
+        docker.Selected = root;
+
+        docker.RemoveSelectedCommand.Execute(null);
+        Assert.Contains(docker.Rows, r => r.IsRoot);
+        Assert.Equal(before, docker.Rows.Count);
+        Assert.Contains("cannot be removed", docker.Status);
+
+        docker.DeleteSelectedPermanently();
+        Assert.True(Directory.Exists(_root));
+        Assert.Contains("cannot be deleted", docker.Status);
+        // No confirmation is offered for it, so the refusal above is the only
+        // thing standing between a click and the project folder.
+        Assert.False(docker.DeleteNeedsConfirmation);
+
+        Assert.False(docker.Rename(root, "Something else"));
+        Assert.Equal(Path.GetFileName(_root), docker.Rows[0].Name);
+        Assert.True(Directory.Exists(_root));
+    }
+
+    /// <summary>
+    /// Reveal acts on what is selected, and the toolbar button is wired to that.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B62's first half.</b> The toolbar button opened the project folder
+    /// whatever was selected, while "reveal <em>this</em>" — the useful one —
+    /// was buried in the right-click menu.
+    /// </para>
+    /// <para>
+    /// <b>The binding is asserted from the XAML on purpose.</b> The view model
+    /// already had <c>RevealSelectedCommand</c> before the fix and it already
+    /// followed the selection, so a test that only exercised the view model
+    /// would have passed on the broken build — the defect was entirely in which
+    /// command the button was bound to. Reading the file is the only thing here
+    /// that fails before the fix and passes after it.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ShowInFileManagerOpensTheSelectedItem()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        var docker = vm.ProjectDocker;
+
+        var animation = Assert.Single(docker.Rows, r => r.Animation is not null);
+        docker.Selected = animation;
+        var selected = docker.SelectedPath;
+        output.WriteLine($"selected → {selected}");
+        Assert.NotNull(selected);
+        Assert.EndsWith(".lightbox.json", selected);
+        Assert.NotEqual(_root, selected);
+
+        // The project row is how the button's old behaviour stays reachable.
+        docker.Selected = docker.Rows[0];
+        Assert.Equal(_root, docker.SelectedPath);
+        // And so is selecting nothing, which is what an untouched panel is.
+        docker.Selected = null;
+        Assert.Equal(_root, docker.SelectedPath);
+
+        // Windows named explicitly rather than Current: the branch that selects
+        // a file inside its folder is the one worth pinning, and Linux has no
+        // reveal-and-select to pin. Pure function, so the desktop is an argument.
+        var command = Services.FileReveal.RevealCommand(
+            Services.Desktop.Windows, selected!, isDirectory: false);
+        Assert.Equal([$"/select,{selected}"], command.Args);
+
+        // The button. RevealRootCommand is gone rather than merely unbound —
+        // PathOf already answers the root for a null selection and for the
+        // project row, so a second command would be a second way to do one thing
+        // and a button that does not follow the tree.
+        var xaml = MainWindowXaml();
+        Assert.Contains("ProjectDocker.RevealSelectedCommand", xaml);
+        Assert.DoesNotContain("RevealRootCommand", xaml);
+    }
+
+    /// <summary>
+    /// A rebuild keeps the folder that was selected, rather than jumping to the
+    /// first row that looks like it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Found by B62 and older than it.</b> <c>ProjectRow.Key</c> covered
+    /// animations, scenes and characters but not folders, so every folder row
+    /// keyed as null — and <c>Rebuild</c> restores the selection with
+    /// <c>FirstOrDefault(r =&gt; r.Key == keep)</c>, which matches the first
+    /// null-keyed row. Two folders were enough to see it; adding a project row
+    /// above them would have made it look like a regression this fix caused.
+    /// A rebuild happens on every save and on every directory event, so this is
+    /// not a rare path.
+    /// </remarks>
+    [AvaloniaFact]
+    public void SelectingAFolderSurvivesARebuild()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        var docker = vm.ProjectDocker;
+
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Backgrounds");
+        docker.Selected = null;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Props");
+        var props = Assert.Single(docker.Rows, r => r is { IsFolder: true, Name: "Props" });
+        docker.Selected = props;
+
+        docker.Refresh();
+
+        output.WriteLine("selected after rebuild: " + docker.Selected?.Name);
+        Assert.Same(props, docker.Selected);
+    }
+
+    private static string MainWindowXaml()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        return File.ReadAllText(
+            Path.Combine(dir!.FullName, "src", "Lightbox.App", "Views", "MainWindow.axaml"));
     }
 }

@@ -68,6 +68,26 @@ public sealed partial class ProjectRow : ObservableObject
         _name = shot.Name;
     }
 
+    private ProjectRow(string name)
+    {
+        IsRoot = true;
+        _name = name;
+    }
+
+    /// <summary>The project folder itself, as a row.</summary>
+    /// <remarks>
+    /// <b>B62.</b> The tree listed everything <em>in</em> the project and not the
+    /// project, so there was no way to select it — and no way to see where it
+    /// actually lives on disk. That is what made moving the reveal action to the
+    /// selection a removal rather than a swap: the old toolbar behaviour had
+    /// nowhere to go. With a row for it, "show the project folder" is "select
+    /// this and reveal it", which is one rule instead of two.
+    /// </remarks>
+    public static ProjectRow Root(string name) => new(name);
+
+    /// <summary>Whether this row is the project itself rather than something in it.</summary>
+    public bool IsRoot { get; }
+
     /// <summary>
     /// Null on a document that belongs to the project rather than to any
     /// character — a background, a colour test, a one-off illustration.
@@ -140,14 +160,15 @@ public sealed partial class ProjectRow : ObservableObject
         && ReferenceEquals(Scene, other.Scene)
         && ReferenceEquals(Folder, other.Folder)
         && ReferenceEquals(Animation, other.Animation)
-        && Depth == other.Depth;
+        && Depth == other.Depth
+        && IsRoot == other.IsRoot;
 
     public bool IsScene => Scene is not null && Animation is null;
 
     /// <summary>A folder the artist made, rather than a character or a scene.</summary>
     public bool IsFolder => Folder is not null && Animation is null;
 
-    public bool IsCharacter => Animation is null && Scene is null && Folder is null;
+    public bool IsCharacter => Animation is null && Scene is null && Folder is null && !IsRoot;
 
     /// <summary>A heading row — a character, a scene or a folder.</summary>
     public bool IsHeading => Animation is null;
@@ -190,7 +211,10 @@ public sealed partial class ProjectRow : ObservableObject
         ? (Depth + (Animation is null ? 0 : 1)) * 14
         : IsHeading || IsLoose ? 0 : 14;
 
-    public string Glyph => IsScene ? "🎬" : IsFolder ? "🗀" : IsCharacter ? "🗀" : "▣";
+    // 🗁 is the open folder, and it matches the toolbar button that used to be
+    // the only way to reach the project folder — the row inherited the icon
+    // along with the job (B62).
+    public string Glyph => IsRoot ? "🗁" : IsScene ? "🎬" : IsFolder ? "🗀" : IsCharacter ? "🗀" : "▣";
 
     /// <summary>The chevron on a folder row, or nothing on everything else.</summary>
     public string Twisty => IsFolder ? (IsCollapsed ? "▸" : "▾") : "";
@@ -245,8 +269,23 @@ public sealed partial class ProjectRow : ObservableObject
         OnPropertyChanged(nameof(StatusColor));
     }
 
+    /// <summary>What the project row is remembered by. No id can collide with it.</summary>
+    /// <remarks><see cref="Ids.NewId"/> joins with underscores, so a slash is free.</remarks>
+    internal const string RootKey = "/";
+
     /// <summary>The id this row is remembered by across a rebuild.</summary>
-    internal string? Key => Animation?.Id ?? Scene?.Id ?? Character?.Id;
+    /// <remarks>
+    /// <b>B62 found the gap and had to close it.</b> Folder and root were both
+    /// absent here, so both keyed as null — and <c>Rebuild</c> restores the
+    /// selection with <c>FirstOrDefault(r =&gt; r.Key == keep)</c>, which matches
+    /// the <em>first</em> null-keyed row rather than the one that was selected.
+    /// Adding a root row at the top of the tree would have made that visible as a
+    /// regression: select a folder, save, and the selection jumps to the project.
+    /// The underlying fault was already there — with two folders it jumped to the
+    /// first one — so this is a fix rather than a defence.
+    /// </remarks>
+    internal string? Key =>
+        Animation?.Id ?? Scene?.Id ?? Character?.Id ?? Folder?.Id ?? (IsRoot ? RootKey : null);
 }
 
 /// <summary>
@@ -417,6 +456,10 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             Rows.Add(fresh);
         }
 
+        // B62. The project itself, above everything in it. Present whenever a
+        // project is — it is the one row that cannot be absent, because it is
+        // the thing the panel is showing.
+        if (Project is { } withRoot) Add(ProjectRow.Root(RootLabel(withRoot)));
         // B86. The folder tree first: it is the structure the artist built, and
         // a production is organised by it rather than by the two fixed axes
         // below. Absent entirely until the first folder is made, so a project
@@ -468,6 +511,20 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// path rather than three that can disagree.
     /// </remarks>
     public void Refresh() => Rebuild();
+
+    /// <summary>
+    /// What the project row is called: the folder on disk, not the manifest name.
+    /// </summary>
+    /// <remarks>
+    /// <b>B62.</b> The docker's title already shows the project's name, so
+    /// repeating it in the first row would say nothing. The reported gap was
+    /// "no way to see where the project actually lives", and
+    /// <c>Production.lbproj</c> answers that where <i>Production</i> does not.
+    /// The full path is a right-click away on Copy path.
+    /// </remarks>
+    private static string RootLabel(Project project) =>
+        string.IsNullOrEmpty(project.Root) ? "Project" : Path.GetFileName(project.Root.TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 
     // ---- the folder tree (B85, B86) -------------------------------------------
 
@@ -1009,6 +1066,14 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     private void RemoveSelected()
     {
         if (Project is not { } project || Selected is not { } row) return;
+        // B62. The project row is a place, not a thing in the project, so every
+        // operation that removes has to say no to it. Said out loud rather than
+        // ignored: a － that does nothing is indistinguishable from a broken one.
+        if (row.IsRoot)
+        {
+            Status = "The project itself cannot be removed. Close it from the File menu.";
+            return;
+        }
         if (row.Animation is { } animation)
         {
             Detach(project, animation);
@@ -1118,6 +1183,13 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public void DeleteSelectedPermanently()
     {
         if (Project is not { } project || Selected is not { } row) return;
+        // B62, and the one that would have been worst: deleting the project row
+        // means deleting the project folder, which is every drawing in it.
+        if (row.IsRoot)
+        {
+            Status = "The project itself cannot be deleted from here.";
+            return;
+        }
 
         if (row.Animation is { } document)
         {
@@ -1208,6 +1280,14 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public bool Rename(ProjectRow row, string name)
     {
         if (Project is not { } project) return false;
+        // B62. Renaming the project row means renaming the folder the
+        // application currently has open, which is a different operation with
+        // its own questions — not something to do behind an in-place edit box.
+        if (row.IsRoot)
+        {
+            Status = "The project folder is renamed outside Lightbox.";
+            return false;
+        }
         if (string.IsNullOrWhiteSpace(name)) return false;
         var trimmed = name.Trim();
         if (trimmed == row.Name) return true;   // not a change, not a failure
@@ -1387,15 +1467,15 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
     public string? SelectedPath => PathOf(Selected);
 
-    /// <summary>Show the project folder in the desktop's file manager.</summary>
-    [RelayCommand]
-    private void RevealRoot()
-    {
-        if (RootPath is not { } root) return;
-        if (!Services.FileReveal.Reveal(root)) Status = "Could not open the file manager.";
-    }
-
     /// <summary>Show the selected row's file or folder in the file manager.</summary>
+    /// <remarks>
+    /// <b>B62.</b> There was a second command beside this one, <c>RevealRoot</c>,
+    /// which the toolbar button used — and it is gone rather than merely
+    /// unbound. <see cref="PathOf"/> already answers the project root for a null
+    /// selection and for the project row, so keeping a separate command would
+    /// have left two ways to do one thing and a button whose behaviour did not
+    /// follow the tree.
+    /// </remarks>
     [RelayCommand]
     private void RevealSelected()
     {

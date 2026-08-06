@@ -1836,12 +1836,16 @@
                     character or on the project itself.
                   -->
                   <DockPanel>
-                    <!-- The project folder, at the far edge: the one path in
-                         the tree that is always there, however little of it
-                         has been created yet. -->
+                    <!-- B62. Reveals what is *selected*, which is the useful
+                         half and was buried in the right-click menu while this
+                         button opened the project folder whatever you had
+                         picked. The old behaviour is not lost: the project is
+                         the first row, so selecting it and pressing this does
+                         exactly what the button used to do — and with nothing
+                         selected at all, PathOf falls back to the root. -->
                     <Button Classes="icon" DockPanel.Dock="Right" Content="🗁"
-                            Command="{Binding ProjectDocker.RevealRootCommand}"
-                            ToolTip.Tip="Show the project folder in the file manager" />
+                            Command="{Binding ProjectDocker.RevealSelectedCommand}"
+                            ToolTip.Tip="Show the selected item in the file manager" />
                     <!-- B61. The folder is watched, so this is rarely needed —
                          and it is the only way back when the watch could not be
                          armed, which ProjectWatcher allows on purpose so a

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2397 tests, derived from the suite itself. Each line is a
+2401 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1324,40 +1324,44 @@ regression even when every test still compiles.
 - With No Project ADocument Saves And Loads Exactly As Before — `:99`
 - New Project Adopts The Document Already Open — `:115`
 - The Docker Lists Characters With Their Animations Under Them — `:142`
-- Adding An Animation Opens It As ATab Bound To Its Slot — `:156`
-- Opening An Animation Twice Focuses The Tab Rather Than Duplicating It — `:171`
-- File New Still Makes AStandalone Document With AProject Open — `:188`
-- Two Animations Under One Character Paint From One Palette — `:205`
-- Save Writes The Project Without APicker — `:243`
-- Without AProject Or APath There Is Nothing To Save In Place — `:260`
-- AProject Reopens With Its Characters And Animations — `:268`
-- Removing An Animation Leaves Its File On Disk — `:290`
-- The New Menu Offers One Entry Per Place Work Can Land — `:310`
-- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:331`
-- ALoose Document Gets Its Own Row With No Character Above It — `:349`
-- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:364`
-- Moving ADocument To The Project Takes It Out Of Every Character — `:390`
-- Moving ADocument Where It Already Is Does Nothing — `:405`
-- AMoved Document Survives ASave And Reopen — `:415`
-- Renaming ARow Writes Through — `:436`
-- Every Row Knows Where It Is On Disk — `:452`
-- With No Project There Is No Path To Show — `:472`
-- Copy Path Gives The Selected Rows File — `:482`
-- Opening Externally Says So When The File Is Not Written Yet — `:495`
-- Duplicating An Animation Copies Its Art Into The Same Character — `:513`
-- Duplicating Writes The Copy On The Next Save — `:547`
-- Deleting AFolder On Disk Removes It From The Docker — `:575`
-- The Docker Refreshes Without Being Reopened — `:604`
-- An Unsaved Project Does Not Report Every Row As Missing — `:630`
-- The Watch Follows The Project And Not The Application — `:669`
-- ABurst Of Disk Events Costs One Refresh — `:704`
-- ADeletion On Disk Reaches The Row Without ARefresh Call — `:759`
-- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:820`
-- AManual Re Read Is Reachable And Reports What It Found — `:873`
-- Creating An Item Asks For Its Name First — `:934`
-- The Suggested Name Matches The Numbered Fallback — `:954`
-- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:971`
-- The Unnamed Command Still Creates The Numbered Default — `:988`
+- Adding An Animation Opens It As ATab Bound To Its Slot — `:159`
+- Opening An Animation Twice Focuses The Tab Rather Than Duplicating It — `:174`
+- File New Still Makes AStandalone Document With AProject Open — `:191`
+- Two Animations Under One Character Paint From One Palette — `:208`
+- Save Writes The Project Without APicker — `:246`
+- Without AProject Or APath There Is Nothing To Save In Place — `:263`
+- AProject Reopens With Its Characters And Animations — `:271`
+- Removing An Animation Leaves Its File On Disk — `:293`
+- The New Menu Offers One Entry Per Place Work Can Land — `:316`
+- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:337`
+- ALoose Document Gets Its Own Row With No Character Above It — `:355`
+- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:370`
+- Moving ADocument To The Project Takes It Out Of Every Character — `:396`
+- Moving ADocument Where It Already Is Does Nothing — `:411`
+- AMoved Document Survives ASave And Reopen — `:421`
+- Renaming ARow Writes Through — `:442`
+- Every Row Knows Where It Is On Disk — `:458`
+- With No Project There Is No Path To Show — `:478`
+- Copy Path Gives The Selected Rows File — `:488`
+- Opening Externally Says So When The File Is Not Written Yet — `:501`
+- Duplicating An Animation Copies Its Art Into The Same Character — `:519`
+- Duplicating Writes The Copy On The Next Save — `:553`
+- Deleting AFolder On Disk Removes It From The Docker — `:581`
+- The Docker Refreshes Without Being Reopened — `:610`
+- An Unsaved Project Does Not Report Every Row As Missing — `:636`
+- The Watch Follows The Project And Not The Application — `:675`
+- ABurst Of Disk Events Costs One Refresh — `:710`
+- ADeletion On Disk Reaches The Row Without ARefresh Call — `:765`
+- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:826`
+- AManual Re Read Is Reachable And Reports What It Found — `:879`
+- Creating An Item Asks For Its Name First — `:940`
+- The Suggested Name Matches The Numbered Fallback — `:960`
+- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:977`
+- The Unnamed Command Still Creates The Numbered Default — `:994`
+- The Project Root Is Visible In The Docker — `:1018`
+- The Project Row Cannot Be Removed Renamed Or Deleted — `:1070`
+- Show In File Manager Opens The Selected Item — `:1115`
+- Selecting AFolder Survives ARebuild — `:1168`
 
 ## ProjectHierarchyTests
 `tests/Lightbox.App.Tests/ProjectHierarchyTests.cs`
@@ -1607,11 +1611,11 @@ regression even when every test still compiles.
 - Scenes Move Up And Down And The Selection Follows — `:154`
 - Shots Move Within Their Scene — `:171`
 - Reordering ACharacter Row Does Nothing — `:186`
-- Deleting AScene Keeps Its Shots As Loose Documents — `:203`
-- Converting Changes The Type And Recreates No Artwork — `:221`
-- Converting Does Not Rearrange The Screen By Itself — `:239`
-- Converting Tells The Artist What Changed — `:257`
-- Converting With No Project Open Does Nothing — `:270`
+- Deleting AScene Keeps Its Shots As Loose Documents — `:205`
+- Converting Changes The Type And Recreates No Artwork — `:223`
+- Converting Does Not Rearrange The Screen By Itself — `:241`
+- Converting Tells The Artist What Changed — `:259`
+- Converting With No Project Open Does Nothing — `:272`
 
 ## SelectionAdjustTests
 `tests/Lightbox.App.Tests/SelectionAdjustTests.cs`

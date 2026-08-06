@@ -194,7 +194,9 @@ public sealed class SceneDockerTests : BrushStateIsolated, IDisposable
 
         vm.ProjectDocker.MoveSelectedDownCommand.Execute(null);
 
-        Assert.Equal("Knight", vm.ProjectDocker.Rows[0].Name);
+        // The first row that is not the project itself — B62 put that above
+        // everything, so an index into Rows no longer means what it did.
+        Assert.Equal("Knight", vm.ProjectDocker.Rows.First(r => !r.IsRoot).Name);
     }
 
     // ---- deleting a scene -------------------------------------------------------------
