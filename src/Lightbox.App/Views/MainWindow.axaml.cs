@@ -12,6 +12,7 @@ using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
 using Lightbox.Core.Serialization;
+using static Lightbox.App.Views.PlacementChoiceDialog;
 
 namespace Lightbox.App.Views;
 
@@ -25,6 +26,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = _vm;
+        Canvas.SetSelectionManager(_vm.Selection);
+        Canvas.SetPlacementProvider(_vm.GetCurrentFramePlacements);
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
         Canvas.PaintStarted += _vm.BeginStroke;  // (x, y, pressure, alt-erases, shift-joins)
@@ -38,6 +41,7 @@ public partial class MainWindow : Window
         Canvas.PolygonVertexAdded += _vm.AddPolygonVertex;
         Canvas.PolygonCompleted += _vm.CompletePolygon;
         _vm.SelectionChanged += () => Canvas.SetSelectionOverlay(_vm.SelectionContours, _vm.PolygonInProgress);
+        _vm.Selection.SelectionChanged += Canvas.InvalidateVisual; // Redraw when object selection changes
         _vm.LazyBrushMoved += (x, y) => Canvas.SetLazyAnchor(x, y);
         _vm.LazyBrushCleared += () => Canvas.SetLazyAnchor(null, null);
         Canvas.InputDiagnostic += text => _vm.PenDiagnostic = text;
@@ -3338,10 +3342,51 @@ public partial class MainWindow : Window
         {
             _vm.AiStatus = $"Test export failed: {ex.Message}";
         }
+
+    /// <summary>
+    /// Hand the row to the context menu's items, because nothing else will.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A <c>MenuFlyout</c>'s items have no DataContext.</b> Not the window's,
+    /// not the target's — measured, not assumed: the host DockPanel's is the
+    /// <see cref="ProjectRow"/> and the MenuItem's is null. So every binding in
+    /// that menu resolves against nothing, which is fine for a
+    /// <c>Click</c> handler and fatal for an <c>ItemsSource</c>.
+    /// </para>
+    /// <para>
+    /// That is not a hypothetical. <em>Share a palette here</em> and <em>Export
+    /// this as</em> shipped with <c>$parent[Window]</c> bindings three lines
+    /// below a comment warning that they do not resolve here, and both submenus
+    /// have been <b>empty since the day they landed</b> — the view models were
+    /// correct, the tests exercised the view models, and no artist could reach
+    /// either one. Found by asserting the binding resolved rather than that the
+    /// command worked.
+    /// </para>
+    /// <para>
+    /// Set on the top-level items only. Children generated from an
+    /// <c>ItemsSource</c> take the list entry as their own DataContext, which is
+    /// what their <c>$parent[MenuItem]</c> bindings hop over to get back here.
+    /// </para>
+    /// </remarks>
+    private void OnProjectRowMenuOpening(object? sender, EventArgs e)
+    {
+        if (sender is not MenuFlyout flyout) return;
+        var row = (flyout.Target as Control)?.DataContext;
+        foreach (var item in flyout.Items.OfType<MenuItem>()) item.DataContext = row;
     }
 
     private void OnProjectRemove(object? sender, RoutedEventArgs e) =>
         _vm.ProjectDocker.RemoveSelectedCommand.Execute(null);
+
+    // Q30. Two entries rather than one with a held modifier: subtree and
+    // project-wide are different reaches with different blast radii, and
+    // telling them apart by a key is how somebody publishes by accident.
+    private void OnShareAsReferenceHere(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.ShareSelectedAsReference(projectWide: false);
+
+    private void OnShareAsReferenceEverywhere(object? sender, RoutedEventArgs e) =>
+        _vm.ProjectDocker.ShareSelectedAsReference(projectWide: true);
 
     /// <summary>
     /// Delete for real, asking first when there is something inside.
@@ -3754,6 +3799,22 @@ public partial class MainWindow : Window
         Canvas.ContentMoveUpdated += (x, y, axisLock) => _vm.UpdateMove(x, y, axisLock);
         Canvas.ContentMoveEnded += _vm.EndMove;
         Canvas.ContentMoveCancelled += _vm.CancelMove;
+
+        Canvas.GuidesMovedStarted += _vm.BeginGuidesMove;
+        Canvas.GuidesMoved += (dx, dy) => _vm.UpdateGuidesMove(dx, dy);
+        Canvas.GuidesMovedEnded += _vm.EndGuidesMove;
+
+        Canvas.RefBoxesMoveStarted += _vm.BeginRefBoxesMove;
+        Canvas.RefBoxesMoved += (dx, dy) => _vm.UpdateRefBoxesMove(dx, dy);
+        Canvas.RefBoxesMovedEnded += _vm.EndRefBoxesMove;
+
+        Canvas.AnchorsMoveStarted += _vm.BeginAnchorsMove;
+        Canvas.AnchorsMoved += (dx, dy) => _vm.UpdateAnchorsMove(dx, dy);
+        Canvas.AnchorsMovedEnded += _vm.EndAnchorsMove;
+
+        Canvas.ShapesMoveStarted += _vm.BeginShapesMove;
+        Canvas.ShapesMoved += (dx, dy) => _vm.UpdateShapesMove(dx, dy);
+        Canvas.ShapesMovedEnded += _vm.EndShapesMove;
 
         Canvas.GuideMoved += (id, dx, dy) =>
         {
@@ -4229,5 +4290,12 @@ public partial class MainWindow : Window
         using var reader = new StreamReader(stream);
         var json = await reader.ReadToEndAsync();
         _vm.OpenDocumentTab(DocJson.Deserialize(json), files[0].TryGetLocalPath());
+    }
+
+    /// <summary>Show a dialog asking how to place a multi-frame symbol.</summary>
+    public async Task<PlacementChoice?> ShowPlacementChoiceDialogAsync(Symbol symbol)
+    {
+        var dialog = new PlacementChoiceDialog();
+        return await dialog.ShowDialog<PlacementChoice?>(this);
     }
 }

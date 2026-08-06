@@ -8,6 +8,15 @@ using SkiaSharp;
 
 namespace Lightbox.App.ViewModels;
 
+/// <summary>User's choice when placing a multi-frame symbol.</summary>
+public enum FrameImportChoice
+{
+    /// <summary>Import all frames into the timeline.</summary>
+    ImportFrames,
+    /// <summary>Place as single animated reference with cycling.</summary>
+    Reference,
+}
+
 /// <summary>
 /// Pillar 3, step four: putting a symbol somewhere, moving it, and letting go
 /// of it.
@@ -60,7 +69,11 @@ public sealed partial class MainViewModel
         SymbolBrowser = new SymbolBrowserViewModel(
             () => ProjectDocker.Project,
             () => (Scene.Width, Scene.Height),
-            () => Library);
+            () => Library,
+            // Q30 step 5: which document the grid is offering symbols for, so a
+            // scoped project can narrow it. Null with no project slot, which is
+            // the unscoped answer anyway.
+            () => ActiveTab?.Source);
 
     // ---- global and project scope -------------------------------------------------
 
@@ -287,17 +300,27 @@ public sealed partial class MainViewModel
     /// </remarks>
     public bool DeleteSymbol(Symbol symbol)
     {
-        if (ProjectDocker.Project is not { } project) return false;
-        var stranded = SymbolGraph.Of(project, symbol.Id).Total;
-        if (!project.Symbols.Remove(symbol.Id)) return false;
-        SymbolRegistry.Reset(project.Symbols);
+        if (ProjectDocker.Project is { } project)
+        {
+            var stranded = SymbolGraph.Of(project, symbol.Id).Total;
+            if (!project.Symbols.Remove(symbol.Id)) return false;
+            SymbolRegistry.Reset(project.Symbols);
+            SymbolBrowser.Refresh();
+            if (PaintTarget() is { } frame) AfterPlacementChange(frame.Id);
+            AiStatus = stranded == 0
+                ? $"Deleted \"{symbol.Name}\". Nothing was placing it."
+                : $"Deleted \"{symbol.Name}\". {stranded} placement{(stranded == 1 ? "" : "s")} of it now draw nothing.";
+            return true;
+        }
+
+        // Delete from global library when no project is open
+        if (!Library.Remove(symbol.Id)) return false;
+        SymbolLibrary.Save(Library);
         SymbolBrowser.Refresh();
-        if (PaintTarget() is { } frame) AfterPlacementChange(frame.Id);
-        AiStatus = stranded == 0
-            ? $"Deleted “{symbol.Name}”. Nothing was placing it."
-            : $"Deleted “{symbol.Name}”. {stranded} placement{(stranded == 1 ? "" : "s")} of it now draw nothing.";
+        AiStatus = $"Removed \"{symbol.Name}\" from your library.";
         return true;
     }
+
 
     /// <summary>Place the browser's selected symbol at the centre of the canvas.</summary>
     /// <remarks>
@@ -536,6 +559,8 @@ public sealed partial class MainViewModel
     /// placement, or null when there is nowhere to put it.
     /// </summary>
     /// <remarks>
+    /// For multi-frame symbols, this detects animation and offers the user a choice:
+    /// import frames into the timeline or reference with animation cycling.
     /// Keys the cel if there is nothing there, exactly as painting does.
     /// Dropping a prop onto an empty frame is the ordinary way to start one,
     /// and refusing silently is the behaviour that made a cleared layer feel
@@ -558,6 +583,67 @@ public sealed partial class MainViewModel
             return null;
         }
 
+        // For multi-frame symbols, ask the user whether to import frames or reference
+        if (symbol.FrameCount > 1)
+        {
+            var choice = DetectAnimationAndAsk(symbol);
+            if (choice == FrameImportChoice.ImportFrames)
+            {
+                return PlaceSymbolAcrossFrames(symbol, x, y, target);
+            }
+            // choice == Reference: fall through to single-placement logic
+        }
+
+        // Single-frame placement or user chose to reference
+        return PlaceSingleSymbol(symbolId, symbol, x, y, target);
+    }
+
+    /// <summary>
+    /// Ask the user how to place a multi-frame symbol: import all frames or reference with animation.
+    /// </summary>
+    /// <remarks>
+    /// For single-frame symbols, always returns Reference (no dialog).
+    /// For multi-frame symbols, shows a dialog unless the user has saved a preference.
+    /// If the dialog cannot be shown, uses the stored preference or defaults to ImportFrames.
+    /// </remarks>
+    private FrameImportChoice DetectAnimationAndAsk(Symbol symbol)
+    {
+        // Single-frame symbols always place as reference (no animation, no dialog)
+        if (symbol.FrameCount <= 1)
+            return FrameImportChoice.Reference;
+
+        // Multi-frame symbols: try to show dialog if we can access it; otherwise use stored preference
+        if (Avalonia.Application.Current?.ApplicationLifetime
+            is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime app
+            && app.MainWindow is Views.MainWindow mainWindow)
+        {
+            var task = mainWindow.ShowPlacementChoiceDialogAsync(symbol);
+            if (task.Wait(5000)) // 5 second timeout
+            {
+                var result = task.Result;
+                if (result is { } choice)
+                {
+                    if (choice.DontAskAgain)
+                    {
+                        _placementPreference = choice.Choice;
+                    }
+                    return choice.Choice;
+                }
+            }
+        }
+
+        // Use stored preference or default to ImportFrames
+        return _placementPreference ?? FrameImportChoice.ImportFrames;
+    }
+
+    /// <summary>User's stored preference for symbol placement, if they selected "Don't ask again".</summary>
+    private FrameImportChoice? _placementPreference;
+
+    /// <summary>
+    /// Place a symbol as a single animated reference (old behaviour).
+    /// </summary>
+    private SymbolPlacement? PlaceSingleSymbol(string symbolId, Symbol symbol, double x, double y, PaintedFrame target)
+    {
         var placement = new SymbolPlacement
         {
             SymbolId = symbolId,
@@ -589,6 +675,106 @@ public sealed partial class MainViewModel
         AfterPlacementChange(frameId);
         AiStatus = $"Placed {symbol.Name}.";
         return placement;
+    }
+
+    /// <summary>
+    /// Expand the timeline to accommodate a multi-frame symbol, then place
+    /// instances across all frames with proper FrameOffset values.
+    /// </summary>
+    private SymbolPlacement? PlaceSymbolAcrossFrames(Symbol symbol, double x, double y, PaintedFrame initialTarget)
+    {
+        var frameCount = symbol.FrameCount;
+        var startFrameIndex = CurrentFrameIndex;
+
+        // Expand timeline if needed
+        var targetFrameCount = startFrameIndex + frameCount;
+        while (Scene.FrameCount < targetFrameCount)
+        {
+            DocumentEditor.AppendFrame(Scene);
+        }
+
+        // Create placements for each frame
+        var placements = new List<SymbolPlacement>();
+        var groupId = Ids.NewId("fgrp");
+
+        for (var i = 0; i < frameCount; i++)
+        {
+            var placement = new SymbolPlacement
+            {
+                SymbolId = symbol.Id,
+                X = x,
+                Y = y,
+                FrameOffset = i,
+                SeenVersion = symbol.Version,
+                GroupId = groupId,
+            };
+            placements.Add(placement);
+        }
+
+        // Create the frame group
+        var frameGroup = new FrameGroup
+        {
+            Id = groupId,
+            SymbolId = symbol.Id,
+            PlacementIds = placements.Select(p => p.Id).ToList(),
+            FrameStart = startFrameIndex,
+            FrameCount = frameCount,
+        };
+
+        // Apply all placements and frame group in one undo step
+        var initialFrameId = initialTarget.Id;
+        var activeLayerId = ActiveLayer.Id;
+        _editor.PerformDelta(
+            apply: doc =>
+            {
+                if (doc.Scene is not { Layers: not null }) return;
+
+                // Ensure frame group list exists
+                doc.Scene.FrameGroups ??= [];
+                doc.Scene.FrameGroups.Add(frameGroup);
+
+                // Place on each frame of the active layer
+                var activeLayer = doc.Scene.Layers.FirstOrDefault(l => l.Id == activeLayerId);
+                if (activeLayer is null || activeLayer.Kind != LayerKind.Painted) return;
+
+                for (var i = 0; i < placements.Count; i++)
+                {
+                    var frameIdx = startFrameIndex + i;
+                    var target = ExposureSheet.ExposedFrame(activeLayer, frameIdx);
+                    if (target is PaintedFrame painted)
+                    {
+                        painted.Placements ??= [];
+                        painted.Placements.Add(placements[i]);
+                    }
+                }
+            },
+            revert: doc =>
+            {
+                if (doc.Scene is not { FrameGroups: not null }) return;
+
+                // Remove frame group
+                doc.Scene.FrameGroups.RemoveAll(g => g.Id == groupId);
+
+                // Remove placements
+                var placementIds = new HashSet<string>(placements.Select(p => p.Id));
+                foreach (var layer in doc.Scene.Layers)
+                {
+                    foreach (var cel in layer.Cels)
+                    {
+                        if (cel.Frame is PaintedFrame painted && painted.Placements is not null)
+                        {
+                            painted.Placements.RemoveAll(p => placementIds.Contains(p.Id));
+                            if (painted.Placements.Count == 0) painted.Placements = null;
+                        }
+                    }
+                }
+            },
+            affectedFrameId: initialFrameId);
+
+        _selectedPlacementId = placements[0].Id;
+        AfterPlacementChange(initialFrameId);
+        AiStatus = $"Placed {symbol.Name} across {frameCount} frames.";
+        return placements[0];
     }
 
     /// <summary>Remove a placement. The symbol itself is untouched.</summary>
@@ -644,11 +830,11 @@ public sealed partial class MainViewModel
         return null;
     }
 
-    // ---- moving one -------------------------------------------------------------
+    // ---- moving one, or a selected group ----------------------------------------
 
     /// <summary>
-    /// A placement being dragged: which one, where the grab started, and where
-    /// the placement was when it did.
+    /// A drag in progress: where the grab started, and every placement it
+    /// carries with where that placement was when it did.
     /// </summary>
     /// <remarks>
     /// Deliberately not a transform session. The stroke transform rewrites
@@ -656,22 +842,53 @@ public sealed partial class MainViewModel
     /// have done to it — moving a placement is an edit to two numbers, and the
     /// symbol's own drawing is not touched at all. That is also why the move is
     /// free where a stroke move is not.
+    /// <para>
+    /// It carries a set rather than one id because a group move is the same
+    /// operation on more of them: the same anchor, the same axis lock, one undo
+    /// step. Moving the group along a second path would be the drift the move
+    /// comment on <c>BeginMove</c> warns about, and did in fact happen once —
+    /// see B109.
+    /// </para>
     /// </remarks>
-    private (string Id, double GrabX, double GrabY, double FromX, double FromY)? _placementDrag;
+    private (double GrabX, double GrabY, (string Id, double FromX, double FromY)[] Items)? _placementDrag;
 
     public bool PlacementMoveActive => _placementDrag is not null;
 
     /// <summary>
-    /// Start moving the placement under (x, y), if there is one. Returns false
-    /// when there is nothing there, which is the caller's cue to move the
-    /// drawing instead.
+    /// Start moving placements: the selected ones if anything is selected,
+    /// otherwise the one under (x, y). Returns false when there is nothing to
+    /// move, which is the caller's cue to move the drawing instead.
     /// </summary>
+    /// <remarks>
+    /// A selection makes the gesture modal — once symbols are selected, a drag
+    /// moves them wherever it started, rather than only when it landed on one.
+    /// That is what selecting them was for, and it matches what the Move tool
+    /// does everywhere else the artist has used one.
+    /// </remarks>
     public bool BeginPlacementMove(double x, double y)
     {
         if (!CanEdit(ActiveLayer, "move a symbol")) return false;
+
+        var selected = _selectionManager.SelectedPlacementIds;
+        if (selected.Count > 0)
+        {
+            var group = PlacementsHere
+                .Where(p => selected.Contains(p.Id))
+                .Select(p => (p.Id, p.X, p.Y))
+                .ToArray();
+            if (group.Length > 0)
+            {
+                _placementDrag = (x, y, group);
+                AiStatus = group.Length == 1
+                    ? "Moving a placed symbol — the symbol itself is unchanged."
+                    : $"Moving {group.Length} placed symbols — the symbols themselves are unchanged.";
+                return true;
+            }
+        }
+
         if (PlacementAt(x, y) is not { } placement) return false;
         _selectedPlacementId = placement.Id;
-        _placementDrag = (placement.Id, x, y, placement.X, placement.Y);
+        _placementDrag = (x, y, [(placement.Id, placement.X, placement.Y)]);
         AiStatus = "Moving a placed symbol — the symbol itself is unchanged.";
         return true;
     }
@@ -680,8 +897,11 @@ public sealed partial class MainViewModel
     public void UpdatePlacementMove(double x, double y, bool axisLock)
     {
         if (_placementDrag is not { } drag) return;
-        if (PlacementsHere.FirstOrDefault(p => p.Id == drag.Id) is not { } placement) return;
 
+        // Measured from where the grab started, never from the last pointer
+        // event. An incremental delta has to be accumulated by whoever receives
+        // it, and the one place that tried lost all but the final increment —
+        // a drag across the canvas moved a symbol by about a pixel (B109).
         var dx = x - drag.GrabX;
         var dy = y - drag.GrabY;
         if (axisLock)
@@ -692,29 +912,49 @@ public sealed partial class MainViewModel
         // Moved live on the record, and put back by the undo step at the end if
         // the drag is abandoned. A placement is two numbers, so there is
         // nothing here that a preview surface would save.
-        placement.X = drag.FromX + dx;
-        placement.Y = drag.FromY + dy;
+        foreach (var (id, fromX, fromY) in drag.Items)
+        {
+            if (PlacementsHere.FirstOrDefault(p => p.Id == id) is not { } placement) continue;
+            placement.X = fromX + dx;
+            placement.Y = fromY + dy;
+        }
         if (PaintTarget() is { } frame) AfterPlacementChange(frame.Id);
     }
 
-    /// <summary>Put it down. One undo step for the whole drag, or none.</summary>
+    /// <summary>
+    /// Put them down. One undo step for the whole drag however many moved, or
+    /// none at all.
+    /// </summary>
     public void EndPlacementMove()
     {
         if (_placementDrag is not { } drag) return;
         _placementDrag = null;
-        if (PlacementsHere.FirstOrDefault(p => p.Id == drag.Id) is not { } placement) return;
-
-        double toX = placement.X, toY = placement.Y;
-        // A click that went nowhere is a click, not an edit.
-        if (Math.Abs(toX - drag.FromX) < 1e-9 && Math.Abs(toY - drag.FromY) < 1e-9) return;
 
         var frameId = PaintTarget()?.Id;
         if (frameId is null) return;
-        var id = drag.Id;
-        double fromX = drag.FromX, fromY = drag.FromY;
+
+        // Where each one started and where it ended up, resolved before the
+        // step is built so undo and redo both replay from fixed numbers.
+        var moves = new List<(string Id, double FromX, double FromY, double ToX, double ToY)>();
+        foreach (var (id, fromX, fromY) in drag.Items)
+        {
+            if (PlacementsHere.FirstOrDefault(p => p.Id == id) is not { } placement) continue;
+            // A click that went nowhere is a click, not an edit.
+            if (Math.Abs(placement.X - fromX) < 1e-9 && Math.Abs(placement.Y - fromY) < 1e-9) continue;
+            moves.Add((id, fromX, fromY, placement.X, placement.Y));
+        }
+        if (moves.Count == 0) return;
+
+        var stepped = moves.ToArray();
         _editor.PerformDelta(
-            apply: doc => MovePlacementIn(doc, frameId, id, toX, toY),
-            revert: doc => MovePlacementIn(doc, frameId, id, fromX, fromY),
+            apply: doc =>
+            {
+                foreach (var m in stepped) MovePlacementIn(doc, frameId, m.Id, m.ToX, m.ToY);
+            },
+            revert: doc =>
+            {
+                foreach (var m in stepped) MovePlacementIn(doc, frameId, m.Id, m.FromX, m.FromY);
+            },
             affectedFrameId: frameId);
         AfterPlacementChange(frameId);
     }
@@ -723,9 +963,12 @@ public sealed partial class MainViewModel
     {
         if (_placementDrag is not { } drag) return;
         _placementDrag = null;
-        if (PlacementsHere.FirstOrDefault(p => p.Id == drag.Id) is not { } placement) return;
-        placement.X = drag.FromX;
-        placement.Y = drag.FromY;
+        foreach (var (id, fromX, fromY) in drag.Items)
+        {
+            if (PlacementsHere.FirstOrDefault(p => p.Id == id) is not { } placement) continue;
+            placement.X = fromX;
+            placement.Y = fromY;
+        }
         if (PaintTarget() is { } frame) AfterPlacementChange(frame.Id);
     }
 

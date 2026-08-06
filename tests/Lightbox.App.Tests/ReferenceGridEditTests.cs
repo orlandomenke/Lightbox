@@ -107,6 +107,88 @@ public class ReferenceGridEditTests : BrushStateIsolated
         Assert.Equal(-1, vm.ReferenceCellAt(-50, -50));
     }
 
+    // ---- moving a selected group of boxes ----------------------------------------
+
+    /// <summary>
+    /// The nudge moves and the window onto the sheet does not. A box's X and Y
+    /// are which crop of the photograph it shows; moving those scrolls the
+    /// picture inside the box and leaves the box where it was, which is a
+    /// different operation and takes the registration with it. B110: the group
+    /// move moved exactly those.
+    /// </summary>
+    [AvaloniaFact]
+    public void MovingAGroupOfBoxesNudgesThemAndLeavesTheirWindowOnTheSheet()
+    {
+        var (vm, strip) = Imported();
+        var windows = strip.Cells.Select(c => (c.X, c.Y)).ToList();
+        vm.Selection.AddRefBoxToSelection(0);
+        vm.Selection.AddRefBoxToSelection(2);
+
+        vm.BeginRefBoxesMove();
+        vm.UpdateRefBoxesMove(6, -2);
+        vm.UpdateRefBoxesMove(6, -2);
+        vm.EndRefBoxesMove();
+
+        Assert.Equal(12, strip.Cells[0].Dx, 3);
+        Assert.Equal(-4, strip.Cells[0].Dy, 3);
+        Assert.Equal(12, strip.Cells[2].Dx, 3);
+        Assert.Equal(-4, strip.Cells[2].Dy, 3);
+        // The unselected ones stay put, and nobody's crop moved at all.
+        Assert.Equal(0, strip.Cells[1].Dx, 3);
+        Assert.Equal(0, strip.Cells[3].Dx, 3);
+        Assert.Equal(windows, strip.Cells.Select(c => (c.X, c.Y)).ToList());
+    }
+
+    /// <summary>
+    /// A fraction of a pixel per event used to be rounded to an int before it
+    /// was applied, so a slow drag moved nothing at all.
+    /// </summary>
+    [AvaloniaFact]
+    public void ASlowGroupBoxDragStillArrivesWhereItWasTaken()
+    {
+        var (vm, strip) = Imported();
+        vm.Selection.AddRefBoxToSelection(0);
+
+        vm.BeginRefBoxesMove();
+        for (var i = 0; i < 10; i++) vm.UpdateRefBoxesMove(0.4, 0);
+        vm.EndRefBoxesMove();
+
+        Assert.Equal(4, strip.Cells[0].Dx, 3);
+    }
+
+    [AvaloniaFact]
+    public void AWholeGroupBoxDragIsOneUndoStep()
+    {
+        var (vm, strip) = Imported();
+        vm.Selection.AddRefBoxToSelection(0);
+        vm.Selection.AddRefBoxToSelection(1);
+
+        vm.BeginRefBoxesMove();
+        vm.UpdateRefBoxesMove(5, 5);
+        vm.UpdateRefBoxesMove(5, 5);
+        vm.EndRefBoxesMove();
+        Assert.Equal(10, strip.Cells[0].Dx, 3);
+        Assert.Equal(10, strip.Cells[1].Dx, 3);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Equal(0, strip.Cells[0].Dx, 3);
+        Assert.Equal(0, strip.Cells[1].Dx, 3);
+    }
+
+    [AvaloniaFact]
+    public void AGroupBoxDragThatWentNowhereIsNotAnEdit()
+    {
+        var (vm, _) = Imported();
+        vm.Selection.AddRefBoxToSelection(0);
+        var steps = vm.UndoDepth;
+
+        vm.BeginRefBoxesMove();
+        vm.EndRefBoxesMove();
+
+        Assert.Equal(steps, vm.UndoDepth);
+    }
+
     // ---- moving, resizing, deleting ---------------------------------------------
 
     [AvaloniaFact]

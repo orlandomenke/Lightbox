@@ -32,6 +32,28 @@ set -euo pipefail
       git config core.hooksPath .githooks
       echo "git: hooks path set to .githooks (pre-push guards the default branch)"
     fi
+
+    # Register the codemap merge driver .gitattributes asks for.
+    #
+    # Unconditional, unlike core.hooksPath above: `merge.codemap.*` is this
+    # repository's own name and clobbers nobody's arrangement. It has to be
+    # config rather than a committed file because git deliberately refuses to
+    # run a driver a repository can declare for itself — otherwise cloning
+    # anything would execute its code.
+    #
+    # Without this, .gitattributes names a driver git cannot find and the merge
+    # falls back to an ordinary conflict. That is the pre-driver behaviour, so
+    # nothing breaks; it just stops resolving itself.
+    #
+    # BOTH KEYS OR NEITHER, and that is not tidiness. Verified by trying it:
+    # with `.name` set and `.driver` missing, git does not fall back — it dies
+    # with "custom merge driver codemap lacks command line" and the merge does
+    # not happen at all. So anyone unsetting one of these by hand must unset the
+    # other, or every merge touching the index breaks.
+    if [ -x scripts/codemap-merge.sh ]; then
+      git config merge.codemap.name "regenerate the codemap index from the merged tree"
+      git config merge.codemap.driver "scripts/codemap-merge.sh %O %A %B %P"
+    fi
   fi
 ) || true
 

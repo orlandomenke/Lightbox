@@ -296,6 +296,193 @@ public class SymbolPlacingTests : IDisposable
         Assert.False(vm.PlacementMoveActive);
     }
 
+    // ---- moving a selected group -------------------------------------------------
+
+    /// <summary>
+    /// Select two of three and drag. B109: the group move once ran down its own
+    /// path, which took the delta since the *last* pointer event and overwrote
+    /// rather than accumulated — so a drag across the canvas moved the symbols
+    /// by the final increment alone, about a pixel. Several UpdateMove calls
+    /// here on purpose: one would pass either way.
+    /// </summary>
+    [AvaloniaFact]
+    public void DraggingASelectedGroupMovesEveryOneTheFullDistance()
+    {
+        var vm = WithSymbol(out var sword);
+        var first = vm.PlaceSymbol(sword.Id, 100, 60)!;
+        var second = vm.PlaceSymbol(sword.Id, 200, 60)!;
+        var untouched = vm.PlaceSymbol(sword.Id, 300, 60)!;
+        vm.Selection.AddPlacementToSelection(first.Id);
+        vm.Selection.AddPlacementToSelection(second.Id);
+
+        vm.BeginMove(110, 60, wholeLayer: false);
+        vm.UpdateMove(120, 65, axisLock: false);
+        vm.UpdateMove(140, 75, axisLock: false);
+        vm.UpdateMove(160, 90, axisLock: false);
+        vm.EndMove();
+
+        // The grab was at 110 and the release at 160, so everything selected
+        // moves by 50 and 30 — not by the last 20 and 15.
+        Assert.Equal(150, first.X);
+        Assert.Equal(90, first.Y);
+        Assert.Equal(250, second.X);
+        Assert.Equal(90, second.Y);
+        Assert.Equal(300, untouched.X);
+        Assert.Equal(60, untouched.Y);
+    }
+
+    /// <summary>
+    /// A selection makes the gesture modal: the drag starts on empty canvas and
+    /// still moves what is selected, rather than picking the drawing up.
+    /// </summary>
+    [AvaloniaFact]
+    public void ASelectionMakesTheMoveToolMoveItWhereverTheDragStarts()
+    {
+        var vm = WithSymbol(out var sword);
+        var placement = vm.PlaceSymbol(sword.Id, 100, 60)!;
+        vm.Selection.AddPlacementToSelection(placement.Id);
+
+        Assert.True(vm.BeginMove(400, 400, wholeLayer: false));
+
+        Assert.True(vm.PlacementMoveActive);
+        Assert.False(vm.TransformActive);
+
+        vm.UpdateMove(440, 400, axisLock: false);
+        vm.EndMove();
+
+        Assert.Equal(140, placement.X);
+    }
+
+    [AvaloniaFact]
+    public void MovingAGroupIsOneUndoStep()
+    {
+        var vm = WithSymbol(out var sword);
+        var first = vm.PlaceSymbol(sword.Id, 100, 60)!;
+        var second = vm.PlaceSymbol(sword.Id, 200, 60)!;
+        vm.Selection.AddPlacementToSelection(first.Id);
+        vm.Selection.AddPlacementToSelection(second.Id);
+
+        vm.BeginMove(110, 60, wholeLayer: false);
+        vm.UpdateMove(130, 70, axisLock: false);
+        vm.UpdateMove(160, 90, axisLock: false);
+        vm.EndMove();
+
+        // Both actually moved, or the undo below would pass on a group move
+        // that never happened.
+        Assert.Equal(150, first.X);
+        Assert.Equal(250, second.X);
+
+        vm.UndoCommand.Execute(null);
+
+        // One undo, and both are back — not one undo per symbol.
+        var placements = FrameOf(vm).Placements!;
+        Assert.Equal(100, placements.First(p => p.Id == first.Id).X);
+        Assert.Equal(60, placements.First(p => p.Id == first.Id).Y);
+        Assert.Equal(200, placements.First(p => p.Id == second.Id).X);
+        Assert.Equal(60, placements.First(p => p.Id == second.Id).Y);
+    }
+
+    [AvaloniaFact]
+    public void ShiftHoldsAGroupToOneAxis()
+    {
+        var vm = WithSymbol(out var sword);
+        var first = vm.PlaceSymbol(sword.Id, 100, 60)!;
+        var second = vm.PlaceSymbol(sword.Id, 200, 60)!;
+        vm.Selection.AddPlacementToSelection(first.Id);
+        vm.Selection.AddPlacementToSelection(second.Id);
+
+        vm.BeginMove(110, 60, wholeLayer: false);
+        vm.UpdateMove(150, 70, axisLock: true);
+        vm.EndMove();
+
+        Assert.Equal(140, first.X);
+        Assert.Equal(60, first.Y);
+        Assert.Equal(240, second.X);
+        Assert.Equal(60, second.Y);
+    }
+
+    [AvaloniaFact]
+    public void ALockedLayerRefusesToMoveASelectedGroup()
+    {
+        var vm = WithSymbol(out var sword);
+        var placement = vm.PlaceSymbol(sword.Id, 100, 60)!;
+        vm.Selection.AddPlacementToSelection(placement.Id);
+        vm.ActiveLayerForIpc.Locked = true;
+
+        vm.BeginMove(110, 60, wholeLayer: false);
+        vm.UpdateMove(150, 90, axisLock: false);
+        vm.EndMove();
+
+        Assert.False(vm.PlacementMoveActive);
+        Assert.Equal(100, placement.X);
+        Assert.Equal(60, placement.Y);
+    }
+
+    [AvaloniaFact]
+    public void AGroupDragThatWentNowhereIsNotAnEdit()
+    {
+        var vm = WithSymbol(out var sword);
+        var first = vm.PlaceSymbol(sword.Id, 100, 60)!;
+        var second = vm.PlaceSymbol(sword.Id, 200, 60)!;
+        vm.Selection.AddPlacementToSelection(first.Id);
+        vm.Selection.AddPlacementToSelection(second.Id);
+        // The property rather than the local helper: that one counts by undoing
+        // everything, which would take the two placements away before the drag.
+        var steps = vm.UndoDepth;
+
+        // Started away from either symbol, so this also pins that the modal
+        // grab is what picked the group up.
+        Assert.True(vm.BeginMove(400, 400, wholeLayer: false));
+        Assert.True(vm.PlacementMoveActive);
+        vm.EndMove();
+
+        Assert.Equal(steps, vm.UndoDepth);
+    }
+
+    [AvaloniaFact]
+    public void CancellingAGroupMovePutsThemAllBack()
+    {
+        var vm = WithSymbol(out var sword);
+        var first = vm.PlaceSymbol(sword.Id, 100, 60)!;
+        var second = vm.PlaceSymbol(sword.Id, 200, 60)!;
+        vm.Selection.AddPlacementToSelection(first.Id);
+        vm.Selection.AddPlacementToSelection(second.Id);
+
+        vm.BeginMove(110, 60, wholeLayer: false);
+        vm.UpdateMove(160, 90, axisLock: false);
+
+        // Both picked up, so the restore below has something to undo.
+        Assert.Equal(150, first.X);
+        Assert.Equal(250, second.X);
+
+        vm.CancelMove();
+
+        Assert.Equal(100, first.X);
+        Assert.Equal(60, first.Y);
+        Assert.Equal(200, second.X);
+        Assert.Equal(60, second.Y);
+        Assert.False(vm.PlacementMoveActive);
+    }
+
+    [AvaloniaFact]
+    public void MovingAGroupDoesNotTouchTheSymbol()
+    {
+        var vm = WithSymbol(out var sword);
+        var first = vm.PlaceSymbol(sword.Id, 100, 60)!;
+        var second = vm.PlaceSymbol(sword.Id, 200, 60)!;
+        vm.Selection.AddPlacementToSelection(first.Id);
+        vm.Selection.AddPlacementToSelection(second.Id);
+        var before = ((PaintedFrame)sword.Frames[0]).Strokes[0].Points[0].X;
+
+        vm.BeginMove(110, 60, wholeLayer: false);
+        vm.UpdateMove(160, 60, axisLock: false);
+        vm.EndMove();
+
+        Assert.Equal(150, first.X);
+        Assert.Equal(250, second.X);
+        Assert.Equal(before, ((PaintedFrame)sword.Frames[0]).Strokes[0].Points[0].X);
+    }
+
     // ---- letting go of the link --------------------------------------------------
 
     [AvaloniaFact]

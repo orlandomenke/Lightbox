@@ -106,6 +106,11 @@ Rulers, guide visibility and the lock belong to the **workspace**, not the
 document: they are how your screen is arranged, so they save, reset and switch
 with everything else, and opening somebody else's file never rearranges them.
 
+**Several at once**: select guides with the Select tool and the Move tool drags
+the whole selection together, as one undo step. The lock still holds — locked
+guides stay put whether they were selected or not, which is the point of
+locking them.
+
 #### Grid settings
 
 **Edit → Configure → Guides and grid** holds the cell size a new grid is made
