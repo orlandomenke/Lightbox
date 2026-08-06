@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2513 tests, derived from the suite itself. Each line is a
+2537 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1899,11 +1899,19 @@ regression even when every test still compiles.
 - Moving APlacement Does Not Touch The Symbol — `:253`
 - AClick That Went Nowhere Is Not An Edit — `:272`
 - Cancelling AMove Puts It Back — `:285`
-- Breaking The Link Leaves Ordinary Strokes — `:302`
-- Broken Strokes Keep Their Swatch — `:319`
-- Breaking The Link Is One Undo Step — `:339`
-- Breaking One Link Leaves Other Placements Linked — `:353`
-- AScaled Placement Bakes Its Size Into The Brush — `:366`
+- Dragging ASelected Group Moves Every One The Full Distance — `:309`
+- ASelection Makes The Move Tool Move It Wherever The Drag Starts — `:339`
+- Moving AGroup Is One Undo Step — `:357`
+- Shift Holds AGroup To One Axis — `:386`
+- ALocked Layer Refuses To Move ASelected Group — `:405`
+- AGroup Drag That Went Nowhere Is Not An Edit — `:422`
+- Cancelling AGroup Move Puts Them All Back — `:443`
+- Moving AGroup Does Not Touch The Symbol — `:468`
+- Breaking The Link Leaves Ordinary Strokes — `:489`
+- Broken Strokes Keep Their Swatch — `:506`
+- Breaking The Link Is One Undo Step — `:526`
+- Breaking One Link Leaves Other Placements Linked — `:540`
+- AScaled Placement Bakes Its Size Into The Brush — `:553`
 
 ## SymbolScopeTests
 `tests/Lightbox.App.Tests/SymbolScopeTests.cs`
@@ -3093,6 +3101,26 @@ regression even when every test still compiles.
 - Punctuation Unreal Rejects Becomes An Underscore — `:196`
 - AName With Nothing Usable In It Falls Back Rather Than Being Empty — `:206`
 - ARun Of Punctuation Collapses Rather Than Becoming ARow Of Underscores — `:214`
+
+## VersioningTests
+`tests/Lightbox.Core.Tests/VersioningTests.cs`
+
+- Create Version Increment Number And Saves Metadata — `:22`
+- Create Branch Diverges From Parent — `:38`
+- Create Branch From Nonexistent Version Throws — `:50`
+- Revert To Version Sets Active And Creates Audit Entry — `:58`
+- Revert To Version Invalid Version Throws — `:79`
+- Set Milestone Marking Version As Ready — `:89`
+- Is Version Orphaned Main Line Not Orphaned — `:100`
+- Is Version Orphaned Branch With Valid Parent Not Orphaned — `:107`
+- Is Version Orphaned Nonexistent Version Orphaned — `:116`
+- Get Active Branches Returns Versions With Divergent Children — `:122`
+- Validate Version History Consistent Tree No Errors — `:136`
+- Validate Version History Orphaned Parent Reports Error — `:148`
+- Cleanup Orphaned Versions Removes Invalid Branches — `:165`
+- Get Milestones Filters Versions By Status — `:183`
+- Version Entry Get All Descendants Recurses Tree — `:202`
+- Clear Version History Removes All Versions For Resource — `:218`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`

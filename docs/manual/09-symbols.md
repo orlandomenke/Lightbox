@@ -58,6 +58,10 @@ mark, in the same position.
   symbol under the cursor is picked up before the drawing underneath it is; the
   symbol itself is not touched, so the other placements of it stay where they
   are. Hold Shift to keep the move to one axis.
+- **Several at once**: select them with the Select tool first, and the Move tool
+  then drags the whole selection together — from anywhere on the canvas, not
+  only from on top of one of them. The group is one undo step, so taking the
+  move back takes all of it back.
 - **Break link** turns a placement back into ordinary strokes on that drawing.
   It is the honest way to get something you can edit stroke by stroke, and it
   is a one-way door: the result is a drawing, not a symbol.

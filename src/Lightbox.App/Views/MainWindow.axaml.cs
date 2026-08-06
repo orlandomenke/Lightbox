@@ -12,6 +12,7 @@ using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
 using Lightbox.Core.Serialization;
+using static Lightbox.App.Views.PlacementChoiceDialog;
 
 namespace Lightbox.App.Views;
 
@@ -25,6 +26,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = _vm;
+        Canvas.SetSelectionManager(_vm.Selection);
+        Canvas.SetPlacementProvider(_vm.GetCurrentFramePlacements);
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
         Canvas.PaintStarted += _vm.BeginStroke;  // (x, y, pressure, alt-erases, shift-joins)
@@ -38,6 +41,7 @@ public partial class MainWindow : Window
         Canvas.PolygonVertexAdded += _vm.AddPolygonVertex;
         Canvas.PolygonCompleted += _vm.CompletePolygon;
         _vm.SelectionChanged += () => Canvas.SetSelectionOverlay(_vm.SelectionContours, _vm.PolygonInProgress);
+        _vm.Selection.SelectionChanged += Canvas.InvalidateVisual; // Redraw when object selection changes
         _vm.LazyBrushMoved += (x, y) => Canvas.SetLazyAnchor(x, y);
         _vm.LazyBrushCleared += () => Canvas.SetLazyAnchor(null, null);
         Canvas.InputDiagnostic += text => _vm.PenDiagnostic = text;
@@ -3636,6 +3640,22 @@ public partial class MainWindow : Window
         Canvas.ContentMoveEnded += _vm.EndMove;
         Canvas.ContentMoveCancelled += _vm.CancelMove;
 
+        Canvas.GuidesMovedStarted += _vm.BeginGuidesMove;
+        Canvas.GuidesMoved += (dx, dy) => _vm.UpdateGuidesMove(dx, dy);
+        Canvas.GuidesMovedEnded += _vm.EndGuidesMove;
+
+        Canvas.RefBoxesMoveStarted += _vm.BeginRefBoxesMove;
+        Canvas.RefBoxesMoved += (dx, dy) => _vm.UpdateRefBoxesMove(dx, dy);
+        Canvas.RefBoxesMovedEnded += _vm.EndRefBoxesMove;
+
+        Canvas.AnchorsMoveStarted += _vm.BeginAnchorsMove;
+        Canvas.AnchorsMoved += (dx, dy) => _vm.UpdateAnchorsMove(dx, dy);
+        Canvas.AnchorsMovedEnded += _vm.EndAnchorsMove;
+
+        Canvas.ShapesMoveStarted += _vm.BeginShapesMove;
+        Canvas.ShapesMoved += (dx, dy) => _vm.UpdateShapesMove(dx, dy);
+        Canvas.ShapesMovedEnded += _vm.EndShapesMove;
+
         Canvas.GuideMoved += (id, dx, dy) =>
         {
             if (GuideById(id) is not { } guide) return;
@@ -4110,5 +4130,12 @@ public partial class MainWindow : Window
         using var reader = new StreamReader(stream);
         var json = await reader.ReadToEndAsync();
         _vm.OpenDocumentTab(DocJson.Deserialize(json), files[0].TryGetLocalPath());
+    }
+
+    /// <summary>Show a dialog asking how to place a multi-frame symbol.</summary>
+    public async Task<PlacementChoice?> ShowPlacementChoiceDialogAsync(Symbol symbol)
+    {
+        var dialog = new PlacementChoiceDialog();
+        return await dialog.ShowDialog<PlacementChoice?>(this);
     }
 }

@@ -167,6 +167,12 @@ public sealed class SymbolPlacement
     /// </remarks>
     public int SeenVersion { get; set; } = 1;
 
+    /// <summary>
+    /// The frame group this placement belongs to, if part of an expanded multi-frame symbol.
+    /// Null if this is a standalone reference or a single-frame placement.
+    /// </summary>
+    public string? GroupId { get; set; }
+
     /// <summary>Which of the symbol's frames shows on a given cel of the timeline.</summary>
     public int FrameIndexAt(int celIndex, int frameCount)
     {

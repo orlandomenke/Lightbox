@@ -64,9 +64,13 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly FrameBitmapCache _cache = new();
     private readonly StrokeBuilder _strokeBuilder = new();
     private readonly PlaybackClock _clock = new();
+    private readonly SelectionManager _selectionManager = new();
 
     /// <summary>Measured repaint cost, shown as headroom in the info strip.</summary>
     public PerformanceMonitor Performance { get; } = new();
+
+    /// <summary>Unified selection manager for canvas objects.</summary>
+    public SelectionManager Selection => _selectionManager;
 
     private DocumentEditor _editor;
     private readonly ComposeRing _composeRing = new();
@@ -3833,20 +3837,95 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void SelectAll()
     {
-        _selectionContours =
-        [
-            [new(0, 0, 1), new(Scene.Width, 0, 1), new(Scene.Width, Scene.Height, 1), new(0, Scene.Height, 1)],
-        ];
-        NotifySelection();
+        // In Select tool mode, select all canvas objects; otherwise select all pixels
+        if (ActiveTool == ToolId.Select)
+        {
+            var frame = PaintTargetOrKey();
+            if (frame is not PaintedFrame pf) return;
+
+            // Select all placements on current frame
+            if (pf.Placements is not null && pf.Placements.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                foreach (var placement in pf.Placements)
+                {
+                    _selectionManager.AddPlacementToSelection(placement.Id);
+                }
+                return;
+            }
+
+            // Select all guides in the document
+            var guides = Doc?.Scene?.Guides;
+            if (guides is not null && guides.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                for (int i = 0; i < guides.Count; i++)
+                {
+                    _selectionManager.AddGuideToSelection(i);
+                }
+                return;
+            }
+
+            // Select all reference boxes
+            var activeRef = ActiveReference;
+            if (activeRef?.Cells is not null && activeRef.Cells.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                for (int i = 0; i < activeRef.Cells.Count; i++)
+                {
+                    _selectionManager.AddRefBoxToSelection(i);
+                }
+                return;
+            }
+
+            // Select all anchors (if rig edit mode is on)
+            if (RigEditMode && Doc?.Scene?.Anchors is not null && Doc.Scene.Anchors.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                foreach (var anchor in Doc.Scene.Anchors)
+                {
+                    _selectionManager.AddAnchorToSelection(anchor.Id);
+                }
+                return;
+            }
+
+            // Select all collision shapes (if rig edit mode is on)
+            if (RigEditMode && Doc?.Scene?.Shapes is not null && Doc.Scene.Shapes.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                foreach (var shape in Doc.Scene.Shapes)
+                {
+                    _selectionManager.AddShapeToSelection(shape.Id);
+                }
+            }
+        }
+        else
+        {
+            // Pixel/stroke selection (existing behavior)
+            _selectionContours =
+            [
+                [new(0, 0, 1), new(Scene.Width, 0, 1), new(Scene.Width, Scene.Height, 1), new(0, Scene.Height, 1)],
+            ];
+            NotifySelection();
+        }
     }
 
     [RelayCommand]
     private void Deselect()
     {
-        if (!HasSelection && _polygonPoints.Count == 0) return;
-        _selectionContours = [];
-        _polygonPoints.Clear();
-        NotifySelection();
+        // In Select tool mode, deselect all canvas objects; otherwise deselect pixels
+        if (ActiveTool == ToolId.Select)
+        {
+            _selectionManager.ClearAllSelections();
+        }
+        else
+        {
+            // Pixel/stroke deselection (existing behavior)
+            if (!HasSelection && _polygonPoints.Count == 0) return;
+            _selectionContours = [];
+            _polygonPoints.Clear();
+            NotifySelection();
+        }
     }
 
     /// <summary>Arrow keys over the canvas: shift the selection outline by whole pixels.</summary>
@@ -4582,6 +4661,14 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var layer = doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId);
         return layer is not null && index < layer.Cels.Count ? layer.Cels[index] : null;
+    }
+
+    /// <summary>Get placements from the current frame for selection feedback.</summary>
+    public IReadOnlyList<SymbolPlacement>? GetCurrentFramePlacements()
+    {
+        if (PaintTargetOrKey() is PaintedFrame frame && frame.Placements is not null)
+            return frame.Placements.AsReadOnly();
+        return null;
     }
 
     /// <summary>One pointer sample in document space.</summary>
@@ -6605,6 +6692,283 @@ public sealed partial class MainViewModel : ObservableObject
         _moveAnchor = null;
         _moveDelta = default;
         if (TransformActive) CancelTransform();
+    }
+
+    /// <summary>Begin moving selected guides.</summary>
+    public void BeginGuidesMove()
+    {
+        if (_selectionManager.SelectedGuideIndices.Count == 0) return;
+        _guidesMoveDelta = (0, 0);
+        AiStatus = $"Moving {_selectionManager.SelectedGuideIndices.Count} guide(s)";
+    }
+
+    /// <summary>Update guide move by the delta since the last pointer event.</summary>
+    /// <remarks>
+    /// Added, not assigned. The canvas reports the change since the previous
+    /// event and advances its own anchor, so whoever receives it has to
+    /// accumulate — assigning keeps only the final increment and a drag across
+    /// the canvas comes out about a pixel long. That is B109, which had the
+    /// same two lines wrong for placements.
+    /// </remarks>
+    public void UpdateGuidesMove(double dx, double dy)
+    {
+        _guidesMoveDelta = (_guidesMoveDelta.X + dx, _guidesMoveDelta.Y + dy);
+        RequestSnapshot();
+    }
+
+    /// <summary>Commit guide moves.</summary>
+    public void EndGuidesMove()
+    {
+        var (dx, dy) = _guidesMoveDelta;
+        _guidesMoveDelta = default;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+        MoveGuidesBy(dx, dy);
+    }
+
+    private (double X, double Y) _guidesMoveDelta;
+
+    /// <summary>Apply movement delta to selected guides.</summary>
+    private void MoveGuidesBy(double dx, double dy)
+    {
+        var guides = Doc?.Scene?.Guides;
+        if (guides is null || guides.Count == 0) return;
+
+        var selectedGuideIndices = _selectionManager.SelectedGuideIndices.ToList();
+        if (selectedGuideIndices.Count == 0) return;
+
+        _editor.PerformDelta(
+            _ =>
+            {
+                foreach (var guideIndex in selectedGuideIndices)
+                {
+                    if (guideIndex >= 0 && guideIndex < guides.Count)
+                    {
+                        guides[guideIndex].X += dx;
+                        guides[guideIndex].Y += dy;
+                    }
+                }
+                NotifyGuides();
+            },
+            _ =>
+            {
+                foreach (var guideIndex in selectedGuideIndices)
+                {
+                    if (guideIndex >= 0 && guideIndex < guides.Count)
+                    {
+                        guides[guideIndex].X -= dx;
+                        guides[guideIndex].Y -= dy;
+                    }
+                }
+                NotifyGuides();
+            });
+    }
+
+    /// <summary>Begin moving selected reference boxes.</summary>
+    public void BeginRefBoxesMove()
+    {
+        if (_selectionManager.SelectedRefBoxIndices.Count == 0) return;
+        _refBoxesMoveDelta = (0, 0);
+        AiStatus = $"Moving {_selectionManager.SelectedRefBoxIndices.Count} reference box(es)";
+    }
+
+    /// <summary>Update reference box move by the delta since the last pointer event.</summary>
+    /// <remarks>Accumulated, for the reason on <see cref="UpdateGuidesMove"/>.</remarks>
+    public void UpdateRefBoxesMove(double dx, double dy)
+    {
+        _refBoxesMoveDelta = (_refBoxesMoveDelta.X + dx, _refBoxesMoveDelta.Y + dy);
+        RequestSnapshot();
+    }
+
+    /// <summary>Commit reference box moves.</summary>
+    public void EndRefBoxesMove()
+    {
+        var (dx, dy) = _refBoxesMoveDelta;
+        _refBoxesMoveDelta = default;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+        MoveRefBoxesBy(dx, dy);
+    }
+
+    private (double X, double Y) _refBoxesMoveDelta;
+
+    /// <summary>Apply movement delta to selected reference boxes.</summary>
+    private void MoveRefBoxesBy(double dx, double dy)
+    {
+        var activeRef = ActiveReference;
+        if (activeRef?.Cells is null || activeRef.Cells.Count == 0) return;
+
+        var selectedBoxIndices = _selectionManager.SelectedRefBoxIndices.ToList();
+        if (selectedBoxIndices.Count == 0) return;
+
+        var intDx = (int)Math.Round(dx);
+        var intDy = (int)Math.Round(dy);
+
+        _editor.PerformDelta(
+            _ =>
+            {
+                foreach (var boxIndex in selectedBoxIndices)
+                {
+                    if (boxIndex >= 0 && boxIndex < activeRef.Cells.Count)
+                    {
+                        var cell = activeRef.Cells[boxIndex];
+                        cell.X += intDx;
+                        cell.Y += intDy;
+                    }
+                }
+                NotifyReference();
+            },
+            _ =>
+            {
+                foreach (var boxIndex in selectedBoxIndices)
+                {
+                    if (boxIndex >= 0 && boxIndex < activeRef.Cells.Count)
+                    {
+                        var cell = activeRef.Cells[boxIndex];
+                        cell.X -= intDx;
+                        cell.Y -= intDy;
+                    }
+                }
+                NotifyReference();
+            });
+    }
+
+    /// <summary>Begin moving selected anchors.</summary>
+    public void BeginAnchorsMove()
+    {
+        if (_selectionManager.SelectedAnchorIds.Count == 0) return;
+        _anchorsMoveDelta = (0, 0);
+        AiStatus = $"Moving {_selectionManager.SelectedAnchorIds.Count} anchor(s)";
+    }
+
+    /// <summary>Update anchor move by the delta since the last pointer event.</summary>
+    public void UpdateAnchorsMove(double dx, double dy)
+    {
+        _anchorsMoveDelta = (_anchorsMoveDelta.X + dx, _anchorsMoveDelta.Y + dy);
+        RequestSnapshot();
+    }
+
+    /// <summary>Commit anchor moves.</summary>
+    public void EndAnchorsMove()
+    {
+        var (dx, dy) = _anchorsMoveDelta;
+        _anchorsMoveDelta = default;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+        MoveAnchorsBy(dx, dy);
+    }
+
+    private (double X, double Y) _anchorsMoveDelta;
+
+    /// <summary>Apply movement delta to selected anchors.</summary>
+    private void MoveAnchorsBy(double dx, double dy)
+    {
+        var selectedAnchorIds = _selectionManager.SelectedAnchorIds.ToList();
+        if (selectedAnchorIds.Count == 0) return;
+
+        var layerId = ActiveLayer.Id;
+        var frame = CurrentFrameIndex;
+
+        _editor.PerformDelta(
+            _ =>
+            {
+                _editor.Perform(doc =>
+                {
+                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                    var anchors = Anchors.ResolvedAt(doc.Scene, frame);
+                    foreach (var anchorId in selectedAnchorIds)
+                    {
+                        if (anchors.TryGetValue(anchorId, out var point))
+                        {
+                            Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X + dx, point.Y + dy));
+                        }
+                    }
+                });
+                OnPropertyChanged(nameof(RigMarks));
+            },
+            _ =>
+            {
+                _editor.Perform(doc =>
+                {
+                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                    var anchors = Anchors.ResolvedAt(doc.Scene, frame);
+                    foreach (var anchorId in selectedAnchorIds)
+                    {
+                        if (anchors.TryGetValue(anchorId, out var point))
+                        {
+                            Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X - dx, point.Y - dy));
+                        }
+                    }
+                });
+                OnPropertyChanged(nameof(RigMarks));
+            });
+    }
+
+    /// <summary>Begin moving selected collision shapes.</summary>
+    public void BeginShapesMove()
+    {
+        if (_selectionManager.SelectedShapeIds.Count == 0) return;
+        _shapesMoveDelta = (0, 0);
+        AiStatus = $"Moving {_selectionManager.SelectedShapeIds.Count} shape(s)";
+    }
+
+    /// <summary>Update collision shape move by the delta since the last pointer event.</summary>
+    public void UpdateShapesMove(double dx, double dy)
+    {
+        _shapesMoveDelta = (_shapesMoveDelta.X + dx, _shapesMoveDelta.Y + dy);
+        RequestSnapshot();
+    }
+
+    /// <summary>Commit collision shape moves.</summary>
+    public void EndShapesMove()
+    {
+        var (dx, dy) = _shapesMoveDelta;
+        _shapesMoveDelta = default;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+        MoveShapesBy(dx, dy);
+    }
+
+    private (double X, double Y) _shapesMoveDelta;
+
+    /// <summary>Apply movement delta to selected collision shapes.</summary>
+    private void MoveShapesBy(double dx, double dy)
+    {
+        var selectedShapeIds = _selectionManager.SelectedShapeIds.ToList();
+        if (selectedShapeIds.Count == 0) return;
+
+        var layerId = ActiveLayer.Id;
+        var frame = CurrentFrameIndex;
+
+        _editor.PerformDelta(
+            _ =>
+            {
+                _editor.Perform(doc =>
+                {
+                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                    var shapes = CollisionShapes.ResolvedAt(doc.Scene, frame);
+                    foreach (var shapeId in selectedShapeIds)
+                    {
+                        if (shapes.TryGetValue(shapeId, out var box))
+                        {
+                            CollisionShapes.SetAcross(layer, frame, 1, shapeId, new Core.Documents.ShapeBox(box.X + dx, box.Y + dy, box.W, box.H));
+                        }
+                    }
+                });
+                OnPropertyChanged(nameof(RigMarks));
+            },
+            _ =>
+            {
+                _editor.Perform(doc =>
+                {
+                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                    var shapes = CollisionShapes.ResolvedAt(doc.Scene, frame);
+                    foreach (var shapeId in selectedShapeIds)
+                    {
+                        if (shapes.TryGetValue(shapeId, out var box))
+                        {
+                            CollisionShapes.SetAcross(layer, frame, 1, shapeId, new Core.Documents.ShapeBox(box.X - dx, box.Y - dy, box.W, box.H));
+                        }
+                    }
+                });
+                OnPropertyChanged(nameof(RigMarks));
+            });
     }
 
     partial void OnTransformScopeChanged(TransformScope value)
