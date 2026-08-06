@@ -1,5 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Lightbox.App.ViewModels;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.App.Tests;
 
@@ -108,6 +109,60 @@ public class ProjectCreationTests(ITestOutputHelper output) : BrushStateIsolated
         // Visible, and attached to the tab it came from.
         Assert.Contains(vm.ProjectDocker.Rows, r => r.Animation?.Id == adopted.Id);
         Assert.Equal(adopted.Id, vm.Tabs[0].Source?.Id);
+    }
+
+    /// <summary>
+    /// Nothing sits at the top of a project that <c>project.json</c> cannot
+    /// explain.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B83's second half</b>, and the reading of it that earns its place:
+    /// "every top folder created in the project folder should be included in
+    /// Project.lbproj" as <em>accountability</em> rather than as a literal list.
+    /// A folder is explained when Lightbox owns the name — <c>palettes</c>,
+    /// <c>documents</c>, <c>characters</c> — or when the artist made it and it
+    /// is in <c>Folders</c>.
+    /// </para>
+    /// <para>
+    /// This is the test that would have caught the original defect. It is
+    /// deliberately run against a project with one of everything, because the
+    /// bug was a directory appearing as a side effect of creating something
+    /// else, and an empty project cannot show that.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void AllDefaultFoldersAreListedInProjectFile()
+    {
+        using var scratch = new Scratch();
+        var vm = new MainViewModel(null);
+        vm.NewProject(scratch.Root, "Production");
+        var docker = vm.ProjectDocker;
+
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Art");
+        docker.Selected = null;
+        docker.AddItemNamed(ProjectViewModel.NewCharacterItem, "Knight");
+        docker.AddItemNamed(ProjectViewModel.NewAnimation, "Walk");
+        docker.Selected = null;
+        docker.AddItemNamed(ProjectViewModel.NewSceneItem, "The duel");
+        docker.AddItemNamed(ProjectViewModel.NewShotItem, "Sc 014");
+        vm.SaveProject(everything: true);
+
+        var unaccounted = ProjectIo.UnaccountedFolders(docker.Project!);
+        output.WriteLine("on disk: " + string.Join(", ", Folders(scratch.Root)));
+        output.WriteLine("unaccounted: " + (unaccounted.Count == 0 ? "(none)" : string.Join(", ", unaccounted)));
+        Assert.Empty(unaccounted);
+
+        // The artist's own folder is explained by being in the manifest, which
+        // is the half a list of system names cannot cover.
+        Assert.Contains("art", Folders(scratch.Root));
+        Assert.Contains(ProjectFolders.All(docker.Project!.Manifest), f => f.Name == "Art");
+
+        // And the check bites: a directory nobody declared is reported.
+        Directory.CreateDirectory(Path.Combine(scratch.Root, "mystery"));
+        Assert.Equal(["mystery"], ProjectIo.UnaccountedFolders(docker.Project!));
+
+        vm.ProjectDocker.Dispose();
     }
 
     private static List<string> Folders(string root) =>

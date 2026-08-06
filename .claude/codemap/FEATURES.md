@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2396 tests, derived from the suite itself. Each line is a
+2397 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1298,10 +1298,11 @@ regression even when every test still compiles.
 ## ProjectCreationTests
 `tests/Lightbox.App.Tests/ProjectCreationTests.cs`
 
-- No Unwanted Asset Folders Created — `:21`
-- New Project Has Correct Default Structure — `:49`
-- All Folders Appear At Project Root — `:72`
-- New Project Folder Structure Is Correct — `:97`
+- No Unwanted Asset Folders Created — `:22`
+- New Project Has Correct Default Structure — `:50`
+- All Folders Appear At Project Root — `:73`
+- New Project Folder Structure Is Correct — `:98`
+- All Default Folders Are Listed In Project File — `:135`
 
 ## ProjectDeleteTests
 `tests/Lightbox.App.Tests/ProjectDeleteTests.cs`

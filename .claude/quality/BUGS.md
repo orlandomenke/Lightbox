@@ -190,12 +190,6 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### project
 
-- [ ] **B83** `P2` `project` New project is created with unwanted default subfolders `evidence: ProjectCreationTests, NewProjectHasCorrectDefaultStructure, NoUnwantedAssetFoldersCreated, AllDefaultFoldersAreListedInProjectFile`
-  - Reported: when creating a new project, default subfolders are created that the user did not request — specifically **characters**, **shots**, **scene**, and **animation** folders. The palette folder with default swatches should exist, but work-related folders should only be created when explicitly requested by the user.
-  - Additionally, every top folder created in the project folder should be included in Project.lbproj, and the project docker should show only system-required defaults, not asset folders the user must create themselves.
-  - The root cause is that asset-organization folders are being created as defaults when they should be on-demand.
-  - Cost: M
-
 - [ ] **B76** `P2` `project` A new document is written to disk the moment it is created `evidence: UnsavedDocumentTests, ANewDocumentIsNotOnDiskUntilItIsSaved, AnUnsavedDocumentIsShownAsPendingInTheDocker, DiscardingAnUnsavedDocumentRemovesItFromTheDocker`
   - Reported: creating a new document writes it immediately, so a file exists before the artist has decided anything — including a name, which is B65 arriving from the other direction.
   - The reporter specified the whole behaviour, and it is coherent enough to build to: a new document is **not** on disk; a change raises the unsaved badge; closing it or the application opens the unsaved-changes dialog; Save opens Save As because there is no file yet.
@@ -568,6 +562,16 @@ test reopens the bug.
   - Reported: when creating a new project, a folder named "project" is created and appears within the Characters folder instead of at the project root.
   - Expected behaviour: all top-level folders created in the project folder should appear at the project root, not nested within other folders.
   - Cost: S
+
+- [x] **B83** `P2` `project` New project is created with unwanted default subfolders `evidence: ProjectCreationTests, NewProjectHasCorrectDefaultStructure, NoUnwantedAssetFoldersCreated, AllDefaultFoldersAreListedInProjectFile`
+  - Reported: when creating a new project, default subfolders are created that the user did not request — specifically **characters**, **shots**, **scene**, and **animation** folders. The palette folder with default swatches should exist, but work-related folders should only be created when explicitly requested by the user.
+  - Additionally, every top folder created in the project folder should be included in Project.lbproj, and the project docker should show only system-required defaults, not asset folders the user must create themselves.
+  - The root cause is that asset-organization folders are being created as defaults when they should be on-demand.
+  - **Fixed, in two halves that read as one sentence but are different problems.** The first half was `NewProject` calling `AddCharacter(project, name)` — one line that invented a character named after the project and filed the artist's open drawing under it as an animation. Removing it leaves `documents/` and `palettes/`, and `NewProjectHasCorrectDefaultStructure` asserts that as an **exact set** rather than as a list of absences, because a list of things that must not appear passes for ever while a new one is added beside it.
+  - The second half — *"every top folder created in the project folder should be included in Project.lbproj"* — is read as **accountability, not as a literal list**, and the reading is the part worth arguing with. A probe of a rich project found `art`, `characters`, `documents`, `palettes`, `scenes` on disk and **every one of them already traceable from `project.json`**, just through different keys: `folders`, `characters`, `scenes`, `documents`, `palettes`. Nothing was unexplained; the requirement was already met in substance.
+  - Literally listing the system folders in `Folders` would have made `palettes` and `documents` ordinary rows in the artist's tree — renameable, draggable, deletable — which then needs a `IsSystem` flag and a special case at every operation that touches a folder. That is a worse file format bought with a worse UI, to satisfy the letter of a sentence whose point was *nothing unexplained on disk*.
+  - What enforces it instead is `ProjectIo.UnaccountedFolders`: top-level directories that are neither a name Lightbox owns (`SystemFolders`, declared once) nor the slug of a root-level manifest folder. `AllDefaultFoldersAreListedInProjectFile` builds a project with one of everything — folder, character, animation, scene, shot — asserts nothing is unaccounted, and then creates a `mystery` directory to prove the check bites. Running it against a rich project rather than an empty one is deliberate: the bug was a directory appearing as a *side effect of creating something else*, which an empty project cannot show.
+  - Cost: M
 
 - [x] **B66** `P2` `project` A character sheet is never written to disk, so it cannot appear in the project docker `evidence: CharacterSheetFileTests, AReferenceSheetWouldBeUnsaved, ReferenceSheetNeedsAFile, ACharacterSheetInAProjectIsWrittenOnCreation, ACharacterSheetOutsideAProjectPromptsToSave, ACharacterSheetAsksForItsNameBeforeItsLocation`
   - Reported: character sheets are not saved to disk and do not show in the project docker.

@@ -1,6 +1,6 @@
 # Code index
 
-464 files · 117813 lines · 2396 tests.
+464 files · 117924 lines · 2397 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -55,7 +55,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2848 ln) · 9 test files
   - CanvasControl:28, CanvasToolMode:692, GridGesture:748, TxDrag:895, DrawOp:2311
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1471 ln) · 7 test files
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1471 ln) · 8 test files
   - ProjectRow:19, ProjectViewModel:263, NewItemKind:743
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
   - MainViewModel:20
@@ -273,7 +273,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Core
 
-- `src/Lightbox.Core/Projects/ProjectIo.cs` (941 ln) · 22 test files
+- `src/Lightbox.Core/Projects/ProjectIo.cs` (997 ln) · 23 test files
   - ProjectIo:31, ConversionReport:558
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (632 ln) · 8 test files
   - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
@@ -291,7 +291,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GeometryOps:5
 - `src/Lightbox.Core/Documents/ResponseCurve.cs` (294 ln) · 5 test files
   - BrushDynamic:22, ResponseCurve:70, PressureResponse:230
-- `src/Lightbox.Core/Projects/ProjectFolders.cs` (292 ln) · 4 test files
+- `src/Lightbox.Core/Projects/ProjectFolders.cs` (292 ln) · 5 test files
   - ProjectFolder:25, ProjectFolders:65
 - `src/Lightbox.Core/Export/NormalMapGenerator.cs` (244 ln) · 2 test files
   - NormalGreen:18, NormalMapOptions:40, NormalMapGenerator:75

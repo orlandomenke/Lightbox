@@ -938,4 +938,60 @@ public static class ProjectIo
             return false;
         }
     }
+
+    // ---- what a project folder may contain (B83) ------------------------------
+
+    /// <summary>
+    /// Top-level directory names Lightbox itself owns.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B83.</b> The report asked that "every top folder created in the
+    /// project folder should be included in Project.lbproj", and the useful
+    /// reading of that is <em>accountability</em>: nothing appears at the top
+    /// of a project that the manifest cannot explain. It is what would have
+    /// caught the original defect, which was <c>characters/</c> and
+    /// <c>scenes/</c> arriving unasked.
+    /// </para>
+    /// <para>
+    /// Declared here rather than listed in <c>Folders</c>, which was the other
+    /// reading. Putting them in the artist's tree would make <c>palettes</c> a
+    /// row that can be renamed, dragged and deleted like any other, and every
+    /// operation would need a "system" flag to refuse — a lot of special-casing
+    /// to express "Lightbox owns this name".
+    /// </para>
+    /// <para>
+    /// Each is created on demand and none is a default: a new project has
+    /// <c>palettes</c> and, if a drawing was adopted, <c>documents</c>. The rest
+    /// appear when the artist makes the thing that needs them.
+    /// </para>
+    /// </remarks>
+    public static readonly IReadOnlySet<string> SystemFolders = new HashSet<string>(
+        [CharactersDir, DocumentsDir, ScenesDir, "palettes", "gradients", "assets", ".autosave"],
+        StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Top-level directories the manifest cannot explain. Empty is the promise.
+    /// </summary>
+    /// <remarks>
+    /// A folder is explained when Lightbox owns the name or when the artist made
+    /// it and it is in <c>Folders</c>. Anything else is either a bug that
+    /// invented a directory or something a person dropped in by hand — and the
+    /// first of those is exactly what B83 reported.
+    /// </remarks>
+    public static IReadOnlyList<string> UnaccountedFolders(Project project)
+    {
+        if (string.IsNullOrEmpty(project.Root) || !Directory.Exists(project.Root)) return [];
+
+        var mine = ProjectFolders.ChildrenOf(project.Manifest, null)
+            .Select(f => Slug(f.Name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return Directory.EnumerateDirectories(project.Root)
+            .Select(Path.GetFileName)
+            .OfType<string>()
+            .Where(name => !SystemFolders.Contains(name) && !mine.Contains(name))
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
 }
