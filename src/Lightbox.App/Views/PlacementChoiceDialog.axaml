@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.PlacementChoiceDialog"
+        Title="Place Symbol"
+        Width="500" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <StackPanel Margin="16" Spacing="12">
+    <TextBlock Text="This symbol has multiple frames. How do you want to place it?"
+               TextWrapping="Wrap" />
+
+    <StackPanel Spacing="8">
+      <RadioButton x:Name="ImportOption" Content="Import all frames into the timeline" IsChecked="True" />
+      <TextBlock Text="Creates keyframes for each symbol frame, allowing you to edit them individually and move the whole group together on the timeline."
+                 TextWrapping="Wrap" Margin="24,0,0,0" Opacity="0.7" />
+    </StackPanel>
+
+    <StackPanel Spacing="8">
+      <RadioButton x:Name="ReferenceOption" Content="Reference with animation cycling" />
+      <TextBlock Text="Places a single instance that cycles through the symbol's frames automatically at render time."
+                 TextWrapping="Wrap" Margin="24,0,0,0" Opacity="0.7" />
+    </StackPanel>
+
+    <CheckBox x:Name="DontAskAgain" Content="Remember this choice" Margin="0,8,0,0" />
+
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button Content="Place" IsDefault="True" Click="OnPlaceClicked" MinWidth="80" />
+      <Button Content="Cancel" IsCancel="True" Click="OnCancelClicked" MinWidth="80" />
+    </StackPanel>
+  </StackPanel>
+</Window>

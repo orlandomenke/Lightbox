@@ -1,6 +1,6 @@
 # Code index
 
-460 files · 115554 lines · 2356 tests.
+463 files · 115847 lines · 2356 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,16 +49,16 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (9425 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4192, TransformParts:6384
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3871 ln) · 13 test files
-  - MainWindow:18, UnsavedChoice:2701
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (3879 ln) · 13 test files
+  - MainWindow:19, UnsavedChoice:2702
 - `src/Lightbox.App/Views/MainWindow.axaml` (3181 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2821 ln) · 8 test files
   - CanvasControl:28, CanvasToolMode:665, GridGesture:721, TxDrag:868, DrawOp:2284
+- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1035 ln) · **no tests**
+  - FrameImportChoice:12, MainViewModel:29
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (938 ln) · 4 test files
   - ProjectRow:19, ProjectViewModel:197, NewItemKind:532
-- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
-  - MainViewModel:20
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
 - `src/Lightbox.App/Services/SpriteSheetExporter.cs` (811 ln) · 94 test files
@@ -242,6 +242,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
+- `src/Lightbox.App/Views/PlacementChoiceDialog.axaml.cs` (34 ln) · 13 indirect only
+  - PlacementChoiceDialog:11, PlacementChoice:30
+- `src/Lightbox.App/Views/PlacementChoiceDialog.axaml` (32 ln) · **no tests**
+  - DontAskAgain, ImportOption, ReferenceOption
 - `src/Lightbox.App/App.axaml.cs` (30 ln) · 6 test files
   - App:8
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml` (26 ln) · **no tests**
@@ -281,7 +285,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StripSlicer:49
 - `src/Lightbox.Core/Projects/Templates.cs` (344 ln) · 2 test files
   - Templates:25, NewLayer:96, LayerChange:107, PullPreview:118, PullOptions:136
-- `src/Lightbox.Core/Documents/Scene.cs` (306 ln) · 15 test files
+- `src/Lightbox.Core/Documents/Scene.cs` (316 ln) · 15 test files
   - FrameMarker:4, TagDirection:66, AnimationTag:99, Scene:136
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (296 ln) · 5 test files
   - GeometryOps:5
@@ -311,7 +315,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BackgroundHandling:6, BackgroundSignal:43, OmittedLayer:62, SuspectedBackground:75, BackgroundRules:94
 - `src/Lightbox.Core/Geometry/ShapeBuilder.cs` (197 ln) · 3 test files
   - ShapeKind:5, ShapeBuilder:38
-- `src/Lightbox.Core/Documents/Symbol.cs` (179 ln) · 10 test files
+- `src/Lightbox.Core/Documents/Symbol.cs` (185 ln) · 10 test files
   - SymbolKind:11, Symbol:42, SymbolPlacement:120
 - `src/Lightbox.Core/Documents/PaletteFolder.cs` (178 ln) · 3 test files
   - PaletteFolder:20, PaletteTree:40
@@ -399,6 +403,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeInterpolator:6
 - `src/Lightbox.Core/Geometry/ColorOps.cs` (29 ln) · 1 test files
   - ColorOps:3
+- `src/Lightbox.Core/Documents/FrameGroup.cs` (26 ln) · 15 indirect only
+  - FrameGroup:7
 - `src/Lightbox.Core/Documents/ToolKind.cs` (23 ln) · 73 test files
   - ToolKind:3
 - `src/Lightbox.Core/Inbetween/Easing.cs` (20 ln) · 9 test files

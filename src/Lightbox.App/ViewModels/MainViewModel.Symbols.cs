@@ -296,17 +296,27 @@ public sealed partial class MainViewModel
     /// </remarks>
     public bool DeleteSymbol(Symbol symbol)
     {
-        if (ProjectDocker.Project is not { } project) return false;
-        var stranded = SymbolGraph.Of(project, symbol.Id).Total;
-        if (!project.Symbols.Remove(symbol.Id)) return false;
-        SymbolRegistry.Reset(project.Symbols);
+        if (ProjectDocker.Project is { } project)
+        {
+            var stranded = SymbolGraph.Of(project, symbol.Id).Total;
+            if (!project.Symbols.Remove(symbol.Id)) return false;
+            SymbolRegistry.Reset(project.Symbols);
+            SymbolBrowser.Refresh();
+            if (PaintTarget() is { } frame) AfterPlacementChange(frame.Id);
+            AiStatus = stranded == 0
+                ? $"Deleted \"{symbol.Name}\". Nothing was placing it."
+                : $"Deleted \"{symbol.Name}\". {stranded} placement{(stranded == 1 ? "" : "s")} of it now draw nothing.";
+            return true;
+        }
+
+        // Delete from global library when no project is open
+        if (!Library.Remove(symbol.Id)) return false;
+        SymbolLibrary.Save(Library);
         SymbolBrowser.Refresh();
-        if (PaintTarget() is { } frame) AfterPlacementChange(frame.Id);
-        AiStatus = stranded == 0
-            ? $"Deleted “{symbol.Name}”. Nothing was placing it."
-            : $"Deleted “{symbol.Name}”. {stranded} placement{(stranded == 1 ? "" : "s")} of it now draw nothing.";
+        AiStatus = $"Removed \"{symbol.Name}\" from your library.";
         return true;
     }
+
 
     /// <summary>Place the browser's selected symbol at the centre of the canvas.</summary>
     /// <remarks>
@@ -587,12 +597,38 @@ public sealed partial class MainViewModel
     /// <summary>
     /// Ask the user how to place a multi-frame symbol: import all frames or reference with animation.
     /// </summary>
+    /// <remarks>
+    /// This method attempts to show a dialog. If it cannot access the main window,
+    /// it defaults to the last choice the user made, or ImportFrames if no preference is set.
+    /// </remarks>
     private FrameImportChoice DetectAnimationAndAsk(Symbol symbol)
     {
-        // TODO: Show UI dialog to user. For now, default to import.
-        // This will be replaced with an actual dialog when UI infrastructure is added.
-        return FrameImportChoice.ImportFrames;
+        // Try to show dialog if we can access it; otherwise use stored preference
+        if (Avalonia.Application.Current?.ApplicationLifetime
+            is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime app
+            && app.MainWindow is Views.MainWindow mainWindow)
+        {
+            var task = mainWindow.ShowPlacementChoiceDialogAsync(symbol);
+            if (task.Wait(5000)) // 5 second timeout
+            {
+                var result = task.Result;
+                if (result is { } choice)
+                {
+                    if (choice.DontAskAgain)
+                    {
+                        _placementPreference = choice.Choice;
+                    }
+                    return choice.Choice;
+                }
+            }
+        }
+
+        // Use stored preference or default to ImportFrames
+        return _placementPreference ?? FrameImportChoice.ImportFrames;
     }
+
+    /// <summary>User's stored preference for symbol placement, if they selected "Don't ask again".</summary>
+    private FrameImportChoice? _placementPreference;
 
     /// <summary>
     /// Place a symbol as a single animated reference (old behaviour).

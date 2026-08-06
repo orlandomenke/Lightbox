@@ -12,6 +12,7 @@ using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
 using Lightbox.Core.Serialization;
+using static Lightbox.App.Views.PlacementChoiceDialog;
 
 namespace Lightbox.App.Views;
 
@@ -3867,5 +3868,12 @@ public partial class MainWindow : Window
         using var reader = new StreamReader(stream);
         var json = await reader.ReadToEndAsync();
         _vm.OpenDocumentTab(DocJson.Deserialize(json), files[0].TryGetLocalPath());
+    }
+
+    /// <summary>Show a dialog asking how to place a multi-frame symbol.</summary>
+    public async Task<PlacementChoice?> ShowPlacementChoiceDialogAsync(Symbol symbol)
+    {
+        var dialog = new PlacementChoiceDialog();
+        return await dialog.ShowDialog<PlacementChoice?>(this);
     }
 }
