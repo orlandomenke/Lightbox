@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2505 tests, derived from the suite itself. Each line is a
+2513 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1355,43 +1355,43 @@ regression even when every test still compiles.
 - The Docker Lists Characters With Their Animations Under Them — `:142`
 - Adding An Animation Opens It As ATab Bound To Its Slot — `:159`
 - Opening An Animation Twice Focuses The Tab Rather Than Duplicating It — `:174`
-- File New Still Makes AStandalone Document With AProject Open — `:191`
-- Two Animations Under One Character Paint From One Palette — `:208`
-- Save Writes The Project Without APicker — `:246`
-- Without AProject Or APath There Is Nothing To Save In Place — `:263`
-- AProject Reopens With Its Characters And Animations — `:271`
-- Removing An Animation Leaves Its File On Disk — `:293`
-- The New Menu Offers One Entry Per Place Work Can Land — `:316`
-- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:337`
-- ALoose Document Gets Its Own Row With No Character Above It — `:355`
-- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:370`
-- Moving ADocument To Another Character Moves Its File Rather Than Copying It — `:406`
-- Moving ADocument To The Project Takes It Out Of Every Character — `:435`
-- Moving ADocument Where It Already Is Does Nothing — `:450`
-- AMoved Document Survives ASave And Reopen — `:460`
-- Renaming ARow Writes Through — `:481`
-- Every Row Knows Where It Is On Disk — `:497`
-- With No Project There Is No Path To Show — `:517`
-- Copy Path Gives The Selected Rows File — `:527`
-- Opening Externally Says So When The File Is Not Written Yet — `:540`
-- Duplicating An Animation Copies Its Art Into The Same Character — `:558`
-- Duplicating Writes The Copy On The Next Save — `:592`
-- Deleting AFolder On Disk Removes It From The Docker — `:620`
-- The Docker Refreshes Without Being Reopened — `:649`
-- An Unsaved Project Does Not Report Every Row As Missing — `:675`
-- The Watch Follows The Project And Not The Application — `:714`
-- ABurst Of Disk Events Costs One Refresh — `:749`
-- ADeletion On Disk Reaches The Row Without ARefresh Call — `:804`
-- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:865`
-- AManual Re Read Is Reachable And Reports What It Found — `:918`
-- Creating An Item Asks For Its Name First — `:979`
-- The Suggested Name Matches The Numbered Fallback — `:999`
-- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:1016`
-- The Unnamed Command Still Creates The Numbered Default — `:1033`
-- The Project Root Is Visible In The Docker — `:1057`
-- The Project Row Cannot Be Removed Renamed Or Deleted — `:1109`
-- Show In File Manager Opens The Selected Item — `:1154`
-- Selecting AFolder Survives ARebuild — `:1207`
+- File New Makes AProject Document And Never ACharacters Animation — `:214`
+- Two Animations Under One Character Paint From One Palette — `:243`
+- Save Writes The Project Without APicker — `:281`
+- Without AProject Or APath There Is Nothing To Save In Place — `:298`
+- AProject Reopens With Its Characters And Animations — `:306`
+- Removing An Animation Leaves Its File On Disk — `:328`
+- The New Menu Offers One Entry Per Place Work Can Land — `:351`
+- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:372`
+- ALoose Document Gets Its Own Row With No Character Above It — `:390`
+- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:405`
+- Moving ADocument To Another Character Moves Its File Rather Than Copying It — `:441`
+- Moving ADocument To The Project Takes It Out Of Every Character — `:470`
+- Moving ADocument Where It Already Is Does Nothing — `:485`
+- AMoved Document Survives ASave And Reopen — `:495`
+- Renaming ARow Writes Through — `:516`
+- Every Row Knows Where It Is On Disk — `:532`
+- With No Project There Is No Path To Show — `:552`
+- Copy Path Gives The Selected Rows File — `:562`
+- Opening Externally Says So When The File Is Not Written Yet — `:575`
+- Duplicating An Animation Copies Its Art Into The Same Character — `:593`
+- Duplicating Writes The Copy On The Next Save — `:627`
+- Deleting AFolder On Disk Removes It From The Docker — `:655`
+- The Docker Refreshes Without Being Reopened — `:684`
+- An Unsaved Project Does Not Report Every Row As Missing — `:710`
+- The Watch Follows The Project And Not The Application — `:749`
+- ABurst Of Disk Events Costs One Refresh — `:784`
+- ADeletion On Disk Reaches The Row Without ARefresh Call — `:839`
+- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:900`
+- AManual Re Read Is Reachable And Reports What It Found — `:953`
+- Creating An Item Asks For Its Name First — `:1014`
+- The Suggested Name Matches The Numbered Fallback — `:1034`
+- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:1051`
+- The Unnamed Command Still Creates The Numbered Default — `:1068`
+- The Project Root Is Visible In The Docker — `:1092`
+- The Project Row Cannot Be Removed Renamed Or Deleted — `:1144`
+- Show In File Manager Opens The Selected Item — `:1189`
+- Selecting AFolder Survives ARebuild — `:1242`
 
 ## ProjectHierarchyTests
 `tests/Lightbox.App.Tests/ProjectHierarchyTests.cs`
@@ -2179,10 +2179,18 @@ regression even when every test still compiles.
 ## UnsavedDocumentTests
 `tests/Lightbox.App.Tests/UnsavedDocumentTests.cs`
 
-- ANew Document Is Not On Disk Until It Is Saved — `:61`
-- An Unsaved Document Is Shown As Pending In The Docker — `:83`
-- ADeleted File Is Missing Rather Than Pending — `:133`
-- Discarding An Unsaved Document Removes It From The Docker — `:165`
+- ANew Document Is Not On Disk Until It Is Saved — `:65`
+- An Unsaved Document Is Shown As Pending In The Docker — `:87`
+- ADeleted File Is Missing Rather Than Pending — `:137`
+- Discarding An Unsaved Document Removes It From The Docker — `:169`
+- ANew Document Appears In The Project Docker — `:214`
+- AProject Save Writes ADocument Made With File New — `:247`
+- Closing ANever Saved Document Takes Its Row With It — `:274`
+- Closing ASaved Document Keeps Its Row — `:304`
+- Closing ADocument Whose File Vanished Keeps Its Row — `:334`
+- ANew Document With No Project Open Changes Nothing — `:361`
+- Saving ADocument Outside The Project Takes It Out Of The Project — `:409`
+- Saving ADocument Into The Project Repaths Its Row — `:450`
 
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
