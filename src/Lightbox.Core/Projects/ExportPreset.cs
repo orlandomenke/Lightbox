@@ -1,6 +1,75 @@
+using Lightbox.Core.Documents;
 using Lightbox.Core.Export;
 
-namespace Lightbox.App.Services;
+namespace Lightbox.Core.Projects;
+
+/// <summary>How tightly each exported cell hugs the drawing.</summary>
+public enum SpriteTrim
+{
+    /// <summary>Every cell is the full canvas. Simple, and often wasteful.</summary>
+    None,
+
+    /// <summary>
+    /// One rectangle for the whole sequence: the union of every frame's ink.
+    ///
+    /// This is the default, and the reason is that the obvious alternative is
+    /// wrong. Trimming each frame to its own tight box makes the trim follow
+    /// the drawing rather than the rig, so the character <em>jitters</em> in
+    /// the engine — every frame a different size, every frame a different
+    /// offset, and nothing moved that the animator moved.
+    /// </summary>
+    Union,
+
+    /// <summary>
+    /// Each frame trimmed to its own ink, with the offset recorded so an
+    /// importer can put it back. Tighter, and only safe because the offsets
+    /// are measured from the pivot.
+    /// </summary>
+    PerFrame,
+}
+
+/// <summary>How the cells are arranged on the sheet.</summary>
+public enum SpritePack
+{
+    /// <summary>
+    /// A uniform grid. The default, and it stays the default.
+    /// </summary>
+    /// <remarks>
+    /// Equal cells are what union bounds produce anyway, and every engine
+    /// importer in existence reads a grid — including ones that ignore the
+    /// sidecar entirely.
+    /// </remarks>
+    Grid,
+
+    /// <summary>
+    /// Bottom-left skyline packing: each sprite at its own size, tighter.
+    /// </summary>
+    /// <remarks>
+    /// Worth reaching for when the frames are <b>ragged</b> — per-frame trimming,
+    /// or a sheet holding several animations. It is only usable with the
+    /// per-sprite rects in the sidecar, so an importer that reads
+    /// <c>meta.columns</c> and divides will get this wrong; that is why a packed
+    /// sheet reports <c>columns</c> and <c>rows</c> as zero rather than a number
+    /// that would look plausible and be false.
+    /// </remarks>
+    Skyline,
+}
+
+/// <summary>How many artifacts a declaring scope produces.</summary>
+public enum ExportGrouping
+{
+    /// <summary>One artifact per document. Today's behaviour, and the default.</summary>
+    PerDocument,
+
+    /// <summary>Everything under the declaring scope becomes one artifact.</summary>
+    OneArtifact,
+
+    /// <summary>
+    /// One artifact per immediate child folder — shared settings, separate
+    /// deliverables.
+    /// </summary>
+    PerChildFolder,
+}
 
 /// <summary>What an export produces.</summary>
 public enum ExportTarget
@@ -76,7 +145,74 @@ public enum ExportTarget
 /// </remarks>
 public sealed record ExportPreset
 {
+    /// <summary>
+    /// What a scope declaration points at.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q30.</b> A name is not an identity — two folders can each reasonably
+    /// have a preset called <em>Sheet</em>, and a declaration has to name one of
+    /// them. Added when presets became scopeable rather than user-global.
+    /// </remarks>
+    public string Id { get; init; } = Ids.NewId("expreset");
+
     public string Name { get; init; } = "Export";
+
+    /// <summary>
+    /// How many artifacts the declaring scope produces.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The thing "export scope" actually means.</b> A sprite sheet is one
+    /// artifact from many documents, so everything packed into it shares a cell
+    /// size — settings cannot be resolved per document and then packed together.
+    /// Declaring a preset on <c>knight/</c> therefore says *everything under here
+    /// is one sheet*; declaring it a level down makes locomotion its own.
+    /// </para>
+    /// <para>
+    /// <see cref="ExportGrouping.PerChildFolder"/> is what lets settings be
+    /// shared without the artifacts being merged — one declaration on
+    /// <c>characters/</c> giving every character its own sheet at one cell size,
+    /// which is the case declaration-as-boundary would otherwise have forced
+    /// into a declaration per character.
+    /// </para>
+    /// </remarks>
+    public ExportGrouping Grouping { get; init; } = ExportGrouping.PerDocument;
+
+    /// <summary>
+    /// Which statuses are allowed into the artifact, or null for all of them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The state axis. Grouping answers *what packages together* and says
+    /// nothing about *what is allowed out* — a production wants finished shots
+    /// exported and work in progress not, and that is a status question.
+    /// </para>
+    /// <para>
+    /// Null rather than every value listed, so a preset that does not filter
+    /// writes no key and reads as "everything" rather than as a list somebody
+    /// has to keep in step with the enum.
+    /// </para>
+    /// </remarks>
+    public List<AssetStatus>? IncludeStatuses { get; init; }
+
+    /// <summary>
+    /// Reaching this status rebuilds the artifact, or null for manual only.
+    /// </summary>
+    /// <remarks>
+    /// The trigger is per document and the effect is per artifact: one animation
+    /// reaching <c>Ready</c> means the sheet holding it is rebuilt. That is what
+    /// <see cref="Grouping"/> is for — it is the dependency graph that tells a
+    /// status change what it invalidated.
+    /// </remarks>
+    public AssetStatus? RebuildOn { get; init; }
+
+    /// <summary>Whether this preset filters by status at all.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Filters => IncludeStatuses is { Count: > 0 };
+
+    /// <summary>Whether a document of this status belongs in the artifact.</summary>
+    public bool Admits(AssetStatus? status) =>
+        !Filters || (status is { } s && IncludeStatuses!.Contains(s));
 
     public ExportTarget Target { get; init; } = ExportTarget.SpriteSheet;
 

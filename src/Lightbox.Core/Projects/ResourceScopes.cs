@@ -453,3 +453,73 @@ public static class TemplateScopes
         ResourceScopes.Declare(manifest, scope, Kind, templateId);
     }
 }
+
+/// <summary>Which export preset applies to a document, and where artifacts split.</summary>
+/// <remarks>
+/// <para>
+/// Q30 for export. <see cref="ResourceScopes.Nearest"/> rather than
+/// <c>Resolve</c>, because a document exports one way at a time — accumulating
+/// presets would be offering a choice nobody made.
+/// </para>
+/// <para>
+/// <b>The declaration is the artifact boundary</b>, which is what makes this
+/// more than settings lookup: the folder that declares a preset is the folder
+/// whose subtree becomes one deliverable, so nearest-wins gives the grouping for
+/// free. See the design doc for why that beat a separate boundary declaration.
+/// </para>
+/// </remarks>
+public static class ExportScopes
+{
+    /// <summary>The kind string export presets are declared under.</summary>
+    public const string Kind = "export";
+
+    /// <summary>Whether this project scopes export at all.</summary>
+    /// <remarks>
+    /// The migration hinge. False for every project written before this, which
+    /// then keeps using the user's preset store exactly as it does today.
+    /// </remarks>
+    public static bool AnyDeclared(ProjectManifest manifest) =>
+        (manifest.Resources?.Any(r => r.Kind == Kind) ?? false)
+        || ProjectFolders.All(manifest).Any(f => f.Resources?.Any(r => r.Kind == Kind) ?? false);
+
+    /// <summary>
+    /// The preset id this document exports with, or null when the project
+    /// declares none.
+    /// </summary>
+    public static string? PresetFor(ProjectManifest manifest, DocumentRef? document)
+    {
+        if (!AnyDeclared(manifest) || document is null) return null;
+        return ResourceScopes.Nearest(manifest, document, Kind)?.Id;
+    }
+
+    /// <summary>
+    /// The folder whose declaration governs this document — the artifact it
+    /// belongs to. Null means the project's own scope, or none at all.
+    /// </summary>
+    /// <remarks>
+    /// Answering *which artifact does this document belong to* is what makes a
+    /// status change able to say what it invalidated. Without it, "one animation
+    /// reached Ready" has nothing to rebuild.
+    /// </remarks>
+    public static ProjectFolder? BoundaryFor(ProjectManifest manifest, DocumentRef? document)
+    {
+        if (document is null) return null;
+        var folder = ProjectFolders.ById(manifest, document.FolderId);
+        if (folder is null) return null;
+        var chain = ProjectFolders.AncestryOf(manifest, folder);
+        for (var i = chain.Count - 1; i >= 0; i--)
+        {
+            if (chain[i].Resources?.Any(r => r.Kind == Kind) ?? false) return chain[i];
+        }
+        return null;
+    }
+
+    /// <summary>Declare an export preset on a scope.</summary>
+    /// <remarks>Replaces: a scope exports one way, so two would be ambiguous.</remarks>
+    public static void SetPreset(ProjectManifest manifest, ProjectFolder? scope, string presetId)
+    {
+        var list = scope is null ? manifest.Resources : scope.Resources;
+        list?.RemoveAll(r => r.Kind == Kind);
+        ResourceScopes.Declare(manifest, scope, Kind, presetId);
+    }
+}

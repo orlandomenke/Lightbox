@@ -2,6 +2,7 @@ using Lightbox.App.Services;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Export;
 
+using Lightbox.Core.Projects;
 namespace Lightbox.App.Tests;
 
 /// <summary>

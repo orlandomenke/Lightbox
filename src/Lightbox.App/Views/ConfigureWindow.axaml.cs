@@ -374,7 +374,7 @@ public partial class ConfigureWindow : Window
     private bool _loadingExport;
 
     /// <summary>The presets in the picker, in the order they are shown.</summary>
-    private List<Services.ExportPreset> _exportPresets = [];
+    private List<Lightbox.Core.Projects.ExportPreset> _exportPresets = [];
 
     private void LoadExportPage()
     {
@@ -391,7 +391,7 @@ public partial class ConfigureWindow : Window
 
         // Built-ins plus the artist's own, read fresh: a preset may have been saved from
         // the export window since this one opened.
-        _exportPresets = Services.ExportPreset.BuiltIns
+        _exportPresets = Lightbox.Core.Projects.ExportPreset.BuiltIns
             .Concat(Services.ExportPresetStore.Load()).ToList();
         AutoExportPresetBox.ItemsSource = _exportPresets.Select(p => p.Name).ToList();
         var index = _exportPresets.FindIndex(p => p.Name == settings.PresetName);

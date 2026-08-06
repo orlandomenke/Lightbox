@@ -101,6 +101,24 @@ public sealed class DocumentRef
     /// </remarks>
     public AssetStatus? Status { get; set; }
 
+    /// <summary>
+    /// Bumped when this document is saved, so anything built from it can tell
+    /// whether it is out of date.
+    /// </summary>
+    /// <remarks>
+    /// <b>Not a new subsystem.</b> This is <c>Symbol.Version</c> against
+    /// <c>SymbolPlacement.SeenVersion</c> — Pillar 3's S7 — applied to a second
+    /// kind of thing. An integer bumped on edit, and whoever consumed it records
+    /// what they saw; the two differing *is* staleness. No history, no diffing,
+    /// no store.
+    /// <para>
+    /// It answers the case a status filter cannot: a shipped sheet where one
+    /// animation goes back to <c>Reopened</c> keeps what it had and reads stale,
+    /// rather than regenerating with a hole in it.
+    /// </para>
+    /// </remarks>
+    public int Version { get; set; } = 1;
+
     /// <summary>Whether anybody has set a status on this document.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasStatus => Status is not null;
@@ -334,6 +352,16 @@ public sealed class ProjectManifest
     /// <see cref="GuideScopes"/>; this is only where they live.
     /// </remarks>
     public List<GuideSet>? GuideSets { get; set; }
+
+    /// <summary>Export presets belonging to this project, once there are any.</summary>
+    /// <remarks>
+    /// <b>Q30.</b> A preset used to be a user setting in <c>ExportPresetStore</c>,
+    /// which was right while every project exported one way and stopped being
+    /// right once the knight and the boss want different cell sizes. Null and
+    /// absent until one is made, and the user's store still supplies the
+    /// built-ins.
+    /// </remarks>
+    public List<ExportPreset>? ExportPresets { get; set; }
 
     public Documents.BrushSettings? Brush { get; set; }
 
