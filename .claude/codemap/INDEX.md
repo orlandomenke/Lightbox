@@ -1,6 +1,6 @@
 # Code index
 
-465 files · 118598 lines · 2405 tests.
+466 files · 119102 lines · 2412 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,10 +47,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9455 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4222, TransformParts:6414
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4059 ln) · 15 test files
-  - MainWindow:18, UnsavedChoice:2723
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9500 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4265, TransformParts:6457
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4101 ln) · 15 test files
+  - MainWindow:18, UnsavedChoice:2753
 - `src/Lightbox.App/Views/MainWindow.axaml` (3251 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2848 ln) · 9 test files
@@ -91,7 +91,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GameMakerExportOptions:9, GameMakerExportResult:27, GameMakerExporter:77, StripRecord:85, GameMakerBlock:98
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 15 indirect only
   - RampTrack:10, GradientRamp:41
-- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 99 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 100 test files
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (281 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
@@ -105,6 +105,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (256 ln) · 3 test files
   - Workspace:13, WorkspaceStore:51
+- `src/Lightbox.App/ViewModels/DocumentTab.cs` (253 ln) · 25 test files
+  - NewDocumentSettings:20, WorkspaceChoice:32, DocumentTabKind:41, DocumentTab:60
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 3 test files
@@ -168,8 +170,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StartChoice:14, StartScreen:61
 - `src/Lightbox.App/App.axaml` (129 ln) · **no tests**
   - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Switcher
-- `src/Lightbox.App/ViewModels/DocumentTab.cs` (127 ln) · 24 test files
-  - NewDocumentSettings:19, WorkspaceChoice:31, DocumentTabKind:40, DocumentTab:59
 - `src/Lightbox.App/Controls/ValueDrag.cs` (126 ln) · 4 indirect only
   - ValueDrag:27, Session:43
 - `src/Lightbox.App/Services/FileReveal.cs` (125 ln) · 1 test files
@@ -275,8 +275,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.Core/Projects/ProjectIo.cs` (997 ln) · 23 test files
   - ProjectIo:31, ConversionReport:558
-- `src/Lightbox.Core/Timeline/DocumentEditor.cs` (632 ln) · 8 test files
-  - DocumentEditor:14, IEditStep:104, SnapshotStep:117, DeltaStep:136
+- `src/Lightbox.Core/Timeline/DocumentEditor.cs` (669 ln) · 9 test files
+  - DocumentEditor:14, IEditStep:141, SnapshotStep:154, DeltaStep:173
 - `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 78 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
@@ -355,7 +355,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Project:15
 - `src/Lightbox.Core/Documents/Guide.cs` (114 ln) · 4 test files
   - GuideKind:4, Guide:60
-- `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 40 test files
+- `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 41 test files
   - DocumentFactory:3
 - `src/Lightbox.Core/Documents/CollisionShape.cs` (101 ln) · 4 test files
   - ShapeRole:13, CollisionShape:67, ShapeBox:87

@@ -70,7 +70,7 @@ public class ReferenceTabTests
     {
         var vm = VmWithSheet(out var view);
         var owner = vm.Tabs[0];
-        owner.IsDirty = false; // clear the add-sheet dirtiness for a sharp assert
+        owner.MarkSaved(); // clear the add-sheet dirtiness for a sharp assert
 
         vm.BeginStroke(20, 20, 0.5);
         vm.MoveStroke(60, 60, 0.5);
@@ -81,7 +81,11 @@ public class ReferenceTabTests
         Assert.Single(frame.Strokes);
         Assert.Single(((PaintedFrame)owner.Doc.ReferenceSheets[0].Views[0].Layers[0].Cels[0].Frame!).Strokes);
         Assert.True(owner.IsDirty);
-        Assert.False(vm.ActiveTab!.IsDirty); // the reference tab itself stays clean
+        // B93. Both tabs show it, and this assertion used to say the opposite.
+        // The reporter found the badge on the parent only: a sheet tab is a view
+        // onto the owner's document, so an artist looking at the sheet should not
+        // have to go and find another tab to learn there is unsaved work.
+        Assert.True(vm.ActiveTab!.IsDirty);
 
         // Undo inside the reference tab still routes to the owning document.
         vm.UndoCommand.Execute(null);

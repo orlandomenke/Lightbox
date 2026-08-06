@@ -1458,7 +1458,37 @@ public partial class MainWindow : Window
             _vm.OpenReferenceView(view);
     }
 
-    private void OnReferenceRenamed(object? sender, RoutedEventArgs e) => _vm.MarkReferenceEdited();
+    /// <summary>
+    /// The text in a sheet or view name box, captured when it took focus, so
+    /// losing focus can tell a rename from a click-through.
+    /// </summary>
+    private string? _referenceNameOnFocus;
+
+    private void OnReferenceNameFocused(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is TextBox box) _referenceNameOnFocus = box.Text ?? "";
+    }
+
+    /// <remarks>
+    /// <b>B93.</b> Bound to <c>LostFocus</c>, which fires whether or not the
+    /// artist typed anything — so this used to mark the document unsaved for
+    /// clicking into a name box and out again. Compare against what was there
+    /// on the way in, exactly as the project docker's rename does.
+    /// </remarks>
+    private void OnReferenceRenamed(object? sender, RoutedEventArgs e)
+    {
+        var before = _referenceNameOnFocus;
+        _referenceNameOnFocus = null;
+        if (sender is not TextBox box) return;
+        // The two-way binding has already written the new name by now, so the
+        // only record of the old one is what was captured on the way in.
+        if (before is null || string.Equals(before, box.Text ?? "", StringComparison.Ordinal))
+        {
+            _vm.RefreshReferenceList();
+            return;
+        }
+        _vm.MarkReferenceRenamed();
+    }
 
     // ---- brush presets --------------------------------------------------------
 
@@ -2874,7 +2904,12 @@ public partial class MainWindow : Window
     {
         if (_closeConfirmed) return;
 
-        var dirty = _vm.Tabs.Where(t => t.IsDirty).ToList();
+        // B97. HasWorkToLose, not IsDirty: a never-saved document badges from
+        // the moment it exists, and File ▸ New followed by a close must not
+        // argue about a drawing nobody made. What this must still catch — and
+        // what B80 shipped unable to catch — is a new document that *has* been
+        // drawn in, which has no file at all and is the easiest work to lose.
+        var dirty = _vm.Tabs.Where(t => t.HasWorkToLose).ToList();
         if (dirty.Count == 0) return;
 
         e.Cancel = true;
@@ -3361,7 +3396,14 @@ public partial class MainWindow : Window
         // character". B62 gave it a second, more findable way — the project row
         // has no Character either, so dropping onto it means the same thing.
         var destination = over?.Character;
-        if (ReferenceEquals(destination, dragged.Character)) return null;
+        // B92. The guard used to compare characters alone, which was the only
+        // way to group documents when it was written — B85/B86 added the folder
+        // tree beside it and this was never widened, so dragging a document
+        // within the folder it already sits in read as a real move and marked
+        // the project unsaved. Both axes, so a third could not slip past either.
+        var sameCharacter = ReferenceEquals(destination, dragged.Character);
+        var sameFolder = string.Equals(over?.Folder?.Id, dragged.Folder?.Id, StringComparison.Ordinal);
+        if (sameCharacter && sameFolder) return null;
         return (destination, true);
     }
 

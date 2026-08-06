@@ -9,12 +9,18 @@ namespace Lightbox.App.Tests;
 public class DocumentTabTests
 {
     [AvaloniaFact]
-    public void StartsWithOneCleanUntitledTab()
+    public void StartsWithOneUntitledTabThatSaysItIsNotOnDisk()
     {
         var vm = new MainViewModel(null);
         var tab = Assert.Single(vm.Tabs);
         Assert.Equal("Untitled-1", tab.Title);
-        Assert.False(tab.IsDirty);
+        // B97. It badges, because it has never been written — the reporter
+        // found the old silence and the badge is the honest answer. What it
+        // must NOT do is claim there is work to lose: nothing has been drawn,
+        // so closing it asks nothing. Two predicates on purpose.
+        Assert.True(tab.IsDirty);
+        Assert.True(tab.IsUnsaved);
+        Assert.False(tab.HasWorkToLose);
         Assert.True(tab.IsActive);
         Assert.Same(vm.Doc, tab.Doc);
     }
@@ -33,19 +39,23 @@ public class DocumentTabTests
         Assert.Equal(24, vm.Doc.Scene.Fps);
         Assert.Equal(300, vm.Doc.Scene.Ppi);
         Assert.Equal("#202020", vm.Doc.Scene.BackgroundColor);
-        Assert.False(tab.IsDirty);
+        // Never written, so it badges (B97) — and settings chosen in the New
+        // dialog are not work the artist would mourn.
+        Assert.True(tab.IsUnsaved);
+        Assert.False(tab.HasWorkToLose);
     }
 
     [AvaloniaFact]
     public void PaintingMarksTheTabDirty_SaveClearsIt()
     {
         var vm = new MainViewModel(null);
-        Assert.False(vm.Tabs[0].IsDirty);
+        Assert.False(vm.Tabs[0].HasWorkToLose);
 
         vm.BeginStroke(10, 10, 0.5);
         vm.MoveStroke(30, 30, 0.5);
         vm.EndStroke();
         Assert.True(vm.Tabs[0].IsDirty);
+        Assert.True(vm.Tabs[0].HasWorkToLose);
         Assert.EndsWith("•", vm.Tabs[0].DisplayTitle);
 
         vm.NotifySaved("/somewhere/scene-a.lightbox.json");
@@ -92,8 +102,10 @@ public class DocumentTabTests
 
         vm.ActiveTab = vm.Tabs[0];
         Assert.Equal(1, vm.CurrentFrameIndex); // restored
-        Assert.False(vm.Tabs[0].IsDirty);      // switching is not an edit
-        Assert.False(vm.Tabs[1].IsDirty);
+        // Switching is not an edit, so neither tab has work in it. They both
+        // still badge as never-written, which is a different claim (B97).
+        Assert.False(vm.Tabs[0].HasWorkToLose);
+        Assert.False(vm.Tabs[1].HasWorkToLose);
     }
 
     [AvaloniaFact]
@@ -112,7 +124,7 @@ public class DocumentTabTests
         vm.CloseTab(vm.Tabs[0]);
         var last = Assert.Single(vm.Tabs); // a fresh untitled appears
         Assert.Same(last, vm.ActiveTab);
-        Assert.False(last.IsDirty);
+        Assert.False(last.HasWorkToLose);
     }
 
     [AvaloniaFact]
@@ -125,7 +137,10 @@ public class DocumentTabTests
         Assert.Equal(2, vm.Tabs.Count);
         Assert.Equal("walk-cycle", vm.ActiveTab!.Title);
         Assert.Equal(320, vm.Doc.Scene.Width);
+        // Opened from disk, so this one is genuinely clean rather than merely
+        // unstarted — the case that separates IsDirty from HasWorkToLose.
         Assert.False(vm.ActiveTab.IsDirty);
+        Assert.False(vm.ActiveTab.IsUnsaved);
     }
 
     /// <summary>

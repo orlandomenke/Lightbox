@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2405 tests, derived from the suite itself. Each line is a
+2412 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -564,6 +564,17 @@ regression even when every test still compiles.
 - Every Publish Is ACorrect Full Composite — `:172`
 - Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:215`
 
+## DirtyRevisionTests
+`tests/Lightbox.App.Tests/DirtyRevisionTests.cs`
+
+- Undoing Back To The Saved State Clears The Badge — `:46`
+- Redoing To The Saved State Is Still Saved — `:75`
+- Trimming The Undo Stack Does Not Fake AClean Document — `:102`
+- ADocument At Its Saved Revision Is Not Dirty — `:120`
+- Choosing ABrush Does Not Mark The Document — `:143`
+- ANever Saved Document Badges But Only Prompts Once Drawn In — `:179`
+- ASheet Edit Raises The Badge On Both Tabs — `:210`
+
 ## DockLayoutTests
 `tests/Lightbox.App.Tests/DockLayoutTests.cs`
 
@@ -634,26 +645,26 @@ regression even when every test still compiles.
 ## BackgroundColorTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Scene Background Round Trips And Tints The Snapshot — `:169`
-- Transparent Background Renders Transparent Pixels — `:187`
+- Scene Background Round Trips And Tints The Snapshot — `:184`
+- Transparent Background Renders Transparent Pixels — `:202`
 
 ## ColorWheelFidelityTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Wheel Value Is Not Rewritten While Dragging — `:203`
-- Slider Channels Are Not Rewritten While Editing — `:222`
+- Wheel Value Is Not Rewritten While Dragging — `:218`
+- Slider Channels Are Not Rewritten While Editing — `:237`
 
 ## DocumentTabTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Starts With One Clean Untitled Tab — `:12`
-- New Document Adds Tab With Settings And Activates It — `:23`
-- Painting Marks The Tab Dirty Save Clears It — `:40`
-- Switching Tabs Keeps Each Document And Its Undo History — `:58`
-- Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:84`
-- Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:100`
-- Open Document Tab Uses File Name And Keeps Existing Tabs — `:119`
-- ADocument With No Layers Opens Rather Than Throwing — `:150`
+- Starts With One Untitled Tab That Says It Is Not On Disk — `:12`
+- New Document Adds Tab With Settings And Activates It — `:29`
+- Painting Marks The Tab Dirty Save Clears It — `:49`
+- Switching Tabs Keeps Each Document And Its Undo History — `:68`
+- Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:94`
+- Close Tab Activates Neighbor And Never Leaves Zero Tabs — `:112`
+- Open Document Tab Uses File Name And Keeps Existing Tabs — `:131`
+- ADocument With No Layers Opens Rather Than Throwing — `:165`
 
 ## EngineApiTests
 `tests/Lightbox.App.Tests/EngineApiTests.cs`
@@ -1431,16 +1442,16 @@ regression even when every test still compiles.
 ## CharacterSheetFileTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
 
-- ACharacter Sheet Outside AProject Prompts To Save — `:220`
-- ACharacter Sheet In AProject Is Written On Creation — `:240`
-- ACharacter Sheet Asks For Its Name Before Its Location — `:271`
+- ACharacter Sheet Outside AProject Prompts To Save — `:224`
+- ACharacter Sheet In AProject Is Written On Creation — `:244`
+- ACharacter Sheet Asks For Its Name Before Its Location — `:275`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
 
-- Render Reference View Produces Decodable Png — `:131`
-- Ai Inbetween Carries Reference Images — `:154`
-- Ipc List And Render Expose Reference Views — `:183`
+- Render Reference View Produces Decodable Png — `:135`
+- Ai Inbetween Carries Reference Images — `:158`
+- Ipc List And Render Expose Reference Views — `:187`
 
 ## ReferenceSheetModelTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
@@ -1452,9 +1463,9 @@ regression even when every test still compiles.
 
 - Add View Opens Reference Tab Timeline Hidden — `:53`
 - Painting In Reference Tab Lands In Owning Document And Dirties Owner — `:69`
-- Save From Reference Tab Serializes The Owning Document — `:92`
-- Closing Owner Tab Closes Its Reference Tabs — `:108`
-- Opening Same View Focuses Existing Tab — `:118`
+- Save From Reference Tab Serializes The Owning Document — `:96`
+- Closing Owner Tab Closes Its Reference Tabs — `:112`
+- Opening Same View Focuses Existing Tab — `:122`
 
 ## ReferenceStripTests
 `tests/Lightbox.App.Tests/ReferenceStripTests.cs`
@@ -1730,15 +1741,15 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/StartScreenTests.cs`
 
 - Escape Leaves ABlank Document Rather Than Nothing — `:36`
-- Dont Show Again Is Remembered And Can Be Turned Back On — `:51`
-- Offering The Screen Does Nothing When It Is Turned Off — `:66`
-- New File Uses The Values The Screen Collected — `:80`
-- Opening ARecent Document Opens It — `:97`
-- AFile That Has Moved Says So Rather Than Doing Nothing — `:118`
-- Opening ADocument Puts It In The Recents — `:136`
-- Saving Somewhere New Records It Too — `:159`
-- Clearing The List Empties It On Disk As Well — `:182`
-- Only What Is Still On Disk Is Offered — `:205`
+- Dont Show Again Is Remembered And Can Be Turned Back On — `:53`
+- Offering The Screen Does Nothing When It Is Turned Off — `:68`
+- New File Uses The Values The Screen Collected — `:82`
+- Opening ARecent Document Opens It — `:99`
+- AFile That Has Moved Says So Rather Than Doing Nothing — `:120`
+- Opening ADocument Puts It In The Recents — `:138`
+- Saving Somewhere New Records It Too — `:161`
+- Clearing The List Empties It On Disk As Well — `:184`
+- Only What Is Still On Disk Is Offered — `:207`
 
 ## StrokeLatencyTests
 `tests/Lightbox.App.Tests/StrokeLatencyTests.cs`

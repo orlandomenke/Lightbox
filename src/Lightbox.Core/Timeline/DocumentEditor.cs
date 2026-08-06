@@ -13,8 +13,43 @@ namespace Lightbox.Core.Timeline;
 /// </summary>
 public sealed class DocumentEditor
 {
-    private readonly Stack<IEditStep> _undo = new();
-    private readonly Stack<IEditStep> _redo = new();
+    private readonly Stack<Entry> _undo = new();
+    private readonly Stack<Entry> _redo = new();
+
+    /// <summary>A step, and the revision the document reached by applying it.</summary>
+    private readonly record struct Entry(IEditStep Step, long Revision);
+
+    /// <summary>Hands out revision numbers; never reused, never reset.</summary>
+    private long _nextRevision;
+
+    /// <summary>
+    /// Which edit the document currently stands at. Zero is "as it was created
+    /// or loaded"; every step reaches a new number, and undo returns to the
+    /// number the previous step reached.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B96.</b> This exists so a caller can ask *whether the document
+    /// differs from what was saved* instead of asserting that it does.
+    /// `IsDirty` used to be set by each edit path, which meant any path that
+    /// forgot to check whether anything actually changed raised the badge —
+    /// B79, B92, B93 and B94 were four of those in one week — and no path could
+    /// ever lower it again, which was B95.
+    /// </para>
+    /// <para>
+    /// <b>Read the top of the stack, never its depth.</b> <see cref="MaxUndo"/>
+    /// trims the *bottom*, so a depth comparison reads clean on the 65th edit
+    /// after a save. That failure is silent and it loses work, which is why the
+    /// number is carried per step rather than counted.
+    /// </para>
+    /// <para>
+    /// Trimming is still honest at the other end: undoing to the oldest step the
+    /// stack still holds lands on that step's revision rather than on zero, so a
+    /// document whose earliest edits can no longer be undone correctly keeps
+    /// reading as changed.
+    /// </para>
+    /// </remarks>
+    public long Revision => _undo.Count > 0 ? _undo.Peek().Revision : 0;
     /// <summary>
     /// Undo steps kept. Stroke commits are cheap deltas, but structural edits
     /// snapshot the whole document, so on a large scene this trades memory
@@ -70,26 +105,28 @@ public sealed class DocumentEditor
     public EditScope UndoScoped()
     {
         if (_undo.Count == 0) return new EditScope(false, null);
-        var step = _undo.Pop();
-        Doc = step.Rollback(Doc);
-        _redo.Push(step);
+        var entry = _undo.Pop();
+        Doc = entry.Step.Rollback(Doc);
+        _redo.Push(entry);
         Changed?.Invoke();
-        return new EditScope(true, step.FrameId);
+        return new EditScope(true, entry.Step.FrameId);
     }
 
     public EditScope RedoScoped()
     {
         if (_redo.Count == 0) return new EditScope(false, null);
-        var step = _redo.Pop();
-        Doc = step.Apply(Doc);
-        _undo.Push(step);
+        var entry = _redo.Pop();
+        Doc = entry.Step.Apply(Doc);
+        // Pushed with the revision it originally reached, not a fresh one, so
+        // redoing back to a saved state reads as saved rather than as new work.
+        _undo.Push(entry);
         Changed?.Invoke();
-        return new EditScope(true, step.FrameId);
+        return new EditScope(true, entry.Step.FrameId);
     }
 
     private void PushStep(IEditStep step)
     {
-        _undo.Push(step);
+        _undo.Push(new Entry(step, ++_nextRevision));
         if (_undo.Count > MaxUndo)
         {
             // Stack has no trim; rebuild without the oldest entry.

@@ -201,11 +201,6 @@ decision goes to `QUESTIONS.md` and is left alone.
   - **It is a hole in B80, which is worse than the badge.** The close prompt collects `Tabs.Where(t => t.IsDirty)`, and a never-saved document is not dirty — so the one document with *nothing* on disk is the one the close handler will not mention. B80 shipped with this; the entry is here rather than reopened because the fix is the predicate, not the handler.
   - **The owner's decision, 2026-08-06: a new file badges, because it has not been saved at all.** Recorded with one nuance to settle when it is built — the badge and the close prompt want *different* predicates. Badge means "differs from disk", which a new empty document does. Prompting means "there is work to lose", which it does not, and File ▸ New followed by a close should not nag. B76's pending-versus-missing split is the same distinction: worth knowing is not worth acting on.
 
-- [ ] **B92** `P2` `project` Dragging a document into the folder it is already in marks it unsaved `evidence: ProjectDropTests, DroppingADocumentWhereItAlreadyIsChangesNothing, DroppingIntoADifferentFolderStillMoves`
-  - Reported 2026-08-06 from the running app. Nothing changed, so nothing should be marked.
-  - **The no-op guard exists and is looking at the wrong axis.** `DropTargetFor` ends with `ReferenceEquals(destination, dragged.Character)` — it compares **characters**, which was the only way to group documents when it was written. B85/B86 added the folder tree beside it and the guard was never widened, so a drop that changes only `FolderId` reads as a real move even when the folder is unchanged.
-  - Exactly the cost Q30 names: two hierarchies, and code that knows about one of them. The guard wants to compare the *destination scope* — folder and character together — and the fix is worth doing in a way that a third axis could not slip past again.
-
 - [ ] **B81** `P3` `project` Two questions are called Q20 and two are called Q21, so a cross-reference can land on the wrong one `evidence: manual`
   - Repro: `python3 scripts/bugs.py check` already reports it — `DUPLICATE Q Q20 used 2 times`. `QUESTIONS.md` has **Q20** at both *"What frame bounds does an Asset project export from an unbounded canvas?"* and *"When a textured line is re-shaped, may its texture change?"*, and **Q21** at both *"Is the infinite canvas a document property or a project-type default?"* and *"How big does a reference the model has to read need to be?"*.
   - It is already wrong in the docs rather than merely risky: `docs/DESIGN-ai-payload.md` cites **Q21** meaning reference-image size while `docs/DESIGN-infinite-canvas.md` and `ROADMAP.md` cite **Q21** meaning the canvas property. Same token, two referents, no way for a reader to tell which without opening the file and guessing from context.
@@ -222,17 +217,12 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Fixes each reported symptom without a special case: a no-op drag and a focus change push no step, choosing a brush pushes no step (Q24 becomes structural rather than remembered), and undoing back to the saved revision goes clean.
   - **Honest limit**: revision equality is not content equality. Edit, undo, then make a different edit that happens to produce the same document, and it still reads dirty. That is the standard trade and it is wrong far less often than a flag.
 
-- [ ] **B95** `P2` `ui` Removing a reference does not clear the badge that adding it raised `evidence: DirtyRevisionTests, UndoingBackToTheSavedStateClearsTheBadge`
-  - Reported 2026-08-06: add a reference, the badge appears correctly; remove it, and the document is back where it started with the badge still up.
-  - **Not a missed clear — the flag cannot represent this.** `IsDirty` is a boolean set by edits and cleared only by a save, so *returning to the saved state* has no way to be expressed. Every undo-to-clean has the same shape.
-  - Fixed by B96 rather than on its own; a targeted fix would be a fourth place that sets the flag.
-
 - [ ] **B93** `P2` `ui` A character-sheet name box marks the document unsaved just for losing focus `evidence: ReferenceRenameTests, LosingFocusWithoutTypingChangesNothing, RenamingASheetStillMarksTheDocument`
   - Reported 2026-08-06, and it **confirms B79's static sweep**: click into a sheet or view name box, click out without typing, and the parent document badges.
   - `OnReferenceRenamed` is bound to `LostFocus` (`MainWindow.axaml:2566`, `:2581`) and calls `MarkReferenceEdited`, which sets `SaveTargetTab.IsDirty = true` unconditionally — no check that a rename was in progress, that the text changed, or that anything was edited. **Every other rename handler in the window guards**: `OnProjectNameLostFocus` tests `row.IsRenaming`; the layer, group and palette handlers only close the editor.
   - **The reporter also found the other half.** The badge lands on the parent document and *not* on the character-sheet tab. When a sheet edit is real, both should show it — a reference tab is a view onto the owner, and an artist looking at the sheet should not have to check another tab to learn there is unsaved work. `MarkDocumentEdited` dirties `tab.Owner` only.
 
-- [ ] **B79** `P2` `ui` The unsaved badge stays on a document that has just been saved `evidence: DocumentTabTests, SavingClearsTheUnsavedBadge, ASheetEditStillRaisesTheBadge`
+- [ ] **B79** `P2` `ui` The unsaved badge stays on a document that has just been saved `evidence: DirtyRevisionTests, ADocumentAtItsSavedRevisionIsNotDirty, ASheetEditRaisesTheBadgeOnBothTabs, ChoosingABrushDoesNotMarkTheDocument`
   - Reported: the dot survives a save when nothing has changed since. The reporter also checked the opposite case and found it correct — editing an attached character sheet *does* raise the badge — so the signal works and only the clearing is wrong.
   - **This is worse than an untidy dot.** A badge that is on when nothing is dirty teaches the artist to ignore it, and the one time it means something is the time work is lost. That is why it is `P2` on a one-pixel symptom.
   - Brush settings are saved separately and must not feed this badge (Q24), so the fix has to be about which edits mark the tab rather than about clearing harder.
@@ -547,6 +537,13 @@ test reopens the bug.
   - Fix: store project palettes as JSON, ids intact. `.gpl` stays what it is — an interop format for the docker's Import/Export, not a storage format.
   - Mine, from the previous commit. Found by the variant tests rather than by review. Cost: S
 
+- [x] **B92** `P2` `project` Dragging a document into the folder it is already in marks it unsaved `evidence: manual`
+  - Reported 2026-08-06 from the running app. Nothing changed, so nothing should be marked.
+  - **The no-op guard exists and is looking at the wrong axis.** `DropTargetFor` ends with `ReferenceEquals(destination, dragged.Character)` — it compares **characters**, which was the only way to group documents when it was written. B85/B86 added the folder tree beside it and the guard was never widened, so a drop that changes only `FolderId` reads as a real move even when the folder is unchanged.
+  - Exactly the cost Q30 names: two hierarchies, and code that knows about one of them. The guard wants to compare the *destination scope* — folder and character together — and the fix is worth doing in a way that a third axis could not slip past again.
+  - **Fixed.** `DropTargetFor` now compares folder *and* character, so a drop that would change neither is refused before it starts. `evidence: manual` because the drop path is a pointer gesture through Avalonia's drag service rather than a call a headless test can make — the same limit B75, B78 and B80 record.
+  - The second half arrives free from **B96**: even a move that *is* real now marks the document only if it changed the document, because the badge reads the edit record rather than a flag someone set.
+
 - [x] **B87** `P2` `project` No permanent delete option for files and folders `evidence: ProjectDockerTests, DeletedFilesCanBePermanentlyRemovedFromDisk, DeletedFoldersWithFilesPromptForConfirmation, EmptyFoldersAreDeletedWithoutPrompt, MissingFilesAreTrackedAndNotReloadedOnNextOpen`
   - Reported: the RMB context menu only offers "remove from project" which keeps files on disk. There is no option to permanently delete from both project and disk, and removed files should be marked so they are not unwantedly reloaded on subsequent checks.
   - Two operations are needed: remove from project (keeps file on disk, marks it as missing) and delete permanently (removes from project and disk). The permanent delete should show a confirmation prompt for folders containing files, but empty folders can be deleted without prompting.
@@ -743,6 +740,11 @@ test reopens the bug.
   - Cause: `CanvasHost` was still on `Grid.Column="2"` after the docking rework renumbered the work area's columns to seven. Column 2 is the *left dock strip's* cell — `Auto`, and empty by default — so it sized itself to the zoom bar floating on top of the canvas and the canvas got no width. Column 4 (`*`, `MinWidth=240`) held the space open and empty, which is why it read as a dead renderer rather than a missing control.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
+
+- [x] **B95** `P2` `ui` Removing a reference does not clear the badge that adding it raised `evidence: DirtyRevisionTests, UndoingBackToTheSavedStateClearsTheBadge`
+  - Reported 2026-08-06: add a reference, the badge appears correctly; remove it, and the document is back where it started with the badge still up.
+  - **Not a missed clear — the flag cannot represent this.** `IsDirty` is a boolean set by edits and cleared only by a save, so *returning to the saved state* has no way to be expressed. Every undo-to-clean has the same shape.
+  - Fixed by B96 rather than on its own; a targeted fix would be a fourth place that sets the flag.
 
 - [x] **B80** `P2` `ui` Closing the application discards unsaved work without asking `evidence: manual`
   - Found while fixing B75, by looking for the other caller of the unsaved-changes dialog and finding there is none: `MainWindow` has no `OnClosing` override and nothing subscribes to `Closing`. Closing a *tab* asks; closing the *window* does not, so quitting with edits in flight loses them silently.

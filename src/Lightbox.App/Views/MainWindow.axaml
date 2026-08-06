@@ -2563,7 +2563,7 @@
                                   ToolTip.Tip="Add a view (front/side/…) to this sheet" />
                           <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
                                    FontWeight="SemiBold" VerticalAlignment="Center"
-                                   LostFocus="OnReferenceRenamed" />
+                                   GotFocus="OnReferenceNameFocused" LostFocus="OnReferenceRenamed" />
                         </DockPanel>
                         <ItemsControl ItemsSource="{Binding Views}" Margin="14,0,0,4">
                           <ItemsControl.ItemsPanel>
@@ -2578,7 +2578,7 @@
                                         Click="OnOpenReferenceView" ToolTip.Tip="Open this view in a tab" />
                                 <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
                                          VerticalAlignment="Center" FontSize="12"
-                                         LostFocus="OnReferenceRenamed" />
+                                         GotFocus="OnReferenceNameFocused" LostFocus="OnReferenceRenamed" />
                               </DockPanel>
                             </DataTemplate>
                           </ItemsControl.ItemTemplate>

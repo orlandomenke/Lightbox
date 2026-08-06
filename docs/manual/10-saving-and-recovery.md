@@ -38,6 +38,23 @@ One case worth knowing because the wording differs: if the file you saved to has
 since been **moved or deleted**, you are asked again rather than having it
 written silently back to a folder you emptied on purpose.
 
+## The unsaved dot
+
+A tab shows **•** when it differs from the file on disk. Two things make that true:
+
+- You have edited it since the last save.
+- It has **never been saved** — a new document has no file at all, so it says so
+  from the moment you make it.
+
+**Undoing back to where you saved clears the dot.** Draw something and undo it,
+add a reference and remove it again, and the tab goes quiet, because the question
+is *does this differ from the file* rather than *did anything happen*.
+
+Things that are **not** edits, and never raise it: choosing a brush or changing
+its settings (brushes are saved separately), moving a document to the folder it is
+already in, clicking into a name box and out again without typing, and switching
+tabs, panning or zooming.
+
 ## Closing with work in flight
 
 **Closing a tab** with unsaved changes offers **Save**, **Discard changes** and
@@ -48,7 +65,8 @@ that picker cancels the close too**, because you asked to keep the work.
 
 **Closing Lightbox** asks the same question about everything at once. One box,
 listing the documents by name rather than counting them, with **Save all** as
-the default. Cancel and the application stays open; cancel a file picker
+the default. A brand-new document you have not drawn in is not on the list —
+it shows the dot because it has no file, but there is nothing in it to lose. Cancel and the application stays open; cancel a file picker
 part-way through and the whole close is called off, with everything still there.
 
 Nothing is ever discarded without being offered to you first.
