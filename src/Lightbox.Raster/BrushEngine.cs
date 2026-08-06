@@ -1384,7 +1384,48 @@ public static class BrushEngine
         var strength = Math.Clamp(brush.Flow, 0, 1);
         if (strength <= 0) return;
 
-        StampSmudgeDabs(target, pixels, stroke, outputScale, strength);
+        StampSmudgeDabs(
+            target, pixels, stroke, outputScale, strength, WalkDabs(stroke), 0, int.MaxValue, default);
+    }
+
+    /// <summary>
+    /// What a smudge is carrying at a point in the stroke — the whole of its sequential state.
+    /// </summary>
+    /// <remarks>
+    /// A smudge is not replayable from an index the way a blur is, and this is why. A blur dab reads
+    /// the pre-stroke pixels, so dab <i>n</i> depends on nothing but its own position; a smudge dab
+    /// depends on the colour the previous dabs handed it <em>and</em> on the pixels they wrote. The
+    /// second half is the caller's problem (restore what the unsettled tail wrote, then re-stamp);
+    /// this is the first half, small enough to checkpoint every pointer event.
+    /// </remarks>
+    public readonly record struct SmudgeCarry(SKColor Colour, bool Started);
+
+    /// <summary>
+    /// Stamp dabs <paramref name="from"/> (inclusive) to <paramref name="to"/> (exclusive) of a
+    /// smudge, resuming from <paramref name="carry"/> and reporting where it ends up.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B69/B89.</b> The live preview used to hand the engine the newest <em>segment</em>, which
+    /// restarted four things every pointer event: the dab walk's spacing phase, the carried colour,
+    /// the heading, and — because the segment overlaps one point and a smudge is not idempotent —
+    /// it re-smeared the join. All four changed the moment the pen lifted and the whole stroke was
+    /// re-rendered from the record in one pass.
+    /// </para>
+    /// <para>
+    /// This is the same treatment blur got in B54, plus the piece blur does not need. The caller
+    /// walks the <b>whole</b> stroke so densification and spacing are the commit's, stamps only the
+    /// range that is not settled, and carries <see cref="SmudgeCarry"/> across events so the
+    /// resumed range sees exactly what a single pass would have handed it.
+    /// </para>
+    /// </remarks>
+    public static SmudgeCarry StampSmudgeRange(
+        SKCanvas target, SKBitmap read, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
+        SmudgeCarry carry)
+    {
+        var strength = Math.Clamp(stroke.Brush.Flow, 0, 1);
+        if (strength <= 0) return carry;
+        return StampSmudgeDabs(target, read, stroke, 1.0, strength, dabs, from, to, carry);
     }
 
     /// <summary>
@@ -1472,8 +1513,9 @@ public static class BrushEngine
         }
     }
 
-    private static void StampSmudgeDabs(
-        SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale, double strength)
+    private static SmudgeCarry StampSmudgeDabs(
+        SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale, double strength,
+        IReadOnlyList<Dab> dabs, int from, int to, SmudgeCarry carry)
     {
         var brush = stroke.Brush;
 
@@ -1489,24 +1531,18 @@ public static class BrushEngine
         var baseRate = Math.Clamp(brush.ColorRate, 0, 1);
         var ownColor = StrokeColor(stroke);
 
-        SKColor carried = default;
-        var hasColor = false;
-        // Heading is tracked here rather than taken from the walk because this path iterates
-        // positions: a tip that follows the stroke needs a direction, and B70 is about tips.
-        SKPoint? previous = null;
-        var heading = double.NaN;
-        foreach (var (pos, pressure) in DabPositions(stroke))
+        var carried = carry.Colour;
+        var hasColor = carry.Started;
+
+        // Heading comes from the walk now rather than being tracked here. It has to: a resumed
+        // range has no previous dab of its own, so recomputing locally would snap a direction-
+        // following tip to zero degrees at every pointer-event boundary — visible on a chisel or a
+        // bristle smudge (B70) and invisible on a round one, which is the worst kind of bug.
+        for (var i = Math.Max(0, from); i < Math.Min(to, dabs.Count); i++)
         {
+            var (pos, pressure, heading, _) = dabs[i];
             var radius = (float)RadiusAt(brush, pressure);
             if (radius <= 0) continue;
-            if (previous is { } from)
-            {
-                float hx = pos.X - from.X, hy = pos.Y - from.Y;
-                // A stalled pen keeps the last heading; recomputing from a zero-length step would
-                // snap the tip to zero degrees, which is the same rule the dab walk uses.
-                if (hx * hx + hy * hy > 0.0001f) heading = Math.Atan2(hy, hx) * 180 / Math.PI;
-            }
-            previous = pos;
 
             var s = (float)outputScale;
             var sample = SampleAverage(
@@ -1544,6 +1580,8 @@ public static class BrushEngine
             // it is dragged the length of the stroke.
             carried = MixPigment(sample, carried, carryOver);
         }
+
+        return new SmudgeCarry(carried, hasColor);
     }
 
     /// <summary>
