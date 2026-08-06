@@ -226,6 +226,12 @@ whether you picked the right folder in a way that *are you sure?* cannot, and it
 is worked out without reading a single drawing, so asking is cheap even when the
 answer is no.
 
+**It also says when what it is about to rebuild has drifted.** If a folder was
+exported and its drawings have changed since, the same sentence adds *"1 artifact
+moved on since it was last built (2 documents changed)"*. That is the same
+question one moment earlier — is this worth exporting — so it goes where you are
+already reading a number rather than on a badge somewhere else.
+
 Each artifact is written independently: one that fails names itself in the
 status line and the rest still land. A drawing that has gone missing from disk is
 named too rather than stopping the run.

@@ -438,7 +438,10 @@ exists; the half that does not is what makes it *one* click.
   - **No UI yet** — `SpriteSheetOptions.Pack` is reachable from code and the MCP surface. The picker belongs with the export preset in the one-click item below, and putting it anywhere else first would mean moving it.
 - [x] Atlas optimization `evidence: SpriteSheetResult, PackResult, APackedSheetIsSmallerThanTheGridOnRaggedFrames`
   - It **is** the packer, reported. `SpriteSheetResult.UsedArea` and `Occupancy` put a number on the result, because "atlas optimisation" with nothing measured is a feeling. Occupancy is deliberately not compared *between* modes: a grid with no padding is 100% cell-occupied by construction however empty those cells are, so total sheet area is the honest comparison.
-- [?] Sprite atlas generation across characters
+- [x] Sprite atlas generation across characters `evidence: SheetFrameOwner, SeveralDocumentsConcatenateInTheOrderTheyAreGiven, EachDocumentBecomesATagSoAnEngineCanTellTheClipsApart, EveryFrameKeepsItsOwnDocumentsPivot, RunningAGroupedPlanWritesOneSheetHoldingEveryDocument`
+  - **"Across characters" was a scope question, and Q30 answered it.** A folder declared as `OneArtifact` is the boundary; everything under it packs into one sheet, with a frame tag per document so an engine can still tell the walk from the run.
+  - The parts that are not obvious and are therefore tested: the untrimmed cell takes the **largest** canvas so a bigger character is not cropped by a smaller one that came first; pivot, fps, anchors and colliders are all **per owning document**, because a sheet-wide answer puts every character after the first in the wrong place; and `SheetFrameOwner` is what lets the engine exporters ask which document a frame came from.
+  - **A GameMaker sprite and a PNG sequence refuse.** One animation with one origin and one image speed is what those formats *are*, so several documents is not one artifact — they say so and write nothing rather than exporting the first and looking successful.
 - [x] Generic JSON exporter `evidence: SheetDocument, SheetMeta, SheetFrame`
 - [x] Export frame durations `evidence: SheetFrame, TheSidecarIsAsepriteShaped`
 - [x] Export metadata `evidence: SheetMeta, SpriteSheetResult`

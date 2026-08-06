@@ -513,7 +513,36 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             : ExportPlan.For(project.Manifest, ScopeOfSelected(), PresetById);
 
     /// <summary>The sentence the export confirmation shows.</summary>
-    public string DescribeExportPlan() => ExportPlan.Describe(PlanExport());
+    /// <remarks>
+    /// <b>Staleness rides along with the count</b>, rather than getting a badge
+    /// of its own. It is the same question asked one moment earlier — *is this
+    /// worth exporting* — and the confirmation is already where an artist stops
+    /// to read a number. A separate indicator somewhere else would be a second
+    /// place to look for the same answer, and the one nobody looks at.
+    /// </remarks>
+    public string DescribeExportPlan()
+    {
+        var text = ExportPlan.Describe(PlanExport());
+        if (StaleExports() is { Count: > 0 } stale)
+        {
+            var drifted = stale.Sum(s => s.Drifted);
+            text += $". {Plural(stale.Count, "artifact")} moved on since "
+                + $"{(stale.Count == 1 ? "it was" : "they were")} last built "
+                + $"({Plural(drifted, "document")} changed).";
+        }
+        return text;
+    }
+
+    /// <summary>What the project has built that its work has since moved past.</summary>
+    /// <remarks>
+    /// Its own property as well as part of the sentence, because the studio
+    /// dashboard wants the list rather than the count — and because a caller
+    /// that only wants to know *whether* anything drifted should not have to
+    /// parse prose to find out.
+    /// </remarks>
+    public bool HasStaleExports => StaleExports().Count > 0;
+
+    private static string Plural(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 
     /// <summary>
     /// A preset by id: the project's own first, then the built-ins.

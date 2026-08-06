@@ -332,4 +332,55 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
         // not take the rest of the plan with it.
         Assert.NotEmpty(planned);
     }
+
+
+    /// <summary>
+    /// The confirmation says when what it is about to rebuild has drifted.
+    /// </summary>
+    /// <remarks>
+    /// <b>StaleExports had no reader.</b> The branch built the machinery to know
+    /// an artifact had moved on and gave it nowhere to say so — the same "works,
+    /// nothing red, the artist cannot see it" shape the empty submenus had. It
+    /// rides on the count rather than getting a badge, because it is the same
+    /// question one moment earlier and the confirmation is where somebody has
+    /// already stopped to read a number.
+    ///
+    /// The negative half is the one that matters: a freshly recorded export must
+    /// report nothing, or the sentence says "moved on" always and means nothing.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheConfirmationNamesWhatHasDriftedSinceItWasBuilt()
+    {
+        var vm = Vm();
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        vm.SaveProject(everything: true);
+
+        // NewProject adopts the untitled document, so the plan holds two — record
+        // the one this test then edits.
+        var artifact = Assert.Single(
+            docker.PlanExport(), a => a.Documents.Any(d => d.Name == "Walk"));
+        docker.RecordExport(artifact, "/tmp/walk.png");
+
+        // Just built: nothing has moved, and the sentence must not say it has.
+        Assert.False(docker.HasStaleExports);
+        var fresh = docker.DescribeExportPlan();
+        output.WriteLine($"fresh: {fresh}");
+        Assert.DoesNotContain("moved on", fresh);
+
+        // Edit the drawing and save, which bumps its version.
+        var reference = docker.Project!.Manifest.Documents.Single(d => d.Name == "Walk");
+        var doc = ProjectIo.LoadDocument(docker.Project!, reference)!;
+        doc.Scene.FrameCount += 1;
+        docker.MarkDirty(reference);
+        vm.SaveProject();
+
+        Assert.True(docker.HasStaleExports);
+        var drifted = docker.DescribeExportPlan();
+        output.WriteLine($"after an edit: {drifted}");
+        Assert.Contains("moved on", drifted);
+        // Singular reads as a sentence rather than as "1 artifacts".
+        Assert.Contains("1 artifact ", drifted);
+        Assert.Contains("1 document changed", drifted);
+    }
 }
