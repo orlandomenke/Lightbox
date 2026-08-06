@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2458 tests, derived from the suite itself. Each line is a
+2459 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1643,7 +1643,8 @@ regression even when every test still compiles.
 - Sharing APalette Onto AFolder Scopes The Project — `:43`
 - Sharing The Same Palette Twice Is One Declaration — `:71`
 - Promoting ADeclaration Reaches The Whole Project — `:86`
-- Undoing ARecolour Of AProject Palette Restores It — `:110`
+- Recolouring Repaints Every Open Document That Uses The Swatch — `:112`
+- Undoing ARecolour Of AProject Palette Restores It — `:160`
 
 ## SelectionAdjustTests
 `tests/Lightbox.App.Tests/SelectionAdjustTests.cs`

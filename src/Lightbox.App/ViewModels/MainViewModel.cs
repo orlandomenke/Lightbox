@@ -1824,6 +1824,12 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public void RefreshProjectResources() => RegisterResources();
 
+    /// <summary>Whether a frame's render is still cached — B102's test probe.</summary>
+    internal bool IsFrameCached(string frameId) => _cache.Holds(frameId);
+
+    /// <summary>Paint from a palette swatch, as picking one in the panel does.</summary>
+    internal void PickSwatchForTest(string swatchId) => PaintWithSwatch(swatchId);
+
     private void RegisterResources()
     {
         // Imported textures come in with everything else the document carries,

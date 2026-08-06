@@ -184,6 +184,22 @@ public sealed class FrameBitmapCache : IDisposable
     /// Drop every render of a frame. A frame can be cached at more than one
     /// size or scale at once, and a stroke invalidates all of them.
     /// </summary>
+    /// <summary>Whether any render of this frame is currently held.</summary>
+    /// <remarks>
+    /// Exists for B102's regression test, which has to assert that a document
+    /// the artist is *not* looking at was invalidated. Reading pixels instead
+    /// would also pass on a build that repainted everything unconditionally,
+    /// which is the cost the targeted invalidation exists to avoid.
+    /// </remarks>
+    internal bool Holds(string frameId)
+    {
+        for (var node = _lru.First; node is not null; node = node.Next)
+        {
+            if (node.Value.FrameId == frameId) return true;
+        }
+        return false;
+    }
+
     public void Invalidate(string frameId)
     {
         var node = _lru.First;

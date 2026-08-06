@@ -1,6 +1,6 @@
 # Code index
 
-475 files · 121678 lines · 2458 tests.
+475 files · 121750 lines · 2459 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,8 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9703 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4332, TransformParts:6660
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9709 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4338, TransformParts:6666
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4101 ln) · 15 test files
   - MainWindow:18, UnsavedChoice:2753
 - `src/Lightbox.App/Views/MainWindow.axaml` (3299 ln) · **no tests**
@@ -105,7 +105,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (256 ln) · 3 test files
   - Workspace:13, WorkspaceStore:51
-- `src/Lightbox.App/ViewModels/DocumentTab.cs` (253 ln) · 25 test files
+- `src/Lightbox.App/ViewModels/DocumentTab.cs` (253 ln) · 26 test files
   - NewDocumentSettings:20, WorkspaceChoice:32, DocumentTabKind:41, DocumentTab:60
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
@@ -114,6 +114,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 - `src/Lightbox.App/Styles/Density.axaml` (233 ln) · **no tests**
 - `src/Lightbox.App/Services/ShortcutMap.cs` (232 ln) · 7 test files
   - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
+- `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (231 ln) · 2 test files
+  - FrameBitmapCache:13, EvictionOrder:56
 - `src/Lightbox.App/Services/AutoExport.cs` (227 ln) · 1 test files
   - AutoExportSettings:23, AutoExportOutcome:54, AutoExportReport:78, AutoExport:106
 - `src/Lightbox.App/ViewModels/PaletteNode.cs` (225 ln) · 2 test files
@@ -124,8 +126,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushLibraryWindow:34
 - `src/Lightbox.App/Services/ExportPreset.cs` (216 ln) · 7 test files
   - ExportTarget:6, ExportPreset:77
-- `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (215 ln) · 2 test files
-  - FrameBitmapCache:13, EvictionOrder:56
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml` (205 ln) · **no tests**
   - AngleSlider, BlackSlider, CategoryList, CentreBox, CountLabel, CountRow, CountSlider, CrossedBox …
 - `src/Lightbox.App/Services/AppSettings.cs` (196 ln) · 4 test files
@@ -371,7 +371,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Inbetweener:19
 - `src/Lightbox.Core/Documents/BrushCost.cs` (92 ln) · 2 test files
   - BrushCost:7, BrushCostOf:57
-- `src/Lightbox.Core/Documents/Frame.cs` (92 ln) · 88 test files
+- `src/Lightbox.Core/Documents/Frame.cs` (92 ln) · 89 test files
   - FrameRole:8, Frame:19, VectorFrame:57, PaintedFrame:70
 - `src/Lightbox.Core/Export/GodotConvert.cs` (91 ln) · 2 test files
   - GodotConvert:24

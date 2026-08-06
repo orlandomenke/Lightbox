@@ -98,6 +98,56 @@ public sealed class ScopeDeclarationTests(ITestOutputHelper output) : BrushState
     }
 
     /// <summary>
+    /// <b>B102.</b> A recolour repaints every open document that uses the swatch.
+    /// </summary>
+    /// <remarks>
+    /// Two documents open, both painted from the shared palette, and the
+    /// unfocused one used to keep the old colour from cache. Asserted through
+    /// the frame cache rather than pixels: the claim is that the other tab's
+    /// frames were <em>invalidated</em>, and reading pixels would also pass on a
+    /// build that repainted everything unconditionally — which is the thing the
+    /// stroke-walk exists to avoid.
+    /// </remarks>
+    [AvaloniaFact]
+    public void RecolouringRepaintsEveryOpenDocumentThatUsesTheSwatch()
+    {
+        var vm = Vm();
+        var palette = Assert.Single(vm.ProjectDocker.Project!.Palettes);
+        var swatch = palette.Swatches[0];
+
+        // Paint from the swatch in the first document, then in a second.
+        vm.PickSwatchForTest(swatch.Id);
+        vm.BeginStroke(20, 20, 0.5);
+        vm.MoveStroke(60, 60, 0.5);
+        vm.EndStroke();
+        var first = vm.ActiveTab!;
+
+        vm.NewDocument(new NewDocumentSettings("Second", 320, 240, 12, 72, "#ffffff", false));
+        vm.PickSwatchForTest(swatch.Id);
+        vm.BeginStroke(20, 20, 0.5);
+        vm.MoveStroke(60, 60, 0.5);
+        vm.EndStroke();
+        var second = vm.ActiveTab!;
+        Assert.NotSame(first, second);
+
+        var offscreen = first.Doc.Scene.Layers
+            .SelectMany(l => l.Cels)
+            .Select(c => c.Frame)
+            .OfType<PaintedFrame>()
+            .Single(f => f.Strokes.Any(st => st.SwatchId == swatch.Id));
+
+        var row = Assert.Single(vm.PaletteDocker.Swatches, r => r.Id == swatch.Id);
+        row.Color = "#00ff00";
+        vm.CommitSwatchEdit();
+
+        output.WriteLine($"active tab “{second.Title}”, other tab “{first.Title}” frame {offscreen.Id}");
+        // The unfocused document's frame was dropped from the cache, so it will
+        // re-render from the record with the new colour rather than serving the
+        // pixels it had.
+        Assert.False(vm.IsFrameCached(offscreen.Id));
+    }
+
+    /// <summary>
     /// <b>B103.</b> Undoing a recolour of a <em>project</em> palette restores it.
     /// </summary>
     /// <remarks>
