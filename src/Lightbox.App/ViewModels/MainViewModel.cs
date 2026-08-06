@@ -6619,6 +6619,52 @@ public sealed partial class MainViewModel : ObservableObject
         if (TransformActive) CancelTransform();
     }
 
+    private (double X, double Y) _placementMoveDelta;
+
+    /// <summary>Begin moving selected placements by delta. For Phase 3 modal selection.</summary>
+    public void BeginPlacementsMove()
+    {
+        if (_selectionManager.SelectedPlacementIds.Count == 0) return;
+        _placementMoveDelta = (0, 0);
+        AiStatus = $"Moving {_selectionManager.SelectedPlacementIds.Count} placement(s)";
+    }
+
+    /// <summary>Update placement move by delta.</summary>
+    public void UpdatePlacementsMove(double dx, double dy)
+    {
+        _placementMoveDelta = (dx, dy);
+        RequestSnapshot();
+    }
+
+    /// <summary>Commit placement moves.</summary>
+    public void EndPlacementsMove()
+    {
+        var (dx, dy) = _placementMoveDelta;
+        _placementMoveDelta = default;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+        MovePlacementsBy(dx, dy);
+    }
+
+    /// <summary>Apply movement delta to selected placements.</summary>
+    private void MovePlacementsBy(double dx, double dy)
+    {
+        var frame = PaintTargetOrKey();
+        if (frame is not PaintedFrame pf || pf.Placements is null) return;
+
+        // Apply changes to selected placements
+        foreach (var placementId in _selectionManager.SelectedPlacementIds)
+        {
+            if (pf.Placements.FirstOrDefault(p => p.Id == placementId) is { } p)
+            {
+                p.X += dx;
+                p.Y += dy;
+            }
+        }
+
+        MarkDocumentEdited();
+        RequestSnapshot();
+    }
+
     partial void OnTransformScopeChanged(TransformScope value)
     {
         // Changing scope mid-session re-collects under the new scope.
