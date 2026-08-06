@@ -3130,18 +3130,26 @@ public partial class MainWindow : Window
     {
         if ((sender as Control)?.DataContext is not ProjectRow pressed) return;
 
-        // Right-click selects first. Every item in the row's menu acts on the
-        // selection, and a menu that acted on whatever was selected before you
-        // right-clicked would delete the wrong thing sooner or later.
-        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
-        {
-            _vm.ProjectDocker.Selected = pressed;
-            return;
-        }
+        // B108. One rule, before any other question: a press on a row selects
+        // that row — either button, every kind of row. It used to select on
+        // right-click for anything and on left-click only for a document, so a
+        // left press on a folder left the selection wherever it was. Both
+        // toolbar surfaces read that selection as "where I am", which is how
+        // 🗁 came to reveal the project folder and ＋ New to file at the root
+        // while the artist was plainly looking at a folder.
+        //
+        // The decision lives in the docker (SelectFromPointer) rather than here,
+        // because synthetic pointer input is unreliable in this environment and
+        // a rule that only exists inside a pointer handler is one no test can
+        // reach.
+        _vm.ProjectDocker.SelectFromPointer(pressed);
+
+        // Right-click stops here: every item in the row's menu acts on the
+        // selection, which has just been set to the row under the pointer.
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
 
         if (pressed is not { Animation: not null } row) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
-        _vm.ProjectDocker.Selected = row;
 
         _draggedRow = row;
         try

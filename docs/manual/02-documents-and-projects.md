@@ -49,6 +49,11 @@ while you work — saving does not spring everything open. Each level is indente
 one step, and a document sits one step in from the folder holding it, so the
 tree reads as a tree.
 
+**Wherever you last clicked is where you are.** Selecting a row — with either
+mouse button, on any kind of row — makes it the folder new work goes into and
+the thing **🗁** shows in the file manager. Opening a folder with its chevron
+counts too: expand *Knight* and the next document you make is in *Knight*.
+
 Drag a folder or a document onto a folder to move it. Dropping a folder onto
 something inside itself does nothing, because there would be no way back to it.
 
