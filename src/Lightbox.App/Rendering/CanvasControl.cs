@@ -720,6 +720,7 @@ public sealed class CanvasControl : Control
         Gradient,
         Shape,
         Move,
+        Select,
     }
 
     public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
@@ -1549,6 +1550,25 @@ public sealed class CanvasControl : Control
         return (p.X, p.Y);
     }
 
+    /// <summary>Find the placement at document coordinates, or null if none hit.</summary>
+    private Core.Documents.SymbolPlacement? PickPlacementAt(double x, double y)
+    {
+        if (_getPlacementsForSelection is null) return null;
+        var placements = _getPlacementsForSelection();
+        if (placements is null || placements.Count == 0) return null;
+
+        const double hitRadius = 20;  // Document units; same as half the selection box
+        foreach (var placement in placements)
+        {
+            var dx = x - placement.X;
+            var dy = y - placement.Y;
+            var distSq = dx * dx + dy * dy;
+            if (distSq <= hitRadius * hitRadius)
+                return placement;
+        }
+        return null;
+    }
+
     /// <summary>
     /// Where document zero lands along one screen axis, and how many screen
     /// pixels a document pixel covers along it.
@@ -1842,6 +1862,19 @@ public sealed class CanvasControl : Control
                     e.Pointer.Capture(this);
                     _movingContent = true;
                     ContentMoveStarted?.Invoke(x, y, e.KeyModifiers.HasFlag(KeyModifiers.Control));
+                    e.Handled = true;
+                    return;
+                case CanvasToolMode.Select:
+                    if (_selectionManager is not null && _getPlacementsForSelection is not null)
+                    {
+                        var placement = PickPlacementAt(x, y);
+                        if (placement is not null)
+                        {
+                            var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                            var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+                            _selectionManager.SelectPlacementWithModifiers(placement.Id, shift, alt);
+                        }
+                    }
                     e.Handled = true;
                     return;
             }
