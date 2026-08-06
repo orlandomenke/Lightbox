@@ -6665,6 +6665,135 @@ public sealed partial class MainViewModel : ObservableObject
         RequestSnapshot();
     }
 
+    /// <summary>Begin moving selected guides.</summary>
+    public void BeginGuidesMove()
+    {
+        if (_selectionManager.SelectedGuideIndices.Count == 0) return;
+        _guidesMoveDelta = (0, 0);
+        AiStatus = $"Moving {_selectionManager.SelectedGuideIndices.Count} guide(s)";
+    }
+
+    /// <summary>Update guide move by delta.</summary>
+    public void UpdateGuidesMove(double dx, double dy)
+    {
+        _guidesMoveDelta = (dx, dy);
+        RequestSnapshot();
+    }
+
+    /// <summary>Commit guide moves.</summary>
+    public void EndGuidesMove()
+    {
+        var (dx, dy) = _guidesMoveDelta;
+        _guidesMoveDelta = default;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+        MoveGuidesBy(dx, dy);
+    }
+
+    private (double X, double Y) _guidesMoveDelta;
+
+    /// <summary>Apply movement delta to selected guides.</summary>
+    private void MoveGuidesBy(double dx, double dy)
+    {
+        var guides = Doc?.Scene?.Guides;
+        if (guides is null || guides.Count == 0) return;
+
+        var selectedGuideIndices = _selectionManager.SelectedGuideIndices.ToList();
+        if (selectedGuideIndices.Count == 0) return;
+
+        _editor.PerformDelta(
+            _ =>
+            {
+                foreach (var guideIndex in selectedGuideIndices)
+                {
+                    if (guideIndex >= 0 && guideIndex < guides.Count)
+                    {
+                        guides[guideIndex].X += dx;
+                        guides[guideIndex].Y += dy;
+                    }
+                }
+                NotifyGuides();
+            },
+            _ =>
+            {
+                foreach (var guideIndex in selectedGuideIndices)
+                {
+                    if (guideIndex >= 0 && guideIndex < guides.Count)
+                    {
+                        guides[guideIndex].X -= dx;
+                        guides[guideIndex].Y -= dy;
+                    }
+                }
+                NotifyGuides();
+            });
+    }
+
+    /// <summary>Begin moving selected reference boxes.</summary>
+    public void BeginRefBoxesMove()
+    {
+        if (_selectionManager.SelectedRefBoxIndices.Count == 0) return;
+        _refBoxesMoveDelta = (0, 0);
+        AiStatus = $"Moving {_selectionManager.SelectedRefBoxIndices.Count} reference box(es)";
+    }
+
+    /// <summary>Update reference box move by delta.</summary>
+    public void UpdateRefBoxesMove(double dx, double dy)
+    {
+        _refBoxesMoveDelta = (dx, dy);
+        RequestSnapshot();
+    }
+
+    /// <summary>Commit reference box moves.</summary>
+    public void EndRefBoxesMove()
+    {
+        var (dx, dy) = _refBoxesMoveDelta;
+        _refBoxesMoveDelta = default;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+        MoveRefBoxesBy(dx, dy);
+    }
+
+    private (double X, double Y) _refBoxesMoveDelta;
+
+    /// <summary>Apply movement delta to selected reference boxes.</summary>
+    private void MoveRefBoxesBy(double dx, double dy)
+    {
+        var activeRef = ActiveReference;
+        if (activeRef?.Cells is null || activeRef.Cells.Count == 0) return;
+
+        var selectedBoxIndices = _selectionManager.SelectedRefBoxIndices.ToList();
+        if (selectedBoxIndices.Count == 0) return;
+
+        var intDx = (int)Math.Round(dx);
+        var intDy = (int)Math.Round(dy);
+
+        _editor.PerformDelta(
+            _ =>
+            {
+                foreach (var boxIndex in selectedBoxIndices)
+                {
+                    if (boxIndex >= 0 && boxIndex < activeRef.Cells.Count)
+                    {
+                        var cell = activeRef.Cells[boxIndex];
+                        cell.X += intDx;
+                        cell.Y += intDy;
+                    }
+                }
+                NotifyReference();
+            },
+            _ =>
+            {
+                foreach (var boxIndex in selectedBoxIndices)
+                {
+                    if (boxIndex >= 0 && boxIndex < activeRef.Cells.Count)
+                    {
+                        var cell = activeRef.Cells[boxIndex];
+                        cell.X -= intDx;
+                        cell.Y -= intDy;
+                    }
+                }
+                NotifyReference();
+            });
+    }
+
     partial void OnTransformScopeChanged(TransformScope value)
     {
         // Changing scope mid-session re-collects under the new scope.
