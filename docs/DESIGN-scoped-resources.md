@@ -89,6 +89,48 @@ cannot do is the opposite: there is no way to scope a symbol to the knight.
 
 ---
 
+## Before any of it: this mechanism has been built three times already
+
+Checking the design against the roadmap turned up the thing that should govern
+it. **Three shipped features independently invented a scope chain, and every one
+of them landed the same two properties.**
+
+| Feature | Roadmap | The chain | Precedence pinned by | Renders-alone pinned by |
+| --- | --- | --- | --- | --- |
+| **Brush tips** | Pillar 0, *"A tip library, scoped like palettes: project, user, and inlined on export"* | user → project → inlined into the document on export | `AProjectTipComesBeforeAUserTip` | `DeletingFromTheLibraryCannotChangeADrawing` |
+| **Symbols** | Pillar 3, *"Global and project symbol scopes — a personal library beside the project's"* | global library → project, copied on place | `PlacingAGlobalSymbolCopiesItIntoTheProject`, `EditingALibrarySymbolDoesNotReachIntoAProjectThatPlacedIt` | `TheProjectRendersWithTheLibraryGone` |
+| **Palettes** | Pillar 1, *"Shared palette across a character's animations"* | project → character → document | `TwoAnimationsUnderOneCharacterPaintFromOnePalette` | colour stored literally beside `SwatchId` |
+
+Three consequences, and they are worth more than anything I would have designed
+from scratch:
+
+1. **The determinism boundary is not a proposal, it is already the rule and
+   already tested.** `DeletingFromTheLibraryCannotChangeADrawing` and
+   `TheProjectRendersWithTheLibraryGone` are the same assertion twice, written by
+   whoever built each feature without a shared statement to point at. The
+   section on it below is a *restatement*, not a new constraint — which is the
+   strongest possible position for it.
+2. **The tip item literally says "scoped like palettes".** The intent to unify
+   was written down; what was missing was a mechanism to unify *onto*.
+3. **There is already a verb for moving a resource up a scope: promote.**
+   `PromotingCopiesUpAndKeepsTheId` is symbols' existing gesture, and it is
+   exactly what "publish this palette project-wide" needs. Reuse the word.
+
+**And one correction this forces on the model below.** Tips and symbols scope on
+a **user ↔ project** axis — a personal library that outlives any one project.
+Q30 adds a **tree** axis, folder depth within a project. These are different axes
+and both are wanted: a personal tip library is not a folder, and a knight's
+palette is not a machine-level preference. So the full chain is
+
+```
+user / global library  →  project  →  folder path (walk up)  →  document
+```
+
+with nearest winning throughout. Designing only the tree axis would have stranded
+the two features that already ship the other one.
+
+---
+
 ## The finding: two mechanisms, and we have one of each
 
 | | Reach | Today | Serves |
@@ -198,9 +240,9 @@ the same question — *would an artist want this shared by a folder?*
 | **Guides** | per document | **Yes.** A character height guide at the knight folder so every knight animation shares it — the roadmap already carries `[?] Character height guide` and this is what it wants to be |
 | **Export configuration** | per document | **Yes.** The knight exports at one cell size, the boss at another; per-folder is exactly the grain a sprite pipeline needs. Named in the owner's Q30 answer |
 | **Brush + tips + textures** `Manifest.Brush`, `Manifest.Tips`, `Doc.BrushTips`, `Doc.Textures` | project-wide library, per-document raster | **Yes, as libraries.** The manifest comment already says *"Pillar 1 says a character's work shares one palette and one brush set"* — scoped was always the intent and project-wide was the only scope available. The raster must keep travelling into each document (see the boundary below) |
-| **Templates** `Doc.IsTemplate` | a document flag | **Yes, and it is the sharpest of the small ones.** Workflow 1's `locomotion` folder wants new animations in it to start from the locomotion template. A scope declaring its default template turns "new document here" into something that knows what it is |
-| **Frame tags / markers** | per document | **Yes, as a vocabulary.** A project-level or folder-level set of tag names (*anticipation, contact, breakdown*) so tags mean the same thing across animations and can be queried. This is also what the roadmap's expression/pose metadata item needs underneath it |
-| **Timing presets** | app-level store | **Probably.** "This show is on 2s" is a real per-project statement. Lower value than the rest because the app-level default is usually right |
+| **Templates** `Doc.IsTemplate` | **shipped** — Pillar 6, *"Animation templates — a document in the project marked as a template"* (`IsTemplate`, `TemplateId`, `NewFromTemplate`, `ANewDocumentFromATemplateIsACopyNotALink`) | **Yes, and it is the sharpest of the small ones — and cheaper than it looked.** The template machinery exists; what is missing is a *default* template per scope, so workflow 1's `locomotion` folder makes new animations that already know what they are. One field on the scope, resolved by the same walk |
+| **Frame markers / tags** | **shipped** — Pillar 6, `FrameMarker`, `IsEvent`, `Note`, and *"Frame tagging — this is frame markers, shipped"* | **Yes, as a shared vocabulary.** Markers, notes and event flags all exist per document; what does not is an agreed *set of names* (*anticipation, contact, breakdown*) so a tag means the same thing across forty animations and can be queried. This is also the substrate the market-research item *"Expression and pose metadata tagging"* needs — that item is unbuildable while every document invents its own words |
+| **Timing presets** | **shipped app-level** — Pillar 3, `TimingPresetStore`, `ASavedPatternPersistsAndComesBackOnTheNextLaunch` | **Probably, and it already has the wrong half of the axis.** Persisting per launch is the user tier; "this show is on 2s" is the project tier and cannot be said. Low value only because the app-level default is usually right |
 | **Palette folders** `Doc.PaletteFolders` | per document | Follows palettes wherever they go — not a separate decision |
 | **Onion skin settings** | per document | **Marginal.** Mostly a per-artist preference; a folder-level default would rarely be reached for |
 | **Camera** | per scene | **No.** Not a shared resource — it is authored content belonging to one scene |
@@ -266,22 +308,49 @@ Not a schedule — an ordering, so each step is landable alone and nothing is le
 half-migrated.
 
 1. **The scope record and resolution.** `ResourceScope` on `ProjectFolder`,
-   walk-up accumulation, `Subtree`/`Project` reach, nearest wins. No resource
-   moves yet; the mechanism is testable on its own with palettes alone.
-2. **Palettes onto it**, since Q30 answered them and they are the one with a
-   working live path to compare against. Plus the palette-id guard above.
+   walk-up accumulation, the four-tier chain, nearest wins. No resource moves
+   yet; the mechanism is testable on its own. **Model it on `SymbolScopes`**,
+   which already resolves a two-tier chain and has the tests to copy.
+2. **Palettes onto it** — Q30 answered them, and Pillar 1's *"Shared palette
+   across a character's animations"* (`TwoAnimationsUnderOneCharacterPaintFromOnePalette`)
+   is the behaviour that has to survive with a folder in place of the character.
+   Plus the palette-id guard above.
 3. **References**, widening `Character.References` into a scoped `ReferenceRef`
-   that can point at a sheet, a document or an image. Workflows 1 and 3 close
-   here, and the UI label stops saying "Character".
-4. **Gradients, guides, export config, templates** — mechanical once 1 exists,
-   and each is independently landable.
-5. **Symbols gain a scope**, which is a narrowing of existing behaviour rather
-   than a widening, so it comes last and needs its own compatibility thought: a
-   symbol with no declared scope stays project-wide, which is what every existing
-   project means.
+   pointing at a sheet, a document or an image. Workflows 1 and 3 close here.
+   Touches Pillar 1's *"Character workspace"* and Pillar 0's *"Reference image
+   panel"* (both `ReferenceSheet`, `ReferenceTabTests`), and it is where the UI
+   label stops saying "Character".
+4. **Gradients, guides, export config, default templates** — mechanical once 1
+   exists, each independently landable. Two roadmap items close as a side effect:
+   `[?] Character height guide` becomes an ordinary guide set declared on the
+   knight folder, and Pillar 6's shipped template machinery gains the per-scope
+   default it was missing.
+5. **Symbols gain the tree axis.** A *narrowing* of shipped behaviour rather than
+   a widening, so it comes last. Pillar 3's *"Global and project symbol scopes"*
+   already has the user↔project half; this adds folder depth beneath it. A symbol
+   with no declared scope stays project-wide, which is what every existing
+   project means — and `TheProjectRendersWithTheLibraryGone` must keep passing
+   untouched.
 
-Brush libraries and the frame-tag vocabulary sit outside this ordering — both are
-wanted, neither blocks anything else.
+**Two that sit outside the ordering.** Brush libraries — Pillar 0's tip library
+already says *"scoped like palettes"*, so it joins whenever step 1 exists — and
+the frame-tag vocabulary, which blocks nothing but unblocks the market-research
+metadata item.
+
+### Roadmap items this design is the missing piece of
+
+Worth listing, because several unbuilt items are waiting on exactly this and do
+not say so:
+
+| Item | Pillar | Why it needs this |
+| --- | --- | --- |
+| `[?] Character height guide` | 6 | It is a guide set declared on a scope. There is no other thing it could be |
+| `[?] Sprite atlas generation across characters` | 5 | "Across characters" is a scope question — which subtree's assets pack together |
+| *Expression and pose metadata tagging* | 1 (research) | Needs a shared tag vocabulary or every document invents its own words |
+| *Studio dashboard* | 6 | Reads status across the tree; the folder walk is the same traversal |
+| *Collaborative palette sync* | Tier 3 | Cannot sync a palette that has no scope to be synced *at* |
+| *Style guide enforcement* | Tier 3 | A style guide is a scoped resource plus a checker |
+| *One registry of features, defaults per project type* | Architecture | Sibling mechanism, same shape — derived defaults, nearest wins, nothing gated. Worth building the two consistently rather than discovering later that a project type and a folder disagree about what a default is |
 
 ## What this does not settle
 
