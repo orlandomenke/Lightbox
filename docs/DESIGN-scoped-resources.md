@@ -328,7 +328,24 @@ half-migrated.
    A guide lives on a document and nowhere else; export settings are chosen per
    export. Scoping needs something that outlives one document, so those two want
    that record built first — they are not a line of resolver away, and the next
-   person to try will otherwise rediscover it. Two roadmap items close as a side effect:
+   person to try will otherwise rediscover it.
+
+   **Guides followed on 2026-08-06**, once `GuideSet` existed to point at: an id,
+   a name and the guides themselves, held on the manifest and absent until one is
+   made. The roadmap's `[?] Character height guide` is that and a declaration and
+   nothing else. Note the boundary holds the ordinary way here rather than the
+   palette way — guides are *copied into* a document when used, not resolved at
+   render time, because a drawing whose snapping changed when it was dragged into
+   another folder is the defect scoping exists to prevent.
+
+   **Export configuration is still waiting, and for a sharper reason than
+   guides were.** There is no export-settings record in `Lightbox.Core` at all —
+   the export window collects its options directly and hands them to the
+   converters. So this is not "add a record beside `GuideSet`": it is lifting the
+   window's settings into Core as a named, id-bearing preset first, and that is a
+   design decision about what an export preset *is* rather than a mechanical
+   step. Worth doing — Pillar 5 and the sprite-atlas item both want it — and
+   worth doing deliberately. Two roadmap items close as a side effect:
    `[?] Character height guide` becomes an ordinary guide set declared on the
    knight folder, and Pillar 6's shipped template machinery gains the per-scope
    default it was missing.

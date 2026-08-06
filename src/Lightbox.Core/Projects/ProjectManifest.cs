@@ -325,6 +325,16 @@ public sealed class ProjectManifest
     /// </remarks>
     public List<ScopedResource>? Resources { get; set; }
 
+    /// <summary>
+    /// Guide sets shared across the project, once there are any.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q30.</b> Null and absent until one is made — a project that never
+    /// shared a guide carries no key. Which documents may pull from which set is
+    /// <see cref="GuideScopes"/>; this is only where they live.
+    /// </remarks>
+    public List<GuideSet>? GuideSets { get; set; }
+
     public Documents.BrushSettings? Brush { get; set; }
 
     /// <summary>

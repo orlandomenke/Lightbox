@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2464 tests, derived from the suite itself. Each line is a
+2468 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2455,6 +2455,14 @@ regression even when every test still compiles.
 - One Alpha Stop Holds Its Value Everywhere — `:225`
 - An Alpha Track Round Trips Through The Document — `:234`
 - AGradient With No Alpha Track Writes No Alpha Key — `:250`
+
+## GuideScopeTests
+`tests/Lightbox.Core.Tests/GuideScopeTests.cs`
+
+- AGuide Set On AFolder Reaches Every Document Under It — `:45`
+- AGuide Set On One Character Is Not Visible To Another — `:60`
+- APublished Guide Set Reaches Every Document — `:76`
+- AProject With No Guide Sets Writes No Key — `:95`
 
 ## GuideTests
 `tests/Lightbox.Core.Tests/GuideTests.cs`
