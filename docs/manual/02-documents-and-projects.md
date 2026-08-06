@@ -146,6 +146,30 @@ characters work from actually needs.
 The panel is called **Reference sheets** rather than Character sheets, because
 nothing about it was ever specific to characters.
 
+#### How a folder is exported
+
+Right-click a folder and pick **Export this as** to choose a preset. That does
+two things at once, and the second is the one worth knowing: it sets the
+settings, **and it says where one file ends**.
+
+| The preset produces | What you get |
+| --- | --- |
+| **One file** | Everything under the folder packs into a single sheet |
+| **One file per folder inside it** | Shared settings, one sheet per character |
+| **One file per document** | A file each — what you get before you declare anything |
+
+So declaring on *Knight* makes the knight one sheet; declaring instead on
+*Knight ▸ Locomotion* makes locomotion its own. The status line says which, and
+the export confirmation counts it — *"2 files from 47 documents, 3 held back by
+status"* — because a number tells you whether you picked the right folder in a
+way that *are you sure?* cannot.
+
+A preset can also be told which **statuses** are allowed out, so work in progress
+stays out of a shipped sheet, and which status **rebuilds** it — mark an
+animation Ready and the sheet holding it is rebuilt, not just that one drawing.
+
+Exporting a folder includes everything nested inside it.
+
 #### Rows that have no file behind them
 
 Two of them, and they mean different things:

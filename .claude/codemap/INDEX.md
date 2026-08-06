@@ -1,6 +1,6 @@
 # Code index
 
-483 files · 123724 lines · 2500 tests.
+483 files · 123813 lines · 2501 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -51,12 +51,12 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4346, TransformParts:6674
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4106 ln) · 16 test files
   - MainWindow:18, UnsavedChoice:2758
-- `src/Lightbox.App/Views/MainWindow.axaml` (3309 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3330 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2848 ln) · 9 test files
   - CanvasControl:28, CanvasToolMode:692, GridGesture:748, TxDrag:895, DrawOp:2311
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1914 ln) · 11 test files
-  - ProjectRow:19, ProjectViewModel:328, NewItemKind:1074
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1946 ln) · 11 test files
+  - ProjectRow:19, ProjectViewModel:328, NewItemKind:1106
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
   - MainViewModel:20
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
@@ -65,7 +65,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ShortcutRow:12, ShortcutGroup:24, GridRow:39, AiFieldRow:99, ConfigureWindow:150
 - `src/Lightbox.App/Services/SpriteSheetExporter.cs` (762 ln) · 98 test files
   - SpriteSheetOptions:14, SpriteSheetResult:54, SpriteSheetExporter:103, SheetDocument:634, SheetFrame:640, SheetMeta:673, SheetTag:704, SheetEvent:718 …
-- `src/Lightbox.App/Services/UnityExporter.cs` (648 ln) · 13 test files
+- `src/Lightbox.App/Services/UnityExporter.cs` (648 ln) · 14 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml.cs` (496 ln) · 1 test files
   - TipScope:16, TipRow:29, BrushTipsWindow:62
@@ -283,7 +283,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StripSlicer:49
 - `src/Lightbox.Core/Projects/ProjectManifest.cs` (389 ln) · 27 test files
   - ProjectType:11, DocumentRef:29, CharacterVariant:147, Character:168, ProjectScene:238, ProjectManifest:262
-- `src/Lightbox.Core/Projects/ExportPreset.cs` (352 ln) · 11 test files
+- `src/Lightbox.Core/Projects/ExportPreset.cs` (352 ln) · 12 test files
   - SpriteTrim:7, SpritePack:32, ExportGrouping:59, ExportTarget:75, ExportPreset:146
 - `src/Lightbox.Core/Projects/Templates.cs` (344 ln) · 2 test files
   - Templates:25, NewLayer:96, LayerChange:107, PullPreview:118, PullOptions:136
@@ -323,7 +323,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipShape:4, TipRecipe:70, BrushTip:138
 - `src/Lightbox.Core/Export/SkylinePacker.cs` (169 ln) · 1 test files
   - PackedRect:5, PackResult:9, SkylinePacker:41
-- `src/Lightbox.Core/Projects/ExportPlan.cs` (163 ln) · 1 test files
+- `src/Lightbox.Core/Projects/ExportPlan.cs` (163 ln) · 2 test files
   - ExportArtifact:14, ExportPlan:47
 - `src/Lightbox.Core/Documents/CollisionShapes.cs` (157 ln) · 4 test files
   - CollisionShapes:21

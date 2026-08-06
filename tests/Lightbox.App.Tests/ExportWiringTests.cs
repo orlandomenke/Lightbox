@@ -101,6 +101,42 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
         Assert.Equal(1, stale.Drifted);
     }
 
+    /// <summary>
+    /// Declaring a preset on a folder changes both the settings and how many
+    /// files it produces.
+    /// </summary>
+    /// <remarks>
+    /// The two are one gesture on purpose: the folder that declares a preset is
+    /// the folder whose subtree becomes one deliverable, so choosing "as one
+    /// sheet" is choosing a boundary as well as a format.
+    /// </remarks>
+    [AvaloniaFact]
+    public void DeclaringAPresetSetsTheArtifactBoundary()
+    {
+        var vm = Vm();
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Run");
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
+
+        // Unscoped: two documents, two files.
+        Assert.Equal(2, docker.PlanExport().Count);
+
+        var sheet = docker.ShareableExportPresets.FirstOrDefault(
+            p => p.Grouping == ExportGrouping.OneArtifact)
+            ?? new ExportPreset { Name = "Sheet", Grouping = ExportGrouping.OneArtifact };
+        (docker.Project!.Manifest.ExportPresets ??= []).Add(sheet);
+        docker.SetExportPresetEntryCommand.Execute(sheet);
+
+        var plan = docker.PlanExport();
+        output.WriteLine($"{docker.Status} -> {ExportPlan.Describe(plan)}");
+        var one = Assert.Single(plan);
+        Assert.Equal(2, one.Documents.Count);
+        Assert.Contains("one file", docker.Status);
+    }
+
     /// <summary>A project that has exported nothing reports nothing stale.</summary>
     [AvaloniaFact]
     public void NothingExportedMeansNothingStale()

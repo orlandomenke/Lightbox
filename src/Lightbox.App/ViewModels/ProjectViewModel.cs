@@ -536,6 +536,38 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// with zero declarations reads as unscoped, which is the same state it
     /// started in, so taking the last one back does restore the old behaviour.
     /// </remarks>
+    /// <summary>
+    /// The export presets an artist can put on the selected scope — the
+    /// project's own, then the built-ins.
+    /// </summary>
+    public IReadOnlyList<ExportPreset> ShareableExportPresets =>
+        Project is null
+            ? []
+            : [.. Project.Manifest.ExportPresets ?? [], .. ExportPreset.BuiltIns];
+
+    /// <summary>Make this preset the one the selected scope exports with.</summary>
+    /// <remarks>
+    /// <b>The declaration is the artifact boundary</b>, so this is not only "use
+    /// these settings" — it says *everything under here is one deliverable*.
+    /// The status line says which, because a menu click that silently changes
+    /// how many files a folder produces is the kind of thing that surprises
+    /// somebody a week later.
+    /// </remarks>
+    [RelayCommand]
+    private void SetExportPresetEntry(ExportPreset? preset)
+    {
+        if (Project is not { } project || preset is null) return;
+        var scope = ScopeOfSelected();
+        ExportScopes.SetPreset(project.Manifest, scope, preset.Id);
+        var produces = preset.Grouping switch
+        {
+            ExportGrouping.OneArtifact => "as one file",
+            ExportGrouping.PerChildFolder => "one file per folder inside it",
+            _ => "one file per document",
+        };
+        AfterScopeChange(project, $"{ShareScopeLabel} exports {produces}.");
+    }
+
     /// <summary>The menu binds this, because a menu item hands over the object.</summary>
     [RelayCommand]
     private void SharePaletteEntry(Palette? palette)
