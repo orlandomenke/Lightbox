@@ -14,7 +14,7 @@ public class DocumentTabTests
         var vm = new MainViewModel(null);
         var tab = Assert.Single(vm.Tabs);
         Assert.Equal("Untitled-1", tab.Title);
-        // B97. It badges, because it has never been written — the reporter
+        // B99. It badges, because it has never been written — the reporter
         // found the old silence and the badge is the honest answer. What it
         // must NOT do is claim there is work to lose: nothing has been drawn,
         // so closing it asks nothing. Two predicates on purpose.
@@ -39,7 +39,7 @@ public class DocumentTabTests
         Assert.Equal(24, vm.Doc.Scene.Fps);
         Assert.Equal(300, vm.Doc.Scene.Ppi);
         Assert.Equal("#202020", vm.Doc.Scene.BackgroundColor);
-        // Never written, so it badges (B97) — and settings chosen in the New
+        // Never written, so it badges (B99) — and settings chosen in the New
         // dialog are not work the artist would mourn.
         Assert.True(tab.IsUnsaved);
         Assert.False(tab.HasWorkToLose);
@@ -103,7 +103,7 @@ public class DocumentTabTests
         vm.ActiveTab = vm.Tabs[0];
         Assert.Equal(1, vm.CurrentFrameIndex); // restored
         // Switching is not an edit, so neither tab has work in it. They both
-        // still badge as never-written, which is a different claim (B97).
+        // still badge as never-written, which is a different claim (B99).
         Assert.False(vm.Tabs[0].HasWorkToLose);
         Assert.False(vm.Tabs[1].HasWorkToLose);
     }

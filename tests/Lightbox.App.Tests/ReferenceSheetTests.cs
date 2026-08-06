@@ -81,7 +81,7 @@ public class ReferenceTabTests
         Assert.Single(frame.Strokes);
         Assert.Single(((PaintedFrame)owner.Doc.ReferenceSheets[0].Views[0].Layers[0].Cels[0].Frame!).Strokes);
         Assert.True(owner.IsDirty);
-        // B93. Both tabs show it, and this assertion used to say the opposite.
+        // B95. Both tabs show it, and this assertion used to say the opposite.
         // The reporter found the badge on the parent only: a sheet tab is a view
         // onto the owner's document, so an artist looking at the sheet should not
         // have to go and find another tab to learn there is unsaved work.

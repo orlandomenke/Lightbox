@@ -98,7 +98,7 @@ public sealed partial class DocumentTab : ObservableObject
     /// document that has never been written at all.
     /// </summary>
     /// <remarks>
-    /// <b>B97.</b> Minus one rather than zero, and the distinction is the bug:
+    /// <b>B99.</b> Minus one rather than zero, and the distinction is the bug:
     /// a fresh document sits at revision 0, so a saved-at-zero default would
     /// make "never saved" indistinguishable from "saved and untouched". A new
     /// document has nothing on disk and must say so.
@@ -119,10 +119,10 @@ public sealed partial class DocumentTab : ObservableObject
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>B96.</b> Derived, not assigned. It used to be a settable flag that
+    /// <b>B98.</b> Derived, not assigned. It used to be a settable flag that
     /// each edit path raised for itself, which failed in both directions: paths
-    /// that changed nothing still raised it (B79, B92, B93, B94), and no path
-    /// could lower it when an edit was undone (B95). Deriving it from
+    /// that changed nothing still raised it (B79, B94, B95, B96), and no path
+    /// could lower it when an edit was undone (B97). Deriving it from
     /// <see cref="DocumentEditor.Revision"/> means the question is answered by
     /// the edit record rather than by whoever remembered to ask.
     /// </para>
@@ -135,7 +135,7 @@ public sealed partial class DocumentTab : ObservableObject
     public bool IsDirty => Kind switch
     {
         // A reference tab is a view onto its owner's document, so it is dirty
-        // exactly when the owner is. B93: the reporter found the badge on the
+        // exactly when the owner is. B95: the reporter found the badge on the
         // parent and not on the sheet, and an artist looking at the sheet
         // should not have to check another tab to learn there is unsaved work.
         DocumentTabKind.Reference => Owner?.IsDirty ?? false,
@@ -164,7 +164,7 @@ public sealed partial class DocumentTab : ObservableObject
     /// Whether closing this would lose work the artist did.
     /// </summary>
     /// <remarks>
-    /// <b>B97,</b> and deliberately not the same question as
+    /// <b>B99,</b> and deliberately not the same question as
     /// <see cref="IsDirty"/>. The badge means *this differs from disk*, which a
     /// brand-new empty document does — it has no file at all. Prompting means
     /// *there is something to lose*, which an untouched new document has not,

@@ -45,7 +45,7 @@ public sealed class StartScreenTests : BrushStateIsolated
         Assert.Equal(tabs, vm.Tabs.Count);
         Assert.NotNull(vm.ActiveTab);
         // Escaping the start screen leaves a blank document, not work — it
-        // badges as never-written (B97) and has nothing to lose.
+        // badges as never-written (B99) and has nothing to lose.
         Assert.False(vm.ActiveTab!.HasWorkToLose);
     }
 

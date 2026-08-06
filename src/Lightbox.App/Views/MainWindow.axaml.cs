@@ -1470,7 +1470,7 @@ public partial class MainWindow : Window
     }
 
     /// <remarks>
-    /// <b>B93.</b> Bound to <c>LostFocus</c>, which fires whether or not the
+    /// <b>B95.</b> Bound to <c>LostFocus</c>, which fires whether or not the
     /// artist typed anything — so this used to mark the document unsaved for
     /// clicking into a name box and out again. Compare against what was there
     /// on the way in, exactly as the project docker's rename does.
@@ -2904,7 +2904,7 @@ public partial class MainWindow : Window
     {
         if (_closeConfirmed) return;
 
-        // B97. HasWorkToLose, not IsDirty: a never-saved document badges from
+        // B99. HasWorkToLose, not IsDirty: a never-saved document badges from
         // the moment it exists, and File ▸ New followed by a close must not
         // argue about a drawing nobody made. What this must still catch — and
         // what B80 shipped unable to catch — is a new document that *has* been
@@ -3396,7 +3396,7 @@ public partial class MainWindow : Window
         // character". B62 gave it a second, more findable way — the project row
         // has no Character either, so dropping onto it means the same thing.
         var destination = over?.Character;
-        // B92. The guard used to compare characters alone, which was the only
+        // B94. The guard used to compare characters alone, which was the only
         // way to group documents when it was written — B85/B86 added the folder
         // tree beside it and this was never widened, so dragging a document
         // within the folder it already sits in read as a real move and marked

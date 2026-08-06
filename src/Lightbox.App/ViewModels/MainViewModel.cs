@@ -612,7 +612,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// you never asked for.
     /// </remarks>
     /// <remarks>
-    /// <b>B97</b> split this question in two. "Untouched" means *nothing was
+    /// <b>B99</b> split this question in two. "Untouched" means *nothing was
     /// drawn*, which is <see cref="DocumentTab.HasWorkToLose"/>; it is no longer
     /// <c>IsDirty</c>, because a never-saved document badges from the moment it
     /// exists and would make every blank document look touched.
@@ -768,7 +768,7 @@ public sealed partial class MainViewModel : ObservableObject
             ProjectDocker.MarkAllSaved();
             foreach (var tab in Tabs)
             {
-                // B97. A tab with no Source is not in the project, so a project
+                // B99. A tab with no Source is not in the project, so a project
                 // save does not write it and must not claim to have. It keeps
                 // its badge, which is now the truth rather than a stale flag.
                 if (tab.Source is not null) tab.MarkSaved();
@@ -799,10 +799,10 @@ public sealed partial class MainViewModel : ObservableObject
         set
         {
             if (SaveTargetTab is not { } tab || tab.Doc.IsTemplateDocument == value) return;
-            // B96. Through the editor, not around it. Dirtiness is now derived
+            // B98. Through the editor, not around it. Dirtiness is now derived
             // from the edit record, so a mutation that bypasses it changes the
             // document without the badge noticing — the opposite failure to the
-            // one B96 fixes, and the more dangerous of the two.
+            // one B98 fixes, and the more dangerous of the two.
             tab.Editor.Perform(doc => Core.Projects.Templates.SetTemplate(doc, value));
             MarkDocumentEdited();
             OnPropertyChanged(nameof(IsActiveDocumentTemplate));
@@ -953,7 +953,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var title = filePath is null ? NextUntitledName() : TitleFromPath(filePath);
         var tab = new DocumentTab(new DocumentEditor(doc), title) { FilePath = filePath };
-        // B97. Opened from disk means it *is* what is on disk — without this it
+        // B99. Opened from disk means it *is* what is on disk — without this it
         // would inherit the never-saved default and badge a file nobody touched.
         if (filePath is not null) tab.MarkSaved();
         AddTab(tab);
@@ -1094,7 +1094,7 @@ public sealed partial class MainViewModel : ObservableObject
                 // Undo/redo replaces the wrapper doc's layer list; keep the
                 // owning document's view pointed at whatever the editor holds.
                 if (tab.View is { } view) view.Layers = Doc.Scene.Layers;
-                // The edit belongs to the owning document. B93: refresh this
+                // The edit belongs to the owning document. B95: refresh this
                 // tab too, so the sheet an artist is looking at shows the badge
                 // rather than making them go and find the parent.
                 if (tab.Owner is { } owner) owner.RefreshDirty();
@@ -1110,7 +1110,7 @@ public sealed partial class MainViewModel : ObservableObject
                 break;
 
             default:
-                // B96. Not "this is now dirty" — "look again at whether it is".
+                // B98. Not "this is now dirty" — "look again at whether it is".
                 // The edit that got us here already moved the editor's revision
                 // if it changed anything, and if it did not, nothing should
                 // change here either.
@@ -1262,7 +1262,7 @@ public sealed partial class MainViewModel : ObservableObject
                 ? $"Character {target.Doc.ReferenceSheets.Count + 1}"
                 : name.Trim(),
         };
-        // B96. Through the editor rather than around it, so adding a sheet is
+        // B98. Through the editor rather than around it, so adding a sheet is
         // one undoable step and moves the revision — which is what raises the
         // badge now. Mutating the list directly left the badge to be asserted
         // by hand, and an add that could not be undone.
@@ -1290,7 +1290,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>A sheet or view really was renamed in the docker.</summary>
     /// <remarks>
-    /// <b>B93.</b> This used to be called from a <c>LostFocus</c> handler and to
+    /// <b>B95.</b> This used to be called from a <c>LostFocus</c> handler and to
     /// mark the document dirty unconditionally, so clicking into a name box and
     /// out again — typing nothing — raised the badge. Every other rename handler
     /// in the window guards; this one did not. The caller now compares the text
@@ -1336,7 +1336,7 @@ public sealed partial class MainViewModel : ObservableObject
             Owner = owner,
             View = view,
         };
-        // B96. The owner has to know about the view, because a stroke drawn here
+        // B98. The owner has to know about the view, because a stroke drawn here
         // moves *this* editor's revision while landing in the owner's document —
         // without the registration the owner never notices it was changed.
         owner?.Views.Add(referenceTab);

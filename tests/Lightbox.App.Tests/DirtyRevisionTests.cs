@@ -6,12 +6,12 @@ using Lightbox.Core.Timeline;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// <b>B96.</b> Dirtiness is derived from the edit record, not asserted by
+/// <b>B98.</b> Dirtiness is derived from the edit record, not asserted by
 /// whichever code path ran.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The bug behind B79, B92, B93, B94 and B95. <c>IsDirty</c> was a flag each
+/// The bug behind B79, B94, B95, B96 and B97. <c>IsDirty</c> was a flag each
 /// edit path set for itself, which failed in both directions at once: paths
 /// that changed nothing raised it, and no path could lower it when an edit was
 /// undone. Four spurious setters turned up in one week, which is the signal
@@ -37,7 +37,7 @@ public sealed class DirtyRevisionTests(ITestOutputHelper output) : BrushStateIso
 
     /// <summary>Undoing back to the saved state clears the badge.</summary>
     /// <remarks>
-    /// <b>B95</b>, and the one a boolean flag could not express at all: the
+    /// <b>B97</b>, and the one a boolean flag could not express at all: the
     /// reporter added a reference, saw the badge correctly, removed it again and
     /// the badge stayed. Nothing was wrong with the clearing — the flag had no
     /// way to say <em>back where it started</em>.
@@ -134,7 +134,7 @@ public sealed class DirtyRevisionTests(ITestOutputHelper output) : BrushStateIso
     /// Choosing a brush never touches the document's badge.
     /// </summary>
     /// <remarks>
-    /// <b>B94</b>, and <b>Q24</b> made structural rather than remembered.
+    /// <b>B96</b>, and <b>Q24</b> made structural rather than remembered.
     /// Selecting a preset marked the document unsaved while editing its settings
     /// — the thing Q24 actually forbids — did not. Neither can now, because a
     /// brush pushes no undo step and the badge reads the undo record.
@@ -170,7 +170,7 @@ public sealed class DirtyRevisionTests(ITestOutputHelper output) : BrushStateIso
     /// A never-saved document says so, and does not claim work it does not have.
     /// </summary>
     /// <remarks>
-    /// <b>B97.</b> The reporter found new documents silent — no badge, and
+    /// <b>B99.</b> The reporter found new documents silent — no badge, and
     /// closing them prompted for nothing even though nothing was on disk. Both
     /// halves are asserted here because they pull in opposite directions and a
     /// fix for one alone is how the other broke.
@@ -200,7 +200,7 @@ public sealed class DirtyRevisionTests(ITestOutputHelper output) : BrushStateIso
     /// A sheet edit raises the badge on the sheet tab as well as its owner.
     /// </summary>
     /// <remarks>
-    /// <b>B93's second half.</b> The reporter found the badge on the parent
+    /// <b>B95's second half.</b> The reporter found the badge on the parent
     /// only. A reference tab is a view onto the owner's document, and its edits
     /// move its own editor rather than the owner's — so the owner has to be told
     /// the view exists, or a stroke drawn in a sheet leaves no mark on the badge

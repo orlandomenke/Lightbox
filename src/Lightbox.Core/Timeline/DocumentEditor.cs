@@ -29,12 +29,12 @@ public sealed class DocumentEditor
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>B96.</b> This exists so a caller can ask *whether the document
+    /// <b>B98.</b> This exists so a caller can ask *whether the document
     /// differs from what was saved* instead of asserting that it does.
     /// `IsDirty` used to be set by each edit path, which meant any path that
     /// forgot to check whether anything actually changed raised the badge —
-    /// B79, B92, B93 and B94 were four of those in one week — and no path could
-    /// ever lower it again, which was B95.
+    /// B79, B94, B95 and B96 were four of those in one week — and no path could
+    /// ever lower it again, which was B97.
     /// </para>
     /// <para>
     /// <b>Read the top of the stack, never its depth.</b> <see cref="MaxUndo"/>
