@@ -167,4 +167,58 @@ public class FeatureIntegrationTests
         Assert.NotNull(fixedConflict);
         Assert.Equal(unboundedConflict.Reason, fixedConflict.Reason);
     }
+
+    [Fact]
+    public void FeatureOverridesSerializeToJsonAsStrings()
+    {
+        // Verify that feature overrides are serialized to JSON with string keys,
+        // following the same pattern as camera and symbol versioning.
+        // Only true values (overrides of defaults) are stored; false is implicit.
+        var doc = new Doc
+        {
+            Features = new()
+            {
+                { nameof(FeatureKey.UnboundedCanvas), true },
+            }
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            doc,
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+        // The override is in the JSON
+        Assert.Contains("UnboundedCanvas", json);
+        Assert.Contains("true", json);
+    }
+
+    [Fact]
+    public void UnboundedCanvasConflictsWithFixedFrameExport()
+    {
+        // This is the primary conflict: when both are enabled, export should fail.
+        // Verify that the conflict detection properly identifies this incompatibility.
+
+        // Scenario: Artist has unbounded canvas enabled and tries to export as sprite sheet
+        var doc = new Doc
+        {
+            Features = new()
+            {
+                { nameof(FeatureKey.UnboundedCanvas), true },
+            }
+        };
+
+        var unboundedEnabled = doc.GetFeature(FeatureKey.UnboundedCanvas, false);
+        var fixedExportDefault = _defaults.GetDefault(ProjectType.GameArt, FeatureKey.FixedFrameBoundsExport);
+
+        Assert.True(unboundedEnabled);
+        Assert.True(fixedExportDefault);
+
+        // The conflict should be detected
+        var conflict = _conflicts.Raised(
+            unboundedEnabled, FeatureKey.UnboundedCanvas,
+            fixedExportDefault, FeatureKey.FixedFrameBoundsExport
+        );
+
+        Assert.NotNull(conflict);
+        Assert.Contains("Sprite export", conflict.Reason);
+    }
 }

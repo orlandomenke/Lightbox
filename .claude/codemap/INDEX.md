@@ -1,6 +1,6 @@
 # Code index
 
-501 files · 130794 lines · 2626 tests.
+501 files · 130848 lines · 2628 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -271,7 +271,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `tools/Lightbox.Bench/AnimationSweeps.cs` (605 ln) · 9 test files
   - AnimationSweeps:18, Target:103, Rig:129, Sides:270
-- `tools/Lightbox.Bench/Harness.cs` (236 ln) · 13 test files
+- `tools/Lightbox.Bench/Harness.cs` (236 ln) · 14 test files
   - Cadence:23, Budgets:38, Sample:50, Scenario:66, Curve:96, Runner:176
 - `tools/Lightbox.Bench/DrawingSweeps.cs` (215 ln) · 9 indirect only
   - DrawingSweeps:27, Sheet:51

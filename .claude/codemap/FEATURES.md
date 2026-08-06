@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2626 tests, derived from the suite itself. Each line is a
+2628 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2528,6 +2528,8 @@ regression even when every test still compiles.
 - No Conflict When Unbounded Disabled — `:116`
 - All Project Types Have Consistent Defaults — `:135`
 - Conflict Is Documented In Feature Key — `:152`
+- Feature Overrides Serialize To Json As Strings — `:172`
+- Unbounded Canvas Conflicts With Fixed Frame Export — `:195`
 
 ## FigureFinderTests
 `tests/Lightbox.Core.Tests/FigureFinderTests.cs`
