@@ -105,11 +105,6 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### brush
 
-- [ ] **B96** `P2` `brush` Selecting a brush marks the document unsaved; changing its settings does not `evidence: BrushDirtyTests, ChoosingAPresetDoesNotMarkTheDocument, Q24HoldsForEveryBrushPath`
-  - Reported 2026-08-06, and it is backwards twice over: picking a brush changes nothing in the document, editing its settings is the thing Q24 already says must not feed this badge — and the settings path is the one that behaves.
-  - Entry point is `ApplyPreset` → `OnSelectedBrushPresetChanged`, which applies a preset's fields through the ordinary setters behind the `_applyingPreset` guard. Something on that path reaches `MarkDocumentEdited` where the individual setters do not.
-  - **This is Q24 enforced by memory rather than by construction**, which is why it broke: nothing stops the next brush field from being wired to the document's dirty flag. B98's derived dirtiness would make it structural.
-
 - [ ] **B101** `P3` `brush` A simulated medium's picker tile is too faint to read `evidence: manual`
   - Repro: open the brush picker and look at **Watercolor** beside **Watercolor (flat)**. Measured by `ChannelsMoved` in `BrushPickerTests`: the flat one moves 890 pixels against its ground, the simulated one **2**, at a threshold of 12 per channel.
   - **Not the same defect as B50, and worth separating because B50's fix did not move it.** The on-canvas mark now peaks at 96/255 at the brush's own size, and the medium holds up as the brush shrinks — swept at sizes 8/12/17/25/42/80/150 the peak runs 71/80/87/98/96/105/107, so there is no size cliff. The tile is faint at a size where a real stroke is not.
@@ -184,6 +179,7 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Reported 2026-08-06 as two findings that are one. New documents come up *Untitled*, *Untitled (1)* with **no badge**; closing them prompts for nothing; `Ctrl+S` correctly opens Save as…, proving the app knows there is no file. And a new single file added under a project does not index into the docker.
   - **A document created while a project is open is in limbo.** No file on disk, no manifest entry, no docker row, `Source` null — and `SaveProject` clears only `if (tab.Source is not null)`, so it is neither saved nor reported. This is also **B79's third suspect**, arriving from the other side.
   - **It is a hole in B80, which is worse than the badge.** The close prompt collects `Tabs.Where(t => t.IsDirty)`, and a never-saved document is not dirty — so the one document with *nothing* on disk is the one the close handler will not mention. B80 shipped with this; the entry is here rather than reopened because the fix is the predicate, not the handler.
+  - **Half landed, half did not, and saying so is the point.** The badge and the close prompt are built and guarded by `ANeverSavedDocumentBadgesButOnlyPromptsOnceDrawnIn`. **The docker-indexing half is not built**: a document created while a project is open still does not appear as a row. This entry stays open for that, because a bug half-fixed and ticked is worse than one left open — it is the thing that stops the ledger being trustworthy.
   - **The owner's decision, 2026-08-06: a new file badges, because it has not been saved at all.** Recorded with one nuance to settle when it is built — the badge and the close prompt want *different* predicates. Badge means "differs from disk", which a new empty document does. Prompting means "there is work to lose", which it does not, and File ▸ New followed by a close should not nag. B76's pending-versus-missing split is the same distinction: worth knowing is not worth acting on.
 
 - [ ] **B81** `P3` `project` Two questions are called Q20 and two are called Q21, so a cross-reference can land on the wrong one `evidence: manual`
@@ -194,18 +190,6 @@ decision goes to `QUESTIONS.md` and is left alone.
   - P3 because it misleads a reader rather than breaking a build, and the affected references are all in documents an agent reads before working. Left unfixed it gets worse monotonically: every new citation of Q20 or Q21 is another one that has to be disambiguated by hand. The infinite-canvas references were qualified in place as a stopgap, which is a workaround and is not the fix.
 
 ### ui
-
-- [ ] **B98** `P2` `ui` Dirtiness is asserted by each edit path rather than derived, so paths keep getting it wrong `evidence: EditRevision, DirtyRevisionTests, ADocumentAtItsSavedRevisionIsNotDirty, TrimmingTheUndoStackDoesNotFakeACleanDocument, PersistedUndoDoesNotMarkTheDocument`
-  - The shape behind B79, B94, B95, B96 and B97 — four spurious sets and one impossible clear, all in one week, all because **`IsDirty` records "a code path ran" rather than "this differs from disk"**. Any path that forgets to ask whether anything changed sets it, and there will always be more of them.
-  - **`DocumentEditor` already has the counter.** Edits go through a `Stack<IEditStep>` — a command log, not snapshots — so dirtiness can be derived: record the revision at the top of the undo stack when the document is saved, and it is dirty exactly while the current top differs.
-  - **Use a per-step sequence number, not `_undo.Count`.** `MaxUndo = 64` trims the bottom of the stack, so a depth comparison reads clean on the 65th edit after a save — the trap is silent and the failure is lost work. A monotonic revision on each step is unaffected by trimming, and an empty stack is revision zero.
-  - Fixes each reported symptom without a special case: a no-op drag and a focus change push no step, choosing a brush pushes no step (Q24 becomes structural rather than remembered), and undoing back to the saved revision goes clean.
-  - **Honest limit**: revision equality is not content equality. Edit, undo, then make a different edit that happens to produce the same document, and it still reads dirty. That is the standard trade and it is wrong far less often than a flag.
-
-- [ ] **B95** `P2` `ui` A character-sheet name box marks the document unsaved just for losing focus `evidence: ReferenceRenameTests, LosingFocusWithoutTypingChangesNothing, RenamingASheetStillMarksTheDocument`
-  - Reported 2026-08-06, and it **confirms B79's static sweep**: click into a sheet or view name box, click out without typing, and the parent document badges.
-  - `OnReferenceRenamed` is bound to `LostFocus` (`MainWindow.axaml:2566`, `:2581`) and calls `MarkReferenceEdited`, which sets `SaveTargetTab.IsDirty = true` unconditionally — no check that a rename was in progress, that the text changed, or that anything was edited. **Every other rename handler in the window guards**: `OnProjectNameLostFocus` tests `row.IsRenaming`; the layer, group and palette handlers only close the editor.
-  - **The reporter also found the other half.** The badge lands on the parent document and *not* on the character-sheet tab. When a sheet edit is real, both should show it — a reference tab is a view onto the owner, and an artist looking at the sheet should not have to check another tab to learn there is unsaved work. `MarkDocumentEdited` dirties `tab.Owner` only.
 
 - [ ] **B100** `P3` `ui` Undo history does not survive a save, and the owner wants it to — blocked on the step record becoming data `evidence: SerializableEditStep, UndoPersistence, UndoHistoryTests, UndoSurvivesAReload, RestoringUndoDoesNotMarkTheDocument`
   - Asked for 2026-08-06: *"undo history is always saved for the max amount of the buffer"*, and *"silently saved instead of showing a badge"* — so persisting it must not itself dirty the document, which B98's derived revision gives for free.
@@ -328,6 +312,11 @@ test reopens the bug.
   - Fix: `SKBlendMode.Src`. A blur **replaces** its dab with the softened version; there was never a reason to composite a second copy over the first.
   - Measured: peak alpha on a wash of 60 stays **60** after a blur. It used to climb to opaque. Cost: S
   - **Smudge and blender have the same runaway and it is not fixed — that is B38.** Splitting them because the fixes are not the same size: blur replaces a region and `Src` says exactly that, while a smudge has to blend and there is no blend mode for it.
+
+- [x] **B96** `P2` `brush` Selecting a brush marks the document unsaved; changing its settings does not `evidence: DirtyRevisionTests, ChoosingABrushDoesNotMarkTheDocument`
+  - Reported 2026-08-06, and it is backwards twice over: picking a brush changes nothing in the document, editing its settings is the thing Q24 already says must not feed this badge — and the settings path is the one that behaves.
+  - Entry point is `ApplyPreset` → `OnSelectedBrushPresetChanged`, which applies a preset's fields through the ordinary setters behind the `_applyingPreset` guard. Something on that path reaches `MarkDocumentEdited` where the individual setters do not.
+  - **This is Q24 enforced by memory rather than by construction**, which is why it broke: nothing stops the next brush field from being wired to the document's dirty flag. B98's derived dirtiness would make it structural.
 
 - [x] **B90** `P2` `brush` Smudge and blender use length parameter instead of strength `evidence: BrushParameterTests, SmudgeAndBlenderUseStrengthNotLength, StrengthControlsBlendingIntensity, LengthStaysOnTheEffectsPageRatherThanTheBar`
   - Reported: smudge and blender brushes have a length setting, which is not the expected behaviour. They should use a strength value to control blending intensity, not a fixed length that changes the expected interaction model.
@@ -781,10 +770,22 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B98** `P2` `ui` Dirtiness is asserted by each edit path rather than derived, so paths keep getting it wrong `evidence: DirtyRevisionTests, ADocumentAtItsSavedRevisionIsNotDirty, TrimmingTheUndoStackDoesNotFakeACleanDocument, UndoingBackToTheSavedStateClearsTheBadge, RedoingToTheSavedStateIsStillSaved`
+  - The shape behind B79, B94, B95, B96 and B97 — four spurious sets and one impossible clear, all in one week, all because **`IsDirty` records "a code path ran" rather than "this differs from disk"**. Any path that forgets to ask whether anything changed sets it, and there will always be more of them.
+  - **`DocumentEditor` already has the counter.** Edits go through a `Stack<IEditStep>` — a command log, not snapshots — so dirtiness can be derived: record the revision at the top of the undo stack when the document is saved, and it is dirty exactly while the current top differs.
+  - **Use a per-step sequence number, not `_undo.Count`.** `MaxUndo = 64` trims the bottom of the stack, so a depth comparison reads clean on the 65th edit after a save — the trap is silent and the failure is lost work. A monotonic revision on each step is unaffected by trimming, and an empty stack is revision zero.
+  - Fixes each reported symptom without a special case: a no-op drag and a focus change push no step, choosing a brush pushes no step (Q24 becomes structural rather than remembered), and undoing back to the saved revision goes clean.
+  - **Honest limit**: revision equality is not content equality. Edit, undo, then make a different edit that happens to produce the same document, and it still reads dirty. That is the standard trade and it is wrong far less often than a flag.
+
 - [x] **B97** `P2` `ui` Removing a reference does not clear the badge that adding it raised `evidence: DirtyRevisionTests, UndoingBackToTheSavedStateClearsTheBadge`
   - Reported 2026-08-06: add a reference, the badge appears correctly; remove it, and the document is back where it started with the badge still up.
   - **Not a missed clear — the flag cannot represent this.** `IsDirty` is a boolean set by edits and cleared only by a save, so *returning to the saved state* has no way to be expressed. Every undo-to-clean has the same shape.
   - Fixed by B98 rather than on its own; a targeted fix would be a fourth place that sets the flag.
+
+- [x] **B95** `P2` `ui` A character-sheet name box marks the document unsaved just for losing focus `evidence: DirtyRevisionTests, ASheetEditRaisesTheBadgeOnBothTabs`
+  - Reported 2026-08-06, and it **confirms B79's static sweep**: click into a sheet or view name box, click out without typing, and the parent document badges.
+  - `OnReferenceRenamed` is bound to `LostFocus` (`MainWindow.axaml:2566`, `:2581`) and calls `MarkReferenceEdited`, which sets `SaveTargetTab.IsDirty = true` unconditionally — no check that a rename was in progress, that the text changed, or that anything was edited. **Every other rename handler in the window guards**: `OnProjectNameLostFocus` tests `row.IsRenaming`; the layer, group and palette handlers only close the editor.
+  - **The reporter also found the other half.** The badge lands on the parent document and *not* on the character-sheet tab. When a sheet edit is real, both should show it — a reference tab is a view onto the owner, and an artist looking at the sheet should not have to check another tab to learn there is unsaved work. `MarkDocumentEdited` dirties `tab.Owner` only.
 
 - [x] **B80** `P2` `ui` Closing the application discards unsaved work without asking `evidence: manual`
   - Found while fixing B75, by looking for the other caller of the unsaved-changes dialog and finding there is none: `MainWindow` has no `OnClosing` override and nothing subscribes to `Closing`. Closing a *tab* asks; closing the *window* does not, so quitting with edits in flight loses them silently.
