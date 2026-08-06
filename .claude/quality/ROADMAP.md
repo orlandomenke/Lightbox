@@ -675,8 +675,9 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
   - **HIGH-VALUE, MARKET-VALIDATED.** Studios manage projects in ShotGrid/Airtable because Lightbox has no dashboard. Current workaround: maintain separate spreadsheets tracking shot status, artist assignments, blocked items.
   - **Effort:** Medium (~400 LOC)
   - **What it shows:** All shots/assets in project, status per item (Design/InDevelopment/Ready/Reopened), assigned artist, dependencies/blockers
-  - **Blocker:** Depends on dynamic asset folders being UI-complete (B83-87)
+  - **Blocker: cleared 2026-08-06.** B83–B87 are closed and B62 with them, so the folder tree is UI-complete: arbitrary names at any depth, create-into-selection, rename that reaches disk, remove versus delete, collapse that survives a save, and the project itself as a selectable row. The dashboard's "all shots/assets in project" now has a tree to read.
   - **Note:** This is read-only dashboard; does not replace ShotGrid, just gives visibility
+  - **Read it against Q30 before building.** Status already lives on `DocumentRef`, not on a character, so the shot-level view is a walk of the folder tree plus the two remaining fixed axes — and Q30 removes those axes. A dashboard written against `Project.Characters` and `Project.Scenes` would be rewritten by the same change it is waiting on.
 
 - [ ] Animatic preview export — one-click movie render with timing and placeholder SFX `evidence: AnimaticExporter, AudioTimelineSync, AnimaticTests, ExportedMovieHasCorrectFrameTiming, PlaceholderBeepsMarkKeyFrames`
   - **HIGH-VALUE, MARKET-VALIDATED.** Every studio manually exports to video for director review; no animation tool offers one-click animatic with timing beeps.
@@ -1144,6 +1145,18 @@ Lightbox differs from competitors in determinism + medium simulation, a combinat
 ## Market-Validated Priorities: Character Sheets & Reference Integration (2026 Market Research)
 
 Based on professional animation studio workflows and competitor analysis, Lightbox has **excellent foundational character management** but critical gaps in reference usability that force animators to manage references outside the tool. Context switching costs ~4 hours per week per animator (1,200 app toggles daily, 20–23 min recovery per switch).
+
+> **Read this whole section against Q30, which was answered after it was written (2026-08-06).**
+>
+> The research below is sound and the pain points are real; what has moved underneath it is **where the data hangs**. Q30 settled that a character stops being a separate kind of thing: one hierarchy, resources declared on folders and accumulating down the tree with the nearest declaration winning ties. Three consequences change how these items are built, none of them changes whether they are worth building:
+>
+> | This section says | Q30 says |
+> | --- | --- |
+> | Serialize reference position "to **character metadata**" | There is no character metadata as a distinct record. It hangs on the scope that owns the reference — a folder, or the document |
+> | **Character sheet** version tagging, character sheet versioning for teams | Sheets are **folder-scoped**. "Character sheet" is a reference sheet declared at some scope, and versioning tags that scope |
+> | **Character library** and asset library as character-centric | Both become **project-based**: creating into them and saving to them is available project-wide, not as a property of a character or of the Asset Library project type |
+>
+> Read every "character" below as "the scope this belongs to" and the items survive intact. Build them against `Project.Characters` and they will be rewritten by Q30. The one thing genuinely settled and safe to rely on: **a `ReferenceSheet` already lives in `Doc.ReferenceSheets`** (Q25), so it belongs to a document rather than to a character today — folder scope is additive to that, not a migration of it.
 
 ### **Lightbox's Character Management: Strong Foundation**
 
