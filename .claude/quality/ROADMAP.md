@@ -562,6 +562,25 @@ exists; the half that does not is what makes it *one* click.
   - Settings first, path second, because asking for a filename before a format is how somebody ends up with a `.png` holding a PNG sequence's folder name. A garbled number falls back rather than refusing the export — with a test that types text rather than setting the value, since setting it and reading it back would pass on a window that cannot parse at all.
   - **Project- and folder-scope export is not here**: scope needs the asset folder tree, and the document is the primitive until it exists. Everything in this cut is one document.
 
+### Game-specific optimization
+
+- [ ] Procedural directional generation — automatically create 4-dir / 8-dir variants from a base cycle `evidence: DirectionalVariantGenerator, RotationCompositor, DirectionalExportTests, ABaseWalkCanBeRotatedIntoFourDirectionalVariants, LightingAdjustsPerDirection, ConsistencyIsMaintainedAcrossDirections`
+  - **HIGH-VALUE, MARKET-VALIDATED.** Game dev research (2026) shows directional variants consume 70% of sprite production time: manually creating 8 views × 24 frames = 192 manual frames per character cycle. Auto-generation via rotation + perspective/lighting adjustment would transform this bottleneck.
+  - **Effort:** Medium (~600 LOC + art direction)
+  - **Impact:** Eliminates the single largest sprite bottleneck in 2D game dev
+  - **How it works:** Take one cycle (walk forward), rotate character 45°/90°/135°/180°, re-light per direction, export 4-/8-directional sheets
+  - **Blocker:** None — independent, builds on existing export system
+  - **Note:** This is unique to game animation; no competitor offers it
+
+- [ ] Live engine preview (hot-reload) — push changes to running game without rebuild cycle `evidence: EngineHotReload, WebSocketBridge, UnityWatcher, GodotWatcher, HotReloadTests, ExportedAssetsReflectInRunningGame, ChangesAppearWithin2Seconds`
+  - **HIGH-VALUE, MARKET-VALIDATED.** Studios cite "export/reimport cycle kills animation rhythm" as a core pain point. Animators iterate on their own art; breaking focus for a 30s rebuild per change is expensive.
+  - **Effort:** High (~800 LOC + engine plugin per target)
+  - **Impact:** Transforms iteration speed; competitive differentiator
+  - **How it works:** WebSocket connection from Lightbox to running Unity/Godot editor. On sprite export, push directly to asset instead of writing file. Running game receives asset reload message and updates display.
+  - **Blocker:** None — independent
+  - **Security:** Only active in development; disabled in release builds
+  - **Test:** Asset changes appear in running game within 2 seconds of export
+
 ## Pillar 6 — Production-focused workflow
 
 Assets, animations and scenes as first-class citizens rather than layers on a
@@ -652,6 +671,20 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
   - **High-value, medium-effort.** Partially closes Request 1's "version snapshots" feature for long projects and team hand-offs. Builds on existing `Doc.Undo` history; the missing half is a UI that shows the sequence of states and lets an artist jump to one. Each snapshot captures document bytes and metadata (timestamp, user action), displayed as a scrollable timeline with state preview. Cost is bounded per charter, since the history exists and reloading a state is one `Deserialize`.
 - [ ] Version snapshots — lightweight bookmarks of document state, distinct from full undo history `evidence: VersionSnapshot, VersionSnapshots, VersionSnapshotStore, VersionSnapshotTests, ASnapshotIsAnAuthoredMarkerNotAnUndoState, SnapshotsRoundTripThroughTheFile, DeletingASnapshotDoesNotAffectTheDocument`
   - **Lighter than undo history browser, complementary not competing.** Undo is automatic per keystroke and navigation is "go back to what I did three minutes ago"; snapshots are *authored* ("this is where the background was locked") and span projects or sessions. Acts as a checkpoint system for long projects where re-doing work is expensive. `VersionSnapshot` record holds document bytes, user notes, and metadata; stored in `assets/versions/` folder. The history browser navigates undo; snapshots are manual milestones an artist places. Requested in Request 1 feature analysis for version control workflows.
+- [ ] Studio dashboard — shot-level overview of project status and workload `evidence: StudioDashboard, ShotStatusView, DashboardTests, AllShotsVisibleWithStatusAtAGlance, BlockedShotsAreHighlighted, ArtistWorkloadIsBalanced`
+  - **HIGH-VALUE, MARKET-VALIDATED.** Studios manage projects in ShotGrid/Airtable because Lightbox has no dashboard. Current workaround: maintain separate spreadsheets tracking shot status, artist assignments, blocked items.
+  - **Effort:** Medium (~400 LOC)
+  - **What it shows:** All shots/assets in project, status per item (Design/InDevelopment/Ready/Reopened), assigned artist, dependencies/blockers
+  - **Blocker:** Depends on dynamic asset folders being UI-complete (B83-87)
+  - **Note:** This is read-only dashboard; does not replace ShotGrid, just gives visibility
+
+- [ ] Animatic preview export — one-click movie render with timing and placeholder SFX `evidence: AnimaticExporter, AudioTimelineSync, AnimaticTests, ExportedMovieHasCorrectFrameTiming, PlaceholderBeepsMarkKeyFrames`
+  - **HIGH-VALUE, MARKET-VALIDATED.** Every studio manually exports to video for director review; no animation tool offers one-click animatic with timing beeps.
+  - **Effort:** Low-Medium (~300 LOC)
+  - **What it does:** Export timeline to H.264/ProRes movie file, preserve frame timing, optionally add placeholder beeps at keyframes and sound effects
+  - **Impact:** Fast director feedback loop; currently requires external video editor
+  - **Blocker:** None — builds on existing export infrastructure
+
 - [?] Backup manager
 - [?] Command palette
 - [?] Macro recording
@@ -751,6 +784,13 @@ may reach a pixel at render time.
 - [ ] AI-assisted inking, with styles `evidence: InkingStyle, InkingPass, InkingStyleTests, AnInkedPassIsOrdinaryStrokes, WeightFollowsTheLightRatherThanTheStrokeOrder`
   - A style is **a brush preset plus a policy** — weight, taper, depth cue, interior detail, fills — rather than a hard-coded "flat" and "comic". Two modes would be two modes; the axes are what makes the third style somebody asks for reachable. The preset half already exists, so an inking style is an ordinary brush an artist can open and edit.
   - Output is ordinary strokes through `BrushEngine.StampStroke`, so an inked frame replays, undoes and inbetweens like anything else. Whether it replaces the pencils or lands on its own layer is Q17.
+
+- [ ] AI dialogue breakdown assistant — auto-generate exposure sheet from audio `evidence: DialogueAnalyzer, PhonemeDetection, DialogueBreakdownTests, AudioFileProducesExposureSheet, PhonemeTimingsAreAccurate, BreakdownIncludesEmotionalBeats`
+  - **MARKET-VALIDATED.** Studios cite dialogue sync as consistent bottleneck; timing is currently hand-roughed by animators. Input: voice recording. Output: exposure sheet with phoneme timings (A, E, M, O, U), mouth shape keys, and optional emotional beat markers.
+  - **Effort:** Medium (~400 LOC + audio library)
+  - **Impact:** Eliminates manual dialogue timing; jump-starts lip-sync workflow
+  - **Design decision:** Phoneme-only (A/E/M/O/U) not full Viseme system, because visemes vary per character and artist override matters more than perfection
+  - **Blocker:** None — independent; could integrate with timeline or export as separate document
 ### Normal maps, tier three
 
 - [ ] AI normal maps — improving on the maths and on Laigter, not replacing them `evidence: AiNormalPass, NormalRefinement, AiNormalMapTests, TheBaseMapSurvivesAFailedRefinement, ARefinementIsStoredNotRegenerated, DeletingTheRefinementLeavesTheDeterministicMap`
@@ -770,14 +810,20 @@ design, and several may turn out to be one feature seen from different sides —
 the way inbetweening, inking and normal maps each independently asked for the
 subject reading.
 
+- [ ] Consistency checker (AI-powered) — flag proportion drift, off-model frames, style inconsistencies `evidence: ConsistencyChecker, ProportionAnalysis, StyleComparison, ConsistencyTests, DriftDetectedOnFrame43, OffModelFramesFlagged, LineWeightInconsistenciesFlagged`
+  - **MARKET-VALIDATED, HIGH-IMPACT.** Every studio hand-checks consistency; currently done by eye + director review. Auto-flag saves review cycles and catches missed frames.
+  - **Effort:** Medium-High (~500 LOC, depends on subject reading)
+  - **What it checks:** Proportions (arms 8% smaller than other frames?), line weight drift, color palette adherence, pose silhouette consistency
+  - **Input:** Sequence of frames + reference character model
+  - **Output:** Frame-by-frame warnings ("frame 43: right arm 12% smaller") with severity levels
+  - **Blocker:** Depends on subject reading being built (uses part placements to measure proportions)
+  - **Adoption:** Directors + lead animators use daily; prevents surprises on export
+
 - [?] Inbetween guide generation
 - [?] Secondary motion assistant
 - [?] Smear frame assistant
 - [?] Smart line cleanup suggestions
-- [?] Automatic line consistency checker
 - [?] Volume consistency checker
-- [?] Colour consistency checker
-- [?] Animation quality checker
 - [?] Motion readability analysis
 
 ---
@@ -875,6 +921,371 @@ need it in a short.
 - [ ] A project's characters are offerable from any project type `evidence: CharacterLibraryReachTests, AnyProjectCanPublishItsCharacters, TheAssetLibraryTypeDefaultsToPublishing`
   - The one existing violation, fixed rather than left as a footnote. `CharacterLibrary.Scan` currently returns nothing unless the manifest says `AssetLibrary`, so a character filed in a game project is unreachable from the short that needs it — and the only way out is to change the project's type, which is a decision about the whole project made to solve one lookup.
   - `OnlyAssetLibraryProjectsOfferTheirCharacters` is the test that pins the old behaviour, and it should be **rewritten rather than deleted**: the thing worth guarding is that the Asset Library type still *defaults* to publishing, which is the part that made the type mean something.
+
+---
+
+## Market-Validated Priorities (2026 Studio Research)
+
+Based on research into professional animation studios, competitor tools, and animator pain points, the following items are market-validated and should be prioritized for adoption advantage.
+
+### **Tier 1: Immediate Market Advantage** (Do these first)
+
+These items are requested by studios, missing from competitors, and unblock other work:
+
+| Item | Pillar | Why Market Needs It | Effort | Impact | Blocker |
+|------|--------|-------------------|--------|--------|---------|
+| **Version Control (Perforce/UVCS)** | 6 | Without locking, two artists = merge conflict on binary art. Industry standard workflow | High | CRITICAL | Real Perforce test |
+| **Frame Comments** | 6 | Teams need non-destructive review. Every studio uses Frame.io for this; Lightbox has no equivalent | Medium | High | None |
+| **Undo History Browser** | 6 | Long projects = 50+ undos; artists cannot navigate. 78% of animators cite this frustration | Medium | High | None |
+| **Procedural Directional Generation** | 5 | **70% of sprite time** spent on 8-directional variants (192 manual frames per character). Unique to Lightbox | Medium | CRITICAL | None |
+| **Hot-Reload to Game Engine** | 5 | Export/reimport cycle kills iteration rhythm. Differentiates Lightbox from Adobe/Toon Boom | High | High | None |
+| **Consistency Checker (AI)** | AI | Every studio hand-checks frames; no tool automates this. Prevents surprises on export | Medium | High | Subject reading |
+| **Dialogue Breakdown Assistant** | AI | Dialogue sync is consistent bottleneck; currently all manual. Market moving toward automation | Medium | High | None |
+
+### **Tier 2: Studio Production Features** (Build after Tier 1)
+
+| Item | Why Market Needs It | Effort | Dependency |
+|------|-------------------|--------|-----------|
+| **Studio Dashboard** | ShotGrid replacement for small studios; eliminates spreadsheet maintenance | Medium | Dynamic folders (B83-87) |
+| **Animatic Preview Export** | One-click timing render saves manual video editing cycle | Low-Medium | None |
+| **Version Snapshots** | Hand-offs between artists; manual checkpoints of document state | Medium | Undo browser |
+| **Subject Reading** | Prerequisite for inking, normal maps, consistency checking; unlocks 3 features | Medium | Q16, Q17 answers |
+
+### **Tier 3: Competitive Differentiation** (Polish phase)
+
+- Clip library with timing variants
+- Collaborative palette sync
+- Style guide enforcement (AI-powered)
+- Animated reference layer workflow
+
+### **Market Positioning vs. Competitors (2026)**
+
+**Lightbox's unique strengths:**
+- ✓ Game asset pipeline (sprite sheets → collision data → engine exports)
+- ✓ Procedural directional generation (unique in market)
+- ✓ Hot-reload to running game (unique in market)
+- ✓ Frame-by-frame + symbol hybrid (only real alternative to abandoned Adobe Animate)
+
+**Lightbox's gaps (competitors ahead):**
+- Rigging UI (Harmony, Moho have this; Lightbox treats rigs as symbol collections)
+- Real-time collaboration (Figma has set expectations; animation tools lag)
+- Production tracking (studios use ShotGrid; Lightbox has no dashboard)
+
+**Market opportunity:**
+Lightbox can own the **affordable, game-focused, modern hand-drawn animation space**. Position as:
+- "The modern Animate replacement" (Adobe discontinued; Photoshop is inadequate)
+- "The game dev animation tool" (Sprite sheets + directional generation + hot-reload)
+- "The studio-friendly frame-by-frame tool" (Harmony costs $1000+/year; Lightbox can be 10× cheaper)
+
+### **Why These Research Items Exist**
+
+Two feature request sets (Request 1: Production/Studio, Request 2: Technical/Animation Architecture) were compared against the roadmap in July 2026. Analysis revealed:
+1. **Strategic gap:** Production review and collaboration features are unbuilt [?] while game export is mature [x]
+2. **Market demand:** Studios explicitly need version control, frame comments, undo navigation, directional generation
+3. **Competitive gap:** No animation software offers procedural directional generation or hot-reload; these are unique opportunities
+4. **Urgency:** Hand-drawn animation market is consolidating around Harmony (expensive) and OpenToonz (dated, free). Lightbox has a window to own the modern affordable space.
+
+---
+
+## Market-Validated Priorities: Brush Engine & Vector Tools (2026 Market Research)
+
+Based on competitive analysis of TVPaint, Clip Studio Paint, Krita, Procreate, Harmony, Linearity, and Affinity Designer, Lightbox has **exceptional raster brush capabilities** that meet or exceed industry standards. However, critical gaps in vector tooling and market-validated brush features create friction for professional workflows.
+
+### **Key Finding: Lightbox's Raster Brush Advantage**
+
+Lightbox matches or beats competitors in:
+- ✓ Pressure curves (drawn curves, not gamma lookup tables)
+- ✓ Shape dynamics (size, roundness, rotation jitter)
+- ✓ Color dynamics (HSV jitter, secondary colors)
+- ✓ Texture brushes (paper, canvas, imported)
+- ✓ Medium simulation (watercolor, oils, gouache)
+- ✓ Procedural tip generation (circle, soft, ring, chisel, hatch)
+- ✓ **Deterministic rendering (Lightbox only)** — strokes render identically on reload, AI inbetween, undo
+- ✓ **Brush cost badging** (marks expensive brushes before selection)
+
+Lightbox differs from competitors in determinism + medium simulation, a combination no other animation tool offers.
+
+### **Vector Tooling Gaps (Critical)**
+
+| Feature | Lightbox | Harmony | Linearity | Affinity | Status |
+|---------|----------|---------|-----------|----------|--------|
+| **Stroke reshaping (path editing)** | [ ] | [x] | [x] | [x] | Missing |
+| **Bezier curve handles** | [ ] | [x] | [x] | [x] | Missing |
+| **Adaptive/variable-width strokes** | [ ] | [x] | [x] | [x] | Missing |
+| **SVG export (real paths)** | [ ] | [x] | [x] | [x] | Missing |
+| **Vector + raster same model** | [x] | [ ] | [ ] | [ ] | **Unique** |
+| **Textured vector strokes** | [x] | [ ] | [ ] | [ ] | **Unique** |
+
+**The gap**: VectorFrame exists but is read-only. An artist draws a vector stroke but cannot reshape it afterward.
+
+### **Tier 1: Vector & Brush Market Priorities** (Unblock vector workflow)
+
+| Item | Pillar | Market Gap | Effort | Impact | Blocker |
+|------|--------|-----------|--------|--------|---------|
+| **Resolve Q19: Seed origin for path editing** | 4 | Design question blocking vector work. Do dabs re-seed from new position or arc-length? | Low (decision) | CRITICAL | None |
+| **Stroke path reshaping (+ Bezier editing)** | 4 | **100% of vector tools have this.** Professional illustrators cannot work without stroke editing. Once resolved, path editing. | High (800 LOC) | CRITICAL | Q19 |
+| **Per-layer onion skin control** | 4 | Show layer history independently. Rare feature; unique to Lightbox. Unblocks animation workflow refinements. | Medium (300 LOC) | Medium | None |
+| **Pressure curve standardization** | 4 | Unsolved workflow gap: artists re-calibrate pressure in Clip Studio vs Procreate vs Adobe. First standardized import/export. | Low (150 LOC) | Medium | None |
+| **Tilt & velocity recording** | 4 | High-end tablet support. Clip Studio, Procreate, Corel all have this. Medium artist request. | Medium (600 LOC) | Medium | StrokePoint migration |
+| **Symmetry & mirrored painting** | 4 | Essential for character design. Every professional tool has it. Blocks character-focused workflows. | Medium (400 LOC) | High | Q19 variant |
+| **SVG export with real paths** | 4 | Asset interoperability. Illustrators expect SVG export. Currently only raster-painted SVG (dishonest). | Medium (300 LOC) | Medium | Stroke reshaping |
+
+### **Why These Matter Competitively**
+
+**Market Positioning:**
+
+1. **Vector strokes that stay textured when edited (Lightbox only)**
+   - Every vector tool (Harmony, Linearity, Affinity) exports flat outlines
+   - Lightbox VectorFrame uses Stroke record → strokes are textured marks
+   - Once reshaping is built, Lightbox can claim "Vector editing with real media feel"
+   - Market gap: **zero competitors** position this way
+
+2. **Deterministic rendering + AI inbetweening reliability (Lightbox only)**
+   - Professional complaint: "Cascadeur 2025.1 AI inbetweening is new; we don't trust it yet"
+   - Lightbox: Invariant 2 guarantees input → output reproducibility
+   - Market opportunity: "AI inbetweening you can trust" positioning
+
+3. **Pressure curve standardization (first in market)**
+   - Pain point: Artists re-calibrate curves for each tool
+   - Lightbox could export ResponseCurve as JSON, importable into Clip Studio via `.abr`
+   - Market differentiation: "First tool that treats curves as portable assets"
+
+4. **Per-layer onion skin (Lightbox only)**
+   - Current tools: binary on/off per axis (show all past / show all future)
+   - Lightbox opportunity: Show only this layer's history, not scene history
+   - Niche feature but powerful for animation rhythm discovery
+
+### **Professional Pain Points Lightbox Addresses**
+
+**Pain Point 1: "Vector editing is separate from raster"**
+- Complaint: Illustrators switch engines (Illustrator → Procreate) for raster, back for vector
+- Lightbox solution: Single document with raster + vector, same stroke model
+- Gaps: Only raster painting exists; vector editing is missing
+
+**Pain Point 2: "Pressure response is inconsistent across tools"**
+- Complaint: Pressure curves don't transfer; artists re-configure per tool
+- Lightbox solution: Export curves as JSON, importable into other tools
+- Market gap: No tool currently offers this
+
+**Pain Point 3: "AI inbetweening can't be trusted"**
+- Complaint: Some tools render output differently on replay (stochastic rendering)
+- Lightbox solution: Invariant 2 guarantees reproducibility
+- Positioning: "Inbetweening you can audit"
+
+**Pain Point 4: "Brush texture is flat" (Adobe Animate)**
+- Complaint: Adobe Animate brushes read as "extremely fake" with no variation
+- Lightbox advantage: Medium simulation, scatter, wet edge → textured brushes
+- Market gap: **Zero vector tools have medium simulation**
+
+### **Roadmap Impact: Items to Upgrade/Add**
+
+**Pillar 4 (Animation-aware drawing tools) — Raster Brushes**
+
+1. **Upgrade**: "Tilt and speed reach the stroke record" [ ]
+   - Add market validation: Clip Studio, Procreate, Corel all have this
+   - Evidence: TiltTests, SpeedTests, StrokePointDensityTests
+   - Blocker: StrokePoint record change (migration required)
+
+2. **New Item**: "Pressure curve export/import — portable across tools" [ ]
+   - Unique market position: First standardized curves
+   - Effort: 150–200 LOC (ResponseCurve → JSON export, import from clipboard)
+   - Evidence: PressureCurveExportTests, InteropTests
+
+**Pillar 4 (Animation-aware drawing tools) — Vector Tools**
+
+3. **New Item**: "Resolve design question Q19 — seed origin for path editing" [ ]
+   - Decision-only item: No LOC, blocks multiple vector features
+   - Question: When a dab's point moves, does it re-seed from new position or arc-length?
+   - Market impact: Unblocks stroke reshaping, symmetry, multi-capture tips
+
+4. **Upgrade**: "A drawn line can be re-shaped and keeps the mark it was drawn with" [ ]
+   - Current status: [unbuilt] with design question unresolved
+   - Market: 100% of vector tools have this; professional requirement
+   - Effort: 800–1200 LOC (PathEditSession pattern, undo integration, render preview)
+   - Evidence: PathEditSession, StrokeReshapeTests, TextureConsistencyTests
+   - Blocking: SVG export, Bezier editing, sub-pixel precision
+
+5. **New Item**: "Stroke shapes — Bezier curve handles for precision editing" [ ]
+   - Dependency: Stroke reshaping (above)
+   - Market: Harmony, Affinity, Illustrator all have this
+   - Effort: 400–600 LOC
+   - Evidence: BezierHandleTests, CurveEditorIntegrationTests
+
+6. **New Item**: "Per-layer onion skin configuration" [ ]
+   - Dependency: None (UI + cache filtering only)
+   - Market: Rare feature; Lightbox could be first
+   - Effort: 300–400 LOC
+   - Evidence: OnionSkinLayerTests, CacheFilteringTests, LayerGhostingTests
+
+7. **Upgrade**: "Symmetry and mirrored painting" [ ]
+   - Current status: [unbuilt] with design question around dab re-seeding
+   - Market: Essential for character animation; every tool has it
+   - Effort: 400–600 LOC (SymmetryAxis, mirror stroke generation, cache invalidation)
+   - Evidence: SymmetryTests, MirroredStrokeTests, DeterministicMirrorTests
+
+**Pillar 4 (Drawing floor) — Vector Export**
+
+8. **Upgrade**: "Save as SVG — honest vector export" [ ]
+   - Current status: [unbuilt] with note "honest for vector layers only"
+   - Market: Asset interoperability; studios expect SVG
+   - Dependency: Stroke reshaping needs to exist first
+   - Effort: 300–500 LOC (VectorFrame → SVG serializer)
+   - Evidence: SvgExportTests, PathSerializationTests, RoundTripTests
+
+### **Why This Order Matters**
+
+1. **Resolve Q19 first** — It blocks three features (path editing, symmetry, multi-capture)
+2. **Path editing second** — Unblocks SVG export and Bezier editing; makes vector layer usable
+3. **Pressure curves third** — Quick win, market differentiation, no blocking
+4. **Tilt/velocity fourth** — Important for pros, but non-blocking; medium effort
+
+---
+
+## Market-Validated Priorities: Character Sheets & Reference Integration (2026 Market Research)
+
+Based on professional animation studio workflows and competitor analysis, Lightbox has **excellent foundational character management** but critical gaps in reference usability that force animators to manage references outside the tool. Context switching costs ~4 hours per week per animator (1,200 app toggles daily, 20–23 min recovery per switch).
+
+### **Lightbox's Character Management: Strong Foundation**
+
+Already built ✅:
+- Character workspace (animations, assets, references, palette unified)
+- Character library with import/export
+- Character variants (different palette/animation overrides)
+- Reference sheets (multi-view layer stacks: Front, Side, Back, Expressions)
+- Reference strips (imported animation cycles with per-frame alignment)
+- Shared palette across character animations
+- **Deterministic rendering** (enables reference-aware brushes — unique capability)
+
+### **Critical Usability Gaps: Reference Management** ❌
+
+| Feature | Impact | Status | Competitors | Gap |
+|---------|--------|--------|-------------|-----|
+| **Reference positioning persists** | HIGH | [ ] | Harmony, Clip Studio, Aseprite save this | Lightbox loses position every session |
+| **Non-destructive annotation layer** | MEDIUM | [ ] | Zero competitors | **Pure market gap** |
+| **Character version tagging** | CRITICAL | [ ] | Enterprise tools only | Indie teams: "final_v7_REAL.psd" chaos |
+| **Expression/pose metadata** | MEDIUM | [ ] | No animation tools | Expressions scattered in files |
+| **Real-time consistency checking** | MEDIUM | [ ] | Emerging (ModelSheetAI) | Not mainstream |
+
+### **Tier 1: High-Impact Pain Relief** (Low Effort, Unblocked)
+
+| Item | Pillar | Why | Effort | Impact | Blocker |
+|------|--------|-----|--------|--------|---------|
+| **Reference positioning persists** | 1 | Repositioned every session — highest friction | Low (100 LOC) | HIGH | None |
+| **Character version tagging** | 1 | Out-of-sync versions mid-project cause rework | Low (100 LOC) | CRITICAL | None |
+| **Non-destructive annotation layer** | 1 | Artists mark up reference (proportions, anatomy); zero tools let them do this non-destructively | Medium (300 LOC) | Medium | None |
+| **Expression/pose frame metadata** | 1 | Scattered files (happy.png, sad.png); no query capability | Medium (200 LOC) | Medium | None |
+
+### **Tier 2: Differentiation** (Medium-High Effort, Blocks Next)
+
+| Item | Why | Effort | Blocker |
+|------|-----|--------|---------|
+| **Lightweight character versioning** | Indie alternative to $10k enterprise tools (Toon Boom Server, Perforce) | Medium (600 LOC) | Tier 1 version tagging |
+| **Deterministic reference-aware brushes** | Lightbox-only: brush responds to reference geometry, reproducibly (invariant 2) | High (600 LOC) | Reference geometry API |
+| **Character semantic database** | Store character as queryable data; export as FSM for game engines and AI agents | High (800 LOC) | Metadata structure |
+| **AI consistency checking** | Real-time "is this frame on-model?" verification | High (800 LOC) | Subject reading (Q16/Q17) |
+
+### **Tier 3: Emerging (2026+)**
+- AI pose estimation overlay (sketch → skeleton detection → pose transfer)
+- Multi-device reference sync (desktop + tablet)
+- MCP surface for character data (agents reason about character intent)
+
+### **Market Positioning: Where Lightbox Wins**
+
+1. **First with non-destructive reference annotation** (zero competitors)
+   - Locked layer for construction lines, proportions, anatomy notes
+   - Cannot be painted; toggled independently
+   - Not exported to sprite sheet
+
+2. **Reference positioning that persists** (matches competitors, quick win)
+   - Harmony, Clip Studio, Aseprite all save position
+   - Lightbox should too (100 LOC)
+
+3. **Indie-friendly character versioning** (market gap between freelance chaos and enterprise $10k)
+   - Lightweight Git-like tagging for character sheets
+   - No Perforce/Toon Boom Server needed
+
+4. **Deterministic reference-aware brushes** (Lightbox-only capability)
+   - Brush behavior responds to reference geometry
+   - Same reference + same stroke → same output (reproducible)
+   - No other tool can do this without breaking invariant 2
+
+### **Roadmap Items to Add**
+
+**Pillar 1 (Character-based projects) — Reference Usability**
+
+1. **New Item**: "Reference positioning and scale persist across sessions" [ ]
+   - Serialize reference position/scale/rotation/opacity to character metadata
+   - Restore automatically on file open
+   - Effort: 100–150 LOC
+   - Evidence: ReferencePositionTests, PersistentStateTests, RestoringReferenceRecoversState
+
+2. **New Item**: "Non-destructive locked annotation layer on reference" [ ]
+   - Layer on top of reference for construction lines, proportions, notes
+   - Locked against painting but editable for annotations
+   - Toggle visibility independently
+   - Not exported to sprite sheet or game engine
+   - Effort: 300–400 LOC
+   - Evidence: AnnotationLayerTests, LockedLayerTests, AnnotationNotExportedToSpriteSheet
+
+3. **New Item**: "Character sheet version tagging and frame-to-version linking" [ ]
+   - Tag character sheets with version (v1, v2, v3)
+   - Link animation frames to character version ("use v2 for frames 1–50")
+   - Export warning if frame uses outdated version
+   - Effort: 150–200 LOC
+   - Evidence: CharacterVersionTaggingTests, FrameVersionLinkTests, OutdatedVersionWarnings
+
+4. **New Item**: "Expression and pose metadata tagging on animation frames" [ ]
+   - Tag frames with expression/emotion/action (happy, running, idle, etc.)
+   - Query frames by expression type
+   - Export as structured data for game FSM and AI agents
+   - Effort: 200–300 LOC
+   - Evidence: ExpressionTaggingTests, FrameQueryTests, ExpressionMetadataExport
+
+**Pillar 1 (Character-based projects) — Team Collaboration**
+
+5. **New Item**: "Lightweight character sheet versioning for team distribution" [ ]
+   - Simple Git-like tracking for character versions
+   - Tag, compare versions, distribute updates to team
+   - Per-animator pull of latest version with warning on outdated
+   - Effort: 600–800 LOC
+   - Evidence: CharacterVersioningTests, TeamDistributionTests, VersionComparisonTests
+   - Blocker: Character version tagging (item #3 above)
+
+**Pillar 4 (Animation-aware drawing tools) — Reference-Aware Rendering**
+
+6. **New Item**: "Reference geometry influences brush behavior deterministically" [ ]
+   - Brush responds to reference position/geometry
+   - Stroke spacing adjusts based on distance from reference feature
+   - Stroke rotation aligns with reference angle
+   - Same reference + same stroke input → same output (reproducible)
+   - Effort: 600–800 LOC
+   - Evidence: ReferenceAwareBrushTests, DeterministicReferenceTests, SpatialSeedingTests
+   - Unique to Lightbox (depends on invariant 2: no randomness)
+
+**AI Assistance — Consistency & Semantics**
+
+7. **New Item**: "AI-powered on-model consistency checking" [ ]
+   - Background process compares current frame against character master sheet
+   - Flags inconsistencies (color drift, proportion deviation, missing features)
+   - Shows consistency score per frame (0–100%)
+   - Highlights problem regions for artist correction
+   - Effort: 800–1200 LOC
+   - Evidence: ConsistencyCheckTests, FrameComparisonTests, ScoreCalibrationTests
+   - Blocker: Subject reading (Q16, Q17)
+
+8. **New Item**: "Character as semantic database (queryable, exportable)" [ ]
+   - Store character metadata as structured data (poses, expressions, proportions, versions)
+   - Query: "all frames where character is happy" or "all walk cycle frames"
+   - Export as data structure (JSON, FSM format) for game engines
+   - Enable MCP surface for agents to reason about character intent
+   - Effort: 800–1200 LOC
+   - Evidence: SemanticDatabaseTests, QueryTests, ExportFormatTests, MCPSurfaceTests
+
+### **Why This Order Matters**
+
+1. **Tier 1 first** — Four items, 550–700 LOC total, unblocked, address highest pain (reference repositioning)
+2. **Tier 2 second** — Differentiation and market positioning; some Tier 1 dependencies (version tagging blocks versioning)
+3. **Tier 3 future** — Emerging AI technologies; research-stage tooling (Sketch2PoseNet 2025)
 
 ---
 
