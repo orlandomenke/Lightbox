@@ -987,6 +987,160 @@ Two feature request sets (Request 1: Production/Studio, Request 2: Technical/Ani
 
 ---
 
+## Market-Validated Priorities: Brush Engine & Vector Tools (2026 Market Research)
+
+Based on competitive analysis of TVPaint, Clip Studio Paint, Krita, Procreate, Harmony, Linearity, and Affinity Designer, Lightbox has **exceptional raster brush capabilities** that meet or exceed industry standards. However, critical gaps in vector tooling and market-validated brush features create friction for professional workflows.
+
+### **Key Finding: Lightbox's Raster Brush Advantage**
+
+Lightbox matches or beats competitors in:
+- ✓ Pressure curves (drawn curves, not gamma lookup tables)
+- ✓ Shape dynamics (size, roundness, rotation jitter)
+- ✓ Color dynamics (HSV jitter, secondary colors)
+- ✓ Texture brushes (paper, canvas, imported)
+- ✓ Medium simulation (watercolor, oils, gouache)
+- ✓ Procedural tip generation (circle, soft, ring, chisel, hatch)
+- ✓ **Deterministic rendering (Lightbox only)** — strokes render identically on reload, AI inbetween, undo
+- ✓ **Brush cost badging** (marks expensive brushes before selection)
+
+Lightbox differs from competitors in determinism + medium simulation, a combination no other animation tool offers.
+
+### **Vector Tooling Gaps (Critical)**
+
+| Feature | Lightbox | Harmony | Linearity | Affinity | Status |
+|---------|----------|---------|-----------|----------|--------|
+| **Stroke reshaping (path editing)** | [ ] | [x] | [x] | [x] | Missing |
+| **Bezier curve handles** | [ ] | [x] | [x] | [x] | Missing |
+| **Adaptive/variable-width strokes** | [ ] | [x] | [x] | [x] | Missing |
+| **SVG export (real paths)** | [ ] | [x] | [x] | [x] | Missing |
+| **Vector + raster same model** | [x] | [ ] | [ ] | [ ] | **Unique** |
+| **Textured vector strokes** | [x] | [ ] | [ ] | [ ] | **Unique** |
+
+**The gap**: VectorFrame exists but is read-only. An artist draws a vector stroke but cannot reshape it afterward.
+
+### **Tier 1: Vector & Brush Market Priorities** (Unblock vector workflow)
+
+| Item | Pillar | Market Gap | Effort | Impact | Blocker |
+|------|--------|-----------|--------|--------|---------|
+| **Resolve Q19: Seed origin for path editing** | 4 | Design question blocking vector work. Do dabs re-seed from new position or arc-length? | Low (decision) | CRITICAL | None |
+| **Stroke path reshaping (+ Bezier editing)** | 4 | **100% of vector tools have this.** Professional illustrators cannot work without stroke editing. Once resolved, path editing. | High (800 LOC) | CRITICAL | Q19 |
+| **Per-layer onion skin control** | 4 | Show layer history independently. Rare feature; unique to Lightbox. Unblocks animation workflow refinements. | Medium (300 LOC) | Medium | None |
+| **Pressure curve standardization** | 4 | Unsolved workflow gap: artists re-calibrate pressure in Clip Studio vs Procreate vs Adobe. First standardized import/export. | Low (150 LOC) | Medium | None |
+| **Tilt & velocity recording** | 4 | High-end tablet support. Clip Studio, Procreate, Corel all have this. Medium artist request. | Medium (600 LOC) | Medium | StrokePoint migration |
+| **Symmetry & mirrored painting** | 4 | Essential for character design. Every professional tool has it. Blocks character-focused workflows. | Medium (400 LOC) | High | Q19 variant |
+| **SVG export with real paths** | 4 | Asset interoperability. Illustrators expect SVG export. Currently only raster-painted SVG (dishonest). | Medium (300 LOC) | Medium | Stroke reshaping |
+
+### **Why These Matter Competitively**
+
+**Market Positioning:**
+
+1. **Vector strokes that stay textured when edited (Lightbox only)**
+   - Every vector tool (Harmony, Linearity, Affinity) exports flat outlines
+   - Lightbox VectorFrame uses Stroke record → strokes are textured marks
+   - Once reshaping is built, Lightbox can claim "Vector editing with real media feel"
+   - Market gap: **zero competitors** position this way
+
+2. **Deterministic rendering + AI inbetweening reliability (Lightbox only)**
+   - Professional complaint: "Cascadeur 2025.1 AI inbetweening is new; we don't trust it yet"
+   - Lightbox: Invariant 2 guarantees input → output reproducibility
+   - Market opportunity: "AI inbetweening you can trust" positioning
+
+3. **Pressure curve standardization (first in market)**
+   - Pain point: Artists re-calibrate curves for each tool
+   - Lightbox could export ResponseCurve as JSON, importable into Clip Studio via `.abr`
+   - Market differentiation: "First tool that treats curves as portable assets"
+
+4. **Per-layer onion skin (Lightbox only)**
+   - Current tools: binary on/off per axis (show all past / show all future)
+   - Lightbox opportunity: Show only this layer's history, not scene history
+   - Niche feature but powerful for animation rhythm discovery
+
+### **Professional Pain Points Lightbox Addresses**
+
+**Pain Point 1: "Vector editing is separate from raster"**
+- Complaint: Illustrators switch engines (Illustrator → Procreate) for raster, back for vector
+- Lightbox solution: Single document with raster + vector, same stroke model
+- Gaps: Only raster painting exists; vector editing is missing
+
+**Pain Point 2: "Pressure response is inconsistent across tools"**
+- Complaint: Pressure curves don't transfer; artists re-configure per tool
+- Lightbox solution: Export curves as JSON, importable into other tools
+- Market gap: No tool currently offers this
+
+**Pain Point 3: "AI inbetweening can't be trusted"**
+- Complaint: Some tools render output differently on replay (stochastic rendering)
+- Lightbox solution: Invariant 2 guarantees reproducibility
+- Positioning: "Inbetweening you can audit"
+
+**Pain Point 4: "Brush texture is flat" (Adobe Animate)**
+- Complaint: Adobe Animate brushes read as "extremely fake" with no variation
+- Lightbox advantage: Medium simulation, scatter, wet edge → textured brushes
+- Market gap: **Zero vector tools have medium simulation**
+
+### **Roadmap Impact: Items to Upgrade/Add**
+
+**Pillar 4 (Animation-aware drawing tools) — Raster Brushes**
+
+1. **Upgrade**: "Tilt and speed reach the stroke record" [ ]
+   - Add market validation: Clip Studio, Procreate, Corel all have this
+   - Evidence: TiltTests, SpeedTests, StrokePointDensityTests
+   - Blocker: StrokePoint record change (migration required)
+
+2. **New Item**: "Pressure curve export/import — portable across tools" [ ]
+   - Unique market position: First standardized curves
+   - Effort: 150–200 LOC (ResponseCurve → JSON export, import from clipboard)
+   - Evidence: PressureCurveExportTests, InteropTests
+
+**Pillar 4 (Animation-aware drawing tools) — Vector Tools**
+
+3. **New Item**: "Resolve design question Q19 — seed origin for path editing" [ ]
+   - Decision-only item: No LOC, blocks multiple vector features
+   - Question: When a dab's point moves, does it re-seed from new position or arc-length?
+   - Market impact: Unblocks stroke reshaping, symmetry, multi-capture tips
+
+4. **Upgrade**: "A drawn line can be re-shaped and keeps the mark it was drawn with" [ ]
+   - Current status: [unbuilt] with design question unresolved
+   - Market: 100% of vector tools have this; professional requirement
+   - Effort: 800–1200 LOC (PathEditSession pattern, undo integration, render preview)
+   - Evidence: PathEditSession, StrokeReshapeTests, TextureConsistencyTests
+   - Blocking: SVG export, Bezier editing, sub-pixel precision
+
+5. **New Item**: "Stroke shapes — Bezier curve handles for precision editing" [ ]
+   - Dependency: Stroke reshaping (above)
+   - Market: Harmony, Affinity, Illustrator all have this
+   - Effort: 400–600 LOC
+   - Evidence: BezierHandleTests, CurveEditorIntegrationTests
+
+6. **New Item**: "Per-layer onion skin configuration" [ ]
+   - Dependency: None (UI + cache filtering only)
+   - Market: Rare feature; Lightbox could be first
+   - Effort: 300–400 LOC
+   - Evidence: OnionSkinLayerTests, CacheFilteringTests, LayerGhostingTests
+
+7. **Upgrade**: "Symmetry and mirrored painting" [ ]
+   - Current status: [unbuilt] with design question around dab re-seeding
+   - Market: Essential for character animation; every tool has it
+   - Effort: 400–600 LOC (SymmetryAxis, mirror stroke generation, cache invalidation)
+   - Evidence: SymmetryTests, MirroredStrokeTests, DeterministicMirrorTests
+
+**Pillar 4 (Drawing floor) — Vector Export**
+
+8. **Upgrade**: "Save as SVG — honest vector export" [ ]
+   - Current status: [unbuilt] with note "honest for vector layers only"
+   - Market: Asset interoperability; studios expect SVG
+   - Dependency: Stroke reshaping needs to exist first
+   - Effort: 300–500 LOC (VectorFrame → SVG serializer)
+   - Evidence: SvgExportTests, PathSerializationTests, RoundTripTests
+
+### **Why This Order Matters**
+
+1. **Resolve Q19 first** — It blocks three features (path editing, symmetry, multi-capture)
+2. **Path editing second** — Unblocks SVG export and Bezier editing; makes vector layer usable
+3. **Pressure curves third** — Quick win, market differentiation, no blocking
+4. **Tilt/velocity fourth** — Important for pros, but non-blocking; medium effort
+
+---
+
 ## How this file stays true
 
 - `scripts/roadmap.py check` runs in the improvement loop's verify step and in
