@@ -97,6 +97,29 @@ yours can be deleted. The preset you exported with last is selected next time.
 When an export finishes, the status line says what came out — frame count, sheet
 size, layout — **and names every layer it left out**.
 
+#### Exporting a whole folder, not one drawing
+
+Everything above is **File ▸ Export for a game engine…**, which exports the
+drawing you have open. A project can do it the other way round: declare a preset
+on a folder and export the folder.
+
+**Right-click a folder ▸ Export this as** picks the preset, and that does two
+things — it sets the settings *and* it says **where one file ends**. A preset can
+produce one file per document, one per folder inside it, or **one file for the
+whole subtree**: the knight's walk, run and idle packed into a single sheet, with
+a frame tag naming each so an engine can still tell them apart.
+
+**Right-click a folder ▸ Export this folder…** runs it, and counts before it
+writes — *"2 files from 47 documents, 3 held back by status"*. Two formats refuse
+to hold several documents rather than exporting the first: a **PNG sequence**,
+because numbered frames in a folder cannot say where one animation ended, and a
+**GameMaker sprite**, because that is one animation with one origin and one image
+speed. Both say so and write nothing.
+
+*Which folder declares what, and how declarations are seen and taken back, is in
+[Documents and
+projects](02-documents-and-projects.md#how-a-folder-is-exported).*
+
 #### Which engines this already covers
 
 | Engine | What you need |

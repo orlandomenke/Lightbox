@@ -15,7 +15,7 @@ project is *making* a project symbol, since there would be nowhere to put it.
 
 | | Where it lives | Who can use it |
 | --- | --- | --- |
-| **Project** | in the project | everything under that project, and nothing outside it |
+| **Project** | in the project | everything under that project, and nothing outside it — unless you narrow it to a folder, below |
 | **Global** | your own library, beside your brushes | every project you make, and one you start tomorrow |
 
 The panel shows both in one grid, with a **◈** on the global ones and a filter
@@ -41,6 +41,35 @@ your library has a newer version of something this project uses. It is the
 project asking; nothing in your library ever reaches into a project on its own.
 Placements are untouched and need no touching — they refer to the symbol by
 identity, so replacing what that identity resolves to *is* the update.
+
+### Narrowing a project symbol to one folder
+
+By default a project symbol is offered to every drawing in the project, which is
+what the table above says and what every project means until you say otherwise.
+
+**Right-click a folder and pick *Share a symbol here*** and that stops being
+true: from then on a folder is offered the symbols declared on it and on the
+folders above it, and nowhere else gets them. It is the only one of the folder
+declarations that *takes away* — a palette shared on a folder adds to what is
+available, a symbol shared on a folder is a decision that the rest of the
+project should not see it. The status line says so the first time, because a
+picker that quietly loses most of its contents is a bad way to learn a rule.
+
+Two things it does not do:
+
+- **It never narrows your own library.** Global symbols are yours in every
+  project. Placing one copies it into the project, where it can then be declared
+  like anything else.
+- **It never changes a drawing.** A document that already places a symbol keeps
+  drawing it after you move it somewhere that does not declare it — a placement
+  resolves by its own id, and narrowing is the picker's business.
+
+Taking the last symbol declaration back returns the project to offering
+everything, rather than to offering nothing.
+
+*The full set of folder declarations — palettes, gradients, guides, templates and
+export presets alongside this one — is in [Documents and
+projects](02-documents-and-projects.md#everything-a-folder-can-decide).*
 
 ## Making one
 
