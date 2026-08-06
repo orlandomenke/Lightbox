@@ -1508,6 +1508,7 @@ public sealed partial class MainViewModel : ObservableObject
         // a reference to another, and the stroke would jump the moment anyone
         // touched the palette.
         ActiveSwatchId = null;
+        ActivePaletteId = null;
     }
 
     /// <summary>
@@ -1529,6 +1530,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public string? ActiveSwatchId { get; private set; }
 
+    /// <summary>Which palette <see cref="ActiveSwatchId"/> came from — Q30 step 2.</summary>
+    public string? ActivePaletteId { get; private set; }
+
     private bool _settingColorFromSwatch;
 
     /// <summary>The swatch and the colour it held when the current edit run began.</summary>
@@ -1547,6 +1551,10 @@ public sealed partial class MainViewModel : ObservableObject
             _settingColorFromSwatch = false;
         }
         ActiveSwatchId = swatchId;
+        // Q30 step 2: which palette, not just which swatch. Two palettes
+        // duplicated from one another share swatch ids, so a bare id stops
+        // being an answer the moment palettes are scoped.
+        ActivePaletteId = PaletteRegistry.PaletteOf(swatchId);
     }
 
     /// <summary>A structural palette edit — one undo step, then a full resync.</summary>
@@ -1799,7 +1807,20 @@ public sealed partial class MainViewModel : ObservableObject
         {
             // Document first, project second, so a document's own copy of a
             // swatch id loses to the project's — the shared one is the live one.
-            palettes = palettes.Concat(project.Palettes);
+            //
+            // Q30 step 2: only the project palettes this document can actually
+            // see. Until now every palette went in for every document, which
+            // reads as working until a project has two characters and the
+            // goblin's reds turn up in the knight's picker. A project that
+            // declares no scopes still gets everything — that is the
+            // new-projects-only migration, at the one place a reader can tell
+            // the two shapes apart.
+            var visible = PaletteScopes.VisibleTo(
+                project.Manifest, (SaveTargetTab ?? ActiveTab)?.Source);
+            palettes = palettes.Concat(
+                visible is null
+                    ? project.Palettes
+                    : project.Palettes.Where(p => visible.Contains(p.Id)));
             foreach (var (id, gradient) in project.Gradients) gradients[id] = gradient;
         }
         var resolved = palettes.ToList();
@@ -3400,6 +3421,7 @@ public sealed partial class MainViewModel : ObservableObject
             Tool = ToolKind.Fill,
             Color = ColorHex,
             SwatchId = ActiveSwatchId,
+            PaletteId = ActivePaletteId,
             Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
             Points = [.. _selectionContours[0]],
             Holes = _selectionContours.Count > 1
@@ -3484,6 +3506,7 @@ public sealed partial class MainViewModel : ObservableObject
                 Tool = ToolKind.Fill,
                 Color = ColorHex,
                 SwatchId = ActiveSwatchId,
+                PaletteId = ActivePaletteId,
                 Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
                 Points = result.Outer,
                 Holes = result.Holes.Count > 0 ? result.Holes : null,
@@ -5043,6 +5066,7 @@ public sealed partial class MainViewModel : ObservableObject
             Tool = IsEraser ? ToolKind.Eraser : ToolKind.Brush,
             Color = ColorHex,
             SwatchId = ActiveSwatchId,
+            PaletteId = ActivePaletteId,
             Brush = CurrentToolSettings.Clone(),
             Points = ShapeBuilder.Outline(ActiveShape, x, y, x, y, sides: PolygonSides),
             AlphaLocked = ActiveLayer.AlphaLocked,
@@ -5146,6 +5170,7 @@ public sealed partial class MainViewModel : ObservableObject
             Tool = ToolKind.Brush,
             Color = stroke.Color,
             SwatchId = stroke.SwatchId,
+            PaletteId = stroke.PaletteId,
             ClipId = stroke.ClipId,
             Brush = stroke.Brush.Clone(),
             Points = [.. stroke.Points],

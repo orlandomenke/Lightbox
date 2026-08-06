@@ -197,3 +197,59 @@ public static class ResourceScopes
     public static void Promote(ScopedResource resource) =>
         resource.Reach = ResourceReach.Project;
 }
+
+/// <summary>
+/// Which of a project's palettes a document paints from.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Q30, step 2. Until now every palette in a project was registered for every
+/// document — <c>RegisterResources</c> concatenated <c>project.Palettes</c>
+/// wholesale — so "shared palette across a character's animations" was true only
+/// because nothing was scoped at all. That reads as working right up until a
+/// project has two characters, and then the goblin's reds are in the knight's
+/// picker.
+/// </para>
+/// <para>
+/// <b>Old projects keep the old behaviour, which is Q30's migration answer
+/// working rather than a special case.</b> A project that declares no palette
+/// scopes gets everything, exactly as before; one that declares any is taken at
+/// its word. That is *read both, write the new one* at the only place a reader
+/// can tell them apart.
+/// </para>
+/// </remarks>
+public static class PaletteScopes
+{
+    /// <summary>The kind string palettes are declared under.</summary>
+    public const string Kind = "palette";
+
+    /// <summary>Whether this project scopes its palettes at all.</summary>
+    /// <remarks>
+    /// The migration hinge. False for every project written before Q30, and for
+    /// any project whose artist has never declared a scope — both of which mean
+    /// "you have not told me, so do what you always did".
+    /// </remarks>
+    public static bool AnyDeclared(ProjectManifest manifest) =>
+        (manifest.Resources?.Any(r => r.Kind == Kind) ?? false)
+        || ProjectFolders.All(manifest).Any(f => f.Resources?.Any(r => r.Kind == Kind) ?? false);
+
+    /// <summary>
+    /// The palette ids <paramref name="document"/> can paint from, nearest
+    /// first, or null when the project scopes nothing and every palette applies.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than "all of them" on purpose: the caller has the palette
+    /// list and this does not, and a null says *do not filter* without this
+    /// having to know what it would have been filtering.
+    /// </remarks>
+    public static IReadOnlyList<string>? VisibleTo(ProjectManifest manifest, DocumentRef? document)
+    {
+        if (!AnyDeclared(manifest)) return null;
+        // A document the project does not know about — a loose file opened
+        // alongside it — is not filtered either. It has no place in the tree to
+        // resolve from, and hiding every swatch from it would be a worse answer
+        // than showing too many.
+        if (document is null) return null;
+        return ResourceScopes.Resolve(manifest, document, Kind).Select(r => r.Id).ToList();
+    }
+}

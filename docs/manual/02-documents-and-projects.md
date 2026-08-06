@@ -79,6 +79,25 @@ Deleting a folder that has anything in it asks first, and says how much — *"De
 
 A removed document stays removed: reopening the project does not claim the file back, even though it is still on disk.
 
+#### Which palettes a document paints from
+
+A palette declared on a folder is offered to **everything under it, at any
+depth** — put the knight's palette on the knight folder and every animation
+inside it paints from it, whether they sit directly there or three folders down.
+Rearranging the folders afterwards changes nothing.
+
+Palettes accumulate rather than replace: a document sees the studio palette on
+the project, the show's on the show folder, and the shot's extra swatches on the
+shot, all at once. Where two declare the same swatch, **the nearest one wins** —
+so a character can override one colour without copying the whole palette.
+
+A palette that everything should see, wherever it is filed, can be **published**
+to the whole project. A nearer palette still beats a published one, so publishing
+never takes an override away from somebody.
+
+Projects made before this existed are unchanged: every palette is offered to
+every document, exactly as before, until you declare a scope.
+
 #### Rows that have no file behind them
 
 Two of them, and they mean different things:

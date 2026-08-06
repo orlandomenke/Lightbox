@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2441 tests, derived from the suite itself. Each line is a
+2447 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2546,6 +2546,16 @@ regression even when every test still compiles.
 - The Ends Of The Sequence Simply Run Out — `:131`
 - Falloff Halves Each Further Ghost — `:141`
 - AFalloff Of One Makes Every Ghost Equally Visible — `:149`
+
+## PaletteScopeTests
+`tests/Lightbox.Core.Tests/PaletteScopeTests.cs`
+
+- AProject That Declares No Scopes Is Not Filtered — `:42`
+- APalette On One Character Is Not Visible To Another — `:60`
+- Two Animations Under One Folder Paint From One Palette — `:83`
+- AProject Palette Reaches Every Document — `:96`
+- ADocument The Project Does Not Know Is Not Filtered — `:112`
+- AStroke Painted From APalette Records Which One — `:130`
 
 ## PaletteTests
 `tests/Lightbox.Core.Tests/PaletteTests.cs`
