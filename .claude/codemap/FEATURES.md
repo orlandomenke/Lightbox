@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2353 tests, derived from the suite itself. Each line is a
+2357 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -332,17 +332,17 @@ regression even when every test still compiles.
 
 - Opening The Picker Fills It With Tiles Rather Than Bare Presets — `:64`
 - Every Brush On Offer Has APicture Of Its Mark — `:78`
-- Every Built In Brush Leaves AMark On Its Tile — `:148`
-- The Shipped Blur Brush Actually Softens What It Passes Over — `:174`
-- The Tile Names The Brush And Its Real Size — `:189`
-- Picking ATile Applies That Brush — `:205`
-- The Picker Opens On The Brush You Are Already Using — `:220`
-- Searching Narrows The Grid And Still Gives Tiles — `:234`
-- No Match Says So Rather Than Showing An Empty Grid — `:253`
-- The Same Brush Reuses Its Picture Rather Than Redrawing It — `:267`
-- Editing ABrush Changes Its Picture — `:286`
-- An Imported Brush Shows Its Own Tip Rather Than ARound Dab — `:308`
-- ACollection Sized Picker Opens Without Stalling — `:367`
+- Every Built In Brush Leaves AMark On Its Tile — `:153`
+- The Shipped Blur Brush Actually Softens What It Passes Over — `:179`
+- The Tile Names The Brush And Its Real Size — `:194`
+- Picking ATile Applies That Brush — `:210`
+- The Picker Opens On The Brush You Are Already Using — `:225`
+- Searching Narrows The Grid And Still Gives Tiles — `:239`
+- No Match Says So Rather Than Showing An Empty Grid — `:258`
+- The Same Brush Reuses Its Picture Rather Than Redrawing It — `:272`
+- Editing ABrush Changes Its Picture — `:291`
+- An Imported Brush Shows Its Own Tip Rather Than ARound Dab — `:313`
+- ACollection Sized Picker Opens Without Stalling — `:372`
 
 ## BrushComparisonTests
 `tests/Lightbox.App.Tests/BrushPresetEditingTests.cs`
@@ -1594,6 +1594,14 @@ regression even when every test still compiles.
 - Every Gesture In The Xaml Is Also In The Shortcut Registry — `:69`
 - The Exemption List Describes Gestures That Are Actually There — `:90`
 - An Exempted Gesture Stops Being Exempt Once It Is Registered — `:105`
+
+## SimulatedMediumTests
+`tests/Lightbox.App.Tests/SimulatedMediumTests.cs`
+
+- The Simulated Watercolour Actually Deposits Pigment — `:76`
+- Layering AWash Deepens It — `:105`
+- ABody Medium Stays Opaque — `:126`
+- Pigment Density Reads Like AConcentration — `:142`
 
 ## DeltaCommitTests
 `tests/Lightbox.App.Tests/SmoothingAndCommitTests.cs`

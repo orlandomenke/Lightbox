@@ -214,6 +214,17 @@ the same mark, on reload, after undo, and when the inbetweener replays it.
 That determinism is not a detail. An effect that varies subtly between similar
 strokes looks fine on one image and *boils* at 12 fps.
 
+**A simulated wash is transparent, and it glazes.** Pigment darkens the way
+pigment does rather than the way a slider does: laying the same watercolour
+stroke down a second time deepens it, and a third deepens it again, approaching
+solid without ever arriving. That is what makes Watercolour behave like
+watercolour rather than like ink at a low opacity — build a tone in passes and
+let each one dry into the last. **Pigment density** is the concentration in the
+wash: raise it and every pass bites harder, and the steps get smaller as it
+approaches saturation, exactly as adding more pigment to the same water does.
+Gouache and oil use the same model and are simply strong enough to cover in one
+pass.
+
 **Body** and **relief** give thick paint its height. Body is how much the paint
 stands up off the paper; relief is how hard the light rakes across it. Together
 they are impasto — a raised edge on a gouache or oil stroke catches the light
