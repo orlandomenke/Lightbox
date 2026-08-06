@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2520 tests, derived from the suite itself. Each line is a
+2527 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1674,6 +1674,8 @@ regression even when every test still compiles.
 - Unpublishing Leaves The Record As An Ordinary Declaration — `:320`
 - ADeclaration Says What It Is And Can Be Undone — `:338`
 - ADeclaration Pointing At Nothing Still Shows And Still Clears — `:367`
+- Declaring ASymbol Narrows The Grid For Other Folders — `:395`
+- ASymbol Declaration Says What It Is And Undoes To Unscoped — `:436`
 
 ## SelectionAdjustTests
 `tests/Lightbox.App.Tests/SelectionAdjustTests.cs`
@@ -2237,9 +2239,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:172`
 - The Canvas Gets The Room Left Over By The Strips — `:195`
 - The Project Row Menu Actually Does Something When Clicked — `:219`
-- The New Menu Actually Makes Things — `:343`
-- The Reference Panel Is Absent Until It Is Asked For — `:410`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:426`
+- The New Menu Actually Makes Things — `:344`
+- The Reference Panel Is Absent Until It Is Asked For — `:411`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:427`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
@@ -2957,6 +2959,11 @@ regression even when every test still compiles.
 - ASymbol The Library Does Not Have Is Not Stale — `:208`
 - Pulling Something The Project Does Not Have Is ANo Op — `:219`
 - ALibrary Symbol Round Trips Through The Documents Own Serializer — `:226`
+- With Nothing Declared Every Symbol Is Still Offered — `:274`
+- ASymbol Declared On AFolder Is Offered There And Not Elsewhere — `:284`
+- ADeclaration Reaches Every Depth Beneath It — `:301`
+- APublished Symbol Reaches The Whole Project — `:320`
+- Scoping Narrows The Picker And Never What Is Already Drawn — `:350`
 
 ## TemplateTests
 `tests/Lightbox.Core.Tests/TemplateTests.cs`

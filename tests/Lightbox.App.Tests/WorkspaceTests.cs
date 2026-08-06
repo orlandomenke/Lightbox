@@ -253,7 +253,8 @@ public sealed class WorkspaceTests : BrushStateIsolated
                 // what keeps the two counts equal.
                 ["Open", "Open with default app…", "Show in file manager", "Copy path",
                  "Duplicate", "Rename…", "Export this as", "Share a palette here",
-                 "Share a gradient here", "Share guides here", "New documents start from",
+                 "Share a gradient here", "Share a symbol here", "Share guides here",
+                 "New documents start from",
                  "Use this as reference", "Stop sharing", "Reach",
                  "Remove from project", "Delete permanently…", "Status"],
                 items.Select(i => i.Header?.ToString()).ToList());

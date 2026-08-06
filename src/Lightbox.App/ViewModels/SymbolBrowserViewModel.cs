@@ -96,13 +96,23 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
 
     private readonly Func<IReadOnlyDictionary<string, Symbol>> _library;
 
+    private readonly Func<DocumentRef?> _inView;
+
+    /// <param name="inView">
+    /// The document the grid is showing symbols <em>for</em>, so a scoped
+    /// project can narrow the list to what that document may place. Optional,
+    /// because a project that scopes no symbols — every project until somebody
+    /// says otherwise — needs no answer from it.
+    /// </param>
     public SymbolBrowserViewModel(
         Func<Project?> project,
         Func<(int, int)> canvasSize,
-        Func<IReadOnlyDictionary<string, Symbol>>? library = null)
+        Func<IReadOnlyDictionary<string, Symbol>>? library = null,
+        Func<DocumentRef?>? inView = null)
     {
         _project = project;
         _canvasSize = canvasSize;
+        _inView = inView ?? (() => null);
         // Injected so the grid can be tested without a settings file, and so the
         // view model never learns where the library lives.
         _library = library ?? (() => new Dictionary<string, Symbol>());
@@ -188,12 +198,29 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
     public void Refresh()
     {
         Rows.Clear();
-        var mine = _project()?.Symbols;
+        var project = _project();
+        var mine = project?.Symbols;
+
+        // Q30 step 5. Null when the project scopes no symbols, which is every
+        // project that has not asked — and the reason this is a narrowing rather
+        // than a widening, so the null has to mean "everything" rather than
+        // "nothing declared, so nothing shown".
+        var visible = project is null
+            ? null
+            : SymbolScopes.VisibleTo(project.Manifest, _inView());
 
         var candidates = new List<(Symbol Symbol, SymbolScope Scope)>();
         if (mine is not null)
         {
-            foreach (var symbol in mine.Values) candidates.Add((symbol, SymbolScope.Project));
+            foreach (var symbol in mine.Values)
+            {
+                // The project's own symbols are what a scope governs. The global
+                // library is the artist's, always theirs to reach for, and
+                // placing one adopts it into the project — where it can then be
+                // declared like anything else.
+                if (visible is not null && !visible.Contains(symbol.Id)) continue;
+                candidates.Add((symbol, SymbolScope.Project));
+            }
         }
         foreach (var (id, symbol) in _library())
         {

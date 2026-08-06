@@ -141,6 +141,7 @@ pick the thing, and everything underneath it — at any depth — gets it.
 | --- | --- |
 | **Share a palette here** | What everything under it paints from |
 | **Share a gradient here** | Which gradients it can reach |
+| **Share a symbol here** | Narrows which symbols are offered under it — see below, because this one takes away rather than adds |
 | **Share guides here** | Guides drawings under it can pull in — a character height guide is this and nothing else |
 | **New documents start from** | The template a new drawing made here begins as |
 | **Export this as** | Its export settings, *and* where one file ends — see below |
@@ -160,6 +161,25 @@ what that folder declares — not what it inherits from above — and clicking o
 takes it back. **Reach** lists the same things and toggles each between *this
 folder and everything under it* and *the whole project*, which is what an
 environment layout that backgrounds and characters both work from needs.
+
+**Symbols are the one that narrows.** Everything else on that list starts as
+*nothing shared* and grows; a symbol is available to the whole project from the
+day it is made. So the first time you share one, the rule flips: from then on a
+folder is offered the symbols declared on it and on the folders above it, and
+nowhere else gets them. The status line says so at that moment, because a picker
+that quietly loses most of its contents is a bad way to find out.
+
+Take the last symbol declaration back and the project returns to project-wide —
+not to *scoped to nothing*, which would empty every picker.
+
+**It narrows what you are offered, never what is already drawn.** A drawing that
+already places a symbol keeps drawing it after you move it into a folder that
+does not declare it. Scoping is the picker's business; a placement resolves by
+its own id and always will.
+
+Global symbols — the ones in your own library, marked ◈ — are never narrowed.
+They are yours in every project, and placing one copies it into the project,
+where it can then be declared like anything else.
 
 A declaration whose thing was deleted still appears, showing its id instead of a
 name. That is deliberate: otherwise a palette quietly missing from a picker has

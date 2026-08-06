@@ -685,6 +685,41 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public IReadOnlyList<Gradient> ShareableGradients =>
         Project is null ? [] : [.. Project.Gradients.Values.OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase)];
 
+    /// <summary>
+    /// The project's symbols, which a scope can narrow to.
+    /// </summary>
+    /// <remarks>
+    /// The project's own rather than the global library's: a global symbol is
+    /// the artist's, reachable from every project, and placing one adopts it
+    /// into the project — where it becomes declarable like anything else. See
+    /// <see cref="SymbolScopes.Kind"/> for why this one narrows where the others
+    /// widen.
+    /// </remarks>
+    public IReadOnlyList<Symbol> ShareableSymbols =>
+        Project is null
+            ? []
+            : [.. Project.Symbols.Values.OrderBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase)];
+
+    [RelayCommand]
+    private void ShareSymbolEntry(Symbol? symbol)
+    {
+        if (Project is not { } project || symbol?.Id is not { Length: > 0 } id) return;
+        var scope = ScopeOfSelected();
+        if (Already(scope, SymbolScopes.Kind, id)) return;
+        var first = !SymbolScopes.AnyDeclared(project.Manifest);
+        ResourceScopes.Declare(project.Manifest, scope, SymbolScopes.Kind, id);
+        // The first declaration is the one that changes what everything else
+        // sees, because symbols were project-wide until it. Said out loud, since
+        // the artist's next surprise would otherwise be a picker that lost most
+        // of its contents with no obvious cause.
+        AfterScopeChange(
+            project,
+            first
+                ? $"{symbol.Name} shared with {ShareScopeLabel}. Symbols are now scoped: "
+                  + "elsewhere in the project only what is declared there is offered."
+                : $"{symbol.Name} shared with {ShareScopeLabel}.");
+    }
+
     /// <summary>The guide sets an artist can share onto the selected scope.</summary>
     public IReadOnlyList<GuideSet> ShareableGuideSets =>
         Project?.Manifest.GuideSets ?? (IReadOnlyList<GuideSet>)[];
@@ -812,6 +847,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public IReadOnlyList<ScopeMenuEntry> GradientMenu =>
         Entries(ShareableGradients, g => g.Name, ShareGradientEntryCommand);
 
+    public IReadOnlyList<ScopeMenuEntry> SymbolMenu =>
+        Entries(ShareableSymbols, s => s.Name, ShareSymbolEntryCommand);
+
     public IReadOnlyList<ScopeMenuEntry> GuideSetMenu =>
         Entries(ShareableGuideSets, g => g.Name, ShareGuideSetEntryCommand);
 
@@ -835,6 +873,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             PaletteScopes.Kind => Project?.Palettes.FirstOrDefault(p => p.Id == resource.Id)?.Name,
             GradientScopes.Kind => Project?.Gradients.GetValueOrDefault(resource.Id)?.Name,
             GuideScopes.Kind => Project?.Manifest.GuideSets?.FirstOrDefault(g => g.Id == resource.Id)?.Name,
+            SymbolScopes.Kind => Project?.Symbols.GetValueOrDefault(resource.Id)?.Name,
             ExportScopes.Kind => ShareableExportPresets.FirstOrDefault(p => p.Id == resource.Id)?.Name,
             _ => DocumentByIdOrNull(resource.Id)?.Name,
         };
@@ -843,6 +882,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             PaletteScopes.Kind => "Palette",
             GradientScopes.Kind => "Gradient",
             GuideScopes.Kind => "Guides",
+            SymbolScopes.Kind => "Symbol",
             TemplateScopes.Kind => "Template",
             ExportScopes.Kind => "Export",
             ReferenceScopes.Kind => "Reference",

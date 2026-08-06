@@ -378,4 +378,80 @@ public sealed class ScopeDeclarationTests(ITestOutputHelper output) : BrushState
         docker.UnshareEntryCommand.Execute(row);
         Assert.Empty(docker.Declarations);
     }
+
+
+    // ---- symbols gain the tree axis (Q30 step 5) ----------------------------
+
+    /// <summary>
+    /// Declaring a symbol on a folder narrows the picker, and only there.
+    /// </summary>
+    /// <remarks>
+    /// Through the browser rather than through <c>SymbolScopes</c>, because the
+    /// resolver was already right and what was missing was anything reading it.
+    /// The grid is the whole point of the step: it is where a narrowing is
+    /// either visible or pointless.
+    /// </remarks>
+    [AvaloniaFact]
+    public void DeclaringASymbolNarrowsTheGridForOtherFolders()
+    {
+        var vm = Vm();
+        var docker = vm.ProjectDocker;
+        var project = docker.Project!;
+
+        var sword = new Symbol { Name = "Sword", Kind = SymbolKind.Prop };
+        var club = new Symbol { Name = "Club", Kind = SymbolKind.Prop };
+        project.Symbols[sword.Id] = sword;
+        project.Symbols[club.Id] = club;
+
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
+        var knight = docker.Selected!.Folder!;
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Goblin");
+
+        // Unscoped: the grid offers both, which is every project today.
+        vm.SymbolBrowser.Refresh();
+        Assert.Equal(2, vm.SymbolBrowser.Rows.Count);
+
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
+        docker.ShareSymbolEntryCommand.Execute(
+            Assert.Single(docker.ShareableSymbols, s => s.Name == "Sword"));
+        output.WriteLine(docker.Status);
+        // The first declaration is the one that changes what everything sees,
+        // so it says so rather than leaving the artist to notice.
+        Assert.Contains("now scoped", docker.Status);
+
+        // The knight's drawing sees the sword and not the club.
+        var walk = project.Manifest.Documents.Single(d => d.Name == "Walk");
+        Assert.Equal(knight.Id, walk.FolderId);
+        Assert.Equal([sword.Id], SymbolScopes.VisibleTo(project.Manifest, walk)!);
+        Assert.True(SymbolScopes.CanPlace(project.Manifest, walk, sword.Id));
+        Assert.False(SymbolScopes.CanPlace(project.Manifest, walk, club.Id));
+    }
+
+    /// <summary>
+    /// A symbol declaration reads as a symbol, and can be taken back.
+    /// </summary>
+    [AvaloniaFact]
+    public void ASymbolDeclarationSaysWhatItIsAndUndoesToUnscoped()
+    {
+        var vm = Vm();
+        var docker = vm.ProjectDocker;
+        var sword = new Symbol { Name = "Sword", Kind = SymbolKind.Prop };
+        docker.Project!.Symbols[sword.Id] = sword;
+
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
+        docker.ShareSymbolEntryCommand.Execute(docker.ShareableSymbols[0]);
+
+        var row = Assert.Single(docker.Declarations);
+        Assert.Equal("Symbol: Sword", row.Label);
+
+        docker.UnshareEntryCommand.Execute(row);
+        // Back to project-wide, which is what an old project means — not scoped
+        // to nothing, which would empty every picker in the project.
+        Assert.False(SymbolScopes.AnyDeclared(docker.Project!.Manifest));
+        Assert.Null(SymbolScopes.VisibleTo(
+            docker.Project!.Manifest, docker.Project!.Manifest.Documents.FirstOrDefault()));
+    }
 }
