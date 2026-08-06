@@ -598,12 +598,17 @@ public sealed partial class MainViewModel
     /// Ask the user how to place a multi-frame symbol: import all frames or reference with animation.
     /// </summary>
     /// <remarks>
-    /// This method attempts to show a dialog. If it cannot access the main window,
-    /// it defaults to the last choice the user made, or ImportFrames if no preference is set.
+    /// For single-frame symbols, always returns Reference (no dialog).
+    /// For multi-frame symbols, shows a dialog unless the user has saved a preference.
+    /// If the dialog cannot be shown, uses the stored preference or defaults to ImportFrames.
     /// </remarks>
     private FrameImportChoice DetectAnimationAndAsk(Symbol symbol)
     {
-        // Try to show dialog if we can access it; otherwise use stored preference
+        // Single-frame symbols always place as reference (no animation, no dialog)
+        if (symbol.FrameCount <= 1)
+            return FrameImportChoice.Reference;
+
+        // Multi-frame symbols: try to show dialog if we can access it; otherwise use stored preference
         if (Avalonia.Application.Current?.ApplicationLifetime
             is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime app
             && app.MainWindow is Views.MainWindow mainWindow)
