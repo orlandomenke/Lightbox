@@ -35,7 +35,30 @@ built="$root/$path"
 
 # No path, or a path outside the codemap: leave ours in place rather than
 # guessing. Exit 0 — the conflict is resolved, just not by rebuilding.
-[ -n "$path" ] || exit 0
+#
+# THE SECOND HALF OF THAT SENTENCE IS THE IMPORTANT ONE, and it has to be a
+# check rather than a convention, because the whole file reads as "resolve a
+# generated file by regenerating it" and that invites being pointed at the next
+# generated-looking file. It must not be. `codemap.py build` writes only the
+# files under `.claude/codemap/`; for anything else `$built` is whatever the
+# working tree happens to hold mid-merge, and copying that over "ours" would
+# silently discard the other side while printing "rebuilt". A conflict a person
+# has to resolve is far better than a resolution that threw half of it away.
+#
+# BUGS.md, ROADMAP.md and MANUAL.md are the ones to say no to by name. They look
+# like candidates — all three are kept in step by a script, and all three
+# collide on parallel branches — but `bugs.py sync`, `roadmap.py sync` and
+# `manual.py sync` *parse* their file and rewrite a checkbox, an ordering or a
+# marked block inside it. None of them can reconstruct an entry, so there is
+# nothing to rebuild from: two branches that each filed a bug have two authored
+# entries that both have to survive, and only a person can say so.
+case "$path" in
+    .claude/codemap/*) ;;
+    *)
+        echo "codemap: $path is not a generated codemap file — left for a human" >&2
+        exit 0
+        ;;
+esac
 
 if (cd "$root" && python3 scripts/codemap.py build >/dev/null 2>&1) \
     && [ -s "$built" ]; then

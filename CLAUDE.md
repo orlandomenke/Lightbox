@@ -319,6 +319,20 @@ do, both worth knowing before relying on it:
   rather than stale. The driver falls back to keeping one side and says so; the
   staleness check at session start picks it up.
 
+**It covers those two files and no more, and that is a rule rather than a
+backlog.** The ledgers collide on parallel branches just as reliably, so the
+obvious next step is to add them — and it would destroy work. The test is *what
+can be reconstructed*: `codemap.py build` writes `INDEX.md` and `FEATURES.md`
+from nothing, so regenerating them from the merged tree is what the files **are**
+rather than a way of resolving them. `bugs.py sync`, `roadmap.py sync` and
+`manual.py sync` instead parse a file and rewrite a checkbox, an ordering or a
+marked block; every entry around those is authored prose no script can
+reproduce. Two branches that each filed a bug have two entries that both have to
+survive, and which id each keeps is a judgement. So the driver refuses any path
+outside `.claude/codemap/`, and what guards the ledgers is `bugs.py check` in
+CI — it fails on duplicate ids, which is the one thing a hand-merge of two
+ledgers reliably gets wrong.
+
 **`python3 scripts/branchstate.py` answers "would this merge?" before a reviewer
 does**, and separates the two kinds of conflict — authored files, which need a
 decision, from the generated index, which needs a rebuild. A `PostToolUse` hook
