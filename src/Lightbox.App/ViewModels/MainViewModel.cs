@@ -6867,36 +6867,30 @@ public sealed partial class MainViewModel : ObservableObject
         var frame = CurrentFrameIndex;
 
         _editor.PerformDelta(
-            _ =>
+            doc =>
             {
-                _editor.Perform(doc =>
+                if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                var anchors = Anchors.ResolvedAt(doc.Scene, frame);
+                foreach (var anchorId in selectedAnchorIds)
                 {
-                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
-                    var anchors = Anchors.ResolvedAt(doc.Scene, frame);
-                    foreach (var anchorId in selectedAnchorIds)
+                    if (anchors.TryGetValue(anchorId, out var point))
                     {
-                        if (anchors.TryGetValue(anchorId, out var point))
-                        {
-                            Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X + dx, point.Y + dy));
-                        }
+                        Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X + dx, point.Y + dy));
                     }
-                });
+                }
                 OnPropertyChanged(nameof(RigMarks));
             },
-            _ =>
+            doc =>
             {
-                _editor.Perform(doc =>
+                if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                var anchors = Anchors.ResolvedAt(doc.Scene, frame);
+                foreach (var anchorId in selectedAnchorIds)
                 {
-                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
-                    var anchors = Anchors.ResolvedAt(doc.Scene, frame);
-                    foreach (var anchorId in selectedAnchorIds)
+                    if (anchors.TryGetValue(anchorId, out var point))
                     {
-                        if (anchors.TryGetValue(anchorId, out var point))
-                        {
-                            Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X - dx, point.Y - dy));
-                        }
+                        Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X - dx, point.Y - dy));
                     }
-                });
+                }
                 OnPropertyChanged(nameof(RigMarks));
             });
     }
@@ -6937,36 +6931,30 @@ public sealed partial class MainViewModel : ObservableObject
         var frame = CurrentFrameIndex;
 
         _editor.PerformDelta(
-            _ =>
+            doc =>
             {
-                _editor.Perform(doc =>
+                if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                var shapes = CollisionShapes.ResolvedAt(doc.Scene, frame);
+                foreach (var shapeId in selectedShapeIds)
                 {
-                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
-                    var shapes = CollisionShapes.ResolvedAt(doc.Scene, frame);
-                    foreach (var shapeId in selectedShapeIds)
+                    if (shapes.TryGetValue(shapeId, out var box))
                     {
-                        if (shapes.TryGetValue(shapeId, out var box))
-                        {
-                            CollisionShapes.SetAcross(layer, frame, 1, shapeId, new Core.Documents.ShapeBox(box.X + dx, box.Y + dy, box.W, box.H));
-                        }
+                        CollisionShapes.SetAcross(layer, frame, 1, shapeId, new Core.Documents.ShapeBox(box.X + dx, box.Y + dy, box.W, box.H));
                     }
-                });
+                }
                 OnPropertyChanged(nameof(RigMarks));
             },
-            _ =>
+            doc =>
             {
-                _editor.Perform(doc =>
+                if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                var shapes = CollisionShapes.ResolvedAt(doc.Scene, frame);
+                foreach (var shapeId in selectedShapeIds)
                 {
-                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
-                    var shapes = CollisionShapes.ResolvedAt(doc.Scene, frame);
-                    foreach (var shapeId in selectedShapeIds)
+                    if (shapes.TryGetValue(shapeId, out var box))
                     {
-                        if (shapes.TryGetValue(shapeId, out var box))
-                        {
-                            CollisionShapes.SetAcross(layer, frame, 1, shapeId, new Core.Documents.ShapeBox(box.X - dx, box.Y - dy, box.W, box.H));
-                        }
+                        CollisionShapes.SetAcross(layer, frame, 1, shapeId, new Core.Documents.ShapeBox(box.X - dx, box.Y - dy, box.W, box.H));
                     }
-                });
+                }
                 OnPropertyChanged(nameof(RigMarks));
             });
     }
