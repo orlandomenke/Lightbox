@@ -730,36 +730,86 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// the point: creating work inside the project should not be followed by
     /// a second step that files it.
     /// </summary>
-    public sealed record NewItemKind(string Label, string Hint)
+    /// <param name="IsContainer">
+    /// Whether this makes something other things go <em>inside</em>, rather
+    /// than a drawing.
+    /// </param>
+    /// <remarks>
+    /// <b>B63.</b> The second half of the report: the menu "does not distinguish
+    /// a folder from a work file, so it reads as an undifferentiated pile". This
+    /// is what the grouping is derived from, so the menu cannot disagree with
+    /// what the entries actually do.
+    /// </remarks>
+    public sealed record NewItemKind(string Label, string Hint, bool IsContainer = false)
     {
         public override string ToString() => Label;
+
+        /// <summary>The same glyph the row gets, so the menu predicts the tree.</summary>
+        public string Glyph => IsContainer ? "🗀" : "▣";
     }
 
     public static readonly NewItemKind NewAnimation =
         new("Animation", "A drawing sequence under the selected character");
 
     public static readonly NewItemKind NewCharacterItem =
-        new("Character", "A new character, with its own animations and palette");
+        new("Character", "A new character, with its own animations and palette", IsContainer: true);
 
     public static readonly NewItemKind NewLooseDocument =
         new("Document", "Belongs to the project, not to any character");
 
     /// <summary>B86. A folder of the artist's own, at any depth.</summary>
     public static readonly NewItemKind NewFolderItem =
-        new("Folder", "A folder you name, inside the selected one");
+        new("Folder", "A folder you name, inside the selected one", IsContainer: true);
 
     public static readonly NewItemKind NewSceneItem =
-        new("Scene", "A run of shots — the film's second axis, alongside the characters");
+        new("Scene", "A run of shots — the film's second axis, alongside the characters", IsContainer: true);
 
     public static readonly NewItemKind NewShotItem =
         new("Shot", "A drawing under the selected scene");
 
     public IReadOnlyList<NewItemKind> NewItemKinds { get; } =
-        [NewFolderItem, NewAnimation, NewCharacterItem, NewSceneItem, NewShotItem, NewLooseDocument];
+        [
+            // B63. Containers first and drawings after, because the menu should
+            // read as "where does it go" then "what is it" rather than as a pile.
+            NewFolderItem, NewCharacterItem, NewSceneItem,
+            NewAnimation, NewShotItem, NewLooseDocument,
+        ];
 
     /// <summary>Create one of <see cref="NewItemKinds"/> in the right place.</summary>
     [RelayCommand]
     public void AddItem(NewItemKind? kind) => AddItemNamed(kind, null);
+
+    /// <summary>
+    /// Ask the artist what to call it. Null means they cancelled.
+    /// </summary>
+    /// <remarks>
+    /// <b>B65.</b> Supplied by the window, because a view model that opens its
+    /// own dialogs is one no test can drive — and until this existed the
+    /// ask-then-create sequence lived in <c>MainWindow</c>, which left the
+    /// cancel path untestable. B65's own entry says so: "an entry that prompts
+    /// and then creates nothing would pass both halves, and only a person would
+    /// see it."
+    ///
+    /// Null when nothing is attached, and <see cref="CreateAsync"/> falls back
+    /// to the suggestion — the docker is built long before the window wires
+    /// anything to it, and that must not be the difference between working and
+    /// throwing.
+    /// </remarks>
+    public Func<NewItemKind, string, Task<string?>>? AskName { get; set; }
+
+    /// <summary>Ask for a name, then create — or create nothing if cancelled.</summary>
+    /// <remarks>
+    /// The ordering is the whole of B65: a name asked for <em>after</em> the
+    /// file exists is a rename, which is B64.
+    /// </remarks>
+    public async Task CreateAsync(NewItemKind? kind)
+    {
+        if (kind is null) return;
+        var suggested = SuggestedNameFor(kind);
+        var name = AskName is null ? suggested : await AskName(kind, suggested);
+        if (name is null) return;   // cancelled: nothing is written
+        AddItemNamed(kind, name);
+    }
 
     /// <summary>
     /// Create one of <see cref="NewItemKinds"/> under a name the artist chose.
@@ -1135,15 +1185,139 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         _open(reference, doc);
     }
 
-    /// <summary>Rename the selected row's character or animation in place.</summary>
-    public void Rename(ProjectRow row, string name)
+    /// <summary>
+    /// Rename a row, on disk as well as in the panel. False when it could not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B64.</b> This used to set a name in memory and stop, which is the
+    /// more confusing half of a rename: the panel says <i>Sir Reginald</i> and
+    /// the folder still says <i>knight</i>, and the artist believes the panel
+    /// until they open a file manager.
+    /// </para>
+    /// <para>
+    /// <b>The reason is part of the fix, not a nicety.</b> Renaming is the first
+    /// docker operation that can fail for reasons the app does not control — a
+    /// file open elsewhere, a permission, a name the tree accepts and the
+    /// filesystem does not — and the artist has to be told which, because
+    /// "nothing happened" is indistinguishable from "the click missed".
+    /// <see cref="Status"/> carries it and the boolean lets the caller keep the
+    /// edit box open.
+    /// </para>
+    /// </remarks>
+    public bool Rename(ProjectRow row, string name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return;
+        if (Project is not { } project) return false;
+        if (string.IsNullOrWhiteSpace(name)) return false;
         var trimmed = name.Trim();
-        if (row.Animation is { } animation) animation.Name = trimmed;
-        else row.Character!.Name = trimmed;
-        row.Name = trimmed;
+        if (trimmed == row.Name) return true;   // not a change, not a failure
+
+        var ok = row switch
+        {
+            { IsFolder: true, Folder: { } folder } => RenameFolder(project, folder, trimmed),
+            { Animation: { } document } => RenameDocument(project, document, trimmed),
+            { Character: { } character } => Rename(character, trimmed),
+            { Scene: { } scene } => Rename(scene, trimmed),
+            _ => false,
+        };
+        if (!ok) return false;
+
+        Rebuild();
         _changed();
+        return true;
+    }
+
+    private bool Rename(Character character, string name)
+    {
+        // The character's folder is `characters/<slug>`, and moving it would
+        // repath every animation under it — Q30's territory rather than this
+        // bug's. The displayed name changes and the folder keeps its slug,
+        // which is what every version until now also did.
+        character.Name = name;
+        Status = $"Renamed to “{name}”.";
+        return true;
+    }
+
+    private bool Rename(ProjectScene scene, string name)
+    {
+        scene.Name = name;
+        Status = $"Renamed to “{name}”.";
+        return true;
+    }
+
+    private bool RenameFolder(Project project, ProjectFolder folder, string name)
+    {
+        var was = ProjectFolders.PathOf(project.Manifest, folder);
+        if (!ProjectFolders.Rename(project.Manifest, folder, name))
+        {
+            Status = $"There is already a folder called “{name}” here.";
+            return false;
+        }
+
+        var now = ProjectFolders.PathOf(project.Manifest, folder);
+        if (!ProjectIo.MoveInProject(project, was, now))
+        {
+            // Put the tree back. A manifest that says one thing while the disk
+            // says another is worse than a refused rename, because only one of
+            // those is visible.
+            ProjectFolders.Rename(project.Manifest, folder, Path.GetFileName(was));
+            Status = $"Could not rename the folder on disk. It is still “{folder.Name}”.";
+            return false;
+        }
+
+        // Everything filed below it moved with it, so their recorded paths have
+        // to follow — they are what the next save writes to.
+        foreach (var (inside, _) in DocumentsUnder(project.Manifest, folder))
+        {
+            inside.Path = ProjectFolders.PathFor(
+                project.Manifest, inside, ProjectFolders.ById(project.Manifest, inside.FolderId));
+        }
+        Status = $"Renamed to “{name}”.";
+        return true;
+    }
+
+    private bool RenameDocument(Project project, DocumentRef document, string name)
+    {
+        var was = document.Path;
+        document.Name = name;
+        var now = document.FolderId is null && !was.StartsWith("documents/", StringComparison.Ordinal)
+            // A character's animation or a scene's shot keeps the shape of the
+            // path it already has; only the file's own name changes.
+            ? RenamedLeaf(was, name)
+            : ProjectFolders.PathFor(
+                project.Manifest, document, ProjectFolders.ById(project.Manifest, document.FolderId));
+
+        if (!ProjectIo.MoveInProject(project, was, now))
+        {
+            document.Name = Path.GetFileNameWithoutExtension(was).Replace(".lightbox", "");
+            Status = $"Could not rename the file on disk. It is still “{document.Name}”.";
+            return false;
+        }
+        document.Path = now;
+        Status = $"Renamed to “{name}”.";
+        return true;
+    }
+
+    /// <summary>Swap the file's own name, keeping the folders above it.</summary>
+    private static string RenamedLeaf(string path, string name)
+    {
+        var cut = path.LastIndexOf('/');
+        var directory = cut < 0 ? "" : path[..(cut + 1)];
+        return $"{directory}{ProjectIo.Slug(name)}.lightbox.json";
+    }
+
+    private static IEnumerable<(DocumentRef Document, ProjectFolder Folder)> DocumentsUnder(
+        ProjectManifest manifest, ProjectFolder folder)
+    {
+        var (folders, documents) = ProjectFolders.Contents(manifest, folder);
+        var byId = folders.ToDictionary(f => f.Id);
+        foreach (var document in documents)
+        {
+            if (document.FolderId is { } id && byId.TryGetValue(id, out var owner))
+            {
+                yield return (document, owner);
+            }
+        }
     }
 
     // ---- production status -------------------------------------------------------

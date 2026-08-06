@@ -320,8 +320,10 @@ public sealed class ProjectDockerTests : BrushStateIsolated, IDisposable
 
         // B86 put Folder first: it is the artist's own structure, and a
         // production is organised by it rather than by the two fixed axes.
+        // B63 then grouped them — containers, then the drawings that go in
+        // them — because six words in a row read as an undifferentiated pile.
         Assert.Equal(
-            ["Folder", "Animation", "Character", "Scene", "Shot", "Document"],
+            ["Folder", "Character", "Scene", "Animation", "Shot", "Document"],
             vm.ProjectDocker.NewItemKinds.Select(k => k.Label));
     }
 

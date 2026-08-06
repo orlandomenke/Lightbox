@@ -205,6 +205,16 @@ headless can open a window and click Delete.
       many folders and documents. **Cancel is the default** — pressing Enter must
       not delete anything.
 - [ ] Confirm it, and check the folder and its files are gone from disk.
+- [ ] **＋ New** shows containers first (🗀 Folder, Character, Scene), a
+      separator, then drawings (▣ Animation, Shot, Document).
+- [ ] Every entry asks for a name, prefilled. **Escape creates nothing** — check
+      the panel and the folder on disk.
+- [ ] Rename a document: the file on disk is renamed too. Rename a folder with a
+      drawing in it: the directory moves and the drawing goes with it.
+- [ ] Rename a folder to a name a sibling already has: refused, the edit box
+      stays open, and the status line says why.
+- [ ] Make a folder and save without putting anything in it. It exists in a file
+      manager — an empty folder is a real folder.
 
 ## Cross-platform notes
 

@@ -3055,12 +3055,16 @@ public partial class MainWindow : Window
     /// which is the ordering B66 and B78 also landed on: a name is a question,
     /// not something to fix afterwards.
     /// </remarks>
-    private async Task CreateProjectItemAsync(ProjectViewModel.NewItemKind kind)
+    private Task CreateProjectItemAsync(ProjectViewModel.NewItemKind kind)
     {
-        var suggested = _vm.ProjectDocker.SuggestedNameFor(kind);
-        var name = await PromptForText($"New {kind.Label.ToLowerInvariant()}", "Name", suggested);
-        if (name is null) return;   // cancelled: nothing is written
-        _vm.ProjectDocker.AddItemNamed(kind, name);
+        // B65. The sequence moved into the docker so the cancel path is
+        // testable; what stays here is the dialog, which is all a window should
+        // own. Attached once rather than per call — it is the same dialog every
+        // time and re-assigning it on each click would be a subscription leak
+        // waiting to be written.
+        _vm.ProjectDocker.AskName ??= (k, suggested) =>
+            PromptForText($"New {k.Label.ToLowerInvariant()}", "Name", suggested);
+        return _vm.ProjectDocker.CreateAsync(kind);
     }
 
     private void OnProjectOpen(object? sender, RoutedEventArgs e) =>
@@ -3183,8 +3187,11 @@ public partial class MainWindow : Window
         switch (e.Key)
         {
             case Key.Enter:
-                _vm.ProjectDocker.Rename(row, box.Text ?? "");
-                row.IsRenaming = false;
+                // B64. The box stays open when the rename was refused, so the
+                // artist can fix the name rather than retype it from scratch —
+                // and the docker's status line says which of the several
+                // reasons it was.
+                if (_vm.ProjectDocker.Rename(row, box.Text ?? "")) row.IsRenaming = false;
                 e.Handled = true;
                 break;
             case Key.Escape:
@@ -3198,7 +3205,10 @@ public partial class MainWindow : Window
     private void OnProjectNameLostFocus(object? sender, RoutedEventArgs e)
     {
         if (sender is not TextBox box || box.DataContext is not ProjectRow row) return;
-        if (row.IsRenaming) _vm.ProjectDocker.Rename(row, box.Text ?? "");
+        // Losing focus commits what it can and always closes the box: leaving
+        // an edit open on a row nobody is looking at is how a rename gets
+        // applied to whatever is clicked next.
+        if (row.IsRenaming && !_vm.ProjectDocker.Rename(row, box.Text ?? "")) box.Text = row.Name;
         row.IsRenaming = false;
     }
 

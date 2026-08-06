@@ -424,6 +424,20 @@ public static class ProjectIo
     {
         Directory.CreateDirectory(project.Root);
 
+        // B64/B86/B87. A folder the artist made exists on disk even when it
+        // holds nothing yet. Until this, a directory only appeared when a
+        // document was written into it — so an empty folder was real in the
+        // panel and absent in a file manager, renaming one moved nothing, and
+        // deleting one deleted nothing while reporting success. Three tests
+        // passed vacuously on the strength of it.
+        foreach (var folder in ProjectFolders.All(project.Manifest))
+        {
+            if (ResolveInProject(project, ProjectFolders.PathOf(project.Manifest, folder)) is { } path)
+            {
+                Directory.CreateDirectory(path);
+            }
+        }
+
         // Resources first: writing them is what fills in Manifest.Palettes, so
         // the manifest has to be written after, not twice.
         SaveResources(project);
@@ -843,18 +857,80 @@ public static class ProjectIo
         if (string.IsNullOrWhiteSpace(relativePath)) return false;
         if (string.IsNullOrEmpty(project.Root)) return false;
 
-        var root = Path.GetFullPath(project.Root);
-        var full = Path.GetFullPath(Path.Combine(
-            root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-
-        // Not merely a prefix: `…/Knight.lbproj-old` starts with `…/Knight.lbproj`.
-        var inside = full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal);
-        if (!inside || full == root) return false;
+        if (ResolveInProject(project, relativePath) is not { } full) return false;
 
         try
         {
             if (File.Exists(full)) File.Delete(full);
             else if (Directory.Exists(full)) Directory.Delete(full, recursive: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// A project-relative path as a full path, or null when it does not stay
+    /// inside the project.
+    /// </summary>
+    /// <remarks>
+    /// <b>B87, then B64.</b> Extracted the moment a second caller needed it,
+    /// because a containment check that exists in one place and is re-typed in
+    /// another is a containment check that will differ. Every path handed to
+    /// these comes from the manifest — plain JSON a person or an agent can edit
+    /// — so an entry of <c>../../../Documents</c> is one slip away from an
+    /// operation that deletes or overwrites a tree.
+    ///
+    /// The separator is part of the comparison on purpose:
+    /// <c>Knight.lbproj-old</c> starts with <c>Knight.lbproj</c>, so a plain
+    /// prefix test would call a sibling project "inside".
+    /// </remarks>
+    public static string? ResolveInProject(Project project, string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return null;
+        if (string.IsNullOrEmpty(project.Root)) return null;
+
+        var root = Path.GetFullPath(project.Root);
+        var full = Path.GetFullPath(Path.Combine(
+            root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+
+        var inside = full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+        return inside && full != root ? full : null;
+    }
+
+    /// <summary>
+    /// Move a file or folder inside the project. True when it moved, or when
+    /// there was nothing there to move.
+    /// </summary>
+    /// <remarks>
+    /// <b>B64.</b> A rename that only changes the manifest leaves a file called
+    /// the old thing on disk, which is half a rename and the more confusing
+    /// half — the panel and the folder disagree, and the artist believes the
+    /// panel until they open a file manager.
+    ///
+    /// **Nothing to move is a success.** A document created and renamed before
+    /// its first save has no file yet, and refusing that would make the rename
+    /// fail for the most ordinary case there is.
+    /// </remarks>
+    public static bool MoveInProject(Project project, string fromRelative, string toRelative)
+    {
+        if (ResolveInProject(project, fromRelative) is not { } from) return false;
+        if (ResolveInProject(project, toRelative) is not { } to) return false;
+        if (string.Equals(from, to, StringComparison.Ordinal)) return true;
+
+        var isFile = File.Exists(from);
+        var isDirectory = Directory.Exists(from);
+        if (!isFile && !isDirectory) return true;
+        // Never silently write over somebody's work.
+        if (File.Exists(to) || Directory.Exists(to)) return false;
+
+        try
+        {
+            if (Path.GetDirectoryName(to) is { Length: > 0 } parent) Directory.CreateDirectory(parent);
+            if (isFile) File.Move(from, to);
+            else Directory.Move(from, to);
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

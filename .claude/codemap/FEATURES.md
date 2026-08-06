@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2386 tests, derived from the suite itself. Each line is a
+2396 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1273,6 +1273,28 @@ regression even when every test still compiles.
 - AFolder Made With AProject Row Selected Belongs To The Project — `:312`
 - ASwatch Added To AProject Palette Lands In The Project — `:326`
 
+## ProjectCreateMenuTests
+`tests/Lightbox.App.Tests/ProjectCreateAndRenameTests.cs`
+
+- Every Create Entry Produces Something On Disk — `:132`
+- The Create Menu Says Which Entries Are Folders — `:166`
+
+## ProjectCreatePromptTests
+`tests/Lightbox.App.Tests/ProjectCreateAndRenameTests.cs`
+
+- Creating An Item Asks For Its Name First And Uses The Answer — `:56`
+- Nothing Is Written To Disk If The Name Is Cancelled — `:79`
+- With No Asker Attached The Suggested Name Is Used — `:103`
+
+## RenameProjectItemTests
+`tests/Lightbox.App.Tests/ProjectCreateAndRenameTests.cs`
+
+- Renaming An Item Renames It On Disk — `:196`
+- Renaming AFolder Moves It And Everything Under It — `:219`
+- ARename That Would Collide Is Refused With Its Reason — `:250`
+- AFolder Rename That Cannot Reach Disk Leaves Everything Alone — `:279`
+- Renaming Something Never Saved Still Works — `:306`
+
 ## ProjectCreationTests
 `tests/Lightbox.App.Tests/ProjectCreationTests.cs`
 
@@ -1310,31 +1332,31 @@ regression even when every test still compiles.
 - AProject Reopens With Its Characters And Animations — `:268`
 - Removing An Animation Leaves Its File On Disk — `:290`
 - The New Menu Offers One Entry Per Place Work Can Land — `:310`
-- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:329`
-- ALoose Document Gets Its Own Row With No Character Above It — `:347`
-- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:362`
-- Moving ADocument To The Project Takes It Out Of Every Character — `:388`
-- Moving ADocument Where It Already Is Does Nothing — `:403`
-- AMoved Document Survives ASave And Reopen — `:413`
-- Renaming ARow Writes Through — `:434`
-- Every Row Knows Where It Is On Disk — `:450`
-- With No Project There Is No Path To Show — `:470`
-- Copy Path Gives The Selected Rows File — `:480`
-- Opening Externally Says So When The File Is Not Written Yet — `:493`
-- Duplicating An Animation Copies Its Art Into The Same Character — `:511`
-- Duplicating Writes The Copy On The Next Save — `:545`
-- Deleting AFolder On Disk Removes It From The Docker — `:573`
-- The Docker Refreshes Without Being Reopened — `:602`
-- An Unsaved Project Does Not Report Every Row As Missing — `:628`
-- The Watch Follows The Project And Not The Application — `:667`
-- ABurst Of Disk Events Costs One Refresh — `:702`
-- ADeletion On Disk Reaches The Row Without ARefresh Call — `:757`
-- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:818`
-- AManual Re Read Is Reachable And Reports What It Found — `:871`
-- Creating An Item Asks For Its Name First — `:932`
-- The Suggested Name Matches The Numbered Fallback — `:952`
-- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:969`
-- The Unnamed Command Still Creates The Numbered Default — `:986`
+- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:331`
+- ALoose Document Gets Its Own Row With No Character Above It — `:349`
+- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:364`
+- Moving ADocument To The Project Takes It Out Of Every Character — `:390`
+- Moving ADocument Where It Already Is Does Nothing — `:405`
+- AMoved Document Survives ASave And Reopen — `:415`
+- Renaming ARow Writes Through — `:436`
+- Every Row Knows Where It Is On Disk — `:452`
+- With No Project There Is No Path To Show — `:472`
+- Copy Path Gives The Selected Rows File — `:482`
+- Opening Externally Says So When The File Is Not Written Yet — `:495`
+- Duplicating An Animation Copies Its Art Into The Same Character — `:513`
+- Duplicating Writes The Copy On The Next Save — `:547`
+- Deleting AFolder On Disk Removes It From The Docker — `:575`
+- The Docker Refreshes Without Being Reopened — `:604`
+- An Unsaved Project Does Not Report Every Row As Missing — `:630`
+- The Watch Follows The Project And Not The Application — `:669`
+- ABurst Of Disk Events Costs One Refresh — `:704`
+- ADeletion On Disk Reaches The Row Without ARefresh Call — `:759`
+- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:820`
+- AManual Re Read Is Reachable And Reports What It Found — `:873`
+- Creating An Item Asks For Its Name First — `:934`
+- The Suggested Name Matches The Numbered Fallback — `:954`
+- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:971`
+- The Unnamed Command Still Creates The Numbered Default — `:988`
 
 ## ProjectHierarchyTests
 `tests/Lightbox.App.Tests/ProjectHierarchyTests.cs`
@@ -2129,8 +2151,8 @@ regression even when every test still compiles.
 - The Canvas Gets The Room Left Over By The Strips — `:193`
 - The Project Row Menu Actually Does Something When Clicked — `:217`
 - The New Menu Actually Makes Things — `:300`
-- The Reference Panel Is Absent Until It Is Asked For — `:361`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:377`
+- The Reference Panel Is Absent Until It Is Asked For — `:367`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:383`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

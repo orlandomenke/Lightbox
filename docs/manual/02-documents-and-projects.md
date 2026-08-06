@@ -48,6 +48,24 @@ something inside itself does nothing, because there would be no way back to it.
 The name is yours and the folder on disk is a tidied version of it: *Act 2 —
 Interiors* becomes `act-2-interiors`. What you typed is what the panel shows.
 
+#### Naming and renaming
+
+**Everything asks for a name before it exists.** Nothing arrives as *Untitled
+(3)* to be corrected later — the box is prefilled with what it would have been
+called, so Enter is the fast path and typing is the considered one. Cancel and
+nothing is created.
+
+**Rename…** on the right-click menu, or slow double-click a row. The rename
+reaches disk: renaming a folder moves the folder and everything under it.
+
+If the name is already taken, or the file cannot be moved — open in another
+program, or a permission — the rename is **refused**, the box stays open so you
+can fix it, and the panel's status line says which of those it was. Nothing
+changes by half.
+
+Characters and scenes rename in the panel only; their folders on disk keep the
+name they were created with.
+
 #### Removing and deleting
 
 Two operations on the right-click menu, and they are not the same thing:
