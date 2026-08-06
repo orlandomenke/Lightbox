@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2377 tests, derived from the suite itself. Each line is a
+2386 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1281,6 +1281,19 @@ regression even when every test still compiles.
 - All Folders Appear At Project Root — `:72`
 - New Project Folder Structure Is Correct — `:97`
 
+## ProjectDeleteTests
+`tests/Lightbox.App.Tests/ProjectDeleteTests.cs`
+
+- Deleted Files Can Be Permanently Removed From Disk — `:49`
+- Remove From Project Leaves The File Where It Is — `:77`
+- Missing Files Are Tracked And Not Reloaded On Next Open — `:106`
+- Empty Folders Are Deleted Without Prompt — `:133`
+- Deleted Folders With Files Prompt For Confirmation — `:151`
+- Deleting AFolder Takes Its Subtree And Files With It — `:178`
+- Removing AFolder Keeps Its Documents In The Project — `:209`
+- ADelete Cannot Escape The Project Folder — `:241`
+- ASibling With AMatching Prefix Is Not Inside The Project — `:270`
+
 ## ProjectDockerTests
 `tests/Lightbox.App.Tests/ProjectDockerTests.cs`
 
@@ -2115,9 +2128,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:170`
 - The Canvas Gets The Room Left Over By The Strips — `:193`
 - The Project Row Menu Actually Does Something When Clicked — `:217`
-- The New Menu Actually Makes Things — `:297`
-- The Reference Panel Is Absent Until It Is Asked For — `:358`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:374`
+- The New Menu Actually Makes Things — `:300`
+- The Reference Panel Is Absent Until It Is Asked For — `:361`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:377`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

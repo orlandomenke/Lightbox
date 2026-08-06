@@ -815,4 +815,51 @@ public static class ProjectIo
             if (!taken.Contains(candidate)) return candidate;
         }
     }
+
+    // ---- deleting from disk (B87) --------------------------------------------
+
+    /// <summary>
+    /// Delete something inside the project, named by its project-relative path.
+    /// True when it was there and is not now.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The containment check is the point of this method existing.</b> Every
+    /// path here comes from the manifest, and a manifest is plain JSON that a
+    /// person or an agent can edit — so a <c>path</c> of
+    /// <c>../../../Documents</c> is not a hypothetical, it is one careless
+    /// entry. The full path is resolved and compared against the resolved root
+    /// before anything is removed, and a path that escapes deletes nothing.
+    /// </para>
+    /// <para>
+    /// Everything else about it is deliberately dull: a missing file is a
+    /// success, because the artist asked for it to be gone and it is, and an
+    /// <c>IOException</c> is a false rather than a crash — a file open in
+    /// another application is a thing to report, not to die on.
+    /// </para>
+    /// </remarks>
+    public static bool DeleteInProject(Project project, string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return false;
+        if (string.IsNullOrEmpty(project.Root)) return false;
+
+        var root = Path.GetFullPath(project.Root);
+        var full = Path.GetFullPath(Path.Combine(
+            root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+
+        // Not merely a prefix: `…/Knight.lbproj-old` starts with `…/Knight.lbproj`.
+        var inside = full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+        if (!inside || full == root) return false;
+
+        try
+        {
+            if (File.Exists(full)) File.Delete(full);
+            else if (Directory.Exists(full)) Directory.Delete(full, recursive: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 }

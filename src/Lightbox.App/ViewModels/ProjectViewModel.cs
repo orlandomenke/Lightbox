@@ -961,23 +961,167 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         if (Project is not { } project || Selected is not { } row) return;
         if (row.Animation is { } animation)
         {
-            row.Character?.Animations.RemoveAll(a => a.Id == animation.Id);
-            project.Manifest.Documents.RemoveAll(d => d.Id == animation.Id);
-            project.Loaded.Remove(animation.Id);
-            _dirty.Remove(animation.Id);
+            Detach(project, animation);
             // The file is deliberately left on disk. Removing a row from an
             // index is cheap to undo by hand; deleting an artist's drawing
-            // because they clicked the wrong row is not.
+            // because they clicked the wrong row is not. Delete permanently is
+            // the other menu item, and it says so (B87).
             Status = $"Removed “{animation.Name}” from the project. Its file is still on disk.";
+        }
+        else if (row is { IsFolder: true, Folder: { } folder })
+        {
+            // B87. Its documents come back to the project root rather than
+            // disappearing with it: the artist removed a folder, not the work
+            // that was in it, and a drawing with no row is a drawing that is
+            // gone as far as anyone can tell.
+            var orphaned = ProjectFolders.Remove(project.Manifest, folder);
+            foreach (var document in orphaned)
+            {
+                ProjectFolders.FileDocument(project.Manifest, document, null);
+                _dirty.Add(document.Id);
+            }
+            Status = orphaned.Count == 0
+                ? $"Removed “{folder.Name}”. Its folder is still on disk."
+                : $"Removed “{folder.Name}”. {Count(orphaned.Count, "document")} moved to the project root.";
+        }
+        else if (row.Character is { } character)
+        {
+            project.Manifest.Characters.RemoveAll(c => c.Id == character.Id);
+            Status = $"Removed “{character.Name}”. Its folder is still on disk.";
         }
         else
         {
-            project.Manifest.Characters.RemoveAll(c => c.Id == row.Character!.Id);
-            Status = $"Removed “{row.Character!.Name}”. Its folder is still on disk.";
+            // A scene row. Guarded rather than crashed on: the old code read
+            // `row.Character!` for anything that was not a document, which was
+            // a null reference the moment a scene was selected and became far
+            // easier to reach when folders arrived.
+            Status = "Removing a scene from the docker is not wired up yet.";
+            return;
         }
         Rebuild();
         _changed();
     }
+
+    // ---- deleting for real (B87) ------------------------------------------------
+
+    /// <summary>
+    /// Whether deleting what is selected should ask first.
+    /// </summary>
+    /// <remarks>
+    /// <b>B87</b>, and the reporter drew the line: a folder holding anything
+    /// asks, an empty one does not. Separated from the deleting so the
+    /// <em>decision</em> is testable and only the dialog is manual — the same
+    /// split B65 uses for the name prompt, and for the same reason.
+    /// </remarks>
+    public bool DeleteNeedsConfirmation
+    {
+        get
+        {
+            if (Project is not { } project || Selected is not { IsFolder: true, Folder: { } folder })
+            {
+                // A single document is one file and one undoable mistake; a
+                // character or scene is not deletable here at all.
+                return false;
+            }
+            var (folders, documents) = ProjectFolders.Contents(project.Manifest, folder);
+            return folders.Count > 1 || documents.Count > 0;
+        }
+    }
+
+    /// <summary>What the confirmation should say, so the artist knows the size of it.</summary>
+    public string DeleteWarning
+    {
+        get
+        {
+            if (Project is not { } project || Selected is not { IsFolder: true, Folder: { } folder })
+            {
+                return Selected?.Animation is { } document
+                    ? $"Delete “{document.Name}” from the project and from disk?"
+                    : "Delete the selected item from the project and from disk?";
+            }
+            var (folders, documents) = ProjectFolders.Contents(project.Manifest, folder);
+            var inside = new List<string>();
+            if (folders.Count > 1) inside.Add(Count(folders.Count - 1, "folder"));
+            if (documents.Count > 0) inside.Add(Count(documents.Count, "document"));
+            return inside.Count == 0
+                ? $"Delete the empty folder “{folder.Name}” from disk?"
+                : $"Delete “{folder.Name}” and the {string.Join(" and ", inside)} inside it, "
+                  + "from the project and from disk?";
+        }
+    }
+
+    /// <summary>
+    /// Remove what is selected from the project <b>and</b> from disk.
+    /// </summary>
+    /// <remarks>
+    /// <b>B87.</b> The context menu only offered "remove from project", so
+    /// deleting a file meant leaving Lightbox for a file manager. This is the
+    /// other half, and it is a separate item rather than a modifier on the
+    /// first: two operations with different consequences should not be one
+    /// gesture told apart by a held key.
+    ///
+    /// The caller confirms first when <see cref="DeleteNeedsConfirmation"/>
+    /// says so. Nothing here asks, because a view model that opens dialogs is a
+    /// view model no test can drive.
+    /// </remarks>
+    [RelayCommand]
+    public void DeleteSelectedPermanently()
+    {
+        if (Project is not { } project || Selected is not { } row) return;
+
+        if (row.Animation is { } document)
+        {
+            var path = document.Path;
+            Detach(project, document);
+            Status = ProjectIo.DeleteInProject(project, path)
+                ? $"Deleted “{document.Name}”."
+                : $"Removed “{document.Name}” from the project, but its file could not be deleted.";
+        }
+        else if (row is { IsFolder: true, Folder: { } folder })
+        {
+            // The directory before the manifest: PathOf walks the parent chain,
+            // and a folder already taken out of the manifest has no chain to
+            // walk — it would resolve to the project root and delete the
+            // project. Order is load-bearing here, not stylistic.
+            var path = ProjectFolders.PathOf(project.Manifest, folder);
+            var (folders, documents) = ProjectFolders.Contents(project.Manifest, folder);
+            var deleted = ProjectIo.DeleteInProject(project, path);
+
+            ProjectFolders.Remove(project.Manifest, folder);
+            foreach (var inside in documents) Detach(project, inside);
+
+            Status = deleted
+                ? $"Deleted “{folder.Name}” and everything in it."
+                : $"Removed “{folder.Name}” from the project, but its folder could not be deleted.";
+            _ = folders;
+        }
+        else
+        {
+            Status = "Only documents and folders can be deleted from here.";
+            return;
+        }
+
+        Rebuild();
+        _changed();
+    }
+
+    /// <summary>Take a document out of the project without touching disk.</summary>
+    private void Detach(Project project, DocumentRef document)
+    {
+        foreach (var character in project.Manifest.Characters)
+        {
+            character.Animations.RemoveAll(a => a.Id == document.Id);
+        }
+        foreach (var scene in project.Manifest.Scenes ?? [])
+        {
+            scene.Shots.RemoveAll(s => s.Id == document.Id);
+        }
+        project.Manifest.Documents.RemoveAll(d => d.Id == document.Id);
+        project.Loaded.Remove(document.Id);
+        _dirty.Remove(document.Id);
+    }
+
+    private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 
     /// <summary>Open the selected animation as a tab.</summary>
     public void OpenSelected()

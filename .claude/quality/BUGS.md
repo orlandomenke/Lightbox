@@ -190,11 +190,6 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### project
 
-- [ ] **B87** `P2` `project` No permanent delete option for files and folders `evidence: ProjectDockerTests, DeletedFilesCanBePermanentlyRemovedFromDisk, DeletedFoldersWithFilesPromptForConfirmation, EmptyFoldersAreDeletedWithoutPrompt, MissingFilesAreTrackedAndNotReloadedOnNextOpen`
-  - Reported: the RMB context menu only offers "remove from project" which keeps files on disk. There is no option to permanently delete from both project and disk, and removed files should be marked so they are not unwantedly reloaded on subsequent checks.
-  - Two operations are needed: remove from project (keeps file on disk, marks it as missing) and delete permanently (removes from project and disk). The permanent delete should show a confirmation prompt for folders containing files, but empty folders can be deleted without prompting.
-  - Cost: M
-
 - [ ] **B83** `P2` `project` New project is created with unwanted default subfolders `evidence: ProjectCreationTests, NewProjectHasCorrectDefaultStructure, NoUnwantedAssetFoldersCreated, AllDefaultFoldersAreListedInProjectFile`
   - Reported: when creating a new project, default subfolders are created that the user did not request — specifically **characters**, **shots**, **scene**, and **animation** folders. The palette folder with default swatches should exist, but work-related folders should only be created when explicitly requested by the user.
   - Additionally, every top folder created in the project folder should be included in Project.lbproj, and the project docker should show only system-required defaults, not asset folders the user must create themselves.
@@ -557,6 +552,17 @@ test reopens the bug.
   - Cause: `ProjectIo` stored shared palettes as GIMP `.gpl`. That format carries names and RGB and **cannot carry ids** — `GimpPalette.Read` mints fresh ones — so every `Stroke.SwatchId` and every `Character.PaletteId` pointed at something that no longer existed.
   - Fix: store project palettes as JSON, ids intact. `.gpl` stays what it is — an interop format for the docker's Import/Export, not a storage format.
   - Mine, from the previous commit. Found by the variant tests rather than by review. Cost: S
+
+- [x] **B87** `P2` `project` No permanent delete option for files and folders `evidence: ProjectDockerTests, DeletedFilesCanBePermanentlyRemovedFromDisk, DeletedFoldersWithFilesPromptForConfirmation, EmptyFoldersAreDeletedWithoutPrompt, MissingFilesAreTrackedAndNotReloadedOnNextOpen`
+  - Reported: the RMB context menu only offers "remove from project" which keeps files on disk. There is no option to permanently delete from both project and disk, and removed files should be marked so they are not unwantedly reloaded on subsequent checks.
+  - Two operations are needed: remove from project (keeps file on disk, marks it as missing) and delete permanently (removes from project and disk). The permanent delete should show a confirmation prompt for folders containing files, but empty folders can be deleted without prompting.
+  - Cost: M
+  - **Fixed.** Two entries on the context menu, deliberately not one gesture with a modifier: **Remove from project** keeps the file, **Delete permanently…** does not. `ProjectIo.DeleteInProject` does the disk work and `ProjectViewModel.DeleteSelectedPermanently` the manifest work.
+  - **The containment check is why that method exists.** Every path it is given comes from the manifest, which is plain JSON a person or an agent can edit, so `../../../Documents` is one careless entry away from an operation that deletes a directory tree. The full path is resolved and compared against the resolved root, and the comparison includes the separator — `Production.lbproj-old` starts with `Production.lbproj`, so a plain `StartsWith` would delete a sibling. Both guards were verified by removing the check and watching the two tests fail with a real bystander file on disk.
+  - The confirmation is split so only the dialog is manual: `DeleteNeedsConfirmation` and `DeleteWarning` are properties the tests read, and the window only puts them on screen. The warning names the size of what is going — "Delete “Art” and the 1 folder and 1 document inside it?" — because *are you sure?* tells somebody nothing they can weigh. **Cancel is the default button**, which is the opposite of B75's save dialog and right for the same reason: Enter should land on the outcome that cannot destroy anything.
+  - **Removing a folder returns its documents to the project root** rather than taking them with it. A drawing that vanished from every row because a folder was removed is a drawing that is gone as far as anyone can tell, and "remove" never touches disk.
+  - **`MissingFilesAreTrackedAndNotReloadedOnNextOpen` needed no new machinery, and is worth having anyway.** The manifest *is* the index and nothing scans the folder, so a removed document already stays removed — the test pins a property that a later directory scan would silently break, and the folder tree makes such a scan tempting.
+  - **One live crash found and fixed on the way.** `RemoveSelected` read `row.Character!` for anything that was not a document, so a scene row was a null reference — pre-existing, and made far easier to reach the moment folder rows existed. Folders are handled and the scene case reports rather than throws.
 
 - [x] **B86** `P2` `project` Project docker is missing drag/drop, subfolder creation, and collapse/expand hierarchy `evidence: ProjectDockerTests, FoldersCanBeDraggedWithinProject, DocumentsCanBeDraggedWithinProject, SubfoldersCanBeCreatedWithinFolders, FoldersCanBeCollapsedAndExpanded`
   - Reported: within the project docker, the user expects to be able to drag and drop folders and documents to organize them, create subfolders within existing folders, and collapse/expand folders to manage the hierarchy.

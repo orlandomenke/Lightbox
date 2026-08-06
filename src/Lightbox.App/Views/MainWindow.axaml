@@ -1956,6 +1956,12 @@
                             <MenuItem Header="Rename…" Click="OnProjectRowRename" />
                             <MenuItem Header="Remove from project" Click="OnProjectRemove"
                                       ToolTip.Tip="Take it out of the index. The file stays on disk." />
+                            <!-- B87. Its own entry rather than a modifier on the
+                                 one above: two operations with different
+                                 consequences should not be one gesture told
+                                 apart by a held key. -->
+                            <MenuItem Header="Delete permanently…" Click="OnProjectDeletePermanently"
+                                      ToolTip.Tip="Remove it from the project and delete it from disk" />
                             <Separator />
                             <!-- Status, and the reason it is here rather than in the
                                  document: marking something Ready must not need the

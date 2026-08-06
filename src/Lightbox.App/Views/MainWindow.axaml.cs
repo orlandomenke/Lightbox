@@ -3078,6 +3078,64 @@ public partial class MainWindow : Window
     private void OnProjectRemove(object? sender, RoutedEventArgs e) =>
         _vm.ProjectDocker.RemoveSelectedCommand.Execute(null);
 
+    /// <summary>
+    /// Delete for real, asking first when there is something inside.
+    /// </summary>
+    /// <remarks>
+    /// <b>B87.</b> The docker decides <em>whether</em> to ask and what the
+    /// question says; this only puts it on screen. A view model that opened its
+    /// own dialogs would be one no test could drive, which is the same split
+    /// B65 uses for the name prompt.
+    /// </remarks>
+    private async void OnProjectDeletePermanently(object? sender, RoutedEventArgs e)
+    {
+        var docker = _vm.ProjectDocker;
+        if (docker.DeleteNeedsConfirmation
+            && !await ConfirmAsync("Delete permanently", docker.DeleteWarning, "Delete"))
+        {
+            return;
+        }
+        docker.DeleteSelectedPermanentlyCommand.Execute(null);
+    }
+
+    /// <summary>A yes/no the artist has to mean, with the destructive verb spelled out.</summary>
+    private async Task<bool> ConfirmAsync(string title, string message, string confirmLabel)
+    {
+        var yes = false;
+        var confirm = new Button { Content = confirmLabel, IsDefault = false };
+        var cancel = new Button { Content = "Cancel", IsDefault = true, IsCancel = true };
+        var dialog = new Window
+        {
+            Title = title,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(16),
+                Spacing = 12,
+                Children =
+                {
+                    new TextBlock { Text = message, MaxWidth = 360, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Spacing = 8,
+                        Children = { cancel, confirm },
+                    },
+                },
+            },
+        };
+        // Cancel is the default and Delete is not, which is the opposite of the
+        // save dialog B75 landed: there, Enter should reach the outcome that
+        // cannot destroy anything, and here that is Cancel.
+        confirm.Click += (_, _) => { yes = true; dialog.Close(); };
+        cancel.Click += (_, _) => dialog.Close();
+        await dialog.ShowDialog(this);
+        return yes;
+    }
+
     private void OnProjectRowRename(object? sender, RoutedEventArgs e)
     {
         if (_vm.ProjectDocker.Selected is { } row) row.IsRenaming = true;

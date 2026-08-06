@@ -48,6 +48,19 @@ something inside itself does nothing, because there would be no way back to it.
 The name is yours and the folder on disk is a tidied version of it: *Act 2 —
 Interiors* becomes `act-2-interiors`. What you typed is what the panel shows.
 
+#### Removing and deleting
+
+Two operations on the right-click menu, and they are not the same thing:
+
+| | |
+| --- | --- |
+| **Remove from project** | Takes it out of the panel. **The file stays on disk.** Removing a folder puts what was inside it back at the project root, so no drawing disappears with it. |
+| **Delete permanently…** | Removes it *and* deletes it from disk. |
+
+Deleting a folder that has anything in it asks first, and says how much — *"Delete 'Art' and the 1 folder and 1 document inside it?"* — because *are you sure?* tells you nothing you can weigh. An empty folder goes without asking.
+
+A removed document stays removed: reopening the project does not claim the file back, even though it is still on disk.
+
 #### Characters and scenes
 
 A **character** and a **scene** are still their own things, because they carry

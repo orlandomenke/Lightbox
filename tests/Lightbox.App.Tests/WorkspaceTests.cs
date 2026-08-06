@@ -241,8 +241,11 @@ public sealed class WorkspaceTests : BrushStateIsolated
             flyout.Hide();
 
             Assert.Equal(
+                // B87 added "Delete permanently…" beside "Remove from project".
+                // This flyout is written out in XAML, so this assertion is what
+                // proves a new entry actually reached the menu.
                 ["Open", "Open with default app…", "Show in file manager", "Copy path",
-                 "Duplicate", "Rename…", "Remove from project", "Status"],
+                 "Duplicate", "Rename…", "Remove from project", "Delete permanently…", "Status"],
                 items.Select(i => i.Header?.ToString()).ToList());
 
             vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
