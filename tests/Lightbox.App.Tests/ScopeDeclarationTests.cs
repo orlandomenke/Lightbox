@@ -177,4 +177,205 @@ public sealed class ScopeDeclarationTests(ITestOutputHelper output) : BrushState
         output.WriteLine($"{before} -> #123456 -> {swatch.Color}");
         Assert.Equal(before, swatch.Color);
     }
+
+    // ---- the other four kinds, declarable at last ---------------------------
+    //
+    // The mechanism resolved six kinds and the menu could declare two. These
+    // are the four that could not be reached, and the two verbs — take back,
+    // change reach — that every kind needs and none had.
+
+    private ProjectViewModel WithFolder(MainViewModel vm, string name)
+    {
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, name);
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == name);
+        return docker;
+    }
+
+    [AvaloniaFact]
+    public void AGradientCanBeSharedWithAFolder()
+    {
+        var vm = Vm();
+        var gradient = new Gradient { Name = "Sunset" };
+        vm.ProjectDocker.Project!.Gradients[gradient.Id] = gradient;
+
+        var docker = WithFolder(vm, "Backgrounds");
+        Assert.False(GradientScopes.AnyDeclared(docker.Project!.Manifest));
+
+        docker.ShareGradientEntryCommand.Execute(
+            Assert.Single(docker.ShareableGradients, g => g.Name == "Sunset"));
+
+        Assert.True(GradientScopes.AnyDeclared(docker.Project!.Manifest));
+        var declared = Assert.Single(docker.DeclarationsOnSelected);
+        Assert.Equal(gradient.Id, declared.Id);
+        Assert.Equal(GradientScopes.Kind, declared.Kind);
+    }
+
+    [AvaloniaFact]
+    public void GuidesCanBeSharedWithAFolder()
+    {
+        // The roadmap's character height guide, which was never anything other
+        // than a guide set plus a declaration — and had no gesture for either.
+        var vm = Vm();
+        var guides = new GuideSet { Name = "Knight height" };
+        (vm.ProjectDocker.Project!.Manifest.GuideSets ??= []).Add(guides);
+
+        var docker = WithFolder(vm, "Knight");
+        docker.ShareGuideSetEntryCommand.Execute(Assert.Single(docker.ShareableGuideSets));
+
+        var declared = Assert.Single(docker.DeclarationsOnSelected);
+        Assert.Equal(guides.Id, declared.Id);
+        Assert.Equal(GuideScopes.Kind, declared.Kind);
+    }
+
+    /// <summary>A scope has one default template, so declaring twice replaces.</summary>
+    [AvaloniaFact]
+    public void ADefaultTemplateReplacesRatherThanAccumulating()
+    {
+        var vm = Vm();
+        var docker = vm.ProjectDocker;
+
+        // Two templates, so "replaces" is distinguishable from "adds".
+        var first = ProjectIo.AddDocument(docker.Project!, "Rough sheet", DocumentFactory.CreateDoc(64, 64));
+        var second = ProjectIo.AddDocument(docker.Project!, "Clean sheet", DocumentFactory.CreateDoc(64, 64));
+        foreach (var reference in new[] { first, second })
+        {
+            Templates.SetTemplate(ProjectIo.LoadDocument(docker.Project!, reference)!, true);
+        }
+        vm.SaveProject();
+
+        docker = WithFolder(vm, "Locomotion");
+        var folder = docker.Selected!.Folder!;
+        Assert.Equal(2, docker.ShareableTemplates.Count);
+
+        docker.SetDefaultTemplateEntryCommand.Execute(
+            docker.ShareableTemplates.Single(t => t.Name == "Rough sheet"));
+        docker.SetDefaultTemplateEntryCommand.Execute(
+            docker.ShareableTemplates.Single(t => t.Name == "Clean sheet"));
+
+        // One declaration, and it is the second — two of a one-at-a-time kind
+        // would make which-one-wins depend on insertion order.
+        var declared = Assert.Single(docker.DeclarationsOnSelected);
+        Assert.Equal(second.Id, declared.Id);
+        Assert.Equal(second.Id, TemplateScopes.DefaultFor(docker.Project!.Manifest, folder));
+    }
+
+    /// <summary>
+    /// A drawing becomes reference for its neighbours, or for everything.
+    /// </summary>
+    /// <remarks>
+    /// Workflows 3 and 4 — the environment layout everything draws against, the
+    /// sword in the asset library. Both are <see cref="ResourceReach.Project"/>,
+    /// which existed in the record and in the resolver and had no gesture, so
+    /// the two workflows the design was written for were the two that could not
+    /// be performed.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ADrawingCanBeMadeReferenceForItsNeighboursOrForEverything()
+    {
+        var vm = Vm();
+        var docker = WithFolder(vm, "Environments");
+        var folder = docker.Selected!.Folder!;
+        var layout = ProjectIo.AddDocument(
+            docker.Project!, "World layout", DocumentFactory.CreateDoc(64, 64));
+        ProjectFolders.FileDocument(docker.Project!.Manifest, layout, folder);
+        docker.Refresh();
+        docker.Selected = Assert.Single(docker.Rows, r => r.Animation?.Id == layout.Id);
+
+        docker.ShareSelectedAsReference(projectWide: false);
+
+        // Declared on the drawing's own folder, not on the selection — the
+        // selection is the drawing.
+        var declared = Assert.Single(folder.Resources!);
+        Assert.Equal(layout.Id, declared.Id);
+        Assert.Equal(ReferenceScopes.Kind, declared.Kind);
+        Assert.Equal(ReferenceTargets.Document, declared.Target);
+        Assert.Equal(ResourceReach.Subtree, declared.ReachOrDefault);
+
+        // A drawing filed somewhere else entirely cannot see it yet…
+        var elsewhere = ProjectIo.AddDocument(
+            docker.Project!, "Knight walk", DocumentFactory.CreateDoc(64, 64));
+        Assert.DoesNotContain(
+            layout.Id,
+            ReferenceScopes.VisibleTo(docker.Project!.Manifest, elsewhere)?.Select(r => r.Id) ?? []);
+
+        // …and does once it is published, which is the whole of workflow 3.
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Environments");
+        docker.PublishEntryCommand.Execute(Assert.Single(docker.Declarations));
+        output.WriteLine($"reach is now {declared.ReachOrDefault}");
+        Assert.Equal(ResourceReach.Project, declared.ReachOrDefault);
+        Assert.Contains(
+            layout.Id,
+            ReferenceScopes.VisibleTo(docker.Project!.Manifest, elsewhere)!.Select(r => r.Id));
+    }
+
+    /// <summary>Publishing is a toggle, and unpublishing writes no key.</summary>
+    /// <remarks>
+    /// The second half is the one worth asserting: setting the reach back to
+    /// <see cref="ResourceReach.Subtree"/> explicitly would serialize a
+    /// <c>reach</c> key saying nothing, so a publish-then-unpublish round trip
+    /// would be visible in the file. Optional means absent.
+    /// </remarks>
+    [AvaloniaFact]
+    public void UnpublishingLeavesTheRecordAsAnOrdinaryDeclaration()
+    {
+        var vm = Vm();
+        var docker = WithFolder(vm, "Library");
+        docker.SharePalette(docker.ShareablePalettes[0].Id);
+        var row = Assert.Single(docker.Declarations);
+
+        docker.PublishEntryCommand.Execute(row);
+        Assert.Equal(ResourceReach.Project, row.Resource.ReachOrDefault);
+        Assert.Contains("project-wide", Assert.Single(docker.Declarations).LabelWithReach);
+
+        docker.PublishEntryCommand.Execute(Assert.Single(docker.Declarations));
+        Assert.Null(row.Resource.Reach);
+        Assert.DoesNotContain("project-wide", Assert.Single(docker.Declarations).LabelWithReach);
+    }
+
+    /// <summary>Every declaration reads as its name, and can be taken back.</summary>
+    [AvaloniaFact]
+    public void ADeclarationSaysWhatItIsAndCanBeUndone()
+    {
+        var vm = Vm();
+        var docker = WithFolder(vm, "Knight");
+        var palette = docker.ShareablePalettes[0];
+        docker.SharePalette(palette.Id);
+
+        var row = Assert.Single(docker.Declarations);
+        output.WriteLine(row.Label);
+        Assert.Equal($"Palette: {palette.Name}", row.Label);
+
+        docker.UnshareEntryCommand.Execute(row);
+        Assert.Empty(docker.Declarations);
+        Assert.False(docker.HasDeclarations);
+        // Back to unscoped, so every document sees every palette again rather
+        // than being scoped to nothing.
+        Assert.False(PaletteScopes.AnyDeclared(docker.Project!.Manifest));
+    }
+
+    /// <summary>
+    /// A declaration whose resource was deleted is still visible and removable.
+    /// </summary>
+    /// <remarks>
+    /// The failure otherwise: the resolver silently drops it, the artist sees a
+    /// picker missing a palette, and there is nothing in the panel pointing at
+    /// the cause. Falling back to the id is ugly and legible, which is the
+    /// right trade for a state that should not happen.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ADeclarationPointingAtNothingStillShowsAndStillClears()
+    {
+        var vm = Vm();
+        var docker = WithFolder(vm, "Knight");
+        ResourceScopes.Declare(
+            docker.Project!.Manifest, docker.Selected!.Folder, PaletteScopes.Kind, "pal-deleted");
+
+        docker.Selected = docker.Selected;  // re-raise, as a real selection would
+        var row = Assert.Single(docker.Declarations);
+        Assert.Equal("Palette: pal-deleted", row.Label);
+
+        docker.UnshareEntryCommand.Execute(row);
+        Assert.Empty(docker.Declarations);
+    }
 }

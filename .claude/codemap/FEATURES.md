@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2513 tests, derived from the suite itself. Each line is a
+2520 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1667,6 +1667,13 @@ regression even when every test still compiles.
 - Promoting ADeclaration Reaches The Whole Project — `:86`
 - Recolouring Repaints Every Open Document That Uses The Swatch — `:112`
 - Undoing ARecolour Of AProject Palette Restores It — `:160`
+- AGradient Can Be Shared With AFolder — `:196`
+- Guides Can Be Shared With AFolder — `:215`
+- ADefault Template Replaces Rather Than Accumulating — `:233`
+- ADrawing Can Be Made Reference For Its Neighbours Or For Everything — `:274`
+- Unpublishing Leaves The Record As An Ordinary Declaration — `:320`
+- ADeclaration Says What It Is And Can Be Undone — `:338`
+- ADeclaration Pointing At Nothing Still Shows And Still Clears — `:367`
 
 ## SelectionAdjustTests
 `tests/Lightbox.App.Tests/SelectionAdjustTests.cs`
@@ -2221,18 +2228,18 @@ regression even when every test still compiles.
 ## WorkspaceTests
 `tests/Lightbox.App.Tests/WorkspaceTests.cs`
 
-- Panels Land In The Strip The Layout Names — `:68`
-- Moving APanel Moves The Control — `:80`
-- An Empty Edge Collapses And AFilled One Opens — `:92`
-- Closing APanel Parks It Rather Than Destroying It — `:114`
-- The Header Switcher Trades Two Panels Places — `:133`
-- Every Panel Except The Timeline Offers ASwitcher — `:149`
-- The Project Panel Appears As Soon As There Is AProject — `:170`
-- The Canvas Gets The Room Left Over By The Strips — `:193`
-- The Project Row Menu Actually Does Something When Clicked — `:217`
-- The New Menu Actually Makes Things — `:303`
-- The Reference Panel Is Absent Until It Is Asked For — `:370`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:386`
+- Panels Land In The Strip The Layout Names — `:70`
+- Moving APanel Moves The Control — `:82`
+- An Empty Edge Collapses And AFilled One Opens — `:94`
+- Closing APanel Parks It Rather Than Destroying It — `:116`
+- The Header Switcher Trades Two Panels Places — `:135`
+- Every Panel Except The Timeline Offers ASwitcher — `:151`
+- The Project Panel Appears As Soon As There Is AProject — `:172`
+- The Canvas Gets The Room Left Over By The Strips — `:195`
+- The Project Row Menu Actually Does Something When Clicked — `:219`
+- The New Menu Actually Makes Things — `:343`
+- The Reference Panel Is Absent Until It Is Asked For — `:410`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:426`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

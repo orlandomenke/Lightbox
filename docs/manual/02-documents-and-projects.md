@@ -132,6 +132,39 @@ under that folder paints from it. A project that has never shared anything keeps
 offering every palette to every document, so nothing changes until you say so —
 and taking the last one back returns you to exactly that.
 
+#### Everything a folder can decide
+
+A palette is one of six, and they all work the same way: right-click the folder,
+pick the thing, and everything underneath it — at any depth — gets it.
+
+| Right-click a folder | What it decides |
+| --- | --- |
+| **Share a palette here** | What everything under it paints from |
+| **Share a gradient here** | Which gradients it can reach |
+| **Share guides here** | Guides drawings under it can pull in — a character height guide is this and nothing else |
+| **New documents start from** | The template a new drawing made here begins as |
+| **Export this as** | Its export settings, *and* where one file ends — see below |
+
+The first three **add up**: share two palettes and the folder offers both. The last
+two **replace**, because a drawing starts from one template and exports one way,
+and offering two would be offering a choice nobody made.
+
+**References work the other way round.** Right-click the *drawing* and pick **Use
+this as reference** — for everything filed alongside it, or for the whole project.
+You pick the drawing because the drawing is the thing you are looking at; a list of
+every document in the project hung off a folder would be hundreds of entries deep
+and the one you want is the row already under your pointer.
+
+**To see what a folder decides**, right-click it: **Stop sharing** lists exactly
+what that folder declares — not what it inherits from above — and clicking one
+takes it back. **Reach** lists the same things and toggles each between *this
+folder and everything under it* and *the whole project*, which is what an
+environment layout that backgrounds and characters both work from needs.
+
+A declaration whose thing was deleted still appears, showing its id instead of a
+name. That is deliberate: otherwise a palette quietly missing from a picker has
+no visible cause and nothing to clear.
+
 #### References a document draws against
 
 A **reference** is something you draw against, declared on a scope the same way
@@ -143,10 +176,10 @@ a palette is — so it reaches everything under it, at any depth. Three kinds:
 | **A document** | An ordinary drawing used as reference — one big environment layout, a style guide, a colour key. Not squeezed into a sheet, because it is not that shape. |
 | **An image** | A photo or a scan, brought in. |
 
-Put a sheet on a character's folder and every drawing under it can reach it. Put
-a reference on the project, or **publish** one from wherever it lives, and
-everything can — which is what an environment layout that both backgrounds and
-characters work from actually needs.
+Put a sheet on a character's folder and every drawing under it can reach it. Use
+a drawing as reference **for the whole project**, or publish one later from
+**Reach**, and everything can — which is what an environment layout that both
+backgrounds and characters work from actually needs.
 
 The panel is called **Reference sheets** rather than Character sheets, because
 nothing about it was ever specific to characters.
