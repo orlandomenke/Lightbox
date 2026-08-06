@@ -1530,8 +1530,8 @@ public static class BrushEngine
 
             // Dulling deposits the colour under the dab rather than the
             // colour it has been carrying, which is the whole difference.
-            var deposit = dulling ? Mix(sample, carried, carryOver * 0.5) : carried;
-            if (colorRate > 0) deposit = Mix(deposit, ownColor, colorRate);
+            var deposit = dulling ? MixPigment(sample, carried, carryOver * 0.5) : carried;
+            if (colorRate > 0) deposit = MixPigment(deposit, ownColor, colorRate);
 
             if (deposit.Alpha > 0)
             {
@@ -1542,10 +1542,37 @@ public static class BrushEngine
             // How much of the carried colour survives into the next dab. At 0
             // the sample is replaced every dab and colour barely travels; at 1
             // it is dragged the length of the stroke.
-            carried = Mix(sample, carried, carryOver);
+            carried = MixPigment(sample, carried, carryOver);
         }
     }
 
+    /// <summary>
+    /// The colour under a dab: a coverage-weighted mean of five taps.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B91, and it is the whole of why a smudge used to darken what it touched.</b>
+    /// This averaged <em>unpremultiplied</em> RGB and alpha as four independent
+    /// channels. A transparent pixel has no colour — Skia hands back
+    /// <c>rgb(0,0,0)</c> for one — so every tap that landed off the edge of a mark
+    /// dragged the sampled colour toward <b>black</b> in proportion to how much bare
+    /// canvas the dab overlapped. Measured on a solid block with a dab centred on its
+    /// edge, four taps of five off the paint: a <b>white</b> block sampled
+    /// <c>rgb(50,50,50)</c> and a red one <c>rgb(40,5,5)</c>. Smudging outward did not
+    /// carry the colour out, it carried a darkened ghost of it.
+    /// </para>
+    /// <para>
+    /// Weighting each tap by its own coverage is the fix, and it is the same
+    /// arithmetic <see cref="LerpDab"/> is careful about two functions down — "lerping
+    /// premultiplied colour is the right operation as well as the fast one". The
+    /// sampler simply never got the same treatment.
+    /// </para>
+    /// <para>
+    /// Alpha is still the plain mean, and has to be: it is <em>how much</em> is under
+    /// the dab, which is exactly the unweighted average. Only the colour is a question
+    /// about the pixels that actually have one.
+    /// </para>
+    /// </remarks>
     private static SKColor SampleAverage(SKBitmap pixels, SKPoint pos, float spread)
     {
         Span<(int dx, int dy)> offsets = [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)];
@@ -1556,12 +1583,51 @@ public static class BrushEngine
             var y = Math.Clamp((int)(pos.Y + dy * spread), 0, pixels.Height - 1);
             var c = pixels.GetPixel(x, y);
             a += c.Alpha;
-            r += c.Red;
-            g += c.Green;
-            b += c.Blue;
+            r += c.Red * c.Alpha;
+            g += c.Green * c.Alpha;
+            b += c.Blue * c.Alpha;
             n++;
         }
-        return new SKColor((byte)(r / n), (byte)(g / n), (byte)(b / n), (byte)(a / n));
+        // Nothing with any coverage under the dab: no colour to report, and
+        // dividing by the summed alpha would be a divide by zero.
+        if (a == 0) return default;
+        return new SKColor((byte)(r / a), (byte)(g / a), (byte)(b / a), (byte)(a / n));
+    }
+
+    /// <summary>
+    /// Blend two colours by coverage, rather than as four independent channels.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B91's second half.</b> <see cref="Mix"/> lerps unpremultiplied RGB and alpha
+    /// separately, which is right for a gradient — its one other caller, where both
+    /// stops are colours an artist chose — and wrong for pigment, where a nearly
+    /// transparent entry should contribute nearly nothing to the hue. Carried through a
+    /// smudge dab over dab it crushed the channels: a red mark
+    /// <c>rgb(220,40,40)</c> arrived down the stroke as <c>rgb(205,6,6)</c>.
+    /// </para>
+    /// <para>
+    /// Kept separate from <see cref="Mix"/> rather than replacing it, so the gradient
+    /// path cannot be collateral damage from a smudge fix.
+    /// </para>
+    /// </remarks>
+    private static SKColor MixPigment(SKColor x, SKColor y, double t)
+    {
+        double xa = x.Alpha / 255.0, ya = y.Alpha / 255.0;
+        var a = xa + (ya - xa) * t;
+        if (a <= 0) return default;
+
+        byte Channel(byte xc, byte yc)
+        {
+            var premul = xc * xa + (yc * ya - xc * xa) * t;
+            return (byte)Math.Clamp(Math.Round(premul / a), 0, 255);
+        }
+
+        return new SKColor(
+            Channel(x.Red, y.Red),
+            Channel(x.Green, y.Green),
+            Channel(x.Blue, y.Blue),
+            (byte)Math.Clamp(Math.Round(a * 255), 0, 255));
     }
 
     /// <summary>
@@ -1694,10 +1760,19 @@ public static class BrushEngine
                     continue;
                 }
 
-                dst[pi] = (byte)(src[si] + (dr - src[si]) * w);
-                dst[pi + 1] = (byte)(src[si + 1] + (dg - src[si + 1]) * w);
-                dst[pi + 2] = (byte)(src[si + 2] + (db - src[si + 2]) * w);
-                dst[pi + 3] = (byte)(src[si + 3] + (dAl - src[si + 3]) * w);
+                // Rounded, not truncated, and that is B91's third finding. A cast to
+                // byte truncates, so every dab lost up to a whole level on every
+                // channel — a bias that only ever points one way and compounds across
+                // the ~40 dabs that overlap a pixel at ordinary spacing. It hurt small
+                // channel values hardest, because losing 1 from a premultiplied green
+                // of 6 is 17% and losing it from a red of 35 is 3%: a red mark
+                // rgb(220,40,40) desaturated to rgb(211,12,12) down the stroke while
+                // the red channel barely moved. Alpha truncates the same way, which is
+                // erosion the brush was never asked for.
+                dst[pi] = (byte)(src[si] + (dr - src[si]) * w + 0.5f);
+                dst[pi + 1] = (byte)(src[si + 1] + (dg - src[si + 1]) * w + 0.5f);
+                dst[pi + 2] = (byte)(src[si + 2] + (db - src[si + 2]) * w + 0.5f);
+                dst[pi + 3] = (byte)(src[si + 3] + (dAl - src[si + 3]) * w + 0.5f);
             }
         }
 
