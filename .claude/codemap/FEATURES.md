@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2349 tests, derived from the suite itself. Each line is a
+2353 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -3279,6 +3279,14 @@ regression even when every test still compiles.
 `tests/Lightbox.Raster.Tests/SmudgeCostTests.cs`
 
 - AWhole Smudge Stroke Stays Affordable — `:29`
+
+## SmudgeTransportTests
+`tests/Lightbox.Raster.Tests/SmudgeTransportTests.cs`
+
+- AMark Smudges Its Own Colour Rather Than ADarkened Ghost — `:102`
+- AColoured Mark Keeps Its Hue Down The Stroke — `:137`
+- Smudging Does Not Hollow Out The Body Of AMark — `:169`
+- The Trail Length Responds To Its Controls — `:201`
 
 ## StampingArcTests
 `tests/Lightbox.Raster.Tests/StampingArcTests.cs`

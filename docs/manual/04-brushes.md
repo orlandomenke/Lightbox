@@ -412,7 +412,22 @@ never change it: they are not what *you* were painting with.
 ## What smudge and blur read
 
 Smudge and blur move pixels that are already there rather than laying down
-colour. **Edit → Configure → Drawing** decides which pixels:
+colour.
+
+**How far a smudge carries is set by two things, and they multiply.** *Strength*
+on the bar is how hard each dab pulls; *Length* on **⚙ → Effects** is how much of
+what it picked up survives into the next dab. Length is the one that decides the
+trail: at the default 0.5 a 20 px smudge carries colour about 15 px past the edge
+of a mark, at 0.75 about 26, and at 1.0 about 53 — at 1.0 the sample never fades,
+so colour travels as far as you drag it. Raise strength as well and both grow.
+If a smear dies sooner than you want, reach for Length first.
+
+Dragging outward *does* thin the edge you dragged across, over roughly half a
+brush width. That is the tool working — it is what happens when you pull a finger
+through wet paint — and it stops at the edge: the body of the mark keeps its
+coverage however long you work over it.
+
+**Edit → Configure → Drawing** decides which pixels a smudge or blur reads:
 
 | | |
 | --- | --- |
