@@ -149,4 +149,56 @@ public static class SymbolScopes
         project.Symbols[id] = DocJson.CloneValue(theirs);
         return true;
     }
+
+    // ---- the tree axis (Q30 step 5) -----------------------------------------
+
+    /// <summary>The kind string a symbol is declared under.</summary>
+    /// <remarks>
+    /// <b>Last of the five on purpose, because it narrows rather than widens.</b>
+    /// Every other kind Q30 scoped was going from *nothing* to *somewhere*; a
+    /// symbol is already project-wide, so adding folder depth can only take
+    /// something away. That is why the rule below is not "resolve the chain" but
+    /// "resolve the chain <em>if the artist asked for one</em>" — an existing
+    /// project means every symbol everywhere, and it has to keep meaning that.
+    /// </remarks>
+    public const string Kind = "symbol";
+
+    /// <summary>Whether this project scopes its symbols at all.</summary>
+    public static bool AnyDeclared(ProjectManifest manifest) =>
+        (manifest.Resources?.Any(r => r.Kind == Kind) ?? false)
+        || ProjectFolders.All(manifest).Any(f => f.Resources?.Any(r => r.Kind == Kind) ?? false);
+
+    /// <summary>
+    /// The symbol ids this document can place, or null when the project scopes
+    /// none and every symbol applies.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Null rather than "all of them", so a caller can tell *unscoped* from
+    /// *scoped to everything* without counting. Every other kind does the same,
+    /// and here it is load-bearing rather than tidy: a project that has never
+    /// declared a symbol scope must behave exactly as it did, and a null is the
+    /// only answer that cannot be mistaken for a filter that happened to admit
+    /// everything.
+    /// </para>
+    /// <para>
+    /// <b>This is the picker, not the renderer.</b> A placement resolves by id
+    /// through <c>SymbolRegistry</c> and always will — moving a document into a
+    /// folder that does not declare a symbol it already places must not change
+    /// what it draws, or invariant 1 goes. What narrows is what an artist is
+    /// <em>offered</em>. <c>TheProjectRendersWithTheLibraryGone</c> is the test
+    /// that says so and it needed no change for this.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<string>? VisibleTo(ProjectManifest manifest, DocumentRef? document)
+    {
+        if (!AnyDeclared(manifest) || document is null) return null;
+        return [.. ResourceScopes.Resolve(manifest, document, Kind).Select(r => r.Id)];
+    }
+
+    /// <summary>
+    /// Whether a document may place this symbol — true when nothing is scoped.
+    /// </summary>
+    public static bool CanPlace(ProjectManifest manifest, DocumentRef? document, string symbolId) =>
+        VisibleTo(manifest, document) is not { } allowed || allowed.Contains(symbolId);
 }

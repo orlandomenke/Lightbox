@@ -69,7 +69,11 @@ public sealed partial class MainViewModel
         SymbolBrowser = new SymbolBrowserViewModel(
             () => ProjectDocker.Project,
             () => (Scene.Width, Scene.Height),
-            () => Library);
+            () => Library,
+            // Q30 step 5: which document the grid is offering symbols for, so a
+            // scoped project can narrow it. Null with no project slot, which is
+            // the unscoped answer anyway.
+            () => ActiveTab?.Source);
 
     // ---- global and project scope -------------------------------------------------
 

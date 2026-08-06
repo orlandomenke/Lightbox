@@ -240,4 +240,133 @@ public class SymbolScopeTests
         Assert.Single(symbol.Frames);
         Assert.Single(((PaintedFrame)symbol.Frames[0]).Strokes);
     }
+
+
+    // ---- the tree axis (Q30 step 5) -----------------------------------------
+    //
+    // Last of the five because it NARROWS. Every other kind went from nothing to
+    // somewhere; a symbol is already project-wide, so folder depth can only take
+    // something away — and an existing project must keep meaning "everything".
+
+    private static (ProjectManifest Manifest, ProjectFolder Knight, ProjectFolder Goblin,
+        DocumentRef Walk, DocumentRef Lurk) TwoCharacters()
+    {
+        var manifest = new ProjectManifest { Name = "Production" };
+        var knight = ProjectFolders.Add(manifest, "Knight", null);
+        var goblin = ProjectFolders.Add(manifest, "Goblin", null);
+        var walk = new DocumentRef { Name = "Walk", FolderId = knight.Id };
+        var lurk = new DocumentRef { Name = "Lurk", FolderId = goblin.Id };
+        manifest.Documents.Add(walk);
+        manifest.Documents.Add(lurk);
+        return (manifest, knight, goblin, walk, lurk);
+    }
+
+    /// <summary>
+    /// A project that declares nothing offers every symbol, exactly as before.
+    /// </summary>
+    /// <remarks>
+    /// The migration rule, and the one that matters most here: every project in
+    /// existence is in this state, and a narrowing that took effect by default
+    /// would empty their symbol pickers. Null rather than a list of everything,
+    /// so <em>unscoped</em> cannot be confused with <em>scoped to all of them</em>.
+    /// </remarks>
+    [Fact]
+    public void WithNothingDeclaredEverySymbolIsStillOffered()
+    {
+        var (manifest, _, _, walk, _) = TwoCharacters();
+        Assert.False(SymbolScopes.AnyDeclared(manifest));
+        Assert.Null(SymbolScopes.VisibleTo(manifest, walk));
+        Assert.True(SymbolScopes.CanPlace(manifest, walk, "sym-anything"));
+    }
+
+    /// <summary>Declaring on a folder narrows it to that subtree.</summary>
+    [Fact]
+    public void ASymbolDeclaredOnAFolderIsOfferedThereAndNotElsewhere()
+    {
+        var (manifest, knight, _, walk, lurk) = TwoCharacters();
+        ResourceScopes.Declare(manifest, knight, SymbolScopes.Kind, "sym-sword");
+
+        Assert.True(SymbolScopes.AnyDeclared(manifest));
+        Assert.Equal(["sym-sword"], SymbolScopes.VisibleTo(manifest, walk)!);
+        Assert.True(SymbolScopes.CanPlace(manifest, walk, "sym-sword"));
+
+        // The goblin sees nothing, which is the narrowing working — and the
+        // reason the first declaration is worth saying out loud in the UI.
+        Assert.Empty(SymbolScopes.VisibleTo(manifest, lurk)!);
+        Assert.False(SymbolScopes.CanPlace(manifest, lurk, "sym-sword"));
+    }
+
+    /// <summary>It reaches all the way down, however deep the tree gets.</summary>
+    [Fact]
+    public void ADeclarationReachesEveryDepthBeneathIt()
+    {
+        var (manifest, knight, _, _, _) = TwoCharacters();
+        var locomotion = ProjectFolders.Add(manifest, "Locomotion", knight);
+        var runs = ProjectFolders.Add(manifest, "Runs", locomotion);
+        var sprint = new DocumentRef { Name = "Sprint", FolderId = runs.Id };
+        manifest.Documents.Add(sprint);
+
+        ResourceScopes.Declare(manifest, knight, SymbolScopes.Kind, "sym-sword");
+        Assert.Contains("sym-sword", SymbolScopes.VisibleTo(manifest, sprint)!);
+    }
+
+    /// <summary>Published from the asset library, everything can place it.</summary>
+    /// <remarks>
+    /// Workflow 4 — the sword in the asset library that characters, environments
+    /// and props all place. A cascade alone cannot express it: the folder the
+    /// sword lives in is an ancestor of nothing that wants it.
+    /// </remarks>
+    [Fact]
+    public void APublishedSymbolReachesTheWholeProject()
+    {
+        var (manifest, knight, _, walk, lurk) = TwoCharacters();
+        var library = ProjectFolders.Add(manifest, "Assets", null);
+        ResourceScopes.Declare(manifest, knight, SymbolScopes.Kind, "sym-helm");
+        var sword = ResourceScopes.Declare(manifest, library, SymbolScopes.Kind, "sym-sword");
+
+        Assert.False(SymbolScopes.CanPlace(manifest, lurk, "sym-sword"));
+        ResourceScopes.Promote(sword);
+
+        Assert.True(SymbolScopes.CanPlace(manifest, lurk, "sym-sword"));
+        Assert.True(SymbolScopes.CanPlace(manifest, walk, "sym-sword"));
+        // And the knight keeps its own as well as the published one.
+        Assert.True(SymbolScopes.CanPlace(manifest, walk, "sym-helm"));
+    }
+
+    /// <summary>
+    /// A document that already places a symbol keeps drawing it when the scope
+    /// no longer offers it.
+    /// </summary>
+    /// <remarks>
+    /// <b>The line this whole step had to stay on the right side of.</b> Scoping
+    /// governs the picker, never the renderer: a placement resolves by id through
+    /// <c>SymbolRegistry</c>, so dragging a document into a folder that declares
+    /// nothing must change what it is <em>offered</em> and not one pixel of what
+    /// it <em>draws</em>. Rendering that consulted the scope would break
+    /// invariant 1 and invariant 4 at once — the same rule
+    /// <c>TheProjectRendersWithTheLibraryGone</c> states from the other side.
+    /// </remarks>
+    [Fact]
+    public void ScopingNarrowsThePickerAndNeverWhatIsAlreadyDrawn()
+    {
+        var (manifest, knight, goblin, _, lurk) = TwoCharacters();
+        ResourceScopes.Declare(manifest, knight, SymbolScopes.Kind, "sym-sword");
+
+        // The goblin cannot be offered the sword...
+        Assert.False(SymbolScopes.CanPlace(manifest, lurk, "sym-sword"));
+
+        // ...and the thing a render resolves through is untouched by any of it.
+        // A placement looks the symbol up by id in the project's own dictionary,
+        // which the scope never filters — the declaration is a separate list
+        // that only the picker reads.
+        var project = new Project(manifest, "/tmp/does-not-matter");
+        var sword = Sword();
+        project.Symbols[sword.Id] = sword;
+
+        Assert.True(project.Symbols.ContainsKey(sword.Id));
+        Assert.Same(sword, project.Symbols[sword.Id]);
+        // And declaring the sword somewhere else does not remove it either.
+        ResourceScopes.Declare(manifest, goblin, SymbolScopes.Kind, "sym-club");
+        Assert.Same(sword, project.Symbols[sword.Id]);
+    }
 }

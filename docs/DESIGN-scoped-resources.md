@@ -345,12 +345,26 @@ half-migrated.
    `[?] Character height guide` becomes an ordinary guide set declared on the
    knight folder, and Pillar 6's shipped template machinery gains the per-scope
    default it was missing.
-5. **Symbols gain the tree axis.** A *narrowing* of shipped behaviour rather than
-   a widening, so it comes last. Pillar 3's *"Global and project symbol scopes"*
+5. **Symbols gain the tree axis** — *landed 2026-08-06.* A *narrowing* of shipped
+   behaviour rather than a widening, so it came last. Pillar 3's *"Global and project symbol scopes"*
    already has the user↔project half; this adds folder depth beneath it. A symbol
    with no declared scope stays project-wide, which is what every existing
    project means — and `TheProjectRendersWithTheLibraryGone` must keep passing
-   untouched.
+   untouched. **It did**, and that is the useful part of the evidence: the
+   narrowing lives in `SymbolScopes.VisibleTo`, which the picker reads and the
+   renderer cannot, because `SymbolRegistry` resolves by id and takes no
+   manifest. `ScopingNarrowsThePickerAndNeverWhatIsAlreadyDrawn` states it from
+   the other side.
+
+   Two things the implementation settled that the plan had not:
+
+   - **The global library is never narrowed.** A scope governs the project's own
+     symbols; the artist's library is theirs in every project, and placing one
+     adopts it into the project, where it becomes declarable like anything else.
+   - **The first declaration is announced.** Everywhere else the first share is
+     invisible because it only adds; here it flips the project from *every symbol
+     everywhere* to *only what is declared*, so the status line says so. A picker
+     that quietly loses most of its contents is the worst way to learn a rule.
 
 **Two that sit outside the ordering.** Brush libraries — Pillar 0's tip library
 already says *"scoped like palettes"*, so it joins whenever step 1 exists — and

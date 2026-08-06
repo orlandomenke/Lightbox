@@ -1,6 +1,6 @@
 # Code index
 
-494 files · 127829 lines · 2564 tests.
+494 files · 128898 lines · 2578 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,15 +49,15 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (10165 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4454, TransformParts:7122
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4141 ln) · 16 test files
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4183 ln) · 16 test files
   - MainWindow:19, UnsavedChoice:2762
+- `src/Lightbox.App/Views/MainWindow.axaml` (3465 ln) · **no tests**
+  - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (3451 ln) · 10 test files
   - CanvasControl:28, CanvasToolMode:846, GridGesture:903, TxDrag:1050, DrawOp:2770
-- `src/Lightbox.App/Views/MainWindow.axaml` (3330 ln) · **no tests**
-  - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2139 ln) · 11 test files
-  - ProjectRow:19, ProjectViewModel:328, NewItemKind:1155
-- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1097 ln) · **no tests**
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2458 ln) · 11 test files
+  - ProjectRow:20, ScopeMenuEntry:359, DeclarationRow:370, ProjectViewModel:397, NewItemKind:1474
+- `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
   - FrameImportChoice:12, MainViewModel:29
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
@@ -91,6 +91,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GameMakerExportOptions:10, GameMakerExportResult:28, GameMakerExporter:78, StripRecord:86, GameMakerBlock:99
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 16 indirect only
   - RampTrack:10, GradientRamp:41
+- `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
+  - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 105 test files
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (281 ln) · 2 test files
@@ -101,8 +103,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CurveEditor:29
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 2 test files
   - ComposeRing:31, Buffer:33
-- `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (261 ln) · **no tests**
-  - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (256 ln) · 3 test files
   - Workspace:13, WorkspaceStore:51
 - `src/Lightbox.App/ViewModels/DocumentTab.cs` (253 ln) · 28 test files
@@ -279,25 +279,25 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Core
 
-- `src/Lightbox.Core/Projects/ProjectIo.cs` (1089 ln) · 26 test files
+- `src/Lightbox.Core/Projects/ProjectIo.cs` (1089 ln) · 27 test files
   - ProjectIo:31, ConversionReport:610
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (669 ln) · 9 test files
   - DocumentEditor:14, IEditStep:141, SnapshotStep:154, DeltaStep:173
-- `src/Lightbox.Core/Projects/ResourceScopes.cs` (525 ln) · 8 test files
-  - ResourceReach:12, ScopedResource:47, ResourceScopes:110, PaletteScopes:240, ReferenceTargets:283, ReferenceScopes:320, GradientScopes:388, TemplateScopes:423 …
+- `src/Lightbox.Core/Projects/ResourceScopes.cs` (568 ln) · 9 test files
+  - ResourceReach:12, ScopedResource:47, ResourceScopes:110, PaletteScopes:283, ReferenceTargets:326, ReferenceScopes:363, GradientScopes:431, TemplateScopes:466 …
 - `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 82 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
-- `src/Lightbox.Core/Projects/ProjectManifest.cs` (389 ln) · 27 test files
+- `src/Lightbox.Core/Projects/ProjectManifest.cs` (389 ln) · 28 test files
   - ProjectType:11, DocumentRef:29, CharacterVariant:147, Character:168, ProjectScene:238, ProjectManifest:262
 - `src/Lightbox.Core/Projects/ExportPreset.cs` (352 ln) · 12 test files
   - SpriteTrim:7, SpritePack:32, ExportGrouping:59, ExportTarget:75, ExportPreset:146
-- `src/Lightbox.Core/Projects/Templates.cs` (344 ln) · 2 test files
+- `src/Lightbox.Core/Projects/Templates.cs` (344 ln) · 3 test files
   - Templates:25, NewLayer:96, LayerChange:107, PullPreview:118, PullOptions:136
 - `src/Lightbox.Core/Documents/Scene.cs` (316 ln) · 16 test files
   - FrameMarker:4, TagDirection:66, AnimationTag:99, Scene:136
-- `src/Lightbox.Core/Projects/ProjectFolders.cs` (306 ln) · 13 test files
+- `src/Lightbox.Core/Projects/ProjectFolders.cs` (306 ln) · 15 test files
   - ProjectFolder:25, ProjectFolders:76
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (296 ln) · 5 test files
   - GeometryOps:5
@@ -311,7 +311,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TransformOps:12
 - `src/Lightbox.Core/Geometry/Snapper.cs` (229 ln) · 1 test files
   - Snapper:33
-- `src/Lightbox.Core/Documents/Gradient.cs` (224 ln) · 5 test files
+- `src/Lightbox.Core/Documents/Gradient.cs` (224 ln) · 6 test files
   - GradientKind:3, GradientSpread:10, GradientStop:32, GradientAlphaStop:57, Gradient:71, GradientOps:107
 - `src/Lightbox.Core/Documents/ReferenceStrip.cs` (222 ln) · 5 test files
   - ReferenceCell:23, ReferenceStrip:91
@@ -321,11 +321,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - EngineTarget:4, ImportMechanism:13, EngineApiNote:49, EngineApiNotes:86
 - `src/Lightbox.Core/Timeline/FigureFinder.cs` (206 ln) · 1 test files
   - FigureFinder:43
+- `src/Lightbox.Core/Projects/SymbolScopes.cs` (204 ln) · 3 test files
+  - SymbolScope:7, SymbolScopes:49, Stale:95
 - `src/Lightbox.Core/Export/BackgroundRules.cs` (198 ln) · 6 test files
   - BackgroundHandling:6, BackgroundSignal:43, OmittedLayer:62, SuspectedBackground:75, BackgroundRules:94
 - `src/Lightbox.Core/Geometry/ShapeBuilder.cs` (197 ln) · 3 test files
   - ShapeKind:5, ShapeBuilder:38
-- `src/Lightbox.Core/Documents/Symbol.cs` (185 ln) · 11 test files
+- `src/Lightbox.Core/Documents/Symbol.cs` (185 ln) · 12 test files
   - SymbolKind:11, Symbol:42, SymbolPlacement:120
 - `src/Lightbox.Core/Documents/PaletteFolder.cs` (178 ln) · 3 test files
   - PaletteFolder:20, PaletteTree:40
@@ -345,13 +347,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - LibraryEntry:7, CharacterLibrary:39
 - `src/Lightbox.Core/Documents/Doc.cs` (152 ln) · 36 test files
   - Doc:8, ClipRegion:146
-- `src/Lightbox.Core/Projects/SymbolScopes.cs` (152 ln) · 2 test files
-  - SymbolScope:7, SymbolScopes:49, Stale:95
 - `src/Lightbox.Core/Documents/Camera.cs` (146 ln) · 5 test files
   - CameraKey:10, Camera:46, CameraOps:65
 - `src/Lightbox.Core/Documents/Anchors.cs` (144 ln) · 8 test files
   - Anchors:13
-- `src/Lightbox.Core/Documents/Palette.cs` (144 ln) · 15 test files
+- `src/Lightbox.Core/Documents/Palette.cs` (144 ln) · 16 test files
   - Swatch:8, Palette:30, GimpPalette:55
 - `src/Lightbox.Core/Documents/Layer.cs` (143 ln) · 39 test files
   - LayerKind:5, LayerBlendMode:16, Cel:40, LayerGroup:51, Layer:69
@@ -371,7 +371,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GuideKind:4, Guide:60
 - `src/Lightbox.Core/Projects/ExportStaleness.cs` (114 ln) · 1 test files
   - ExportRecord:11, ExportStaleness:26, ExportTriggers:89
-- `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 41 test files
+- `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 42 test files
   - DocumentFactory:3
 - `src/Lightbox.Core/Documents/CollisionShape.cs` (101 ln) · 5 test files
   - ShapeRole:13, CollisionShape:67, ShapeBox:87
@@ -411,7 +411,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SmoothingMode:10, BrushStabilisation:52
 - `src/Lightbox.Core/Versioning/IVersionHistoryStore.cs` (66 ln) · 1 test files
   - IVersionHistoryStore:10
-- `src/Lightbox.Core/Projects/GuideSet.cs` (65 ln) · 1 test files
+- `src/Lightbox.Core/Projects/GuideSet.cs` (65 ln) · 2 test files
   - GuideSet:30, GuideScopes:46
 - `src/Lightbox.Core/Documents/ReferenceSheet.cs` (50 ln) · 3 test files
   - ReferenceSheet:11, ReferenceView:21
@@ -490,7 +490,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PaletteRegistry:25
 - `src/Lightbox.Raster/TextureRegistry.cs` (107 ln) · 2 test files
   - TextureRegistry:25, Field:28
-- `src/Lightbox.Raster/SymbolRegistry.cs` (95 ln) · 7 test files
+- `src/Lightbox.Raster/SymbolRegistry.cs` (95 ln) · 8 test files
   - SymbolRegistry:24
 - `src/Lightbox.Raster/BrushTipRegistry.cs` (51 ln) · 6 test files
   - BrushTipRegistry:12

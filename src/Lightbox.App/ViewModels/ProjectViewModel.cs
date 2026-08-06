@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -312,6 +313,74 @@ public sealed partial class ProjectRow : ObservableObject
     /// </remarks>
     internal string? Key =>
         Animation?.Id ?? Scene?.Id ?? Character?.Id ?? Folder?.Id ?? (IsRoot ? RootKey : null);
+
+    /// <summary>The docker this row belongs to, for its context menu to bind to.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The row's own comment warned about this and the menu did it anyway.</b>
+    /// A <c>MenuFlyout</c>'s items live in a popup rather than in the window's
+    /// visual tree, so <c>$parent[Window].DataContext.ProjectDocker.X</c>
+    /// resolves to nothing there. The flyout's actions dodged it by using
+    /// <c>Click</c> handlers — but an <c>ItemsSource</c> cannot, and the two
+    /// entries that had one were silently empty from the day they shipped:
+    /// *Share a palette here* and *Export this as* opened onto nothing.
+    /// </para>
+    /// <para>
+    /// A popup does inherit its target's <em>DataContext</em>, which is the row.
+    /// So the lists hang off the row and reach the docker through this. Caught
+    /// by <c>TheProjectRowMenuActuallyDoesSomethingWhenClicked</c> asserting the
+    /// binding resolved, which is a different claim from "the command works" —
+    /// the view model was right the whole time.
+    /// </para>
+    /// </remarks>
+    public ProjectViewModel? Owner { get; internal set; }
+}
+
+/// <summary>
+/// One entry in a scope submenu, carrying everything the menu item needs.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Why the entries are baked rather than templated.</b> A
+/// <c>MenuFlyout</c>'s items have no DataContext of their own, so a
+/// <c>$parent[Window]</c> or <c>$parent[MenuItem]</c> binding inside one is a
+/// coin flip that lands wrong: *Share a palette here* and *Export this as*
+/// shipped with exactly that and were empty submenus from the day they landed.
+/// With label, command and parameter on the entry, every binding in the
+/// template resolves against the entry itself — the one DataContext an
+/// <c>ItemsSource</c> child is guaranteed to have.
+/// </para>
+/// <para>
+/// It also moves the wiring somewhere a test can read it. A headless run cannot
+/// realise a submenu's containers, so "does the click reach the command" is not
+/// answerable from the view; it is answerable here.
+/// </para>
+/// </remarks>
+public sealed record ScopeMenuEntry(string Label, ICommand Command, object? Parameter);
+
+/// <summary>
+/// One declaration on the selected scope, named for a person rather than by id.
+/// </summary>
+/// <param name="Label">"Palette: Knight warms" — the kind, then the thing.</param>
+/// <remarks>
+/// A view type rather than a model one: <see cref="ScopedResource"/> holds ids
+/// because that is what survives a rename, and a menu holding ids is a menu
+/// nobody can read.
+/// </remarks>
+public sealed record DeclarationRow(ScopedResource Resource, string Label)
+{
+    /// <summary>Whether this one reaches the whole project rather than its subtree.</summary>
+    public bool IsPublished => Resource.ReachOrDefault == ResourceReach.Project;
+
+    /// <summary>
+    /// The label with its reach, so the toggle says what it is toggling *from*.
+    /// </summary>
+    /// <remarks>
+    /// A checkmark would be the obvious answer and it is the wrong one here: an
+    /// unticked row would read as "not shared" when it is shared with this
+    /// subtree, which is the ordinary case and the whole point of scoping.
+    /// </remarks>
+    public string LabelWithReach => IsPublished ? $"{Label} — project-wide" : Label;
 }
 
 /// <summary>
@@ -418,6 +487,11 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         // The scope panel is about whatever is selected, so it has to be told.
         OnPropertyChanged(nameof(DeclarationsOnSelected));
         OnPropertyChanged(nameof(ShareScopeLabel));
+        OnPropertyChanged(nameof(Declarations));
+        OnPropertyChanged(nameof(HasDeclarations));
+        // Whether the row can be reference at all depends on the row, so the
+        // menu entry has to appear and disappear with the selection.
+        OnPropertyChanged(nameof(CanShareSelectedAsReference));
     }
 
     // ---- export (Q30 steps 3-4) ---------------------------------------------
@@ -598,6 +672,250 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         AfterScopeChange(project, $"Shared with {ShareScopeLabel}.");
     }
 
+    // ---- the other four kinds, and the two verbs every kind needs ------------
+    //
+    // Q30's declaration surface. The mechanism resolved six kinds and the menu
+    // could declare two of them, which is the failure CLAUDE.md's "land the
+    // places it shows up" table exists for: it works, nothing is red, and the
+    // artist cannot reach it. Each of these is the palette pattern again — a
+    // list to choose from, a command that declares the chosen one — so the
+    // interesting part is where the two that are *not* shares sit.
+
+    /// <summary>The gradients an artist can share onto the selected scope.</summary>
+    public IReadOnlyList<Gradient> ShareableGradients =>
+        Project is null ? [] : [.. Project.Gradients.Values.OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase)];
+
+    /// <summary>
+    /// The project's symbols, which a scope can narrow to.
+    /// </summary>
+    /// <remarks>
+    /// The project's own rather than the global library's: a global symbol is
+    /// the artist's, reachable from every project, and placing one adopts it
+    /// into the project — where it becomes declarable like anything else. See
+    /// <see cref="SymbolScopes.Kind"/> for why this one narrows where the others
+    /// widen.
+    /// </remarks>
+    public IReadOnlyList<Symbol> ShareableSymbols =>
+        Project is null
+            ? []
+            : [.. Project.Symbols.Values.OrderBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase)];
+
+    [RelayCommand]
+    private void ShareSymbolEntry(Symbol? symbol)
+    {
+        if (Project is not { } project || symbol?.Id is not { Length: > 0 } id) return;
+        var scope = ScopeOfSelected();
+        if (Already(scope, SymbolScopes.Kind, id)) return;
+        var first = !SymbolScopes.AnyDeclared(project.Manifest);
+        ResourceScopes.Declare(project.Manifest, scope, SymbolScopes.Kind, id);
+        // The first declaration is the one that changes what everything else
+        // sees, because symbols were project-wide until it. Said out loud, since
+        // the artist's next surprise would otherwise be a picker that lost most
+        // of its contents with no obvious cause.
+        AfterScopeChange(
+            project,
+            first
+                ? $"{symbol.Name} shared with {ShareScopeLabel}. Symbols are now scoped: "
+                  + "elsewhere in the project only what is declared there is offered."
+                : $"{symbol.Name} shared with {ShareScopeLabel}.");
+    }
+
+    /// <summary>The guide sets an artist can share onto the selected scope.</summary>
+    public IReadOnlyList<GuideSet> ShareableGuideSets =>
+        Project?.Manifest.GuideSets ?? (IReadOnlyList<GuideSet>)[];
+
+    /// <summary>The documents marked as templates, for a scope to start from.</summary>
+    /// <remarks>
+    /// Reads each document to find the flag, which is why this is a method's
+    /// worth of work behind a property. <see cref="Templates.InProject"/> says
+    /// why the flag lives in the document rather than in the manifest, and the
+    /// loads are cached.
+    /// </remarks>
+    public IReadOnlyList<DocumentRef> ShareableTemplates =>
+        Project is null ? [] : Templates.InProject(Project);
+
+    /// <summary>The menu binds these, because a menu item hands over the object.</summary>
+    [RelayCommand]
+    private void ShareGradientEntry(Gradient? gradient)
+    {
+        if (Project is not { } project || gradient?.Id is not { Length: > 0 } id) return;
+        var scope = ScopeOfSelected();
+        if (Already(scope, GradientScopes.Kind, id)) return;
+        ResourceScopes.Declare(project.Manifest, scope, GradientScopes.Kind, id);
+        AfterScopeChange(project, $"{gradient.Name} shared with {ShareScopeLabel}.");
+    }
+
+    [RelayCommand]
+    private void ShareGuideSetEntry(GuideSet? guides)
+    {
+        if (Project is not { } project || guides?.Id is not { Length: > 0 } id) return;
+        var scope = ScopeOfSelected();
+        if (Already(scope, GuideScopes.Kind, id)) return;
+        ResourceScopes.Declare(project.Manifest, scope, GuideScopes.Kind, id);
+        AfterScopeChange(project, $"{guides.Name} shared with {ShareScopeLabel}.");
+    }
+
+    /// <summary>Say what a new document made in this scope starts from.</summary>
+    /// <remarks>
+    /// Not a share, which is why it is its own menu entry rather than a fifth
+    /// item under one: a scope has <em>one</em> default, so this replaces where
+    /// the others accumulate. Same shape as the export preset above, and for the
+    /// same reason — two declarations of a one-at-a-time kind on one folder make
+    /// which-one-wins depend on insertion order.
+    /// </remarks>
+    [RelayCommand]
+    private void SetDefaultTemplateEntry(DocumentRef? template)
+    {
+        if (Project is not { } project || template?.Id is not { Length: > 0 } id) return;
+        TemplateScopes.SetDefault(project.Manifest, ScopeOfSelected(), id);
+        AfterScopeChange(project, $"New documents in {ShareScopeLabel} start from {template.Name}.");
+    }
+
+    /// <summary>
+    /// Whether the selected row is a drawing that could be reference for others.
+    /// </summary>
+    public bool CanShareSelectedAsReference => Selected is { IsHeading: false, Animation: not null };
+
+    /// <summary>
+    /// Share the selected <em>document</em> as reference, here or project-wide.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The gesture is inverted, and deliberately.</b> Every other kind picks
+    /// the resource from a list hung off the folder it lands on. References
+    /// cannot: workflow 3's reference is an ordinary document, so that list
+    /// would be "every drawing in the project" — hundreds of entries in a
+    /// context menu, and the one you want is the row you already right-clicked.
+    /// So you pick the drawing and say how far it reaches.
+    /// </para>
+    /// <para>
+    /// <b>Which is also where publishing finally has a gesture.</b>
+    /// <see cref="ResourceReach.Project"/> existed in the record and in the
+    /// resolver and nowhere an artist could ask for it, which made workflows 3
+    /// and 4 — the environment layout everything draws against, the sword in the
+    /// asset library — the two the design was written for and the two that could
+    /// not be performed.
+    /// </para>
+    /// <para>
+    /// It lands on the document's <em>own</em> folder rather than on the
+    /// selection, because the selection is the document. Subtree from there
+    /// means "everything filed alongside this", which is what an artist sharing
+    /// a layout with its neighbours means.
+    /// </para>
+    /// </remarks>
+    public void ShareSelectedAsReference(bool projectWide)
+    {
+        if (Project is not { } project || Selected?.Animation is not { } document) return;
+        var scope = ProjectFolders.ById(project.Manifest, document.FolderId);
+        if (Already(scope, ReferenceScopes.Kind, document.Id)) return;
+        ReferenceScopes.Declare(
+            project.Manifest, scope, document.Id, ReferenceTargets.Document,
+            projectWide ? ResourceReach.Project : ResourceReach.Subtree);
+        AfterScopeChange(
+            project,
+            projectWide
+                ? $"{document.Name} is reference for the whole project."
+                : $"{document.Name} is reference for {scope?.Name ?? project.Name}.");
+    }
+
+    /// <summary>What the selected row declares, in words, with a verb for each.</summary>
+    /// <remarks>
+    /// <b>The half that makes the rest safe.</b> Declaring is one click and it
+    /// switches a project from *every resource everywhere* to *scoped*; without
+    /// somewhere to see what a folder declares, the only way to find out was to
+    /// open a drawing and notice the picker had changed.
+    /// </remarks>
+    public IReadOnlyList<DeclarationRow> Declarations =>
+        [.. DeclarationsOnSelected.Select(r => new DeclarationRow(r, LabelFor(r)))];
+
+    /// <summary>So the menu can hide an entry that would open onto nothing.</summary>
+    public bool HasDeclarations => DeclarationsOnSelected.Count > 0;
+
+    // ---- what the submenus actually bind to ---------------------------------
+    //
+    // One shape for all seven, so a new kind is a line rather than a block of
+    // XAML, and so the wiring is assertable without a window. See
+    // ScopeMenuEntry for why the command travels with the entry.
+
+    private static IReadOnlyList<ScopeMenuEntry> Entries<T>(
+        IEnumerable<T> source, Func<T, string> label, ICommand command) =>
+        [.. source.Select(item => new ScopeMenuEntry(label(item), command, item))];
+
+    public IReadOnlyList<ScopeMenuEntry> PaletteMenu =>
+        Entries(ShareablePalettes, p => p.Name, SharePaletteEntryCommand);
+
+    public IReadOnlyList<ScopeMenuEntry> GradientMenu =>
+        Entries(ShareableGradients, g => g.Name, ShareGradientEntryCommand);
+
+    public IReadOnlyList<ScopeMenuEntry> SymbolMenu =>
+        Entries(ShareableSymbols, s => s.Name, ShareSymbolEntryCommand);
+
+    public IReadOnlyList<ScopeMenuEntry> GuideSetMenu =>
+        Entries(ShareableGuideSets, g => g.Name, ShareGuideSetEntryCommand);
+
+    public IReadOnlyList<ScopeMenuEntry> TemplateMenu =>
+        Entries(ShareableTemplates, t => t.Name, SetDefaultTemplateEntryCommand);
+
+    public IReadOnlyList<ScopeMenuEntry> ExportPresetMenu =>
+        Entries(ShareableExportPresets, p => p.Name, SetExportPresetEntryCommand);
+
+    public IReadOnlyList<ScopeMenuEntry> UnshareMenu =>
+        Entries(Declarations, d => d.Label, UnshareEntryCommand);
+
+    public IReadOnlyList<ScopeMenuEntry> ReachMenu =>
+        Entries(Declarations, d => d.LabelWithReach, PublishEntryCommand);
+
+    /// <summary>A declaration's name rather than its id, which says nothing.</summary>
+    private string LabelFor(ScopedResource resource)
+    {
+        var name = resource.Kind switch
+        {
+            PaletteScopes.Kind => Project?.Palettes.FirstOrDefault(p => p.Id == resource.Id)?.Name,
+            GradientScopes.Kind => Project?.Gradients.GetValueOrDefault(resource.Id)?.Name,
+            GuideScopes.Kind => Project?.Manifest.GuideSets?.FirstOrDefault(g => g.Id == resource.Id)?.Name,
+            SymbolScopes.Kind => Project?.Symbols.GetValueOrDefault(resource.Id)?.Name,
+            ExportScopes.Kind => ShareableExportPresets.FirstOrDefault(p => p.Id == resource.Id)?.Name,
+            _ => DocumentByIdOrNull(resource.Id)?.Name,
+        };
+        var kind = resource.Kind switch
+        {
+            PaletteScopes.Kind => "Palette",
+            GradientScopes.Kind => "Gradient",
+            GuideScopes.Kind => "Guides",
+            SymbolScopes.Kind => "Symbol",
+            TemplateScopes.Kind => "Template",
+            ExportScopes.Kind => "Export",
+            ReferenceScopes.Kind => "Reference",
+            _ => resource.Kind,
+        };
+        // The id when the name cannot be found: a declaration pointing at
+        // something deleted must still be visible and removable, or the artist
+        // is left with a resolver failure and no way to clear its cause.
+        return $"{kind}: {name ?? resource.Id}";
+    }
+
+    private DocumentRef? DocumentByIdOrNull(string id) =>
+        Project?.AllDocuments.FirstOrDefault(d => d.Id == id);
+
+    [RelayCommand]
+    private void UnshareEntry(DeclarationRow? row)
+    {
+        if (row is not null) UnshareDeclaration(row.Resource);
+    }
+
+    [RelayCommand]
+    private void PublishEntry(DeclarationRow? row)
+    {
+        if (row is null || Project is not { } project) return;
+        if (row.IsPublished) ResourceScopes.Demote(row.Resource);
+        else ResourceScopes.Promote(row.Resource);
+        AfterScopeChange(
+            project,
+            row.Resource.ReachOrDefault == ResourceReach.Project
+                ? $"{row.Label} reaches the whole project."
+                : $"{row.Label} reaches {ShareScopeLabel} again.");
+    }
+
     /// <summary>Let everything in the project see this declaration, wherever it is filed.</summary>
     public void PromoteDeclaration(ScopedResource resource)
     {
@@ -610,16 +928,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public void UnshareDeclaration(ScopedResource resource)
     {
         if (Project is not { } project) return;
-        var scope = ScopeOfSelected();
-        var list = scope is null ? project.Manifest.Resources : scope.Resources;
-        if (list is null || !list.Remove(resource)) return;
-        // Emptied rather than left as an empty list, so a scope that declares
-        // nothing writes no key — the same rule the camera follows.
-        if (list.Count == 0)
-        {
-            if (scope is null) project.Manifest.Resources = null;
-            else scope.Resources = null;
-        }
+        if (!ResourceScopes.Withdraw(project.Manifest, ScopeOfSelected(), resource)) return;
         AfterScopeChange(project, $"No longer shared with {ShareScopeLabel}.");
     }
 
@@ -631,6 +940,11 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     {
         Status = status;
         OnPropertyChanged(nameof(DeclarationsOnSelected));
+        // The list the menu reads is derived from the one above, so it has to be
+        // raised too — a declaration that lands and does not appear under
+        // "Shared here" reads as the click having done nothing.
+        OnPropertyChanged(nameof(Declarations));
+        OnPropertyChanged(nameof(HasDeclarations));
         // The manifest changed, so the project is unsaved — and the resolver
         // that decides which palettes a document paints from has to be re-run,
         // which is what _changed does.
@@ -701,8 +1015,13 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
         void Add(ProjectRow fresh)
         {
+            // Every row goes through here, which is why the back-reference is
+            // set here rather than in six constructors that would each have to
+            // remember. A kept row gets it too: it may predate this line.
+            fresh.Owner = this;
             if (previous.FirstOrDefault(p => p.Describes(fresh)) is { } kept)
             {
+                kept.Owner = this;
                 kept.Name = fresh.Name;
                 kept.Status = fresh.Status;
                 kept.Duration = fresh.Duration;

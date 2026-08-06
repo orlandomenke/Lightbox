@@ -215,6 +215,49 @@ public static class ResourceScopes
     /// </remarks>
     public static void Promote(ScopedResource resource) =>
         resource.Reach = ResourceReach.Project;
+
+    /// <summary>Bring a published declaration back to its own subtree.</summary>
+    /// <remarks>
+    /// Writes null rather than <see cref="ResourceReach.Subtree"/>, so demoting
+    /// leaves the record exactly as an ordinary declaration would have written
+    /// it. Setting the enum's default value explicitly would serialize a
+    /// <c>reach</c> key that says nothing — *optional means absent*, and a
+    /// round trip through publish-and-unpublish must not be visible in the file.
+    /// </remarks>
+    public static void Demote(ScopedResource resource) => resource.Reach = null;
+
+    /// <summary>
+    /// Take a declaration back off the scope that made it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The counterpart <see cref="Declare"/> shipped without, and the omission
+    /// was not harmless: a project becomes *scoped* the moment it declares its
+    /// first resource — see <c>PaletteScopes.AnyDeclared</c> — so with no way
+    /// back, one mistaken click changed how every document in the project
+    /// resolved, permanently, from the artist's side.
+    /// </para>
+    /// <para>
+    /// Removing the last declaration of a kind returns the project to unscoped,
+    /// which is the same state it started in. That is the migration rule read
+    /// backwards and it falls out rather than being special-cased.
+    /// </para>
+    /// </remarks>
+    /// <returns>Whether the declaration was there to remove.</returns>
+    public static bool Withdraw(
+        ProjectManifest manifest, ProjectFolder? scope, ScopedResource resource)
+    {
+        var list = scope is null ? manifest.Resources : scope.Resources;
+        if (list is null || !list.Remove(resource)) return false;
+        // An empty list and no list mean the same thing and only one of them
+        // writes a key.
+        if (list.Count == 0)
+        {
+            if (scope is null) manifest.Resources = null;
+            else scope.Resources = null;
+        }
+        return true;
+    }
 }
 
 /// <summary>
