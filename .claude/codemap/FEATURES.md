@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2496 tests, derived from the suite itself. Each line is a
+2500 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -734,6 +734,14 @@ regression even when every test still compiles.
 - The Map Settings Appear Only Once The Map Is Asked For — `:398`
 - The Green Convention Round Trips Through The Window — `:418`
 - AGarbled Number Falls Back Rather Than Refusing The Export — `:439`
+
+## ExportWiringTests
+`tests/Lightbox.App.Tests/ExportWiringTests.cs`
+
+- Saving Bumps The Document Version And The Manifest Keeps It — `:41`
+- The Export Plan Describes What Would Be Written — `:61`
+- An Export Goes Stale When Its Documents Move On — `:80`
+- Nothing Exported Means Nothing Stale — `:106`
 
 ## FileRevealTests
 `tests/Lightbox.App.Tests/FileRevealTests.cs`

@@ -363,6 +363,15 @@ public sealed class ProjectManifest
     /// </remarks>
     public List<ExportPreset>? ExportPresets { get; set; }
 
+    /// <summary>
+    /// What each artifact was last built from, so staleness survives a restart.
+    /// </summary>
+    /// <remarks>
+    /// Null and absent until something is exported. Keyed by the scope that
+    /// produced it — a scope makes one deliverable, so the scope names it.
+    /// </remarks>
+    public Dictionary<string, ExportRecord>? ExportRecords { get; set; }
+
     public Documents.BrushSettings? Brush { get; set; }
 
     /// <summary>

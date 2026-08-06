@@ -420,6 +420,73 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ShareScopeLabel));
     }
 
+    // ---- export (Q30 steps 3-4) ---------------------------------------------
+
+    /// <summary>
+    /// What exporting the selection would produce, worked out before anything
+    /// is written.
+    /// </summary>
+    /// <remarks>
+    /// The plan is separate from the run so the confirmation has something to
+    /// count. "2 files from 3 documents, 1 held back by status" is this read
+    /// aloud, and it is the safeguard the recursion decision leans on — a wrong
+    /// scope shows up as an obviously wrong number where a yes/no could not say
+    /// anything at all.
+    /// </remarks>
+    public IReadOnlyList<ExportArtifact> PlanExport() =>
+        Project is not { } project
+            ? []
+            : ExportPlan.For(project.Manifest, ScopeOfSelected(), PresetById);
+
+    /// <summary>The sentence the export confirmation shows.</summary>
+    public string DescribeExportPlan() => ExportPlan.Describe(PlanExport());
+
+    /// <summary>
+    /// A preset by id: the project's own first, then the built-ins.
+    /// </summary>
+    /// <remarks>
+    /// Project before built-in, which is the same precedence every other scoped
+    /// resource uses — the nearer definition wins, and a project that overrides
+    /// a built-in means it.
+    /// </remarks>
+    public ExportPreset? PresetById(string id) =>
+        Project?.Manifest.ExportPresets?.FirstOrDefault(p => p.Id == id)
+        ?? ExportPreset.BuiltIns.FirstOrDefault(p => p.Id == id);
+
+    /// <summary>Note what an artifact was built from, so it can go stale later.</summary>
+    public void RecordExport(ExportArtifact artifact, string? path = null)
+    {
+        if (Project is not { } project) return;
+        // Keyed by scope, because a scope produces one deliverable. A loose
+        // document that exported on its own keys by the document instead.
+        var key = artifact.Scope?.Id ?? artifact.Documents.FirstOrDefault()?.Id;
+        if (key is null) return;
+        (project.Manifest.ExportRecords ??= [])[key] = ExportStaleness.RecordOf(artifact, path);
+        _changed();
+    }
+
+    /// <summary>
+    /// The artifacts that have moved on since they were written, named.
+    /// </summary>
+    /// <remarks>
+    /// What the studio dashboard wants, and it costs nothing extra: the record
+    /// is already there and staleness is a comparison rather than a flag
+    /// somebody has to remember to clear.
+    /// </remarks>
+    public IReadOnlyList<(ExportArtifact Artifact, int Drifted)> StaleExports()
+    {
+        if (Project is not { } project || project.Manifest.ExportRecords is not { } records) return [];
+        var stale = new List<(ExportArtifact, int)>();
+        foreach (var artifact in ExportPlan.For(project.Manifest, null, PresetById))
+        {
+            var key = artifact.Scope?.Id ?? artifact.Documents.FirstOrDefault()?.Id;
+            if (key is null || !records.TryGetValue(key, out var record)) continue;
+            var drifted = ExportStaleness.Drifted(record, artifact);
+            if (drifted.Count > 0) stale.Add((artifact, drifted.Count));
+        }
+        return stale;
+    }
+
     // ---- scoped resources (Q30) ---------------------------------------------
 
     /// <summary>

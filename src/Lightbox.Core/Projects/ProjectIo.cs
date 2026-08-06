@@ -491,6 +491,17 @@ public static class ProjectIo
         {
             reference.Frames = project.Loaded[reference.Id].Scene.FrameCount;
             reference.Fps = project.Loaded[reference.Id].Scene.Fps;
+            // The version moves when the file does, so anything built from this
+            // document — an exported sheet — can tell it has moved on. On save
+            // rather than on edit, because an edit nobody saved has not changed
+            // what the sheet was built from; Symbol.Version bumps on save for
+            // exactly the same reason.
+            //
+            // In *this* loop rather than the one that writes the documents,
+            // because that one runs after the manifest is serialized and the
+            // bump would never reach the file — the same trap the comment above
+            // records for Frames and Fps.
+            reference.Version++;
         }
 
         DocJson.WriteAtomic(

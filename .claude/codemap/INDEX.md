@@ -1,6 +1,6 @@
 # Code index
 
-482 files · 123524 lines · 2496 tests.
+483 files · 123724 lines · 2500 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -55,8 +55,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2848 ln) · 9 test files
   - CanvasControl:28, CanvasToolMode:692, GridGesture:748, TxDrag:895, DrawOp:2311
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1847 ln) · 10 test files
-  - ProjectRow:19, ProjectViewModel:328, NewItemKind:1007
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1914 ln) · 11 test files
+  - ProjectRow:19, ProjectViewModel:328, NewItemKind:1074
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
   - MainViewModel:20
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
@@ -91,7 +91,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GameMakerExportOptions:10, GameMakerExportResult:28, GameMakerExporter:78, StripRecord:86, GameMakerBlock:99
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 16 indirect only
   - RampTrack:10, GradientRamp:41
-- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 103 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 104 test files
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (281 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
@@ -242,7 +242,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
-- `src/Lightbox.App/App.axaml.cs` (30 ln) · 6 test files
+- `src/Lightbox.App/App.axaml.cs` (30 ln) · 7 test files
   - App:8
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml` (26 ln) · **no tests**
   - Message, RevertButton, SaveButton
@@ -271,8 +271,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Core
 
-- `src/Lightbox.Core/Projects/ProjectIo.cs` (1050 ln) · 25 test files
-  - ProjectIo:31, ConversionReport:599
+- `src/Lightbox.Core/Projects/ProjectIo.cs` (1061 ln) · 26 test files
+  - ProjectIo:31, ConversionReport:610
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (669 ln) · 9 test files
   - DocumentEditor:14, IEditStep:141, SnapshotStep:154, DeltaStep:173
 - `src/Lightbox.Core/Projects/ResourceScopes.cs` (525 ln) · 8 test files
@@ -281,7 +281,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
-- `src/Lightbox.Core/Projects/ProjectManifest.cs` (380 ln) · 27 test files
+- `src/Lightbox.Core/Projects/ProjectManifest.cs` (389 ln) · 27 test files
   - ProjectType:11, DocumentRef:29, CharacterVariant:147, Character:168, ProjectScene:238, ProjectManifest:262
 - `src/Lightbox.Core/Projects/ExportPreset.cs` (352 ln) · 11 test files
   - SpriteTrim:7, SpritePack:32, ExportGrouping:59, ExportTarget:75, ExportPreset:146
