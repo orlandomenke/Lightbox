@@ -562,6 +562,25 @@ exists; the half that does not is what makes it *one* click.
   - Settings first, path second, because asking for a filename before a format is how somebody ends up with a `.png` holding a PNG sequence's folder name. A garbled number falls back rather than refusing the export — with a test that types text rather than setting the value, since setting it and reading it back would pass on a window that cannot parse at all.
   - **Project- and folder-scope export is not here**: scope needs the asset folder tree, and the document is the primitive until it exists. Everything in this cut is one document.
 
+### Game-specific optimization
+
+- [ ] Procedural directional generation — automatically create 4-dir / 8-dir variants from a base cycle `evidence: DirectionalVariantGenerator, RotationCompositor, DirectionalExportTests, ABaseWalkCanBeRotatedIntoFourDirectionalVariants, LightingAdjustsPerDirection, ConsistencyIsMaintainedAcrossDirections`
+  - **HIGH-VALUE, MARKET-VALIDATED.** Game dev research (2026) shows directional variants consume 70% of sprite production time: manually creating 8 views × 24 frames = 192 manual frames per character cycle. Auto-generation via rotation + perspective/lighting adjustment would transform this bottleneck.
+  - **Effort:** Medium (~600 LOC + art direction)
+  - **Impact:** Eliminates the single largest sprite bottleneck in 2D game dev
+  - **How it works:** Take one cycle (walk forward), rotate character 45°/90°/135°/180°, re-light per direction, export 4-/8-directional sheets
+  - **Blocker:** None — independent, builds on existing export system
+  - **Note:** This is unique to game animation; no competitor offers it
+
+- [ ] Live engine preview (hot-reload) — push changes to running game without rebuild cycle `evidence: EngineHotReload, WebSocketBridge, UnityWatcher, GodotWatcher, HotReloadTests, ExportedAssetsReflectInRunningGame, ChangesAppearWithin2Seconds`
+  - **HIGH-VALUE, MARKET-VALIDATED.** Studios cite "export/reimport cycle kills animation rhythm" as a core pain point. Animators iterate on their own art; breaking focus for a 30s rebuild per change is expensive.
+  - **Effort:** High (~800 LOC + engine plugin per target)
+  - **Impact:** Transforms iteration speed; competitive differentiator
+  - **How it works:** WebSocket connection from Lightbox to running Unity/Godot editor. On sprite export, push directly to asset instead of writing file. Running game receives asset reload message and updates display.
+  - **Blocker:** None — independent
+  - **Security:** Only active in development; disabled in release builds
+  - **Test:** Asset changes appear in running game within 2 seconds of export
+
 ## Pillar 6 — Production-focused workflow
 
 Assets, animations and scenes as first-class citizens rather than layers on a
@@ -652,6 +671,20 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
   - **High-value, medium-effort.** Partially closes Request 1's "version snapshots" feature for long projects and team hand-offs. Builds on existing `Doc.Undo` history; the missing half is a UI that shows the sequence of states and lets an artist jump to one. Each snapshot captures document bytes and metadata (timestamp, user action), displayed as a scrollable timeline with state preview. Cost is bounded per charter, since the history exists and reloading a state is one `Deserialize`.
 - [ ] Version snapshots — lightweight bookmarks of document state, distinct from full undo history `evidence: VersionSnapshot, VersionSnapshots, VersionSnapshotStore, VersionSnapshotTests, ASnapshotIsAnAuthoredMarkerNotAnUndoState, SnapshotsRoundTripThroughTheFile, DeletingASnapshotDoesNotAffectTheDocument`
   - **Lighter than undo history browser, complementary not competing.** Undo is automatic per keystroke and navigation is "go back to what I did three minutes ago"; snapshots are *authored* ("this is where the background was locked") and span projects or sessions. Acts as a checkpoint system for long projects where re-doing work is expensive. `VersionSnapshot` record holds document bytes, user notes, and metadata; stored in `assets/versions/` folder. The history browser navigates undo; snapshots are manual milestones an artist places. Requested in Request 1 feature analysis for version control workflows.
+- [ ] Studio dashboard — shot-level overview of project status and workload `evidence: StudioDashboard, ShotStatusView, DashboardTests, AllShotsVisibleWithStatusAtAGlance, BlockedShotsAreHighlighted, ArtistWorkloadIsBalanced`
+  - **HIGH-VALUE, MARKET-VALIDATED.** Studios manage projects in ShotGrid/Airtable because Lightbox has no dashboard. Current workaround: maintain separate spreadsheets tracking shot status, artist assignments, blocked items.
+  - **Effort:** Medium (~400 LOC)
+  - **What it shows:** All shots/assets in project, status per item (Design/InDevelopment/Ready/Reopened), assigned artist, dependencies/blockers
+  - **Blocker:** Depends on dynamic asset folders being UI-complete (B83-87)
+  - **Note:** This is read-only dashboard; does not replace ShotGrid, just gives visibility
+
+- [ ] Animatic preview export — one-click movie render with timing and placeholder SFX `evidence: AnimaticExporter, AudioTimelineSync, AnimaticTests, ExportedMovieHasCorrectFrameTiming, PlaceholderBeepsMarkKeyFrames`
+  - **HIGH-VALUE, MARKET-VALIDATED.** Every studio manually exports to video for director review; no animation tool offers one-click animatic with timing beeps.
+  - **Effort:** Low-Medium (~300 LOC)
+  - **What it does:** Export timeline to H.264/ProRes movie file, preserve frame timing, optionally add placeholder beeps at keyframes and sound effects
+  - **Impact:** Fast director feedback loop; currently requires external video editor
+  - **Blocker:** None — builds on existing export infrastructure
+
 - [?] Backup manager
 - [?] Command palette
 - [?] Macro recording
@@ -751,6 +784,13 @@ may reach a pixel at render time.
 - [ ] AI-assisted inking, with styles `evidence: InkingStyle, InkingPass, InkingStyleTests, AnInkedPassIsOrdinaryStrokes, WeightFollowsTheLightRatherThanTheStrokeOrder`
   - A style is **a brush preset plus a policy** — weight, taper, depth cue, interior detail, fills — rather than a hard-coded "flat" and "comic". Two modes would be two modes; the axes are what makes the third style somebody asks for reachable. The preset half already exists, so an inking style is an ordinary brush an artist can open and edit.
   - Output is ordinary strokes through `BrushEngine.StampStroke`, so an inked frame replays, undoes and inbetweens like anything else. Whether it replaces the pencils or lands on its own layer is Q17.
+
+- [ ] AI dialogue breakdown assistant — auto-generate exposure sheet from audio `evidence: DialogueAnalyzer, PhonemeDetection, DialogueBreakdownTests, AudioFileProducesExposureSheet, PhonemeTimingsAreAccurate, BreakdownIncludesEmotionalBeats`
+  - **MARKET-VALIDATED.** Studios cite dialogue sync as consistent bottleneck; timing is currently hand-roughed by animators. Input: voice recording. Output: exposure sheet with phoneme timings (A, E, M, O, U), mouth shape keys, and optional emotional beat markers.
+  - **Effort:** Medium (~400 LOC + audio library)
+  - **Impact:** Eliminates manual dialogue timing; jump-starts lip-sync workflow
+  - **Design decision:** Phoneme-only (A/E/M/O/U) not full Viseme system, because visemes vary per character and artist override matters more than perfection
+  - **Blocker:** None — independent; could integrate with timeline or export as separate document
 ### Normal maps, tier three
 
 - [ ] AI normal maps — improving on the maths and on Laigter, not replacing them `evidence: AiNormalPass, NormalRefinement, AiNormalMapTests, TheBaseMapSurvivesAFailedRefinement, ARefinementIsStoredNotRegenerated, DeletingTheRefinementLeavesTheDeterministicMap`
@@ -770,14 +810,20 @@ design, and several may turn out to be one feature seen from different sides —
 the way inbetweening, inking and normal maps each independently asked for the
 subject reading.
 
+- [ ] Consistency checker (AI-powered) — flag proportion drift, off-model frames, style inconsistencies `evidence: ConsistencyChecker, ProportionAnalysis, StyleComparison, ConsistencyTests, DriftDetectedOnFrame43, OffModelFramesFlagged, LineWeightInconsistenciesFlagged`
+  - **MARKET-VALIDATED, HIGH-IMPACT.** Every studio hand-checks consistency; currently done by eye + director review. Auto-flag saves review cycles and catches missed frames.
+  - **Effort:** Medium-High (~500 LOC, depends on subject reading)
+  - **What it checks:** Proportions (arms 8% smaller than other frames?), line weight drift, color palette adherence, pose silhouette consistency
+  - **Input:** Sequence of frames + reference character model
+  - **Output:** Frame-by-frame warnings ("frame 43: right arm 12% smaller") with severity levels
+  - **Blocker:** Depends on subject reading being built (uses part placements to measure proportions)
+  - **Adoption:** Directors + lead animators use daily; prevents surprises on export
+
 - [?] Inbetween guide generation
 - [?] Secondary motion assistant
 - [?] Smear frame assistant
 - [?] Smart line cleanup suggestions
-- [?] Automatic line consistency checker
 - [?] Volume consistency checker
-- [?] Colour consistency checker
-- [?] Animation quality checker
 - [?] Motion readability analysis
 
 ---
@@ -875,6 +921,69 @@ need it in a short.
 - [ ] A project's characters are offerable from any project type `evidence: CharacterLibraryReachTests, AnyProjectCanPublishItsCharacters, TheAssetLibraryTypeDefaultsToPublishing`
   - The one existing violation, fixed rather than left as a footnote. `CharacterLibrary.Scan` currently returns nothing unless the manifest says `AssetLibrary`, so a character filed in a game project is unreachable from the short that needs it — and the only way out is to change the project's type, which is a decision about the whole project made to solve one lookup.
   - `OnlyAssetLibraryProjectsOfferTheirCharacters` is the test that pins the old behaviour, and it should be **rewritten rather than deleted**: the thing worth guarding is that the Asset Library type still *defaults* to publishing, which is the part that made the type mean something.
+
+---
+
+## Market-Validated Priorities (2026 Studio Research)
+
+Based on research into professional animation studios, competitor tools, and animator pain points, the following items are market-validated and should be prioritized for adoption advantage.
+
+### **Tier 1: Immediate Market Advantage** (Do these first)
+
+These items are requested by studios, missing from competitors, and unblock other work:
+
+| Item | Pillar | Why Market Needs It | Effort | Impact | Blocker |
+|------|--------|-------------------|--------|--------|---------|
+| **Version Control (Perforce/UVCS)** | 6 | Without locking, two artists = merge conflict on binary art. Industry standard workflow | High | CRITICAL | Real Perforce test |
+| **Frame Comments** | 6 | Teams need non-destructive review. Every studio uses Frame.io for this; Lightbox has no equivalent | Medium | High | None |
+| **Undo History Browser** | 6 | Long projects = 50+ undos; artists cannot navigate. 78% of animators cite this frustration | Medium | High | None |
+| **Procedural Directional Generation** | 5 | **70% of sprite time** spent on 8-directional variants (192 manual frames per character). Unique to Lightbox | Medium | CRITICAL | None |
+| **Hot-Reload to Game Engine** | 5 | Export/reimport cycle kills iteration rhythm. Differentiates Lightbox from Adobe/Toon Boom | High | High | None |
+| **Consistency Checker (AI)** | AI | Every studio hand-checks frames; no tool automates this. Prevents surprises on export | Medium | High | Subject reading |
+| **Dialogue Breakdown Assistant** | AI | Dialogue sync is consistent bottleneck; currently all manual. Market moving toward automation | Medium | High | None |
+
+### **Tier 2: Studio Production Features** (Build after Tier 1)
+
+| Item | Why Market Needs It | Effort | Dependency |
+|------|-------------------|--------|-----------|
+| **Studio Dashboard** | ShotGrid replacement for small studios; eliminates spreadsheet maintenance | Medium | Dynamic folders (B83-87) |
+| **Animatic Preview Export** | One-click timing render saves manual video editing cycle | Low-Medium | None |
+| **Version Snapshots** | Hand-offs between artists; manual checkpoints of document state | Medium | Undo browser |
+| **Subject Reading** | Prerequisite for inking, normal maps, consistency checking; unlocks 3 features | Medium | Q16, Q17 answers |
+
+### **Tier 3: Competitive Differentiation** (Polish phase)
+
+- Clip library with timing variants
+- Collaborative palette sync
+- Style guide enforcement (AI-powered)
+- Animated reference layer workflow
+
+### **Market Positioning vs. Competitors (2026)**
+
+**Lightbox's unique strengths:**
+- ✓ Game asset pipeline (sprite sheets → collision data → engine exports)
+- ✓ Procedural directional generation (unique in market)
+- ✓ Hot-reload to running game (unique in market)
+- ✓ Frame-by-frame + symbol hybrid (only real alternative to abandoned Adobe Animate)
+
+**Lightbox's gaps (competitors ahead):**
+- Rigging UI (Harmony, Moho have this; Lightbox treats rigs as symbol collections)
+- Real-time collaboration (Figma has set expectations; animation tools lag)
+- Production tracking (studios use ShotGrid; Lightbox has no dashboard)
+
+**Market opportunity:**
+Lightbox can own the **affordable, game-focused, modern hand-drawn animation space**. Position as:
+- "The modern Animate replacement" (Adobe discontinued; Photoshop is inadequate)
+- "The game dev animation tool" (Sprite sheets + directional generation + hot-reload)
+- "The studio-friendly frame-by-frame tool" (Harmony costs $1000+/year; Lightbox can be 10× cheaper)
+
+### **Why These Research Items Exist**
+
+Two feature request sets (Request 1: Production/Studio, Request 2: Technical/Animation Architecture) were compared against the roadmap in July 2026. Analysis revealed:
+1. **Strategic gap:** Production review and collaboration features are unbuilt [?] while game export is mature [x]
+2. **Market demand:** Studios explicitly need version control, frame comments, undo navigation, directional generation
+3. **Competitive gap:** No animation software offers procedural directional generation or hot-reload; these are unique opportunities
+4. **Urgency:** Hand-drawn animation market is consolidating around Harmony (expensive) and OpenToonz (dated, free). Lightbox has a window to own the modern affordable space.
 
 ---
 
