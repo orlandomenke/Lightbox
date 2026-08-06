@@ -559,3 +559,61 @@ version integer is not blocked on anything.
 time: `Id`, `Grouping`, `IncludeStatuses`, and a trigger rule. `DocumentRef`
 gains `Version`. Both default to the behaviour that exists today, so a project
 that declares nothing exports exactly as it does now.
+
+
+## The three export decisions, answered 2026-08-06
+
+All three went to the recommendation, so the reasoning below is the *why it
+holds* rather than a record of disagreement — worth writing down because the
+alternatives are each reasonable and somebody will propose them again.
+
+### Per-target presets, sharing by scope
+
+A preset produces one thing for one engine, and a character shipping to Unity
+and Godot declares two — the common one where it belongs, the engine-specific
+one on the folder that needs it.
+
+**The reason this beats an override mechanism is that it does not add a second
+precedence rule.** Scoping already answers *which value applies here* with
+nearest-wins; per-target overrides would put a second answer beside it, and
+"why did I get this cell size" would have two places to look instead of one. The
+cost is real and accepted: a character shipping to two engines with identical
+geometry writes the geometry twice.
+
+Rejected, and worth naming: *one preset with per-target overrides* keeps shared
+parts visibly shared, which is the honest expression of the intent — it loses on
+the second precedence rule alone.
+
+### Cell size lives on the preset, and nothing below can override it
+
+A document cannot say its cell is bigger. **The whole value of the assets output
+target is that frame bounds stay consistent**, and an override lets one document
+break the grid every other frame in the sheet depends on — discovered at import
+time in the engine, which is the worst available place to find it.
+
+The exception is still expressible: a document that genuinely differs lives under
+a folder with its own preset. That costs a folder rather than a checkbox, and
+that is the right price, because it makes the exception visible in the tree
+instead of hidden in one document's settings.
+
+Rejected: *size the cell to the largest frame*. It never clips and nobody
+maintains a number, but the memory cost of an entire sheet is then set by its
+worst member and changes without anyone editing a setting — a performance
+characteristic that moves on its own is worse than one that is wrong and stated.
+
+### Exporting a folder is recursive, and the confirmation carries the count
+
+*Export the knight* means the knight, including everything filed under it. The
+confirmation says how much — "3 folders, 47 documents, 4 sheets" — and **the
+number is the safeguard rather than a checkbox**: a wrong scope reads as an
+obviously wrong count, which a yes/no prompt cannot convey.
+
+This is the same argument B87's delete confirmation already makes — *"Delete
+'Art' and the 1 folder and 1 document inside it?"* rather than *are you sure* —
+so the two dangerous bulk operations in the application say the same kind of
+thing in the same way.
+
+Rejected: *immediate children only* is never surprising and is not what the words
+mean, so the common case needs three exports and a document filed one level
+deeper is silently missed. *No confirmation* is right for the twentieth export of
+a polish pass and offers no moment to notice the project root was selected.

@@ -3469,7 +3469,7 @@ public partial class MainWindow : Window
         if (dialog.Chosen is not { } preset) return;
 
         string path;
-        if (preset.Target == Services.ExportTarget.PngSequence)
+        if (preset.Target == Lightbox.Core.Projects.ExportTarget.PngSequence)
         {
             var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {

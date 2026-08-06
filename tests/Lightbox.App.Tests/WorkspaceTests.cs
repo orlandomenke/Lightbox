@@ -247,8 +247,8 @@ public sealed class WorkspaceTests : BrushStateIsolated
                 // Q30 added "Share a palette here", beside the other actions
                 // that are about where a thing sits rather than what it is.
                 ["Open", "Open with default app…", "Show in file manager", "Copy path",
-                 "Duplicate", "Rename…", "Share a palette here", "Remove from project",
-                 "Delete permanently…", "Status"],
+                 "Duplicate", "Rename…", "Export this as", "Share a palette here",
+                 "Remove from project", "Delete permanently…", "Status"],
                 items.Select(i => i.Header?.ToString()).ToList());
 
             vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Animation is not null);

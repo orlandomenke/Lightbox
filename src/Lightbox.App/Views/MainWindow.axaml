@@ -2009,6 +2009,27 @@
                               folder for", and the folder is what is under the
                               pointer.
                             -->
+                            <!--
+                              Q30. Declaring a preset here also says where one
+                              deliverable ends — the folder that declares it is
+                              the folder whose subtree becomes one file.
+                            -->
+                            <MenuItem Header="Export this as"
+                                      ItemsSource="{Binding $parent[Window].DataContext.ProjectDocker.ShareableExportPresets}"
+                                      ToolTip.Tip="How this folder is exported, and where one file ends">
+                              <MenuItem.ItemTemplate>
+                                <DataTemplate>
+                                  <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                              </MenuItem.ItemTemplate>
+                              <MenuItem.Styles>
+                                <Style Selector="MenuItem > MenuItem">
+                                  <Setter Property="Command"
+                                          Value="{Binding $parent[Window].DataContext.ProjectDocker.SetExportPresetEntryCommand}" />
+                                  <Setter Property="CommandParameter" Value="{Binding}" />
+                                </Style>
+                              </MenuItem.Styles>
+                            </MenuItem>
                             <MenuItem Header="Share a palette here"
                                       ItemsSource="{Binding $parent[Window].DataContext.ProjectDocker.ShareablePalettes}"
                                       ToolTip.Tip="Everything under this folder paints from it">

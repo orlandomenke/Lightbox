@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2490 tests, derived from the suite itself. Each line is a
+2513 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -677,15 +677,15 @@ regression even when every test still compiles.
 ## EngineApiTests
 `tests/Lightbox.App.Tests/EngineApiTests.cs`
 
-- Every Symbol The Record Names Is Actually Called By That Importer — `:54`
-- The Game Maker Record Is Checked Against Behaviour Because There Is No Script — `:70`
-- Every Engine Target Has ARecord — `:90`
-- Every Engine Export Target Maps To An Engine With ARecord — `:103`
-- No Record Is Empty Or Vague — `:130`
-- The Importer Itself Names The Version It Needs — `:150`
-- Unitys Version Branch Is Compiled Rather Than Checked At Runtime — `:159`
-- No Importer Has Been Run Against The Real Engine And The Record Says So — `:174`
-- The Unverified Query Narrows Rather Than Being All Or Nothing — `:184`
+- Every Symbol The Record Names Is Actually Called By That Importer — `:55`
+- The Game Maker Record Is Checked Against Behaviour Because There Is No Script — `:71`
+- Every Engine Target Has ARecord — `:91`
+- Every Engine Export Target Maps To An Engine With ARecord — `:104`
+- No Record Is Empty Or Vague — `:131`
+- The Importer Itself Names The Version It Needs — `:151`
+- Unitys Version Branch Is Compiled Rather Than Checked At Runtime — `:160`
+- No Importer Has Been Run Against The Real Engine And The Record Says So — `:175`
+- The Unverified Query Narrows Rather Than Being All Or Nothing — `:185`
 
 ## ExportConfigPageTests
 `tests/Lightbox.App.Tests/ExportConfigPageTests.cs`
@@ -710,30 +710,39 @@ regression even when every test still compiles.
 ## ExportWindowTests
 `tests/Lightbox.App.Tests/ExportWindowTests.cs`
 
-- APreset Round Trips Through The File — `:66`
-- The Built Ins Are Never Written To The File — `:89`
-- ACorrupt File Leaves AWorking App Rather Than ADialog — `:103`
-- ANameless Preset Is Dropped Rather Than Shown As ABlank Row — `:112`
-- The Built Ins Take The Positions This Pillar Already Argued For — `:119`
-- ASheet Preset Writes The Image And The Sidecar — `:141`
-- AUnity Preset Also Writes The Importer And Keeps Its Block — `:155`
-- AUnity Preset Still Reports What It Left Out — `:172`
-- APng Sequence Preset Writes Frames And Reports No Omissions — `:186`
-- The Status Line Names The Layers It Left Out — `:204`
-- An Export With Nothing Left Out Says Only What It Made — `:227`
-- The Controls Round Trip APreset — `:238`
-- What Does Not Apply Is Hidden Rather Than Disabled — `:268`
-- Saving APreset Keeps It And Selects It — `:289`
-- Saving Over An Existing Name Replaces It Rather Than Adding ASecond Row — `:302`
-- ABlank Name Saves Nothing — `:316`
-- ABuilt In Cannot Be Deleted — `:324`
-- ASheet Preset With ANormal Map Writes It Beside The Sheet — `:340`
-- There Is No Normal Map Unless It Is Asked For — `:354`
-- The Map Is The Same Size As The Sheet It Came From — `:366`
-- AUnity Preset Gets The Map Too And Still Keeps Its Block — `:384`
-- The Map Settings Appear Only Once The Map Is Asked For — `:397`
-- The Green Convention Round Trips Through The Window — `:417`
-- AGarbled Number Falls Back Rather Than Refusing The Export — `:438`
+- APreset Round Trips Through The File — `:67`
+- The Built Ins Are Never Written To The File — `:90`
+- ACorrupt File Leaves AWorking App Rather Than ADialog — `:104`
+- ANameless Preset Is Dropped Rather Than Shown As ABlank Row — `:113`
+- The Built Ins Take The Positions This Pillar Already Argued For — `:120`
+- ASheet Preset Writes The Image And The Sidecar — `:142`
+- AUnity Preset Also Writes The Importer And Keeps Its Block — `:156`
+- AUnity Preset Still Reports What It Left Out — `:173`
+- APng Sequence Preset Writes Frames And Reports No Omissions — `:187`
+- The Status Line Names The Layers It Left Out — `:205`
+- An Export With Nothing Left Out Says Only What It Made — `:228`
+- The Controls Round Trip APreset — `:239`
+- What Does Not Apply Is Hidden Rather Than Disabled — `:269`
+- Saving APreset Keeps It And Selects It — `:290`
+- Saving Over An Existing Name Replaces It Rather Than Adding ASecond Row — `:303`
+- ABlank Name Saves Nothing — `:317`
+- ABuilt In Cannot Be Deleted — `:325`
+- ASheet Preset With ANormal Map Writes It Beside The Sheet — `:341`
+- There Is No Normal Map Unless It Is Asked For — `:355`
+- The Map Is The Same Size As The Sheet It Came From — `:367`
+- AUnity Preset Gets The Map Too And Still Keeps Its Block — `:385`
+- The Map Settings Appear Only Once The Map Is Asked For — `:398`
+- The Green Convention Round Trips Through The Window — `:418`
+- AGarbled Number Falls Back Rather Than Refusing The Export — `:439`
+
+## ExportWiringTests
+`tests/Lightbox.App.Tests/ExportWiringTests.cs`
+
+- Saving Bumps The Document Version And The Manifest Keeps It — `:41`
+- The Export Plan Describes What Would Be Written — `:61`
+- An Export Goes Stale When Its Documents Move On — `:80`
+- Declaring APreset Sets The Artifact Boundary — `:114`
+- Nothing Exported Means Nothing Stale — `:142`
 
 ## FileRevealTests
 `tests/Lightbox.App.Tests/FileRevealTests.cs`
@@ -811,54 +820,54 @@ regression even when every test still compiles.
 ## GameMakerExportTests
 `tests/Lightbox.App.Tests/GameMakerExportTests.cs`
 
-- An Untagged Document Is One Strip Named With Its Frame Count — `:83`
-- The Number In The Name Is The Number Of Cells In The Image — `:93`
-- No Project File Is Ever Written — `:110`
-- There Is No Importer Script Because Game Maker Cannot Run One — `:122`
-- The Strip Is One Row — `:136`
-- APadding Request Is Overridden Rather Than Honoured — `:149`
-- APacked Layout Is Overridden Rather Than Honoured — `:164`
-- APer Frame Trim Is Refused And Said So Rather Than Silently Changed — `:178`
-- ANone Trim Is Still Honoured Because It Keeps Cells Uniform — `:193`
-- Each Tag Becomes Its Own Strip Because AGame Maker Sprite Is One Animation — `:208`
-- Each Tags Strip Is Exactly Its Own Frames Wide — `:218`
-- ATags Strip Holds The Frames That Tag Covers And Not The Ones Before It — `:231`
-- The Whole Sheet Is Not Left Behind When It Was Cut Up — `:268`
-- Two Tags With The Same Name Do Not Overwrite Each Other — `:280`
-- The Speed Is Given In Frames Per Second Because The Editor Offers Two Units — `:299`
-- AHold Is Already Expressed As Repeated Cells So Uniform Speed Is Enough — `:307`
-- APing Pong Tag Is Reported Rather Than Quietly Flattened — `:331`
-- ATag That Does Not Loop Is Reported Because AGame Maker Sprite Always Does — `:345`
-- An Ordinary Document Has Nothing To Report And Says Nothing — `:356`
-- The Generic Sidecar Keeps Every Key It Already Had — `:369`
-- The Sidecar Names Every Strip And The Sprite It Becomes — `:384`
-- ADocument With No Pivot Carries No Origin — `:398`
-- APivot Becomes An Origin Inside The Cell — `:406`
-- AGame Maker Preset Writes Every Strip And The Sidecar — `:425`
-- The Runner Puts The Notes In The Summary Where Somebody Will See Them — `:438`
-- AGame Maker Preset Still Reports What It Left Out — `:455`
-- ANormal Map Is Written For Every Strip Rather Than Only The First — `:467`
-- The Strip Layout Controls Are Hidden Rather Than Shown And Overridden — `:481`
+- An Untagged Document Is One Strip Named With Its Frame Count — `:84`
+- The Number In The Name Is The Number Of Cells In The Image — `:94`
+- No Project File Is Ever Written — `:111`
+- There Is No Importer Script Because Game Maker Cannot Run One — `:123`
+- The Strip Is One Row — `:137`
+- APadding Request Is Overridden Rather Than Honoured — `:150`
+- APacked Layout Is Overridden Rather Than Honoured — `:165`
+- APer Frame Trim Is Refused And Said So Rather Than Silently Changed — `:179`
+- ANone Trim Is Still Honoured Because It Keeps Cells Uniform — `:194`
+- Each Tag Becomes Its Own Strip Because AGame Maker Sprite Is One Animation — `:209`
+- Each Tags Strip Is Exactly Its Own Frames Wide — `:219`
+- ATags Strip Holds The Frames That Tag Covers And Not The Ones Before It — `:232`
+- The Whole Sheet Is Not Left Behind When It Was Cut Up — `:269`
+- Two Tags With The Same Name Do Not Overwrite Each Other — `:281`
+- The Speed Is Given In Frames Per Second Because The Editor Offers Two Units — `:300`
+- AHold Is Already Expressed As Repeated Cells So Uniform Speed Is Enough — `:308`
+- APing Pong Tag Is Reported Rather Than Quietly Flattened — `:332`
+- ATag That Does Not Loop Is Reported Because AGame Maker Sprite Always Does — `:346`
+- An Ordinary Document Has Nothing To Report And Says Nothing — `:357`
+- The Generic Sidecar Keeps Every Key It Already Had — `:370`
+- The Sidecar Names Every Strip And The Sprite It Becomes — `:385`
+- ADocument With No Pivot Carries No Origin — `:399`
+- APivot Becomes An Origin Inside The Cell — `:407`
+- AGame Maker Preset Writes Every Strip And The Sidecar — `:426`
+- The Runner Puts The Notes In The Summary Where Somebody Will See Them — `:439`
+- AGame Maker Preset Still Reports What It Left Out — `:456`
+- ANormal Map Is Written For Every Strip Rather Than Only The First — `:468`
+- The Strip Layout Controls Are Hidden Rather Than Shown And Overridden — `:482`
 
 ## GodotExportTests
 `tests/Lightbox.App.Tests/GodotExportTests.cs`
 
-- No Tres File Is Ever Written — `:63`
-- The Generic Sidecar Keeps Every Key It Already Had — `:76`
-- The Godot Block Carries Only What The Generic File Lacks — `:91`
-- Frame Durations Arrive As Multipliers Rather Than Milliseconds — `:107`
-- ADocument With No Pivot Carries No Offsets — `:121`
-- AFeet Pivot Becomes An Upward Sprite Offset — `:130`
-- An Edited Importer Is Not Overwritten — `:149`
-- The Importer Can Be Suppressed — `:160`
-- The Script Never Touches Project Godot Or The Cache — `:172`
-- The Script Builds The Resource Through Godots Own Api — `:183`
-- The Script Only Claims Sidecars That Are Ours — `:197`
-- The Script Clips Atlas Filtering So Neighbouring Sprites Cannot Bleed — `:208`
-- The Script Removes The Default Animation When Tags Supply Their Own — `:216`
-- The Script Says It Is Godot Four And Why — `:224`
-- AGodot Preset Writes The Sheet The Sidecar And The Script — `:236`
-- AGodot Preset Still Reports What It Left Out — `:249`
+- No Tres File Is Ever Written — `:64`
+- The Generic Sidecar Keeps Every Key It Already Had — `:77`
+- The Godot Block Carries Only What The Generic File Lacks — `:92`
+- Frame Durations Arrive As Multipliers Rather Than Milliseconds — `:108`
+- ADocument With No Pivot Carries No Offsets — `:122`
+- AFeet Pivot Becomes An Upward Sprite Offset — `:131`
+- An Edited Importer Is Not Overwritten — `:150`
+- The Importer Can Be Suppressed — `:161`
+- The Script Never Touches Project Godot Or The Cache — `:173`
+- The Script Builds The Resource Through Godots Own Api — `:184`
+- The Script Only Claims Sidecars That Are Ours — `:198`
+- The Script Clips Atlas Filtering So Neighbouring Sprites Cannot Bleed — `:209`
+- The Script Removes The Default Animation When Tags Supply Their Own — `:217`
+- The Script Says It Is Godot Four And Why — `:225`
+- AGodot Preset Writes The Sheet The Sidecar And The Script — `:237`
+- AGodot Preset Still Reports What It Left Out — `:250`
 
 ## GradientRampTests
 `tests/Lightbox.App.Tests/GradientRampTests.cs`
@@ -1732,49 +1741,49 @@ regression even when every test still compiles.
 ## SpriteSheetExportTests
 `tests/Lightbox.App.Tests/SpriteSheetExportTests.cs`
 
-- Trimming Defaults To The Union So Every Cell Is The Same Size And Nothing Jitters — `:64`
-- The Union Covers Every Frames Ink — `:89`
-- Per Frame Trimming Records Where Each Cell Came From — `:104`
-- No Trim Gives Every Cell The Whole Canvas — `:120`
-- The Grid Holds Every Frame And The Sheet Is That Size — `:130`
-- Every Cell Actually Contains Its Frame — `:145`
-- Padding Leaves ATransparent Gutter Without Losing Ink — `:170`
-- Without APivot The Sidecar Carries None — `:183`
-- The Pivot Is Recorded Per Cell So Trimming Cannot Shift The Character — `:192`
-- The Sidecar Is Aseprite Shaped — `:220`
-- An Opaque Background Layer Does Not Defeat Trimming — `:248`
-- An Empty Document Still Produces ASheet — `:261`
-- The Grid Is Still The Default And Its Bytes Are Unchanged — `:277`
-- APacked Sheet Is Smaller Than The Grid On Ragged Frames — `:298`
-- APacked Sheet Reports No Grid Rather Than APlausible One — `:332`
-- The Sidecar Carries Every Sprites Own Rect — `:347`
-- Packing The Same Document Twice Produces The Same File — `:382`
-- APacked Sheet Still Carries The Pivot Per Cell — `:397`
-- Padding Still Separates Every Sprite When Packed — `:421`
-- ADocument With No Anchors Writes No Anchor Key — `:442`
-- An Anchor Is Exported Per Frame By Name And Inside The Cell — `:449`
-- An Anchor On AHeld Drawing Is Exported On Every Frame It Shows — `:474`
-- Packing Does Not Move An Anchor Relative To Its Cell — `:493`
-- The Default Export Is Byte Identical To Before Background Handling Existed — `:570`
-- AFlooded Layer Is Omitted Under Detection And Kept Without It — `:592`
-- APinned In Layer Survives Detection Even Though It Fills The Canvas — `:625`
-- APinned Out Layer Goes Even Under Paper Only — `:641`
-- ALayer That Fills The Canvas On One Frame Only Is Not ABackground — `:656`
-- AHeld Flood Is Still Recognised Across Its Holds — `:688`
-- Everything Puts The Paper Back In — `:704`
-- ALayer Named Like ABackground Is Reported Rather Than Removed — `:727`
-- AHidden Layer Is Reported So Its Absence Has An Answer — `:743`
-- ADocument With No Shapes Writes No Shape Key — `:758`
-- AShape Is Exported With Its Role And Inside The Cell — `:765`
-- AShape Only Appears On The Frames It Was Placed On — `:806`
-- AShape On AHeld Drawing Is Exported On Every Frame It Shows — `:826`
-- Packing Does Not Move AShape Relative To Its Cell — `:843`
-- ADocument With No Tags Or Events Writes Neither Key — `:867`
-- ATag Is Exported As AClip In The Established Shape — `:877`
-- ATag That Ran Past The End Is Shortened Rather Than Lost — `:904`
-- ATag Entirely Past The End Is Dropped — `:919`
-- Only Markers Marked As Events Are Exported — `:930`
-- An Event Past The End Is Not Exported — `:951`
+- Trimming Defaults To The Union So Every Cell Is The Same Size And Nothing Jitters — `:65`
+- The Union Covers Every Frames Ink — `:90`
+- Per Frame Trimming Records Where Each Cell Came From — `:105`
+- No Trim Gives Every Cell The Whole Canvas — `:121`
+- The Grid Holds Every Frame And The Sheet Is That Size — `:131`
+- Every Cell Actually Contains Its Frame — `:146`
+- Padding Leaves ATransparent Gutter Without Losing Ink — `:171`
+- Without APivot The Sidecar Carries None — `:184`
+- The Pivot Is Recorded Per Cell So Trimming Cannot Shift The Character — `:193`
+- The Sidecar Is Aseprite Shaped — `:221`
+- An Opaque Background Layer Does Not Defeat Trimming — `:249`
+- An Empty Document Still Produces ASheet — `:262`
+- The Grid Is Still The Default And Its Bytes Are Unchanged — `:278`
+- APacked Sheet Is Smaller Than The Grid On Ragged Frames — `:299`
+- APacked Sheet Reports No Grid Rather Than APlausible One — `:333`
+- The Sidecar Carries Every Sprites Own Rect — `:348`
+- Packing The Same Document Twice Produces The Same File — `:383`
+- APacked Sheet Still Carries The Pivot Per Cell — `:398`
+- Padding Still Separates Every Sprite When Packed — `:422`
+- ADocument With No Anchors Writes No Anchor Key — `:443`
+- An Anchor Is Exported Per Frame By Name And Inside The Cell — `:450`
+- An Anchor On AHeld Drawing Is Exported On Every Frame It Shows — `:475`
+- Packing Does Not Move An Anchor Relative To Its Cell — `:494`
+- The Default Export Is Byte Identical To Before Background Handling Existed — `:571`
+- AFlooded Layer Is Omitted Under Detection And Kept Without It — `:593`
+- APinned In Layer Survives Detection Even Though It Fills The Canvas — `:626`
+- APinned Out Layer Goes Even Under Paper Only — `:642`
+- ALayer That Fills The Canvas On One Frame Only Is Not ABackground — `:657`
+- AHeld Flood Is Still Recognised Across Its Holds — `:689`
+- Everything Puts The Paper Back In — `:705`
+- ALayer Named Like ABackground Is Reported Rather Than Removed — `:728`
+- AHidden Layer Is Reported So Its Absence Has An Answer — `:744`
+- ADocument With No Shapes Writes No Shape Key — `:759`
+- AShape Is Exported With Its Role And Inside The Cell — `:766`
+- AShape Only Appears On The Frames It Was Placed On — `:807`
+- AShape On AHeld Drawing Is Exported On Every Frame It Shows — `:827`
+- Packing Does Not Move AShape Relative To Its Cell — `:844`
+- ADocument With No Tags Or Events Writes Neither Key — `:868`
+- ATag Is Exported As AClip In The Established Shape — `:878`
+- ATag That Ran Past The End Is Shortened Rather Than Lost — `:905`
+- ATag Entirely Past The End Is Dropped — `:920`
+- Only Markers Marked As Events Are Exported — `:931`
+- An Event Past The End Is Not Exported — `:952`
 
 ## StartScreenTests
 `tests/Lightbox.App.Tests/StartScreenTests.cs`
@@ -2101,32 +2110,32 @@ regression even when every test still compiles.
 ## UnityExportTests
 `tests/Lightbox.App.Tests/UnityExportTests.cs`
 
-- The Generic Sidecar Keeps Every Key It Already Had — `:61`
-- An Ordinary Export Still Has No Unity Block — `:78`
-- Every Sprite Gets ARect And The Count Matches The Frames — `:87`
-- The Rects Are The Ones The Sheet Exporter Wrote — `:98`
-- AFeet Pivot Arrives As Bottom Centre Normalised — `:121`
-- An Anchor Is Converted The Same Way As The Pivot — `:152`
-- Pixels Per Unit Follows The World Size Asked — `:169`
-- Seconds Per Frame Is Exact Rather Than Rounded — `:179`
-- ADocument With No Shapes Has No Collider Key — `:188`
-- AHurtbox Below The Feet Pivot Arrives With ANegative YOffset — `:195`
-- Trimming Cannot Move ACollider — `:237`
-- With No Pivot The Collider Is Measured From The Cell Centre — `:270`
-- ACollider Is Offset And Size Rather Than ARect — `:302`
-- The Importer Exposes Colliders Without Trying To Apply Them — `:325`
-- Slicing Goes Through The Data Provider On Any Modern Unity — `:340`
-- Every Sliced Sprite Gets Its Own Id — `:371`
-- AMissing Sprite Package Is Reported Rather Than Crashing — `:380`
-- Each Tag Becomes AClip — `:391`
-- An Event Is Timed From Its Own Clip Rather Than From The Sheet — `:411`
-- An Event Outside AClip Is Not Attached To It — `:430`
-- AMarker That Is Not An Event Never Reaches AClip — `:442`
-- The Importer Is Written Beside The Sheet — `:456`
-- An Edited Importer Is Not Overwritten — `:469`
-- No Meta File Is Ever Written — `:483`
-- The Importer Can Be Declined — `:494`
-- Exporting Twice Produces The Same Sidecar — `:504`
+- The Generic Sidecar Keeps Every Key It Already Had — `:62`
+- An Ordinary Export Still Has No Unity Block — `:79`
+- Every Sprite Gets ARect And The Count Matches The Frames — `:88`
+- The Rects Are The Ones The Sheet Exporter Wrote — `:99`
+- AFeet Pivot Arrives As Bottom Centre Normalised — `:122`
+- An Anchor Is Converted The Same Way As The Pivot — `:153`
+- Pixels Per Unit Follows The World Size Asked — `:170`
+- Seconds Per Frame Is Exact Rather Than Rounded — `:180`
+- ADocument With No Shapes Has No Collider Key — `:189`
+- AHurtbox Below The Feet Pivot Arrives With ANegative YOffset — `:196`
+- Trimming Cannot Move ACollider — `:238`
+- With No Pivot The Collider Is Measured From The Cell Centre — `:271`
+- ACollider Is Offset And Size Rather Than ARect — `:303`
+- The Importer Exposes Colliders Without Trying To Apply Them — `:326`
+- Slicing Goes Through The Data Provider On Any Modern Unity — `:341`
+- Every Sliced Sprite Gets Its Own Id — `:372`
+- AMissing Sprite Package Is Reported Rather Than Crashing — `:381`
+- Each Tag Becomes AClip — `:392`
+- An Event Is Timed From Its Own Clip Rather Than From The Sheet — `:412`
+- An Event Outside AClip Is Not Attached To It — `:431`
+- AMarker That Is Not An Event Never Reaches AClip — `:443`
+- The Importer Is Written Beside The Sheet — `:457`
+- An Edited Importer Is Not Overwritten — `:470`
+- No Meta File Is Ever Written — `:484`
+- The Importer Can Be Declined — `:495`
+- Exporting Twice Produces The Same Sidecar — `:505`
 
 ## UnreadSettingsTests
 `tests/Lightbox.App.Tests/UnreadSettingsTests.cs`
@@ -2139,33 +2148,33 @@ regression even when every test still compiles.
 ## UnrealExportTests
 `tests/Lightbox.App.Tests/UnrealExportTests.cs`
 
-- No Asset File Is Written Because Lightbox Cannot Write One — `:72`
-- The Generic Sidecar Keeps Every Key It Already Had — `:82`
-- The Block Carries Only What The Generic File Lacks — `:97`
-- The Pixels Per Unit Is Unreals Centimetre Figure And Not Unitys — `:110`
-- Frame Runs Are Counts Of Frames And Never Zero — `:125`
-- ADocument With No Pivot Carries No Pivot Points — `:137`
-- AFeet Pivot Arrives Relative To The Cell And Inside It — `:147`
-- The Sidecar Names The Assets So The Script Never Has To — `:170`
-- An Untagged Sheet Still Gets Exactly One Flipbook Name — `:184`
-- Each Tag Becomes AFlipbook Name In Tag Order — `:194`
-- Two Tags With The Same Name Do Not Collapse Into One Asset — `:211`
-- An Edited Importer Is Not Overwritten — `:231`
-- The Importer Can Be Suppressed — `:242`
-- Every Property Write Goes Through The Helper That Cannot Fail Silently — `:254`
-- AFailed Property Write Is Reported As An Error And Not Just Logged — `:275`
-- The Script Builds Assets Through Unreals Own Api — `:288`
-- The Script Only Claims Sidecars That Are Ours — `:302`
-- The Script Turns Mips Off Because That Is What Bleeds An Atlas — `:311`
-- The Script Sets The Region After Creation Because The Factory Takes No Texture — `:323`
-- The Script Says Why It Is AScript At All — `:337`
-- The Script Does No Name Cleaning Of Its Own — `:348`
-- The Shipped Script Is Structurally Intact Python — `:363`
-- And It Actually Catches Each Of Those Mistakes — `:379`
-- An Unreal Preset Writes The Sheet The Sidecar And The Script — `:470`
-- The Runner Passes The World Height Through Rather Than Defaulting It — `:484`
-- An Unreal Preset Still Reports What It Left Out — `:501`
-- The World Height Field Is Offered For Unreal And Not Only Unity — `:513`
+- No Asset File Is Written Because Lightbox Cannot Write One — `:73`
+- The Generic Sidecar Keeps Every Key It Already Had — `:83`
+- The Block Carries Only What The Generic File Lacks — `:98`
+- The Pixels Per Unit Is Unreals Centimetre Figure And Not Unitys — `:111`
+- Frame Runs Are Counts Of Frames And Never Zero — `:126`
+- ADocument With No Pivot Carries No Pivot Points — `:138`
+- AFeet Pivot Arrives Relative To The Cell And Inside It — `:148`
+- The Sidecar Names The Assets So The Script Never Has To — `:171`
+- An Untagged Sheet Still Gets Exactly One Flipbook Name — `:185`
+- Each Tag Becomes AFlipbook Name In Tag Order — `:195`
+- Two Tags With The Same Name Do Not Collapse Into One Asset — `:212`
+- An Edited Importer Is Not Overwritten — `:232`
+- The Importer Can Be Suppressed — `:243`
+- Every Property Write Goes Through The Helper That Cannot Fail Silently — `:255`
+- AFailed Property Write Is Reported As An Error And Not Just Logged — `:276`
+- The Script Builds Assets Through Unreals Own Api — `:289`
+- The Script Only Claims Sidecars That Are Ours — `:303`
+- The Script Turns Mips Off Because That Is What Bleeds An Atlas — `:312`
+- The Script Sets The Region After Creation Because The Factory Takes No Texture — `:324`
+- The Script Says Why It Is AScript At All — `:338`
+- The Script Does No Name Cleaning Of Its Own — `:349`
+- The Shipped Script Is Structurally Intact Python — `:364`
+- And It Actually Catches Each Of Those Mistakes — `:380`
+- An Unreal Preset Writes The Sheet The Sidecar And The Script — `:471`
+- The Runner Passes The World Height Through Rather Than Defaulting It — `:485`
+- An Unreal Preset Still Reports What It Left Out — `:502`
+- The World Height Field Is Offered For Unreal And Not Only Unity — `:514`
 
 ## UnsavedDocumentTests
 `tests/Lightbox.App.Tests/UnsavedDocumentTests.cs`
@@ -2381,6 +2390,32 @@ regression even when every test still compiles.
 - Points Already Closer Than The Chord Are Not Multiplied — `:161`
 - AStalled Pen Does Not Break The Curve — `:179`
 - The Same Points Always Give The Same Path — `:199`
+
+## ExportPlanTests
+`tests/Lightbox.Core.Tests/ExportPlanTests.cs`
+
+- One Artifact Packs The Whole Subtree Into One File — `:47`
+- Per Child Folder Shares Settings And Splits The Output — `:68`
+- ANearer Declaration Makes Its Own Artifact — `:85`
+- The Status Filter Holds Work Back And Says So — `:106`
+- An Empty Artifact Is Reported Rather Than Skipped — `:124`
+- An Unscoped Project Exports Per Document — `:138`
+- Staleness Catches Edits Additions And Removals — `:155`
+- Reopening An Animation Makes The Sheet Stale Not Empty — `:187`
+- Reaching Ready Rebuilds The Artifact Holding It — `:211`
+- APreset With No Trigger Never Fires — `:232`
+
+## ExportScopeTests
+`tests/Lightbox.Core.Tests/ExportScopeTests.cs`
+
+- AProject That Declares No Preset Is Not Scoped — `:26`
+- The Nearest Preset Wins — `:35`
+- AScope Exports One Way — `:48`
+- The Declaring Folder Is The Artifact Boundary — `:66`
+- APreset With No Filter Admits Everything — `:86`
+- AFiltered Preset Admits Only The Statuses It Lists — `:97`
+- Staleness Is Two Integers Differing — `:114`
+- Grouping Defaults To One Artifact Per Document — `:127`
 
 ## FigureFinderTests
 `tests/Lightbox.Core.Tests/FigureFinderTests.cs`

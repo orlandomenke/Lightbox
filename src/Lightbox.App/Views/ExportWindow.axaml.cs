@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Lightbox.App.Services;
 using Lightbox.Core.Export;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.App.Views;
 
