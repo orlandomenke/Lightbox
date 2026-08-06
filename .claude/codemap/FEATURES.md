@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2486 tests, derived from the suite itself. Each line is a
+2496 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2369,6 +2369,20 @@ regression even when every test still compiles.
 - Points Already Closer Than The Chord Are Not Multiplied — `:161`
 - AStalled Pen Does Not Break The Curve — `:179`
 - The Same Points Always Give The Same Path — `:199`
+
+## ExportPlanTests
+`tests/Lightbox.Core.Tests/ExportPlanTests.cs`
+
+- One Artifact Packs The Whole Subtree Into One File — `:47`
+- Per Child Folder Shares Settings And Splits The Output — `:68`
+- ANearer Declaration Makes Its Own Artifact — `:85`
+- The Status Filter Holds Work Back And Says So — `:106`
+- An Empty Artifact Is Reported Rather Than Skipped — `:124`
+- An Unscoped Project Exports Per Document — `:138`
+- Staleness Catches Edits Additions And Removals — `:155`
+- Reopening An Animation Makes The Sheet Stale Not Empty — `:187`
+- Reaching Ready Rebuilds The Artifact Holding It — `:211`
+- APreset With No Trigger Never Fires — `:232`
 
 ## ExportScopeTests
 `tests/Lightbox.Core.Tests/ExportScopeTests.cs`
