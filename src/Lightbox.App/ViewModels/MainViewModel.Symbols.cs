@@ -826,11 +826,11 @@ public sealed partial class MainViewModel
         return null;
     }
 
-    // ---- moving one -------------------------------------------------------------
+    // ---- moving one, or a selected group ----------------------------------------
 
     /// <summary>
-    /// A placement being dragged: which one, where the grab started, and where
-    /// the placement was when it did.
+    /// A drag in progress: where the grab started, and every placement it
+    /// carries with where that placement was when it did.
     /// </summary>
     /// <remarks>
     /// Deliberately not a transform session. The stroke transform rewrites
@@ -838,22 +838,53 @@ public sealed partial class MainViewModel
     /// have done to it — moving a placement is an edit to two numbers, and the
     /// symbol's own drawing is not touched at all. That is also why the move is
     /// free where a stroke move is not.
+    /// <para>
+    /// It carries a set rather than one id because a group move is the same
+    /// operation on more of them: the same anchor, the same axis lock, one undo
+    /// step. Moving the group along a second path would be the drift the move
+    /// comment on <c>BeginMove</c> warns about, and did in fact happen once —
+    /// see B109.
+    /// </para>
     /// </remarks>
-    private (string Id, double GrabX, double GrabY, double FromX, double FromY)? _placementDrag;
+    private (double GrabX, double GrabY, (string Id, double FromX, double FromY)[] Items)? _placementDrag;
 
     public bool PlacementMoveActive => _placementDrag is not null;
 
     /// <summary>
-    /// Start moving the placement under (x, y), if there is one. Returns false
-    /// when there is nothing there, which is the caller's cue to move the
-    /// drawing instead.
+    /// Start moving placements: the selected ones if anything is selected,
+    /// otherwise the one under (x, y). Returns false when there is nothing to
+    /// move, which is the caller's cue to move the drawing instead.
     /// </summary>
+    /// <remarks>
+    /// A selection makes the gesture modal — once symbols are selected, a drag
+    /// moves them wherever it started, rather than only when it landed on one.
+    /// That is what selecting them was for, and it matches what the Move tool
+    /// does everywhere else the artist has used one.
+    /// </remarks>
     public bool BeginPlacementMove(double x, double y)
     {
         if (!CanEdit(ActiveLayer, "move a symbol")) return false;
+
+        var selected = _selectionManager.SelectedPlacementIds;
+        if (selected.Count > 0)
+        {
+            var group = PlacementsHere
+                .Where(p => selected.Contains(p.Id))
+                .Select(p => (p.Id, p.X, p.Y))
+                .ToArray();
+            if (group.Length > 0)
+            {
+                _placementDrag = (x, y, group);
+                AiStatus = group.Length == 1
+                    ? "Moving a placed symbol — the symbol itself is unchanged."
+                    : $"Moving {group.Length} placed symbols — the symbols themselves are unchanged.";
+                return true;
+            }
+        }
+
         if (PlacementAt(x, y) is not { } placement) return false;
         _selectedPlacementId = placement.Id;
-        _placementDrag = (placement.Id, x, y, placement.X, placement.Y);
+        _placementDrag = (x, y, [(placement.Id, placement.X, placement.Y)]);
         AiStatus = "Moving a placed symbol — the symbol itself is unchanged.";
         return true;
     }
@@ -862,8 +893,11 @@ public sealed partial class MainViewModel
     public void UpdatePlacementMove(double x, double y, bool axisLock)
     {
         if (_placementDrag is not { } drag) return;
-        if (PlacementsHere.FirstOrDefault(p => p.Id == drag.Id) is not { } placement) return;
 
+        // Measured from where the grab started, never from the last pointer
+        // event. An incremental delta has to be accumulated by whoever receives
+        // it, and the one place that tried lost all but the final increment —
+        // a drag across the canvas moved a symbol by about a pixel (B109).
         var dx = x - drag.GrabX;
         var dy = y - drag.GrabY;
         if (axisLock)
@@ -874,29 +908,49 @@ public sealed partial class MainViewModel
         // Moved live on the record, and put back by the undo step at the end if
         // the drag is abandoned. A placement is two numbers, so there is
         // nothing here that a preview surface would save.
-        placement.X = drag.FromX + dx;
-        placement.Y = drag.FromY + dy;
+        foreach (var (id, fromX, fromY) in drag.Items)
+        {
+            if (PlacementsHere.FirstOrDefault(p => p.Id == id) is not { } placement) continue;
+            placement.X = fromX + dx;
+            placement.Y = fromY + dy;
+        }
         if (PaintTarget() is { } frame) AfterPlacementChange(frame.Id);
     }
 
-    /// <summary>Put it down. One undo step for the whole drag, or none.</summary>
+    /// <summary>
+    /// Put them down. One undo step for the whole drag however many moved, or
+    /// none at all.
+    /// </summary>
     public void EndPlacementMove()
     {
         if (_placementDrag is not { } drag) return;
         _placementDrag = null;
-        if (PlacementsHere.FirstOrDefault(p => p.Id == drag.Id) is not { } placement) return;
-
-        double toX = placement.X, toY = placement.Y;
-        // A click that went nowhere is a click, not an edit.
-        if (Math.Abs(toX - drag.FromX) < 1e-9 && Math.Abs(toY - drag.FromY) < 1e-9) return;
 
         var frameId = PaintTarget()?.Id;
         if (frameId is null) return;
-        var id = drag.Id;
-        double fromX = drag.FromX, fromY = drag.FromY;
+
+        // Where each one started and where it ended up, resolved before the
+        // step is built so undo and redo both replay from fixed numbers.
+        var moves = new List<(string Id, double FromX, double FromY, double ToX, double ToY)>();
+        foreach (var (id, fromX, fromY) in drag.Items)
+        {
+            if (PlacementsHere.FirstOrDefault(p => p.Id == id) is not { } placement) continue;
+            // A click that went nowhere is a click, not an edit.
+            if (Math.Abs(placement.X - fromX) < 1e-9 && Math.Abs(placement.Y - fromY) < 1e-9) continue;
+            moves.Add((id, fromX, fromY, placement.X, placement.Y));
+        }
+        if (moves.Count == 0) return;
+
+        var stepped = moves.ToArray();
         _editor.PerformDelta(
-            apply: doc => MovePlacementIn(doc, frameId, id, toX, toY),
-            revert: doc => MovePlacementIn(doc, frameId, id, fromX, fromY),
+            apply: doc =>
+            {
+                foreach (var m in stepped) MovePlacementIn(doc, frameId, m.Id, m.ToX, m.ToY);
+            },
+            revert: doc =>
+            {
+                foreach (var m in stepped) MovePlacementIn(doc, frameId, m.Id, m.FromX, m.FromY);
+            },
             affectedFrameId: frameId);
         AfterPlacementChange(frameId);
     }
@@ -905,9 +959,12 @@ public sealed partial class MainViewModel
     {
         if (_placementDrag is not { } drag) return;
         _placementDrag = null;
-        if (PlacementsHere.FirstOrDefault(p => p.Id == drag.Id) is not { } placement) return;
-        placement.X = drag.FromX;
-        placement.Y = drag.FromY;
+        foreach (var (id, fromX, fromY) in drag.Items)
+        {
+            if (PlacementsHere.FirstOrDefault(p => p.Id == id) is not { } placement) continue;
+            placement.X = fromX;
+            placement.Y = fromY;
+        }
         if (PaintTarget() is { } frame) AfterPlacementChange(frame.Id);
     }
 

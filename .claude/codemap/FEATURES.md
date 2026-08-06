@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2529 tests, derived from the suite itself. Each line is a
+2537 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1899,11 +1899,19 @@ regression even when every test still compiles.
 - Moving APlacement Does Not Touch The Symbol — `:253`
 - AClick That Went Nowhere Is Not An Edit — `:272`
 - Cancelling AMove Puts It Back — `:285`
-- Breaking The Link Leaves Ordinary Strokes — `:302`
-- Broken Strokes Keep Their Swatch — `:319`
-- Breaking The Link Is One Undo Step — `:339`
-- Breaking One Link Leaves Other Placements Linked — `:353`
-- AScaled Placement Bakes Its Size Into The Brush — `:366`
+- Dragging ASelected Group Moves Every One The Full Distance — `:309`
+- ASelection Makes The Move Tool Move It Wherever The Drag Starts — `:339`
+- Moving AGroup Is One Undo Step — `:357`
+- Shift Holds AGroup To One Axis — `:386`
+- ALocked Layer Refuses To Move ASelected Group — `:405`
+- AGroup Drag That Went Nowhere Is Not An Edit — `:422`
+- Cancelling AGroup Move Puts Them All Back — `:443`
+- Moving AGroup Does Not Touch The Symbol — `:468`
+- Breaking The Link Leaves Ordinary Strokes — `:489`
+- Broken Strokes Keep Their Swatch — `:506`
+- Breaking The Link Is One Undo Step — `:526`
+- Breaking One Link Leaves Other Placements Linked — `:540`
+- AScaled Placement Bakes Its Size Into The Brush — `:553`
 
 ## SymbolScopeTests
 `tests/Lightbox.App.Tests/SymbolScopeTests.cs`

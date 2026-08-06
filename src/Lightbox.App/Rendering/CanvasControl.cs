@@ -574,16 +574,6 @@ public sealed class CanvasControl : Control
 
     private bool _movingContent;
 
-    /// <summary>Selected placements are being moved. Invoked with (dx, dy) delta.</summary>
-    public event Action<double, double>? PlacementsMoveStarted;
-
-    public event Action<double, double>? PlacementsMoveUpdated;
-
-    public event Action? PlacementsMoveEnded;
-
-    private bool _movingPlacements;
-    private (double X, double Y) _placementMoveLast;
-
     /// <summary>A guide was dragged, by a delta in document pixels.</summary>
     public event Action<string, double, double>? GuideMoved;
 
@@ -1867,19 +1857,13 @@ public sealed class CanvasControl : Control
                     e.Handled = true;
                     return;
                 case CanvasToolMode.Move:
-                    // If placements are selected, move them; otherwise move content.
+                    // A guide under the pointer was already taken above; this
+                    // is the drawing itself — or the selected placements, which
+                    // the view model decides, because it is the side that knows
+                    // what is selected and what is under the grab.
                     e.Pointer.Capture(this);
-                    if (_selectionManager?.HasSelection == true && _selectionManager.SelectedPlacementIds.Count > 0)
-                    {
-                        _movingPlacements = true;
-                        _placementMoveLast = (x, y);
-                        PlacementsMoveStarted?.Invoke(0, 0);
-                    }
-                    else
-                    {
-                        _movingContent = true;
-                        ContentMoveStarted?.Invoke(x, y, e.KeyModifiers.HasFlag(KeyModifiers.Control));
-                    }
+                    _movingContent = true;
+                    ContentMoveStarted?.Invoke(x, y, e.KeyModifiers.HasFlag(KeyModifiers.Control));
                     e.Handled = true;
                     return;
                 case CanvasToolMode.Select:
@@ -1946,17 +1930,6 @@ public sealed class CanvasControl : Control
             // The brush cursor must follow the pointer no matter what state
             // we're in — repaints coalesce, so this is cheap.
             InvalidateVisual();
-
-            if (_movingPlacements)
-            {
-                var (mx, my) = ViewToDoc(e.GetPosition(this));
-                var dx = mx - _placementMoveLast.X;
-                var dy = my - _placementMoveLast.Y;
-                PlacementsMoveUpdated?.Invoke(dx, dy);
-                _placementMoveLast = (mx, my);
-                e.Handled = true;
-                return;
-            }
 
             if (_movingContent)
             {
@@ -2114,14 +2087,6 @@ public sealed class CanvasControl : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (_movingPlacements)
-        {
-            _movingPlacements = false;
-            e.Pointer.Capture(null);
-            PlacementsMoveEnded?.Invoke();
-            e.Handled = true;
-            return;
-        }
         if (_movingContent)
         {
             _movingContent = false;
@@ -2276,12 +2241,6 @@ public sealed class CanvasControl : Control
     {
         base.OnPointerCaptureLost(e);
         _panning = false;
-        if (_movingPlacements)
-        {
-            _movingPlacements = false;
-            // Placement move cancellation — no event needed, same as ending
-            return;
-        }
         if (_movingContent)
         {
             // Abandon rather than commit, for the gradient's reason: losing
