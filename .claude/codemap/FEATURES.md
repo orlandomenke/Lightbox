@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2503 tests, derived from the suite itself. Each line is a
+2512 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1782,6 +1782,15 @@ regression even when every test still compiles.
 - ATag Entirely Past The End Is Dropped — `:920`
 - Only Markers Marked As Events Are Exported — `:931`
 - An Event Past The End Is Not Exported — `:952`
+- Several Documents Concatenate In The Order They Are Given — `:970`
+- Each Document Becomes ATag So An Engine Can Tell The Clips Apart — `:984`
+- ASingle Document Sheet Still Writes No Tags When Nothing Is Tagged — `:1007`
+- Tags And Events On ALater Document Move To Where Its Frames Landed — `:1018`
+- Every Frame Keeps Its Own Documents Pivot — `:1042`
+- The Untrimmed Cell Holds The Largest Canvas — `:1065`
+- Each Frames Duration Comes From Its Own Documents Fps — `:1085`
+- One Documents Paper Layer Cannot Silence Anothers Art — `:1100`
+- ASheet Needs At Least One Document — `:1125`
 
 ## StartScreenTests
 `tests/Lightbox.App.Tests/StartScreenTests.cs`

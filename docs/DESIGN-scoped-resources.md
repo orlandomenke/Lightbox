@@ -648,6 +648,37 @@ existing export window are unaffected. What waits is the confirmation over a
 *grouped* plan, because confirming a count and then failing to produce it is
 worse than not offering it.
 
+### Taken: the exporter takes several documents
+
+`SpriteSheetExporter.Export(IReadOnlyList<Doc>, …)` is the real entry point now
+and the single-document signature delegates to it, so every existing sheet test
+exercises the multi-document path and the two cannot drift.
+
+Four questions the merge would also have had to answer, answered here instead —
+which is the argument for this route rather than the other one, restated as
+decisions rather than as a preference:
+
+| Question | Answer, and why |
+| --- | --- |
+| Whose canvas? | The largest, with smaller documents at the cell's top-left. That is where composing at their own size and drawing at the cell origin already puts them, so every pivot, anchor and hurtbox offset stays arithmetically identical to the one-document path. |
+| Whose pivot? | Each frame's own. One pivot for the sheet would put every character after the first with their feet somewhere else, and nothing in the file would say why. |
+| Whose fps? | Each frame's own, as `duration`. A sheet can hold a 12 fps cycle and a 24 fps one; the header's single `fps` takes the leading clip's and the per-frame durations stay authoritative. |
+| Which layers are background? | Decided **per document**. "Is this layer a background" is a question about one drawing's stack, and deciding once across all of them would let one document's paper silence another's art. |
+
+And one thing the merge route would have lost outright: **each document becomes a
+frame tag**, named after its scene and spanning its range, with the document's
+own tags and events shifted to where its frames landed. A sheet of three cycles
+with no way to tell where the walk ends and the run begins is data loss rather
+than a formatting preference — and frame tags are the mechanism engines already
+read for exactly that. Only when there is more than one document, so a
+single-document sheet that declares no tags still writes no `frameTags` key.
+
+**Still to wire:** `ExportRunner.Run` is the one-`Doc` signature, so a grouped
+plan is runnable by the exporter and not yet by the runner. The engine targets
+(Unity, Godot, Unreal, GameMaker) each build their importer sidecar from a single
+document's clips, and what "one Unity artifact from three documents" means is a
+decision those sidecars need, not one the sheet writer can make.
+
 ### Test export, landed
 
 A test is a different destination, not a smaller export: it writes to

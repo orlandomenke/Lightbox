@@ -1,6 +1,6 @@
 # Code index
 
-483 files · 123913 lines · 2503 tests.
+483 files · 124196 lines · 2512 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -57,14 +57,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CanvasControl:28, CanvasToolMode:692, GridGesture:748, TxDrag:895, DrawOp:2311
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1989 ln) · 11 test files
   - ProjectRow:19, ProjectViewModel:328, NewItemKind:1149
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (876 ln) · 98 test files
+  - SpriteSheetOptions:14, SpriteSheetResult:54, SpriteSheetExporter:103, SheetDocument:748, SheetFrame:754, SheetMeta:787, SheetTag:818, SheetEvent:832 …
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
   - MainViewModel:20
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (789 ln) · 2 test files
   - ShortcutRow:12, ShortcutGroup:24, GridRow:39, AiFieldRow:99, ConfigureWindow:150
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (762 ln) · 98 test files
-  - SpriteSheetOptions:14, SpriteSheetResult:54, SpriteSheetExporter:103, SheetDocument:634, SheetFrame:640, SheetMeta:673, SheetTag:704, SheetEvent:718 …
 - `src/Lightbox.App/Services/UnityExporter.cs` (648 ln) · 14 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml.cs` (496 ln) · 1 test files
