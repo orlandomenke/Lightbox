@@ -364,3 +364,92 @@ public static class ReferenceScopes
             .Where(r => string.Equals(r.Target, target, StringComparison.Ordinal))
             .ToList() ?? [];
 }
+
+/// <summary>
+/// Which gradients a document can reach, and which template a new document in a
+/// scope starts from.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Q30 step 4. Both are the palette pattern applied again, which is the point —
+/// once the resolver exists, a resource joins it by naming a kind rather than by
+/// growing machinery of its own.
+/// </para>
+/// <para>
+/// <b>Two of step 4's four could not join, and the reason is the same for
+/// both.</b> Guides and export configuration have no project-level record to
+/// point at — a guide lives on a document and nowhere else, and export settings
+/// are chosen per export. Scoping needs something with an id that outlives one
+/// document, so those two want that record built first and are not a line of
+/// resolver away. Recorded here rather than in a commit message because the next
+/// person to try will otherwise rediscover it.
+/// </para>
+/// </remarks>
+public static class GradientScopes
+{
+    /// <summary>The kind string gradients are declared under.</summary>
+    public const string Kind = "gradient";
+
+    /// <summary>Whether this project scopes its gradients at all.</summary>
+    public static bool AnyDeclared(ProjectManifest manifest) =>
+        (manifest.Resources?.Any(r => r.Kind == Kind) ?? false)
+        || ProjectFolders.All(manifest).Any(f => f.Resources?.Any(r => r.Kind == Kind) ?? false);
+
+    /// <summary>
+    /// The gradient ids this document can use, or null when the project scopes
+    /// none and every gradient applies.
+    /// </summary>
+    public static IReadOnlyList<string>? VisibleTo(ProjectManifest manifest, DocumentRef? document)
+    {
+        if (!AnyDeclared(manifest) || document is null) return null;
+        return ResourceScopes.Resolve(manifest, document, Kind).Select(r => r.Id).ToList();
+    }
+}
+
+/// <summary>Which template a new document in a scope starts from.</summary>
+/// <remarks>
+/// <para>
+/// Q30 step 4, and the cheapest of them because the machinery already shipped: a
+/// template is an ordinary document with a flag, so a declaration points at a
+/// <see cref="DocumentRef"/> id like anything else. What was missing was
+/// somewhere to say *which* one a folder starts from — workflow 1's
+/// <c>locomotion</c> folder wanting new animations to already know what they are.
+/// </para>
+/// <para>
+/// Nearest wins, and only the nearest is asked for: a document starts from one
+/// template or none, so accumulating them would be offering a choice nobody made.
+/// </para>
+/// </remarks>
+public static class TemplateScopes
+{
+    /// <summary>The kind string a scope's default template is declared under.</summary>
+    public const string Kind = "template";
+
+    /// <summary>
+    /// The template a new document in this scope should start from, or null.
+    /// </summary>
+    /// <param name="folder">
+    /// The scope a new document is being made in — the selection, rather than an
+    /// existing document, because the document does not exist yet.
+    /// </param>
+    public static string? DefaultFor(ProjectManifest manifest, ProjectFolder? folder)
+    {
+        // A stand-in document at the target scope, so the same walk answers for
+        // a document that has not been created yet.
+        var probe = new DocumentRef { FolderId = folder?.Id };
+        return ResourceScopes.Resolve(manifest, probe, Kind).FirstOrDefault()?.Id;
+    }
+
+    /// <summary>Say that new documents in this scope start from this template.</summary>
+    /// <remarks>
+    /// Replaces rather than adds. A scope has one default, and two declarations
+    /// of the same kind on one folder would make which-one-wins depend on
+    /// insertion order — the kind of thing that reads as random.
+    /// </remarks>
+    public static void SetDefault(ProjectManifest manifest, ProjectFolder? scope, string templateId)
+    {
+        var list = scope is null ? manifest.Resources : scope.Resources;
+        list?.RemoveAll(r => r.Kind == Kind);
+        ResourceScopes.Declare(manifest, scope, Kind, templateId);
+    }
+}

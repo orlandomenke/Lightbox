@@ -1,6 +1,6 @@
 # Code index
 
-475 files · 121750 lines · 2459 tests.
+476 files · 121966 lines · 2464 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,8 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9709 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4338, TransformParts:6666
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9717 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4346, TransformParts:6674
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4101 ln) · 15 test files
   - MainWindow:18, UnsavedChoice:2753
 - `src/Lightbox.App/Views/MainWindow.axaml` (3299 ln) · **no tests**
@@ -277,19 +277,19 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectIo:31, ConversionReport:558
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (669 ln) · 9 test files
   - DocumentEditor:14, IEditStep:141, SnapshotStep:154, DeltaStep:173
+- `src/Lightbox.Core/Projects/ResourceScopes.cs` (455 ln) · 5 test files
+  - ResourceReach:12, ScopedResource:47, ResourceScopes:110, PaletteScopes:240, ReferenceTargets:283, ReferenceScopes:320, GradientScopes:388, TemplateScopes:423
 - `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 82 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
-- `src/Lightbox.Core/Projects/ResourceScopes.cs` (366 ln) · 4 test files
-  - ResourceReach:12, ScopedResource:47, ResourceScopes:110, PaletteScopes:240, ReferenceTargets:283, ReferenceScopes:320
 - `src/Lightbox.Core/Projects/Templates.cs` (344 ln) · 2 test files
   - Templates:25, NewLayer:96, LayerChange:107, PullPreview:118, PullOptions:136
-- `src/Lightbox.Core/Projects/ProjectManifest.cs` (342 ln) · 23 test files
+- `src/Lightbox.Core/Projects/ProjectManifest.cs` (342 ln) · 24 test files
   - ProjectType:11, DocumentRef:29, CharacterVariant:129, Character:150, ProjectScene:220, ProjectManifest:244
 - `src/Lightbox.Core/Documents/Scene.cs` (306 ln) · 16 test files
   - FrameMarker:4, TagDirection:66, AnimationTag:99, Scene:136
-- `src/Lightbox.Core/Projects/ProjectFolders.cs` (303 ln) · 8 test files
+- `src/Lightbox.Core/Projects/ProjectFolders.cs` (303 ln) · 9 test files
   - ProjectFolder:25, ProjectFolders:76
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (296 ln) · 5 test files
   - GeometryOps:5

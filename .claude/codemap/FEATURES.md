@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2459 tests, derived from the suite itself. Each line is a
+2464 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2426,6 +2426,15 @@ regression even when every test still compiles.
 - It Measures From The Cells Centre Rather Than The Canvas Centre — `:116`
 - ADegenerate Cell Is Treated As One Pixel — `:130`
 - ABlank Tag Name Gets AUsable Placeholder — `:139`
+
+## GradientAndTemplateScopeTests
+`tests/Lightbox.Core.Tests/GradientAndTemplateScopeTests.cs`
+
+- AGradient On AFolder Reaches Every Document Under It — `:34`
+- AGradient On One Character Is Not Visible To Another — `:47`
+- ANew Document In AScope Starts From That Scopes Template — `:69`
+- Setting ATemplate Twice Leaves One Declaration — `:92`
+- Gradients Palettes References And Templates Do Not Collide — `:106`
 
 ## GradientTests
 `tests/Lightbox.Core.Tests/GradientTests.cs`

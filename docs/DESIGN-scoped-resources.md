@@ -320,8 +320,15 @@ half-migrated.
    Touches Pillar 1's *"Character workspace"* and Pillar 0's *"Reference image
    panel"* (both `ReferenceSheet`, `ReferenceTabTests`), and it is where the UI
    label stops saying "Character".
-4. **Gradients, guides, export config, default templates** — mechanical once 1
-   exists, each independently landable. Two roadmap items close as a side effect:
+4. **Gradients, guides, export config, default templates** — *landed in part,
+   2026-08-06, and the split is the finding.* Gradients and default templates
+   joined by naming a kind and nothing else, which is the evidence step 1 was the
+   right shape. **Guides and export configuration could not**, for the same
+   reason both times: neither has a project-level record with an id to point at.
+   A guide lives on a document and nowhere else; export settings are chosen per
+   export. Scoping needs something that outlives one document, so those two want
+   that record built first — they are not a line of resolver away, and the next
+   person to try will otherwise rediscover it. Two roadmap items close as a side effect:
    `[?] Character height guide` becomes an ordinary guide set declared on the
    knight folder, and Pillar 6's shipped template machinery gains the per-scope
    default it was missing.

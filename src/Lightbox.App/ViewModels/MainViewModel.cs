@@ -1857,7 +1857,15 @@ public sealed partial class MainViewModel : ObservableObject
                 visible is null
                     ? project.Palettes
                     : project.Palettes.Where(p => visible.Contains(p.Id)));
-            foreach (var (id, gradient) in project.Gradients) gradients[id] = gradient;
+            // Q30 step 4: the same scoping palettes got, for the same reason —
+            // a gradient made for the knight's shield has no business in the
+            // goblin's picker. Null still means the project scopes none.
+            var visibleGradients = GradientScopes.VisibleTo(
+                project.Manifest, (SaveTargetTab ?? ActiveTab)?.Source);
+            foreach (var (id, gradient) in project.Gradients)
+            {
+                if (visibleGradients is null || visibleGradients.Contains(id)) gradients[id] = gradient;
+            }
         }
         var resolved = palettes.ToList();
         PaletteRegistry.Reset(resolved, gradients);
