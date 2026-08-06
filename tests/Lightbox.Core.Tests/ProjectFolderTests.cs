@@ -257,7 +257,7 @@ public class ProjectFolderTests
         Assert.True(ProjectFolders.FileDocument(manifest, doc, null));
 
         Assert.Null(doc.FolderId);
-        Assert.Equal("documents/colour-test.lightbox.json", doc.Path);
+        Assert.Equal("unassigned-documents/colour-test.lightbox.json", doc.Path);
     }
 
     // ---- removal ------------------------------------------------------------------
@@ -344,5 +344,50 @@ public class ProjectFolderTests
         Assert.Empty(ProjectFolders.All(manifest));
         // And it still writes no folder key, so re-saving it changes nothing.
         Assert.DoesNotContain("\"folders\"", JsonSerializer.Serialize(manifest, DocJson.Options));
+    }
+
+    /// <summary>
+    /// A project written before the folder was renamed keeps its own paths, and
+    /// its <c>documents/</c> is still a directory the manifest can explain.
+    /// </summary>
+    /// <remarks>
+    /// <b>B105.</b> The unfiled directory is now <c>unassigned-documents</c>, and
+    /// the rename is of the constant rather than of anybody's project: a path is
+    /// recorded per document, so an existing <c>.lbproj</c> goes on reading and
+    /// writing the folder it already has and nothing moves under an artist who
+    /// asked for nothing.
+    /// <para>
+    /// The <c>SystemFolders</c> half is the one that would have gone unnoticed.
+    /// B83 promises that nothing sits at the top of a project the manifest cannot
+    /// explain, and dropping the old name would have made every project written
+    /// before today report its own <c>documents/</c> as unaccounted for.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AProjectWrittenBeforeTheRenameKeepsItsDocumentsFolder()
+    {
+        const string old = """
+            {
+              "name": "Knight",
+              "characters": [],
+              "documents": [
+                { "id": "docref_1", "name": "Colour test",
+                  "path": "documents/colour-test.lightbox.json" }
+              ],
+              "palettes": []
+            }
+            """;
+
+        var manifest = JsonSerializer.Deserialize<ProjectManifest>(old, DocJson.Options)!;
+        var test = Assert.Single(manifest.Documents);
+
+        Assert.Equal("documents/colour-test.lightbox.json", test.Path);
+        Assert.Contains(ProjectIo.LegacyDocumentsDir, ProjectIo.SystemFolders);
+        Assert.Contains(ProjectIo.DocumentsDir, ProjectIo.SystemFolders);
+        // The new name is what a fresh path is derived from, though — the old one
+        // is read, not written.
+        Assert.Equal(
+            "unassigned-documents/colour-test.lightbox.json",
+            ProjectFolders.PathFor(manifest, test, null));
     }
 }

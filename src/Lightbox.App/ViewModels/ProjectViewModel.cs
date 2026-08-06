@@ -667,8 +667,21 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         }
         else if (row.Animation is { } document)
         {
+            // B106. Where the file has to end up, worked out before anything
+            // moves. PathFor reads the manifest without changing it and gives
+            // the same answer after the refile as before it — it dedupes against
+            // the documents already in the destination and excludes this one —
+            // so the disk can be moved first and the manifest only if it worked.
+            var to = ProjectFolders.PathFor(project.Manifest, document, destination);
+            if (!ProjectIo.MoveInProject(project, document.Path, to))
+            {
+                Status = $"Could not move “{document.Name}” on disk. It is still where it was.";
+                return false;
+            }
             // A character's animation or a scene's shot has to leave that first,
             // or it would be in two places: the folder tree and the character.
+            // Its own disk move is a no-op by now — the file is already at `to`,
+            // and MoveInProject treats "nothing there to move" as a success.
             if (row.Character is not null || row.Scene is not null)
             {
                 if (!ProjectIo.MoveDocument(project, document, null)) return false;
@@ -966,11 +979,28 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// What to put in the name box before the artist types.
     /// </summary>
     /// <remarks>
-    /// The number the item would have been called anyway, so the prompt is a
-    /// confirmation rather than a blank page. It is the same expression each
-    /// creator falls back to, kept here so the box and the fallback cannot drift
-    /// apart — a suggestion that differs from what Enter would produce is worse
-    /// than no suggestion.
+    /// <para>
+    /// A prompt that is already most of the answer, so naming is a confirmation
+    /// rather than a blank page. It is the same expression each creator falls
+    /// back to, kept here so the box and the fallback cannot drift apart — a
+    /// suggestion that differs from what Enter would produce is worse than no
+    /// suggestion.
+    /// </para>
+    /// <para>
+    /// <b>B107.</b> A drawing made inside a folder is offered that folder's name
+    /// and a separator — <c>Knight - </c> — because the folder is what the
+    /// drawing is <em>of</em>, and typing <c>walk</c> after it is the whole
+    /// gesture. <c>Document 7</c> was a number nobody wanted to keep, so every
+    /// document had to be renamed once by hand. The prefix is a starting point
+    /// rather than a rule: the box is ordinary text and selecting it replaces it.
+    /// </para>
+    /// <para>
+    /// <b>Folders keep their plain suggestion, on purpose.</b> Subfolders are
+    /// structural — <c>locomotion</c>, <c>combat</c> — and prefixing them would
+    /// compound down the tree into <c>Knight - Locomotion - Knight - Walk</c>.
+    /// Scenes and shots keep their numbers because a shot's number <em>is</em>
+    /// its place in the running order.
+    /// </para>
     /// </remarks>
     public string SuggestedNameFor(NewItemKind? kind)
     {
@@ -978,13 +1008,51 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         if (kind == NewCharacterItem) return $"Character {project.Characters.Count() + 1}";
         if (kind == NewSceneItem) return $"Scene {project.Scenes.Count + 1}";
         if (kind == NewShotItem) return $"Shot {(SelectedScene?.Shots.Count ?? 0) + 1}";
-        if (kind == NewLooseDocument) return $"Document {project.Manifest.Documents.Count + 1}";
-        return $"Animation {SelectedCharacter?.Animations.Count() ?? 0}";
+        // A folder had no branch at all and fell through to the animation line
+        // below, so ＋ New ▸ Folder offered "Animation 0" — the exact drift the
+        // remarks above warn about, in the one place nothing asserted.
+        if (kind == NewFolderItem) return "Folder";
+        if (kind == NewLooseDocument)
+        {
+            return TargetFolder is { } folder
+                ? Stem(folder.Name)
+                : $"Document {project.Manifest.Documents.Count + 1}";
+        }
+        // An animation lands under a character, which is the scope it is named
+        // after — Q30 answered that a character *is* a folder carrying character
+        // data, so the same rule applies to both and this is not a second one.
+        return SelectedCharacter is { } character
+            ? Stem(character.Name)
+            : $"Animation {SelectedCharacter?.Animations.Count() ?? 0}";
     }
 
+    /// <summary>
+    /// What goes between a scope's name and the rest of a derived name.
+    /// </summary>
+    /// <remarks>
+    /// Spaced, so <c>Knight - Walk</c> reads as a phrase rather than as a slug.
+    /// The path is where hyphens belong, and <c>ProjectIo.Slug</c> puts them
+    /// there: this becomes <c>knight-walk.lightbox.json</c>.
+    /// </remarks>
+    public const string NameSeparator = " - ";
+
+    /// <summary>A scope's name as the beginning of a name for something in it.</summary>
+    private static string Stem(string scope) => $"{scope}{NameSeparator}";
+
     /// <summary>A chosen name, or the numbered fallback when nothing was given.</summary>
-    private static string Named(string? name, string fallback) =>
-        string.IsNullOrWhiteSpace(name) ? fallback : name.Trim();
+    /// <remarks>
+    /// <b>B107.</b> A dangling separator is trimmed along with the whitespace,
+    /// which is what keeps the promise above — the box now offers a stem, and
+    /// pressing Enter on <c>Knight - </c> unchanged has to produce
+    /// <c>Knight</c> rather than a document called <c>Knight -</c>. Trailing
+    /// rather than anywhere: <c>Knight - walk</c> keeps its separator, because
+    /// that is the name the artist finished typing.
+    /// </remarks>
+    private static string Named(string? name, string fallback)
+    {
+        var trimmed = (name ?? "").Trim().TrimEnd('-', '–', '—', ':', '·', ' ', '\t');
+        return trimmed.Length == 0 ? fallback : trimmed;
+    }
 
     // ---- scenes -----------------------------------------------------------------
 
@@ -1113,14 +1181,26 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// <remarks>
     /// The document keeps its id, so a tab already showing it stays bound to
     /// it — rearranging the tree must not orphan the window you are drawing
-    /// in. The file on disk stays where it is until the next save writes it to
-    /// the new path; the old one is left alone, for the same reason removing a
-    /// row leaves it alone.
+    /// in. The file follows it (B106): a move is a rename on disk, so the
+    /// drawing ends up in one place rather than in both.
     /// </remarks>
     public bool Move(ProjectRow row, Character? destination)
     {
         if (Project is not { } project || row.Animation is not { } reference) return false;
-        if (!ProjectIo.MoveDocument(project, reference, destination)) return false;
+        // Dropping a row onto what it already belongs to is an ordinary slip in
+        // a tree view, not something to report — and separating it here is what
+        // lets everything below say "could not" and mean it.
+        if (ReferenceEquals(row.Character, destination)) return false;
+        if (!ProjectIo.MoveDocument(project, reference, destination))
+        {
+            // B106. The move can now fail for a reason the artist can act on —
+            // a file open elsewhere, a permission, a name already taken on disk
+            // — and it refuses whole rather than changing the panel and not the
+            // folder. Said out loud, because a drag that silently does nothing
+            // is indistinguishable from one that missed.
+            Status = $"Could not move “{reference.Name}”. It is still where it was.";
+            return false;
+        }
         _dirty.Add(reference.Id);
         Rebuild();
         Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id);
@@ -1429,7 +1509,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     {
         var was = document.Path;
         document.Name = name;
-        var now = document.FolderId is null && !was.StartsWith("documents/", StringComparison.Ordinal)
+        var now = document.FolderId is null && !IsUnfiled(was)
             // A character's animation or a scene's shot keeps the shape of the
             // path it already has; only the file's own name changes.
             ? RenamedLeaf(was, name)
@@ -1446,6 +1526,20 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         Status = $"Renamed to “{name}”.";
         return true;
     }
+
+    /// <summary>
+    /// Whether a path is in the directory that holds documents belonging to no
+    /// folder.
+    /// </summary>
+    /// <remarks>
+    /// <b>B105.</b> Both names, because the directory was renamed and a project
+    /// written before that keeps its recorded paths. One name here would have
+    /// made renaming a document in an old project take the character branch
+    /// below and derive a path from a shape it does not have.
+    /// </remarks>
+    private static bool IsUnfiled(string path) =>
+        path.StartsWith($"{ProjectIo.DocumentsDir}/", StringComparison.Ordinal)
+        || path.StartsWith($"{ProjectIo.LegacyDocumentsDir}/", StringComparison.Ordinal);
 
     /// <summary>Swap the file's own name, keeping the folders above it.</summary>
     private static string RenamedLeaf(string path, string name)

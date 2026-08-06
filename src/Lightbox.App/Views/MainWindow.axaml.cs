@@ -599,6 +599,11 @@ public partial class MainWindow : Window
             },
         };
         box.Focus();
+        // B107. The caret goes after what is already there rather than to the
+        // front of it. The box is now prefilled with a derived stem — "Knight - "
+        // — and typing has to continue it; a caret at index 0 would put the
+        // artist's word in front of the name they were offered.
+        box.CaretIndex = box.Text?.Length ?? 0;
         await dialog.ShowDialog(this);
         return answer;
     }
