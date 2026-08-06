@@ -3837,20 +3837,73 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void SelectAll()
     {
-        _selectionContours =
-        [
-            [new(0, 0, 1), new(Scene.Width, 0, 1), new(Scene.Width, Scene.Height, 1), new(0, Scene.Height, 1)],
-        ];
-        NotifySelection();
+        // In Select tool mode, select all canvas objects; otherwise select all pixels
+        if (ActiveTool == ToolId.Select)
+        {
+            var frame = PaintTargetOrKey();
+            if (frame is not PaintedFrame pf) return;
+
+            // Select all placements on current frame
+            if (pf.Placements is not null && pf.Placements.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                foreach (var placement in pf.Placements)
+                {
+                    _selectionManager.AddPlacementToSelection(placement.Id);
+                }
+                return;
+            }
+
+            // Select all guides in the document
+            var guides = Doc?.Scene?.Guides;
+            if (guides is not null && guides.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                for (int i = 0; i < guides.Count; i++)
+                {
+                    _selectionManager.AddGuideToSelection(i);
+                }
+                return;
+            }
+
+            // Select all reference boxes
+            var activeRef = ActiveReference;
+            if (activeRef?.Cells is not null && activeRef.Cells.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                for (int i = 0; i < activeRef.Cells.Count; i++)
+                {
+                    _selectionManager.AddRefBoxToSelection(i);
+                }
+            }
+        }
+        else
+        {
+            // Pixel/stroke selection (existing behavior)
+            _selectionContours =
+            [
+                [new(0, 0, 1), new(Scene.Width, 0, 1), new(Scene.Width, Scene.Height, 1), new(0, Scene.Height, 1)],
+            ];
+            NotifySelection();
+        }
     }
 
     [RelayCommand]
     private void Deselect()
     {
-        if (!HasSelection && _polygonPoints.Count == 0) return;
-        _selectionContours = [];
-        _polygonPoints.Clear();
-        NotifySelection();
+        // In Select tool mode, deselect all canvas objects; otherwise deselect pixels
+        if (ActiveTool == ToolId.Select)
+        {
+            _selectionManager.ClearAllSelections();
+        }
+        else
+        {
+            // Pixel/stroke deselection (existing behavior)
+            if (!HasSelection && _polygonPoints.Count == 0) return;
+            _selectionContours = [];
+            _polygonPoints.Clear();
+            NotifySelection();
+        }
     }
 
     /// <summary>Arrow keys over the canvas: shift the selection outline by whole pixels.</summary>
