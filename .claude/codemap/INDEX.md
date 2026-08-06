@@ -1,6 +1,6 @@
 # Code index
 
-499 files · 130478 lines · 2617 tests.
+501 files · 130723 lines · 2626 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -59,8 +59,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectRow:20, ScopeMenuEntry:359, DeclarationRow:370, ProjectViewModel:397, PlannedArtifact:637, NewItemKind:1632
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
   - FrameImportChoice:12, MainViewModel:29
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (910 ln) · 99 test files
-  - SpriteSheetOptions:14, SpriteSheetResult:58, SpriteSheetExporter:122, SheetDocument:782, SheetFrame:788, SheetMeta:821, SheetTag:852, SheetEvent:866 …
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (949 ln) · 99 test files
+  - SpriteSheetOptions:14, SpriteSheetResult:58, SpriteSheetExporter:122, SheetDocument:821, SheetFrame:827, SheetMeta:860, SheetTag:891, SheetEvent:905 …
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
 - `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (789 ln) · 2 test files
@@ -289,7 +289,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
-- `src/Lightbox.Core/Projects/ProjectManifest.cs` (389 ln) · 29 test files
+- `src/Lightbox.Core/Projects/ProjectManifest.cs` (389 ln) · 30 test files
   - ProjectType:11, DocumentRef:29, CharacterVariant:147, Character:168, ProjectScene:238, ProjectManifest:262
 - `src/Lightbox.Core/Projects/ExportPreset.cs` (352 ln) · 12 test files
   - SpriteTrim:7, SpritePack:32, ExportGrouping:59, ExportTarget:75, ExportPreset:146
@@ -331,6 +331,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolKind:11, Symbol:42, SymbolPlacement:120
 - `src/Lightbox.Core/Documents/PaletteFolder.cs` (178 ln) · 3 test files
   - PaletteFolder:20, PaletteTree:40
+- `src/Lightbox.Core/Documents/Doc.cs` (177 ln) · 39 test files
+  - Doc:8, ClipRegion:171
 - `src/Lightbox.Core/Documents/BrushTip.cs` (169 ln) · 4 test files
   - TipShape:4, TipRecipe:70, BrushTip:138
 - `src/Lightbox.Core/Export/SkylinePacker.cs` (169 ln) · 1 test files
@@ -345,8 +347,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Stroke:9, BakedSample:148
 - `src/Lightbox.Core/Projects/CharacterLibrary.cs` (153 ln) · 1 test files
   - LibraryEntry:7, CharacterLibrary:39
-- `src/Lightbox.Core/Documents/Doc.cs` (152 ln) · 38 test files
-  - Doc:8, ClipRegion:146
 - `src/Lightbox.Core/Documents/Camera.cs` (146 ln) · 6 test files
   - CameraKey:10, Camera:46, CameraOps:65
 - `src/Lightbox.Core/Documents/Anchors.cs` (144 ln) · 8 test files
@@ -371,7 +371,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GuideKind:4, Guide:60
 - `src/Lightbox.Core/Projects/ExportStaleness.cs` (114 ln) · 1 test files
   - ExportRecord:11, ExportStaleness:26, ExportTriggers:89
-- `src/Lightbox.Core/Projects/FeatureDefaults.cs` (113 ln) · 1 test files
+- `src/Lightbox.Core/Projects/FeatureDefaults.cs` (113 ln) · 2 test files
   - FeatureDefaults:12
 - `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 42 test files
   - DocumentFactory:3
@@ -401,7 +401,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeFilters:10
 - `src/Lightbox.Core/Documents/BrushScope.cs` (78 ln) · 3 test files
   - BrushScope:8, BrushScopeDefaults:47
-- `src/Lightbox.Core/Projects/FeatureConflict.cs` (78 ln) · 1 test files
+- `src/Lightbox.Core/Projects/FeatureConflict.cs` (78 ln) · 2 test files
   - FeatureConflict:19, FeatureConflicts:40
 - `src/Lightbox.Core/Serialization/DocJson.cs` (77 ln) · 31 test files
   - DocJson:11
@@ -421,7 +421,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ReferenceSheet:11, ReferenceView:21
 - `src/Lightbox.Core/Inbetween/StrokeInterpolator.cs` (43 ln) · 1 test files
   - StrokeInterpolator:6
-- `src/Lightbox.Core/Projects/FeatureKey.cs` (30 ln) · 2 test files
+- `src/Lightbox.Core/Projects/FeatureKey.cs` (30 ln) · 3 test files
   - FeatureKey:14
 - `src/Lightbox.Core/Geometry/ColorOps.cs` (29 ln) · 1 test files
   - ColorOps:3
@@ -435,6 +435,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Pivot:7
 - `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 1 test files
   - Ids:3
+- `src/Lightbox.Core/Projects/FeatureConflictException.cs` (11 ln) · 99 indirect only
+  - FeatureConflictException:7
 
 ## Lightbox.Import
 

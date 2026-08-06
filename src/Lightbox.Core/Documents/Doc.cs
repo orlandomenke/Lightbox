@@ -140,6 +140,31 @@ public sealed class Doc
     /// </para>
     /// </remarks>
     public string? TemplateId { get; set; }
+
+    /// <summary>
+    /// Feature overrides: which features are enabled/disabled in this document,
+    /// if they differ from the project's defaults. Null and absent from the file
+    /// when the artist has not changed anything — a document that never touched
+    /// a feature carries no key, following the camera's rule.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Derived defaults, not copied ones. A document stores only what its artist
+    /// changed, so a default that moves in a later version moves for every
+    /// document that never overrode it. The project supplies the defaults via
+    /// <see cref="Lightbox.Core.Projects.FeatureDefaults"/>.
+    /// </para>
+    /// </remarks>
+    public Dictionary<string, bool>? Features { get; set; }
+
+    /// <summary>Get the effective feature state, considering project defaults.</summary>
+    /// <remarks>
+    /// This is a helper for reading; the actual resolution logic lives in the
+    /// view model or wherever a document is being used and a project context
+    /// is available.
+    /// </remarks>
+    public bool GetFeature(Lightbox.Core.Projects.FeatureKey feature, bool projectDefault) =>
+        Features?.TryGetValue(feature.ToString(), out var value) == true ? value : projectDefault;
 }
 
 /// <summary>A recorded selection: closed contours (even-odd) plus edge feather.</summary>

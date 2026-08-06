@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2617 tests, derived from the suite itself. Each line is a
+2626 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2515,6 +2515,19 @@ regression even when every test still compiles.
 - Features For Returns All Features For Type — `:115`
 - Types For Returns All Types With Feature — `:124`
 - Layers Is Enabled In Every Project Type — `:132`
+
+## FeatureIntegrationTests
+`tests/Lightbox.Core.Tests/FeatureIntegrationTests.cs`
+
+- Document Inherits Project Defaults — `:21`
+- Get Feature Resolves Default — `:34`
+- Document Can Override Default — `:46`
+- Features Only Serialized When Changed — `:61`
+- Conflict Detection For Sprite Export — `:80`
+- Detect Conflict Between Unbounded And Fixed — `:94`
+- No Conflict When Unbounded Disabled — `:116`
+- All Project Types Have Consistent Defaults — `:135`
+- Conflict Is Documented In Feature Key — `:152`
 
 ## FigureFinderTests
 `tests/Lightbox.Core.Tests/FigureFinderTests.cs`
