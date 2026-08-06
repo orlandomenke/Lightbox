@@ -281,7 +281,12 @@ drawn on top of it, which matches what a click picks up.
 - **Click** a mark to select it. A selected rectangle grows corner handles.
 - **Drag** the body to move; drag a corner to resize. The opposite corner stays
   exactly where it is, and dragging past it flips the rectangle rather than
-  turning it inside out.
+  turning it inside out. Marks follow the pointer as you drag, so you place them
+  by eye rather than by letting go and looking.
+- **Several at once**: select marks with the Select tool and the Move tool drags
+  the whole group together, as one undo step. Anchors and hitboxes are selected
+  separately — picking a rectangle drops the sockets — because they are two
+  different jobs and a drag that moved both would be one you did not mean.
 - **Push across** copies the selected mark's geometry over a range of frames —
   place a physics body once and send it down the whole cycle instead of dragging
   it twenty-four times.
