@@ -205,4 +205,42 @@ public class ResourceScopeTests(ITestOutputHelper output)
             .Single(r => r.Id == "env");
         Assert.Equal(ResourceReach.Project, published.ReachOrDefault);
     }
+
+
+    // ---- brush tips (Q30's loose end) ---------------------------------------
+
+    /// <summary>
+    /// A project that declares no tip scope offers every tip, as it always has.
+    /// </summary>
+    [Fact]
+    public void WithNothingDeclaredEveryTipIsStillOffered()
+    {
+        var manifest = new ProjectManifest { Name = "Production" };
+        var folder = ProjectFolders.Add(manifest, "Knight", null);
+        var walk = new DocumentRef { Name = "Walk", FolderId = folder.Id };
+        manifest.Documents.Add(walk);
+
+        Assert.False(TipScopes.AnyDeclared(manifest));
+        Assert.Null(TipScopes.VisibleTo(manifest, walk));
+        Assert.True(TipScopes.CanUse(manifest, walk, "tip-anything"));
+    }
+
+    /// <summary>Declaring one narrows the picker to that subtree.</summary>
+    [Fact]
+    public void ATipDeclaredOnAFolderIsOfferedThereAndNotElsewhere()
+    {
+        var manifest = new ProjectManifest { Name = "Production" };
+        var inkers = ProjectFolders.Add(manifest, "Inking", null);
+        var painters = ProjectFolders.Add(manifest, "Paint", null);
+        var line = new DocumentRef { Name = "Clean-up", FolderId = inkers.Id };
+        var wash = new DocumentRef { Name = "Colour", FolderId = painters.Id };
+        manifest.Documents.Add(line);
+        manifest.Documents.Add(wash);
+
+        ResourceScopes.Declare(manifest, inkers, TipScopes.Kind, "tip-nib");
+
+        Assert.True(TipScopes.CanUse(manifest, line, "tip-nib"));
+        Assert.False(TipScopes.CanUse(manifest, wash, "tip-nib"));
+        Assert.Empty(TipScopes.VisibleTo(manifest, wash)!);
+    }
 }

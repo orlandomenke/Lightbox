@@ -142,6 +142,7 @@ pick the thing, and everything underneath it — at any depth — gets it.
 | **Share a palette here** | What everything under it paints from |
 | **Share a gradient here** | Which gradients it can reach |
 | **Share a symbol here** | Narrows which symbols are offered under it — see below, because this one takes away rather than adds |
+| **Share a brush tip here** | Narrows which of the project's tips are offered under it — narrows, like symbols |
 | **Share guides here** | Guides drawings under it can pull in — a character height guide is this and nothing else |
 | **New documents start from** | The template a new drawing made here begins as |
 | **Export this as** | Its export settings, *and* where one file ends — see below |
@@ -176,6 +177,12 @@ not to *scoped to nothing*, which would empty every picker.
 already places a symbol keeps drawing it after you move it into a folder that
 does not declare it. Scoping is the picker's business; a placement resolves by
 its own id and always will.
+
+**Brush tips work the same way**, and for the same reason: a tip is offered to
+the whole project until you say otherwise, so declaring one takes it away from
+everywhere else. Only the project's own tips — your own library and the built-in
+shapes are never narrowed, because they follow you between projects rather than
+belonging to this one.
 
 Global symbols — the ones in your own library, marked ◈ — are never narrowed.
 They are yours in every project, and placing one copies it into the project,

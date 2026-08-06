@@ -2724,7 +2724,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// Every tip that can be chosen right now: the project's, the artist's own,
     /// and the eight built-ins.
     /// </summary>
-    public IReadOnlyList<BrushTip> AvailableTips() => TipStore.Available(ProjectDocker.Project);
+    public IReadOnlyList<BrushTip> AvailableTips() =>
+        // Q30: which document the tips are for, so a scoped project can narrow
+        // the picker. Null with no project slot, which is the unscoped answer.
+        TipStore.Available(ProjectDocker.Project, inView: ActiveTab?.Source);
 
     /// <summary>
     /// Point the brush at a library tip, or at nothing for a round dab.

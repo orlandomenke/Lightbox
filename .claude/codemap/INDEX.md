@@ -1,6 +1,6 @@
 # Code index
 
-494 files · 129892 lines · 2594 tests.
+494 files · 130124 lines · 2598 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,16 +47,16 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10165 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4454, TransformParts:7122
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10168 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4457, TransformParts:7125
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4302 ln) · 16 test files
   - MainWindow:19, UnsavedChoice:2762
-- `src/Lightbox.App/Views/MainWindow.axaml` (3475 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3490 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (3451 ln) · 10 test files
   - CanvasControl:28, CanvasToolMode:846, GridGesture:903, TxDrag:1050, DrawOp:2770
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2616 ln) · 11 test files
-  - ProjectRow:20, ScopeMenuEntry:359, DeclarationRow:370, ProjectViewModel:397, PlannedArtifact:637, NewItemKind:1632
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2651 ln) · 11 test files
+  - ProjectRow:20, ScopeMenuEntry:359, DeclarationRow:370, ProjectViewModel:397, PlannedArtifact:637, NewItemKind:1667
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
   - FrameImportChoice:12, MainViewModel:29
 - `src/Lightbox.App/Services/SpriteSheetExporter.cs` (910 ln) · 99 test files
@@ -160,6 +160,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushChoice:26
 - `src/Lightbox.App/Services/BrushImportJob.cs` (144 ln) · 1 test files
   - BrushImportProgress:11, BrushImportOutcome:23, BrushImportJob:52
+- `src/Lightbox.App/Services/TipStore.cs` (139 ln) · 2 test files
+  - TipStore:32, State:45
 - `src/Lightbox.App/ViewModels/Tools.cs` (137 ln) · 22 test files
   - ToolId:4, CanvasQuality:46, TransformScope:59, TransformSampling:85, SelectVariant:98, HoldDrawing:117
 - `src/Lightbox.App/Controls/DockStrip.cs` (132 ln) · 1 test files
@@ -176,8 +178,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Desktop:7, FileReveal:35
 - `src/Lightbox.App/Docking/CanvasOverlays.cs` (123 ln) · 2 test files
   - OverlayId:12, CanvasEdge:21, OverlayPlacement:30, CanvasOverlayLayout:54
-- `src/Lightbox.App/Services/TipStore.cs` (121 ln) · 1 test files
-  - TipStore:32, State:45
 - `src/Lightbox.App/Rendering/SelectionRenderer.cs` (117 ln) · **no tests**
   - SelectionRenderer:10
 - `src/Lightbox.App/Services/IpcServer.cs` (115 ln) · 1 test files
@@ -283,7 +283,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectIo:31, ConversionReport:610
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (669 ln) · 9 test files
   - DocumentEditor:14, IEditStep:141, SnapshotStep:154, DeltaStep:173
-- `src/Lightbox.Core/Projects/ResourceScopes.cs` (568 ln) · 9 test files
+- `src/Lightbox.Core/Projects/ResourceScopes.cs` (615 ln) · 9 test files
   - ResourceReach:12, ScopedResource:47, ResourceScopes:110, PaletteScopes:283, ReferenceTargets:326, ReferenceScopes:363, GradientScopes:431, TemplateScopes:466 …
 - `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 82 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
@@ -331,7 +331,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolKind:11, Symbol:42, SymbolPlacement:120
 - `src/Lightbox.Core/Documents/PaletteFolder.cs` (178 ln) · 3 test files
   - PaletteFolder:20, PaletteTree:40
-- `src/Lightbox.Core/Documents/BrushTip.cs` (169 ln) · 4 test files
+- `src/Lightbox.Core/Documents/BrushTip.cs` (169 ln) · 5 test files
   - TipShape:4, TipRecipe:70, BrushTip:138
 - `src/Lightbox.Core/Export/SkylinePacker.cs` (169 ln) · 1 test files
   - PackedRect:5, PackResult:9, SkylinePacker:41

@@ -85,13 +85,31 @@ public static class TipStore
     /// built-ins come last because they are always there — an artist's own work
     /// should never be pushed down the list by shapes that shipped with the app.
     /// </remarks>
-    public static List<BrushTip> Available(Project? project, State? user = null, bool includeBuiltIn = true)
+    /// <param name="inView">
+    /// The document the tips are being offered <em>for</em>, so a project that
+    /// scopes its tips can narrow the list. Optional, because a project that
+    /// scopes none — every project until somebody says otherwise — needs no
+    /// answer from it.
+    /// </param>
+    public static List<BrushTip> Available(
+        Project? project, State? user = null, bool includeBuiltIn = true, DocumentRef? inView = null)
     {
         var all = new List<BrushTip>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
+        // Q30. Null when nothing is declared, which is every project that has
+        // not asked — and it has to mean "all of them" rather than "none", since
+        // declaring a tip scope narrows where a palette scope widens.
+        var visible = project is null
+            ? null
+            : TipScopes.VisibleTo(project.Manifest, inView);
+
         foreach (var tip in project?.Manifest.Tips ?? [])
         {
+            // Only the project's own. The user library follows the artist
+            // between projects and the built-ins are always there, so a folder
+            // has nothing to say about either.
+            if (visible is not null && !visible.Contains(tip.Id)) continue;
             if (seen.Add(tip.Id)) all.Add(tip);
         }
         foreach (var tip in (user ?? Load()).Tips)
