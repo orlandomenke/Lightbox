@@ -43,6 +43,17 @@ public sealed class ProjectFolder
     /// follow. `AFolderThatWasNeverTaggedWritesNoTagsKey` is the guard.
     /// </remarks>
     public List<string>? Tags { get; set; }
+    /// <summary>
+    /// Palettes, references and the like declared on this folder, or null when
+    /// it declares none.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q30.</b> Null rather than empty, and absent from the file until
+    /// something is declared — the camera's rule, and the reason a project that
+    /// never uses scoped resources serializes exactly as it did before. Resolved
+    /// by <see cref="ResourceScopes.Resolve"/>, which walks up from a document.
+    /// </remarks>
+    public List<ScopedResource>? Resources { get; set; }
 }
 
 /// <summary>

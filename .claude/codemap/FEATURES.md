@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2420 tests, derived from the suite itself. Each line is a
+2430 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2637,6 +2637,20 @@ regression even when every test still compiles.
 - ADocument With No Reference Writes No Key For One — `:200`
 - Editing The Timeline Of ADocument With No Reference Is Untouched — `:212`
 - AReference Round Trips Through Json — `:224`
+
+## ResourceScopeTests
+`tests/Lightbox.Core.Tests/ResourceScopeTests.cs`
+
+- APalette On The Knight Reaches Its Animations At Any Depth — `:47`
+- Adding ALevel Between The Scope And The Document Changes Nothing — `:64`
+- Declarations Accumulate And The Nearest Wins ATie — `:79`
+- The Same Id Declared Twice Resolves To The Nearer — `:98`
+- APublished Resource Reaches ADocument In Another Branch — `:116`
+- Locality Beats Publication — `:136`
+- Resolving One Kind Ignores The Others — `:148`
+- ADocument At The Project Root Still Resolves — `:161`
+- AProject That Declares Nothing Writes No Resource Keys — `:178`
+- Only APromoted Resource Writes Its Reach — `:190`
 
 ## PressureResponseTests
 `tests/Lightbox.Core.Tests/ResponseCurveTests.cs`
