@@ -1,6 +1,6 @@
 # Code index
 
-501 files · 130723 lines · 2626 tests.
+501 files · 130794 lines · 2626 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,8 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10183 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4472, TransformParts:7140
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10238 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4475, TransformParts:7143
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4303 ln) · 16 test files
   - MainWindow:19, UnsavedChoice:2763
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (3499 ln) · 10 test files
@@ -59,12 +59,12 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectRow:20, ScopeMenuEntry:359, DeclarationRow:370, ProjectViewModel:397, PlannedArtifact:637, NewItemKind:1632
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
   - FrameImportChoice:12, MainViewModel:29
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (949 ln) · 99 test files
-  - SpriteSheetOptions:14, SpriteSheetResult:58, SpriteSheetExporter:122, SheetDocument:821, SheetFrame:827, SheetMeta:860, SheetTag:891, SheetEvent:905 …
+- `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (885 ln) · 2 test files
+  - ShortcutRow:13, ShortcutGroup:25, GridRow:40, FeatureToggleRow:97, AiFieldRow:164, ConfigureWindow:215
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
-- `src/Lightbox.App/Views/ConfigureWindow.axaml.cs` (789 ln) · 2 test files
-  - ShortcutRow:12, ShortcutGroup:24, GridRow:39, AiFieldRow:99, ConfigureWindow:150
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (794 ln) · 99 test files
+  - SpriteSheetOptions:14, SpriteSheetResult:54, SpriteSheetExporter:103, SheetDocument:666, SheetFrame:672, SheetMeta:705, SheetTag:736, SheetEvent:750 …
 - `src/Lightbox.App/Services/UnityExporter.cs` (696 ln) · 14 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml.cs` (496 ln) · 1 test files
@@ -77,7 +77,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - UnrealExportOptions:9, UnrealExportResult:24, UnrealExporter:61, UnrealBlock:70
 - `src/Lightbox.App/ViewModels/WorkspaceViewModel.cs` (414 ln) · 1 test files
   - WorkspaceViewModel:20, WorkspaceRow:409
-- `src/Lightbox.App/Views/ConfigureWindow.axaml` (371 ln) · **no tests**
+- `src/Lightbox.App/Views/ConfigureWindow.axaml` (401 ln) · **no tests**
   - AiEnabledBox, AiFieldsHost, AiPage, AiProviderBox, AiSummary, AiTestButton, AiTestDepthBox, AiTestElapsed …
 - `src/Lightbox.App/Controls/TimelineRuler.cs` (367 ln) · 1 test files
   - TimelineRuler:17, Handle:101
@@ -279,8 +279,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Core
 
-- `src/Lightbox.Core/Projects/ProjectIo.cs` (1089 ln) · 27 test files
-  - ProjectIo:31, ConversionReport:610
+- `src/Lightbox.Core/Projects/ProjectIo.cs` (1134 ln) · 27 test files
+  - ProjectIo:31, ConversionReport:655
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (669 ln) · 9 test files
   - DocumentEditor:14, IEditStep:141, SnapshotStep:154, DeltaStep:173
 - `src/Lightbox.Core/Projects/ResourceScopes.cs` (568 ln) · 9 test files

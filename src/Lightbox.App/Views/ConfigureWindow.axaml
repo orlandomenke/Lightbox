@@ -13,6 +13,7 @@
              SelectionChanged="OnCategoryChanged">
       <ListBoxItem Content="Shortcuts" />
       <ListBoxItem Content="Performance" />
+      <ListBoxItem Content="Features" />
       <ListBoxItem Content="Guides and grid" />
       <ListBoxItem Content="Timeline" />
       <ListBoxItem Content="Drawing" />
@@ -128,6 +129,35 @@
       a strip of screen away from everybody to hold four numbers you set once
       would be a bad trade.
     -->
+
+    <!-- Features page -->
+    <ScrollViewer x:Name="FeaturesPage" Grid.Column="2" Margin="14" IsVisible="False"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16">
+        <StackPanel Spacing="6">
+          <TextBlock Text="Document features" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="Toggle features available in this document. Changes are saved with the document." />
+        </StackPanel>
+
+        <ItemsControl x:Name="FeaturesHost">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="views:FeatureToggleRow">
+              <DockPanel Margin="0,4">
+                <CheckBox DockPanel.Dock="Right"
+                          IsChecked="{Binding IsEnabled}"
+                          VerticalAlignment="Center" />
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="12" />
+                  <TextBlock Text="{Binding Description}" FontSize="10" Opacity="0.7" TextWrapping="Wrap" />
+                </StackPanel>
+              </DockPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+
     <ScrollViewer x:Name="GuidesPage" Grid.Column="2" Margin="14" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="16">

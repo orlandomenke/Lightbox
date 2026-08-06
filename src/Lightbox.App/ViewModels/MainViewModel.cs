@@ -663,6 +663,9 @@ public sealed partial class MainViewModel : ObservableObject
         doc.Scene.Ppi = settings.Ppi;
         doc.Scene.BackgroundColor = settings.BackgroundColor;
         doc.Scene.TransparentBackground = settings.TransparentBackground;
+
+        // Apply feature defaults based on project type if a project is open
+        ApplyFeatureDefaults(doc);
         var fresh = new DocumentTab(new DocumentEditor(doc), settings.Name);
         // Land on something paintable. The paper is layer 0 and locked, so
         // selecting it would make the very first stroke bounce.
@@ -10179,5 +10182,57 @@ public sealed partial class MainViewModel : ObservableObject
             : $"{bytes / (1024.0 * 1024):0} MB images")
             + (backend == "unknown" ? "" : $" · {backend}");
         Performance.DescribeDocument(scene.Width, scene.Height, scene.Layers.Count, drawings.Count, bytes);
+    }
+
+    /// <summary>
+    /// Apply feature defaults to a new document based on the project's type.
+    /// If no project is open, no features are set (document uses implicit defaults).
+    /// </summary>
+    private void ApplyFeatureDefaults(Doc doc)
+    {
+        if (ProjectDocker.Project?.Manifest.Type is not { } projectType) return;
+
+        var defaults = new Lightbox.Core.Projects.FeatureDefaults();
+        var features = Enum.GetValues<Lightbox.Core.Projects.FeatureKey>();
+
+        // Build a dictionary of features that differ from false (our implicit default).
+        // Only write overrides; absent features use their defaults.
+        var overrides = new Dictionary<string, bool>();
+        foreach (var feature in features)
+        {
+            var defaultValue = defaults.GetDefault(projectType, feature);
+            if (defaultValue)
+            {
+                overrides[feature.ToString()] = true;
+            }
+        }
+
+        // Only set Features if there are any overrides
+        if (overrides.Count > 0)
+        {
+            doc.Features = overrides;
+        }
+    }
+
+    /// <summary>Update a document feature toggle (Configure → Features page).</summary>
+    public void SetDocumentFeature(Lightbox.Core.Projects.FeatureKey feature, bool value, bool projectDefault)
+    {
+        if (ActiveTab?.Doc is not { } doc) return;
+
+        doc.Features ??= [];
+
+        if (value == projectDefault)
+        {
+            // Value matches default; remove from overrides
+            doc.Features.Remove(feature.ToString());
+            if (doc.Features.Count == 0) doc.Features = null;
+        }
+        else
+        {
+            // Override the default
+            doc.Features[feature.ToString()] = value;
+        }
+
+        _autosave.MarkDirty();
     }
 }
