@@ -134,6 +134,18 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### canvas
 
+- [ ] **B110** `P1` `canvas` Moving selected anchors or collision shapes wrote new undo history during an undo `evidence: RigMarkEditTests, MovingAGroupOfAnchorsIsOneUndoStep, UndoingAnAnchorGroupMovePutsThemAllBack, MovingAGroupOfCollisionBoxesIsOneUndoStep, UndoingACollisionBoxGroupMovePutsThemAllBack`
+  - Repro: select two anchors, drag, then undo twice. The first undo appears to work; the second moves them further in the wrong direction, and the redo stack is gone.
+  - Cause: `MoveAnchorsBy` and `MoveShapesBy` called `_editor.Perform` *inside* the apply and revert lambdas handed to `_editor.PerformDelta`. `Perform` pushes a snapshot step of its own (`DocumentEditor.cs:73`), so one drag pushed two entries — the delta step, then a snapshot on top of it. Undo popped the snapshot and looked correct; the second undo popped the delta, ran `revert`, and nested another `Perform`, mutating the document and pushing history while the undo system was replaying.
+  - Anchors and collision boxes are a game-export deliverable, so corrupted history there ships into sprite data.
+  - Fix: the nested `Perform` calls are gone and both lambdas mutate the `doc` they are handed — landed in `2a64d38`, merged in #36.
+  - **Open because it is unguarded.** The fix carries no regression test, so nothing stops it being reintroduced; the box closes when the named tests exist. The live-preview half is **B112**, and the same nesting is worth grepping for elsewhere. Cost: S
+
+- [ ] **B112** `P2` `canvas` Selected anchors and collision boxes do not move until the pointer is released `evidence: RigMarkEditTests, AnchorsFollowThePointerWhileTheGroupIsBeingDragged, CollisionBoxesFollowThePointerWhileTheGroupIsBeingDragged`
+  - The fourth instance of the pattern behind B109, B111 and B110, and the half of it that B110's fix did not reach. `UpdateAnchorsMove` and `UpdateShapesMove` accumulate the delta and call `RequestSnapshot()`, which re-renders an identical frame because the record has not changed yet. The marks sit still through the whole drag and jump to their new position on release.
+  - The three fixed paths all move live on the record and rewind before replaying through one `PerformDelta`. These two should do the same; the accumulate-then-commit shape is already there, so it is the live half that is missing.
+  - P2 rather than P1: the move lands correctly and undoes correctly, so nothing is silently damaged — it is dragging blind.
+
 - [ ] **B82** `P2` `canvas` The compositor cannot know what is on screen, so nothing can be culled to the viewport `evidence: VisibleDocumentRect, SetViewport, ViewportCullingTests, ARepaintCompositesOnlyTheVisibleRegion, ADocumentWithNoCameraStillReportsAViewport`
   - Repro: read `PublishSnapshot`. `viewWidth`/`viewHeight` are `scene.Width`/`scene.Height` whenever `cameraView` is null — which is the ordinary case and every asset document — so the compose surface is the **whole document** at `ComposeScale`, and `CanvasControl` pans and zooms the finished snapshot afterwards.
   - The view model is told a scalar and nothing else. `SetDisplayScale(double)` is the only channel, and `_displayScale` feeds `ComposeScale`. Zoom and pan live in `CanvasControl` (`_zoom`), downstream of the composite, so at the moment the compositing happens nothing in the process knows which document rectangle is visible.
@@ -511,6 +523,16 @@ test reopens the bug.
   - Two things this did not fix, both logged rather than folded in: spread is still only +20% (**B27**), and `PaintLoad` still thins the whole stroke instead of running out along it (**B26**), which is the rest of why oil looks translucent.
 
 ### canvas
+
+- [x] **B111** `P1` `canvas` Dragging selected reference boxes scrolled the photograph inside them instead of moving them, and a group of guides ignored the lock `evidence: ReferenceGridEditTests, MovingAGroupOfBoxesNudgesThemAndLeavesTheirWindowOnTheSheet, ASlowGroupBoxDragStillArrivesWhereItWasTaken, AWholeGroupBoxDragIsOneUndoStep, AGroupBoxDragThatWentNowhereIsNotAnEdit, RulerAndGuideEditTests, DraggingASelectedGroupOfGuidesMovesEveryOneTheFullDistance, GuidesFollowThePointerWhileTheGroupIsBeingDragged, AWholeGroupGuideDragIsOneUndoStep, ALockedGuideInTheSelectionDoesNotBudge, AGroupGuideDragThatWentNowhereIsNotAnEdit`
+  - The same shape as B109, one layer along: the group move for guides and reference boxes was written beside the single-item paths rather than through them, and picked up none of what those had already settled.
+  - Repro, boxes: select two boxes on a reference sheet and drag. The boxes stay where they are and the photograph slides inside them. `MoveRefBoxesBy` moved `cell.X`/`cell.Y`, which are the **window onto the sheet** in sheet pixels — the crop. The nudge that positions a box on the canvas is `cell.Dx`/`cell.Dy`, which is what `MoveReferenceCell` has always moved. Registration is the thing a reference sheet is for, and this moved it.
+  - Those fields are also `int`, and the delta was rounded per event, so a slow drag rounded to zero every time and moved nothing at all.
+  - Repro, guides: lock a guide, select it alongside another, drag. The locked one moves. `MoveGuidesBy` had no lock check, where `MoveGuide` and `DragGuide` both refuse. Locking is how a perspective set gets leaned on without being knocked out of place.
+  - Neither moved anything until the pointer was released — a `RequestSnapshot()` per event re-rendered an identical frame, because the record had not changed yet. `DragGuide` has moved live since it was written.
+  - Both also held their targets by **index** across the undo step, which `MainWindow`'s own comment on the single-guide drag warns about: by the time the release lands, an undo may have replaced what that index names.
+  - Fix: both group paths now do what the single-item paths do — move live on the record, accumulate the total, then rewind and replay it through one `PerformDelta`, so undo returns to where the drag was picked up rather than to the last pointer event. Guides skip a locked one; boxes move `Dx`/`Dy` as doubles. Targets are held by reference. Cost: S
+  - P1 for the boxes: it silently damaged alignment work an artist cannot see is gone until they flip the sequence.
 
 - [x] **B109** `P1` `canvas` Dragging a selected group of symbols moved them by about a pixel, and could not be undone `evidence: SymbolPlacingTests, DraggingASelectedGroupMovesEveryOneTheFullDistance, ASelectionMakesTheMoveToolMoveItWhereverTheDragStarts, MovingAGroupIsOneUndoStep, ShiftHoldsAGroupToOneAxis, ALockedLayerRefusesToMoveASelectedGroup, AGroupDragThatWentNowhereIsNotAnEdit, CancellingAGroupMovePutsThemAllBack, MovingAGroupDoesNotTouchTheSymbol`
   - Repro: select two placed symbols with the Select tool, switch to Move, drag across the canvas. They move a pixel or two and stop. Undo does not put them back.

@@ -115,6 +115,12 @@ reference frame, because it is a property of that drawing — a frame shown twic
 is lined up the same way both times. **Clear all alignment** undoes every nudge
 on the sheet. Nudges are undoable.
 
+Boxes can also be nudged **several at a time**: select them with the Select tool
+and the Move tool drags the whole selection, as one undo step. This moves where
+the boxes sit, never which part of the sheet they show — resizing a box is how
+you change that, and the two stay separate so lining up a pose cannot quietly
+recrop it.
+
 Each reference is saved inside the document, image and all, so it cannot break
 by having a file move out from under it.
 

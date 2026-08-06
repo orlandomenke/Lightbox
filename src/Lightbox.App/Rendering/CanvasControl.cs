@@ -1997,7 +1997,10 @@ public sealed class CanvasControl : Control
                     // fall-through leads straight to that path.
                     e.Pointer.Capture(this);
                     var movingSelection = _selectionManager?.SelectedPlacementIds.Count is null or 0;
-                    if (movingSelection && _selectionManager?.SelectedGuideIndices.Count > 0)
+                    // The same gate the single-guide grab uses at the top of
+                    // this handler: locking guides means "pin them where they
+                    // are", and a selection must not be the way round it.
+                    if (movingSelection && GuideDragEnabled && _selectionManager?.SelectedGuideIndices.Count > 0)
                     {
                         _movingGuides = true;
                         _guideMoveLast = (x, y);

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2537 tests, derived from the suite itself. Each line is a
+2546 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1442,21 +1442,25 @@ regression even when every test still compiles.
 - Leaving The Mode Gives The Canvas Back And Drops The Selection — `:65`
 - ABox Is Where The Compositor Puts It — `:85`
 - Clicking Inside ABox Finds It — `:101`
-- Moving ABox Moves Only That One — `:113`
-- Resizing ABox Shows More Of The Sheet Rather Than Scaling It — `:128`
-- Dragging The Other Corner Moves The Origin Too — `:145`
-- ABox Cannot Be Shrunk To Nothing — `:159`
-- Deleting ABox Leaves The Sheet Alone And Relays The Rest — `:171`
-- ABox Can Be Drawn By Hand — `:185`
-- APivot Is Placed In Sheet Pixels So The Sheet Can Move Under It — `:205`
-- Placing APivot Is Undoable — `:224`
-- Generating Keyframes Grows The Timeline To Fit The Sheet — `:237`
-- Generating Keyframes Registers The Cells On Their Pivots — `:255`
-- Aligning Twice Changes Nothing — `:282`
-- The Gizmos Are Absent Until The Mode Is On — `:302`
-- AGizmo Sits Where Its Drawing Is — `:328`
-- An Unplaced Pivot Still Gets AMark — `:354`
-- Generating Keyframes Is One Undo Step — `:376`
+- Moving AGroup Of Boxes Nudges Them And Leaves Their Window On The Sheet — `:120`
+- ASlow Group Box Drag Still Arrives Where It Was Taken — `:147`
+- AWhole Group Box Drag Is One Undo Step — `:160`
+- AGroup Box Drag That Went Nowhere Is Not An Edit — `:180`
+- Moving ABox Moves Only That One — `:195`
+- Resizing ABox Shows More Of The Sheet Rather Than Scaling It — `:210`
+- Dragging The Other Corner Moves The Origin Too — `:227`
+- ABox Cannot Be Shrunk To Nothing — `:241`
+- Deleting ABox Leaves The Sheet Alone And Relays The Rest — `:253`
+- ABox Can Be Drawn By Hand — `:267`
+- APivot Is Placed In Sheet Pixels So The Sheet Can Move Under It — `:287`
+- Placing APivot Is Undoable — `:306`
+- Generating Keyframes Grows The Timeline To Fit The Sheet — `:319`
+- Generating Keyframes Registers The Cells On Their Pivots — `:337`
+- Aligning Twice Changes Nothing — `:364`
+- The Gizmos Are Absent Until The Mode Is On — `:384`
+- AGizmo Sits Where Its Drawing Is — `:410`
+- An Unplaced Pivot Still Gets AMark — `:436`
+- Generating Keyframes Is One Undo Step — `:458`
 
 ## ReferenceImagePayloadTests
 `tests/Lightbox.App.Tests/ReferenceImagePayloadTests.cs`
@@ -1593,13 +1597,18 @@ regression even when every test still compiles.
 - AGrab Misses With ADrawing Tool In Hand — `:333`
 - AWhole Drag Of AGuide Is One Undo Step — `:352`
 - ALocked Guide Does Not Budge — `:371`
-- Each Straight Guide Is Marked On The Ruler It Crosses — `:386`
-- AGrid Is Not Marked On The Rulers — `:401`
-- The Rulers Track The Pointer Over The Canvas — `:414`
-- The Configure Window Lists The Grids On The Document — `:434`
-- Changing The Default Pitch Does Not Touch AGrid Already Placed — `:444`
-- Editing APlaced Grid Is Undoable — `:457`
-- Turning AGrids Snapping Off Leaves The Stroke Alone — `:471`
+- Dragging ASelected Group Of Guides Moves Every One The Full Distance — `:392`
+- Guides Follow The Pointer While The Group Is Being Dragged — `:414`
+- AWhole Group Guide Drag Is One Undo Step — `:427`
+- ALocked Guide In The Selection Does Not Budge — `:455`
+- AGroup Guide Drag That Went Nowhere Is Not An Edit — `:473`
+- Each Straight Guide Is Marked On The Ruler It Crosses — `:489`
+- AGrid Is Not Marked On The Rulers — `:504`
+- The Rulers Track The Pointer Over The Canvas — `:517`
+- The Configure Window Lists The Grids On The Document — `:537`
+- Changing The Default Pitch Does Not Touch AGrid Already Placed — `:547`
+- Editing APlaced Grid Is Undoable — `:560`
+- Turning AGrids Snapping Off Leaves The Stroke Alone — `:574`
 
 ## SaveAndStatusGateTests
 `tests/Lightbox.App.Tests/SaveAndStatusGateTests.cs`
