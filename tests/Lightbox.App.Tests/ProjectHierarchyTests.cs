@@ -337,14 +337,8 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
     }
 
     /// <summary>Where the project docker's row template is.</summary>
-    private static string MainWindowXaml()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src"))) dir = dir.Parent;
-        Assert.NotNull(dir);
-        return File.ReadAllText(
-            Path.Combine(dir!.FullName, "src", "Lightbox.App", "Views", "MainWindow.axaml"));
-    }
+    private static string MainWindowXaml() => File.ReadAllText(
+        Path.Combine(SourceDir(), "src", "Lightbox.App", "Views", "MainWindow.axaml"));
 
     // ---- B106: a move is a move, not a copy ---------------------------------------
 
@@ -569,5 +563,184 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         // And it is what Enter on an untouched box produces.
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, null);
         Assert.Contains(ProjectFolders.All(docker.Project!.Manifest), f => f.Name == "Folder");
+    }
+
+    // ---- B108: every gesture that reaches a folder says where you are --------------
+
+    /// <summary>
+    /// Expanding a folder with the chevron makes it where new work lands and
+    /// what the file manager opens.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B108, and it is two reported bugs in one gesture.</b> The chevron was
+    /// the only thing that reached into a folder without touching
+    /// <c>Selected</c>, and both toolbar surfaces read that selection as
+    /// <em>where I am</em>: 🗁 reveals <c>SelectedPath</c> and ＋ New files into
+    /// <c>TargetFolder</c>. So after expanding Knight, the file manager opened
+    /// the project folder and a new document landed in
+    /// <c>unassigned-documents/</c> — reported separately, fixed by one line.
+    /// </para>
+    /// <para>
+    /// Latent until B104. With every row drawn flush left nobody used the
+    /// chevron; with real indentation it is the first thing an artist reaches
+    /// for, which is why making the tree legible is what surfaced this.
+    /// </para>
+    /// <para>
+    /// Asserted through the three things that disagreed rather than through
+    /// <c>Selected</c> alone — the selection is the mechanism, and a test that
+    /// only checked it would pass on a fix that set it to the wrong row.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ExpandingAFolderMakesItWhereNewWorkLands()
+    {
+        var vm = Open();
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        var knight = ProjectFolders.All(docker.Project!.Manifest).First();
+
+        // Collapse and expand again with nothing selected — the artist opening a
+        // folder to look inside it, and the exact reproduction of the report.
+        docker.Selected = null;
+        docker.ToggleCollapsed(RowFor(docker, knight));
+        docker.ToggleCollapsed(RowFor(docker, knight));
+
+        output.WriteLine($"selected: {docker.Selected?.Name ?? "null"}");
+        output.WriteLine($"target:   {docker.TargetFolder?.Name ?? "null"}");
+        output.WriteLine($"path:     {docker.SelectedPath}");
+
+        Assert.Same(knight, docker.TargetFolder);
+        Assert.Equal(Path.Combine(_root, "knight"), docker.SelectedPath);
+
+        // And the create that follows lands inside it rather than at the root.
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        var made = docker.Project!.Manifest.Documents.First(d => d.Name == "Walk");
+        Assert.Equal(knight.Id, made.FolderId);
+        Assert.Equal("knight/walk.lightbox.json", made.Path);
+    }
+
+    /// <summary>
+    /// Collapsing a folder still hides what is in it.
+    /// </summary>
+    /// <remarks>
+    /// The control on the fix above: selecting on toggle must not have turned the
+    /// chevron into a select-only gesture. B86's behaviour is the thing being
+    /// added to, not replaced.
+    /// </remarks>
+    [AvaloniaFact]
+    public void SelectingOnToggleDoesNotStopTheToggle()
+    {
+        var vm = Open();
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        var knight = ProjectFolders.All(docker.Project!.Manifest).First();
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+
+        docker.ToggleCollapsed(RowFor(docker, knight));
+
+        Assert.True(docker.IsCollapsed(knight));
+        Assert.DoesNotContain(docker.Rows, r => r.Animation?.Name == "Walk");
+        // Still selected, so the next create knows where it is even while shut.
+        Assert.Same(knight, docker.TargetFolder);
+    }
+
+    /// <summary>
+    /// A press selects the row under it, whichever button and whichever kind.
+    /// </summary>
+    /// <remarks>
+    /// <b>B108.</b> The reporter's own diagnosis — "RMB show in file manager does
+    /// work correctly. So perhaps the same path?" — and they were right: the
+    /// window's handler selected on right-click for any row and on left-click for
+    /// a document only, so every other row kind was left to whatever the ListBox
+    /// did. <c>SelectFromPointer</c> is one rule for both buttons, and it lives in
+    /// the docker precisely so this can be asserted: synthetic pointer input is
+    /// unreliable here, so a rule inside a pointer handler is a rule nothing
+    /// checks.
+    /// </remarks>
+    [AvaloniaFact]
+    public void APressSelectsAnyKindOfRow()
+    {
+        var vm = Open();
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewSceneItem, "Sc 014");
+
+        foreach (var row in docker.Rows.ToList())
+        {
+            docker.Selected = null;
+            docker.SelectFromPointer(row);
+            output.WriteLine($"{row.Name}: selected={docker.Selected?.Name ?? "null"}, path={docker.SelectedPath}");
+            Assert.Same(row, docker.Selected);
+            // Every row resolves somewhere on disk, which is what the reveal
+            // button acts on — a row that answered null would silently fall back
+            // to the project folder, which is the shape of the bug.
+            Assert.NotNull(docker.SelectedPath);
+        }
+    }
+
+    /// <summary>
+    /// The reveal button and the context-menu item are one command over one
+    /// selection.
+    /// </summary>
+    /// <remarks>
+    /// <b>B108.</b> The two surfaces were reported as disagreeing, and the cause
+    /// was never two implementations — it was one command reading a selection
+    /// that only one of the two gestures had set. This pins the half a view-model
+    /// test cannot see: that the button in the top bar is still bound to the same
+    /// command the menu runs, so a future change cannot give it a path of its own.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheRevealButtonRunsTheSameCommandAsTheMenu()
+    {
+        var xaml = MainWindowXaml();
+        var occurrences = xaml.Split("ProjectDocker.RevealSelectedCommand").Length - 1;
+        output.WriteLine($"RevealSelectedCommand bindings in the XAML: {occurrences}");
+        Assert.Equal(1, occurrences);
+
+        // The menu item reaches it through the window's handler rather than a
+        // binding, because a flyout lives in a popup with no window to bind to.
+        var handlers = File.ReadAllText(
+            Path.Combine(SourceDir(), "src", "Lightbox.App", "Views", "MainWindow.axaml.cs"));
+        Assert.Contains("OnProjectReveal", handlers);
+        Assert.Contains("RevealSelectedCommand.Execute(null)", handlers);
+
+        // And the press handler sets the selection before it asks anything about
+        // which button was pressed or what kind of row it is — that ordering is
+        // what makes both surfaces agree, and it is the whole of B108.
+        var press = handlers[handlers.IndexOf("private async void OnProjectRowPressed", StringComparison.Ordinal)..];
+        var body = press[..press.IndexOf("_draggedRow", StringComparison.Ordinal)];
+
+        // Comments stripped first, and that is not tidiness: the first draft of
+        // this assertion searched the raw text and was satisfied by its own
+        // explanatory comment, which mentions SelectFromPointer several lines
+        // above the call. It passed on a build with the bug still in it.
+        var code = string.Join(
+            '\n',
+            body.Split('\n')
+                .Select(line => line.Trim())
+                .Where(line => !line.StartsWith("//", StringComparison.Ordinal)));
+        output.WriteLine(code);
+
+        var selects = code.IndexOf("SelectFromPointer", StringComparison.Ordinal);
+        var asksWhichButton = code.IndexOf("IsRightButtonPressed", StringComparison.Ordinal);
+        var asksWhichKind = code.IndexOf("Animation: not null", StringComparison.Ordinal);
+        Assert.True(selects >= 0, "the press handler no longer selects the row it landed on");
+        Assert.True(
+            selects < asksWhichButton,
+            $"selection at {selects} comes after the button test at {asksWhichButton}");
+        Assert.True(
+            selects < asksWhichKind,
+            $"selection at {selects} comes after the row-kind test at {asksWhichKind}");
+    }
+
+    /// <summary>Where the repository is, from the test binary.</summary>
+    private static string SourceDir()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        return dir!.FullName;
     }
 }

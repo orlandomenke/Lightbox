@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2512 tests, derived from the suite itself. Each line is a
+2516 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1410,13 +1410,17 @@ regression even when every test still compiles.
 - With Nothing Selected ADocument Still Goes To The Project Root — `:250`
 - Folder Structure Reflects File System Hierarchy — `:273`
 - The Tree Indent Reaches The Row Template — `:317`
-- Moving ADocument Into AFolder Moves Its File Rather Than Copying It — `:369`
-- Moving ADocument Back To The Root Moves Its File Too — `:405`
-- AMove That Cannot Reach Disk Leaves The Tree Alone — `:436`
-- ADocument Made In AFolder Is Named After It — `:477`
-- Accepting The Offered Stem Drops The Dangling Separator — `:507`
-- With No Folder Selected The Numbered Suggestion Stands — `:532`
-- AFolder Is Not Offered An Animation Name — `:560`
+- Moving ADocument Into AFolder Moves Its File Rather Than Copying It — `:363`
+- Moving ADocument Back To The Root Moves Its File Too — `:399`
+- AMove That Cannot Reach Disk Leaves The Tree Alone — `:430`
+- ADocument Made In AFolder Is Named After It — `:471`
+- Accepting The Offered Stem Drops The Dangling Separator — `:501`
+- With No Folder Selected The Numbered Suggestion Stands — `:526`
+- AFolder Is Not Offered An Animation Name — `:554`
+- Expanding AFolder Makes It Where New Work Lands — `:596`
+- Selecting On Toggle Does Not Stop The Toggle — `:632`
+- APress Selects Any Kind Of Row — `:662`
+- The Reveal Button Runs The Same Command As The Menu — `:695`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
