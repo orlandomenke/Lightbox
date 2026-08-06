@@ -27,6 +27,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = _vm;
         Canvas.SetSelectionManager(_vm.Selection);
+        Canvas.SetPlacementProvider(_vm.GetCurrentFramePlacements);
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
         Canvas.PaintStarted += _vm.BeginStroke;  // (x, y, pressure, alt-erases, shift-joins)

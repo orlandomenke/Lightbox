@@ -144,10 +144,19 @@ public sealed class CanvasControl : Control
     /// <summary>Selection manager for object selection feedback.</summary>
     private ViewModels.SelectionManager? _selectionManager;
 
+    /// <summary>Callback to get current placements for selection rendering.</summary>
+    private Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? _getPlacementsForSelection;
+
     /// <summary>Set the selection manager for rendering object selection feedback.</summary>
     public void SetSelectionManager(ViewModels.SelectionManager selectionManager)
     {
         _selectionManager = selectionManager;
+    }
+
+    /// <summary>Set callback to provide placements for selection rendering.</summary>
+    public void SetPlacementProvider(Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? provider)
+    {
+        _getPlacementsForSelection = provider;
     }
 
     /// <summary>Alt was held when this stroke began, so it erases with the current brush.</summary>
@@ -1448,7 +1457,8 @@ public sealed class CanvasControl : Control
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
-            ReferenceBoxes, _newBox, Guides, _draftGuide, RigMarks));
+            ReferenceBoxes, _newBox, Guides, _draftGuide, RigMarks,
+            _selectionManager, _getPlacementsForSelection));
     }
 
     /// <summary>
@@ -2326,7 +2336,9 @@ public sealed class CanvasControl : Control
         SKRect? newBox = null,
         IReadOnlyList<GuideLine>? guides = null,
         GuideLine? draftGuide = null,
-        IReadOnlyList<RigMark>? rigMarks = null) : ICustomDrawOperation
+        IReadOnlyList<RigMark>? rigMarks = null,
+        ViewModels.SelectionManager? selectionManager = null,
+        Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? getPlacementsForSelection = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -2518,11 +2530,37 @@ public sealed class CanvasControl : Control
             if (newBox is { } drawing) canvas.DrawRect(drawing, chosen);
         }
 
-        /// <summary>Draw selection feedback for selected canvas objects (placements, guides, boxes).</summary>
         private void DrawObjectSelections(SKCanvas canvas)
         {
-            // Selection rendering will be implemented in Phase 2 when we have access to the ViewModel
-            // For now, this is a placeholder that allows the build to complete
+            if (selectionManager is null || !selectionManager.HasSelection) return;
+            if (getPlacementsForSelection is null) return;
+
+            var placements = getPlacementsForSelection();
+            if (placements is null || placements.Count == 0) return;
+
+            var scale = view.Scale;
+
+            foreach (var placementId in selectionManager.SelectedPlacementIds)
+            {
+                var placement = placements.FirstOrDefault(p => p.Id == placementId);
+                if (placement is null) continue;
+
+                var boxSize = 40f;
+                var left = (float)placement.X - boxSize / 2;
+                var top = (float)placement.Y - boxSize / 2;
+
+                using var paint = new SKPaint
+                {
+                    Color = SKColors.Cyan,
+                    StrokeWidth = (float)(2f / scale),
+                    Style = SKPaintStyle.Stroke,
+                    IsAntialias = true,
+                };
+
+                canvas.DrawRect(
+                    SKRect.Create(left, top, boxSize, boxSize),
+                    paint);
+            }
         }
 
         /// <summary>

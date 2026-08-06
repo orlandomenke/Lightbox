@@ -4559,6 +4559,14 @@ public sealed partial class MainViewModel : ObservableObject
         return layer is not null && index < layer.Cels.Count ? layer.Cels[index] : null;
     }
 
+    /// <summary>Get placements from the current frame for selection feedback.</summary>
+    public IReadOnlyList<SymbolPlacement>? GetCurrentFramePlacements()
+    {
+        if (PaintTargetOrKey() is PaintedFrame frame && frame.Placements is not null)
+            return frame.Placements.AsReadOnly();
+        return null;
+    }
+
     /// <summary>One pointer sample in document space.</summary>
     public readonly record struct PointerSample(double X, double Y, double Pressure);
 
