@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2345 tests, derived from the suite itself. Each line is a
+2353 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -318,6 +318,14 @@ regression even when every test still compiles.
 - ANew Document In The Project Is Fed That Brush — `:150`
 - AProject With Nothing Recorded Leaves The Brush Alone — `:168`
 - Switching To Per Project Mid Session Hands Back What Is Already There — `:182`
+
+## BrushParameterTests
+`tests/Lightbox.App.Tests/BrushParameterTests.cs`
+
+- Smudge And Blender Use Strength Not Length — `:44`
+- ABlur Strength Is Still Its Flow — `:71`
+- Length Stays On The Effects Page Rather Than The Bar — `:89`
+- Strength Controls Blending Intensity — `:115`
 
 ## BrushPickerTests _Category=Performance_
 `tests/Lightbox.App.Tests/BrushPickerTests.cs`
@@ -1934,10 +1942,10 @@ regression even when every test still compiles.
 ## ToolOptionsBarTests
 `tests/Lightbox.App.Tests/ToolOptionsBarTests.cs`
 
-- The Colour Switcher Is Shown For Every Tool That Uses Colour — `:65`
-- The Colour Switcher Stays Put For Every Other Tool Too — `:99`
-- There Is Exactly One Colour Pair — `:121`
-- The Tools Own Options Are Still There — `:145`
+- The Parameters Button Sits Right Of The Brush Button — `:56`
+- The Parameters Button Survives Switching To The Eraser — `:84`
+- The Parameters Button Is Gone For Tools That Do Not Paint — `:100`
+- The Effect Strength Control Is Bound To Flow — `:114`
 
 ## FillToolTests
 `tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`
@@ -3271,6 +3279,14 @@ regression even when every test still compiles.
 `tests/Lightbox.Raster.Tests/SmudgeCostTests.cs`
 
 - AWhole Smudge Stroke Stays Affordable — `:29`
+
+## SmudgeTransportTests
+`tests/Lightbox.Raster.Tests/SmudgeTransportTests.cs`
+
+- AMark Smudges Its Own Colour Rather Than ADarkened Ghost — `:102`
+- AColoured Mark Keeps Its Hue Down The Stroke — `:137`
+- Smudging Does Not Hollow Out The Body Of AMark — `:169`
+- The Trail Length Responds To Its Controls — `:201`
 
 ## StampingArcTests
 `tests/Lightbox.Raster.Tests/StampingArcTests.cs`

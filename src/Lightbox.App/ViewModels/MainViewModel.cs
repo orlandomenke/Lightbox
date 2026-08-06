@@ -2174,21 +2174,35 @@ public sealed partial class MainViewModel : ObservableObject
     public bool ShowsEffectOptions => IsBrushTool && IsEffectBrush;
 
     /// <summary>
-    /// How hard the effect bites, in the term each tool uses for it: how far
-    /// colour travels for a smudge, how much softening for a blur.
+    /// How hard the effect bites: <see cref="BrushSettings.Flow"/>, for every
+    /// effect brush.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B90.</b> This used to read and write <see cref="BrushSmudgeLength"/>
+    /// for a smudge and label itself "Length", which put a *drag distance* under
+    /// the artist's strength affordance and left the knob that actually decides
+    /// how hard each dab pulls — flow, the <c>strength</c> argument
+    /// <c>BrushEngine.StampSmudge</c> hands to <c>LerpDab</c> — unreachable from
+    /// the bar entirely. `docs/manual/04-brushes.md` already described the
+    /// behaviour this now has, so the app was the half that was wrong.
+    /// </para>
+    /// <para>
+    /// Smudge length is not lost and is not diminished: it keeps its own labelled
+    /// row on the ⚙ → Effects page beside smearing/dulling and radius, which is
+    /// where a value you set once per brush belongs. The bar carries the three
+    /// you reach for mid-stroke.
+    /// </para>
+    /// </remarks>
     public double EffectStrength
     {
-        get => IsSmudgeBrush ? BrushSmudgeLength : BrushFlow;
+        get => BrushFlow;
         set
         {
-            if (IsSmudgeBrush) BrushSmudgeLength = value;
-            else BrushFlow = Math.Clamp(value, 0.01, 1);
+            BrushFlow = value;
             OnPropertyChanged();
         }
     }
-
-    public string EffectStrengthLabel => IsSmudgeBrush ? "Length" : "Strength";
 
     public SmudgeMode BrushSmudgeMode
     {
@@ -2607,7 +2621,7 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(BrushSecondaryColor), nameof(BrushColorJitter), nameof(BrushHueJitter),
         nameof(BrushSaturationJitter), nameof(BrushBrightnessJitter),
         nameof(IsSmudgeBrush), nameof(IsEffectBrush), nameof(ShowsEffectOptions), nameof(EffectStrength),
-        nameof(EffectStrengthLabel), nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
+        nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
         nameof(BrushSmudgeRadius), nameof(BrushColorRate),
         nameof(BrushMedium), nameof(MediumIsSimulated), nameof(MediumHasBody),
         nameof(MediumWetness), nameof(MediumViscosity), nameof(MediumDrag), nameof(MediumFlowSteps),
