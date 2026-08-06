@@ -730,13 +730,62 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Show or hide what is inside a folder.</summary>
+    /// <summary>Show or hide what is inside a folder, and select it.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B108, and it refines B86 rather than reversing it.</b> B86 put the
+    /// twisty on a Button because "collapsing and selecting are different
+    /// intentions and one gesture cannot mean both", and that is still true of
+    /// the <em>intention</em>. What it missed is the consequence: the chevron was
+    /// then the one gesture that reaches into a folder and leaves
+    /// <see cref="Selected"/> pointing somewhere else — or at nothing.
+    /// </para>
+    /// <para>
+    /// Two toolbar surfaces read that selection as <em>where I am</em>: 🗁
+    /// reveals <see cref="SelectedPath"/> and ＋ New files into
+    /// <see cref="TargetFolder"/>. So expanding Knight and pressing either one
+    /// acted on the project root — the file manager opened the project folder,
+    /// and a new document landed in <c>unassigned-documents/</c>. Both were
+    /// reported as separate bugs and they are this one line.
+    /// </para>
+    /// <para>
+    /// It stayed hidden until B104 made the tree legible. With every row drawn
+    /// flush left nobody used the chevron; with real indentation it is the first
+    /// thing an artist reaches for.
+    /// </para>
+    /// </remarks>
     [RelayCommand]
     public void ToggleCollapsed(ProjectRow? row)
     {
         if (row?.Folder is not { } folder || !row.IsFolder) return;
         if (!_collapsed.Add(folder.Id)) _collapsed.Remove(folder.Id);
         Rebuild();
+        // After the rebuild, because Rebuild restores the selection from the
+        // *previous* one and would otherwise overwrite this.
+        Selected = Rows.FirstOrDefault(r => r.IsFolder && ReferenceEquals(r.Folder, folder))
+            ?? Selected;
+    }
+
+    /// <summary>
+    /// A press landed on a row: that row becomes the selection.
+    /// </summary>
+    /// <remarks>
+    /// <b>B108.</b> The window's pointer handler used to set the selection for a
+    /// right-click on any row and for a left-click on a <em>document</em> only,
+    /// leaving every other row kind to whatever the ListBox happened to do. That
+    /// is the asymmetry the report named — "RMB show in file manager does work
+    /// correctly" — and the fix is one rule for both buttons and every kind of
+    /// row.
+    /// <para>
+    /// Here rather than in the window so it can be tested: synthetic pointer
+    /// input through Xvfb is unreliable in this environment, so a selection rule
+    /// that lives only in a pointer handler is a rule nothing can check.
+    /// </para>
+    /// </remarks>
+    public void SelectFromPointer(ProjectRow? row)
+    {
+        if (row is null) return;
+        Selected = row;
     }
 
     /// <summary>Whether a folder is currently collapsed. For tests and bindings.</summary>
