@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2546 tests, derived from the suite itself. Each line is a
+2564 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1545,6 +1545,17 @@ regression even when every test still compiles.
 - Pushing Across Visits Every Drawing Once Even On2s — `:252`
 - Pushing With Nothing Selected Does Nothing — `:271`
 
+## RigMarkEditTests
+`tests/Lightbox.App.Tests/RigMarkEditTests.cs`
+
+- Moving AGroup Of Anchors Is One Undo Step — `:78`
+- Undoing An Anchor Group Move Puts Them All Back — `:105`
+- Redoing An Anchor Group Move Reapplies It Once — `:127`
+- An Anchor Group Drag That Went Nowhere Is Not An Edit — `:144`
+- Moving AGroup Of Collision Boxes Is One Undo Step — `:161`
+- Undoing ACollision Box Group Move Puts Them All Back — `:182`
+- Moving ACollision Box Leaves Its Size Alone — `:197`
+
 ## RigOverlayPainterTests
 `tests/Lightbox.App.Tests/RigOverlayPainterTests.cs`
 
@@ -1574,6 +1585,21 @@ regression even when every test still compiles.
 - AShape Cannot Be Collapsed To Nothing — `:193`
 - An Anchor Moves Even When ACorner Is Somehow Named — `:204`
 - The Cursor Says What The Gesture Will Do — `:220`
+
+## RigPreviewTests
+`tests/Lightbox.App.Tests/RigPreviewTests.cs`
+
+- Anchors Follow The Pointer While The Group Is Being Dragged — `:40`
+- Collision Boxes Follow The Pointer While The Group Is Being Dragged — `:61`
+- The Preview Leaves The Marks It Was Given Alone — `:85`
+- Clearing The Preview Goes Back To What The Record Says — `:99`
+- With No Drag In Flight The List Is Handed Back Untouched — `:114`
+- An Empty Or Absent Overlay Previews Nothing — `:125`
+- ADragged Corner Previews AResize Rather Than AMove — `:138`
+- AGroup Preview Is Measured From Where The Drag Was Picked Up — `:156`
+- Anchors And Boxes Measure From Their Own Press — `:178`
+- AGroup Preview With No Selection Manager Does Nothing — `:210`
+- An Anchor Ignores The Corner Because It Has No Size — `:220`
 
 ## RulerAndGuideEditTests
 `tests/Lightbox.App.Tests/RulerAndGuideEditTests.cs`

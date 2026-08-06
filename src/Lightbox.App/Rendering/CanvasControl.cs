@@ -521,6 +521,93 @@ public sealed class CanvasControl : Control
     }
 
     /// <summary>
+    /// The rig marks a drag is currently carrying, and how far.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Chrome, not data — the same bargain <see cref="DraftGuide"/> makes, and for
+    /// the same reason: the record must not be touched per pointer event, but a mark
+    /// that does not move until you let go is one you place twice. <c>DragRig</c>'s
+    /// own remark already said live feedback "is the overlay's own business and
+    /// touches nothing"; this is the overlay finally doing it (B112).
+    /// </para>
+    /// <para>
+    /// One field covers every rig drag, single or group, because
+    /// <see cref="RigOverlay.Drag"/> is what decides what a delta means: a corner
+    /// resizes and <see cref="RigCorner.None"/> translates, so the preview is the
+    /// same arithmetic the commit will use rather than a second guess at it.
+    /// </para>
+    /// </remarks>
+    private (HashSet<string> Ids, RigCorner Corner, double Dx, double Dy)? _rigPreview;
+
+    internal void PreviewRig(IEnumerable<string> ids, RigCorner corner, double dx, double dy)
+    {
+        _rigPreview = (new HashSet<string>(ids, StringComparer.Ordinal), corner, dx, dy);
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Preview where a group drag has reached, measured from where it was picked up.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Absolute rather than a sum of the per-event increments, which is the same
+    /// choice the content move makes and for a reason B109 paid for: the pointer
+    /// handler advances its own anchor every event, so anything that adds up what it
+    /// reports is one rounding away from drifting off the pointer.
+    /// </para>
+    /// <para>
+    /// A seam rather than four lines in the pointer handler, so the arithmetic is
+    /// reachable from a test — the wiring above it is two calls, and this is the part
+    /// that can be wrong while still compiling.
+    /// </para>
+    /// </remarks>
+    /// <summary>Note where a group drag was picked up, for the preview to measure from.</summary>
+    internal void BeginRigGroupPreview(double x, double y, bool shapes)
+    {
+        if (shapes) _shapeMoveStart = (x, y);
+        else _anchorMoveStart = (x, y);
+    }
+
+    internal void TrackRigGroupPreview(double mx, double my, bool shapes)
+    {
+        if (_selectionManager is not { } selection) return;
+        var start = shapes ? _shapeMoveStart : _anchorMoveStart;
+        PreviewRig(
+            shapes ? selection.SelectedShapeIds : selection.SelectedAnchorIds,
+            RigCorner.None, mx - start.X, my - start.Y);
+    }
+
+    /// <summary>Drop the preview, because the record now holds the move.</summary>
+    internal void ClearRigPreview()
+    {
+        if (_rigPreview is null) return;
+        _rigPreview = null;
+        InvalidateVisual();
+    }
+
+    /// <summary>The marks as they should be drawn while a drag is in flight.</summary>
+    /// <remarks>
+    /// Returns the list unchanged when nothing is being dragged, so the overlay pays
+    /// nothing for a preview that does not exist. Internal rather than private so a
+    /// test can read what the overlay would draw: synthetic pointer input through
+    /// Xvfb is unreliable here, and a dropped click looks exactly like a bug.
+    /// </remarks>
+    internal IReadOnlyList<RigMark>? WithRigPreview(IReadOnlyList<RigMark>? marks)
+    {
+        if (_rigPreview is not { } preview || marks is null || marks.Count == 0) return marks;
+
+        var shown = new List<RigMark>(marks.Count);
+        foreach (var mark in marks)
+        {
+            shown.Add(mark.Id is { } id && preview.Ids.Contains(id)
+                ? RigOverlay.Drag(mark, preview.Corner, preview.Dx, preview.Dy)
+                : mark);
+        }
+        return shown;
+    }
+
+    /// <summary>
     /// A guide being pulled out of a ruler, not yet part of the document.
     /// </summary>
     /// <remarks>
@@ -582,9 +669,11 @@ public sealed class CanvasControl : Control
 
     private bool _movingAnchors;
     private (double X, double Y) _anchorMoveLast;
+    private (double X, double Y) _anchorMoveStart;
 
     private bool _movingShapes;
     private (double X, double Y) _shapeMoveLast;
+    private (double X, double Y) _shapeMoveStart;
 
     /// <summary>Guides move started via Selection in Move mode.</summary>
     public event Action? GuidesMovedStarted;
@@ -1506,7 +1595,7 @@ public sealed class CanvasControl : Control
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
-            ReferenceBoxes, _newBox, Guides, _draftGuide, RigMarks,
+            ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
             _selectionManager, _getPlacementsForSelection));
     }
 
@@ -2016,12 +2105,14 @@ public sealed class CanvasControl : Control
                     {
                         _movingAnchors = true;
                         _anchorMoveLast = (x, y);
+                        BeginRigGroupPreview(x, y, shapes: false);
                         AnchorsMoveStarted?.Invoke();
                     }
                     else if (movingSelection && _selectionManager?.SelectedShapeIds.Count > 0)
                     {
                         _movingShapes = true;
                         _shapeMoveLast = (x, y);
+                        BeginRigGroupPreview(x, y, shapes: true);
                         ShapesMoveStarted?.Invoke();
                     }
                     else
@@ -2167,6 +2258,7 @@ public sealed class CanvasControl : Control
                 var dy = my - _anchorMoveLast.Y;
                 AnchorsMoved?.Invoke(dx, dy);
                 _anchorMoveLast = (mx, my);
+                TrackRigGroupPreview(mx, my, shapes: false);
                 e.Handled = true;
                 return;
             }
@@ -2178,6 +2270,19 @@ public sealed class CanvasControl : Control
                 var dy = my - _shapeMoveLast.Y;
                 ShapesMoved?.Invoke(dx, dy);
                 _shapeMoveLast = (mx, my);
+                TrackRigGroupPreview(mx, my, shapes: true);
+                e.Handled = true;
+                return;
+            }
+
+            // A single mark being dragged. It has never previewed either — B112 is
+            // both paths, not just the group one — and it is the same mechanism.
+            if (RigEditMode && _rigDragId is { } draggedMark)
+            {
+                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                PreviewRig(
+                    [draggedMark], _rigDragCorner,
+                    mx - _rigDragStart.X, my - _rigDragStart.Y);
                 e.Handled = true;
                 return;
             }
@@ -2358,6 +2463,10 @@ public sealed class CanvasControl : Control
         {
             _movingAnchors = false;
             e.Pointer.Capture(null);
+            // Cleared before the commit, so the record's new position is what the
+            // next paint reads. Clearing afterwards would double the move for one
+            // frame and read as an overshoot.
+            ClearRigPreview();
             AnchorsMovedEnded?.Invoke();
             e.Handled = true;
             return;
@@ -2366,6 +2475,7 @@ public sealed class CanvasControl : Control
         {
             _movingShapes = false;
             e.Pointer.Capture(null);
+            ClearRigPreview();
             ShapesMovedEnded?.Invoke();
             e.Handled = true;
             return;
@@ -2408,6 +2518,7 @@ public sealed class CanvasControl : Control
             var (ux, uy) = ViewToDoc(e.GetPosition(this));
             _rigDragId = null;
             e.Pointer.Capture(null);
+            ClearRigPreview();
             RigDragged?.Invoke(dragged, _rigDragCorner, ux - _rigDragStart.X, uy - _rigDragStart.Y);
             e.Handled = true;
             return;
