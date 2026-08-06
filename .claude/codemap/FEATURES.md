@@ -1483,30 +1483,30 @@ regression even when every test still compiles.
 ## CharacterSheetFileTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
 
-- ACharacter Sheet Outside AProject Prompts To Save — `:224`
-- ACharacter Sheet In AProject Is Written On Creation — `:244`
-- ACharacter Sheet Asks For Its Name Before Its Location — `:275`
+- ACharacter Sheet Outside AProject Prompts To Save — `:238`
+- ACharacter Sheet In AProject Is Written On Creation — `:258`
+- ACharacter Sheet Asks For Its Name Before Its Location — `:289`
 
 ## ReferenceAiTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
 
-- Render Reference View Produces Decodable Png — `:135`
-- Ai Inbetween Carries Reference Images — `:158`
-- Ipc List And Render Expose Reference Views — `:187`
+- Render Reference View Produces Decodable Png — `:149`
+- Ai Inbetween Carries Reference Images — `:172`
+- Ipc List And Render Expose Reference Views — `:201`
 
 ## ReferenceSheetModelTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
 
-- Sheets Round Trip Through Json And Legacy Docs Load Empty — `:12`
+- Sheets Round Trip Through Json And Legacy Docs Load Empty — `:26`
 
 ## ReferenceTabTests
 `tests/Lightbox.App.Tests/ReferenceSheetTests.cs`
 
-- Add View Opens Reference Tab Timeline Hidden — `:53`
-- Painting In Reference Tab Lands In Owning Document And Dirties Owner — `:69`
-- Save From Reference Tab Serializes The Owning Document — `:96`
-- Closing Owner Tab Closes Its Reference Tabs — `:112`
-- Opening Same View Focuses Existing Tab — `:122`
+- Add View Opens Reference Tab Timeline Hidden — `:67`
+- Painting In Reference Tab Lands In Owning Document And Dirties Owner — `:83`
+- Save From Reference Tab Serializes The Owning Document — `:110`
+- Closing Owner Tab Closes Its Reference Tabs — `:126`
+- Opening Same View Focuses Existing Tab — `:136`
 
 ## ReferenceStripTests
 `tests/Lightbox.App.Tests/ReferenceStripTests.cs`

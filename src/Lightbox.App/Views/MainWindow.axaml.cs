@@ -3342,6 +3342,7 @@ public partial class MainWindow : Window
         {
             _vm.AiStatus = $"Test export failed: {ex.Message}";
         }
+    }
 
     /// <summary>
     /// Hand the row to the context menu's items, because nothing else will.
