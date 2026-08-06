@@ -1,6 +1,6 @@
 # Code index
 
-478 files · 122909 lines · 2482 tests.
+478 files · 123239 lines · 2488 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,15 +47,15 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9717 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4346, TransformParts:6674
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9737 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4366, TransformParts:6694
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4114 ln) · 16 test files
   - MainWindow:18, UnsavedChoice:2758
 - `src/Lightbox.App/Views/MainWindow.axaml` (3309 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2848 ln) · 9 test files
   - CanvasControl:28, CanvasToolMode:692, GridGesture:748, TxDrag:895, DrawOp:2311
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1896 ln) · 10 test files
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1986 ln) · 10 test files
   - ProjectRow:19, ProjectViewModel:328, NewItemKind:1056
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
   - MainViewModel:20
@@ -105,7 +105,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (256 ln) · 3 test files
   - Workspace:13, WorkspaceStore:51
-- `src/Lightbox.App/ViewModels/DocumentTab.cs` (253 ln) · 26 test files
+- `src/Lightbox.App/ViewModels/DocumentTab.cs` (253 ln) · 27 test files
   - NewDocumentSettings:20, WorkspaceChoice:32, DocumentTabKind:41, DocumentTab:60
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
@@ -289,7 +289,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Templates:25, NewLayer:96, LayerChange:107, PullPreview:118, PullOptions:136
 - `src/Lightbox.Core/Documents/Scene.cs` (306 ln) · 16 test files
   - FrameMarker:4, TagDirection:66, AnimationTag:99, Scene:136
-- `src/Lightbox.Core/Projects/ProjectFolders.cs` (306 ln) · 10 test files
+- `src/Lightbox.Core/Projects/ProjectFolders.cs` (306 ln) · 11 test files
   - ProjectFolder:25, ProjectFolders:76
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (296 ln) · 5 test files
   - GeometryOps:5

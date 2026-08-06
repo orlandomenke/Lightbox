@@ -646,6 +646,17 @@ public sealed partial class MainViewModel : ObservableObject
         // selecting it would make the very first stroke bounce.
         fresh.State.LayerIndex = FirstPaintableLayer(doc);
         AddTab(fresh);
+        // B99. A document made while a project is open belongs to that project:
+        // it gets a row, marked not saved yet, and a project save writes it.
+        // Without a Source it was in limbo — no manifest entry, no row, and
+        // skipped by SaveProject, which writes only tabs that have one.
+        //
+        // After AddTab rather than before, and the ordering is load-bearing:
+        // adopting announces a project change, which marks the *active* tab's
+        // document edited. With `fresh` already active that lands on the right
+        // document, and `Source` still being null at that instant costs nothing
+        // because adopting has already put the id in the docker's dirty set.
+        fresh.Source = ProjectDocker.AdoptNewDocument(settings.Name, doc);
         // The kind of work chosen at creation is a reason to offer that kind's
         // panels — offered, not imposed, which is why it is a choice on the
         // dialog and defaults to leaving the arrangement alone.
@@ -1036,6 +1047,15 @@ public sealed partial class MainViewModel : ObservableObject
         Tabs.Remove(tab);
         // An animation tab takes its reference-view tabs with it.
         foreach (var orphan in Tabs.Where(t => t.Owner == tab).ToList()) Tabs.Remove(orphan);
+        // B99. Closing a document that was never written takes its row with it.
+        // Here rather than in the close handler because this is the one funnel
+        // every close goes through, and the handler has already resolved the
+        // save-or-discard question by the time it calls this: if the artist chose
+        // Save the file now exists, so the row stays.
+        //
+        // A reference view belongs to the document it was opened from, so only a
+        // tab that owns its own document can take a row out of the project.
+        if (tab.Owner is null) ProjectDocker.ForgetIfNeverWritten(tab.Source);
         if (Tabs.Count == 0)
         {
             Tabs.Add(new DocumentTab(new DocumentEditor(DocumentFactory.CreateDoc()), NextUntitledName()));

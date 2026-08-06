@@ -183,4 +183,189 @@ public sealed class UnsavedDocumentTests(ITestOutputHelper output) : BrushStateI
         vm.SaveProject();
         Assert.False(File.Exists(path));
     }
+
+    // ---- B99: File ▸ New inside a project ------------------------------------------
+
+    /// <summary>A blank document for a New that only differs by name.</summary>
+    private static NewDocumentSettings NewOf(string name) =>
+        new(name, 400, 300, 12, 72, "#ffffff", false);
+
+    /// <summary>
+    /// File ▸ New with a project open gives the document a row, marked unsaved.
+    /// </summary>
+    /// <remarks>
+    /// <b>B99's remaining half.</b> The document used to be in limbo: a tab, and
+    /// nothing else — no manifest entry, no row, <c>Source</c> null. That last one
+    /// is why a project save skipped it, because <c>SaveProject</c> writes only
+    /// tabs that have a <c>Source</c>, so the one document with nothing on disk
+    /// was also the one nothing would write.
+    /// <para>
+    /// Filed where the artist is, which is the same rule ＋ New ▸ Document
+    /// follows. File ▸ New still means "a new document" rather than "an animation
+    /// under the selected character" — what changed is that the project knows
+    /// about it.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ANewDocumentAppearsInTheProjectDocker()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Production");
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        var knight = ProjectFolders.All(docker.Project!.Manifest).First();
+
+        vm.NewDocument(NewOf("Rooftop"));
+
+        var row = Row(docker, "Rooftop");
+        output.WriteLine($"pending={row.Pending}, missing={row.Missing}, onDisk={row.IsOnDisk}");
+        // Unsaved rather than missing: it has never been written, which is
+        // ordinary, and saying "not on disk" would cry wolf (B76).
+        Assert.True(row.Pending);
+        Assert.False(row.Missing);
+        Assert.Equal("not saved yet", row.PendingHint);
+
+        // Filed where the artist was, and bound to the tab that is showing it.
+        var made = Assert.Single(docker.Project!.Manifest.Documents, d => d.Name == "Rooftop");
+        Assert.Equal(knight.Id, made.FolderId);
+        Assert.Equal("knight/rooftop.lightbox.json", made.Path);
+        Assert.Equal(made.Id, vm.ActiveTab!.Source?.Id);
+    }
+
+    /// <summary>
+    /// And a project save writes it, which is the half nothing could reach before.
+    /// </summary>
+    /// <remarks>
+    /// The end-to-end claim, and the one the row assertions cannot make: a row
+    /// that is right while the save skips the file is exactly the shape B99 was.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AProjectSaveWritesADocumentMadeWithFileNew()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Production");
+        var docker = vm.ProjectDocker;
+
+        vm.NewDocument(NewOf("Rooftop"));
+        vm.SaveProject();
+
+        var made = Assert.Single(docker.Project!.Manifest.Documents, d => d.Name == "Rooftop");
+        var path = Path.Combine(_root, made.Path.Replace('/', Path.DirectorySeparatorChar));
+        output.WriteLine(path);
+        Assert.True(File.Exists(path), $"a project save did not write it: {path}");
+        // And the row stops saying it is unsaved, because it is not.
+        Assert.False(Row(docker, "Rooftop").Pending);
+    }
+
+    /// <summary>
+    /// Closing a document that was never saved takes its row with it, at once.
+    /// </summary>
+    /// <remarks>
+    /// <b>The owner's rule for B99, 2026-08-06.</b> The alternative is a row
+    /// pointing at a file that does not exist and never will — which the next
+    /// refresh would report as <em>not on disk</em>, the badge that means
+    /// something went wrong, raised by nothing going wrong.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ClosingANeverSavedDocumentTakesItsRowWithIt()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Production");
+        var docker = vm.ProjectDocker;
+
+        vm.NewDocument(NewOf("Rooftop"));
+        var tab = Assert.Single(vm.Tabs, t => t.Title == "Rooftop");
+        Assert.Contains(docker.Rows, r => r.Name == "Rooftop");
+
+        vm.CloseTab(tab);
+
+        output.WriteLine(docker.Status);
+        Assert.DoesNotContain(docker.Rows, r => r.Name == "Rooftop");
+        Assert.DoesNotContain(docker.Project!.Manifest.Documents, d => d.Name == "Rooftop");
+        // And a save afterwards writes nothing for it.
+        vm.SaveProject();
+        Assert.False(Directory.EnumerateFiles(_root, "rooftop.lightbox.json", SearchOption.AllDirectories).Any());
+    }
+
+    /// <summary>
+    /// Closing a document that <em>was</em> saved keeps its row.
+    /// </summary>
+    /// <remarks>
+    /// The control, and the assertion that matters most: "never written" has to
+    /// be narrower than "this tab closed", or closing a tab would quietly take a
+    /// finished drawing out of the project while leaving the file on disk — a row
+    /// gone and the work stranded, which is worse than the bug being fixed.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ClosingASavedDocumentKeepsItsRow()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Production");
+        var docker = vm.ProjectDocker;
+
+        vm.NewDocument(NewOf("Rooftop"));
+        vm.SaveProject();
+        var tab = Assert.Single(vm.Tabs, t => t.Title == "Rooftop");
+
+        vm.CloseTab(tab);
+
+        Assert.Contains(docker.Rows, r => r.Name == "Rooftop");
+        var kept = Assert.Single(docker.Project!.Manifest.Documents, d => d.Name == "Rooftop");
+        Assert.True(File.Exists(Path.Combine(_root, kept.Path.Replace('/', Path.DirectorySeparatorChar))));
+        // Nor is it flagged, because its file is where the project says.
+        Assert.False(Row(docker, "Rooftop").Missing);
+    }
+
+    /// <summary>
+    /// A document whose file was deleted from outside keeps its row on close.
+    /// </summary>
+    /// <remarks>
+    /// The other edge of the same line, and B61's rule: a vanished file is
+    /// reported, never removed on the artist's behalf. "Never written" is two
+    /// conditions — no save has covered it <em>and</em> there is no file — so a
+    /// saved document whose file has gone stays in the project, flagged, and
+    /// taking it out remains a decision somebody makes.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ClosingADocumentWhoseFileVanishedKeepsItsRow()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Production");
+        var docker = vm.ProjectDocker;
+
+        vm.NewDocument(NewOf("Rooftop"));
+        vm.SaveProject();
+        var made = Assert.Single(docker.Project!.Manifest.Documents, d => d.Name == "Rooftop");
+        File.Delete(Path.Combine(_root, made.Path.Replace('/', Path.DirectorySeparatorChar)));
+
+        vm.CloseTab(Assert.Single(vm.Tabs, t => t.Title == "Rooftop"));
+
+        Assert.Contains(docker.Rows, r => r.Name == "Rooftop");
+        docker.Refresh();
+        Assert.True(Row(docker, "Rooftop").Missing);
+    }
+
+    /// <summary>
+    /// With no project open, File ▸ New is what it always was.
+    /// </summary>
+    /// <remarks>
+    /// The control on the whole entry. The application is document-first — it
+    /// opens on an untitled document with no project and no project UI — and
+    /// making a drawing must never be what brings a project into existence.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ANewDocumentWithNoProjectOpenChangesNothing()
+    {
+        var vm = Vm();
+        Assert.False(vm.HasProject);
+
+        vm.NewDocument(NewOf("Rooftop"));
+
+        Assert.False(vm.HasProject);
+        Assert.Null(vm.ActiveTab!.Source);
+        Assert.Empty(vm.ProjectDocker.Rows);
+        // And closing it does not go looking for a project either.
+        vm.CloseTab(vm.ActiveTab!);
+        Assert.False(vm.HasProject);
+    }
 }
