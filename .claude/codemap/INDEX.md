@@ -1,6 +1,6 @@
 # Code index
 
-494 files · 129974 lines · 2594 tests.
+499 files · 130478 lines · 2617 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -289,7 +289,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
-- `src/Lightbox.Core/Projects/ProjectManifest.cs` (389 ln) · 28 test files
+- `src/Lightbox.Core/Projects/ProjectManifest.cs` (389 ln) · 29 test files
   - ProjectType:11, DocumentRef:29, CharacterVariant:147, Character:168, ProjectScene:238, ProjectManifest:262
 - `src/Lightbox.Core/Projects/ExportPreset.cs` (352 ln) · 12 test files
   - SpriteTrim:7, SpritePack:32, ExportGrouping:59, ExportTarget:75, ExportPreset:146
@@ -345,9 +345,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Stroke:9, BakedSample:148
 - `src/Lightbox.Core/Projects/CharacterLibrary.cs` (153 ln) · 1 test files
   - LibraryEntry:7, CharacterLibrary:39
-- `src/Lightbox.Core/Documents/Doc.cs` (152 ln) · 37 test files
+- `src/Lightbox.Core/Documents/Doc.cs` (152 ln) · 38 test files
   - Doc:8, ClipRegion:146
-- `src/Lightbox.Core/Documents/Camera.cs` (146 ln) · 5 test files
+- `src/Lightbox.Core/Documents/Camera.cs` (146 ln) · 6 test files
   - CameraKey:10, Camera:46, CameraOps:65
 - `src/Lightbox.Core/Documents/Anchors.cs` (144 ln) · 8 test files
   - Anchors:13
@@ -371,6 +371,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GuideKind:4, Guide:60
 - `src/Lightbox.Core/Projects/ExportStaleness.cs` (114 ln) · 1 test files
   - ExportRecord:11, ExportStaleness:26, ExportTriggers:89
+- `src/Lightbox.Core/Projects/FeatureDefaults.cs` (113 ln) · 1 test files
+  - FeatureDefaults:12
 - `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 42 test files
   - DocumentFactory:3
 - `src/Lightbox.Core/Documents/CollisionShape.cs` (101 ln) · 5 test files
@@ -399,6 +401,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeFilters:10
 - `src/Lightbox.Core/Documents/BrushScope.cs` (78 ln) · 3 test files
   - BrushScope:8, BrushScopeDefaults:47
+- `src/Lightbox.Core/Projects/FeatureConflict.cs` (78 ln) · 1 test files
+  - FeatureConflict:19, FeatureConflicts:40
 - `src/Lightbox.Core/Serialization/DocJson.cs` (77 ln) · 31 test files
   - DocJson:11
 - `src/Lightbox.Core/Versioning/VersionEntry.cs` (77 ln) · 1 test files
@@ -417,6 +421,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ReferenceSheet:11, ReferenceView:21
 - `src/Lightbox.Core/Inbetween/StrokeInterpolator.cs` (43 ln) · 1 test files
   - StrokeInterpolator:6
+- `src/Lightbox.Core/Projects/FeatureKey.cs` (30 ln) · 2 test files
+  - FeatureKey:14
 - `src/Lightbox.Core/Geometry/ColorOps.cs` (29 ln) · 1 test files
   - ColorOps:3
 - `src/Lightbox.Core/Documents/FrameGroup.cs` (26 ln) · 16 indirect only

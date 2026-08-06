@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2594 tests, derived from the suite itself. Each line is a
+2617 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2484,6 +2484,37 @@ regression even when every test still compiles.
 - AFiltered Preset Admits Only The Statuses It Lists — `:97`
 - Staleness Is Two Integers Differing — `:114`
 - Grouping Defaults To One Artifact Per Document — `:127`
+
+## FeatureConflictTests
+`tests/Lightbox.Core.Tests/FeatureConflictTests.cs`
+
+- Unbounded Canvas Excludes Fixed Frame Bounds Export — `:11`
+- Conflict Reason Is Descriptive — `:24`
+- No Conflict When Both False — `:38`
+- No Conflict When First False — `:49`
+- No Conflict When Second False — `:60`
+- Conflict Involves Is Both Orders — `:71`
+- Conflict Other Returns The Other Feature — `:85`
+- Conflicts With Returns All Conflicts For Feature — `:98`
+- Conflicts With Empty For Feature With No Conflicts — `:108`
+- AConflict Holds In Every Project Type — `:116`
+- All Returns All Declared Conflicts — `:133`
+
+## FeatureDefaultsTests
+`tests/Lightbox.Core.Tests/FeatureDefaultsTests.cs`
+
+- Every Feature Is Reachable In Every Project Type — `:11`
+- AProject Type Sets Defaults Rather Than Availability — `:30`
+- AFeature Left At Its Default Writes No Key — `:49`
+- Illustration Defaults Are Minimal — `:66`
+- Animation Defaults Include Exposure Sheet — `:76`
+- Game Art Defaults Include Fixed Frame Bounds Export — `:85`
+- Storyboard Defaults Include Camera — `:93`
+- Asset Library Defaults Include Fixed Frame Bounds Export — `:101`
+- Get Default Throws For Unknown Type — `:107`
+- Features For Returns All Features For Type — `:115`
+- Types For Returns All Types With Feature — `:124`
+- Layers Is Enabled In Every Project Type — `:132`
 
 ## FigureFinderTests
 `tests/Lightbox.Core.Tests/FigureFinderTests.cs`
