@@ -145,8 +145,8 @@ public sealed class BrushPickerTests(ITestOutputHelper output) : BrushStateIsola
         // medium holds up as the brush shrinks (71..107 over sizes 8 to 150). What is
         // left is the TILE: a uniform wash about 10/255 deep over paper, which reads as
         // clean paper at this threshold. That is a preview-framing problem rather than a
-        // deposit one, so it is B93 and this exemption now names that instead.
-        ["Watercolor"] = "B93 — the simulated watercolour's picker tile is too faint to read",
+        // deposit one, so it is B101 and this exemption now names that instead.
+        ["Watercolor"] = "B101 — the simulated watercolour's picker tile is too faint to read",
     };
 
     [Fact]

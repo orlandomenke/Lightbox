@@ -1862,12 +1862,16 @@
                     character or on the project itself.
                   -->
                   <DockPanel>
-                    <!-- The project folder, at the far edge: the one path in
-                         the tree that is always there, however little of it
-                         has been created yet. -->
+                    <!-- B62. Reveals what is *selected*, which is the useful
+                         half and was buried in the right-click menu while this
+                         button opened the project folder whatever you had
+                         picked. The old behaviour is not lost: the project is
+                         the first row, so selecting it and pressing this does
+                         exactly what the button used to do — and with nothing
+                         selected at all, PathOf falls back to the root. -->
                     <Button Classes="icon" DockPanel.Dock="Right" Content="🗁"
-                            Command="{Binding ProjectDocker.RevealRootCommand}"
-                            ToolTip.Tip="Show the project folder in the file manager" />
+                            Command="{Binding ProjectDocker.RevealSelectedCommand}"
+                            ToolTip.Tip="Show the selected item in the file manager" />
                     <!-- B61. The folder is watched, so this is rarely needed —
                          and it is the only way back when the watch could not be
                          armed, which ProjectWatcher allows on purpose so a
@@ -1884,15 +1888,32 @@
                                `$parent[Window]` binding has no window to find
                                and every entry is silently dead. -->
                           <MenuFlyout>
-                            <MenuItem Header="Animation" Click="OnProjectNewAnimation"
-                                      ToolTip.Tip="A drawing sequence under the selected character" />
-                            <MenuItem Header="Character" Click="OnProjectNewCharacter"
+                            <!--
+                              B63. Grouped: things work goes *inside* first, then
+                              the drawings themselves, with the same glyphs the
+                              rows use so the menu predicts the tree. The report
+                              was that the list "does not distinguish a folder
+                              from a work file", and an undifferentiated pile of
+                              six words is exactly that.
+
+                              The order and the glyphs both come from
+                              ProjectViewModel.NewItemKinds, which is what
+                              ProjectCreateMenuTests reads — this flyout is
+                              written out (a popup has no window to bind to), so
+                              the test is the only thing keeping the two in step.
+                            -->
+                            <MenuItem Header="🗀  Folder" Click="OnProjectNewFolder"
+                                      ToolTip.Tip="A folder you name, inside the selected one" />
+                            <MenuItem Header="🗀  Character" Click="OnProjectNewCharacter"
                                       ToolTip.Tip="A new character, with its own animations and palette" />
-                            <MenuItem Header="Scene" Click="OnProjectNewScene"
+                            <MenuItem Header="🗀  Scene" Click="OnProjectNewScene"
                                       ToolTip.Tip="A run of shots — the film's second axis, alongside the characters" />
-                            <MenuItem Header="Shot" Click="OnProjectNewShot"
+                            <Separator />
+                            <MenuItem Header="▣  Animation" Click="OnProjectNewAnimation"
+                                      ToolTip.Tip="A drawing sequence under the selected character" />
+                            <MenuItem Header="▣  Shot" Click="OnProjectNewShot"
                                       ToolTip.Tip="A drawing under the selected scene" />
-                            <MenuItem Header="Document" Click="OnProjectNewDocument"
+                            <MenuItem Header="▣  Document" Click="OnProjectNewDocument"
                                       ToolTip.Tip="Belongs to the project, not to any character" />
                           </MenuFlyout>
                         </Button.Flyout>
@@ -1936,6 +1957,13 @@
                       <Setter Property="Padding" Value="2,0" />
                       <Setter Property="MinHeight" Value="22" />
                     </Style>
+                    <!-- B76. Dimmed while there is no file behind the row,
+                         whichever of the two reasons it is. The word beside the
+                         name says which; this is what makes the distinction
+                         scannable without reading every row. -->
+                    <Style Selector="TextBlock.offDisk">
+                      <Setter Property="Opacity" Value="0.5" />
+                    </Style>
                   </ListBox.Styles>
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:ProjectRow">
@@ -1977,6 +2005,12 @@
                             <MenuItem Header="Rename…" Click="OnProjectRowRename" />
                             <MenuItem Header="Remove from project" Click="OnProjectRemove"
                                       ToolTip.Tip="Take it out of the index. The file stays on disk." />
+                            <!-- B87. Its own entry rather than a modifier on the
+                                 one above: two operations with different
+                                 consequences should not be one gesture told
+                                 apart by a held key. -->
+                            <MenuItem Header="Delete permanently…" Click="OnProjectDeletePermanently"
+                                      ToolTip.Tip="Remove it from the project and delete it from disk" />
                             <Separator />
                             <!-- Status, and the reason it is here rather than in the
                                  document: marking something Ready must not need the
@@ -1995,6 +2029,18 @@
                             </MenuItem>
                           </MenuFlyout>
                         </DockPanel.ContextFlyout>
+                        <!-- B86. The twisty, on folder rows only. A Button
+                             rather than a click on the glyph, because collapsing
+                             and selecting are different intentions and one
+                             gesture cannot mean both. Empty and hit-test-invisible
+                             on every other row, so nothing shifts sideways. -->
+                        <Button DockPanel.Dock="Left" Classes="text"
+                                Content="{Binding Twisty}" FontSize="9" Width="12" Padding="0"
+                                IsVisible="{Binding IsFolder}"
+                                VerticalAlignment="Center" Opacity="0.7"
+                                Command="{Binding $parent[Window].DataContext.ProjectDocker.ToggleCollapsedCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="Show or hide what is in this folder" />
                         <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="11"
                                    VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.7" />
                         <!-- Status as a dot, because the column has to read down at a
@@ -2012,8 +2058,32 @@
                                    IsVisible="{Binding HasDuration}"
                                    FontSize="10" Opacity="0.55" Margin="6,0,2,0"
                                    VerticalAlignment="Center" />
+                        <!--
+                          B76, and B61's half that never reached the view. Two
+                          different absences, said differently on purpose:
+                          "not saved yet" is ordinary and "not on disk" is not,
+                          and a row that said the same thing for both would
+                          either cry wolf on every new document or bury a
+                          deleted file among them. Right-aligned so the column
+                          reads down beside the running time, and both are
+                          absent on a row whose file is where it should be.
+                        -->
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding PendingHint}"
+                                   IsVisible="{Binding Pending}"
+                                   FontSize="10" Opacity="0.5" FontStyle="Italic"
+                                   Margin="6,0,2,0" VerticalAlignment="Center"
+                                   ToolTip.Tip="In the project, not written to disk yet. Save to write it." />
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding MissingHint}"
+                                   IsVisible="{Binding Missing}"
+                                   FontSize="10" Foreground="#d08770" FontWeight="SemiBold"
+                                   Margin="6,0,2,0" VerticalAlignment="Center"
+                                   ToolTip.Tip="This is in your project and its file cannot be found. Removing it from the project stays your decision." />
                         <Panel MinHeight="20">
+                          <!-- Dimmed while it has no file, whichever reason. The
+                               word beside it says which; the dimming is what
+                               makes the row scannable without reading. -->
                           <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}"
+                                     Classes.offDisk="{Binding !IsOnDisk}"
                                      VerticalAlignment="Center" FontSize="11" />
                           <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                    IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
@@ -2519,7 +2589,7 @@
                                   ToolTip.Tip="Add a view (front/side/…) to this sheet" />
                           <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
                                    FontWeight="SemiBold" VerticalAlignment="Center"
-                                   LostFocus="OnReferenceRenamed" />
+                                   GotFocus="OnReferenceNameFocused" LostFocus="OnReferenceRenamed" />
                         </DockPanel>
                         <ItemsControl ItemsSource="{Binding Views}" Margin="14,0,0,4">
                           <ItemsControl.ItemsPanel>
@@ -2534,7 +2604,7 @@
                                         Click="OnOpenReferenceView" ToolTip.Tip="Open this view in a tab" />
                                 <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
                                          VerticalAlignment="Center" FontSize="12"
-                                         LostFocus="OnReferenceRenamed" />
+                                         GotFocus="OnReferenceNameFocused" LostFocus="OnReferenceRenamed" />
                               </DockPanel>
                             </DataTemplate>
                           </ItemsControl.ItemTemplate>

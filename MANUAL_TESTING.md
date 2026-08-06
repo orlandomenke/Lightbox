@@ -180,6 +180,42 @@ line.**
 - [ ] The brush is the deliberate exception: change the size, switch tabs, and it
       is still the size you set. That is Q9, not a regression.
 
+## Project folders, and deleting (B85, B86, B87)
+
+The confirmation dialog is the part no test reaches — the docker decides
+*whether* to ask and what the question says, and both are covered, but nothing
+headless can open a window and click Delete.
+
+- [ ] **＋ New ▸ Folder** with nothing selected makes a folder at the top. With a
+      folder selected, the next one goes inside it, indented.
+- [ ] Name one *Act 2 — Interiors*. The panel keeps the em dash; the folder on
+      disk is `act-2-interiors`.
+- [ ] The chevron hides and shows what is inside. Save the project while a folder
+      is collapsed — it must stay collapsed.
+- [ ] Create a document with a folder selected: it appears **inside** that folder,
+      and the file is at that path on disk.
+- [ ] Drag a document onto a folder, and a folder onto another folder. Drag a
+      folder onto its own child: nothing happens, and nothing moves.
+- [ ] **Remove from project** on a document: the row goes, the file is still
+      there. Reopen the project — it must not come back.
+- [ ] **Remove from project** on a folder holding a drawing: the folder goes and
+      the drawing reappears at the top level rather than vanishing.
+- [ ] **Delete permanently…** on an empty folder: no prompt, folder gone from disk.
+- [ ] **Delete permanently…** on a folder with things in it: the prompt names how
+      many folders and documents. **Cancel is the default** — pressing Enter must
+      not delete anything.
+- [ ] Confirm it, and check the folder and its files are gone from disk.
+- [ ] **＋ New** shows containers first (🗀 Folder, Character, Scene), a
+      separator, then drawings (▣ Animation, Shot, Document).
+- [ ] Every entry asks for a name, prefilled. **Escape creates nothing** — check
+      the panel and the folder on disk.
+- [ ] Rename a document: the file on disk is renamed too. Rename a folder with a
+      drawing in it: the directory moves and the drawing goes with it.
+- [ ] Rename a folder to a name a sibling already has: refused, the edit box
+      stays open, and the status line says why.
+- [ ] Make a folder and save without putting anything in it. It exists in a file
+      manager — an empty folder is a real folder.
+
 ## Cross-platform notes
 
 - Linux: needs `libfontconfig1` (`apt install libfontconfig1`).
