@@ -137,6 +137,63 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
         Assert.Contains("one file", docker.Status);
     }
 
+    /// <summary>
+    /// A test export is a different destination, and ignores grouping and the
+    /// status filter.
+    /// </summary>
+    /// <remarks>
+    /// Both deliberately. Grouping is about the deliverable and a test is not
+    /// one; the status filter keeps work in progress out of a shipped sheet, and
+    /// a test is precisely the case where the artist wants the work in progress.
+    /// The destination is the point — a test that overwrote the shipped sheet
+    /// would break the build to look at one cycle.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ATestExportGoesElsewhereAndIgnoresGroupingAndStatus()
+    {
+        var vm = Vm();
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+
+        var knight = Assert.Single(docker.Rows, r => r.Name == "Knight");
+        docker.Selected = knight;
+        var shipped = new ExportPreset
+        {
+            Name = "Shipped",
+            Grouping = ExportGrouping.OneArtifact,
+            IncludeStatuses = [AssetStatus.Ready],
+        };
+        (docker.Project!.Manifest.ExportPresets ??= []).Add(shipped);
+        docker.SetExportPresetEntryCommand.Execute(shipped);
+
+        // The document is a Draft, so the shipped sheet holds nothing.
+        var sheet = Assert.Single(docker.PlanExport());
+        Assert.True(sheet.IsEmpty);
+
+        // A test of that same document still produces something.
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Walk");
+        var test = docker.PlanTestExport();
+        Assert.NotNull(test);
+        output.WriteLine($"test writes to {test!.Value.Path}");
+        Assert.Equal(ExportGrouping.PerDocument, test.Value.Preset.Grouping);
+        Assert.Null(test.Value.Preset.IncludeStatuses);
+        Assert.Contains("test-exports", test.Value.Path);
+        // And nowhere near where a deliverable would land.
+        Assert.DoesNotContain("test-exports", docker.Project!.PathOf(test.Value.Document));
+    }
+
+    /// <summary>Nothing selected, nothing to test.</summary>
+    [AvaloniaFact]
+    public void ATestExportNeedsADocumentSelected()
+    {
+        var vm = Vm();
+        vm.ProjectDocker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        vm.ProjectDocker.Selected = Assert.Single(vm.ProjectDocker.Rows, r => r.Name == "Knight");
+        Assert.Null(vm.ProjectDocker.PlanTestExport());
+    }
+
     /// <summary>A project that has exported nothing reports nothing stale.</summary>
     [AvaloniaFact]
     public void NothingExportedMeansNothingStale()

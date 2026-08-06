@@ -617,3 +617,46 @@ Rejected: *immediate children only* is never surprising and is not what the word
 mean, so the common case needs three exports and a document filed one level
 deeper is silently missed. *No confirmation* is right for the twentieth export of
 a polish pass and offers no moment to notice the project root was selected.
+
+
+## The gap between the plan and the engine, found while wiring the confirmation
+
+`ExportPlan` happily describes an artifact holding forty documents.
+**`ExportRunner.Run` takes one `Doc`.** So `OneArtifact` and `PerChildFolder`
+are expressible in the plan and not yet runnable, and that was not visible until
+something tried to run one.
+
+Two ways across, and it is a real design choice rather than a detail:
+
+- **Merge the documents into one synthetic `Doc`** and hand that to the existing
+  exporter. Nothing in the export path changes. But merging is not free —
+  differing canvas sizes, layer stacks that do not correspond, and a frame order
+  that has to come from somewhere — and a synthetic document is a thing that can
+  be wrong in ways neither input was.
+- **Teach `SpriteSheetExporter` to take several documents.** Honest about what a
+  sheet is, and the packer already works in cells rather than in one document's
+  geometry. It is a change to a tested component with pixel assertions on it,
+  which is exactly the kind of change worth doing deliberately.
+
+I lean toward the second: a sheet from several cycles is what a sprite sheet
+*is*, and the first buys "no engine change" at the cost of a merge step that has
+to answer questions the exporter already answers.
+
+**What this does not block.** Per-document export already runs — it is what an
+unscoped project does and what a test export is — so the verb below and the
+existing export window are unaffected. What waits is the confirmation over a
+*grouped* plan, because confirming a count and then failing to produce it is
+worse than not offering it.
+
+### Test export, landed
+
+A test is a different destination, not a smaller export: it writes to
+`test-exports/` beside the project, never over a deliverable, so looking at one
+cycle cannot break the build. It forces `PerDocument` and drops the status
+filter — grouping is about the deliverable and a test is not one, and the filter
+exists to keep work in progress out of a shipped sheet, which is precisely what
+a test wants in.
+
+Beside the project rather than the system temp folder, so an engine watching the
+project tree can hot-reload it — which is the roadmap's *live engine preview*
+item getting a destination for free.

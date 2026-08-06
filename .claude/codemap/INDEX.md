@@ -1,6 +1,6 @@
 # Code index
 
-483 files · 123813 lines · 2501 tests.
+483 files · 123913 lines · 2503 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -55,8 +55,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2848 ln) · 9 test files
   - CanvasControl:28, CanvasToolMode:692, GridGesture:748, TxDrag:895, DrawOp:2311
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1946 ln) · 11 test files
-  - ProjectRow:19, ProjectViewModel:328, NewItemKind:1106
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1989 ln) · 11 test files
+  - ProjectRow:19, ProjectViewModel:328, NewItemKind:1149
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
   - MainViewModel:20
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
@@ -379,7 +379,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameRole:8, Frame:19, VectorFrame:57, PaintedFrame:70
 - `src/Lightbox.Core/Export/GodotConvert.cs` (91 ln) · 2 test files
   - GodotConvert:24
-- `src/Lightbox.Core/Projects/AssetStatus.cs` (91 ln) · 5 test files
+- `src/Lightbox.Core/Projects/AssetStatus.cs` (91 ln) · 6 test files
   - AssetStatus:30, AssetStatuses:49
 - `src/Lightbox.Core/Timeline/OnionSkin.cs` (88 ln) · 1 test files
   - OnionSkin:27

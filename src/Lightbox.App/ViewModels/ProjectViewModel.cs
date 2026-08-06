@@ -487,6 +487,49 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         return stale;
     }
 
+    /// <summary>
+    /// Where a test export writes — beside the project, never over a deliverable.
+    /// </summary>
+    /// <remarks>
+    /// <b>A test is a different destination, not a smaller export.</b> If
+    /// looking at one cycle overwrote the shipped sheet, testing would break the
+    /// build, which is the opposite of what it is for. Beside the project rather
+    /// than in the system temp folder so an engine watching the project tree can
+    /// hot-reload it.
+    /// </remarks>
+    public string? TestExportFolder =>
+        Project is { } project ? Path.Combine(project.Root, "test-exports") : null;
+
+    /// <summary>
+    /// One document, exported now, under the preset that governs it — ignoring
+    /// grouping and the status filter.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Both are ignored deliberately. Grouping is about the deliverable and a
+    /// test is not one; the status filter exists to keep work in progress out of
+    /// a shipped sheet, and a test is the case where an artist explicitly wants
+    /// the work in progress.
+    /// </para>
+    /// <para>
+    /// Returns the plan rather than running it, so the caller owns the file
+    /// system — the same split <c>ExportPlan</c> makes, for the same reason:
+    /// this stays testable without writing anything.
+    /// </para>
+    /// </remarks>
+    public (DocumentRef Document, ExportPreset Preset, string Path)? PlanTestExport()
+    {
+        if (Project is not { } project) return null;
+        if (Selected?.Animation is not { } document) return null;
+        var id = ExportScopes.PresetFor(project.Manifest, document);
+        var preset = id is null ? ExportPreset.BuiltIns.FirstOrDefault() : PresetById(id);
+        if (preset is null || TestExportFolder is not { } folder) return null;
+
+        // Per document whatever the preset says, because that is what a test is.
+        var forTest = preset with { Grouping = ExportGrouping.PerDocument, IncludeStatuses = null };
+        return (document, forTest, Path.Combine(folder, $"{ProjectIo.Slug(document.Name)}.png"));
+    }
+
     // ---- scoped resources (Q30) ---------------------------------------------
 
     /// <summary>
