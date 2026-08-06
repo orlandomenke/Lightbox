@@ -1,6 +1,6 @@
 # Code index
 
-492 files · 126605 lines · 2537 tests.
+492 files · 127029 lines · 2537 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,14 +47,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9948 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4432, TransformParts:6905
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4133 ln) · 16 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10110 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4454, TransformParts:7067
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4141 ln) · 16 test files
   - MainWindow:19, UnsavedChoice:2762
+- `src/Lightbox.App/Rendering/CanvasControl.cs` (3337 ln) · 9 test files
+  - CanvasControl:28, CanvasToolMode:757, GridGesture:814, TxDrag:961, DrawOp:2656
 - `src/Lightbox.App/Views/MainWindow.axaml` (3330 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
-- `src/Lightbox.App/Rendering/CanvasControl.cs` (3171 ln) · 9 test files
-  - CanvasControl:28, CanvasToolMode:733, GridGesture:790, TxDrag:937, DrawOp:2533
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2139 ln) · 11 test files
   - ProjectRow:19, ProjectViewModel:328, NewItemKind:1155
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1097 ln) · **no tests**
@@ -109,6 +109,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - NewDocumentSettings:20, WorkspaceChoice:32, DocumentTabKind:41, DocumentTab:60
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
+- `src/Lightbox.App/ViewModels/SelectionManager.cs` (250 ln) · 4 indirect only
+  - SelectionManager:7
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 3 test files
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
 - `src/Lightbox.App/Styles/Density.axaml` (233 ln) · **no tests**
@@ -146,8 +148,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PART_Clear, PART_Swatch
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln) · **no tests**
   - ColorField:29
-- `src/Lightbox.App/ViewModels/SelectionManager.cs` (162 ln) · 4 indirect only
-  - SelectionManager:7
 - `src/Lightbox.App/Rendering/GuidePainter.cs` (160 ln) · 1 test files
   - GuidePainter:26
 - `src/Lightbox.App/Docking/DockZones.cs` (159 ln) · 1 test files

@@ -3875,6 +3875,28 @@ public sealed partial class MainViewModel : ObservableObject
                 {
                     _selectionManager.AddRefBoxToSelection(i);
                 }
+                return;
+            }
+
+            // Select all anchors (if rig edit mode is on)
+            if (RigEditMode && Doc?.Scene?.Anchors is not null && Doc.Scene.Anchors.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                foreach (var anchor in Doc.Scene.Anchors)
+                {
+                    _selectionManager.AddAnchorToSelection(anchor.Id);
+                }
+                return;
+            }
+
+            // Select all collision shapes (if rig edit mode is on)
+            if (RigEditMode && Doc?.Scene?.Shapes is not null && Doc.Scene.Shapes.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                foreach (var shape in Doc.Scene.Shapes)
+                {
+                    _selectionManager.AddShapeToSelection(shape.Id);
+                }
             }
         }
         else
@@ -6806,6 +6828,146 @@ public sealed partial class MainViewModel : ObservableObject
                     }
                 }
                 NotifyReference();
+            });
+    }
+
+    /// <summary>Begin moving selected anchors.</summary>
+    public void BeginAnchorsMove()
+    {
+        if (_selectionManager.SelectedAnchorIds.Count == 0) return;
+        _anchorsMoveDelta = (0, 0);
+        AiStatus = $"Moving {_selectionManager.SelectedAnchorIds.Count} anchor(s)";
+    }
+
+    /// <summary>Update anchor move by the delta since the last pointer event.</summary>
+    public void UpdateAnchorsMove(double dx, double dy)
+    {
+        _anchorsMoveDelta = (_anchorsMoveDelta.X + dx, _anchorsMoveDelta.Y + dy);
+        RequestSnapshot();
+    }
+
+    /// <summary>Commit anchor moves.</summary>
+    public void EndAnchorsMove()
+    {
+        var (dx, dy) = _anchorsMoveDelta;
+        _anchorsMoveDelta = default;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+        MoveAnchorsBy(dx, dy);
+    }
+
+    private (double X, double Y) _anchorsMoveDelta;
+
+    /// <summary>Apply movement delta to selected anchors.</summary>
+    private void MoveAnchorsBy(double dx, double dy)
+    {
+        var selectedAnchorIds = _selectionManager.SelectedAnchorIds.ToList();
+        if (selectedAnchorIds.Count == 0) return;
+
+        var layerId = ActiveLayer.Id;
+        var frame = CurrentFrameIndex;
+
+        _editor.PerformDelta(
+            _ =>
+            {
+                _editor.Perform(doc =>
+                {
+                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                    var anchors = Anchors.ResolvedAt(doc.Scene, frame);
+                    foreach (var anchorId in selectedAnchorIds)
+                    {
+                        if (anchors.TryGetValue(anchorId, out var point))
+                        {
+                            Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X + dx, point.Y + dy));
+                        }
+                    }
+                });
+                OnPropertyChanged(nameof(RigMarks));
+            },
+            _ =>
+            {
+                _editor.Perform(doc =>
+                {
+                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                    var anchors = Anchors.ResolvedAt(doc.Scene, frame);
+                    foreach (var anchorId in selectedAnchorIds)
+                    {
+                        if (anchors.TryGetValue(anchorId, out var point))
+                        {
+                            Anchors.SetAcross(layer, frame, 1, anchorId, new Core.Documents.AnchorPoint(point.X - dx, point.Y - dy));
+                        }
+                    }
+                });
+                OnPropertyChanged(nameof(RigMarks));
+            });
+    }
+
+    /// <summary>Begin moving selected collision shapes.</summary>
+    public void BeginShapesMove()
+    {
+        if (_selectionManager.SelectedShapeIds.Count == 0) return;
+        _shapesMoveDelta = (0, 0);
+        AiStatus = $"Moving {_selectionManager.SelectedShapeIds.Count} shape(s)";
+    }
+
+    /// <summary>Update collision shape move by the delta since the last pointer event.</summary>
+    public void UpdateShapesMove(double dx, double dy)
+    {
+        _shapesMoveDelta = (_shapesMoveDelta.X + dx, _shapesMoveDelta.Y + dy);
+        RequestSnapshot();
+    }
+
+    /// <summary>Commit collision shape moves.</summary>
+    public void EndShapesMove()
+    {
+        var (dx, dy) = _shapesMoveDelta;
+        _shapesMoveDelta = default;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+        MoveShapesBy(dx, dy);
+    }
+
+    private (double X, double Y) _shapesMoveDelta;
+
+    /// <summary>Apply movement delta to selected collision shapes.</summary>
+    private void MoveShapesBy(double dx, double dy)
+    {
+        var selectedShapeIds = _selectionManager.SelectedShapeIds.ToList();
+        if (selectedShapeIds.Count == 0) return;
+
+        var layerId = ActiveLayer.Id;
+        var frame = CurrentFrameIndex;
+
+        _editor.PerformDelta(
+            _ =>
+            {
+                _editor.Perform(doc =>
+                {
+                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                    var shapes = CollisionShapes.ResolvedAt(doc.Scene, frame);
+                    foreach (var shapeId in selectedShapeIds)
+                    {
+                        if (shapes.TryGetValue(shapeId, out var box))
+                        {
+                            CollisionShapes.SetAcross(layer, frame, 1, shapeId, new Core.Documents.ShapeBox(box.X + dx, box.Y + dy, box.W, box.H));
+                        }
+                    }
+                });
+                OnPropertyChanged(nameof(RigMarks));
+            },
+            _ =>
+            {
+                _editor.Perform(doc =>
+                {
+                    if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) return;
+                    var shapes = CollisionShapes.ResolvedAt(doc.Scene, frame);
+                    foreach (var shapeId in selectedShapeIds)
+                    {
+                        if (shapes.TryGetValue(shapeId, out var box))
+                        {
+                            CollisionShapes.SetAcross(layer, frame, 1, shapeId, new Core.Documents.ShapeBox(box.X - dx, box.Y - dy, box.W, box.H));
+                        }
+                    }
+                });
+                OnPropertyChanged(nameof(RigMarks));
             });
     }
 

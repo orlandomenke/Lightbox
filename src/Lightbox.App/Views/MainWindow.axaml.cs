@@ -3648,6 +3648,14 @@ public partial class MainWindow : Window
         Canvas.RefBoxesMoved += (dx, dy) => _vm.UpdateRefBoxesMove(dx, dy);
         Canvas.RefBoxesMovedEnded += _vm.EndRefBoxesMove;
 
+        Canvas.AnchorsMoveStarted += _vm.BeginAnchorsMove;
+        Canvas.AnchorsMoved += (dx, dy) => _vm.UpdateAnchorsMove(dx, dy);
+        Canvas.AnchorsMovedEnded += _vm.EndAnchorsMove;
+
+        Canvas.ShapesMoveStarted += _vm.BeginShapesMove;
+        Canvas.ShapesMoved += (dx, dy) => _vm.UpdateShapesMove(dx, dy);
+        Canvas.ShapesMovedEnded += _vm.EndShapesMove;
+
         Canvas.GuideMoved += (id, dx, dy) =>
         {
             if (GuideById(id) is not { } guide) return;

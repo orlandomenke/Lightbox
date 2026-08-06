@@ -1,7 +1,7 @@
 namespace Lightbox.App.ViewModels;
 
 /// <summary>
-/// Unified selection manager for canvas objects (placements, guides, reference boxes).
+/// Unified selection manager for canvas objects (placements, guides, reference boxes, anchors, collision shapes).
 /// Supports multi-object selection, keyboard modifiers, and selection state tracking.
 /// </summary>
 public sealed class SelectionManager
@@ -10,15 +10,17 @@ public sealed class SelectionManager
     private readonly HashSet<string> _selectedPlacementIds = [];
     private readonly HashSet<int> _selectedGuideIndices = [];
     private readonly HashSet<int> _selectedRefBoxIndices = [];
+    private readonly HashSet<string> _selectedAnchorIds = [];
+    private readonly HashSet<string> _selectedShapeIds = [];
 
     /// <summary>Raised when selection changes.</summary>
     public event Action? SelectionChanged;
 
     /// <summary>True if there are any selected objects.</summary>
-    public bool HasSelection => _selectedPlacementIds.Count > 0 || _selectedGuideIndices.Count > 0 || _selectedRefBoxIndices.Count > 0;
+    public bool HasSelection => _selectedPlacementIds.Count > 0 || _selectedGuideIndices.Count > 0 || _selectedRefBoxIndices.Count > 0 || _selectedAnchorIds.Count > 0 || _selectedShapeIds.Count > 0;
 
     /// <summary>Number of selected objects across all types.</summary>
-    public int SelectionCount => _selectedPlacementIds.Count + _selectedGuideIndices.Count + _selectedRefBoxIndices.Count;
+    public int SelectionCount => _selectedPlacementIds.Count + _selectedGuideIndices.Count + _selectedRefBoxIndices.Count + _selectedAnchorIds.Count + _selectedShapeIds.Count;
 
     /// <summary>Get all selected placement IDs.</summary>
     public IReadOnlySet<string> SelectedPlacementIds => _selectedPlacementIds;
@@ -29,6 +31,12 @@ public sealed class SelectionManager
     /// <summary>Get all selected reference box indices.</summary>
     public IReadOnlySet<int> SelectedRefBoxIndices => _selectedRefBoxIndices;
 
+    /// <summary>Get all selected anchor IDs.</summary>
+    public IReadOnlySet<string> SelectedAnchorIds => _selectedAnchorIds;
+
+    /// <summary>Get all selected collision shape IDs.</summary>
+    public IReadOnlySet<string> SelectedShapeIds => _selectedShapeIds;
+
     /// <summary>Check if a placement is selected.</summary>
     public bool IsPlacementSelected(string placementId) => _selectedPlacementIds.Contains(placementId);
 
@@ -37,6 +45,12 @@ public sealed class SelectionManager
 
     /// <summary>Check if a reference box is selected.</summary>
     public bool IsRefBoxSelected(int boxIndex) => _selectedRefBoxIndices.Contains(boxIndex);
+
+    /// <summary>Check if an anchor is selected.</summary>
+    public bool IsAnchorSelected(string anchorId) => _selectedAnchorIds.Contains(anchorId);
+
+    /// <summary>Check if a collision shape is selected.</summary>
+    public bool IsShapeSelected(string shapeId) => _selectedShapeIds.Contains(shapeId);
 
     /// <summary>Select a single placement (clears other selections).</summary>
     public void SelectPlacement(string placementId)
@@ -114,6 +128,8 @@ public sealed class SelectionManager
         _selectedPlacementIds.Clear();
         _selectedGuideIndices.Clear();
         _selectedRefBoxIndices.Clear();
+        _selectedAnchorIds.Clear();
+        _selectedShapeIds.Clear();
         if (hadSelection)
             SelectionChanged?.Invoke();
     }
@@ -158,5 +174,77 @@ public sealed class SelectionManager
             AddRefBoxToSelection(boxIndex);
         else
             SelectRefBox(boxIndex);
+    }
+
+    /// <summary>Select a single anchor (clears other selections).</summary>
+    public void SelectAnchor(string anchorId)
+    {
+        if (_selectedAnchorIds.Count == 1 && _selectedAnchorIds.Contains(anchorId))
+            return;
+
+        ClearAllSelections();
+        _selectedAnchorIds.Add(anchorId);
+        SelectionChanged?.Invoke();
+    }
+
+    /// <summary>Add an anchor to selection.</summary>
+    public void AddAnchorToSelection(string anchorId)
+    {
+        if (_selectedAnchorIds.Add(anchorId))
+            SelectionChanged?.Invoke();
+    }
+
+    /// <summary>Remove an anchor from selection.</summary>
+    public void RemoveAnchorFromSelection(string anchorId)
+    {
+        if (_selectedAnchorIds.Remove(anchorId))
+            SelectionChanged?.Invoke();
+    }
+
+    /// <summary>Select a single collision shape (clears other selections).</summary>
+    public void SelectShape(string shapeId)
+    {
+        if (_selectedShapeIds.Count == 1 && _selectedShapeIds.Contains(shapeId))
+            return;
+
+        ClearAllSelections();
+        _selectedShapeIds.Add(shapeId);
+        SelectionChanged?.Invoke();
+    }
+
+    /// <summary>Add a collision shape to selection.</summary>
+    public void AddShapeToSelection(string shapeId)
+    {
+        if (_selectedShapeIds.Add(shapeId))
+            SelectionChanged?.Invoke();
+    }
+
+    /// <summary>Remove a collision shape from selection.</summary>
+    public void RemoveShapeFromSelection(string shapeId)
+    {
+        if (_selectedShapeIds.Remove(shapeId))
+            SelectionChanged?.Invoke();
+    }
+
+    /// <summary>Handle anchor selection with modifiers.</summary>
+    public void SelectAnchorWithModifiers(string anchorId, bool shift, bool alt)
+    {
+        if (alt)
+            RemoveAnchorFromSelection(anchorId);
+        else if (shift)
+            AddAnchorToSelection(anchorId);
+        else
+            SelectAnchor(anchorId);
+    }
+
+    /// <summary>Handle collision shape selection with modifiers.</summary>
+    public void SelectShapeWithModifiers(string shapeId, bool shift, bool alt)
+    {
+        if (alt)
+            RemoveShapeFromSelection(shapeId);
+        else if (shift)
+            AddShapeToSelection(shapeId);
+        else
+            SelectShape(shapeId);
     }
 }

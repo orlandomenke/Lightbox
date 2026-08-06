@@ -580,6 +580,12 @@ public sealed class CanvasControl : Control
     private bool _movingRefBoxes;
     private (double X, double Y) _refBoxMoveLast;
 
+    private bool _movingAnchors;
+    private (double X, double Y) _anchorMoveLast;
+
+    private bool _movingShapes;
+    private (double X, double Y) _shapeMoveLast;
+
     /// <summary>Guides move started via Selection in Move mode.</summary>
     public event Action? GuidesMovedStarted;
 
@@ -597,6 +603,24 @@ public sealed class CanvasControl : Control
 
     /// <summary>Reference boxes move finished.</summary>
     public event Action? RefBoxesMovedEnded;
+
+    /// <summary>Anchors move started via Selection in Move mode.</summary>
+    public event Action? AnchorsMoveStarted;
+
+    /// <summary>Anchors moved by a delta in document pixels.</summary>
+    public event Action<double, double>? AnchorsMoved;
+
+    /// <summary>Anchors move finished.</summary>
+    public event Action? AnchorsMovedEnded;
+
+    /// <summary>Collision shapes move started via Selection in Move mode.</summary>
+    public event Action? ShapesMoveStarted;
+
+    /// <summary>Collision shapes moved by a delta in document pixels.</summary>
+    public event Action<double, double>? ShapesMoved;
+
+    /// <summary>Collision shapes move finished.</summary>
+    public event Action? ShapesMovedEnded;
 
     /// <summary>A guide was dragged, by a delta in document pixels.</summary>
     public event Action<string, double, double>? GuideMoved;
@@ -1642,6 +1666,37 @@ public sealed class CanvasControl : Control
         return -1;
     }
 
+    private string? PickAnchorAt(double x, double y)
+    {
+        if (_rigMarks is null || _rigMarks.Count == 0) return null;
+
+        const double hitRadius = 10;  // Document units for click tolerance on anchor point
+        foreach (var mark in _rigMarks)
+        {
+            if (mark.Kind != RigMarkKind.Anchor) continue;
+            var dx = x - mark.X;
+            var dy = y - mark.Y;
+            var distSq = dx * dx + dy * dy;
+            if (distSq <= hitRadius * hitRadius)
+                return mark.Id;
+        }
+        return null;
+    }
+
+    private string? PickShapeAt(double x, double y)
+    {
+        if (_rigMarks is null || _rigMarks.Count == 0) return null;
+
+        foreach (var mark in _rigMarks)
+        {
+            if (mark.Kind != RigMarkKind.Shape) continue;
+            if (x >= mark.X && x <= mark.X + mark.W &&
+                y >= mark.Y && y <= mark.Y + mark.H)
+                return mark.Id;
+        }
+        return null;
+    }
+
     /// <summary>
     /// Where document zero lands along one screen axis, and how many screen
     /// pixels a document pixel covers along it.
@@ -1954,6 +2009,18 @@ public sealed class CanvasControl : Control
                         _refBoxMoveLast = (x, y);
                         RefBoxesMoveStarted?.Invoke();
                     }
+                    else if (movingSelection && _selectionManager?.SelectedAnchorIds.Count > 0)
+                    {
+                        _movingAnchors = true;
+                        _anchorMoveLast = (x, y);
+                        AnchorsMoveStarted?.Invoke();
+                    }
+                    else if (movingSelection && _selectionManager?.SelectedShapeIds.Count > 0)
+                    {
+                        _movingShapes = true;
+                        _shapeMoveLast = (x, y);
+                        ShapesMoveStarted?.Invoke();
+                    }
                     else
                     {
                         _movingContent = true;
@@ -1993,6 +2060,24 @@ public sealed class CanvasControl : Control
                         if (boxIndex >= 0)
                         {
                             _selectionManager.SelectRefBoxWithModifiers(boxIndex, shift, alt);
+                            e.Handled = true;
+                            return;
+                        }
+
+                        // Then try anchors
+                        var anchorId = PickAnchorAt(x, y);
+                        if (anchorId is not null)
+                        {
+                            _selectionManager.SelectAnchorWithModifiers(anchorId, shift, alt);
+                            e.Handled = true;
+                            return;
+                        }
+
+                        // Then try collision shapes
+                        var shapeId = PickShapeAt(x, y);
+                        if (shapeId is not null)
+                        {
+                            _selectionManager.SelectShapeWithModifiers(shapeId, shift, alt);
                             e.Handled = true;
                             return;
                         }
@@ -2068,6 +2153,28 @@ public sealed class CanvasControl : Control
                 var dy = my - _refBoxMoveLast.Y;
                 RefBoxesMoved?.Invoke(dx, dy);
                 _refBoxMoveLast = (mx, my);
+                e.Handled = true;
+                return;
+            }
+
+            if (_movingAnchors)
+            {
+                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var dx = mx - _anchorMoveLast.X;
+                var dy = my - _anchorMoveLast.Y;
+                AnchorsMoved?.Invoke(dx, dy);
+                _anchorMoveLast = (mx, my);
+                e.Handled = true;
+                return;
+            }
+
+            if (_movingShapes)
+            {
+                var (mx, my) = ViewToDoc(e.GetPosition(this));
+                var dx = mx - _shapeMoveLast.X;
+                var dy = my - _shapeMoveLast.Y;
+                ShapesMoved?.Invoke(dx, dy);
+                _shapeMoveLast = (mx, my);
                 e.Handled = true;
                 return;
             }
@@ -2241,6 +2348,22 @@ public sealed class CanvasControl : Control
             _movingRefBoxes = false;
             e.Pointer.Capture(null);
             RefBoxesMovedEnded?.Invoke();
+            e.Handled = true;
+            return;
+        }
+        if (_movingAnchors)
+        {
+            _movingAnchors = false;
+            e.Pointer.Capture(null);
+            AnchorsMovedEnded?.Invoke();
+            e.Handled = true;
+            return;
+        }
+        if (_movingShapes)
+        {
+            _movingShapes = false;
+            e.Pointer.Capture(null);
+            ShapesMovedEnded?.Invoke();
             e.Handled = true;
             return;
         }
@@ -2827,6 +2950,49 @@ public sealed class CanvasControl : Control
 
                     canvas.DrawRect(
                         SKRect.Create(box.X, box.Y, box.W, box.H),
+                        paint);
+                }
+            }
+
+            // Draw anchor selections
+            if (rigMarks is not null && rigMarks.Count > 0)
+            {
+                foreach (var anchorId in selectionManager.SelectedAnchorIds)
+                {
+                    var anchor = rigMarks.FirstOrDefault(m => m.Id == anchorId && m.Kind == RigMarkKind.Anchor);
+                    if (anchor.Id is null) continue;
+
+                    var hitRadius = 10f;
+                    using var paint = new SKPaint
+                    {
+                        Color = new SKColor(255, 165, 0, 200),  // Orange
+                        StrokeWidth = (float)(2f / scale),
+                        Style = SKPaintStyle.Stroke,
+                        IsAntialias = true,
+                    };
+
+                    canvas.DrawCircle((float)anchor.X, (float)anchor.Y, hitRadius, paint);
+                }
+            }
+
+            // Draw collision shape selections
+            if (rigMarks is not null && rigMarks.Count > 0)
+            {
+                foreach (var shapeId in selectionManager.SelectedShapeIds)
+                {
+                    var shape = rigMarks.FirstOrDefault(m => m.Id == shapeId && m.Kind == RigMarkKind.Shape);
+                    if (shape.Id is null) continue;
+
+                    using var paint = new SKPaint
+                    {
+                        Color = new SKColor(255, 0, 255, 200),  // Magenta
+                        StrokeWidth = (float)(2f / scale),
+                        Style = SKPaintStyle.Stroke,
+                        IsAntialias = true,
+                    };
+
+                    canvas.DrawRect(
+                        SKRect.Create((float)shape.X, (float)shape.Y, (float)shape.W, (float)shape.H),
                         paint);
                 }
             }
