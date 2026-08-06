@@ -3,8 +3,10 @@
 ## Brushes
 
 The tool options bar carries the controls you reach for constantly — brush,
-size, hardness, opacity, stabilizer. **⚙** opens every parameter, grouped:
-General, Effects, Medium, Pen pressure, Presets.
+size, hardness, opacity, stabilizer. **⚙**, immediately right of the brush
+button, opens every parameter, grouped: General, Effects, Medium, Pen pressure,
+Presets. It is there for the eraser too, which has no brush button — so with the
+eraser held it is the first thing on the bar.
 
 #### Finding a brush
 
@@ -63,19 +65,21 @@ Effect brushes (**Smudge**, **Blur**) swap the bar for their own controls —
 strength, radius, and for smudge how much of its own colour it adds. A smudge
 has no opacity in the usual sense, so showing you one would be a lie.
 
-**Smearing or dulling** is on the **⚙ → Effects** page rather than on the bar.
-Smearing drags a sample along the stroke so detail streaks; dulling lays down
-the colour under the dab so detail dissolves, which is what a blender is. It
-lives with the brush because it is what makes a brush *that* brush — the three
+**Smearing or dulling**, and **length**, are on the **⚙ → Effects** page rather
+than on the bar. Smearing drags a sample along the stroke so detail streaks;
+dulling lays down the colour under the dab so detail dissolves, which is what a
+blender is. Length is how far colour travels before the sample refreshes. They
+live with the brush because they are what make a brush *that* brush — the three
 values on the bar are the ones you adjust mid-drawing.
 
-**Flow on an effect brush is not flow on a paint brush.** On a paint brush it is
-how much pigment a dab lays; on a smudge or a blender it is how hard each dab
-*pulls*, and because dabs overlap roughly ten deep the pulls compound along the
-stroke. A value that looks like a gentle nudge on one dab is a shove by the time
-ten have landed — which is why these ship an order of magnitude lower: Smudge
-0.08, Blender 0.06. If you want a stronger effect, prefer a slower hand or a
-second pass over raising flow; that is what gives a smudge somewhere to go.
+**Strength on an effect brush is flow, and flow there is not flow on a paint
+brush.** On a paint brush flow is how much pigment a dab lays; on a smudge or a
+blender it is how hard each dab *pulls*, and because dabs overlap roughly ten
+deep the pulls compound along the stroke. A value that looks like a gentle nudge
+on one dab is a shove by the time ten have landed — which is why these ship an
+order of magnitude lower: Smudge 0.08, Blender 0.06. The bar steps in hundredths
+for exactly that reason. If you want a stronger effect, prefer a slower hand or a
+second pass over raising strength; that is what gives a smudge somewhere to go.
 
 **Blur is the exception, and it works the other way round.** Its flow is the
 softening radius — sigma, in pixels, is roughly flow × size ÷ 4 — and it does
