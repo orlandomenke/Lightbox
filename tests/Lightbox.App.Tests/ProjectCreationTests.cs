@@ -55,10 +55,12 @@ public class ProjectCreationTests(ITestOutputHelper output) : BrushStateIsolated
 
         var folders = Folders(scratch.Root);
         output.WriteLine("folders: " + string.Join(", ", folders));
-        // `documents` holds the drawing that was open, which is the one thing
-        // the artist did ask for — NewProject adopts it rather than abandoning
-        // it, and a document has to live somewhere.
-        Assert.Equal(["documents", "palettes"], folders);
+        // `unassigned-documents` holds the drawing that was open, which is the
+        // one thing the artist did ask for — NewProject adopts it rather than
+        // abandoning it, and a document has to live somewhere. B105 renamed it
+        // from `documents`, which named every drawing in the project rather than
+        // the ones with no folder of their own.
+        Assert.Equal(["palettes", "unassigned-documents"], folders);
         Assert.True(File.Exists(Path.Combine(scratch.Root, "project.json")));
     }
 
@@ -103,8 +105,8 @@ public class ProjectCreationTests(ITestOutputHelper output) : BrushStateIsolated
         var project = vm.ProjectDocker.Project!;
 
         var adopted = Assert.Single(project.Manifest.Documents);
-        Assert.Equal("documents/untitled-1.lightbox.json", adopted.Path);
-        Assert.True(File.Exists(Path.Combine(scratch.Root, "documents", "untitled-1.lightbox.json")));
+        Assert.Equal("unassigned-documents/untitled-1.lightbox.json", adopted.Path);
+        Assert.True(File.Exists(Path.Combine(scratch.Root, "unassigned-documents", "untitled-1.lightbox.json")));
 
         // Visible, and attached to the tab it came from.
         Assert.Contains(vm.ProjectDocker.Rows, r => r.Animation?.Id == adopted.Id);

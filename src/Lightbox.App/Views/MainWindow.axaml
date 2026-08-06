@@ -2051,6 +2051,16 @@
                             </MenuItem>
                           </MenuFlyout>
                         </DockPanel.ContextFlyout>
+                        <!-- B104. The depth, on screen. ProjectRow.Indent has
+                             computed this since B86 and nothing ever bound to
+                             it, so a folder three levels down drew flush left
+                             beside the project row and the tree read as a flat
+                             list. A left-docked spacer rather than a Margin on
+                             the row, because the row's own background is the
+                             drop target and indenting it would shrink the area
+                             a drag can land on. -->
+                        <Border DockPanel.Dock="Left" Width="{Binding Indent}"
+                                IsHitTestVisible="False" />
                         <!-- B86. The twisty, on folder rows only. A Button
                              rather than a click on the glyph, because collapsing
                              and selecting are different intentions and one

@@ -235,7 +235,10 @@ public static class ProjectFolders
         var unique = slug;
         for (var n = 2; taken.Contains(unique); n++) unique = $"{slug}-{n}";
 
-        var directory = folder is null ? "documents" : PathOf(manifest, folder);
+        // B105. The name of the unfiled directory belongs to ProjectIo, which is
+        // what creates it — a literal here was a second copy of the string and
+        // would have kept the old name on exactly the paths this computes.
+        var directory = folder is null ? ProjectIo.DocumentsDir : PathOf(manifest, folder);
         return $"{directory}/{unique}.lightbox.json";
     }
 

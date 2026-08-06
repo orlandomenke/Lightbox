@@ -346,7 +346,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.DoesNotContain(
             vm.ProjectDocker.Project!.Characters.SelectMany(c => c.Animations),
             a => a.Id == loose.Id);
-        Assert.StartsWith("documents/", loose.Path);
+        Assert.StartsWith("unassigned-documents/", loose.Path);
         // And it opened, bound to its slot — the same as adding an animation.
         Assert.Equal(loose.Id, vm.ActiveTab!.Source?.Id);
     }
@@ -390,6 +390,45 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         var moved = Assert.Single(to.Animations);
         Assert.Equal(id, moved.Id);
         Assert.Contains(to.Slug, moved.Path);
+    }
+
+    /// <summary>
+    /// Moving a document to another character moves its file, leaving one copy.
+    /// </summary>
+    /// <remarks>
+    /// <b>B106.</b> The manifest was repathed and the file was not, so the next
+    /// save wrote the drawing under the new character and left it under the old
+    /// one as well — two files, one drawing. The test above asserts the manifest
+    /// and passes on the broken build; this one asks the disk, which is where the
+    /// artist saw it.
+    /// </remarks>
+    [AvaloniaFact]
+    public void MovingADocumentToAnotherCharacterMovesItsFileRatherThanCopyingIt()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        vm.ProjectDocker.AddCharacterCommand.Execute(null);
+        var project = vm.ProjectDocker.Project!;
+        var from = project.Characters.First();
+        var to = project.Characters.Last();
+
+        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null && r.Character == from);
+        var was = Path.Combine(
+            _root, row.Animation!.Path.Replace('/', Path.DirectorySeparatorChar));
+        Assert.True(File.Exists(was), $"not written: {was}");
+
+        Assert.True(vm.ProjectDocker.Move(row, to));
+        vm.SaveProject(everything: true);
+
+        var now = Path.Combine(
+            _root, row.Animation!.Path.Replace('/', Path.DirectorySeparatorChar));
+        foreach (var file in Directory.EnumerateFiles(_root, "*.lightbox.json", SearchOption.AllDirectories))
+        {
+            output.WriteLine(Path.GetRelativePath(_root, file));
+        }
+        Assert.True(File.Exists(now), $"not moved to: {now}");
+        Assert.False(File.Exists(was), "the original is still there — the move copied it");
     }
 
     [AvaloniaFact]

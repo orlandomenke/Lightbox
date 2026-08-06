@@ -54,7 +54,7 @@ public sealed class ProjectDeleteTests(ITestOutputHelper output) : BrushStateIso
         docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
         vm.SaveProject(everything: true);
 
-        var onDisk = Path.Combine(_root, "documents", "colour-test.lightbox.json");
+        var onDisk = Path.Combine(_root, "unassigned-documents", "colour-test.lightbox.json");
         Assert.True(File.Exists(onDisk), "the test's own premise: it was written");
 
         docker.Selected = DocRow(docker, "Colour test");
@@ -81,7 +81,7 @@ public sealed class ProjectDeleteTests(ITestOutputHelper output) : BrushStateIso
         docker.Selected = null;
         docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
         vm.SaveProject(everything: true);
-        var onDisk = Path.Combine(_root, "documents", "colour-test.lightbox.json");
+        var onDisk = Path.Combine(_root, "unassigned-documents", "colour-test.lightbox.json");
 
         docker.Selected = DocRow(docker, "Colour test");
         docker.RemoveSelectedCommand.Execute(null);
@@ -120,7 +120,7 @@ public sealed class ProjectDeleteTests(ITestOutputHelper output) : BrushStateIso
         reopened.OpenProject(_root);
 
         // The file is still there, and the project does not claim it back.
-        Assert.True(File.Exists(Path.Combine(_root, "documents", "colour-test.lightbox.json")));
+        Assert.True(File.Exists(Path.Combine(_root, "unassigned-documents", "colour-test.lightbox.json")));
         Assert.DoesNotContain(
             reopened.ProjectDocker.Project!.Manifest.Documents, d => d.Name == "Colour test");
         Assert.DoesNotContain(reopened.ProjectDocker.Rows, r => r.Name == "Colour test");
@@ -220,7 +220,7 @@ public sealed class ProjectDeleteTests(ITestOutputHelper output) : BrushStateIso
         Assert.Empty(ProjectFolders.All(docker.Project!.Manifest));
         var kept = docker.Project!.Manifest.Documents.Single(d => d.Name == "Rooftop");
         Assert.Null(kept.FolderId);
-        Assert.Equal("documents/rooftop.lightbox.json", kept.Path);
+        Assert.Equal("unassigned-documents/rooftop.lightbox.json", kept.Path);
         Assert.Contains(docker.Rows, r => r.IsLoose && r.Name == "Rooftop");
         // And the old file is untouched, because remove never deletes.
         Assert.True(File.Exists(Path.Combine(_root, "art", "rooftop.lightbox.json")));
