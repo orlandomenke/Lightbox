@@ -235,6 +235,15 @@ public sealed class CanvasControl : Control
     public event Action? ViewChanged;
 
     /// <summary>
+    /// Visible document rectangle changed (B82: viewport culling).
+    /// Raised when zoom, pan, rotation, or bounds change, with the rectangle
+    /// of document space visible at the current view state. Null means the
+    /// whole document is visible. Consumed by MainViewModel.SetViewport to
+    /// enable the compositor to cull work to what the view shows.
+    /// </summary>
+    public event Action<SKRectI?>? ViewportChanged;
+
+    /// <summary>
     /// Document pixels per screen pixel that the canvas can actually show,
     /// so compositing need not produce more detail than is displayable.
     /// A 4K document in a 1600 px window is presented at about 0.42 —
@@ -1850,6 +1859,7 @@ public sealed class CanvasControl : Control
     {
         ViewChanged?.Invoke();
         ReportDisplayScale();
+        ReportViewport();
         InvalidateVisual();
     }
 
@@ -1857,6 +1867,44 @@ public sealed class CanvasControl : Control
     {
         base.OnSizeChanged(e);
         ReportDisplayScale();
+        ReportViewport();
+    }
+
+    /// <summary>
+    /// Compute and report the visible document rectangle (B82).
+    /// Transforms the canvas bounds from screen space to document space,
+    /// accounting for zoom, pan, rotation, and fit scale.
+    /// </summary>
+    private void ReportViewport()
+    {
+        if (Bounds.Width <= 0 || Bounds.Height <= 0 || ViewportChanged is null) return;
+
+        // Transform the four corners of the canvas bounds from view space to document space.
+        // The inverse view matrix converts screen pixels to document coordinates.
+        var invView = ViewMatrix().Invert();
+        var corners = new[]
+        {
+            new Point(0, 0),
+            new Point(Bounds.Width, 0),
+            new Point(Bounds.Width, Bounds.Height),
+            new Point(0, Bounds.Height),
+        };
+
+        // Find bounding box of transformed corners in document space.
+        var docCorners = corners.Select(c => c.Transform(invView)).ToList();
+        var minX = docCorners.Min(p => p.X);
+        var minY = docCorners.Min(p => p.Y);
+        var maxX = docCorners.Max(p => p.X);
+        var maxY = docCorners.Max(p => p.Y);
+
+        // Convert to SKRectI (integer rectangle in document space).
+        var viewport = new SKRectI(
+            (int)Math.Floor(minX),
+            (int)Math.Floor(minY),
+            (int)Math.Ceiling(maxX),
+            (int)Math.Ceiling(maxY));
+
+        ViewportChanged?.Invoke(viewport);
     }
 
     /// <summary>Zoom by a factor keeping the given view point fixed.</summary>

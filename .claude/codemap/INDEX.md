@@ -1,6 +1,6 @@
 # Code index
 
-494 files · 129892 lines · 2594 tests.
+494 files · 129974 lines · 2594 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,14 +47,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10165 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4454, TransformParts:7122
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4302 ln) · 16 test files
-  - MainWindow:19, UnsavedChoice:2762
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10183 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4472, TransformParts:7140
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4303 ln) · 16 test files
+  - MainWindow:19, UnsavedChoice:2763
+- `src/Lightbox.App/Rendering/CanvasControl.cs` (3499 ln) · 10 test files
+  - CanvasControl:28, CanvasToolMode:855, GridGesture:912, TxDrag:1059, DrawOp:2818
 - `src/Lightbox.App/Views/MainWindow.axaml` (3475 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
-- `src/Lightbox.App/Rendering/CanvasControl.cs` (3451 ln) · 10 test files
-  - CanvasControl:28, CanvasToolMode:846, GridGesture:903, TxDrag:1050, DrawOp:2770
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2616 ln) · 11 test files
   - ProjectRow:20, ScopeMenuEntry:359, DeclarationRow:370, ProjectViewModel:397, PlannedArtifact:637, NewItemKind:1632
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
@@ -242,6 +242,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushFilter:12
 - `src/Lightbox.App/Services/IpcProtocol.cs` (43 ln) · 7 test files
   - IpcProtocol:12, Request:23, Response:29
+- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (39 ln) · 17 test files
+  - RenderSnapshot:24
 - `src/Lightbox.App/Services/PlaybackClock.cs` (35 ln) · 1 test files
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
@@ -256,8 +258,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Message, RevertButton, SaveButton
 - `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 16 indirect only
   - NewProjectDialog:10
-- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (24 ln) · 17 test files
-  - RenderSnapshot:16
 - `src/Lightbox.App/Views/NewDocumentDialog.axaml.cs` (22 ln) · 16 indirect only
   - NewDocumentDialog:15
 - `src/Lightbox.App/Views/NewDocumentDialog.axaml` (17 ln) · **no tests**

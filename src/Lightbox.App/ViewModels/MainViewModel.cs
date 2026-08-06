@@ -109,6 +109,24 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Set the visible document rectangle (B82: viewport culling).
+    /// Called from CanvasControl with the rectangle of document space visible at
+    /// the current zoom/pan/rotation. Null means the whole document is visible.
+    /// This enables the compositor to cull work to only what the view shows,
+    /// unblocking infinite canvas and improving playback performance.
+    /// </summary>
+    public void SetViewport(SKRectI? viewport)
+    {
+        // Avoid triggering a full publish on every view change by comparing
+        // and only publishing if the viewport actually changed.
+        if (_pendingViewport == viewport) return;
+        _pendingViewport = viewport;
+        PublishSnapshot();
+    }
+
+    private SKRectI? _pendingViewport;
+
+    /// <summary>
     /// Gate for anything that changes pixels or geometry. Hidden and locked
     /// are both refusals, with different reasons, and a locked folder reports
     /// itself rather than blaming the layer inside it. Every mutating path
@@ -9742,7 +9760,7 @@ public sealed partial class MainViewModel : ObservableObject
         LastPublishClip = usedClip;
         if (SnapshotChanged is { } handler)
         {
-            handler(new RenderSnapshot(image, viewWidth, viewHeight, seq));
+            handler(new RenderSnapshot(image, viewWidth, viewHeight, seq, _pendingViewport));
         }
         else
         {
