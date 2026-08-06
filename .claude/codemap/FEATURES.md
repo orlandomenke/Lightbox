@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2578 tests, derived from the suite itself. Each line is a
+2594 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -742,7 +742,14 @@ regression even when every test still compiles.
 - The Export Plan Describes What Would Be Written — `:61`
 - An Export Goes Stale When Its Documents Move On — `:80`
 - Declaring APreset Sets The Artifact Boundary — `:114`
-- Nothing Exported Means Nothing Stale — `:142`
+- ATest Export Goes Elsewhere And Ignores Grouping And Status — `:152`
+- ATest Export Needs ADocument Selected — `:189`
+- Nothing Exported Means Nothing Stale — `:199`
+- Resolving AGrouped Plan Loads Its Documents And Names One File — `:215`
+- Running AGrouped Plan Writes One Sheet Holding Every Document — `:247`
+- ATarget That Cannot Hold Several Documents Refuses Rather Than Exporting The First — `:291`
+- ADocument That Cannot Be Read Is Named Rather Than Throwing — `:315`
+- The Confirmation Names What Has Drifted Since It Was Built — `:352`
 
 ## FileRevealTests
 `tests/Lightbox.App.Tests/FileRevealTests.cs`
@@ -1828,6 +1835,15 @@ regression even when every test still compiles.
 - ATag Entirely Past The End Is Dropped — `:920`
 - Only Markers Marked As Events Are Exported — `:931`
 - An Event Past The End Is Not Exported — `:952`
+- Several Documents Concatenate In The Order They Are Given — `:970`
+- Each Document Becomes ATag So An Engine Can Tell The Clips Apart — `:984`
+- ASingle Document Sheet Still Writes No Tags When Nothing Is Tagged — `:1007`
+- Tags And Events On ALater Document Move To Where Its Frames Landed — `:1018`
+- Every Frame Keeps Its Own Documents Pivot — `:1042`
+- The Untrimmed Cell Holds The Largest Canvas — `:1065`
+- Each Frames Duration Comes From Its Own Documents Fps — `:1085`
+- One Documents Paper Layer Cannot Silence Anothers Art — `:1100`
+- ASheet Needs At Least One Document — `:1125`
 
 ## StartScreenTests
 `tests/Lightbox.App.Tests/StartScreenTests.cs`
@@ -2282,9 +2298,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:172`
 - The Canvas Gets The Room Left Over By The Strips — `:195`
 - The Project Row Menu Actually Does Something When Clicked — `:219`
-- The New Menu Actually Makes Things — `:344`
-- The Reference Panel Is Absent Until It Is Asked For — `:411`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:427`
+- The New Menu Actually Makes Things — `:348`
+- The Reference Panel Is Absent Until It Is Asked For — `:415`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:431`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

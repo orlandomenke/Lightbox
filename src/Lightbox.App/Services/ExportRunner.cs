@@ -45,18 +45,65 @@ public static class ExportRunner
     /// Run a preset. <paramref name="path"/> is the sheet file, or the folder for a
     /// PNG sequence.
     /// </summary>
-    public static ExportRun Run(Doc doc, ExportPreset preset, string path)
+    public static ExportRun Run(Doc doc, ExportPreset preset, string path) =>
+        Run([doc], preset, path);
+
+    /// <summary>
+    /// Run a preset over the documents one artifact holds.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q30.</b> <see cref="ExportPlan"/> has always been able to describe an
+    /// artifact holding forty documents; this is where one becomes files. The
+    /// single-document signature delegates here, so the grouped and ungrouped
+    /// paths are the same code rather than a branch around each other.
+    /// </para>
+    /// <para>
+    /// <b>A PNG sequence of several documents is refused, not flattened.</b> A
+    /// sequence writes numbered frames into a folder, so concatenating two
+    /// documents would silently interleave two animations into one run of
+    /// numbers with nothing in the output saying where one ended. A sheet has
+    /// frame tags to say so; a folder of PNGs has nothing.
+    /// </para>
+    /// </remarks>
+    public static ExportRun Run(
+        IReadOnlyList<Doc> docs, ExportPreset preset, string path,
+        IReadOnlyList<string>? names = null)
     {
+        if (docs.Count == 0) throw new ArgumentException("An export needs a document.", nameof(docs));
+
         return preset.Target switch
         {
-            ExportTarget.PngSequence => Sequence(doc, path),
-            ExportTarget.Unity => Unity(doc, preset, path),
-            ExportTarget.Godot => Godot(doc, preset, path),
-            ExportTarget.Unreal => Unreal(doc, preset, path),
-            ExportTarget.GameMaker => GameMaker(doc, preset, path),
-            _ => Sheet(doc, preset, path),
+            ExportTarget.PngSequence when docs.Count > 1 => Refused(
+                "A PNG sequence is one animation's frames in a folder, so it cannot hold "
+                + $"{docs.Count} documents. Use a sheet, or export per document."),
+            ExportTarget.PngSequence => Sequence(docs[0], path),
+            // A GameMaker sprite is one animation: one strip, one origin, one
+            // image speed. Several documents are several sprites, not one
+            // artifact, and packing them into a strip would give the second
+            // cycle the first one's origin and speed with nothing in the file
+            // saying so.
+            ExportTarget.GameMaker when docs.Count > 1 => Refused(
+                $"A GameMaker sprite is one animation with one origin and one speed, so {docs.Count} "
+                + "documents cannot be one of them. Export per document."),
+            ExportTarget.Unity => Unity(docs, preset, path),
+            ExportTarget.Godot => Godot(docs, preset, path),
+            ExportTarget.Unreal => Unreal(docs, preset, path),
+            ExportTarget.GameMaker => GameMaker(docs[0], preset, path),
+            _ => Sheet(docs, preset, path, names),
         };
     }
+
+    /// <summary>
+    /// An export that did not happen, and says why in the place the summary goes.
+    /// </summary>
+    /// <remarks>
+    /// A refusal rather than an exception: one artifact in a plan of nine failing
+    /// must not take the other eight with it, and the artist needs to be told
+    /// which one and why. No files, so nothing downstream mistakes it for a
+    /// success with an empty result.
+    /// </remarks>
+    private static ExportRun Refused(string why) => new([], why, [], []);
 
     private static ExportRun Sequence(Doc doc, string directory)
     {
@@ -80,9 +127,10 @@ public static class ExportRunner
         Background = preset.Background,
     };
 
-    private static ExportRun Sheet(Doc doc, ExportPreset preset, string sheetPath)
+    private static ExportRun Sheet(
+        IReadOnlyList<Doc> docs, ExportPreset preset, string sheetPath, IReadOnlyList<string>? names)
     {
-        var result = SpriteSheetExporter.Export(doc, sheetPath, SheetOptions(preset));
+        var result = SpriteSheetExporter.Export(docs, sheetPath, SheetOptions(preset), names);
         var files = new List<string> { result.SheetPath, result.MetadataPath };
         var summary = SummaryOf(result);
 
@@ -95,9 +143,9 @@ public static class ExportRunner
         return new ExportRun(files, summary, result.OmittedLayers, result.SuspectedBackgrounds);
     }
 
-    private static ExportRun Unity(Doc doc, ExportPreset preset, string sheetPath)
+    private static ExportRun Unity(IReadOnlyList<Doc> docs, ExportPreset preset, string sheetPath)
     {
-        var result = UnityExporter.Export(doc, sheetPath, new UnityExportOptions(
+        var result = UnityExporter.Export(docs, sheetPath, new UnityExportOptions(
             preset.WorldHeightUnits, preset.WriteImporter)
         {
             Sheet = SheetOptions(preset),
@@ -118,9 +166,9 @@ public static class ExportRunner
             result.Sheet?.SuspectedBackgrounds ?? []);
     }
 
-    private static ExportRun Godot(Doc doc, ExportPreset preset, string sheetPath)
+    private static ExportRun Godot(IReadOnlyList<Doc> docs, ExportPreset preset, string sheetPath)
     {
-        var result = GodotExporter.Export(doc, sheetPath, new GodotExportOptions(preset.WriteImporter)
+        var result = GodotExporter.Export(docs, sheetPath, new GodotExportOptions(preset.WriteImporter)
         {
             Sheet = SheetOptions(preset),
         });
@@ -137,9 +185,9 @@ public static class ExportRunner
             result.Sheet?.SuspectedBackgrounds ?? []);
     }
 
-    private static ExportRun Unreal(Doc doc, ExportPreset preset, string sheetPath)
+    private static ExportRun Unreal(IReadOnlyList<Doc> docs, ExportPreset preset, string sheetPath)
     {
-        var result = UnrealExporter.Export(doc, sheetPath, new UnrealExportOptions(preset.WriteImporter)
+        var result = UnrealExporter.Export(docs, sheetPath, new UnrealExportOptions(preset.WriteImporter)
         {
             Sheet = SheetOptions(preset),
             WorldHeightUnits = preset.WorldHeightUnits,

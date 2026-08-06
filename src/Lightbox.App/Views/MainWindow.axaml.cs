@@ -3226,6 +3226,125 @@ public partial class MainWindow : Window
         _vm.ProjectDocker.DuplicateSelectedCommand.Execute(null);
 
     /// <summary>
+    /// Export the selected folder: count it, confirm it, then write it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q30's last mile.</b> <c>ExportPlan</c> could describe an artifact
+    /// holding forty documents and <c>ProjectViewModel</c> could count and
+    /// describe one, and no view called either — the whole of export scoping was
+    /// reachable from tests and from nowhere an artist could press.
+    /// </para>
+    /// <para>
+    /// <b>The count comes before the folder picker, and before anything is
+    /// written.</b> "2 files from 47 documents, 3 held back by status" tells you
+    /// whether you picked the right folder in a way <em>are you sure?</em>
+    /// cannot — and the plan is computed without reading a drawing, so asking is
+    /// cheap even when the answer is no.
+    /// </para>
+    /// <para>
+    /// <b>One artifact failing does not stop the rest.</b> A plan of nine where
+    /// the fourth cannot be written should produce eight files and a sentence
+    /// naming the fourth, not four files and an exception.
+    /// </para>
+    /// </remarks>
+    private async void OnProjectExportFolder(object? sender, RoutedEventArgs e)
+    {
+        var docker = _vm.ProjectDocker;
+        if (docker.Project is null) return;
+
+        var summary = docker.DescribeExportPlan();
+        if (!await ConfirmAsync("Export", summary, "Export")) return;
+
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Export to folder",
+            AllowMultiple = false,
+        });
+        if (folders.Count == 0 || folders[0].TryGetLocalPath() is not { } destination) return;
+
+        var missing = new List<string>();
+        var planned = docker.ResolveExport(destination, missing);
+        if (planned.Count == 0)
+        {
+            _vm.AiStatus = missing.Count > 0
+                ? $"Nothing exported — {string.Join(", ", missing)} could not be read."
+                : "Nothing to export: every document was held back.";
+            return;
+        }
+
+        var written = 0;
+        var failed = new List<string>();
+        foreach (var item in planned)
+        {
+            try
+            {
+                var run = await Task.Run(
+                    () => Services.ExportRunner.Run(item.Documents, item.Preset, item.Path, item.Names));
+                // No files means the runner refused — a target that cannot hold
+                // several documents says so rather than throwing.
+                if (run.Files.Count == 0)
+                {
+                    failed.Add($"{item.Name}: {run.Summary}");
+                    continue;
+                }
+                written++;
+                // Recorded only on success, so a failed artifact stays stale and
+                // shows up in StaleExports rather than looking freshly built.
+                docker.RecordExport(item.Artifact, item.Path);
+            }
+            catch (Exception ex)
+            {
+                failed.Add($"{item.Name}: {ex.Message}");
+            }
+        }
+
+        var said = $"{written} file(s) written to {Path.GetFileName(destination)}";
+        if (missing.Count > 0) said += $" — could not read {string.Join(", ", missing)}";
+        if (failed.Count > 0) said += $" — {string.Join("; ", failed)}";
+        _vm.AiStatus = said;
+    }
+
+    /// <summary>
+    /// The selected drawing, exported somewhere it cannot break the build.
+    /// </summary>
+    /// <remarks>
+    /// A test is a different destination rather than a smaller export: it writes
+    /// to <c>test-exports/</c> beside the project, forces per-document grouping
+    /// and drops the status filter — grouping is about the deliverable and a test
+    /// is not one, and the filter exists to keep work in progress out of a
+    /// shipped sheet, which is precisely what a test wants in. No confirmation,
+    /// because nothing it can overwrite is a deliverable.
+    /// </remarks>
+    private async void OnProjectTestExport(object? sender, RoutedEventArgs e)
+    {
+        var docker = _vm.ProjectDocker;
+        if (docker.PlanTestExport() is not var (reference, preset, path))
+        {
+            // Says so rather than doing nothing: a menu item that is sometimes
+            // inert and never explains itself reads as the app being broken.
+            _vm.AiStatus = "Select a drawing to test-export.";
+            return;
+        }
+        if (docker.Project is not { } project) return;
+        if (ProjectIo.LoadDocument(project, reference) is not { } doc)
+        {
+            _vm.AiStatus = $"“{reference.Name}” could not be read.";
+            return;
+        }
+
+        try
+        {
+            var run = await Task.Run(() => Services.ExportRunner.Run(doc, preset, path));
+            _vm.AiStatus = $"Test export: {run.Summary}";
+        }
+        catch (Exception ex)
+        {
+            _vm.AiStatus = $"Test export failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>
     /// Hand the row to the context menu's items, because nothing else will.
     /// </summary>
     /// <remarks>

@@ -252,7 +252,11 @@ public sealed class WorkspaceTests : BrushStateIsolated
                 // resolved six and the menu could declare two, and this list is
                 // what keeps the two counts equal.
                 ["Open", "Open with default app…", "Show in file manager", "Copy path",
-                 "Duplicate", "Rename…", "Export this as", "Share a palette here",
+                 "Duplicate", "Rename…", "Export this as",
+                 // Q30's last mile: the plan was countable and describable and
+                 // no view called either, so these two are what make it real.
+                 "Export this folder…", "Test export",
+                 "Share a palette here",
                  "Share a gradient here", "Share a symbol here", "Share guides here",
                  "New documents start from",
                  "Use this as reference", "Stop sharing", "Reach",

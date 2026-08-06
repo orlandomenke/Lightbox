@@ -2029,7 +2029,17 @@
                                 </Style>
                               </MenuItem.Styles>
                             </MenuItem>
-            <!--
+                            <!--
+                              Q30. The plan was describable and not runnable:
+                              PlanExport, DescribeExportPlan and RecordExport all
+                              existed on the view model and no view called any of
+                              them. This is the gesture.
+                            -->
+                            <MenuItem Header="Export this folder…" Click="OnProjectExportFolder"
+                                      ToolTip.Tip="Everything under it, grouped the way its preset says. Counts what it would write before writing anything." />
+                            <MenuItem Header="Test export" Click="OnProjectTestExport"
+                                      ToolTip.Tip="This one drawing, into test-exports/ beside the project. Never over a deliverable." />
+                            <!--
                               Q30's declaration surface. Four kinds resolved
                               correctly and could not be declared from anywhere
                               an artist could point at, which reads as the app

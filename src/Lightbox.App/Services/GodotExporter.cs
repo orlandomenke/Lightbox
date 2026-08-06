@@ -80,11 +80,27 @@ public static class GodotExporter
         [JsonPropertyName("frameDurations")] public List<double> FrameDurations { get; set; } = [];
     }
 
-    public static GodotExportResult Export(Doc doc, string sheetPath, GodotExportOptions? options = null)
+    public static GodotExportResult Export(Doc doc, string sheetPath, GodotExportOptions? options = null) =>
+        Export([doc], sheetPath, options);
+
+    /// <summary>
+    /// One Godot artifact from several documents — the knight's cycles in one
+    /// sheet, one animation per document.
+    /// </summary>
+    /// <remarks>
+    /// Clips already come from the sidecar's <c>frameTags</c>, which the sheet
+    /// writer merges and shifts, so this needed nothing for the animation list.
+    /// What it needed was per-frame fps and pivot: both are questions about the
+    /// document a frame came from, and taking the first document's would time
+    /// every later cycle wrongly and put its offsets somewhere else.
+    /// </remarks>
+    public static GodotExportResult Export(
+        IReadOnlyList<Doc> docs, string sheetPath, GodotExportOptions? options = null)
     {
+        if (docs.Count == 0) throw new ArgumentException("An export needs a document.", nameof(docs));
         var opts = options ?? new GodotExportOptions();
-        var sheet = SpriteSheetExporter.Export(doc, sheetPath, opts.Sheet);
-        var scene = doc.Scene;
+        var sheet = SpriteSheetExporter.Export(docs, sheetPath, opts.Sheet);
+        var owners = sheet.FrameOwners;
 
         // Read back what the exporter wrote rather than recomputing it — one source for
         // where a sprite is, the same rule the Unity export follows.
@@ -95,8 +111,11 @@ public static class GodotExporter
         var block = new GodotBlock();
         var offsets = new List<double[]>();
 
-        foreach (var frame in frames)
+        for (var i = 0; i < frames.Count; i++)
         {
+            var frame = frames[i];
+            // The document this frame came from, not the first one.
+            var scene = docs[i < owners.Count ? owners[i].Document : 0].Scene;
             var rect = frame.GetProperty("frame");
             var source = frame.GetProperty("spriteSourceSize");
             var w = rect.GetProperty("w").GetInt32();

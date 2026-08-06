@@ -958,4 +958,173 @@ public class SpriteSheetExportTests : IDisposable
             "\"events\"",
             File.ReadAllText(SpriteSheetExporter.Export(doc, Path_("late.png")).MetadataPath));
     }
+
+    // ---- Several documents into one sheet (Q30) -----------------------------
+    //
+    // A scope declared as OneArtifact means "the knight's walk, run and idle are
+    // one file". Until the exporter could see more than one document that was
+    // describable in a plan and not runnable, so these guard the engine catching
+    // up with the plan rather than the plan being trimmed to the engine.
+
+    [Fact]
+    public void SeveralDocumentsConcatenateInTheOrderTheyAreGiven()
+    {
+        var walk = Walking(4);
+        walk.Scene.Name = "walk";
+        var idle = Walking(3);
+        idle.Scene.Name = "idle";
+
+        var result = SpriteSheetExporter.Export([walk, idle], Path_("knight.png"));
+
+        Assert.Equal(7, result.FrameCount);
+        Assert.Equal(7, Meta(result).GetProperty("frames").GetArrayLength());
+    }
+
+    [Fact]
+    public void EachDocumentBecomesATagSoAnEngineCanTellTheClipsApart()
+    {
+        // Without this a three-cycle sheet is a wall of frames with no way to
+        // know where the walk ends and the run begins — data loss, not a
+        // formatting preference.
+        var walk = Walking(4);
+        walk.Scene.Name = "walk";
+        var idle = Walking(3);
+        idle.Scene.Name = "idle";
+
+        var tags = Meta(SpriteSheetExporter.Export([walk, idle], Path_("clips.png")))
+            .GetProperty("meta").GetProperty("frameTags").EnumerateArray().ToList();
+
+        Assert.Equal(2, tags.Count);
+        Assert.Equal("walk", tags[0].GetProperty("name").GetString());
+        Assert.Equal(0, tags[0].GetProperty("from").GetInt32());
+        Assert.Equal(3, tags[0].GetProperty("to").GetInt32());
+        Assert.Equal("idle", tags[1].GetProperty("name").GetString());
+        Assert.Equal(4, tags[1].GetProperty("from").GetInt32());
+        Assert.Equal(6, tags[1].GetProperty("to").GetInt32());
+    }
+
+    [Fact]
+    public void ASingleDocumentSheetStillWritesNoTagsWhenNothingIsTagged()
+    {
+        // The per-document tag is the multi-document answer only. One document
+        // that declares no tags must export exactly what it exported before the
+        // sheet learned to hold several.
+        Assert.DoesNotContain(
+            "\"frameTags\"",
+            File.ReadAllText(SpriteSheetExporter.Export(Walking(4), Path_("alone.png")).MetadataPath));
+    }
+
+    [Fact]
+    public void TagsAndEventsOnALaterDocumentMoveToWhereItsFramesLanded()
+    {
+        // A tag numbered against its own animation would name the wrong frames
+        // once that animation is no longer the first thing in the file.
+        var first = Walking(4);
+        first.Scene.Name = "walk";
+        var second = Walking(4);
+        second.Scene.Name = "attack";
+        second.Scene.Tags = [new AnimationTag { Name = "swing", Start = 1, End = 2 }];
+        second.Scene.Markers = [new FrameMarker { Frame = 2, Label = "OnHit", IsEvent = true }];
+
+        var meta = Meta(SpriteSheetExporter.Export([first, second], Path_("offset.png")))
+            .GetProperty("meta");
+
+        var swing = meta.GetProperty("frameTags").EnumerateArray()
+            .Single(t => t.GetProperty("name").GetString() == "swing");
+        Assert.Equal(5, swing.GetProperty("from").GetInt32());
+        Assert.Equal(6, swing.GetProperty("to").GetInt32());
+
+        var hit = Assert.Single(meta.GetProperty("events").EnumerateArray());
+        Assert.Equal(6, hit.GetProperty("frame").GetInt32());
+    }
+
+    [Fact]
+    public void EveryFrameKeepsItsOwnDocumentsPivot()
+    {
+        // Taking the first document's pivot for the whole sheet would put every
+        // other character's feet somewhere else, and nothing in the file would
+        // say why.
+        var low = Walking(2);
+        low.Scene.Pivot = new Pivot { X = 10, Y = 20 };
+        var high = Walking(2);
+        high.Scene.Pivot = new Pivot { X = 100, Y = 110 };
+
+        var result = SpriteSheetExporter.Export(
+            [low, high], Path_("pivots.png"), new SpriteSheetOptions { Trim = SpriteTrim.None });
+        var frames = Meta(result).GetProperty("frames");
+
+        // Trim is off, so the cell is the whole canvas and the pivot offset is
+        // the pivot itself — no trim arithmetic in the way of what is measured.
+        Assert.Equal(10, frames[0].GetProperty("pivot").GetProperty("x").GetDouble());
+        Assert.Equal(20, frames[1].GetProperty("pivot").GetProperty("y").GetDouble());
+        Assert.Equal(100, frames[2].GetProperty("pivot").GetProperty("x").GetDouble());
+        Assert.Equal(110, frames[3].GetProperty("pivot").GetProperty("y").GetDouble());
+    }
+
+    [Fact]
+    public void TheUntrimmedCellHoldsTheLargestCanvas()
+    {
+        // A bigger document must not be cropped by a smaller one that happened to
+        // come first in the list.
+        var small = DocumentFactory.CreateDoc(80, 60, 12);
+        var large = DocumentFactory.CreateDoc(200, 120, 12);
+
+        var result = SpriteSheetExporter.Export(
+            [small, large], Path_("sizes.png"), new SpriteSheetOptions { Trim = SpriteTrim.None });
+
+        Assert.Equal(200, result.CellWidth);
+        Assert.Equal(120, result.CellHeight);
+        // And the sidecar agrees, so an importer reconstructing the canvas is
+        // told the same extent the cell was measured against.
+        var source = Meta(result).GetProperty("frames")[0].GetProperty("sourceSize");
+        Assert.Equal(200, source.GetProperty("w").GetInt32());
+        Assert.Equal(120, source.GetProperty("h").GetInt32());
+    }
+
+    [Fact]
+    public void EachFramesDurationComesFromItsOwnDocumentsFps()
+    {
+        // One sheet can hold a 12 fps cycle and a 24 fps one, and a single
+        // header number cannot say that.
+        var slow = DocumentFactory.CreateDoc(60, 60, 10);
+        var fast = DocumentFactory.CreateDoc(60, 60, 20);
+
+        var frames = Meta(SpriteSheetExporter.Export([slow, fast], Path_("fps.png")))
+            .GetProperty("frames");
+
+        Assert.Equal(100, frames[0].GetProperty("duration").GetInt32());
+        Assert.Equal(50, frames[1].GetProperty("duration").GetInt32());
+    }
+
+    [Fact]
+    public void OneDocumentsPaperLayerCannotSilenceAnothersArt()
+    {
+        // Layers are decided per document, because "is this layer a background"
+        // is a question about one drawing's stack. Deciding once across all of
+        // them is the tempting shortcut and it drops real art.
+        var first = Walking(2, paperColor: "#ffffff");
+        var second = Walking(2, paperColor: "#ffffff");
+
+        var result = SpriteSheetExporter.Export(
+            [first, second], Path_("layers.png"),
+            new SpriteSheetOptions { Background = BackgroundHandling.Detected });
+
+        // Both papers go, and neither document's art does. Deciding once across
+        // the merged stack would either keep a paper or drop a drawing, and this
+        // catches both directions.
+        var omitted = (result.Omitted ?? []).Select(o => o.LayerId).ToHashSet(StringComparer.Ordinal);
+        foreach (var doc in new[] { first, second })
+        {
+            Assert.Contains(doc.Scene.Layers.First(l => l.IsBackground).Id, omitted);
+            Assert.DoesNotContain(doc.Scene.Layers.First(l => !l.IsBackground).Id, omitted);
+        }
+        Assert.Equal(4, result.FrameCount);
+    }
+
+    [Fact]
+    public void ASheetNeedsAtLeastOneDocument()
+    {
+        Assert.Throws<ArgumentException>(
+            () => SpriteSheetExporter.Export([], Path_("empty.png")));
+    }
 }

@@ -631,3 +631,77 @@ Rejected: *immediate children only* is never surprising and is not what the word
 mean, so the common case needs three exports and a document filed one level
 deeper is silently missed. *No confirmation* is right for the twentieth export of
 a polish pass and offers no moment to notice the project root was selected.
+
+
+## The gap between the plan and the engine, found while wiring the confirmation
+
+`ExportPlan` happily describes an artifact holding forty documents.
+**`ExportRunner.Run` takes one `Doc`.** So `OneArtifact` and `PerChildFolder`
+are expressible in the plan and not yet runnable, and that was not visible until
+something tried to run one.
+
+Two ways across, and it is a real design choice rather than a detail:
+
+- **Merge the documents into one synthetic `Doc`** and hand that to the existing
+  exporter. Nothing in the export path changes. But merging is not free —
+  differing canvas sizes, layer stacks that do not correspond, and a frame order
+  that has to come from somewhere — and a synthetic document is a thing that can
+  be wrong in ways neither input was.
+- **Teach `SpriteSheetExporter` to take several documents.** Honest about what a
+  sheet is, and the packer already works in cells rather than in one document's
+  geometry. It is a change to a tested component with pixel assertions on it,
+  which is exactly the kind of change worth doing deliberately.
+
+I lean toward the second: a sheet from several cycles is what a sprite sheet
+*is*, and the first buys "no engine change" at the cost of a merge step that has
+to answer questions the exporter already answers.
+
+**What this does not block.** Per-document export already runs — it is what an
+unscoped project does and what a test export is — so the verb below and the
+existing export window are unaffected. What waits is the confirmation over a
+*grouped* plan, because confirming a count and then failing to produce it is
+worse than not offering it.
+
+### Taken: the exporter takes several documents
+
+`SpriteSheetExporter.Export(IReadOnlyList<Doc>, …)` is the real entry point now
+and the single-document signature delegates to it, so every existing sheet test
+exercises the multi-document path and the two cannot drift.
+
+Four questions the merge would also have had to answer, answered here instead —
+which is the argument for this route rather than the other one, restated as
+decisions rather than as a preference:
+
+| Question | Answer, and why |
+| --- | --- |
+| Whose canvas? | The largest, with smaller documents at the cell's top-left. That is where composing at their own size and drawing at the cell origin already puts them, so every pivot, anchor and hurtbox offset stays arithmetically identical to the one-document path. |
+| Whose pivot? | Each frame's own. One pivot for the sheet would put every character after the first with their feet somewhere else, and nothing in the file would say why. |
+| Whose fps? | Each frame's own, as `duration`. A sheet can hold a 12 fps cycle and a 24 fps one; the header's single `fps` takes the leading clip's and the per-frame durations stay authoritative. |
+| Which layers are background? | Decided **per document**. "Is this layer a background" is a question about one drawing's stack, and deciding once across all of them would let one document's paper silence another's art. |
+
+And one thing the merge route would have lost outright: **each document becomes a
+frame tag**, named after its scene and spanning its range, with the document's
+own tags and events shifted to where its frames landed. A sheet of three cycles
+with no way to tell where the walk ends and the run begins is data loss rather
+than a formatting preference — and frame tags are the mechanism engines already
+read for exactly that. Only when there is more than one document, so a
+single-document sheet that declares no tags still writes no `frameTags` key.
+
+**Still to wire:** `ExportRunner.Run` is the one-`Doc` signature, so a grouped
+plan is runnable by the exporter and not yet by the runner. The engine targets
+(Unity, Godot, Unreal, GameMaker) each build their importer sidecar from a single
+document's clips, and what "one Unity artifact from three documents" means is a
+decision those sidecars need, not one the sheet writer can make.
+
+### Test export, landed
+
+A test is a different destination, not a smaller export: it writes to
+`test-exports/` beside the project, never over a deliverable, so looking at one
+cycle cannot break the build. It forces `PerDocument` and drops the status
+filter — grouping is about the deliverable and a test is not one, and the filter
+exists to keep work in progress out of a shipped sheet, which is precisely what
+a test wants in.
+
+Beside the project rather than the system temp folder, so an engine watching the
+project tree can hot-reload it — which is the roadmap's *live engine preview*
+item getting a destination for free.

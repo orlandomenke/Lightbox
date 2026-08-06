@@ -144,11 +144,40 @@ public static class UnityExporter
     /// adds a block to the sidecar it wrote rather than rendering anything itself,
     /// so the two exports cannot disagree about where a sprite is.
     /// </remarks>
-    public static UnityExportResult Export(Doc doc, string sheetPath, UnityExportOptions? options = null)
+    public static UnityExportResult Export(Doc doc, string sheetPath, UnityExportOptions? options = null) =>
+        Export([doc], sheetPath, options);
+
+    /// <summary>
+    /// One Unity artifact from several documents — one atlas, one clip each.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unity was the only one of the four engine exports that read clips from
+    /// the <see cref="Scene"/> rather than from the sidecar the sheet writer
+    /// produced, and that is what made several documents impossible: the tags
+    /// it read were the first document's, numbered in that document's own
+    /// frames. Reading the sidecar instead means the merge and the shift the
+    /// sheet writer already does are the merge and shift Unity gets, and there
+    /// is one place that clamps a tag rather than two that must agree.
+    /// </para>
+    /// <para>
+    /// Per-frame geometry — pivot, anchors, colliders — comes from the document
+    /// that frame came from. Indexing the first document with a sheet-wide frame
+    /// number would attach a weapon to the wrong hand and put a hurtbox on the
+    /// wrong drawing, neither of which shows up until it is wrong in an engine.
+    /// </para>
+    /// </remarks>
+    public static UnityExportResult Export(
+        IReadOnlyList<Doc> docs, string sheetPath, UnityExportOptions? options = null)
     {
+        if (docs.Count == 0) throw new ArgumentException("An export needs a document.", nameof(docs));
         var opts = options ?? new UnityExportOptions();
-        var sheet = SpriteSheetExporter.Export(doc, sheetPath, opts.Sheet);
-        var scene = doc.Scene;
+        var sheet = SpriteSheetExporter.Export(docs, sheetPath, opts.Sheet);
+        var owners = sheet.FrameOwners;
+        // Pixels-per-unit and the header's seconds-per-frame are one number each
+        // for the whole atlas, so they take the leading document — matching the
+        // sidecar's own header. Per-frame timing lives in the clips.
+        var scene = docs[0].Scene;
 
         // Read back what the exporter wrote rather than recomputing it. Two
         // computations of the same rect are two chances to disagree, and the
@@ -166,6 +195,9 @@ public static class UnityExporter
         for (var i = 0; i < frames.Count; i++)
         {
             var frame = frames[i];
+            var (ownerIndex, localFrame) =
+                i < owners.Count ? (owners[i].Document, owners[i].Frame) : (0, i);
+            var owner = docs[ownerIndex].Scene;
             var rect = frame.GetProperty("frame");
             var source = frame.GetProperty("spriteSourceSize");
             var cellLeft = source.GetProperty("x").GetInt32();
@@ -185,14 +217,14 @@ public static class UnityExporter
                 ],
             };
 
-            if (scene.Pivot is { } pivot)
+            if (owner.Pivot is { } pivot)
             {
                 var (px, py) = UnityConvert.Pivot(pivot.X, pivot.Y, cellLeft, cellTop, w, h);
                 sprite.Pivot = [px, py];
             }
 
-            var resolved = Anchors.ResolvedAt(scene, i);
-            if (scene.Anchors is { Count: > 0 } declared && resolved.Count > 0)
+            var resolved = Anchors.ResolvedAt(owner, localFrame);
+            if (owner.Anchors is { Count: > 0 } declared && resolved.Count > 0)
             {
                 var anchors = new Dictionary<string, double[]>(StringComparer.Ordinal);
                 foreach (var anchor in declared)
@@ -209,11 +241,11 @@ public static class UnityExporter
             // one; otherwise the cell's centre, because that is Unity's default
             // sprite origin and a collider offset means nothing without knowing
             // which of the two the sprite ended up with.
-            var originX = scene.Pivot?.X ?? cellLeft + w / 2.0;
-            var originY = scene.Pivot?.Y ?? cellTop + h / 2.0;
+            var originX = owner.Pivot?.X ?? cellLeft + w / 2.0;
+            var originY = owner.Pivot?.Y ?? cellTop + h / 2.0;
 
-            var boxes = CollisionShapes.ResolvedAt(scene, i);
-            if (scene.Shapes is { Count: > 0 } shapes && boxes.Count > 0)
+            var boxes = CollisionShapes.ResolvedAt(owner, localFrame);
+            if (owner.Shapes is { Count: > 0 } shapes && boxes.Count > 0)
             {
                 var colliders = new List<UnityCollider>();
                 foreach (var shape in shapes)
@@ -240,7 +272,7 @@ public static class UnityExporter
             block.Sprites.Add(sprite);
         }
 
-        block.Clips = ClipsFor(scene);
+        block.Clips = ClipsFor(root, block.SecondsPerFrame);
 
         // Re-serialize the whole document with the block appended. Writing it as a
         // property on the object we parsed keeps every key the generic exporter
@@ -267,51 +299,67 @@ public static class UnityExporter
     }
 
     /// <summary>
-    /// Tags as clips, with each clip's events timed from its own start.
+    /// The sidecar's tags as clips, with each clip's events timed from its own
+    /// start.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// <b>From the sidecar, not from the Scene.</b> It used to read
+    /// <c>scene.Tags</c> and clamp them itself — a second implementation of the
+    /// clamping <see cref="SpriteSheetExporter"/> already does, and the reason
+    /// several documents could not produce a Unity artifact: those tags are the
+    /// first document's, numbered in its own frames. The sheet writer merges
+    /// every document's tags, shifts them to where their frames landed and adds
+    /// one per document; reading that is how Unity gets a clip per cycle for
+    /// free, and it is one clamp rather than two that have to agree.
+    /// </para>
+    /// <para>
     /// Unity's <c>AnimationEvent.time</c> is seconds from the clip's start, not
-    /// from the sheet's — so an event on frame 9 of a clip that begins at frame 8 is
-    /// at one frame, not nine. Getting that wrong puts every event in a
-    /// later clip out by the clip's offset, which reads as "events fire early" and
-    /// is a horrible thing to chase.
+    /// from the sheet's — so an event on frame 9 of a clip that begins at frame 8
+    /// is at one frame, not nine. Getting that wrong puts every event in a later
+    /// clip out by the clip's offset, which reads as "events fire early" and is a
+    /// horrible thing to chase. The sidecar's event frames are sheet-wide, which
+    /// is exactly what this subtraction wants.
+    /// </para>
     /// </remarks>
-    private static List<UnityClip>? ClipsFor(Scene scene)
+    private static List<UnityClip>? ClipsFor(JsonElement root, double perFrame)
     {
-        if (scene.Tags is not { Count: > 0 } tags) return null;
-        var last = Math.Max(0, Math.Max(1, scene.FrameCount) - 1);
-        var perFrame = UnityConvert.SecondsPerFrame(scene.Fps);
+        var meta = root.GetProperty("meta");
+        if (!meta.TryGetProperty("frameTags", out var tags)) return null;
+
+        var events = meta.TryGetProperty("events", out var declared)
+            ? declared.EnumerateArray().ToList()
+            : [];
 
         var clips = new List<UnityClip>();
-        foreach (var tag in tags)
+        foreach (var tag in tags.EnumerateArray())
         {
-            var from = Math.Clamp(Math.Min(tag.Start, tag.End), 0, last);
-            var to = Math.Clamp(Math.Max(tag.Start, tag.End), 0, last);
-            if (Math.Min(tag.Start, tag.End) > last) continue;
+            var from = tag.GetProperty("from").GetInt32();
+            var to = tag.GetProperty("to").GetInt32();
 
-            var events = scene.Markers
-                .Where(m => m.ExportsAsEvent && m.Frame >= from && m.Frame <= to)
-                .OrderBy(m => m.Frame)
-                .Select(m => new UnityEvent
+            var inside = events
+                .Where(e => e.GetProperty("frame").GetInt32() >= from
+                            && e.GetProperty("frame").GetInt32() <= to)
+                .OrderBy(e => e.GetProperty("frame").GetInt32())
+                .Select(e => new UnityEvent
                 {
-                    Function = string.IsNullOrWhiteSpace(m.Label) ? "OnEvent" : m.Label.Trim(),
-                    Time = (m.Frame - from) * perFrame,
+                    Function = e.GetProperty("name").GetString() is { Length: > 0 } name
+                        ? name
+                        : "OnEvent",
+                    Time = (e.GetProperty("frame").GetInt32() - from) * perFrame,
                 })
                 .ToList();
 
             clips.Add(new UnityClip
             {
-                Name = string.IsNullOrWhiteSpace(tag.Name) ? tag.Id : tag.Name.Trim(),
+                Name = tag.GetProperty("name").GetString() ?? "clip",
                 From = from,
                 To = to,
-                Loop = tag.Loop,
-                Direction = tag.Direction switch
-                {
-                    TagDirection.Reverse => "reverse",
-                    TagDirection.PingPong => "pingpong",
-                    _ => "forward",
-                },
-                Events = events.Count > 0 ? events : null,
+                Loop = !tag.TryGetProperty("loop", out var loop) || loop.GetBoolean(),
+                Direction = tag.TryGetProperty("direction", out var d)
+                    ? d.GetString() ?? "forward"
+                    : "forward",
+                Events = inside.Count > 0 ? inside : null,
             });
         }
         return clips.Count > 0 ? clips : null;

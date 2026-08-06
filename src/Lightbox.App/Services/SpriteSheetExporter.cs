@@ -51,6 +51,10 @@ public sealed record SpriteSheetOptions
 /// rather than claimed — "atlas optimisation" with no number attached is a
 /// feeling.
 /// </param>
+/// <param name="Document">Index into the list of documents the sheet was built from.</param>
+/// <param name="Frame">That document's own frame number, not the sheet's.</param>
+public readonly record struct SheetFrameOwner(int Document, int Frame);
+
 public sealed record SpriteSheetResult(
     string SheetPath,
     string MetadataPath,
@@ -64,8 +68,23 @@ public sealed record SpriteSheetResult(
     int SheetHeight = 0,
     long UsedArea = 0,
     IReadOnlyList<OmittedLayer>? Omitted = null,
-    IReadOnlyList<SuspectedBackground>? Suspected = null)
+    IReadOnlyList<SuspectedBackground>? Suspected = null,
+    IReadOnlyList<SheetFrameOwner>? Owners = null)
 {
+    /// <summary>
+    /// Which document each frame of the sheet came from, and its frame number
+    /// there.
+    /// </summary>
+    /// <remarks>
+    /// For the engine exporters, which walk the sheet's frames and need each
+    /// one's anchors, colliders and pivot — all of which are questions about the
+    /// document it came from, not about the sheet. Without this they would index
+    /// the first document with a sheet-wide frame number and produce colliders
+    /// from the wrong drawing, which is invisible until something is hit in the
+    /// wrong place in an engine.
+    /// </remarks>
+    public IReadOnlyList<SheetFrameOwner> FrameOwners => Owners ?? [];
+
     /// <summary>How much of the sheet is sprite, 0 to 1.</summary>
     public double Occupancy =>
         SheetWidth > 0 && SheetHeight > 0 ? UsedArea / (double)SheetWidth / SheetHeight : 0;
@@ -106,15 +125,24 @@ public static class SpriteSheetExporter
     private const byte InkAlpha = 8;
 
     /// <summary>
-    /// The document's tags, clamped to frames that exist.
+    /// The document's tags, clamped to frames that exist and shifted to where
+    /// this document's frames landed in the sheet.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Clamped rather than dropped: a tag whose end ran past the sheet after
     /// somebody shortened the animation still names a real range, and losing the
     /// clip entirely would be a worse answer than shortening it. A tag that starts
     /// beyond the end has nothing to name and is dropped.
+    /// </para>
+    /// <para>
+    /// <paramref name="offset"/> is where this document's first frame sits in a
+    /// multi-document sheet. Clamping happens in the document's own numbering and
+    /// the shift is applied after, so a tag is clamped against its own animation's
+    /// length rather than against the whole sheet's.
+    /// </para>
     /// </remarks>
-    private static List<SheetTag>? TagsFor(Scene scene)
+    private static List<SheetTag>? TagsFor(Scene scene, int offset)
     {
         if (scene.Tags is not { Count: > 0 } tags) return null;
         var last = Math.Max(0, Math.Max(1, scene.FrameCount) - 1);
@@ -129,8 +157,8 @@ public static class SpriteSheetExporter
             written.Add(new SheetTag
             {
                 Name = string.IsNullOrWhiteSpace(tag.Name) ? tag.Id : tag.Name.Trim(),
-                From = from,
-                To = to,
+                From = from + offset,
+                To = to + offset,
                 Direction = tag.Direction switch
                 {
                     TagDirection.Reverse => "reverse",
@@ -151,7 +179,7 @@ public static class SpriteSheetExporter
     /// the hand" — and exporting those would fill an AnimationClip with callbacks
     /// nothing handles.
     /// </remarks>
-    private static List<SheetEvent>? EventsFor(Scene scene)
+    private static List<SheetEvent>? EventsFor(Scene scene, int offset)
     {
         var last = Math.Max(0, Math.Max(1, scene.FrameCount) - 1);
         var events = scene.Markers
@@ -159,7 +187,7 @@ public static class SpriteSheetExporter
             .OrderBy(m => m.Frame)
             .Select(m => new SheetEvent
             {
-                Frame = m.Frame,
+                Frame = m.Frame + offset,
                 Name = string.IsNullOrWhiteSpace(m.Label) ? "event" : m.Label.Trim(),
             })
             .ToList();
@@ -238,32 +266,132 @@ public static class SpriteSheetExporter
         return written.Count > 0 ? written : null;
     }
 
-    public static SpriteSheetResult Export(Doc doc, string sheetPath, SpriteSheetOptions? options = null)
+    public static SpriteSheetResult Export(Doc doc, string sheetPath, SpriteSheetOptions? options = null) =>
+        Export([doc], sheetPath, options);
+
+    /// <summary>
+    /// Pack several documents into one sheet.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q30.</b> A sheet is one deliverable from many drawings — the knight's
+    /// walk, run and idle in one file — and until now the exporter could only
+    /// see one document at a time, so a scope declared as <c>OneArtifact</c> was
+    /// describable in a plan and not runnable. This is the engine catching up
+    /// with the plan rather than the plan being trimmed to the engine.
+    /// </para>
+    /// <para>
+    /// <b>Frames concatenate in the order the documents are given</b>, and the
+    /// caller owns that order — it is the running order of a character's cycles,
+    /// which is a project question rather than an exporter one.
+    /// </para>
+    /// <para>
+    /// <b>Layers are decided per document</b>, because "is this layer a
+    /// background" is a question about one drawing's stack. Deciding once across
+    /// all of them would let one document's paper layer silence another's art.
+    /// </para>
+    /// <para>
+    /// The single-document entry point delegates here, so every existing sheet
+    /// test exercises this path and the two cannot drift.
+    /// </para>
+    /// </remarks>
+    public static SpriteSheetResult Export(
+        IReadOnlyList<Doc> docs, string sheetPath, SpriteSheetOptions? options = null,
+        IReadOnlyList<string>? names = null)
     {
+        if (docs.Count == 0) throw new ArgumentException("A sheet needs at least one document.", nameof(docs));
         var opts = options ?? new SpriteSheetOptions();
-        var scene = doc.Scene;
-        var count = Math.Max(1, scene.FrameCount);
 
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(sheetPath))!);
 
         using var cache = new FrameBitmapCache();
-        var frames = new List<SKImage>(count);
-        var inkBounds = new List<SKRectI>(count);
+        var frames = new List<SKImage>();
+        var inkBounds = new List<SKRectI>();
+        var pivots = new List<Pivot?>();
+        // Which document each sheet frame came from, and which of its own frames
+        // it is. Everything per-frame in the sidecar — anchors, shapes, duration —
+        // is a question about the owning document, and `i` is the sheet-wide
+        // position rather than the document's own frame number once there is more
+        // than one document.
+        var owners = new List<(Scene Scene, int Index)>();
+        // The same fact in the shape callers get back: an engine exporter walks
+        // the sheet's frames and needs each one's owning document, and it does
+        // not have the Scene objects this method closed over.
+        var provenance = new List<SheetFrameOwner>();
+        var tags = new List<SheetTag>();
+        var events = new List<SheetEvent>();
+        var omitted = new List<OmittedLayer>();
+        var suspected = new List<SuspectedBackground>();
+        // The untrimmed cell has to hold the largest canvas, or a bigger
+        // document is cropped by a smaller one that happened to come first.
+        // Smaller documents sit at the cell's top-left, which is where composing
+        // at their own size and drawing at the cell origin already put them, and
+        // which keeps every pivot, anchor and hurtbox offset arithmetically
+        // identical to the single-document path.
+        var width = docs.Max(d => d.Scene.Width);
+        var height = docs.Max(d => d.Scene.Height);
         try
         {
-            // Once for the whole export, before any frame is composed: a layer that
-            // were a background on one frame and not the next is not a background.
-            var (omitted, suspected) = DecideLayers(scene, cache, opts.Background, count);
-            var skip = omitted.Select(o => o.LayerId).ToHashSet(StringComparer.Ordinal);
-
-            for (var i = 0; i < count; i++)
+            for (var d = 0; d < docs.Count; d++)
             {
-                var image = ComposeFrame(scene, cache, i, skip);
-                frames.Add(image);
-                inkBounds.Add(InkBoundsOf(image));
+                var doc = docs[d];
+                var scene = doc.Scene;
+                var count = Math.Max(1, scene.FrameCount);
+                var offset = frames.Count;
+
+                // Once per document, before any of its frames is composed: a
+                // layer that was a background on one frame and not the next is
+                // not a background.
+                var (theseOmitted, theseSuspected) = DecideLayers(scene, cache, opts.Background, count);
+                omitted.AddRange(theseOmitted);
+                suspected.AddRange(theseSuspected);
+                var skip = theseOmitted.Select(o => o.LayerId).ToHashSet(StringComparer.Ordinal);
+
+                // A sheet of three cycles with no way to tell where the walk ends
+                // and the run begins is data loss, and frame tags are the
+                // mechanism engines already read for exactly that. Only when there
+                // is more than one document, so a single-document sheet that
+                // declares no tags still writes no tag key.
+                if (docs.Count > 1)
+                {
+                    // The document's name, when the caller knows it. Scene.Name
+                    // is not a fallback worth much on its own: it defaults to
+                    // "Scene 1" for every document, so three cycles would arrive
+                    // in an engine as three clips called the same thing — which
+                    // is worse than no tag, because it looks deliberate.
+                    var label = names is not null && d < names.Count && !string.IsNullOrWhiteSpace(names[d])
+                        ? names[d].Trim()
+                        : string.IsNullOrWhiteSpace(scene.Name) ? $"clip {offset}" : scene.Name.Trim();
+                    tags.Add(new SheetTag
+                    {
+                        Name = label,
+                        From = offset,
+                        To = offset + count - 1,
+                        Direction = "forward",
+                        // Left at the default. A whole document is a clip, and
+                        // whether that clip loops is not something the exporter
+                        // can read off the frames.
+                    });
+                }
+                if (TagsFor(scene, offset) is { } theseTags) tags.AddRange(theseTags);
+                if (EventsFor(scene, offset) is { } theseEvents) events.AddRange(theseEvents);
+
+                for (var i = 0; i < count; i++)
+                {
+                    var image = ComposeFrame(scene, cache, i, skip);
+                    frames.Add(image);
+                    inkBounds.Add(InkBoundsOf(image));
+                    // Per frame, because a pivot belongs to the document it came
+                    // from. Taking the first document's for the whole sheet
+                    // would put every other character's feet somewhere else —
+                    // the failure Pillar 5 already records for pivots.
+                    pivots.Add(scene.Pivot);
+                    owners.Add((scene, i));
+                    provenance.Add(new SheetFrameOwner(d, i));
+                }
             }
 
-            var cells = CellsFor(opts.Trim, inkBounds, scene);
+            var cells = CellsFor(opts.Trim, inkBounds, width, height);
             var cellW = Math.Max(1, cells.Max(c => c.Width));
             var cellH = Math.Max(1, cells.Max(c => c.Height));
 
@@ -273,7 +401,7 @@ public static class SpriteSheetExporter
             // One placement list for both layouts, so everything downstream — the
             // draw loop, the sidecar, the pivot arithmetic — is written once and
             // cannot drift between the two modes.
-            var slots = new (int X, int Y, int W, int H)[count];
+            var slots = new (int X, int Y, int W, int H)[frames.Count];
 
             if (opts.Pack == SpritePack.Skyline)
             {
@@ -288,7 +416,7 @@ public static class SpriteSheetExporter
                 // here would be worse than reporting none.
                 columns = 0;
                 rows = 0;
-                for (var i = 0; i < count; i++)
+                for (var i = 0; i < frames.Count; i++)
                 {
                     var r = packed.Rects[i];
                     slots[i] = (r.X, r.Y, r.Width, r.Height);
@@ -298,11 +426,11 @@ public static class SpriteSheetExporter
             {
                 columns = opts.Columns is > 0
                     ? opts.Columns.Value
-                    : Math.Max(1, (int)Math.Ceiling(Math.Sqrt(count)));
-                rows = (int)Math.Ceiling(count / (double)columns);
+                    : Math.Max(1, (int)Math.Ceiling(Math.Sqrt(frames.Count)));
+                rows = (int)Math.Ceiling(frames.Count / (double)columns);
                 sheetW = columns * (cellW + stride * 2);
                 sheetH = rows * (cellH + stride * 2);
-                for (var i = 0; i < count; i++)
+                for (var i = 0; i < frames.Count; i++)
                 {
                     slots[i] = (
                         i % columns * (cellW + stride * 2) + stride,
@@ -317,12 +445,13 @@ public static class SpriteSheetExporter
                 ?? throw new InvalidOperationException("Could not create sprite sheet surface.");
             surface.Canvas.Clear(SKColors.Transparent);
 
-            var entries = new List<SheetFrame>(count);
-            var pivot = scene.Pivot;
-            for (var i = 0; i < count; i++)
+            var entries = new List<SheetFrame>(frames.Count);
+            for (var i = 0; i < frames.Count; i++)
             {
                 var cell = cells[i];
                 var (x, y, w, h) = slots[i];
+                var (owner, local) = owners[i];
+                var pivot = pivots[i];
 
                 // Draw the cell's slice of the frame at the cell's origin.
                 surface.Canvas.Save();
@@ -342,8 +471,15 @@ public static class SpriteSheetExporter
                     // in the untrimmed canvas, which is exactly the offset an
                     // importer needs to put the drawing back.
                     SpriteSourceSize = new Box(cell.Left, cell.Top, w, h),
-                    SourceSize = new Size(scene.Width, scene.Height),
-                    Duration = (int)Math.Round(1000.0 / Math.Max(1, scene.Fps)),
+                    // The sheet's common untrimmed extent, not the owning
+                    // document's canvas: that is what the cell was measured
+                    // against, so a smaller document's SpriteSourceSize stays
+                    // inside its SourceSize instead of overflowing it. With one
+                    // document the two are the same number.
+                    SourceSize = new Size(width, height),
+                    // Per frame, from the document it came from — one sheet can
+                    // hold a 12 fps cycle and a 24 fps one.
+                    Duration = (int)Math.Round(1000.0 / Math.Max(1, owner.Fps)),
                     // The offset that actually matters to an engine: where the
                     // pivot sits inside this cell. Measured from the pivot, so
                     // trimming cannot move the character.
@@ -354,12 +490,12 @@ public static class SpriteSheetExporter
                     // for the same reason: trimming must not be able to move
                     // where a weapon attaches. Absent, not empty, when the
                     // document declares none.
-                    Anchors = AnchorsFor(scene, i, cell),
+                    Anchors = AnchorsFor(owner, local, cell),
                     // Collision rectangles, in the cell's coordinates like
                     // everything else positional here. Absent when the document
                     // declares none, so an ordinary sheet is byte-identical to one
                     // exported before shapes existed.
-                    Shapes = ShapesFor(scene, i, cell),
+                    Shapes = ShapesFor(owner, local, cell),
                 });
             }
 
@@ -387,20 +523,25 @@ public static class SpriteSheetExporter
                     // Named in the file, so an importer can tell that dividing by
                     // columns is not going to work rather than discovering it.
                     Pack = opts.Pack == SpritePack.Skyline ? "skyline" : "grid",
-                    Fps = scene.Fps,
-                    Pivot = pivot is null ? null : new Point(pivot.X, pivot.Y),
+                    // Sheet-level fps and pivot are one value each and several
+                    // documents may disagree, so they take the first document's
+                    // and the per-frame `duration` and `pivot` stay authoritative.
+                    // An importer reading only the header gets the leading clip's
+                    // timing, which is the least surprising of the wrong answers.
+                    Fps = docs[0].Scene.Fps,
+                    Pivot = docs[0].Scene.Pivot is { } first ? new Point(first.X, first.Y) : null,
                     // Aseprite's own key and shape, because engine importers
                     // already read it. Absent when nothing is tagged.
-                    FrameTags = TagsFor(scene),
-                    Events = EventsFor(scene),
+                    FrameTags = tags.Count > 0 ? tags : null,
+                    Events = events.Count > 0 ? events : null,
                 },
             };
             File.WriteAllText(metaPath, JsonSerializer.Serialize(document, JsonOptions));
 
             return new SpriteSheetResult(
-                sheetPath, metaPath, cellW, cellH, columns, rows, count,
+                sheetPath, metaPath, cellW, cellH, columns, rows, frames.Count,
                 opts.Pack, sheetW, sheetH, entries.Sum(e => (long)e.Frame.W * e.Frame.H),
-                omitted, suspected);
+                omitted, suspected, provenance);
         }
         finally
         {
@@ -415,9 +556,16 @@ public static class SpriteSheetExporter
     /// keeps the character still. PerFrame gives each its own and relies on
     /// the recorded offsets.
     /// </summary>
-    private static List<SKRectI> CellsFor(SpriteTrim trim, List<SKRectI> ink, Scene scene)
+    /// <remarks>
+    /// Takes the canvas size rather than a <see cref="Scene"/> because a sheet
+    /// can now be packed from several documents, and <c>None</c> — the untrimmed
+    /// case — has to use a cell big enough for the largest of them. Handed the
+    /// numbers, this cannot quietly use the first document's dimensions for
+    /// everybody.
+    /// </remarks>
+    private static List<SKRectI> CellsFor(SpriteTrim trim, List<SKRectI> ink, int width, int height)
     {
-        var whole = new SKRectI(0, 0, scene.Width, scene.Height);
+        var whole = new SKRectI(0, 0, width, height);
         switch (trim)
         {
             case SpriteTrim.None:

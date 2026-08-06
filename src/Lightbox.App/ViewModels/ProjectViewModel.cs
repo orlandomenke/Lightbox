@@ -513,7 +513,36 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             : ExportPlan.For(project.Manifest, ScopeOfSelected(), PresetById);
 
     /// <summary>The sentence the export confirmation shows.</summary>
-    public string DescribeExportPlan() => ExportPlan.Describe(PlanExport());
+    /// <remarks>
+    /// <b>Staleness rides along with the count</b>, rather than getting a badge
+    /// of its own. It is the same question asked one moment earlier — *is this
+    /// worth exporting* — and the confirmation is already where an artist stops
+    /// to read a number. A separate indicator somewhere else would be a second
+    /// place to look for the same answer, and the one nobody looks at.
+    /// </remarks>
+    public string DescribeExportPlan()
+    {
+        var text = ExportPlan.Describe(PlanExport());
+        if (StaleExports() is { Count: > 0 } stale)
+        {
+            var drifted = stale.Sum(s => s.Drifted);
+            text += $". {Plural(stale.Count, "artifact")} moved on since "
+                + $"{(stale.Count == 1 ? "it was" : "they were")} last built "
+                + $"({Plural(drifted, "document")} changed).";
+        }
+        return text;
+    }
+
+    /// <summary>What the project has built that its work has since moved past.</summary>
+    /// <remarks>
+    /// Its own property as well as part of the sentence, because the studio
+    /// dashboard wants the list rather than the count — and because a caller
+    /// that only wants to know *whether* anything drifted should not have to
+    /// parse prose to find out.
+    /// </remarks>
+    public bool HasStaleExports => StaleExports().Count > 0;
+
+    private static string Plural(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 
     /// <summary>
     /// A preset by id: the project's own first, then the built-ins.
@@ -559,6 +588,135 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             if (drifted.Count > 0) stale.Add((artifact, drifted.Count));
         }
         return stale;
+    }
+
+    /// <summary>
+    /// Where a test export writes — beside the project, never over a deliverable.
+    /// </summary>
+    /// <remarks>
+    /// <b>A test is a different destination, not a smaller export.</b> If
+    /// looking at one cycle overwrote the shipped sheet, testing would break the
+    /// build, which is the opposite of what it is for. Beside the project rather
+    /// than in the system temp folder so an engine watching the project tree can
+    /// hot-reload it.
+    /// </remarks>
+    public string? TestExportFolder =>
+        Project is { } project ? Path.Combine(project.Root, "test-exports") : null;
+
+    /// <summary>
+    /// One document, exported now, under the preset that governs it — ignoring
+    /// grouping and the status filter.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Both are ignored deliberately. Grouping is about the deliverable and a
+    /// test is not one; the status filter exists to keep work in progress out of
+    /// a shipped sheet, and a test is the case where an artist explicitly wants
+    /// the work in progress.
+    /// </para>
+    /// <para>
+    /// Returns the plan rather than running it, so the caller owns the file
+    /// system — the same split <c>ExportPlan</c> makes, for the same reason:
+    /// this stays testable without writing anything.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// One artifact resolved to the things a caller needs to write it: its
+    /// documents loaded, its preset, and where it goes under a chosen folder.
+    /// </summary>
+    /// <param name="Name">
+    /// What the file is called before its extension — the scope's name, or the
+    /// document's when a loose document is its own artifact.
+    /// </param>
+    /// <param name="Names">
+    /// Each document's name, in step with <paramref name="Documents"/>. A sheet
+    /// tags its clips with these — <c>Scene.Name</c> defaults to "Scene 1" for
+    /// every document, so without them three cycles arrive in an engine as three
+    /// clips with the same name.
+    /// </param>
+    public sealed record PlannedArtifact(
+        ExportArtifact Artifact, ExportPreset Preset, IReadOnlyList<Doc> Documents,
+        IReadOnlyList<string> Names, string Name, string Path);
+
+    /// <summary>
+    /// Everything the selection's export would write, resolved and ready to run.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The other half of <see cref="PlanExport"/>. That one answers <em>what
+    /// artifacts are there</em> without touching disk, which is what the
+    /// confirmation counts; this one loads the documents and works out the
+    /// paths, which is what running needs. Kept apart so the count an artist
+    /// agrees to is computed without reading forty files.
+    /// </para>
+    /// <para>
+    /// <b>Empty artifacts are dropped here rather than earlier.</b> The plan
+    /// names them on purpose — a scope where everything is still Draft is a
+    /// legitimate state and the confirmation should say so — but writing a sheet
+    /// with no frames in it is not a useful file.
+    /// </para>
+    /// <para>
+    /// A document that cannot be read is skipped and named in
+    /// <paramref name="missing"/>, because one unreadable drawing must not take
+    /// the other thirty-nine with it.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<PlannedArtifact> ResolveExport(string folder, List<string> missing)
+    {
+        if (Project is not { } project) return [];
+
+        var planned = new List<PlannedArtifact>();
+        foreach (var artifact in PlanExport())
+        {
+            if (artifact.IsEmpty) continue;
+            // An unscoped document carries an empty preset id — Q30's migration
+            // path, and the state every old project is in — so it falls back to
+            // the first built-in. Dropping it instead is what this did first,
+            // and it made the common case export nothing at all and say nothing
+            // about why.
+            var preset = (string.IsNullOrEmpty(artifact.PresetId)
+                ? ExportPreset.BuiltIns.FirstOrDefault()
+                : PresetById(artifact.PresetId))
+                ?? ExportPreset.BuiltIns.FirstOrDefault();
+            if (preset is null) continue;
+
+            var docs = new List<Doc>();
+            var names = new List<string>();
+            foreach (var reference in artifact.Documents)
+            {
+                if (ProjectIo.LoadDocument(project, reference) is { } doc)
+                {
+                    docs.Add(doc);
+                    names.Add(reference.Name);
+                }
+                else missing.Add(reference.Name);
+            }
+            if (docs.Count == 0) continue;
+
+            var name = artifact.Scope?.Name ?? artifact.Documents[0].Name;
+            var slug = ProjectIo.Slug(name);
+            // A PNG sequence writes into a folder rather than to a file, so its
+            // "path" is a directory. Giving it a .png would make the sequence
+            // exporter create a folder with an extension.
+            var path = preset.Target == ExportTarget.PngSequence
+                ? Path.Combine(folder, slug)
+                : Path.Combine(folder, slug + ".png");
+            planned.Add(new PlannedArtifact(artifact, preset, docs, names, name, path));
+        }
+        return planned;
+    }
+
+    public (DocumentRef Document, ExportPreset Preset, string Path)? PlanTestExport()
+    {
+        if (Project is not { } project) return null;
+        if (Selected?.Animation is not { } document) return null;
+        var id = ExportScopes.PresetFor(project.Manifest, document);
+        var preset = id is null ? ExportPreset.BuiltIns.FirstOrDefault() : PresetById(id);
+        if (preset is null || TestExportFolder is not { } folder) return null;
+
+        // Per document whatever the preset says, because that is what a test is.
+        var forTest = preset with { Grouping = ExportGrouping.PerDocument, IncludeStatuses = null };
+        return (document, forTest, Path.Combine(folder, $"{ProjectIo.Slug(document.Name)}.png"));
     }
 
     // ---- scoped resources (Q30) ---------------------------------------------
