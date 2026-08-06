@@ -1141,6 +1141,154 @@ Lightbox differs from competitors in determinism + medium simulation, a combinat
 
 ---
 
+## Market-Validated Priorities: Character Sheets & Reference Integration (2026 Market Research)
+
+Based on professional animation studio workflows and competitor analysis, Lightbox has **excellent foundational character management** but critical gaps in reference usability that force animators to manage references outside the tool. Context switching costs ~4 hours per week per animator (1,200 app toggles daily, 20–23 min recovery per switch).
+
+### **Lightbox's Character Management: Strong Foundation**
+
+Already built ✅:
+- Character workspace (animations, assets, references, palette unified)
+- Character library with import/export
+- Character variants (different palette/animation overrides)
+- Reference sheets (multi-view layer stacks: Front, Side, Back, Expressions)
+- Reference strips (imported animation cycles with per-frame alignment)
+- Shared palette across character animations
+- **Deterministic rendering** (enables reference-aware brushes — unique capability)
+
+### **Critical Usability Gaps: Reference Management** ❌
+
+| Feature | Impact | Status | Competitors | Gap |
+|---------|--------|--------|-------------|-----|
+| **Reference positioning persists** | HIGH | [ ] | Harmony, Clip Studio, Aseprite save this | Lightbox loses position every session |
+| **Non-destructive annotation layer** | MEDIUM | [ ] | Zero competitors | **Pure market gap** |
+| **Character version tagging** | CRITICAL | [ ] | Enterprise tools only | Indie teams: "final_v7_REAL.psd" chaos |
+| **Expression/pose metadata** | MEDIUM | [ ] | No animation tools | Expressions scattered in files |
+| **Real-time consistency checking** | MEDIUM | [ ] | Emerging (ModelSheetAI) | Not mainstream |
+
+### **Tier 1: High-Impact Pain Relief** (Low Effort, Unblocked)
+
+| Item | Pillar | Why | Effort | Impact | Blocker |
+|------|--------|-----|--------|--------|---------|
+| **Reference positioning persists** | 1 | Repositioned every session — highest friction | Low (100 LOC) | HIGH | None |
+| **Character version tagging** | 1 | Out-of-sync versions mid-project cause rework | Low (100 LOC) | CRITICAL | None |
+| **Non-destructive annotation layer** | 1 | Artists mark up reference (proportions, anatomy); zero tools let them do this non-destructively | Medium (300 LOC) | Medium | None |
+| **Expression/pose frame metadata** | 1 | Scattered files (happy.png, sad.png); no query capability | Medium (200 LOC) | Medium | None |
+
+### **Tier 2: Differentiation** (Medium-High Effort, Blocks Next)
+
+| Item | Why | Effort | Blocker |
+|------|-----|--------|---------|
+| **Lightweight character versioning** | Indie alternative to $10k enterprise tools (Toon Boom Server, Perforce) | Medium (600 LOC) | Tier 1 version tagging |
+| **Deterministic reference-aware brushes** | Lightbox-only: brush responds to reference geometry, reproducibly (invariant 2) | High (600 LOC) | Reference geometry API |
+| **Character semantic database** | Store character as queryable data; export as FSM for game engines and AI agents | High (800 LOC) | Metadata structure |
+| **AI consistency checking** | Real-time "is this frame on-model?" verification | High (800 LOC) | Subject reading (Q16/Q17) |
+
+### **Tier 3: Emerging (2026+)**
+- AI pose estimation overlay (sketch → skeleton detection → pose transfer)
+- Multi-device reference sync (desktop + tablet)
+- MCP surface for character data (agents reason about character intent)
+
+### **Market Positioning: Where Lightbox Wins**
+
+1. **First with non-destructive reference annotation** (zero competitors)
+   - Locked layer for construction lines, proportions, anatomy notes
+   - Cannot be painted; toggled independently
+   - Not exported to sprite sheet
+
+2. **Reference positioning that persists** (matches competitors, quick win)
+   - Harmony, Clip Studio, Aseprite all save position
+   - Lightbox should too (100 LOC)
+
+3. **Indie-friendly character versioning** (market gap between freelance chaos and enterprise $10k)
+   - Lightweight Git-like tagging for character sheets
+   - No Perforce/Toon Boom Server needed
+
+4. **Deterministic reference-aware brushes** (Lightbox-only capability)
+   - Brush behavior responds to reference geometry
+   - Same reference + same stroke → same output (reproducible)
+   - No other tool can do this without breaking invariant 2
+
+### **Roadmap Items to Add**
+
+**Pillar 1 (Character-based projects) — Reference Usability**
+
+1. **New Item**: "Reference positioning and scale persist across sessions" [ ]
+   - Serialize reference position/scale/rotation/opacity to character metadata
+   - Restore automatically on file open
+   - Effort: 100–150 LOC
+   - Evidence: ReferencePositionTests, PersistentStateTests, RestoringReferenceRecoversState
+
+2. **New Item**: "Non-destructive locked annotation layer on reference" [ ]
+   - Layer on top of reference for construction lines, proportions, notes
+   - Locked against painting but editable for annotations
+   - Toggle visibility independently
+   - Not exported to sprite sheet or game engine
+   - Effort: 300–400 LOC
+   - Evidence: AnnotationLayerTests, LockedLayerTests, AnnotationNotExportedToSpriteSheet
+
+3. **New Item**: "Character sheet version tagging and frame-to-version linking" [ ]
+   - Tag character sheets with version (v1, v2, v3)
+   - Link animation frames to character version ("use v2 for frames 1–50")
+   - Export warning if frame uses outdated version
+   - Effort: 150–200 LOC
+   - Evidence: CharacterVersionTaggingTests, FrameVersionLinkTests, OutdatedVersionWarnings
+
+4. **New Item**: "Expression and pose metadata tagging on animation frames" [ ]
+   - Tag frames with expression/emotion/action (happy, running, idle, etc.)
+   - Query frames by expression type
+   - Export as structured data for game FSM and AI agents
+   - Effort: 200–300 LOC
+   - Evidence: ExpressionTaggingTests, FrameQueryTests, ExpressionMetadataExport
+
+**Pillar 1 (Character-based projects) — Team Collaboration**
+
+5. **New Item**: "Lightweight character sheet versioning for team distribution" [ ]
+   - Simple Git-like tracking for character versions
+   - Tag, compare versions, distribute updates to team
+   - Per-animator pull of latest version with warning on outdated
+   - Effort: 600–800 LOC
+   - Evidence: CharacterVersioningTests, TeamDistributionTests, VersionComparisonTests
+   - Blocker: Character version tagging (item #3 above)
+
+**Pillar 4 (Animation-aware drawing tools) — Reference-Aware Rendering**
+
+6. **New Item**: "Reference geometry influences brush behavior deterministically" [ ]
+   - Brush responds to reference position/geometry
+   - Stroke spacing adjusts based on distance from reference feature
+   - Stroke rotation aligns with reference angle
+   - Same reference + same stroke input → same output (reproducible)
+   - Effort: 600–800 LOC
+   - Evidence: ReferenceAwareBrushTests, DeterministicReferenceTests, SpatialSeedingTests
+   - Unique to Lightbox (depends on invariant 2: no randomness)
+
+**AI Assistance — Consistency & Semantics**
+
+7. **New Item**: "AI-powered on-model consistency checking" [ ]
+   - Background process compares current frame against character master sheet
+   - Flags inconsistencies (color drift, proportion deviation, missing features)
+   - Shows consistency score per frame (0–100%)
+   - Highlights problem regions for artist correction
+   - Effort: 800–1200 LOC
+   - Evidence: ConsistencyCheckTests, FrameComparisonTests, ScoreCalibrationTests
+   - Blocker: Subject reading (Q16, Q17)
+
+8. **New Item**: "Character as semantic database (queryable, exportable)" [ ]
+   - Store character metadata as structured data (poses, expressions, proportions, versions)
+   - Query: "all frames where character is happy" or "all walk cycle frames"
+   - Export as data structure (JSON, FSM format) for game engines
+   - Enable MCP surface for agents to reason about character intent
+   - Effort: 800–1200 LOC
+   - Evidence: SemanticDatabaseTests, QueryTests, ExportFormatTests, MCPSurfaceTests
+
+### **Why This Order Matters**
+
+1. **Tier 1 first** — Four items, 550–700 LOC total, unblocked, address highest pain (reference repositioning)
+2. **Tier 2 second** — Differentiation and market positioning; some Tier 1 dependencies (version tagging blocks versioning)
+3. **Tier 3 future** — Emerging AI technologies; research-stage tooling (Sketch2PoseNet 2025)
+
+---
+
 ## How this file stays true
 
 - `scripts/roadmap.py check` runs in the improvement loop's verify step and in
