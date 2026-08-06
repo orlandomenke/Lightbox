@@ -1,0 +1,10 @@
+# The generated codemap index is derived from the whole solution, so every
+# branch that touches code rewrites it end to end and two branches always
+# collide here. Resolving it is never a hand-merge — the file comes from the
+# merged tree, not from either parent — so a driver does it instead of a person.
+# See scripts/codemap-merge.sh; the driver is registered by
+# .claude/hooks/session-start.sh. A clone without the hook is no worse off:
+# git falls back to an ordinary conflict when the driver is unregistered, which
+# is exactly what happened before this existed.
+.claude/codemap/INDEX.md    merge=codemap
+.claude/codemap/FEATURES.md merge=codemap

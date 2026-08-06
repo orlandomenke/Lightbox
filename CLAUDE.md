@@ -305,6 +305,20 @@ branches collide there by construction. Resolving it is mechanical and the
 resolution is never a hand-merge: take either side and run
 `python3 scripts/codemap.py build`, which derives the file from the merged tree.
 
+**That sentence is now executed rather than followed.** `.gitattributes` points
+those two files at a `codemap` merge driver (`scripts/codemap-merge.sh`) that
+rebuilds from the merged tree, registered by the session-start hook because git
+refuses to run a driver a repository declares for itself. Two things it does not
+do, both worth knowing before relying on it:
+
+- **GitHub does not run merge drivers.** A pull request whose only conflict is
+  here still says it has conflicts, and still needs the base merged in locally.
+  What went away is the hand-resolution at every step of a rebase.
+- **It rebuilds only when the build succeeds.** Mid-merge, source files can
+  still carry conflict markers, and an index parsed from those would be wrong
+  rather than stale. The driver falls back to keeping one side and says so; the
+  staleness check at session start picks it up.
+
 **`python3 scripts/branchstate.py` answers "would this merge?" before a reviewer
 does**, and separates the two kinds of conflict — authored files, which need a
 decision, from the generated index, which needs a rebuild. A `PostToolUse` hook
