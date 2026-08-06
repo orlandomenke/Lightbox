@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = _vm;
+        Canvas.SetSelectionManager(_vm.Selection);
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
         Canvas.PaintStarted += _vm.BeginStroke;  // (x, y, pressure, alt-erases, shift-joins)
@@ -39,6 +40,7 @@ public partial class MainWindow : Window
         Canvas.PolygonVertexAdded += _vm.AddPolygonVertex;
         Canvas.PolygonCompleted += _vm.CompletePolygon;
         _vm.SelectionChanged += () => Canvas.SetSelectionOverlay(_vm.SelectionContours, _vm.PolygonInProgress);
+        _vm.Selection.SelectionChanged += Canvas.InvalidateVisual; // Redraw when object selection changes
         _vm.LazyBrushMoved += (x, y) => Canvas.SetLazyAnchor(x, y);
         _vm.LazyBrushCleared += () => Canvas.SetLazyAnchor(null, null);
         Canvas.InputDiagnostic += text => _vm.PenDiagnostic = text;

@@ -88,6 +88,13 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ## Open
 
+<<<<<<< HEAD
+=======
+>>>>>>> origin/main
+<<<<<<< HEAD
+=======
+>>>>>>> origin/main
+
 ### ai
 
 - [ ] **B32** `P3` `ai` A third of the Windows download is a second copy of .NET, because the MCP server targets net10.0 `evidence: manual`
@@ -175,53 +182,12 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### project
 
-<<<<<<< HEAD
-- [ ] **B87** `P2` `project` No permanent delete option for files and folders `evidence: ProjectDockerTests, DeletedFilesCanBePermanentlyRemovedFromDisk, DeletedFoldersWithFilesPromptForConfirmation, EmptyFoldersAreDeletedWithoutPrompt, MissingFilesAreTrackedAndNotReloadedOnNextOpen`
-  - Reported: the RMB context menu only offers "remove from project" which keeps files on disk. There is no option to permanently delete from both project and disk, and removed files should be marked so they are not unwantedly reloaded on subsequent checks.
-  - Two operations are needed: remove from project (keeps file on disk, marks it as missing) and delete permanently (removes from project and disk). The permanent delete should show a confirmation prompt for folders containing files, but empty folders can be deleted without prompting.
-  - Cost: M
-
-- [ ] **B86** `P2` `project` Project docker is missing drag/drop, subfolder creation, and collapse/expand hierarchy `evidence: ProjectDockerTests, FoldersCanBeDraggedWithinProject, DocumentsCanBeDraggedWithinProject, SubfoldersCanBeCreatedWithinFolders, FoldersCanBeCollapsedAndExpanded`
-  - Reported: within the project docker, the user expects to be able to drag and drop folders and documents to organize them, create subfolders within existing folders, and collapse/expand folders to manage the hierarchy.
-  - Current behaviour is a flat list with no hierarchy support, limiting how artists can organize their projects.
-  - Cost: M
-
-- [ ] **B85** `P2` `project` Documents created in project subfolders are placed in top-level Documents folder instead `evidence: ProjectDockerTests, DocumentsCreatedInFoldersAppearInCorrectFolder, FolderStructureReflectsFileSystemHierarchy`
-  - Reported: when creating a document through the project docker within a subfolder, it ignores the location and places the document in a top-level "Documents" folder instead.
-  - This breaks the ability to organize documents by folder within a project.
-  - Cost: M
-
-- [ ] **B84** `P2` `project` Project docker creates a "project" folder in the wrong location on new project `evidence: ProjectCreationTests, NewProjectFolderStructureIsCorrect, AllFoldersAppearAtProjectRoot`
-  - Reported: when creating a new project, a folder named "project" is created and appears within the Characters folder instead of at the project root.
-  - Expected behaviour: all top-level folders created in the project folder should appear at the project root, not nested within other folders.
-  - Cost: S
-
-- [ ] **B83** `P2` `project` New project is created with unwanted default subfolders `evidence: ProjectCreationTests, NewProjectHasCorrectDefaultStructure, NoUnwantedAssetFoldersCreated, AllDefaultFoldersAreListedInProjectFile`
-  - Reported: when creating a new project, default subfolders are created that the user did not request — specifically **characters**, **shots**, **scene**, and **animation** folders. The palette folder with default swatches should exist, but work-related folders should only be created when explicitly requested by the user.
-  - Additionally, every top folder created in the project folder should be included in Project.lbproj, and the project docker should show only system-required defaults, not asset folders the user must create themselves.
-  - The root cause is that asset-organization folders are being created as defaults when they should be on-demand.
-  - Cost: M
-
-- [ ] **B76** `P2` `project` A new document is written to disk the moment it is created `evidence: UnsavedDocumentTests, ANewDocumentIsNotOnDiskUntilItIsSaved, AnUnsavedDocumentIsShownAsPendingInTheDocker, DiscardingAnUnsavedDocumentRemovesItFromTheDocker`
-  - Reported: creating a new document writes it immediately, so a file exists before the artist has decided anything — including a name, which is B65 arriving from the other direction.
-  - The reporter specified the whole behaviour, and it is coherent enough to build to: a new document is **not** on disk; a change raises the unsaved badge; closing it or the application opens the unsaved-changes dialog; Save opens Save As because there is no file yet.
-  - **And they specified what the project docker does with it, which is the part that needs care.** An unsaved document is still *listed* — greyed, badged, with a tooltip saying it is not on disk — and turns normal when saved. Discarding it removes the row. That is a third row state beside B61's `Missing`, and the two must not be conflated: `Missing` means *this was on disk and is gone*, pending means *this was never written*. B61's `Dirty` check already separates them, and this is the entry that gives the second state a face.
-  - **Deferred by the owner, 2026-08-04: "B76, B80 can wait as we are not production ready."** Recorded as a *scheduling* decision and not a re-ranking — the priority stays where the severity x reach matrix puts it, for the same reason `CLAUDE.md` keeps cost out of the matrix: folding circumstance into the rank is how the important bugs stop being picked. What changes is the order somebody works in, and that is the owner's to set. Revisit before anything ships to a second person, because both of these are alarming to a user and merely inconvenient to the person who knows they are there.
-  - Folders stay immediate — the reporter is explicit that folders are written in real time. Cost: L
-
-- [ ] **B65** `P2` `project` Creating a folder or a file never asks for a name, so everything arrives numbered `evidence: ProjectCreatePromptTests, CreatingAnItemAsksForItsNameFirst, NothingIsWrittenToDiskIfTheNameIsCancelled`
-  - Reported: creating from the project docker writes straight to disk with a default name, so a second one becomes the same name numbered, and the artist renames afterwards — except B64 says they cannot rename from the docker at all. The two together mean a project fills with `Untitled`, `Untitled (2)`, `Untitled (3)` and the only way out is a file manager.
-  - Fix: prompt before writing, and write nothing if the prompt is cancelled. The ordering is the whole bug — a name asked for *after* the file exists is a rename, which is B64.
-  - **Fixed.** All five creation paths take a name (`AddItemNamed`), the view asks before calling, and cancelling creates nothing. `SuggestedNameFor` prefills the box with the number the item would have been called anyway, kept beside the fallback so the suggestion and the default cannot drift — a box that differs from what Enter produces is worse than an empty one. The old `AddItemCommand` still means what it did, so nothing that already created an item changed.
-  - **It cost a test, and that is worth recording rather than hiding.** `WorkspaceTests.TheNewMenuActuallyMakesThings` clicked each menu entry and asserted something appeared — coverage of exactly B63's failure, a menu item wired to nothing. A modal prompt cannot be answered headlessly, so the click half now asserts only that the entries exist and are enabled, and the creation half moved down to the view model. The gap left behind is real: an entry that prompts and then creates nothing would pass both halves, and only a person would see it. Cost: S
-=======
 - [ ] **B99** `P2` `project` A new document is invisible: no badge, no docker row, no prompt on close, and a project save skips it `evidence: NewDocumentTests, ANeverSavedDocumentShowsTheBadge, ClosingWithUnsavedWorkPromptsEvenWithNoFile, ANewDocumentAppearsInTheProjectDocker`
   - Reported 2026-08-06 as two findings that are one. New documents come up *Untitled*, *Untitled (1)* with **no badge**; closing them prompts for nothing; `Ctrl+S` correctly opens Save as…, proving the app knows there is no file. And a new single file added under a project does not index into the docker.
   - **A document created while a project is open is in limbo.** No file on disk, no manifest entry, no docker row, `Source` null — and `SaveProject` clears only `if (tab.Source is not null)`, so it is neither saved nor reported. This is also **B79's third suspect**, arriving from the other side.
   - **It is a hole in B80, which is worse than the badge.** The close prompt collects `Tabs.Where(t => t.IsDirty)`, and a never-saved document is not dirty — so the one document with *nothing* on disk is the one the close handler will not mention. B80 shipped with this; the entry is here rather than reopened because the fix is the predicate, not the handler.
   - **Half landed, half did not, and saying so is the point.** The badge and the close prompt are built and guarded by `ANeverSavedDocumentBadgesButOnlyPromptsOnceDrawnIn`. **The docker-indexing half is not built**: a document created while a project is open still does not appear as a row. This entry stays open for that, because a bug half-fixed and ticked is worse than one left open — it is the thing that stops the ledger being trustworthy.
   - **The owner's decision, 2026-08-06: a new file badges, because it has not been saved at all.** Recorded with one nuance to settle when it is built — the badge and the close prompt want *different* predicates. Badge means "differs from disk", which a new empty document does. Prompting means "there is work to lose", which it does not, and File ▸ New followed by a close should not nag. B76's pending-versus-missing split is the same distinction: worth knowing is not worth acting on.
->>>>>>> origin/main
 
 - [ ] **B81** `P3` `project` Two questions are called Q20 and two are called Q21, so a cross-reference can land on the wrong one `evidence: manual`
   - Repro: `python3 scripts/bugs.py check` already reports it — `DUPLICATE Q Q20 used 2 times`. `QUESTIONS.md` has **Q20** at both *"What frame bounds does an Asset project export from an unbounded canvas?"* and *"When a textured line is re-shaped, may its texture change?"*, and **Q21** at both *"Is the infinite canvas a document property or a project-type default?"* and *"How big does a reference the model has to read need to be?"*.
@@ -230,19 +196,10 @@ decision goes to `QUESTIONS.md` and is left alone.
   - Fix: renumber the later pair to Q26/Q27 (highest is Q25) and update the seven cross-references — `BUGS.md`, `ROADMAP.md`, `docs/DESIGN-ai-payload.md`, `docs/DESIGN-infinite-canvas.md`, `src/Lightbox.Raster/TileStore.cs`. Which of each pair keeps its number is a judgement about which is more cited, so it wants an owner rather than a guess. Then make `bugs.py check`'s duplicate report fail the gate instead of only printing, or it recurs. Cost: S
   - P3 because it misleads a reader rather than breaking a build, and the affected references are all in documents an agent reads before working. Left unfixed it gets worse monotonically: every new citation of Q20 or Q21 is another one that has to be disambiguated by hand. The infinite-canvas references were qualified in place as a stopgap, which is a workaround and is not the fix.
 
-<<<<<<< HEAD
 - [ ] **B64** `P3` `project` Nothing in the project docker can be renamed `evidence: RenameProjectItem, ProjectDockerTests, RenamingAnItemRenamesItOnDisk, ARenameThatWouldCollideIsRefusedWithItsReason`
   - There is no rename at all — not in the context menu, not by slow double-click, not by F2. A docker that creates and deletes files but cannot rename one sends the artist to a file manager for an operation that belongs where the files are listed, and B61 means the docker will not notice the result until it is reopened.
   - The rename has to reach disk, which makes it the first docker operation that can fail for reasons the app does not control — a lock, a permission, a name that is legal in the tree and not on the filesystem. Refusing with the reason is part of the fix rather than a nicety. Cost: M
 
-- [ ] **B63** `P3` `project` Most of the create-in-project menu produces nothing, and it does not say which entries are folders `evidence: ProjectCreateMenuTests, EveryCreateEntryProducesSomethingOnDisk, TheCreateMenuSaysWhichEntriesAreFolders`
-  - Reported: of the entries in the "create something in this project" dropdown, only **Character** and **Document** actually produce a file. The rest are silent no-ops.
-  - A menu item that does nothing is worse than an absent one: the artist cannot tell whether the click missed, the feature is broken, or the thing was created somewhere they cannot see. Same shape as B2 and as the cursor item in Pillar 0 — silence is indistinguishable from a broken app.
-  - The second complaint is that the list does not distinguish a folder from a work file, so the menu reads as an undifferentiated pile. **Q22 is answered (a): *Document* keeps its name and only the grouping is fixed**, so both halves of this entry are now ordinary work with nothing waiting on a decision.
-  - Fix: either implement each entry or remove it, and never leave one that resolves to nothing. Cost: M
-
-=======
->>>>>>> origin/main
 ### ui
 
 - [ ] **B100** `P3` `ui` Undo history does not survive a save, and the owner wants it to — blocked on the step record becoming data `evidence: SerializableEditStep, UndoPersistence, UndoHistoryTests, UndoSurvivesAReload, RestoringUndoDoesNotMarkTheDocument`
@@ -665,12 +622,22 @@ test reopens the bug.
   - Reported: the RMB context menu only offers "remove from project" which keeps files on disk. There is no option to permanently delete from both project and disk, and removed files should be marked so they are not unwantedly reloaded on subsequent checks.
   - Two operations are needed: remove from project (keeps file on disk, marks it as missing) and delete permanently (removes from project and disk). The permanent delete should show a confirmation prompt for folders containing files, but empty folders can be deleted without prompting.
   - Cost: M
+
+- [x] **B87** `P2` `project` No permanent delete option for files and folders `evidence: ProjectDockerTests, DeletedFilesCanBePermanentlyRemovedFromDisk, DeletedFoldersWithFilesPromptForConfirmation, EmptyFoldersAreDeletedWithoutPrompt, MissingFilesAreTrackedAndNotReloadedOnNextOpen`
+  - Reported: the RMB context menu only offers "remove from project" which keeps files on disk. There is no option to permanently delete from both project and disk, and removed files should be marked so they are not unwantedly reloaded on subsequent checks.
+  - Two operations are needed: remove from project (keeps file on disk, marks it as missing) and delete permanently (removes from project and disk). The permanent delete should show a confirmation prompt for folders containing files, but empty folders can be deleted without prompting.
+  - Cost: M
   - **Fixed.** Two entries on the context menu, deliberately not one gesture with a modifier: **Remove from project** keeps the file, **Delete permanently…** does not. `ProjectIo.DeleteInProject` does the disk work and `ProjectViewModel.DeleteSelectedPermanently` the manifest work.
   - **The containment check is why that method exists.** Every path it is given comes from the manifest, which is plain JSON a person or an agent can edit, so `../../../Documents` is one careless entry away from an operation that deletes a directory tree. The full path is resolved and compared against the resolved root, and the comparison includes the separator — `Production.lbproj-old` starts with `Production.lbproj`, so a plain `StartsWith` would delete a sibling. Both guards were verified by removing the check and watching the two tests fail with a real bystander file on disk.
   - The confirmation is split so only the dialog is manual: `DeleteNeedsConfirmation` and `DeleteWarning` are properties the tests read, and the window only puts them on screen. The warning names the size of what is going — "Delete “Art” and the 1 folder and 1 document inside it?" — because *are you sure?* tells somebody nothing they can weigh. **Cancel is the default button**, which is the opposite of B75's save dialog and right for the same reason: Enter should land on the outcome that cannot destroy anything.
   - **Removing a folder returns its documents to the project root** rather than taking them with it. A drawing that vanished from every row because a folder was removed is a drawing that is gone as far as anyone can tell, and "remove" never touches disk.
   - **`MissingFilesAreTrackedAndNotReloadedOnNextOpen` needed no new machinery, and is worth having anyway.** The manifest *is* the index and nothing scans the folder, so a removed document already stays removed — the test pins a property that a later directory scan would silently break, and the folder tree makes such a scan tempting.
   - **One live crash found and fixed on the way.** `RemoveSelected` read `row.Character!` for anything that was not a document, so a scene row was a null reference — pre-existing, and made far easier to reach the moment folder rows existed. Folders are handled and the scene case reports rather than throws.
+
+- [x] **B86** `P2` `project` Project docker is missing drag/drop, subfolder creation, and collapse/expand hierarchy `evidence: ProjectDockerTests, FoldersCanBeDraggedWithinProject, DocumentsCanBeDraggedWithinProject, SubfoldersCanBeCreatedWithinFolders, FoldersCanBeCollapsedAndExpanded`
+  - Reported: within the project docker, the user expects to be able to drag and drop folders and documents to organize them, create subfolders within existing folders, and collapse/expand folders to manage the hierarchy.
+  - Current behaviour is a flat list with no hierarchy support, limiting how artists can organize their projects.
+  - Cost: M
 
 - [x] **B86** `P2` `project` Project docker is missing drag/drop, subfolder creation, and collapse/expand hierarchy `evidence: ProjectDockerTests, FoldersCanBeDraggedWithinProject, DocumentsCanBeDraggedWithinProject, SubfoldersCanBeCreatedWithinFolders, FoldersCanBeCollapsedAndExpanded`
   - Reported: within the project docker, the user expects to be able to drag and drop folders and documents to organize them, create subfolders within existing folders, and collapse/expand folders to manage the hierarchy.
@@ -685,8 +652,18 @@ test reopens the bug.
   - Reported: when creating a document through the project docker within a subfolder, it ignores the location and places the document in a top-level "Documents" folder instead.
   - This breaks the ability to organize documents by folder within a project.
   - Cost: M
+
+- [x] **B85** `P2` `project` Documents created in project subfolders are placed in top-level Documents folder instead `evidence: ProjectDockerTests, DocumentsCreatedInFoldersAppearInCorrectFolder, FolderStructureReflectsFileSystemHierarchy`
+  - Reported: when creating a document through the project docker within a subfolder, it ignores the location and places the document in a top-level "Documents" folder instead.
+  - This breaks the ability to organize documents by folder within a project.
+  - Cost: M
   - **Fixed.** `ProjectViewModel.TargetFolder` is the selected folder, or the folder a selected *document* sits in — "new document" beside a document means beside it. `AddLooseDocument` files the new reference there through `ProjectFolders.FileDocument`, which sets `FolderId` and derives the path from the folder chain. With nothing selected the old behaviour stands and the document goes to `documents/`, which `WithNothingSelectedADocumentStillGoesToTheProjectRoot` guards — "put it where I am" must not become "put it wherever I last touched".
   - `FolderStructureReflectsFileSystemHierarchy` is the one that matters: every other assertion reads the manifest, and a manifest that is right while the save writes elsewhere is exactly what this bug was. It saves, checks the file exists at `episode-2/act-1/sc-014.lightbox.json`, reopens the project and finds the document in the same folder.
+
+- [x] **B84** `P2` `project` Project docker creates a "project" folder in the wrong location on new project `evidence: ProjectCreationTests, NewProjectFolderStructureIsCorrect, AllFoldersAppearAtProjectRoot`
+  - Reported: when creating a new project, a folder named "project" is created and appears within the Characters folder instead of at the project root.
+  - Expected behaviour: all top-level folders created in the project folder should appear at the project root, not nested within other folders.
+  - Cost: S
 
 - [x] **B84** `P2` `project` Project docker creates a "project" folder in the wrong location on new project `evidence: ProjectCreationTests, NewProjectFolderStructureIsCorrect, AllFoldersAppearAtProjectRoot`
   - Reported: when creating a new project, a folder named "project" is created and appears within the Characters folder instead of at the project root.
@@ -697,11 +674,24 @@ test reopens the bug.
   - Reported: when creating a new project, default subfolders are created that the user did not request — specifically **characters**, **shots**, **scene**, and **animation** folders. The palette folder with default swatches should exist, but work-related folders should only be created when explicitly requested by the user.
   - Additionally, every top folder created in the project folder should be included in Project.lbproj, and the project docker should show only system-required defaults, not asset folders the user must create themselves.
   - The root cause is that asset-organization folders are being created as defaults when they should be on-demand.
+  - Cost: M
+
+- [x] **B83** `P2` `project` New project is created with unwanted default subfolders `evidence: ProjectCreationTests, NewProjectHasCorrectDefaultStructure, NoUnwantedAssetFoldersCreated, AllDefaultFoldersAreListedInProjectFile`
+  - Reported: when creating a new project, default subfolders are created that the user did not request — specifically **characters**, **shots**, **scene**, and **animation** folders. The palette folder with default swatches should exist, but work-related folders should only be created when explicitly requested by the user.
+  - Additionally, every top folder created in the project folder should be included in Project.lbproj, and the project docker should show only system-required defaults, not asset folders the user must create themselves.
+  - The root cause is that asset-organization folders are being created as defaults when they should be on-demand.
   - **Fixed, in two halves that read as one sentence but are different problems.** The first half was `NewProject` calling `AddCharacter(project, name)` — one line that invented a character named after the project and filed the artist's open drawing under it as an animation. Removing it leaves `documents/` and `palettes/`, and `NewProjectHasCorrectDefaultStructure` asserts that as an **exact set** rather than as a list of absences, because a list of things that must not appear passes for ever while a new one is added beside it.
   - The second half — *"every top folder created in the project folder should be included in Project.lbproj"* — is read as **accountability, not as a literal list**, and the reading is the part worth arguing with. A probe of a rich project found `art`, `characters`, `documents`, `palettes`, `scenes` on disk and **every one of them already traceable from `project.json`**, just through different keys: `folders`, `characters`, `scenes`, `documents`, `palettes`. Nothing was unexplained; the requirement was already met in substance.
   - Literally listing the system folders in `Folders` would have made `palettes` and `documents` ordinary rows in the artist's tree — renameable, draggable, deletable — which then needs a `IsSystem` flag and a special case at every operation that touches a folder. That is a worse file format bought with a worse UI, to satisfy the letter of a sentence whose point was *nothing unexplained on disk*.
   - What enforces it instead is `ProjectIo.UnaccountedFolders`: top-level directories that are neither a name Lightbox owns (`SystemFolders`, declared once) nor the slug of a root-level manifest folder. `AllDefaultFoldersAreListedInProjectFile` builds a project with one of everything — folder, character, animation, scene, shot — asserts nothing is unaccounted, and then creates a `mystery` directory to prove the check bites. Running it against a rich project rather than an empty one is deliberate: the bug was a directory appearing as a *side effect of creating something else*, which an empty project cannot show.
   - Cost: M
+
+- [x] **B76** `P2` `project` A new document is written to disk the moment it is created `evidence: UnsavedDocumentTests, ANewDocumentIsNotOnDiskUntilItIsSaved, AnUnsavedDocumentIsShownAsPendingInTheDocker, DiscardingAnUnsavedDocumentRemovesItFromTheDocker`
+  - Reported: creating a new document writes it immediately, so a file exists before the artist has decided anything — including a name, which is B65 arriving from the other direction.
+  - The reporter specified the whole behaviour, and it is coherent enough to build to: a new document is **not** on disk; a change raises the unsaved badge; closing it or the application opens the unsaved-changes dialog; Save opens Save As because there is no file yet.
+  - **And they specified what the project docker does with it, which is the part that needs care.** An unsaved document is still *listed* — greyed, badged, with a tooltip saying it is not on disk — and turns normal when saved. Discarding it removes the row. That is a third row state beside B61's `Missing`, and the two must not be conflated: `Missing` means *this was on disk and is gone*, pending means *this was never written*. B61's `Dirty` check already separates them, and this is the entry that gives the second state a face.
+  - **Deferred by the owner, 2026-08-04: "B76, B80 can wait as we are not production ready."** Recorded as a *scheduling* decision and not a re-ranking — the priority stays where the severity x reach matrix puts it, for the same reason `CLAUDE.md` keeps cost out of the matrix: folding circumstance into the rank is how the important bugs stop being picked. What changes is the order somebody works in, and that is the owner's to set. Revisit before anything ships to a second person, because both of these are alarming to a user and merely inconvenient to the person who knows they are there.
+  - Folders stay immediate — the reporter is explicit that folders are written in real time. Cost: L
 
 - [x] **B76** `P2` `project` A new document is written to disk the moment it is created *(rescoped 2026-08-06 — see below)* `evidence: UnsavedDocumentTests, ANewDocumentIsNotOnDiskUntilItIsSaved, AnUnsavedDocumentIsShownAsPendingInTheDocker, DiscardingAnUnsavedDocumentRemovesItFromTheDocker`
   - Reported: creating a new document writes it immediately, so a file exists before the artist has decided anything — including a name, which is B65 arriving from the other direction.
@@ -727,6 +717,12 @@ test reopens the bug.
   - What proves it instead is the seam the decision actually runs through. `AReferenceSheetWouldBeUnsaved` is `FilePath is null && Source is null` — never saved *and* not in a project — and `ReferenceSheetNeedsAFile` is what the window listens to. A document inside a project is saved by the project, so a sheet created there prompts for nothing, which is the report's "in a project, a character sheet is directly added".
   - Ordering is the whole fix: name, create the sheet, *then* offer the save. The name comes before anything is written (B65's rule on this surface) and the save comes after the sheet exists, so cancelling it keeps the work rather than discarding it.
   - **The two dialogs are not covered headlessly**, and that is a real limit rather than an oversight — synthetic input through Xvfb is unreliable here, which is why `evidence: manual` exists in this file at all. The tests pin the decision; a human confirms the name box and the save box appear in that order and that cancelling the save leaves the sheet.
+
+- [x] **B65** `P2` `project` Creating a folder or a file never asks for a name, so everything arrives numbered `evidence: ProjectCreatePromptTests, CreatingAnItemAsksForItsNameFirst, NothingIsWrittenToDiskIfTheNameIsCancelled`
+  - Reported: creating from the project docker writes straight to disk with a default name, so a second one becomes the same name numbered, and the artist renames afterwards — except B64 says they cannot rename from the docker at all. The two together mean a project fills with `Untitled`, `Untitled (2)`, `Untitled (3)` and the only way out is a file manager.
+  - Fix: prompt before writing, and write nothing if the prompt is cancelled. The ordering is the whole bug — a name asked for *after* the file exists is a rename, which is B64.
+  - **Fixed.** All five creation paths take a name (`AddItemNamed`), the view asks before calling, and cancelling creates nothing. `SuggestedNameFor` prefills the box with the number the item would have been called anyway, kept beside the fallback so the suggestion and the default cannot drift — a box that differs from what Enter produces is worse than an empty one. The old `AddItemCommand` still means what it did, so nothing that already created an item changed.
+  - **It cost a test, and that is worth recording rather than hiding.** `WorkspaceTests.TheNewMenuActuallyMakesThings` clicked each menu entry and asserted something appeared — coverage of exactly B63's failure, a menu item wired to nothing. A modal prompt cannot be answered headlessly, so the click half now asserts only that the entries exist and are enabled, and the creation half moved down to the view model. The gap left behind is real: an entry that prompts and then creates nothing would pass both halves, and only a person would see it. Cost: S
 
 - [x] **B65** `P2` `project` Creating a folder or a file never asks for a name, so everything arrives numbered `evidence: ProjectCreatePromptTests, CreatingAnItemAsksForItsNameFirst, NothingIsWrittenToDiskIfTheNameIsCancelled`
   - Reported: creating from the project docker writes straight to disk with a default name, so a second one becomes the same name numbered, and the artist renames afterwards — except B64 says they cannot rename from the docker at all. The two together mean a project fills with `Untitled`, `Untitled (2)`, `Untitled (3)` and the only way out is a file manager.
@@ -789,6 +785,12 @@ test reopens the bug.
   - Characters and scenes rename in the panel only, and deliberately: their folders are `characters/<slug>`, and moving those is **Q30**.
   - The first anchor was `RenameProjectItem`, which named nothing and never could — it was written before the work as a guess at a type. Pointed at `RenameProjectItemTests`, which is what got built. Correcting an anchor to name the thing that exists is the system working; leaving one that cannot resolve is a box that can never be ticked.
   - **A real bug surfaced on the way, and it made three earlier tests vacuous.** An empty folder never existed on disk — a directory only appeared when a document was written into it. So renaming one moved nothing and *succeeded*, deleting one deleted nothing and *reported success*, and B87's `EmptyFoldersAreDeletedWithoutPrompt` passed by asserting the absence of something that was never there. `ProjectIo.Save` now creates a directory for every folder in the manifest.
+
+- [x] **B63** `P3` `project` Most of the create-in-project menu produces nothing, and it does not say which entries are folders `evidence: ProjectCreateMenuTests, EveryCreateEntryProducesSomethingOnDisk, TheCreateMenuSaysWhichEntriesAreFolders`
+  - Reported: of the entries in the "create something in this project" dropdown, only **Character** and **Document** actually produce a file. The rest are silent no-ops.
+  - A menu item that does nothing is worse than an absent one: the artist cannot tell whether the click missed, the feature is broken, or the thing was created somewhere they cannot see. Same shape as B2 and as the cursor item in Pillar 0 — silence is indistinguishable from a broken app.
+  - The second complaint is that the list does not distinguish a folder from a work file, so the menu reads as an undifferentiated pile. **Q22 is answered (a): *Document* keeps its name and only the grouping is fixed**, so both halves of this entry are now ordinary work with nothing waiting on a decision.
+  - Fix: either implement each entry or remove it, and never leave one that resolves to nothing. Cost: M
 
 - [x] **B63** `P3` `project` Most of the create-in-project menu produces nothing, and it does not say which entries are folders `evidence: ProjectCreateMenuTests, EveryCreateEntryProducesSomethingOnDisk, TheCreateMenuSaysWhichEntriesAreFolders`
   - Reported: of the entries in the "create something in this project" dropdown, only **Character** and **Document** actually produce a file. The rest are silent no-ops.

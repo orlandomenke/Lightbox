@@ -141,6 +141,14 @@ public sealed class CanvasControl : Control
     // The smoothed brush anchor while a live-smoothing stroke is active (doc space).
     private (double X, double Y)? _lazyAnchor;
 
+    /// <summary>Selection manager for object selection feedback.</summary>
+    private ViewModels.SelectionManager? _selectionManager;
+
+    /// <summary>Set the selection manager for rendering object selection feedback.</summary>
+    public void SetSelectionManager(ViewModels.SelectionManager selectionManager)
+    {
+        _selectionManager = selectionManager;
+    }
 
     /// <summary>Alt was held when this stroke began, so it erases with the current brush.</summary>
     private bool _erasingThisStroke;
@@ -2390,6 +2398,7 @@ public sealed class CanvasControl : Control
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);
             DrawReferenceBoxes(canvas);
+            DrawObjectSelections(canvas);
             canvas.Restore();
 
             if (cursor is { } c) DrawBrushCursor(canvas, c);
@@ -2507,6 +2516,13 @@ public sealed class CanvasControl : Control
             }
 
             if (newBox is { } drawing) canvas.DrawRect(drawing, chosen);
+        }
+
+        /// <summary>Draw selection feedback for selected canvas objects (placements, guides, boxes).</summary>
+        private void DrawObjectSelections(SKCanvas canvas)
+        {
+            // Selection rendering will be implemented in Phase 2 when we have access to the ViewModel
+            // For now, this is a placeholder that allows the build to complete
         }
 
         /// <summary>
