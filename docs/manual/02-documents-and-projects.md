@@ -98,6 +98,11 @@ never takes an override away from somebody.
 Projects made before this existed are unchanged: every palette is offered to
 every document, exactly as before, until you declare a scope.
 
+**To share one:** right-click a folder and pick **Share a palette here**. Everything
+under that folder paints from it. A project that has never shared anything keeps
+offering every palette to every document, so nothing changes until you say so —
+and taking the last one back returns you to exactly that.
+
 #### References a document draws against
 
 A **reference** is something you draw against, declared on a scope the same way

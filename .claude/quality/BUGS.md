@@ -168,17 +168,11 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### colour
 
-- [ ] **B103** `P2` `colour` Undoing a project-palette recolour appears to do nothing `evidence: LivePaletteTests, UndoingARecolourOfAProjectPaletteRestoresIt`
-  - Found alongside B102, and it predates Q30 rather than being caused by it.
-  - `CommitSwatchEdit` records the undo step as `SetSwatchColor(d, id, colour)`, which walks `doc.Palettes` — the document's *own* palettes. A swatch belonging to a **project** palette is not in that list, so the delta finds nothing to change and the swatch keeps its new colour.
-  - It looks like it works while editing, because the drag mutates the `Swatch` instance in place and the registry holds that same instance. Only undo reveals that the record and the object have parted company.
-  - The fix has to reach whichever palette actually owns the swatch, document or project, and the test wants to assert against a *project* palette specifically — a document-palette test passes today and would keep passing while this is broken.
-
 - [ ] **B102** `P2` `colour` A swatch edit repaints only the active tab, so other open documents keep the old colour `evidence: LivePaletteTests, RecolouringRepaintsEveryOpenDocumentThatUsesTheSwatch`
   - Found 2026-08-06 by checking rather than by a report, while answering whether palette updates sync across a scope. They sync **to disk** — the palette is shared and any file opened afterwards is correct — and they do not sync **across open tabs**.
   - `RepaintForSwatch` walks `Scene.Layers`, which is the active document's scene. Two of a character's animations open at once, recolour a swatch, and only the focused one repaints; the other keeps cached pixels until something else invalidates them.
   - Worse now that Q30 scopes palettes, because a shared palette is the thing a *set* of documents paint from — that is the whole feature — so the case where several of them are open is the ordinary one rather than the edge.
-  - Cost: S. The invalidation wants to run per open tab rather than per active scene; the stroke-walk that decides which frames are affected is already the right shape.
+  - **Fixed.** `RepaintForSwatch` walks `Tabs` rather than the active `Scene`, so every open document holding a stroke that references the swatch is invalidated. The stroke-walk that decides *which* frames stays exactly as it was — a wheel drag does this per pointer event, and re-rendering frames whose pixels cannot have moved is what that walk exists to avoid.
 
 - [ ] **B68** `P2` `colour` Swatches are not saved — not into a project, and not into a single document `evidence: SwatchPersistenceTests, ASwatchCreatedInAProjectSurvivesReopeningIt, ASwatchCreatedInASingleDocumentIsSavedWithIt`
   - Reported: swatches appear not to be saved on creation in a project, and not saved or loaded for a standalone file either.
@@ -554,6 +548,12 @@ test reopens the bug.
   - Was `evidence: manual`, and no longer is. The obstacle was real — the rig is painted inside a Skia lease the headless platform never grants — but the answer was to move the painting somewhere a test can call rather than to give up: `GuidePainter` is pure Skia and takes a canvas, and `PaintDocument` owns the checkerboard/artwork/guides order, because splitting those three apart is exactly how the bug happened. Putting the guides back underneath fails five of the seven tests. Cost: S
 
 ### colour
+
+- [x] **B103** `P2` `colour` Undoing a project-palette recolour appears to do nothing `evidence: LivePaletteTests, UndoingARecolourOfAProjectPaletteRestoresIt`
+  - Found alongside B102, and it predates Q30 rather than being caused by it.
+  - `CommitSwatchEdit` records the undo step as `SetSwatchColor(d, id, colour)`, which walks `doc.Palettes` — the document's *own* palettes. A swatch belonging to a **project** palette is not in that list, so the delta finds nothing to change and the swatch keeps its new colour.
+  - It looks like it works while editing, because the drag mutates the `Swatch` instance in place and the registry holds that same instance. Only undo reveals that the record and the object have parted company.
+  - **Fixed.** `SetSwatchColor` now falls through to the project's palettes when the document's do not hold the swatch. The test uses a **project** palette deliberately: a document-palette test passed while this was broken and would have gone on passing, which is how the bug survived a suite that already covered live recolour.
 
 - [x] **B22** `P2` `colour` A duplicated cel loses its link to the palette `evidence: ACloneKeepsItsLinkToThePalette, ADuplicatedCelStillPaintsFromTheSameSwatch`
   - Repro: paint with a palette swatch, duplicate the cel along the timeline (or generate an inbetween), then recolour the swatch. The original changes and the copy does not. Same for a gradient.

@@ -1994,8 +1994,7 @@
                         <DockPanel.ContextFlyout>
                           <MenuFlyout>
                             <MenuItem Header="Open" Click="OnProjectOpen"
-                                      ToolTip.Tip="Open as a tab in Lightbox" />
-                            <MenuItem Header="Open with default app…" Click="OnProjectOpenExternally"
+                                      ToolTip.Tip="Open as a tab in Lightbox" />                            <MenuItem Header="Open with default app…" Click="OnProjectOpenExternally"
                                       ToolTip.Tip="Hand the file to whatever application the desktop associates with it" />
                             <MenuItem Header="Show in file manager" Click="OnProjectReveal" />
                             <MenuItem Header="Copy path" Click="OnProjectCopyPath" />
@@ -2003,6 +2002,29 @@
                             <MenuItem Header="Duplicate" Click="OnProjectDuplicate"
                                       ToolTip.Tip="Copy this animation, art and all — a walk into a limp" />
                             <MenuItem Header="Rename…" Click="OnProjectRowRename" />
+                            <!--
+                              Q30. Where an artist says a palette belongs to this
+                              part of the project. On the row rather than in the
+                              Colour panel, because the question is "what is this
+                              folder for", and the folder is what is under the
+                              pointer.
+                            -->
+                            <MenuItem Header="Share a palette here"
+                                      ItemsSource="{Binding $parent[Window].DataContext.ProjectDocker.ShareablePalettes}"
+                                      ToolTip.Tip="Everything under this folder paints from it">
+                              <MenuItem.ItemTemplate>
+                                <DataTemplate>
+                                  <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                              </MenuItem.ItemTemplate>
+                              <MenuItem.Styles>
+                                <Style Selector="MenuItem > MenuItem">
+                                  <Setter Property="Command"
+                                          Value="{Binding $parent[Window].DataContext.ProjectDocker.SharePaletteEntryCommand}" />
+                                  <Setter Property="CommandParameter" Value="{Binding}" />
+                                </Style>
+                              </MenuItem.Styles>
+                            </MenuItem>
                             <MenuItem Header="Remove from project" Click="OnProjectRemove"
                                       ToolTip.Tip="Take it out of the index. The file stays on disk." />
                             <!-- B87. Its own entry rather than a modifier on the

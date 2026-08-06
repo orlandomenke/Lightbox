@@ -413,6 +413,131 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         Rebuild();
     }
 
+    partial void OnSelectedChanged(ProjectRow? value)
+    {
+        // The scope panel is about whatever is selected, so it has to be told.
+        OnPropertyChanged(nameof(DeclarationsOnSelected));
+        OnPropertyChanged(nameof(ShareScopeLabel));
+    }
+
+    // ---- scoped resources (Q30) ---------------------------------------------
+
+    /// <summary>
+    /// The palettes an artist can share onto the selected scope — the project's
+    /// own, since those are the ones that outlive a single document.
+    /// </summary>
+    public IReadOnlyList<Palette> ShareablePalettes =>
+        Project?.Palettes ?? (IReadOnlyList<Palette>)[];
+
+    /// <summary>
+    /// What the selected row already declares, for the panel to show and for an
+    /// artist to take back.
+    /// </summary>
+    /// <remarks>
+    /// Declarations on the row itself, not what it inherits. Showing the whole
+    /// resolved chain here would make an inherited palette look removable from a
+    /// place that never declared it.
+    /// </remarks>
+    public IReadOnlyList<ScopedResource> DeclarationsOnSelected =>
+        ScopeOfSelected() is { } folder
+            ? folder.Resources ?? (IReadOnlyList<ScopedResource>)[]
+            : Project?.Manifest.Resources ?? (IReadOnlyList<ScopedResource>)[];
+
+    /// <summary>
+    /// Which scope the selection means: a folder row is itself, and anything
+    /// else is the project.
+    /// </summary>
+    /// <remarks>
+    /// The project row and a document row both resolve to the project rather
+    /// than refusing. An artist who selected a drawing and asked to share a
+    /// palette meant *around here*, and the nearest scope that can hold one is
+    /// the answer — the alternative is a disabled menu item that says nothing.
+    /// </remarks>
+    private ProjectFolder? ScopeOfSelected() =>
+        Selected is { IsFolder: true, Folder: { } folder } ? folder : null;
+
+    /// <summary>Where a share would land, in words, for the menu to say so.</summary>
+    public string ShareScopeLabel =>
+        ScopeOfSelected() is { } folder ? folder.Name : Project?.Name ?? "the project";
+
+    /// <summary>Share a palette with everything under the selected scope.</summary>
+    /// <remarks>
+    /// <b>Q30.</b> Declaring the first one is what switches a project from *every
+    /// palette everywhere* to *scoped*, so this is the moment an old project
+    /// becomes a new one — see <c>PaletteScopes.AnyDeclared</c>. Worth knowing
+    /// because it is not reversible by deleting the declaration again: a project
+    /// with zero declarations reads as unscoped, which is the same state it
+    /// started in, so taking the last one back does restore the old behaviour.
+    /// </remarks>
+    /// <summary>The menu binds this, because a menu item hands over the object.</summary>
+    [RelayCommand]
+    private void SharePaletteEntry(Palette? palette)
+    {
+        if (palette?.Id is { Length: > 0 } id) SharePalette(id);
+    }
+
+    public void SharePalette(string paletteId, bool projectWide = false)
+    {
+        if (Project is not { } project) return;
+        var scope = ScopeOfSelected();
+        if (Already(scope, PaletteScopes.Kind, paletteId)) return;
+        ResourceScopes.Declare(
+            project.Manifest, scope, PaletteScopes.Kind, paletteId,
+            projectWide ? ResourceReach.Project : ResourceReach.Subtree);
+        AfterScopeChange(project, $"Shared with {ShareScopeLabel}.");
+    }
+
+    /// <summary>Share a reference — a sheet, a document or an image.</summary>
+    public void ShareReference(string id, string target, bool projectWide = false)
+    {
+        if (Project is not { } project) return;
+        var scope = ScopeOfSelected();
+        if (Already(scope, ReferenceScopes.Kind, id)) return;
+        ReferenceScopes.Declare(
+            project.Manifest, scope, id, target,
+            projectWide ? ResourceReach.Project : ResourceReach.Subtree);
+        AfterScopeChange(project, $"Shared with {ShareScopeLabel}.");
+    }
+
+    /// <summary>Let everything in the project see this declaration, wherever it is filed.</summary>
+    public void PromoteDeclaration(ScopedResource resource)
+    {
+        if (Project is not { } project) return;
+        ResourceScopes.Promote(resource);
+        AfterScopeChange(project, "Shared with the whole project.");
+    }
+
+    /// <summary>Take a declaration back off this scope.</summary>
+    public void UnshareDeclaration(ScopedResource resource)
+    {
+        if (Project is not { } project) return;
+        var scope = ScopeOfSelected();
+        var list = scope is null ? project.Manifest.Resources : scope.Resources;
+        if (list is null || !list.Remove(resource)) return;
+        // Emptied rather than left as an empty list, so a scope that declares
+        // nothing writes no key — the same rule the camera follows.
+        if (list.Count == 0)
+        {
+            if (scope is null) project.Manifest.Resources = null;
+            else scope.Resources = null;
+        }
+        AfterScopeChange(project, $"No longer shared with {ShareScopeLabel}.");
+    }
+
+    private bool Already(ProjectFolder? scope, string kind, string id) =>
+        (scope is null ? Project?.Manifest.Resources : scope.Resources)?
+            .Any(r => r.Kind == kind && r.Id == id) ?? false;
+
+    private void AfterScopeChange(Project project, string status)
+    {
+        Status = status;
+        OnPropertyChanged(nameof(DeclarationsOnSelected));
+        // The manifest changed, so the project is unsaved — and the resolver
+        // that decides which palettes a document paints from has to be re-run,
+        // which is what _changed does.
+        _changed();
+    }
+
     /// <summary>Note that a document changed, so the next save writes it and only it.</summary>
     public void MarkDirty(DocumentRef reference) => _dirty.Add(reference.Id);
 

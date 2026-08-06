@@ -1,6 +1,6 @@
 # Code index
 
-474 files · 121368 lines · 2454 tests.
+475 files · 121678 lines · 2458 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,16 +47,16 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9673 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4302, TransformParts:6630
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9703 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4332, TransformParts:6660
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4101 ln) · 15 test files
   - MainWindow:18, UnsavedChoice:2753
-- `src/Lightbox.App/Views/MainWindow.axaml` (3277 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3299 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2848 ln) · 9 test files
   - CanvasControl:28, CanvasToolMode:692, GridGesture:748, TxDrag:895, DrawOp:2311
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1628 ln) · 9 test files
-  - ProjectRow:19, ProjectViewModel:328, NewItemKind:869
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1753 ln) · 10 test files
+  - ProjectRow:19, ProjectViewModel:328, NewItemKind:994
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
   - MainViewModel:20
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
@@ -91,7 +91,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GameMakerExportOptions:9, GameMakerExportResult:27, GameMakerExporter:77, StripRecord:85, GameMakerBlock:98
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 15 indirect only
   - RampTrack:10, GradientRamp:41
-- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 102 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 103 test files
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (281 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
@@ -281,7 +281,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
-- `src/Lightbox.Core/Projects/ResourceScopes.cs` (366 ln) · 3 test files
+- `src/Lightbox.Core/Projects/ResourceScopes.cs` (366 ln) · 4 test files
   - ResourceReach:12, ScopedResource:47, ResourceScopes:110, PaletteScopes:240, ReferenceTargets:283, ReferenceScopes:320
 - `src/Lightbox.Core/Projects/Templates.cs` (344 ln) · 2 test files
   - Templates:25, NewLayer:96, LayerChange:107, PullPreview:118, PullOptions:136

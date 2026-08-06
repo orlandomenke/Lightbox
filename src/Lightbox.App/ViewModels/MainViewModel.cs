@@ -1595,9 +1595,30 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.PerformDelta(d => SetSwatchColor(d, id, after), d => SetSwatchColor(d, id, before));
     }
 
-    private static void SetSwatchColor(Doc doc, string swatchId, string color)
+    /// <summary>
+    /// Set a swatch wherever it actually lives — this document, or the project.
+    /// </summary>
+    /// <remarks>
+    /// <b>B103.</b> This walked <c>doc.Palettes</c> alone, which does not contain
+    /// a <em>project</em> palette's swatches. Editing looked correct because the
+    /// drag mutates the <c>Swatch</c> instance in place and the registry holds
+    /// that instance; only undo revealed that the recorded step and the object
+    /// had parted company, and undoing a project recolour appeared to do nothing.
+    /// </remarks>
+    private void SetSwatchColor(Doc doc, string swatchId, string color)
     {
+        var found = false;
         foreach (var palette in doc.Palettes)
+        {
+            foreach (var swatch in palette.Swatches)
+            {
+                if (swatch.Id != swatchId) continue;
+                swatch.Color = color;
+                found = true;
+            }
+        }
+        if (found || ProjectDocker.Project is not { } project) return;
+        foreach (var palette in project.Palettes)
         {
             foreach (var swatch in palette.Swatches)
             {
@@ -1615,7 +1636,16 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private void RepaintForSwatch(string swatchId)
     {
-        foreach (var layer in Scene.Layers)
+        // B102. Every open document, not just the active one. A shared palette
+        // is precisely what a *set* of documents paint from — that is the whole
+        // feature — so two of a character's animations being open at once is the
+        // ordinary case rather than the edge, and repainting only the focused
+        // tab leaves the other showing the old colour from cache.
+        //
+        // Still only the frames that hold a stroke referencing the swatch:
+        // walking the stroke record stays far cheaper than re-rendering frames
+        // whose pixels cannot have moved, and a wheel drag does this per event.
+        foreach (var layer in Tabs.SelectMany(t => t.Doc.Scene.Layers))
         {
             foreach (var cel in layer.Cels)
             {

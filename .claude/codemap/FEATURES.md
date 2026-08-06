@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2454 tests, derived from the suite itself. Each line is a
+2458 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1637,6 +1637,14 @@ regression even when every test still compiles.
 - Converting Tells The Artist What Changed — `:259`
 - Converting With No Project Open Does Nothing — `:272`
 
+## ScopeDeclarationTests
+`tests/Lightbox.App.Tests/ScopeDeclarationTests.cs`
+
+- Sharing APalette Onto AFolder Scopes The Project — `:43`
+- Sharing The Same Palette Twice Is One Declaration — `:71`
+- Promoting ADeclaration Reaches The Whole Project — `:86`
+- Undoing ARecolour Of AProject Palette Restores It — `:110`
+
 ## SelectionAdjustTests
 `tests/Lightbox.App.Tests/SelectionAdjustTests.cs`
 
@@ -2191,9 +2199,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:170`
 - The Canvas Gets The Room Left Over By The Strips — `:193`
 - The Project Row Menu Actually Does Something When Clicked — `:217`
-- The New Menu Actually Makes Things — `:300`
-- The Reference Panel Is Absent Until It Is Asked For — `:367`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:383`
+- The New Menu Actually Makes Things — `:303`
+- The Reference Panel Is Absent Until It Is Asked For — `:370`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:386`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
