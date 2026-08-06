@@ -3640,6 +3640,14 @@ public partial class MainWindow : Window
         Canvas.ContentMoveEnded += _vm.EndMove;
         Canvas.ContentMoveCancelled += _vm.CancelMove;
 
+        Canvas.GuidesMovedStarted += _vm.BeginGuidesMove;
+        Canvas.GuidesMoved += (dx, dy) => _vm.UpdateGuidesMove(dx, dy);
+        Canvas.GuidesMovedEnded += _vm.EndGuidesMove;
+
+        Canvas.RefBoxesMoveStarted += _vm.BeginRefBoxesMove;
+        Canvas.RefBoxesMoved += (dx, dy) => _vm.UpdateRefBoxesMove(dx, dy);
+        Canvas.RefBoxesMovedEnded += _vm.EndRefBoxesMove;
+
         Canvas.GuideMoved += (id, dx, dy) =>
         {
             if (GuideById(id) is not { } guide) return;

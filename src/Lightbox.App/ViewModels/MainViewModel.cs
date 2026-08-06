@@ -3837,20 +3837,73 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void SelectAll()
     {
-        _selectionContours =
-        [
-            [new(0, 0, 1), new(Scene.Width, 0, 1), new(Scene.Width, Scene.Height, 1), new(0, Scene.Height, 1)],
-        ];
-        NotifySelection();
+        // In Select tool mode, select all canvas objects; otherwise select all pixels
+        if (ActiveTool == ToolId.Select)
+        {
+            var frame = PaintTargetOrKey();
+            if (frame is not PaintedFrame pf) return;
+
+            // Select all placements on current frame
+            if (pf.Placements is not null && pf.Placements.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                foreach (var placement in pf.Placements)
+                {
+                    _selectionManager.AddPlacementToSelection(placement.Id);
+                }
+                return;
+            }
+
+            // Select all guides in the document
+            var guides = Doc?.Scene?.Guides;
+            if (guides is not null && guides.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                for (int i = 0; i < guides.Count; i++)
+                {
+                    _selectionManager.AddGuideToSelection(i);
+                }
+                return;
+            }
+
+            // Select all reference boxes
+            var activeRef = ActiveReference;
+            if (activeRef?.Cells is not null && activeRef.Cells.Count > 0)
+            {
+                _selectionManager.ClearAllSelections();
+                for (int i = 0; i < activeRef.Cells.Count; i++)
+                {
+                    _selectionManager.AddRefBoxToSelection(i);
+                }
+            }
+        }
+        else
+        {
+            // Pixel/stroke selection (existing behavior)
+            _selectionContours =
+            [
+                [new(0, 0, 1), new(Scene.Width, 0, 1), new(Scene.Width, Scene.Height, 1), new(0, Scene.Height, 1)],
+            ];
+            NotifySelection();
+        }
     }
 
     [RelayCommand]
     private void Deselect()
     {
-        if (!HasSelection && _polygonPoints.Count == 0) return;
-        _selectionContours = [];
-        _polygonPoints.Clear();
-        NotifySelection();
+        // In Select tool mode, deselect all canvas objects; otherwise deselect pixels
+        if (ActiveTool == ToolId.Select)
+        {
+            _selectionManager.ClearAllSelections();
+        }
+        else
+        {
+            // Pixel/stroke deselection (existing behavior)
+            if (!HasSelection && _polygonPoints.Count == 0) return;
+            _selectionContours = [];
+            _polygonPoints.Clear();
+            NotifySelection();
+        }
     }
 
     /// <summary>Arrow keys over the canvas: shift the selection outline by whole pixels.</summary>
@@ -6617,6 +6670,143 @@ public sealed partial class MainViewModel : ObservableObject
         _moveAnchor = null;
         _moveDelta = default;
         if (TransformActive) CancelTransform();
+    }
+
+    /// <summary>Begin moving selected guides.</summary>
+    public void BeginGuidesMove()
+    {
+        if (_selectionManager.SelectedGuideIndices.Count == 0) return;
+        _guidesMoveDelta = (0, 0);
+        AiStatus = $"Moving {_selectionManager.SelectedGuideIndices.Count} guide(s)";
+    }
+
+    /// <summary>Update guide move by the delta since the last pointer event.</summary>
+    /// <remarks>
+    /// Added, not assigned. The canvas reports the change since the previous
+    /// event and advances its own anchor, so whoever receives it has to
+    /// accumulate — assigning keeps only the final increment and a drag across
+    /// the canvas comes out about a pixel long. That is B109, which had the
+    /// same two lines wrong for placements.
+    /// </remarks>
+    public void UpdateGuidesMove(double dx, double dy)
+    {
+        _guidesMoveDelta = (_guidesMoveDelta.X + dx, _guidesMoveDelta.Y + dy);
+        RequestSnapshot();
+    }
+
+    /// <summary>Commit guide moves.</summary>
+    public void EndGuidesMove()
+    {
+        var (dx, dy) = _guidesMoveDelta;
+        _guidesMoveDelta = default;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+        MoveGuidesBy(dx, dy);
+    }
+
+    private (double X, double Y) _guidesMoveDelta;
+
+    /// <summary>Apply movement delta to selected guides.</summary>
+    private void MoveGuidesBy(double dx, double dy)
+    {
+        var guides = Doc?.Scene?.Guides;
+        if (guides is null || guides.Count == 0) return;
+
+        var selectedGuideIndices = _selectionManager.SelectedGuideIndices.ToList();
+        if (selectedGuideIndices.Count == 0) return;
+
+        _editor.PerformDelta(
+            _ =>
+            {
+                foreach (var guideIndex in selectedGuideIndices)
+                {
+                    if (guideIndex >= 0 && guideIndex < guides.Count)
+                    {
+                        guides[guideIndex].X += dx;
+                        guides[guideIndex].Y += dy;
+                    }
+                }
+                NotifyGuides();
+            },
+            _ =>
+            {
+                foreach (var guideIndex in selectedGuideIndices)
+                {
+                    if (guideIndex >= 0 && guideIndex < guides.Count)
+                    {
+                        guides[guideIndex].X -= dx;
+                        guides[guideIndex].Y -= dy;
+                    }
+                }
+                NotifyGuides();
+            });
+    }
+
+    /// <summary>Begin moving selected reference boxes.</summary>
+    public void BeginRefBoxesMove()
+    {
+        if (_selectionManager.SelectedRefBoxIndices.Count == 0) return;
+        _refBoxesMoveDelta = (0, 0);
+        AiStatus = $"Moving {_selectionManager.SelectedRefBoxIndices.Count} reference box(es)";
+    }
+
+    /// <summary>Update reference box move by the delta since the last pointer event.</summary>
+    /// <remarks>Accumulated, for the reason on <see cref="UpdateGuidesMove"/>.</remarks>
+    public void UpdateRefBoxesMove(double dx, double dy)
+    {
+        _refBoxesMoveDelta = (_refBoxesMoveDelta.X + dx, _refBoxesMoveDelta.Y + dy);
+        RequestSnapshot();
+    }
+
+    /// <summary>Commit reference box moves.</summary>
+    public void EndRefBoxesMove()
+    {
+        var (dx, dy) = _refBoxesMoveDelta;
+        _refBoxesMoveDelta = default;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
+        MoveRefBoxesBy(dx, dy);
+    }
+
+    private (double X, double Y) _refBoxesMoveDelta;
+
+    /// <summary>Apply movement delta to selected reference boxes.</summary>
+    private void MoveRefBoxesBy(double dx, double dy)
+    {
+        var activeRef = ActiveReference;
+        if (activeRef?.Cells is null || activeRef.Cells.Count == 0) return;
+
+        var selectedBoxIndices = _selectionManager.SelectedRefBoxIndices.ToList();
+        if (selectedBoxIndices.Count == 0) return;
+
+        var intDx = (int)Math.Round(dx);
+        var intDy = (int)Math.Round(dy);
+
+        _editor.PerformDelta(
+            _ =>
+            {
+                foreach (var boxIndex in selectedBoxIndices)
+                {
+                    if (boxIndex >= 0 && boxIndex < activeRef.Cells.Count)
+                    {
+                        var cell = activeRef.Cells[boxIndex];
+                        cell.X += intDx;
+                        cell.Y += intDy;
+                    }
+                }
+                NotifyReference();
+            },
+            _ =>
+            {
+                foreach (var boxIndex in selectedBoxIndices)
+                {
+                    if (boxIndex >= 0 && boxIndex < activeRef.Cells.Count)
+                    {
+                        var cell = activeRef.Cells[boxIndex];
+                        cell.X -= intDx;
+                        cell.Y -= intDy;
+                    }
+                }
+                NotifyReference();
+            });
     }
 
     partial void OnTransformScopeChanged(TransformScope value)
