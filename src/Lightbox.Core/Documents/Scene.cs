@@ -174,6 +174,12 @@ public sealed class Scene
     public List<LayerGroup> LayerGroups { get; set; } = [];
 
     /// <summary>
+    /// Animation frame groups created by expanding multi-frame symbols across the timeline.
+    /// Null unless used, so a document that never places animated symbols writes no key.
+    /// </summary>
+    public List<FrameGroup>? FrameGroups { get; set; }
+
+    /// <summary>
     /// Frames pinned as ghosts, shown wherever the playhead is.
     /// </summary>
     /// <remarks>
@@ -290,6 +296,10 @@ public sealed class Scene
     /// <summary>A layer's folder, or null.</summary>
     public LayerGroup? GroupOf(Layer layer) =>
         layer.GroupId is null ? null : LayerGroups.FirstOrDefault(g => g.Id == layer.GroupId);
+
+    /// <summary>The frame group containing a symbol placement, or null.</summary>
+    public FrameGroup? GroupOf(string placementId) =>
+        FrameGroups?.FirstOrDefault(g => g.PlacementIds.Contains(placementId));
 
     /// <summary>Layer visibility including its folder's (what compositing must use).</summary>
     public bool IsLayerVisible(Layer layer) =>

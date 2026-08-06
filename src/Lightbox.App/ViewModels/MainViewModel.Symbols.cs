@@ -8,6 +8,15 @@ using SkiaSharp;
 
 namespace Lightbox.App.ViewModels;
 
+/// <summary>User's choice when placing a multi-frame symbol.</summary>
+public enum FrameImportChoice
+{
+    /// <summary>Import all frames into the timeline.</summary>
+    ImportFrames,
+    /// <summary>Place as single animated reference with cycling.</summary>
+    Reference,
+}
+
 /// <summary>
 /// Pillar 3, step four: putting a symbol somewhere, moving it, and letting go
 /// of it.
@@ -536,6 +545,8 @@ public sealed partial class MainViewModel
     /// placement, or null when there is nowhere to put it.
     /// </summary>
     /// <remarks>
+    /// For multi-frame symbols, this detects animation and offers the user a choice:
+    /// import frames into the timeline or reference with animation cycling.
     /// Keys the cel if there is nothing there, exactly as painting does.
     /// Dropping a prop onto an empty frame is the ordinary way to start one,
     /// and refusing silently is the behaviour that made a cleared layer feel
@@ -558,6 +569,36 @@ public sealed partial class MainViewModel
             return null;
         }
 
+        // For multi-frame symbols, ask the user whether to import frames or reference
+        if (symbol.FrameCount > 1)
+        {
+            var choice = DetectAnimationAndAsk(symbol);
+            if (choice == FrameImportChoice.ImportFrames)
+            {
+                return PlaceSymbolAcrossFrames(symbol, x, y, target);
+            }
+            // choice == Reference: fall through to single-placement logic
+        }
+
+        // Single-frame placement or user chose to reference
+        return PlaceSingleSymbol(symbolId, symbol, x, y, target);
+    }
+
+    /// <summary>
+    /// Ask the user how to place a multi-frame symbol: import all frames or reference with animation.
+    /// </summary>
+    private FrameImportChoice DetectAnimationAndAsk(Symbol symbol)
+    {
+        // TODO: Show UI dialog to user. For now, default to import.
+        // This will be replaced with an actual dialog when UI infrastructure is added.
+        return FrameImportChoice.ImportFrames;
+    }
+
+    /// <summary>
+    /// Place a symbol as a single animated reference (old behaviour).
+    /// </summary>
+    private SymbolPlacement? PlaceSingleSymbol(string symbolId, Symbol symbol, double x, double y, PaintedFrame target)
+    {
         var placement = new SymbolPlacement
         {
             SymbolId = symbolId,
@@ -589,6 +630,106 @@ public sealed partial class MainViewModel
         AfterPlacementChange(frameId);
         AiStatus = $"Placed {symbol.Name}.";
         return placement;
+    }
+
+    /// <summary>
+    /// Expand the timeline to accommodate a multi-frame symbol, then place
+    /// instances across all frames with proper FrameOffset values.
+    /// </summary>
+    private SymbolPlacement? PlaceSymbolAcrossFrames(Symbol symbol, double x, double y, PaintedFrame initialTarget)
+    {
+        var frameCount = symbol.FrameCount;
+        var startFrameIndex = CurrentFrameIndex;
+
+        // Expand timeline if needed
+        var targetFrameCount = startFrameIndex + frameCount;
+        while (Scene.FrameCount < targetFrameCount)
+        {
+            DocumentEditor.AppendFrame(Scene);
+        }
+
+        // Create placements for each frame
+        var placements = new List<SymbolPlacement>();
+        var groupId = Ids.NewId("fgrp");
+
+        for (var i = 0; i < frameCount; i++)
+        {
+            var placement = new SymbolPlacement
+            {
+                SymbolId = symbol.Id,
+                X = x,
+                Y = y,
+                FrameOffset = i,
+                SeenVersion = symbol.Version,
+                GroupId = groupId,
+            };
+            placements.Add(placement);
+        }
+
+        // Create the frame group
+        var frameGroup = new FrameGroup
+        {
+            Id = groupId,
+            SymbolId = symbol.Id,
+            PlacementIds = placements.Select(p => p.Id).ToList(),
+            FrameStart = startFrameIndex,
+            FrameCount = frameCount,
+        };
+
+        // Apply all placements and frame group in one undo step
+        var initialFrameId = initialTarget.Id;
+        var activeLayerId = ActiveLayer.Id;
+        _editor.PerformDelta(
+            apply: doc =>
+            {
+                if (doc.Scene is not { Layers: not null }) return;
+
+                // Ensure frame group list exists
+                doc.Scene.FrameGroups ??= [];
+                doc.Scene.FrameGroups.Add(frameGroup);
+
+                // Place on each frame of the active layer
+                var activeLayer = doc.Scene.Layers.FirstOrDefault(l => l.Id == activeLayerId);
+                if (activeLayer is null || activeLayer.Kind != LayerKind.Painted) return;
+
+                for (var i = 0; i < placements.Count; i++)
+                {
+                    var frameIdx = startFrameIndex + i;
+                    var target = ExposureSheet.ExposedFrame(activeLayer, frameIdx);
+                    if (target is PaintedFrame painted)
+                    {
+                        painted.Placements ??= [];
+                        painted.Placements.Add(placements[i]);
+                    }
+                }
+            },
+            revert: doc =>
+            {
+                if (doc.Scene is not { FrameGroups: not null }) return;
+
+                // Remove frame group
+                doc.Scene.FrameGroups.RemoveAll(g => g.Id == groupId);
+
+                // Remove placements
+                var placementIds = new HashSet<string>(placements.Select(p => p.Id));
+                foreach (var layer in doc.Scene.Layers)
+                {
+                    foreach (var cel in layer.Cels)
+                    {
+                        if (cel.Frame is PaintedFrame painted && painted.Placements is not null)
+                        {
+                            painted.Placements.RemoveAll(p => placementIds.Contains(p.Id));
+                            if (painted.Placements.Count == 0) painted.Placements = null;
+                        }
+                    }
+                }
+            },
+            affectedFrameId: initialFrameId);
+
+        _selectedPlacementId = placements[0].Id;
+        AfterPlacementChange(initialFrameId);
+        AiStatus = $"Placed {symbol.Name} across {frameCount} frames.";
+        return placements[0];
     }
 
     /// <summary>Remove a placement. The symbol itself is untouched.</summary>
