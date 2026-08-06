@@ -4547,6 +4547,30 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>How many effect dabs are already on the composite and must not be drawn again.</summary>
     private int _liveEffectSettled;
+
+    /// <summary>
+    /// What the smudge was carrying at dab <see cref="_liveEffectSettled"/>, so a resumed range
+    /// starts where a single pass would have (B69/B89).
+    /// </summary>
+    /// <remarks>
+    /// The blur needs no equivalent: its dabs read the pre-stroke pixels and are independent of one
+    /// another. A smudge's are a chain, and this is the one link that has to survive between pointer
+    /// events. It is two values, so checkpointing it every event costs nothing.
+    /// </remarks>
+    private BrushEngine.SmudgeCarry _liveSmudgeCarry;
+
+    /// <summary>
+    /// The composite's pixels under the provisional smudge tail, before it was stamped.
+    /// </summary>
+    /// <remarks>
+    /// The same lend-and-take-back the paint scratch does in <see cref="StampLiveDabs"/>, for the
+    /// same reason and with one extra: a smudge <em>reads</em> the bitmap it writes, so re-stamping
+    /// an unsettled dab over its own previous deposit compounds the smear rather than replacing it.
+    /// Restoring first is what makes the replayed range see what a single pass would have seen.
+    /// </remarks>
+    private SKBitmap? _liveSmudgeBackup;
+    private SKRectI? _liveSmudgeRegion;
+
     private bool _snapshotQueued;
 
     // ---- live post-processing (medium, wet edge, texture, granulation) --------
@@ -4709,6 +4733,8 @@ public sealed partial class MainViewModel : ObservableObject
         _liveDabs = null;
         _liveEffectDabs = null;
         _liveEffectSettled = 0;
+        _liveSmudgeCarry = default;
+        _liveSmudgeRegion = null;
         FlushLivePreview();
         PublishSnapshot();
     }
@@ -5191,27 +5217,26 @@ public sealed partial class MainViewModel : ObservableObject
             // ones left, which is how a smear travels at all — the committed
             // path gives it the very bitmap it is writing, and the draft has to
             // match or the preview stops matching the commit.
-            var readFrom = live.Brush.Kind == BrushKind.Blur ? _liveEffectBase : null;
+            // The whole stroke, walked with the shared densify cache, so the dabs land where the
+            // commit will put them — a per-segment walk restarts the spacing phase and Densify sees
+            // two points, which was 1148 px of over-coverage on the blur (B54) and the same defect
+            // on the smudge (B69/B89). Only the dabs that are not settled yet are stamped.
+            var walk = BrushEngine.WalkDabs(live, _liveDensify);
+            var settled = BrushEngine.StableCount(walk, _liveEffectDabs);
+
             if (live.Brush.Kind == BrushKind.Blur)
             {
-                // B54: the whole stroke, walked with the shared densify cache, so the dabs land
-                // where the commit will put them — a per-segment walk restarts the spacing phase
-                // and Densify sees two points, which was 1148 px of over-coverage. Only the dabs
-                // that are not settled yet are stamped, so nothing is drawn twice except the
-                // provisional tail, and that gets the pre-stroke pixels restored under it.
-                var walk = BrushEngine.WalkDabs(live, _liveDensify);
-                FrameRasterizer.AppendDraft(_liveComposite, live, readFrom, walk, _liveEffectSettled);
-                _liveEffectSettled = BrushEngine.StableCount(walk, _liveEffectDabs);
-                _liveEffectDabs = walk;
+                // A blur's dabs are independent — each reads the pre-stroke pixels — so the range
+                // is all it needs, and StampBlurDraft restores under the tail itself.
+                FrameRasterizer.AppendDraft(_liveComposite, live, _liveEffectBase, walk, _liveEffectSettled);
             }
             else
             {
-                // Smudge carries its colour from dab to dab and reads the bitmap it is writing, so
-                // it cannot be replayed from a settled index the way a blur can. Left on the
-                // segment feed deliberately; its own live-versus-commit fidelity is a separate
-                // question from B54, which was filed against the blur.
-                FrameRasterizer.AppendDraft(_liveComposite, tail, readFrom);
+                StampLiveSmudge(live, walk, settled);
             }
+
+            _liveEffectSettled = settled;
+            _liveEffectDabs = walk;
         }
         else if (_liveScratchCanvas is not null)
         {
@@ -5234,6 +5259,110 @@ public sealed partial class MainViewModel : ObservableObject
         _liveStampedCount = points.Count;
 
         if (_liveComposite is null && NeedsLivePostProcess(live.Brush)) RequestLivePostProcess();
+    }
+
+    /// <summary>
+    /// Bring the smudge composite up to date: settled dabs permanently, the provisional tail on
+    /// loan, and the carried colour checkpointed at the boundary between them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B69/B89.</b> This used to be a per-segment <c>AppendDraft</c>, which restarted the dab
+    /// walk's spacing phase, the carried colour and the heading on every pointer event, and
+    /// re-smeared the one-point overlap where segments join. All four differences appeared at once
+    /// when the pen lifted and the whole stroke was re-rendered from the record.
+    /// </para>
+    /// <para>
+    /// The three steps are ordered exactly as <see cref="StampLiveDabs"/>'s are, and for the same
+    /// reason — dabs have to reach the surface in index order for the accumulation to match a
+    /// single pass. Take back the old tail, extend the settled prefix, lend the new tail.
+    /// </para>
+    /// <para>
+    /// <b>Why this is exact rather than merely closer.</b> After the restore the composite holds
+    /// precisely "pre-stroke pixels + dabs 0..settled-1", and <see cref="_liveSmudgeCarry"/> is the
+    /// colour a single pass would be carrying at that index. Replaying the rest is then the same
+    /// sequence the commit runs. Reads that reach outside the restored region — a smudge samples up
+    /// to <c>radius × SmudgeRadius</c> away — can only touch settled pixels, which are already
+    /// final.
+    /// </para>
+    /// <para>
+    /// <b>And why not simply replay every dab each event</b>, which is exact by construction: the
+    /// blur measured that at 194 ms an event by the 300th point against 20.8 ms for the settled
+    /// range, and <c>LerpDab</c> is a per-pixel loop with the same shape of cost. Invariant 6 says
+    /// no.
+    /// </para>
+    /// </remarks>
+    private void StampLiveSmudge(Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, int settled)
+    {
+        if (_liveComposite is not { } composite) return;
+        var info = new SKImageInfo(
+            composite.Width, composite.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var canvas = new SKCanvas(composite);
+
+        // 1. Take back the tail lent out last time, so the composite is the settled prefix again.
+        //    Only the part of the buffer that tail used — the backup is sized to the largest seen,
+        //    so drawing all of it would scale a bigger image into a smaller rect.
+        if (_liveSmudgeRegion is { } lent && _liveSmudgeBackup is not null)
+        {
+            using var restore = SKImage.FromBitmap(_liveSmudgeBackup);
+            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+            canvas.DrawImage(
+                restore,
+                new SKRect(0, 0, lent.Width, lent.Height),
+                new SKRect(lent.Left, lent.Top, lent.Right, lent.Bottom),
+                src);
+            canvas.Flush();
+            _liveSmudgeRegion = null;
+        }
+
+        // 2. Everything whose position has stopped moving, permanently — and the carry it ends on
+        //    becomes the checkpoint the next event resumes from.
+        if (settled > _liveEffectSettled)
+        {
+            _liveSmudgeCarry = BrushEngine.StampSmudgeRange(
+                canvas, composite, live, dabs, _liveEffectSettled, settled, _liveSmudgeCarry);
+        }
+
+        // 3. The rest on loan, so the smear reaches the pen tip. Backed up first, because a smudge
+        //    reads what it writes: re-stamping these next event without taking them back would
+        //    compound the smear instead of replacing it.
+        if (BrushEngine.RangeBounds(dabs, settled, live.Brush, info) is { } tail)
+        {
+            canvas.Flush();
+            if (_liveSmudgeBackup is null
+                || _liveSmudgeBackup.Width < tail.Width || _liveSmudgeBackup.Height < tail.Height)
+            {
+                _liveSmudgeBackup?.Dispose();
+                _liveSmudgeBackup = new SKBitmap(new SKImageInfo(
+                    Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
+                    SKColorType.Rgba8888, SKAlphaType.Premul));
+            }
+            // A real copy, not a subset view: SKBitmap.ExtractSubset SHARES the source's pixels, so
+            // using it as the backup would make it track the composite and the rollback a no-op.
+            // The subset is taken first and only then wrapped, so no full-canvas SKImage is built.
+            using (var region = new SKBitmap())
+            {
+                if (composite.ExtractSubset(region, tail))
+                {
+                    using var pixels = region.PeekPixels();
+                    using var view = pixels is null ? null : SKImage.FromPixels(pixels);
+                    if (view is not null)
+                    {
+                        using var into = new SKCanvas(_liveSmudgeBackup);
+                        using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+                        into.DrawImage(view, 0, 0, src);
+                        into.Flush();
+                        _liveSmudgeRegion = tail;
+                    }
+                }
+            }
+
+            // The returned carry is deliberately dropped: these dabs are provisional, so the
+            // checkpoint must stay at the settled boundary.
+            BrushEngine.StampSmudgeRange(
+                canvas, composite, live, dabs, settled, dabs.Count, _liveSmudgeCarry);
+            canvas.Flush();
+        }
     }
 
     /// <summary>
@@ -5518,6 +5647,11 @@ public sealed partial class MainViewModel : ObservableObject
         _liveDabs = null;
         _liveEffectDabs = null;
         _liveEffectSettled = 0;
+        // The carry and the lent region go with the composite they described. The backup bitmap
+        // does not: it is reused across strokes and only ever written before it is read, so keeping
+        // it saves an allocation per stroke without any state surviving.
+        _liveSmudgeCarry = default;
+        _liveSmudgeRegion = null;
         ResetLivePostProcess();
     }
 

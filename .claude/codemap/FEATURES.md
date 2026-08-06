@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2357 tests, derived from the suite itself. Each line is a
+2364 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1031,6 +1031,7 @@ regression even when every test still compiles.
 
 - Mid Stroke The Published Snapshot Shows The Line — `:44`
 - Self Crossing Looks The Same Live And Committed — `:67`
+- An Effect Stroke Looks The Same Live And Committed — `:123`
 
 ## LivePreviewTests
 `tests/Lightbox.App.Tests/LivePreviewTests.cs`
@@ -3000,6 +3001,16 @@ regression even when every test still compiles.
 
 - An Effect Brush Does Not Make AWash More Opaque Than It Was — `:72`
 - ASmudge Still Moves Colour Rather Than Doing Nothing — `:96`
+
+## EffectPreviewMatchesCommitTests
+`tests/Lightbox.Raster.Tests/EffectPreviewMatchesCommitTests.cs`
+
+- ASmudge Preview Matches Its Commit — `:231`
+- ABlender Preview Matches Its Commit — `:240`
+- The Affected Area Does Not Change On Release — `:252`
+- No Settling Visible Between Preview And Commit — `:263`
+- ASmudge Preview Stays Same On Release — `:271`
+- ABlender Preview Stays Same On Release — `:277`
 
 ## FillStrokeTests
 `tests/Lightbox.Raster.Tests/FloodFillTests.cs`
