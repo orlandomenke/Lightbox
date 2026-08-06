@@ -1,6 +1,6 @@
 # Code index
 
-478 files · 123239 lines · 2488 tests.
+478 files · 123440 lines · 2490 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,15 +47,15 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9737 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4366, TransformParts:6694
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (9746 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4375, TransformParts:6703
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4114 ln) · 16 test files
   - MainWindow:18, UnsavedChoice:2758
 - `src/Lightbox.App/Views/MainWindow.axaml` (3309 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (2848 ln) · 9 test files
   - CanvasControl:28, CanvasToolMode:692, GridGesture:748, TxDrag:895, DrawOp:2311
-- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (1986 ln) · 10 test files
+- `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2040 ln) · 10 test files
   - ProjectRow:19, ProjectViewModel:328, NewItemKind:1056
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (858 ln) · **no tests**
   - MainViewModel:20
@@ -273,7 +273,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Core
 
-- `src/Lightbox.Core/Projects/ProjectIo.cs` (1050 ln) · 25 test files
+- `src/Lightbox.Core/Projects/ProjectIo.cs` (1078 ln) · 25 test files
   - ProjectIo:31, ConversionReport:599
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (669 ln) · 9 test files
   - DocumentEditor:14, IEditStep:141, SnapshotStep:154, DeltaStep:173

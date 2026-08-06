@@ -1074,6 +1074,15 @@ public sealed partial class MainViewModel : ObservableObject
         tab.Title = TitleFromPath(filePath);
         tab.MarkSaved();
         Remember(filePath, RecentKind.Document);
+        // B99's other half. A document adopted at creation has to be released
+        // when the artist gives it a home outside the project — otherwise its row
+        // stays, pointing at a file that was never written there, and the next
+        // project save writes a second copy inside the project. Saved into the
+        // project instead, the record follows the file.
+        if (tab.Source is { } source && !ProjectDocker.AdoptSavedPath(source, filePath))
+        {
+            tab.Source = null;
+        }
     }
 
     private void AddTab(DocumentTab tab)

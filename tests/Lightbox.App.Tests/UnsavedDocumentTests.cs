@@ -36,6 +36,10 @@ public sealed class UnsavedDocumentTests(ITestOutputHelper output) : BrushStateI
     {
         foreach (var vm in _built) vm.ProjectDocker.Dispose();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+        foreach (var directory in _outside.Where(Directory.Exists))
+        {
+            Directory.Delete(directory, recursive: true);
+        }
         base.Dispose();
     }
 
@@ -367,5 +371,111 @@ public sealed class UnsavedDocumentTests(ITestOutputHelper output) : BrushStateI
         // And closing it does not go looking for a project either.
         vm.CloseTab(vm.ActiveTab!);
         Assert.False(vm.HasProject);
+    }
+
+    // ---- B99: saved somewhere else ---------------------------------------------------
+
+    /// <summary>Somewhere outside the project, on the same disk.</summary>
+    private string Elsewhere(string name)
+    {
+        var directory = Path.Combine(Path.GetDirectoryName(_root)!, $"elsewhere-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        _outside.Add(directory);
+        return Path.Combine(directory, name);
+    }
+
+    private readonly List<string> _outside = [];
+
+    /// <summary>
+    /// Saving a project document outside the project takes it out of the project.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The counterpart B99 obliged and did not have, and the reporter asked
+    /// for it before it existed:</b> "if I create a new document and place it
+    /// outside of the project, it does not show in the project". It did. The row
+    /// stayed, pointing at a file that had never been written there and still
+    /// saying <em>not saved yet</em>, and a project save then wrote a <b>second
+    /// copy</b> inside the project — B106's one-drawing-two-files from a
+    /// different direction.
+    /// </para>
+    /// <para>
+    /// Adoption and release are a pair. Anything that takes a document into the
+    /// project on creation owes it a way out when the artist chooses a home
+    /// elsewhere.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void SavingADocumentOutsideTheProjectTakesItOutOfTheProject()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Production");
+        var docker = vm.ProjectDocker;
+
+        vm.NewDocument(NewOf("Rooftop"));
+        var made = Assert.Single(docker.Project!.Manifest.Documents, d => d.Name == "Rooftop");
+        var wouldHaveBeen = Path.Combine(_root, made.Path.Replace('/', Path.DirectorySeparatorChar));
+
+        // Save As, to a folder beside the project rather than in it.
+        var outside = Elsewhere("rooftop.lightbox.json");
+        Lightbox.Core.Serialization.DocJson.Save(vm.ActiveTab!.Doc, outside);
+        vm.NotifySaved(outside);
+
+        output.WriteLine(docker.Status);
+        Assert.DoesNotContain(docker.Rows, r => r.Name == "Rooftop");
+        Assert.DoesNotContain(docker.Project!.Manifest.Documents, d => d.Name == "Rooftop");
+        Assert.Null(vm.ActiveTab!.Source);
+
+        // And no second copy appears inside the project, now or on the next save.
+        vm.SaveProject();
+        Assert.False(File.Exists(wouldHaveBeen), $"a duplicate was written: {wouldHaveBeen}");
+        Assert.True(File.Exists(outside), "the artist's own file must still be there");
+    }
+
+    /// <summary>
+    /// Saved <em>into</em> the project, the record follows the file.
+    /// </summary>
+    /// <remarks>
+    /// The other direction, and it is not the same fix: inside the project the
+    /// document stays, and what has to move is the manifest. Without this the
+    /// reference kept pointing at the path it was created with, so a project save
+    /// wrote a second copy inside the project instead of outside it — the same
+    /// duplicate, one directory over.
+    /// <para>
+    /// The name follows too, because a panel that says <i>Rooftop</i> while the
+    /// file says <c>rooftop-v2</c> is B64's complaint exactly.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void SavingADocumentIntoTheProjectRepathsItsRow()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Production");
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        var knight = ProjectFolders.All(docker.Project!.Manifest).First();
+        docker.Selected = null;
+
+        vm.NewDocument(NewOf("Rooftop"));
+        var made = Assert.Single(docker.Project!.Manifest.Documents, d => d.Name == "Rooftop");
+        var createdAt = Path.Combine(_root, made.Path.Replace('/', Path.DirectorySeparatorChar));
+
+        // Save As into the knight folder, under a different name.
+        var into = Path.Combine(_root, "knight", "rooftop-v2.lightbox.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(into)!);
+        Lightbox.Core.Serialization.DocJson.Save(vm.ActiveTab!.Doc, into);
+        vm.NotifySaved(into);
+
+        output.WriteLine($"path={made.Path}, name={made.Name}, folder={made.FolderId}");
+        Assert.Equal("knight/rooftop-v2.lightbox.json", made.Path);
+        Assert.Equal("rooftop-v2", made.Name);
+        Assert.Equal(knight.Id, made.FolderId);
+        // Still in the project, and no longer claiming to be unwritten.
+        Assert.Equal(made.Id, vm.ActiveTab!.Source?.Id);
+        Assert.False(Row(docker, "rooftop-v2").Pending);
+
+        // And no copy at the path it was created with.
+        vm.SaveProject();
+        Assert.False(File.Exists(createdAt), $"a duplicate was written: {createdAt}");
     }
 }

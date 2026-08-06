@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2488 tests, derived from the suite itself. Each line is a
+2490 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2170,16 +2170,18 @@ regression even when every test still compiles.
 ## UnsavedDocumentTests
 `tests/Lightbox.App.Tests/UnsavedDocumentTests.cs`
 
-- ANew Document Is Not On Disk Until It Is Saved — `:61`
-- An Unsaved Document Is Shown As Pending In The Docker — `:83`
-- ADeleted File Is Missing Rather Than Pending — `:133`
-- Discarding An Unsaved Document Removes It From The Docker — `:165`
-- ANew Document Appears In The Project Docker — `:210`
-- AProject Save Writes ADocument Made With File New — `:243`
-- Closing ANever Saved Document Takes Its Row With It — `:270`
-- Closing ASaved Document Keeps Its Row — `:300`
-- Closing ADocument Whose File Vanished Keeps Its Row — `:330`
-- ANew Document With No Project Open Changes Nothing — `:357`
+- ANew Document Is Not On Disk Until It Is Saved — `:65`
+- An Unsaved Document Is Shown As Pending In The Docker — `:87`
+- ADeleted File Is Missing Rather Than Pending — `:137`
+- Discarding An Unsaved Document Removes It From The Docker — `:169`
+- ANew Document Appears In The Project Docker — `:214`
+- AProject Save Writes ADocument Made With File New — `:247`
+- Closing ANever Saved Document Takes Its Row With It — `:274`
+- Closing ASaved Document Keeps Its Row — `:304`
+- Closing ADocument Whose File Vanished Keeps Its Row — `:334`
+- ANew Document With No Project Open Changes Nothing — `:361`
+- Saving ADocument Outside The Project Takes It Out Of The Project — `:409`
+- Saving ADocument Into The Project Repaths Its Row — `:450`
 
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`

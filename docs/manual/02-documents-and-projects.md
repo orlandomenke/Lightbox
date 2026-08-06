@@ -173,6 +173,12 @@ and never will. Save it once and that stops applying: closing it afterwards
 leaves it in the project, and if its file later goes missing the row stays and
 says so.
 
+**Where you save it decides whether it stays.** Save As into the project and the
+row follows the file — its name, its folder, wherever you put it. **Save As
+outside the project and it leaves the project**, because you have given it a home
+somewhere else; the file is yours and nothing is written inside the project for
+it.
+
 #### Characters and scenes
 
 A **character** and a **scene** are still their own things, because they carry

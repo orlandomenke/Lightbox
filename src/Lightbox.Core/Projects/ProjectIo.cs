@@ -942,6 +942,34 @@ public static class ProjectIo
     }
 
     /// <summary>
+    /// A full path as a project-relative one with forward slashes, or null when
+    /// it is not inside the project.
+    /// </summary>
+    /// <remarks>
+    /// <b>The counterpart to <see cref="ResolveInProject"/>, and it exists for
+    /// one question: did this save land inside the project or outside it?</b>
+    /// Save As can put a document anywhere, and the two answers are opposite —
+    /// inside, the project's record of it follows the file; outside, the artist
+    /// has chosen a home elsewhere and the project should let go of it.
+    /// <para>
+    /// The same separator-aware containment test as its counterpart, for the same
+    /// reason: <c>Knight.lbproj-old</c> starts with <c>Knight.lbproj</c>, so a
+    /// plain prefix test would call a sibling project "inside".
+    /// </para>
+    /// </remarks>
+    public static string? RelativeInProject(Project project, string fullPath)
+    {
+        if (string.IsNullOrWhiteSpace(fullPath)) return null;
+        if (string.IsNullOrEmpty(project.Root)) return null;
+
+        var root = Path.GetFullPath(project.Root);
+        var full = Path.GetFullPath(fullPath);
+        if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return null;
+
+        return full[(root.Length + 1)..].Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    /// <summary>
     /// Move a file or folder inside the project. True when it moved, or when
     /// there was nothing there to move.
     /// </summary>

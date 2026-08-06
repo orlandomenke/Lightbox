@@ -1421,6 +1421,60 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// vanished file is the artist's decision to act on, not ours.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// A document was written by a save the project did not run — Save As.
+    /// False when it landed outside the project, having taken it out.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The counterpart B99 obliged and did not have.</b> Adopting a document
+    /// at creation means something has to un-adopt it when the artist gives it a
+    /// home elsewhere: without this, Save As to a folder outside the project left
+    /// the row in place pointing at a file that was never written there, still
+    /// saying "not saved yet" — and the next project save wrote a *second* copy
+    /// inside the project. That is B106's one-drawing-two-files arriving from a
+    /// different direction, so it is worth being explicit that adoption and
+    /// release are a pair.
+    /// </para>
+    /// <para>
+    /// <b>Inside the project, the record follows the file rather than the other
+    /// way round.</b> Save As into a folder of the project repaths the reference
+    /// and renames the row to match, because a panel that says <i>Rooftop</i>
+    /// while the file says <c>rooftop-v2</c> is B64's complaint exactly. It also
+    /// clears the pending mark: the document is on disk now, and only the
+    /// project's own save used to be able to say so.
+    /// </para>
+    /// </remarks>
+    public bool AdoptSavedPath(DocumentRef? reference, string fullPath)
+    {
+        if (Project is not { } project || reference is null) return false;
+
+        if (ProjectIo.RelativeInProject(project, fullPath) is not { } relative)
+        {
+            Detach(project, reference);
+            Rebuild();
+            Status = $"“{reference.Name}” was saved outside the project, so it is no longer in it.";
+            _changed();
+            return false;
+        }
+
+        reference.Path = relative;
+        reference.Name = Path.GetFileName(relative).Replace(".lightbox.json", "", StringComparison.OrdinalIgnoreCase);
+        // Which folder that directory is, if it is one the artist made. Null for
+        // the unassigned directory and for anything the manifest does not know
+        // about, which is what B83's accountability check is for.
+        var directory = relative.Contains('/') ? relative[..relative.LastIndexOf('/')] : "";
+        reference.FolderId = ProjectFolders.All(project.Manifest)
+            .FirstOrDefault(f => ProjectFolders.PathOf(project.Manifest, f) == directory)?.Id;
+        // On disk now, so the row stops saying otherwise and the next project
+        // save does not rewrite it.
+        _dirty.Remove(reference.Id);
+        Rebuild();
+        Selected = Rows.FirstOrDefault(r => r.Animation?.Id == reference.Id) ?? Selected;
+        _changed();
+        return true;
+    }
+
     public bool ForgetIfNeverWritten(DocumentRef? reference)
     {
         if (Project is not { } project || reference is null) return false;
