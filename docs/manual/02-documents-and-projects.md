@@ -23,10 +23,15 @@ nothing:
 
 ```
 Production.lbproj/
-  project.json          the index
-  palettes/             the palette you start with
-  documents/            the drawing you had open, if you had one
+  project.json               the index
+  palettes/                  the palette you start with
+  unassigned-documents/      the drawing you had open, if you had one
 ```
+
+`unassigned-documents/` is where a drawing goes when it belongs to the project
+and to no folder in it. Nothing else lives there, and it stays empty once you
+have filed everything — a project written before this was renamed keeps its
+`documents/` folder, and nothing moves on its own.
 
 **No folders you did not ask for.** There is no `characters/`, no `scenes/`, no
 `assets/` waiting to be filled in. You build the structure, and the structure is
@@ -40,10 +45,18 @@ document goes **inside whatever is selected**, so building a tree is a run of
 clicks rather than a create-then-file.
 
 The chevron on a folder row shows or hides what is in it, and stays that way
-while you work — saving does not spring everything open.
+while you work — saving does not spring everything open. Each level is indented
+one step, and a document sits one step in from the folder holding it, so the
+tree reads as a tree.
 
 Drag a folder or a document onto a folder to move it. Dropping a folder onto
 something inside itself does nothing, because there would be no way back to it.
+
+**A move moves the file.** Drag a drawing into a folder and the file goes with
+it — there is no copy left in the folder you dragged it out of. If the file
+cannot be moved — open in another program, a permission, or something already
+there under that name — the move is **refused** whole, the panel is unchanged,
+and the status line says so. Nothing changes by half.
 
 The name is yours and the folder on disk is a tidied version of it: *Act 2 —
 Interiors* becomes `act-2-interiors`. What you typed is what the panel shows.
@@ -54,6 +67,17 @@ Interiors* becomes `act-2-interiors`. What you typed is what the panel shows.
 (3)* to be corrected later — the box is prefilled with what it would have been
 called, so Enter is the fast path and typing is the considered one. Cancel and
 nothing is created.
+
+**The name starts from where it is going.** Make a document inside *Knight* and
+the box says `Knight - ` with the cursor after it, so typing `walk` gives you
+*Knight - walk* and the file `knight-walk.lightbox.json`. It is an ordinary text
+box: select it and type to replace it entirely. Accept it untouched and you get
+*Knight*, not *Knight -*.
+
+An animation is named after the character it lands under, the same way. Folders
+are not prefixed — they are structure, and *Knight - Locomotion* would compound
+into *Knight - Locomotion - Knight - Walk* one level down. Scenes and shots keep
+their numbers, because a shot's number is its place in the running order.
 
 **Rename…** on the right-click menu, or slow double-click a row. The rename
 reaches disk: renaming a folder moves the folder and everything under it.

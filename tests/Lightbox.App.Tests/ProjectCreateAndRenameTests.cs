@@ -200,12 +200,12 @@ public sealed class RenameProjectItemTests(ITestOutputHelper output) : ProjectPa
         docker.Selected = null;
         docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Rooftop");
         vm.SaveProject(everything: true);
-        Assert.True(File.Exists(Path.Combine(Root, "documents", "rooftop.lightbox.json")));
+        Assert.True(File.Exists(Path.Combine(Root, "unassigned-documents", "rooftop.lightbox.json")));
 
         Assert.True(docker.Rename(Row(docker, "Rooftop"), "Alleyway"));
 
-        Assert.False(File.Exists(Path.Combine(Root, "documents", "rooftop.lightbox.json")));
-        Assert.True(File.Exists(Path.Combine(Root, "documents", "alleyway.lightbox.json")));
+        Assert.False(File.Exists(Path.Combine(Root, "unassigned-documents", "rooftop.lightbox.json")));
+        Assert.True(File.Exists(Path.Combine(Root, "unassigned-documents", "alleyway.lightbox.json")));
 
         // ...and it survives a reopen, which is the half a memory-only rename
         // always passed and always lied about.
@@ -313,8 +313,8 @@ public sealed class RenameProjectItemTests(ITestOutputHelper output) : ProjectPa
         Assert.True(docker.Rename(Row(docker, "Untitled"), "Rooftop"));
 
         var doc = docker.Project!.Manifest.Documents.First(d => d.Name == "Rooftop");
-        Assert.Equal("documents/rooftop.lightbox.json", doc.Path);
+        Assert.Equal("unassigned-documents/rooftop.lightbox.json", doc.Path);
         vm.SaveProject(everything: true);
-        Assert.True(File.Exists(Path.Combine(Root, "documents", "rooftop.lightbox.json")));
+        Assert.True(File.Exists(Path.Combine(Root, "unassigned-documents", "rooftop.lightbox.json")));
     }
 }

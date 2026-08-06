@@ -35,7 +35,36 @@ public static class ProjectIo
     private const string ManifestName = "project.json";
     private const string CharactersDir = "characters";
     private const string AnimationsDir = "animations";
-    private const string DocumentsDir = "documents";
+    /// <summary>
+    /// Where a document that belongs to the project and to no folder is filed.
+    /// </summary>
+    /// <remarks>
+    /// <b>B105.</b> Was <c>documents</c>, which is the least informative name
+    /// available in a folder full of documents — every drawing in the project is
+    /// one, so the directory read as "the documents" rather than as "the ones
+    /// you have not filed". The new name says which it is, and it says it in the
+    /// file manager, which is where the artist met it.
+    /// <para>
+    /// Public because the docker has to recognise a path as unassigned in order
+    /// to rename inside it, and a second copy of the string is a second thing to
+    /// keep in step.
+    /// </para>
+    /// </remarks>
+    public const string DocumentsDir = "unassigned-documents";
+
+    /// <summary>
+    /// What <see cref="DocumentsDir"/> was called before B105.
+    /// </summary>
+    /// <remarks>
+    /// Kept, and not only for the name: every path in a <c>.lbproj</c> written
+    /// before the rename is recorded in its manifest, so an existing project
+    /// goes on reading and writing <c>documents/</c> and nothing moves under an
+    /// artist who has not asked for anything. The one thing that had to be
+    /// taught both names is <see cref="SystemFolders"/> — B83 reports a
+    /// top-level directory the manifest cannot explain, and an old project's
+    /// <c>documents/</c> is explained.
+    /// </remarks>
+    public const string LegacyDocumentsDir = "documents";
     private const string PalettesFile = "palettes/palettes.json";
 
     /// <summary>
@@ -242,11 +271,21 @@ public static class ProjectIo
     /// lets an open tab stay bound to the document it is showing, so moving a
     /// row in the tree does not orphan the window you are drawing in.
     ///
-    /// The file on disk is not moved here. The path in the manifest is the new
-    /// one, and the next save writes the document there; the old file is left
-    /// alone, on the same reasoning that removing a row leaves it alone.
-    /// A move that deleted an artist's file because the tree was rearranged
-    /// would be a poor trade for tidiness.
+    /// <b>B106. The file moves with it.</b> This used to change the manifest and
+    /// stop, on the reasoning that a move which deleted an artist's file would
+    /// be a poor trade for tidiness — and the reasoning was sound about deleting
+    /// and wrong about the outcome. The next save wrote the document at its new
+    /// path and left the old file where it was, so one drawing became two: the
+    /// artist saw the copy they had moved and the original still sitting in the
+    /// folder they moved it out of, with no way to tell which one the app would
+    /// open. A move is a rename on disk, which is what
+    /// <see cref="MoveInProject"/> does and what renaming a folder has always
+    /// done — nothing is deleted and nothing is left behind.
+    ///
+    /// <b>The disk goes first, and the manifest only if it succeeded.</b> A
+    /// manifest pointing at a path the file never reached is the one outcome
+    /// worse than either half, because it is invisible: the panel would show the
+    /// document in its new home and the drawing would not be there.
     /// </remarks>
     public static bool MoveDocument(Project project, DocumentRef reference, Character? destination)
     {
@@ -255,20 +294,22 @@ public static class ProjectIo
         if (from is null && !atProjectLevel) return false;
         if (ReferenceEquals(from, destination)) return false;
 
+        // Worked out before anything is touched, so the move can be attempted
+        // and refused without leaving the manifest half-changed. Both branches
+        // read only state this method has not modified yet.
+        var to = destination is null
+            ? $"{DocumentsDir}/{Slug(reference.Name)}.lightbox.json"
+            : $"{CharactersDir}/{destination.Slug}/{AnimationsDir}/"
+              + $"{UniqueFileSlug(destination, Slug(reference.Name))}.lightbox.json";
+
+        if (!MoveInProject(project, reference.Path, to)) return false;
+
         from?.Animations.RemoveAll(a => a.Id == reference.Id);
         if (atProjectLevel) project.Manifest.Documents.RemoveAll(d => d.Id == reference.Id);
 
-        if (destination is null)
-        {
-            reference.Path = $"{DocumentsDir}/{Slug(reference.Name)}.lightbox.json";
-            project.Manifest.Documents.Add(reference);
-        }
-        else
-        {
-            var slug = UniqueFileSlug(destination, Slug(reference.Name));
-            reference.Path = $"{CharactersDir}/{destination.Slug}/{AnimationsDir}/{slug}.lightbox.json";
-            destination.Animations.Add(reference);
-        }
+        reference.Path = to;
+        if (destination is null) project.Manifest.Documents.Add(reference);
+        else destination.Animations.Add(reference);
         return true;
     }
 
@@ -913,9 +954,18 @@ public static class ProjectIo
     /// **Nothing to move is a success.** A document created and renamed before
     /// its first save has no file yet, and refusing that would make the rename
     /// fail for the most ordinary case there is.
+    ///
+    /// <b>A project with no root on disk is the same case, one level up</b>
+    /// (B106). <c>ProjectIo.Create</c> builds a project in memory and nothing is
+    /// written until <see cref="Save"/>, so every path in it is a path that does
+    /// not exist yet. Refusing there would make moving a document fail for a
+    /// project that has never been saved — the state every new project is in for
+    /// its first few minutes. A path that leaves the project is still refused;
+    /// that is a different question and <see cref="ResolveInProject"/> answers it.
     /// </remarks>
     public static bool MoveInProject(Project project, string fromRelative, string toRelative)
     {
+        if (string.IsNullOrEmpty(project.Root)) return true;
         if (ResolveInProject(project, fromRelative) is not { } from) return false;
         if (ResolveInProject(project, toRelative) is not { } to) return false;
         if (string.Equals(from, to, StringComparison.Ordinal)) return true;
@@ -967,7 +1017,10 @@ public static class ProjectIo
     /// </para>
     /// </remarks>
     public static readonly IReadOnlySet<string> SystemFolders = new HashSet<string>(
-        [CharactersDir, DocumentsDir, ScenesDir, "palettes", "gradients", "assets", ".autosave"],
+        [
+            CharactersDir, DocumentsDir, LegacyDocumentsDir, ScenesDir,
+            "palettes", "gradients", "assets", ".autosave",
+        ],
         StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
