@@ -288,13 +288,18 @@ public static class MediumSimulator
                 for (var x = 0; x < w; x++)
                 {
                     var i = (y * w + x) * 4;
-                    var a = Math.Clamp(deposit[i + 3], 0f, 1f);
-                    if (a <= 0.002f) continue; // buffer starts transparent
+                    var mass = deposit[i + 3];
+                    if (mass <= 0.002f) continue; // buffer starts transparent
 
-                    // Deposit is premultiplied linear; recover the pigment colour.
+                    // Deposit is premultiplied by MASS, so mass is what recovers the
+                    // pigment colour. This used to divide by the clamped value, which
+                    // meant a cell carrying more than unit mass had its colour divided
+                    // by 1 instead of by what it was multiplied by, and blew out.
                     var settled = new SKColor(
-                        Srgb(deposit[i] / a), Srgb(deposit[i + 1] / a), Srgb(deposit[i + 2] / a),
-                        (byte)Math.Round(a * 255));
+                        Srgb(deposit[i] / mass), Srgb(deposit[i + 1] / mass), Srgb(deposit[i + 2] / mass),
+                        255);
+                    var a = Opacity(mass);
+                    settled = settled.WithAlpha((byte)Math.Round(a * 255));
 
                     if (canMix)
                     {
@@ -338,4 +343,56 @@ public static class MediumSimulator
         (float)Pigment.ToLinear(c.Blue));
 
     private static byte Srgb(float linear) => Pigment.FromLinear(Math.Clamp(linear, 0f, 1f));
+
+    /// <summary>
+    /// How opaque a given mass of settled pigment reads: Beer–Lambert, not a ratio.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B50, and the ledger's stated cause for it was wrong.</b> The entry said
+    /// "something between seeding and write-back is dropping about half of what it was
+    /// given". Nothing is. Measured over a sweep of <c>PigmentDensity</c> — 0.25, 0.50,
+    /// 0.75, 1.00 give total darkening 313,020 / 615,830 / 918,339 / 1,220,860, linear
+    /// to 0.1% — and density 1.0 lands within <b>0.46%</b> of the same brush with the
+    /// medium switched off. <see cref="FluidLattice"/> conserves pigment exactly, as its
+    /// own <c>TotalPigment</c> tests already claimed. The whole of the "lost half" was
+    /// the preset's <c>PigmentDensity = 0.5</c> multiplying the seed.
+    /// </para>
+    /// <para>
+    /// <b>So the real defect is here.</b> Accumulated pigment mass was used *as* alpha —
+    /// linearly, and hard-clipped at 1. Nothing about pigment works that way, and three
+    /// things follow from fixing it, all of which are the character of a watercolour
+    /// rather than fidelity for its own sake:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>
+    /// <b>A thin wash reads.</b> At <see cref="Extinction"/> 3, a mass of 0.1 gives
+    /// α 0.26 where the linear map gave 0.10.
+    /// </description></item>
+    /// <item><description>
+    /// <b>Glazing works.</b> Above mass 1 the old map was a flat wall — a second wash
+    /// over a first added nothing. The exponential keeps deepening, which is the single
+    /// most characteristic thing watercolour does and the one the engine could not do.
+    /// </description></item>
+    /// <item><description>
+    /// <b>It never quite reaches opaque</b>, which is what "transparent medium" means,
+    /// while body media still land at α 0.95 by unit mass so gouache and oil stay solid.
+    /// </description></item>
+    /// </list>
+    /// <para>
+    /// One constant rather than a per-medium curve, deliberately. `CLAUDE.md` sets the
+    /// bar at "as far as the expression goes and not one step further": what an artist
+    /// can see here is that thin marks show and layered ones deepen, and both come from
+    /// the shape of this function rather than from its tuning. A per-medium extinction
+    /// would be a second knob doing what <see cref="MediumSettings.PigmentDensity"/>
+    /// already does, in different units.
+    /// </para>
+    /// </remarks>
+    private static float Opacity(float mass) => 1f - MathF.Exp(-Extinction * Math.Max(0f, mass));
+
+    /// <summary>
+    /// Optical density per unit of settled pigment. 3 puts unit mass at α 0.95 — opaque
+    /// enough for gouache, short of the wall that made glazing a no-op.
+    /// </summary>
+    private const float Extinction = 3f;
 }
