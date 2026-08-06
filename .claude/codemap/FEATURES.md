@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2447 tests, derived from the suite itself. Each line is a
+2454 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2637,6 +2637,17 @@ regression even when every test still compiles.
 - AProject With No Folders Writes No Folder File — `:403`
 - Deleting The Last Folder Reaches The Disk — `:415`
 - APalette Filed Under AMissing Folder Still Shows Up On Load — `:432`
+
+## ReferenceScopeTests
+`tests/Lightbox.Core.Tests/ReferenceScopeTests.cs`
+
+- ASheet On The Knight Folder Serves Every Drawing Under It — `:48`
+- APublished Environment Document Reaches ACharacters Drawing — `:69`
+- References Of Different Targets Are Resolved Separately — `:91`
+- References Accumulate From Every Scope Above — `:109`
+- AProject That Declares No References Is Not Filtered — `:128`
+- Only AReference Writes ATarget — `:143`
+- References And Palettes Resolve Independently — `:164`
 
 ## ReferenceStripTests
 `tests/Lightbox.Core.Tests/ReferenceStripTests.cs`

@@ -42,7 +42,7 @@ From the top:
 
 ### Panels
 
-Eight panels: **Project**, **Layers**, **Color**, **Character sheets**,
+Eight panels: **Project**, **Layers**, **Color**, **Reference sheets**,
 **Palette**, **Gradient**, **Reference**, **Timeline**. Open and close them
 from **View**.
 

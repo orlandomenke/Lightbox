@@ -58,6 +58,23 @@ public sealed class ScopedResource
     public string Kind { get; set; } = "";
 
     /// <summary>
+    /// What <see cref="Id"/> points at, when the kind alone does not say.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q30 step 3.</b> A palette id is a palette and needs no second word. A
+    /// <em>reference</em> is different: workflow 1 wants a multi-view sheet —
+    /// Front, Side, Back, Expressions — and workflow 3 wants one large
+    /// environment document, and those are genuinely different shapes rather
+    /// than one being a bigger version of the other. See
+    /// <see cref="ReferenceTargets"/>.
+    /// <para>
+    /// Nullable and absent unless a kind needs it, so palettes and gradients
+    /// carry no empty word.
+    /// </para>
+    /// </remarks>
+    public string? Target { get; set; }
+
+    /// <summary>
     /// How far it reaches, or null for the default. Nullable so the ordinary
     /// case writes no key — the camera's rule.
     /// </summary>
@@ -170,12 +187,14 @@ public static class ResourceScopes
         ProjectFolder? scope,
         string kind,
         string id,
-        ResourceReach reach = ResourceReach.Subtree)
+        ResourceReach reach = ResourceReach.Subtree,
+        string? target = null)
     {
         var entry = new ScopedResource
         {
             Id = id,
             Kind = kind,
+            Target = target,
             // Absent unless it is the interesting value, so an ordinary
             // declaration adds no key to the file.
             Reach = reach == ResourceReach.Subtree ? null : reach,
@@ -252,4 +271,96 @@ public static class PaletteScopes
         if (document is null) return null;
         return ResourceScopes.Resolve(manifest, document, Kind).Select(r => r.Id).ToList();
     }
+}
+
+/// <summary>What a reference points at.</summary>
+/// <remarks>
+/// Three, because the four workflows asked for reference art of genuinely
+/// different shapes rather than one shape at different sizes. Plain strings for
+/// the same reason <see cref="ScopedResource.Kind"/> is one: a fourth is a
+/// caller's business, and the resolver never interprets them.
+/// </remarks>
+public static class ReferenceTargets
+{
+    /// <summary>
+    /// A multi-view sheet — Front, Side, Back, Expressions — each view its own
+    /// canvas. What a character sheet has always been.
+    /// </summary>
+    public const string Sheet = "sheet";
+
+    /// <summary>
+    /// An ordinary document in the project, drawn against as reference.
+    /// Workflow 3's one large environment layout, which is not a sheet and
+    /// should not be forced into being one.
+    /// </summary>
+    public const string Document = "document";
+
+    /// <summary>An imported image, relative to the project root.</summary>
+    public const string Image = "image";
+}
+
+/// <summary>
+/// Which references a document can draw against.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Q30 step 3, and the character sheet's redesign is mostly this.</b> The
+/// <c>ReferenceSheet</c> record was already generic — a named set of views with
+/// static layer stacks, with nothing about characters in it. What was not
+/// generic was <em>where a sheet could live</em>: inside one document, in
+/// <c>Doc.ReferenceSheets</c>, so it could not be shared or filed. And
+/// <c>Character.References</c> was a list of paths bolted to a character, so
+/// workflow 3's environment document could not be one.
+/// </para>
+/// <para>
+/// Both are scope problems rather than shape problems, which is why this is a
+/// resolver and not a new record.
+/// </para>
+/// </remarks>
+public static class ReferenceScopes
+{
+    /// <summary>The kind string references are declared under.</summary>
+    public const string Kind = "reference";
+
+    /// <summary>Whether this project scopes its references at all.</summary>
+    /// <remarks>
+    /// The migration hinge, the same one palettes use: false for every project
+    /// written before Q30, which then keeps reading <c>Character.References</c>
+    /// exactly as it did.
+    /// </remarks>
+    public static bool AnyDeclared(ProjectManifest manifest) =>
+        (manifest.Resources?.Any(r => r.Kind == Kind) ?? false)
+        || ProjectFolders.All(manifest).Any(f => f.Resources?.Any(r => r.Kind == Kind) ?? false);
+
+    /// <summary>
+    /// Every reference <paramref name="document"/> can draw against, nearest
+    /// first, or null when the project scopes none.
+    /// </summary>
+    public static IReadOnlyList<ScopedResource>? VisibleTo(
+        ProjectManifest manifest, DocumentRef? document)
+    {
+        if (!AnyDeclared(manifest) || document is null) return null;
+        return ResourceScopes.Resolve(manifest, document, Kind);
+    }
+
+    /// <summary>Declare a reference on a scope.</summary>
+    /// <param name="target">One of <see cref="ReferenceTargets"/>.</param>
+    public static ScopedResource Declare(
+        ProjectManifest manifest,
+        ProjectFolder? scope,
+        string id,
+        string target,
+        ResourceReach reach = ResourceReach.Subtree) =>
+        ResourceScopes.Declare(manifest, scope, Kind, id, reach, target);
+
+    /// <summary>Only the references of one target kind, nearest first.</summary>
+    /// <remarks>
+    /// The reference panel wants sheets and the canvas wants everything, so the
+    /// filter belongs here rather than in three callers reimplementing it.
+    /// </remarks>
+    public static IReadOnlyList<ScopedResource> OfTarget(
+        ProjectManifest manifest, DocumentRef? document, string target) =>
+        VisibleTo(manifest, document)?
+            .Where(r => string.Equals(r.Target, target, StringComparison.Ordinal))
+            .ToList() ?? [];
 }

@@ -98,6 +98,25 @@ never takes an override away from somebody.
 Projects made before this existed are unchanged: every palette is offered to
 every document, exactly as before, until you declare a scope.
 
+#### References a document draws against
+
+A **reference** is something you draw against, declared on a scope the same way
+a palette is — so it reaches everything under it, at any depth. Three kinds:
+
+| | |
+| --- | --- |
+| **A sheet** | Several views on their own canvases — Front, Side, Back, Expressions. What a character sheet has always been, now filed wherever it belongs rather than trapped inside one drawing. |
+| **A document** | An ordinary drawing used as reference — one big environment layout, a style guide, a colour key. Not squeezed into a sheet, because it is not that shape. |
+| **An image** | A photo or a scan, brought in. |
+
+Put a sheet on a character's folder and every drawing under it can reach it. Put
+a reference on the project, or **publish** one from wherever it lives, and
+everything can — which is what an environment layout that both backgrounds and
+characters work from actually needs.
+
+The panel is called **Reference sheets** rather than Character sheets, because
+nothing about it was ever specific to characters.
+
 #### Rows that have no file behind them
 
 Two of them, and they mean different things:
