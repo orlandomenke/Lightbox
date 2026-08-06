@@ -168,6 +168,18 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### colour
 
+- [ ] **B103** `P2` `colour` Undoing a project-palette recolour appears to do nothing `evidence: LivePaletteTests, UndoingARecolourOfAProjectPaletteRestoresIt`
+  - Found alongside B102, and it predates Q30 rather than being caused by it.
+  - `CommitSwatchEdit` records the undo step as `SetSwatchColor(d, id, colour)`, which walks `doc.Palettes` — the document's *own* palettes. A swatch belonging to a **project** palette is not in that list, so the delta finds nothing to change and the swatch keeps its new colour.
+  - It looks like it works while editing, because the drag mutates the `Swatch` instance in place and the registry holds that same instance. Only undo reveals that the record and the object have parted company.
+  - The fix has to reach whichever palette actually owns the swatch, document or project, and the test wants to assert against a *project* palette specifically — a document-palette test passes today and would keep passing while this is broken.
+
+- [ ] **B102** `P2` `colour` A swatch edit repaints only the active tab, so other open documents keep the old colour `evidence: LivePaletteTests, RecolouringRepaintsEveryOpenDocumentThatUsesTheSwatch`
+  - Found 2026-08-06 by checking rather than by a report, while answering whether palette updates sync across a scope. They sync **to disk** — the palette is shared and any file opened afterwards is correct — and they do not sync **across open tabs**.
+  - `RepaintForSwatch` walks `Scene.Layers`, which is the active document's scene. Two of a character's animations open at once, recolour a swatch, and only the focused one repaints; the other keeps cached pixels until something else invalidates them.
+  - Worse now that Q30 scopes palettes, because a shared palette is the thing a *set* of documents paint from — that is the whole feature — so the case where several of them are open is the ordinary one rather than the edge.
+  - Cost: S. The invalidation wants to run per open tab rather than per active scene; the stroke-walk that decides which frames are affected is already the right shape.
+
 - [ ] **B68** `P2` `colour` Swatches are not saved — not into a project, and not into a single document `evidence: SwatchPersistenceTests, ASwatchCreatedInAProjectSurvivesReopeningIt, ASwatchCreatedInASingleDocumentIsSavedWithIt`
   - Reported: swatches appear not to be saved on creation in a project, and not saved or loaded for a standalone file either.
   - Distinct from **B10**, which was swatch *links* dying when a project was saved and reloaded and is fixed: this is the swatch itself never reaching the file. B10's guards (`ASavedProjectKeepsItsSwatchIds`) check that an id survives, which passes whether or not the palette entry behind it was written.
