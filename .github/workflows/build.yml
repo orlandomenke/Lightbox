@@ -109,6 +109,21 @@ jobs:
       - name: The manual's contents list matches its sections
         run: python3 scripts/manual.py check
 
+      # The ledgers, for the one failure a merge can introduce that nothing else
+      # would notice: two ids the same. `bugs.py` grew `duplicate_ids` when two
+      # bugs shared B39, and B81 is the same fault in QUESTIONS.md — but nothing
+      # ran either check, so the guard existed and never fired.
+      #
+      # A merge is exactly how it happens. Two branches each take the next free
+      # id, both are right on their own branch, and the collision only exists in
+      # the merged file. The ledgers are deliberately NOT auto-merged (see
+      # .gitattributes), so a person resolves that conflict — and this is what
+      # tells them they got it wrong.
+      - name: The bug ledger is consistent and its ids are unique
+        run: python3 scripts/bugs.py check
+      - name: The roadmap's checkboxes match the code
+        run: python3 scripts/roadmap.py check
+
   # Is there anything in this push that could change the bundle? A Windows
   # build of a Markdown edit is 105 MB of storage for a file nobody ships.
   # Tests still run on everything — it is only the bundle that is skipped.
