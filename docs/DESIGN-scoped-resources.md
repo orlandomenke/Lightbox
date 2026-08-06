@@ -338,14 +338,10 @@ half-migrated.
    render time, because a drawing whose snapping changed when it was dragged into
    another folder is the defect scoping exists to prevent.
 
-   **Export configuration is still waiting, and for a sharper reason than
-   guides were.** There is no export-settings record in `Lightbox.Core` at all —
-   the export window collects its options directly and hands them to the
-   converters. So this is not "add a record beside `GuideSet`": it is lifting the
-   window's settings into Core as a named, id-bearing preset first, and that is a
-   design decision about what an export preset *is* rather than a mechanical
-   step. Worth doing — Pillar 5 and the sprite-atlas item both want it — and
-   worth doing deliberately. Two roadmap items close as a side effect:
+   **Export configuration — see the section below.** I twice described this as
+   "there is no export-settings record", which was wrong and is corrected there:
+   `ExportPreset` exists and is good. It is in the wrong assembly and is missing
+   one field. Two roadmap items close as a side effect:
    `[?] Character height guide` becomes an ordinary guide set declared on the
    knight folder, and Pillar 6's shipped template machinery gains the per-scope
    default it was missing.
@@ -385,3 +381,79 @@ not say so:
 - **Migration.** Q30 answered *new projects only*, so existing projects keep
   character palettes and `Character.References` — and the code keeps both paths.
   That is recorded in Q30 with the consequence named.
+
+
+---
+
+## Export, and what the project structure changed about it
+
+**A correction first, because I got this wrong twice.** I said there was no
+export-settings record and that one would have to be designed. There is:
+`ExportPreset` in `Lightbox.App/Services`, with `Target`, `Trim`, `Pack`,
+`Columns`, `Padding` and `Background`, a `ExportPresetStore` that persists them,
+an `ExportRunner` that is deliberately thin — *a preset in, files and a report
+out* — and an `AutoExport` that already decides *when*. Pillar 5's last mile is
+built. The plan below is therefore much smaller than the one I implied, and it
+is mostly about moving one type and adding one field.
+
+### What the new structure actually broke
+
+Nothing is broken in the sense of failing. What changed is that **three of the
+export design's assumptions were true when a project was a flat pile and are not
+true now.**
+
+| Assumption | Was fine because | Now |
+| --- | --- | --- |
+| A preset is a **user** setting, held in `ExportPresetStore` beside the app's other preferences | Every project exported roughly one way | The knight exports at one cell size and the boss at another. A preset is a property of *part of a project*, not of the person |
+| Export is a thing you do **to the open document** | There was one obvious document to mean | An artist wants *export this folder*, and "the knight's locomotion cycles" is now a thing that can be named |
+| Auto-export is one **global** on/off (`AutoExportSettings.Enabled`) | One rule could describe a whole project | A production wants finished shots exported and work-in-progress not, which is a rule about a subtree rather than about the application |
+
+### The plan, in the order the pieces depend on each other
+
+**1 · Give `ExportPreset` an `Id` and move it to Core.** It is a record of enums
+and numbers with no UI dependency, so the move is mechanical. `Name` is what it
+has today and a name is not an identity — two folders can reasonably both have a
+preset called *Sheet*, and a scope declaration has to point at one of them.
+
+**2 · Scope it.** `ExportScopes` beside the four that exist, kind `export`,
+resolved with `Nearest` rather than `Resolve` — a document exports one way at a
+time, so accumulating presets would be offering a choice nobody made. Q30's
+migration hinge applies unchanged: a project that declares none keeps using the
+user's store exactly as it does today.
+
+**3 · Export a scope, not just a document.** `ExportRunner` already takes *a
+preset and a path*, so this is a caller change rather than an engine one: walk
+the folder's documents, run each through the resolved preset, and return one
+report. **The interesting part is what it does about mixed results** — thirty
+documents where two are missing files is a report, not an exception, and
+`ExportRun` already carries `Omitted` and `Suspected` for exactly that kind of
+partial truth.
+
+**4 · Let auto-export be a rule on a scope.** `AutoExportSettings` becomes
+declarable per scope rather than only globally — *finished shots under `act-1/`
+export on status change; nothing else does*. `AutoExport.Decide` already takes
+settings as an argument, so it needs a different caller rather than different
+logic.
+
+### Three decisions I should not make alone
+
+- **Is a preset per target, or one preset with per-target overrides?** A studio
+  shipping to Unity *and* Godot wants both from one authoring pass. Per-target
+  presets are simpler and duplicate cell size and trimming; one preset with
+  overrides keeps the shared parts shared and is a more complicated record.
+  I lean **per-target presets plus scoping**, because the scope already gives
+  the sharing — declare the common one on the character, the Godot-specific one
+  on the folder that needs it — and that avoids inventing an override mechanism
+  next to one that exists.
+- **Does cell size belong to the preset or to the document?** Today's `Trim` and
+  `Pack` are preset-side, which is right for a sheet. A per-document override
+  would let one oversized attack frame break a character's grid, which is
+  exactly the consistency the *assets* output target exists to protect.
+  I lean **preset only**, and let a document that genuinely differs live under a
+  folder with its own preset.
+- **What does "export this folder" do about nested folders?** Recursive is the
+  obvious reading and is what an artist means by *export the knight*. It is also
+  how somebody accidentally writes four hundred files. I lean **recursive with
+  the count in the confirm** — the number is the safeguard, not a checkbox.
+
+None of the three blocks step 1 or 2, which is why they are worth landing first.
