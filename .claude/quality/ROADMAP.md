@@ -214,12 +214,36 @@ available in every project, defaulted for the ones that need it.
 
 ---
 
-## Pillar 1 — Character-based projects, not file-based
+## Pillar 1 — Scope-based projects, not file-based
 
-The switch that reframes everything else: a character is the unit of work, not
-a folder of files. Its animations share one palette, one brush set, one set of
-references, one export configuration. This is also where the project-type and
-workspace split lands — see "Project architecture" below.
+The switch that reframes everything else: **the unit of work is bigger than a
+file, and things that belong together share one palette, one brush set, one set
+of references, one export configuration.** This is also where the project-type
+and workspace split lands — see "Project architecture" below.
+
+**Renamed from "Character-based projects" on 2026-08-06, and the rename is the
+point rather than tidying.** The pillar's claim was always about *grouping* —
+that a file is too small a unit and the things around a drawing should be shared
+by whatever the drawing belongs to. "Character" was the example that made it
+concrete, and it hardened into the mechanism: a palette could be shared by a
+character and by nothing else. Q30 separates the two again. A character is now
+a folder that carries character data, resources are declared on any scope and
+accumulate down the tree with the nearest winning ties, and the pillar says what
+it always meant.
+
+Read the completed items below as **history, not as the design**. They were
+built and they work; several are character-shaped because that was the only
+scope available when they landed, and Q30 is what widens them:
+
+| Landed as | Becomes, under Q30 |
+| --- | --- |
+| Shared palette across *a character's* animations | A palette on any folder, resolved by walking up from the document |
+| Character library, gated to the Asset Library type | Project-based, available project-wide — which is the same conclusion *Making reach unconditional* reached from the other direction |
+| Character workspace — animations, assets, references, palette in one place | The same set, declared on whichever scope owns them |
+| Project browser — characters and their animations | One tree, which B85/B86 already built beside the old two axes |
+
+None of that unbuilds anything. It is the difference between *the only place a
+palette can live* and *one of the places a palette can live*.
 
 - [x] Project type recorded, absent by default `evidence: ProjectType, AProjectWithNoTypeWritesNoTypeKey, ADeclaredTypeSurvives`
 - [x] Project types at creation (Illustration / Animation / Game Art / Storyboard / Comic / Asset Library / Empty) `evidence: NewProjectDialog, NewProjectSettings, NewDocumentSettings`
@@ -831,23 +855,34 @@ subject reading.
 
 ## Project architecture — reconciling the design with the code
 
-The project-type / workspace / asset-organization split is a real design and
-the code does not have it yet. What exists today, honestly:
+**This section was a list of things the code did not have yet, and it has since
+built all of them.** Rewritten 2026-08-06 rather than left standing: a table
+saying "no project layer at all" next to `ProjectManifest`, `ProjectIo` and a
+nine-panel project docker is not a caution, it is a lie that costs somebody an
+afternoon. What follows is what is true now.
 
-| The design says | The code has |
+| The design says | The code has, 2026-08-06 |
 | --- | --- |
-| Project containing scenes/characters/assets | `Doc` with **one** `Scene`. No project layer at all. |
-| Project type chosen at creation | `NewDocumentSettings` — size, fps, ppi, paper. No type. |
-| Workspace controls which panels are visible | Dockers can be shown and hidden individually; no named sets, nothing persisted. |
-| Character as a reusable asset with animations under it | `ReferenceSheet` is the nearest thing, and it is reference art, not a container. |
-| Scene-based / character-based / asset-based organization | Layers and cels on a single canvas. |
+| Project containing scenes/characters/assets | `ProjectManifest` + `ProjectIo` + `Project`, a `.lbproj` folder of plain JSON. **Built** |
+| Project type chosen at creation | `ProjectType`, nullable, seven-way picker on New project. **Built**, and absent from the file until set |
+| Workspace controls which panels are visible | `WorkspaceStore` with per-project-type defaults, saved and persisted. **Built** |
+| Character as a reusable asset with animations under it | `Character` with animations, a palette, variants and `CharacterLibrary`. **Built** — and Q30 makes it a folder that carries this data rather than a second kind of container |
+| Scene-based / character-based / asset-based organization | `ProjectFolder` — arbitrary names, any depth, tags — beside `Character` and `ProjectScene`. **Built**; Q30 collapses the three into one tree |
+
+**What is left is not a container, it is the collapse.** The gap this section
+was written to name is closed; the gap that replaced it is that there are now
+*three* ways to group drawings where there should be one, which is Q30 and is
+answered rather than open.
 
 Three consequences worth stating before anyone builds against the design:
 
-1. **`Doc.Scene` is singular.** Everything above — scenes, shots, pages,
-   characters — needs a container that does not exist. That is one change and
-   it is load-bearing for pillars 1, 3 and 6 alike; it should be designed
-   once, not three times.
+1. **There are two hierarchies until Q30 lands, and code has to know which it
+   holds.** The folder tree is arbitrary and id-based; `Character` and
+   `ProjectScene` still build paths from fixed words in `ProjectIo`
+   (`characters/<slug>/animations/`, `scenes/<slug>/shots/`). Anything written
+   now against `Project.Characters` or `Project.Scenes` is written against the
+   half that is going away — prefer the folder tree and `DocumentRef` where
+   there is a choice.
 2. **Optional must stay absent.** `Scene.Camera` and `Scene.Pivot` are
    nullable and serialize to nothing when unset, and the same discipline has
    to hold for project type and workspace. An illustration document must not
@@ -922,6 +957,7 @@ need it in a short.
 - [ ] A project's characters are offerable from any project type `evidence: CharacterLibraryReachTests, AnyProjectCanPublishItsCharacters, TheAssetLibraryTypeDefaultsToPublishing`
   - The one existing violation, fixed rather than left as a footnote. `CharacterLibrary.Scan` currently returns nothing unless the manifest says `AssetLibrary`, so a character filed in a game project is unreachable from the short that needs it — and the only way out is to change the project's type, which is a decision about the whole project made to solve one lookup.
   - `OnlyAssetLibraryProjectsOfferTheirCharacters` is the test that pins the old behaviour, and it should be **rewritten rather than deleted**: the thing worth guarding is that the Asset Library type still *defaults* to publishing, which is the part that made the type mean something.
+  - **Q30 reached the same conclusion from the other direction, which is the strongest evidence either had.** This item argued it from the reach rule — nothing locked behind a manifest value. Q30 answered it from the workflow — the character library and the asset library become project-based, with creating into them and saving to them available project-wide. Two independent routes to one answer, so this is settled rather than merely proposed. Q30 is the wider change and this item is a subset of it; build it here if it lands first, and delete it as done if Q30 does.
 
 ---
 
@@ -1224,7 +1260,7 @@ Already built ✅:
 
 ### **Roadmap Items to Add**
 
-**Pillar 1 (Character-based projects) — Reference Usability**
+**Pillar 1 (Scope-based projects) — Reference Usability**
 
 1. **New Item**: "Reference positioning and scale persist across sessions" [ ]
    - Serialize reference position/scale/rotation/opacity to character metadata
@@ -1254,7 +1290,7 @@ Already built ✅:
    - Effort: 200–300 LOC
    - Evidence: ExpressionTaggingTests, FrameQueryTests, ExpressionMetadataExport
 
-**Pillar 1 (Character-based projects) — Team Collaboration**
+**Pillar 1 (Scope-based projects) — Team Collaboration**
 
 5. **New Item**: "Lightweight character sheet versioning for team distribution" [ ]
    - Simple Git-like tracking for character versions
