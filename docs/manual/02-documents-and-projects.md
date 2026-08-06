@@ -164,10 +164,30 @@ settings, **and it says where one file ends**.
 | **One file per document** | A file each — what you get before you declare anything |
 
 So declaring on *Knight* makes the knight one sheet; declaring instead on
-*Knight ▸ Locomotion* makes locomotion its own. The status line says which, and
-the export confirmation counts it — *"2 files from 47 documents, 3 held back by
-status"* — because a number tells you whether you picked the right folder in a
-way that *are you sure?* cannot.
+*Knight ▸ Locomotion* makes locomotion its own. The status line says which.
+
+**To run it**, right-click the folder and pick **Export this folder…**. It counts
+first — *"2 files from 47 documents, 3 held back by status"* — and asks, before
+it opens a folder picker and before it writes anything. A number tells you
+whether you picked the right folder in a way that *are you sure?* cannot, and it
+is worked out without reading a single drawing, so asking is cheap even when the
+answer is no.
+
+Each artifact is written independently: one that fails names itself in the
+status line and the rest still land. A drawing that has gone missing from disk is
+named too rather than stopping the run.
+
+Two targets cannot hold several documents, and say so instead of quietly
+exporting the first: a **PNG sequence** is one animation's frames numbered into a
+folder, with nothing to say where one ended, and a **GameMaker sprite** is one
+animation with one origin and one image speed. Sheets, Unity, Godot and Unreal
+all take a folder's worth — one file, one clip per document, named after the
+document.
+
+**Test export** is next to it, on a drawing rather than a folder: that one
+animation, written to `test-exports/` beside the project. It ignores grouping and
+the status filter, and it can never overwrite a deliverable — so looking at one
+cycle cannot break the build.
 
 A preset can also be told which **statuses** are allowed out, so work in progress
 stays out of a shipped sheet, and which status **rebuilds** it — mark an

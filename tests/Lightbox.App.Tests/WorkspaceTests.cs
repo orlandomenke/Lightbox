@@ -247,7 +247,10 @@ public sealed class WorkspaceTests : BrushStateIsolated
                 // Q30 added "Share a palette here", beside the other actions
                 // that are about where a thing sits rather than what it is.
                 ["Open", "Open with default app…", "Show in file manager", "Copy path",
-                 "Duplicate", "Rename…", "Export this as", "Share a palette here",
+                 "Duplicate", "Rename…", "Export this as",
+                 // Q30's last mile: the plan was countable and describable and
+                 // no view called either, so these two are what make it real.
+                 "Export this folder…", "Test export", "Share a palette here",
                  "Remove from project", "Delete permanently…", "Status"],
                 items.Select(i => i.Header?.ToString()).ToList());
 

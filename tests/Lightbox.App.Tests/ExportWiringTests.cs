@@ -203,4 +203,133 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
         vm.SaveProject();
         Assert.Empty(vm.ProjectDocker.StaleExports());
     }
+
+    // ---- from a plan to files ------------------------------------------------
+    //
+    // The half that was missing. PlanExport could count an artifact holding
+    // forty documents and ExportRunner took one Doc, so OneArtifact and
+    // PerChildFolder were describable and not runnable.
+
+    /// <summary>Every artifact in a plan resolves to documents and a path.</summary>
+    [AvaloniaFact]
+    public void ResolvingAGroupedPlanLoadsItsDocumentsAndNamesOneFile()
+    {
+        var vm = Vm();
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Run");
+        vm.SaveProject(everything: true);
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
+
+        var sheet = new ExportPreset { Name = "Sheet", Grouping = ExportGrouping.OneArtifact };
+        (docker.Project!.Manifest.ExportPresets ??= []).Add(sheet);
+        docker.SetExportPresetEntryCommand.Execute(sheet);
+
+        var missing = new List<string>();
+        var resolved = Assert.Single(docker.ResolveExport(_root, missing));
+
+        Assert.Empty(missing);
+        Assert.Equal(2, resolved.Documents.Count);
+        Assert.Equal("Knight", resolved.Name);
+        Assert.EndsWith("knight.png", resolved.Path);
+        output.WriteLine($"{resolved.Name}: {resolved.Documents.Count} document(s) -> {resolved.Path}");
+    }
+
+    /// <summary>And running it writes one sheet holding both.</summary>
+    /// <remarks>
+    /// The end-to-end claim, and the one nothing could make before: a folder
+    /// declared as one artifact produces one file with every document's frames
+    /// in it, and a tag naming each so an engine can tell them apart.
+    /// </remarks>
+    [AvaloniaFact]
+    public void RunningAGroupedPlanWritesOneSheetHoldingEveryDocument()
+    {
+        var vm = Vm();
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Run");
+        vm.SaveProject(everything: true);
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
+
+        var sheet = new ExportPreset { Name = "Sheet", Grouping = ExportGrouping.OneArtifact };
+        (docker.Project!.Manifest.ExportPresets ??= []).Add(sheet);
+        docker.SetExportPresetEntryCommand.Execute(sheet);
+
+        var into = Path.Combine(_root, "out");
+        Directory.CreateDirectory(into);
+        var item = Assert.Single(docker.ResolveExport(into, []));
+        var run = Lightbox.App.Services.ExportRunner.Run(
+            item.Documents, item.Preset, item.Path, item.Names);
+
+        output.WriteLine(run.Summary);
+        Assert.True(File.Exists(item.Path), $"no sheet at {item.Path}");
+        var meta = System.Text.Json.JsonDocument
+            .Parse(File.ReadAllText(Path.ChangeExtension(item.Path, ".json"))).RootElement;
+
+        // Both documents' frames, and a tag apiece so the clips are separable.
+        var names = meta.GetProperty("meta").GetProperty("frameTags").EnumerateArray()
+            .Select(t => t.GetProperty("name").GetString()).ToList();
+        Assert.Contains("Walk", names);
+        Assert.Contains("Run", names);
+    }
+
+    /// <summary>
+    /// A target that cannot hold several documents refuses, and says why.
+    /// </summary>
+    /// <remarks>
+    /// Refusal rather than a silent first-document export, which is what taking
+    /// <c>docs[0]</c> would have been: a PNG sequence numbers frames into a
+    /// folder with nothing to say where one animation ended, and a GameMaker
+    /// sprite is one animation with one origin and one speed. No files, so
+    /// nothing downstream reads it as a success.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ATargetThatCannotHoldSeveralDocumentsRefusesRatherThanExportingTheFirst()
+    {
+        var docs = new[]
+        {
+            Lightbox.Core.Documents.DocumentFactory.CreateDoc(32, 32),
+            Lightbox.Core.Documents.DocumentFactory.CreateDoc(32, 32),
+        };
+        var into = Path.Combine(_root, "refused");
+        Directory.CreateDirectory(into);
+
+        foreach (var target in new[] { ExportTarget.PngSequence, ExportTarget.GameMaker })
+        {
+            var run = Lightbox.App.Services.ExportRunner.Run(
+                docs, new ExportPreset { Name = target.ToString(), Target = target },
+                Path.Combine(into, "x.png"));
+
+            output.WriteLine($"{target}: {run.Summary}");
+            Assert.Empty(run.Files);
+            Assert.Contains("2", run.Summary);
+        }
+    }
+
+    /// <summary>An unreadable document is named and does not stop the rest.</summary>
+    [AvaloniaFact]
+    public void ADocumentThatCannotBeReadIsNamedRatherThanThrowing()
+    {
+        var vm = Vm();
+        var docker = vm.ProjectDocker;
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        vm.SaveProject(everything: true);
+
+        // Delete one from under the project, which is B61's ordinary case.
+        var reference = docker.Project!.Manifest.Documents.First(d => d.Name == "Walk");
+        File.Delete(Path.Combine(docker.Project.Root, reference.Path));
+        docker.Project.Loaded.Clear();
+
+        var missing = new List<string>();
+        var planned = docker.ResolveExport(_root, missing);
+        output.WriteLine($"{planned.Count} planned, missing: {string.Join(", ", missing)}");
+        Assert.Contains("Walk", missing);
+        // And the other document still resolved — one unreadable drawing must
+        // not take the rest of the plan with it.
+        Assert.NotEmpty(planned);
+    }
 }

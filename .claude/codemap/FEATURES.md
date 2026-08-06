@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2524 tests, derived from the suite itself. Each line is a
+2528 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -745,6 +745,10 @@ regression even when every test still compiles.
 - ATest Export Goes Elsewhere And Ignores Grouping And Status — `:152`
 - ATest Export Needs ADocument Selected — `:189`
 - Nothing Exported Means Nothing Stale — `:199`
+- Resolving AGrouped Plan Loads Its Documents And Names One File — `:215`
+- Running AGrouped Plan Writes One Sheet Holding Every Document — `:247`
+- ATarget That Cannot Hold Several Documents Refuses Rather Than Exporting The First — `:291`
+- ADocument That Cannot Be Read Is Named Rather Than Throwing — `:315`
 
 ## FileRevealTests
 `tests/Lightbox.App.Tests/FileRevealTests.cs`
@@ -2241,9 +2245,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:170`
 - The Canvas Gets The Room Left Over By The Strips — `:193`
 - The Project Row Menu Actually Does Something When Clicked — `:217`
-- The New Menu Actually Makes Things — `:303`
-- The Reference Panel Is Absent Until It Is Asked For — `:370`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:386`
+- The New Menu Actually Makes Things — `:306`
+- The Reference Panel Is Absent Until It Is Asked For — `:373`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:389`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

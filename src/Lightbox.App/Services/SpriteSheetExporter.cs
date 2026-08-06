@@ -51,6 +51,10 @@ public sealed record SpriteSheetOptions
 /// rather than claimed — "atlas optimisation" with no number attached is a
 /// feeling.
 /// </param>
+/// <param name="Document">Index into the list of documents the sheet was built from.</param>
+/// <param name="Frame">That document's own frame number, not the sheet's.</param>
+public readonly record struct SheetFrameOwner(int Document, int Frame);
+
 public sealed record SpriteSheetResult(
     string SheetPath,
     string MetadataPath,
@@ -64,8 +68,23 @@ public sealed record SpriteSheetResult(
     int SheetHeight = 0,
     long UsedArea = 0,
     IReadOnlyList<OmittedLayer>? Omitted = null,
-    IReadOnlyList<SuspectedBackground>? Suspected = null)
+    IReadOnlyList<SuspectedBackground>? Suspected = null,
+    IReadOnlyList<SheetFrameOwner>? Owners = null)
 {
+    /// <summary>
+    /// Which document each frame of the sheet came from, and its frame number
+    /// there.
+    /// </summary>
+    /// <remarks>
+    /// For the engine exporters, which walk the sheet's frames and need each
+    /// one's anchors, colliders and pivot — all of which are questions about the
+    /// document it came from, not about the sheet. Without this they would index
+    /// the first document with a sheet-wide frame number and produce colliders
+    /// from the wrong drawing, which is invisible until something is hit in the
+    /// wrong place in an engine.
+    /// </remarks>
+    public IReadOnlyList<SheetFrameOwner> FrameOwners => Owners ?? [];
+
     /// <summary>How much of the sheet is sprite, 0 to 1.</summary>
     public double Occupancy =>
         SheetWidth > 0 && SheetHeight > 0 ? UsedArea / (double)SheetWidth / SheetHeight : 0;
@@ -277,7 +296,8 @@ public static class SpriteSheetExporter
     /// </para>
     /// </remarks>
     public static SpriteSheetResult Export(
-        IReadOnlyList<Doc> docs, string sheetPath, SpriteSheetOptions? options = null)
+        IReadOnlyList<Doc> docs, string sheetPath, SpriteSheetOptions? options = null,
+        IReadOnlyList<string>? names = null)
     {
         if (docs.Count == 0) throw new ArgumentException("A sheet needs at least one document.", nameof(docs));
         var opts = options ?? new SpriteSheetOptions();
@@ -294,6 +314,10 @@ public static class SpriteSheetExporter
         // position rather than the document's own frame number once there is more
         // than one document.
         var owners = new List<(Scene Scene, int Index)>();
+        // The same fact in the shape callers get back: an engine exporter walks
+        // the sheet's frames and needs each one's owning document, and it does
+        // not have the Scene objects this method closed over.
+        var provenance = new List<SheetFrameOwner>();
         var tags = new List<SheetTag>();
         var events = new List<SheetEvent>();
         var omitted = new List<OmittedLayer>();
@@ -308,8 +332,9 @@ public static class SpriteSheetExporter
         var height = docs.Max(d => d.Scene.Height);
         try
         {
-            foreach (var doc in docs)
+            for (var d = 0; d < docs.Count; d++)
             {
+                var doc = docs[d];
                 var scene = doc.Scene;
                 var count = Math.Max(1, scene.FrameCount);
                 var offset = frames.Count;
@@ -329,9 +354,17 @@ public static class SpriteSheetExporter
                 // declares no tags still writes no tag key.
                 if (docs.Count > 1)
                 {
+                    // The document's name, when the caller knows it. Scene.Name
+                    // is not a fallback worth much on its own: it defaults to
+                    // "Scene 1" for every document, so three cycles would arrive
+                    // in an engine as three clips called the same thing — which
+                    // is worse than no tag, because it looks deliberate.
+                    var label = names is not null && d < names.Count && !string.IsNullOrWhiteSpace(names[d])
+                        ? names[d].Trim()
+                        : string.IsNullOrWhiteSpace(scene.Name) ? $"clip {offset}" : scene.Name.Trim();
                     tags.Add(new SheetTag
                     {
-                        Name = string.IsNullOrWhiteSpace(scene.Name) ? $"clip {offset}" : scene.Name.Trim(),
+                        Name = label,
                         From = offset,
                         To = offset + count - 1,
                         Direction = "forward",
@@ -354,6 +387,7 @@ public static class SpriteSheetExporter
                     // the failure Pillar 5 already records for pivots.
                     pivots.Add(scene.Pivot);
                     owners.Add((scene, i));
+                    provenance.Add(new SheetFrameOwner(d, i));
                 }
             }
 
@@ -507,7 +541,7 @@ public static class SpriteSheetExporter
             return new SpriteSheetResult(
                 sheetPath, metaPath, cellW, cellH, columns, rows, frames.Count,
                 opts.Pack, sheetW, sheetH, entries.Sum(e => (long)e.Frame.W * e.Frame.H),
-                omitted, suspected);
+                omitted, suspected, provenance);
         }
         finally
         {
