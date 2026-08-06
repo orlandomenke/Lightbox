@@ -1,6 +1,6 @@
 # Code index
 
-456 files · 114880 lines · 2340 tests.
+460 files · 115554 lines · 2356 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -301,6 +301,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GradientKind:3, GradientSpread:10, GradientStop:32, GradientAlphaStop:57, Gradient:71, GradientOps:107
 - `src/Lightbox.Core/Documents/ReferenceStrip.cs` (222 ln) · 4 test files
   - ReferenceCell:23, ReferenceStrip:91
+- `src/Lightbox.Core/Versioning/VersionHistoryManager.cs` (216 ln) · 1 test files
+  - VersionHistoryManager:9
 - `src/Lightbox.Core/Export/EngineApiNotes.cs` (212 ln) · 1 test files
   - EngineTarget:4, ImportMechanism:13, EngineApiNote:49, EngineApiNotes:86
 - `src/Lightbox.Core/Timeline/FigureFinder.cs` (206 ln) · 1 test files
@@ -369,7 +371,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameRole:8, Frame:19, VectorFrame:57, PaintedFrame:70
 - `src/Lightbox.Core/Export/GodotConvert.cs` (91 ln) · 2 test files
   - GodotConvert:24
-- `src/Lightbox.Core/Projects/AssetStatus.cs` (91 ln) · 3 test files
+- `src/Lightbox.Core/Projects/AssetStatus.cs` (91 ln) · 4 test files
   - AssetStatus:30, AssetStatuses:49
 - `src/Lightbox.Core/Timeline/OnionSkin.cs` (88 ln) · 1 test files
   - OnionSkin:27
@@ -381,12 +383,16 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushScope:8, BrushScopeDefaults:47
 - `src/Lightbox.Core/Serialization/DocJson.cs` (77 ln) · 26 test files
   - DocJson:11
+- `src/Lightbox.Core/Versioning/VersionEntry.cs` (77 ln) · 1 test files
+  - VersionEntry:10
 - `src/Lightbox.Core/Inbetween/StrokeMatcher.cs` (73 ln) · 1 test files
   - StrokePair:6, StrokeMatcher:13
 - `src/Lightbox.Core/Documents/Anchor.cs` (70 ln) · 8 test files
   - AnchorKind:4, Anchor:53, AnchorPoint:70
 - `src/Lightbox.Core/Documents/BrushStabilisation.cs` (66 ln) · 2 test files
   - SmoothingMode:10, BrushStabilisation:52
+- `src/Lightbox.Core/Versioning/IVersionHistoryStore.cs` (66 ln) · 1 test files
+  - IVersionHistoryStore:10
 - `src/Lightbox.Core/Documents/ReferenceSheet.cs` (50 ln) · 2 test files
   - ReferenceSheet:11, ReferenceView:21
 - `src/Lightbox.Core/Inbetween/StrokeInterpolator.cs` (43 ln) · 1 test files
