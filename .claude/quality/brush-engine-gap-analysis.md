@@ -76,7 +76,7 @@ Lightbox has **exceptional raster brush capabilities** that match or exceed indu
 
 1. **Stroke path editing** [ ] — Reshape lines after drawing
    - **Impact**: HIGH (foundational for vector workflow)
-   - **Blocker**: Q19 (design question unresolved) — does moving a point re-seed dabs?
+   - **Blocker**: ~~Q19~~ **none — answered 2026-08-07.** The question is **Q26**, not Q19, and it is answered (a): moving a point *does* re-seed the dabs and that is accepted, because "the grain belongs to the canvas". See `docs/DESIGN-vector-tooling.md`
    - **Market**: Every vector tool (Harmony, Linearity, Illustrator) has this
    - **Roadmap**: Item exists as "A drawn line can be re-shaped and keeps the mark it was drawn with" [split status]
 
@@ -168,8 +168,8 @@ Lightbox has **exceptional raster brush capabilities** that match or exceed indu
 ### Tier 1 (High-Value, Unblocked)
 
 1. **Stroke Reshaping (Path Editing)** — Core vector feature
-   - **Dependency**: Resolve Q19 (seed origin: per-stroke or arc-length?)
-   - **Effort**: 800–1200 LOC (PathEditSession pattern, handle seeding, undo integration)
+   - **Dependency**: ~~Resolve Q19~~ **none.** **Q26** answered 2026-08-07 (a) — no seed origin, no arc-length seeding, no re-seed radius
+   - **Effort**: `PathEditSession` pattern (a second instance of the transform session), plus a `StrokePicker` composing three primitives that already exist, plus undo through `PerformDelta`
    - **Market validation**: 100% of vector tools have this; zero question it's needed
    - **Revenue impact**: HIGH (unlocks "vector layer" use case)
    - **Blocking**: Sub-pixel precision, SVG export
@@ -266,11 +266,13 @@ Lightbox has **exceptional raster brush capabilities** that match or exceed indu
    - Effort: 150–200 LOC
    - Evidence: PressureCurveExportTests, InteropTests with Clip Studio/Procreate formats
 
-**Pillar 4 (Drawing floor) — Vector Tools**
+**Pillar 0 (The drawing floor) — Vector Tools.** *Pillar 0, not 4 — the earlier
+heading here said "Pillar 4 (Drawing floor)", which names two different pillars
+in four words. The roadmap body files vector under Pillar 0.*
 
 3. **Upgrade**: "A drawn line can be re-shaped and keeps the mark it was drawn with" [ ]
-   - Current status: Design question unresolved (Q19)
-   - Action: Resolve Q19 — decide whether seed origin is per-stroke or arc-length
+   - Current status: **unblocked.** The design question was **Q26**, not Q19, and it is answered
+   - Action: build it — `docs/DESIGN-vector-tooling.md`, phased pick → path record → isolation mode → pen
    - Evidence: PathEditSession, StrokeReshapeTests, TextureConsistencyTests
    - Blocking: SVG export, Bezier editing
 
@@ -296,7 +298,7 @@ Lightbox has **exceptional raster brush capabilities** that match or exceed indu
 7. **Upgrade**: "Symmetry and mirrored painting" [ ]
    - Current status: [ ] (design noted as hard, seed re-seeding issue)
    - Market validation: Essential for character animation
-   - Blocker: Resolve Q19-like seed origin question
+   - Blocker: **none.** The seed-origin question is Q26, answered; the record question specific to symmetry is Q15, also answered (c) — `Mirror` on the stroke
    - Evidence: SymmetryTests, MirroredStrokeTests
 
 ---
@@ -305,10 +307,23 @@ Lightbox has **exceptional raster brush capabilities** that match or exceed indu
 
 ### Risk 1: Vector Editing Breaks Invariant 2
 **Scenario**: Reshaping a stroke re-seeds dabs from new position, changing texture
-**Mitigation**: 
-- Q19 decision: Use arc-length seeding (texture stable under drag)
-- Test: ReshapingPreservesTexture must pass
-- Design doc: Update DESIGN-brush-tips.md with seed origin explanation
+**This risk was assessed backwards, and the mitigation it proposed is the option
+that was rejected.** Reshaping re-seeding the dabs does **not** break invariant 2
+— it *is* invariant 2, working. What it breaks is an expectation.
+
+**Mitigation, as actually decided (Q26, answered (a)):**
+- **No arc-length seeding.** It was rejected explicitly: an edit near the *start*
+  of a line re-seeds everything after it, which is the same failure the other way
+  round and arguably worse. A per-stroke seed origin was rejected too — two
+  strokes of the same shape in different places would then share a texture, which
+  is the flicker invariant 2 exists to prevent, in a new costume. A blended
+  re-seed radius was rejected as a tunable in the render path
+- **Test: the opposite of `ReshapingPreservesTexture`.** A test pins that the dab
+  pattern *does* change, naming Q26, so the accepted behaviour is written down
+  rather than found later and filed as a bug
+- **Manual, not design doc:** a line saying the grain shifts and why — the same
+  fact as a pencil meeting the paper's tooth — with "move the layer rather than
+  the line" as the answer for an artist who needs the mark preserved exactly
 
 ### Risk 2: Tilt/Speed Changes Serialization Contract
 **Scenario**: Adding Tilt to StrokePoint requires migration; old files load without tilt
@@ -330,7 +345,7 @@ Lightbox has **exceptional raster brush capabilities** that match or exceed indu
 
 ### Immediate Actions (Next Sprint)
 
-1. **Resolve Q19** (Vector editing + seed origin) — decision blocks multiple vector items
+1. ~~**Resolve Q19**~~ — **done, and it was Q26.** Answered 2026-08-07 (a); nothing is blocked. Build the vector tooling instead: `docs/DESIGN-vector-tooling.md`
 2. **Implement per-layer onion skin** — quick win, high-value
 3. **Export pressure curves** — unique market positioning, low effort
 

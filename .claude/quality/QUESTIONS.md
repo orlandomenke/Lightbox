@@ -10,6 +10,161 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q46 · How does an artist get into point editing? — **answered: Illustrator's model in full**
+
+**Answered 2026-08-07: two pointers *and* isolation mode.** A black-arrow
+**Select** tool for whole strokes, a white-arrow **Direct select** for nodes, a
+**Pen** with modifiers — and double-clicking a stroke isolates it, Esc leaves.
+
+**The property being bought is that geometry editing is a decision, not an
+accident**, and the research is one-sided about how you get it. Illustrator's
+isolation mode *"automatically locks all other objects so that only the objects
+in isolation mode are affected"*; Figma enters vector edit on Enter and leaves on
+Esc; Grease Pencil separates Draw, Edit and Sculpt. The tools that feel mushy use
+a modifier you have to remember instead — Krita's own vector-tool wiki says
+*"Alt+drag allows you to start a rubber band without accidentally selecting and
+moving a shape"*, and Inkscape's node tool requires that *"the drag must not
+begin on a path unless Shift is used"*. **Modes are safe by default; modifiers
+are unsafe by default and ask you to remember the antidote.**
+
+The recommendation was isolation alone; the owner's answer added the two
+pointers, on the grounds that Illustrator has both and the black/white
+distinction is what makes the split legible at a glance. Illustrator's actual
+convention is used — **black selects objects, white edits anchors** — rather than
+the reversed pairing in the original note.
+
+**What it costs.** Three tools rather than one mode, so three walks of the tool
+registration checklist, and a `Select` that overlaps conceptually with the
+existing pixel selection tools. Answered by Q48: they look different and do
+visibly different things.
+
+**Blocks:** nothing. `PathEditSession` is a second instance of the transform
+tool's modal-session pattern.
+
+## Q47 · Does a node carry Bezier handles? — **answered: yes, on a path beside the points**
+
+**Answered 2026-08-07: handles on every node** — full Illustrator levers,
+**against a recommendation of points-only**.
+
+The recommendation was the Curvature-tool model: place points, let the
+centripetal Catmull–Rom the renderer already runs infer the curve, Alt for a
+corner. It is free — `GeometryOps.Densify` already does the interpolation and
+`IsCorner` already exists — and Adobe shipped that tool precisely because the
+handle pen is too hard. The owner chose handles anyway, for control and for
+transferable muscle memory.
+
+**The cost quoted at the time was the wrong cost, and saying so matters.** The
+objection was that `StrokePoint(X, Y, Pressure)` is baked into the record, the AI
+wire format, the contour tracer and every geometry op, so handles meant widening
+it — a migration and a second curve type in the renderer. **That is avoidable,
+because a drawn stroke and an authored path are different things.** A drawn
+stroke has hundreds of sampled points and wants no handles; a pen path has a
+dozen authored nodes and wants nothing else. So handles go on an **optional
+`Stroke.Path`** — a small control net that *generated* the points — and `Points`
+stays what renders. `BrushEngine`, `StrokeIndex`, `ContourTracer` and
+`StrokeWire` are untouched, a hand-drawn stroke writes no `path` key, and there
+is no migration.
+
+**The residual cost is real and is the thing to hold:** a line now has two
+representations that can disagree.
+
+> **A stroke's `Path` and `Points` must never disagree.** Any operation that maps
+> points maps the path's nodes and handles too, or drops the path.
+
+`TransformOps.TransformStroke` is the first caller that must obey it and
+`StrokeInterpolator` the second, and a test asserts it rather than a comment.
+
+**Blocks:** nothing.
+
+## Q48 · Does picking a stroke belong to the existing selection tools? — **answered: a separate line-picker**
+
+**Answered 2026-08-07: a new tool.** The black arrow picks whole strokes — click,
+shift-click, drag a box — and the existing marquee, lasso and wand keep selecting
+*areas of pixels*. Two tools that look different and do visibly different things.
+
+**The rejected option is the interesting one:** folding both into one tool, so a
+click picks a line and a drag on empty canvas picks an area. Fewer tools, and it
+reintroduces exactly the ambiguity Q46 exists to remove — the same click meaning
+two things depending on what happens to be underneath it.
+
+**What it costs.** One genuinely new primitive: a stroke-under-point query, which
+the codebase has never needed. All three pieces exist and are tested and nothing
+composes them — `StrokeIndex.Intersecting`, `GeometryOps.DistToSegment`,
+`BrushEngine.CommitBounds`. `StrokeIndex`'s contract is *ascending record
+position, not speed*, so the picker reverses it for hit order and must say why.
+
+**Blocks:** nothing.
+
+## Q49 · Do shapes become retained objects? — **answered: no, they stay strokes**
+
+**Answered 2026-08-07: a rectangle is still a line painted with your brush** —
+now reshapeable like any other line, but the document does not remember it was
+ever a rectangle.
+
+This **softens rather than reverses** the shipped manual sentence — *"it is not
+re-editable as a shape afterwards"* — which stays true as written: not
+re-editable *as a rectangle*, but re-shapeable like everything else. Grabbing its
+corners is most of what anyone wanted.
+
+**The reason is Krita, from the other direction.** Retained shapes mean two kinds
+of thing in one document and a rule that some tools work on one and not the
+other. Krita has that rule and it is the failure: its SVG layers *"don't actually
+contain brush strokes, which makes them useless for most line art"*, and the
+brush tool is unavailable while one is selected. One `Stroke` record is the
+asset, and it is not being spent here.
+
+**What it costs.** No retyping the width of a rectangle you drew last week; you
+move its corners instead. Live shapes remain reachable later if an artist asks —
+nothing here forecloses them.
+
+**Blocks:** nothing.
+
+## Q50 · What does an artist see on entering edit mode on a hand-drawn line? — **answered: fitted, and it says so**
+
+**Answered 2026-08-07: fit a path and report the count** — "412 points → 12
+nodes" — with one undo restoring every original point.
+
+A drawn line has a point every few pixels. Showing all of them is technically
+lossless and practically unusable: hundreds of nodes a few pixels apart, where
+dragging one moves nothing. Fitting is what Illustrator's Image Trace and CSP's
+Simplify both do, and Schneider's least-squares cubic fit is the standard.
+
+**What it costs, and it is the reason this was asked rather than assumed:** the
+line moves slightly. A fitted curve is not the wobble you drew. That is
+acceptable only because it is *said out loud* and is one keystroke from being
+undone — a silent fit would be the app quietly redrawing your work.
+
+Rejected: showing every point (unusable), and asking each time (a dialog in front
+of a gesture made hundreds of times, answered the same way every time). A detail
+slider was offered and not taken; it stays available later as a tool option.
+
+**Blocks:** nothing.
+
+## Q51 · Do AI inbetweens carry the path? — **answered: only when node counts match**
+
+**Answered 2026-08-07: carry the path through when both keys have the same number
+of nodes, plain strokes otherwise** — **against a recommendation of never**.
+
+The recommendation was that generated frames always come out as ordinary strokes
+with no path, consistent with `StrokeInterpolator` already dropping `Holes`,
+`ClipId`, `GradientId` and `SwatchId`. The owner took the middle: matched counts
+are the common case when one key was copied from the other and edited, and
+node-level correction of frame 4 is worth having when it is honestly available.
+
+**What it costs, stated when it was chosen: the same command produces two
+different results depending on something invisible.** An artist runs *inbetween*
+twice and gets editable nodes once and not the other time, with nothing on screen
+explaining why.
+
+**So the mitigation is not optional and is part of the decision.** The AI status
+line says which happened *and why* — "paths carried" versus "paths not carried:
+keys have 12 and 9 nodes" — the same way every bulk edit in the project window
+says what it did. **A silent version of this answer is a defect, not a
+simplification**, and the test asserts both messages rather than only the
+behaviour.
+
+**Blocks:** nothing.
+
 ## Q45 · How far does the people model go, with no server? — **answered: a name and an id, forever**
 
 **Answered 2026-08-07: `Person` is a label with a stable id, and it never gains

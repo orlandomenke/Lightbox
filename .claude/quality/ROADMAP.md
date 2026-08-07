@@ -77,7 +77,7 @@ item that a painting app is simply expected to have lives here.
 - [ ] Tilt and speed reach the stroke record `evidence: StrokePointTiltTests, AMouseStrokeStoresNoTilt, AnOldFileWithoutTiltStillLoads, TiltIsReplayedNotResampled`
   - Was ticked as part of rotation and is not built: `StrokePoint` is `(X, Y, Pressure)`, no device reads tilt, and nothing stores time — so speed can only be inferred from point spacing, which after `Densify` is a resampling artifact rather than a speed. Optional, absent by default: a mouse has no tilt and 0 means perpendicular, so the two must not be the same value. See `docs/DESIGN-brush-tips.md`.
 - [ ] Symmetry and mirrored painting `evidence: SymmetryTests, AMirroredStrokeIsOneRecordNotTwo, SymmetryIsViewOnlyUntilTheStrokeLands`
-  - Nothing exists. Krita and Photoshop both have it, and for character design — the thing this application is for — a vertical mirror is not a nicety. The design question that has to be answered first is whether a mirrored mark is *one stroke rendered twice* or *two strokes*: the first keeps the record small and makes turning symmetry off afterwards meaningful, the second is simpler and matches what an artist can then edit independently. Invariant 1 pushes toward the first.
+  - Nothing exists. Krita and Photoshop both have it, and for character design — the thing this application is for — a vertical mirror is not a nicety. The design question was whether a mirrored mark is *one stroke rendered twice* or *two strokes*, and **Q15 answered (c)**: one stroke while drawing, with an explicit "break symmetry" that expands it to two. So `Mirror` lives **on the stroke** rather than on the scene, which is the part that could not be deferred. Unblocked.
 - [x] Smoothing is a brush setting, not a global `evidence: BrushStabilisation, BrushStabilisationTests, APresetCarriesItsOwnStabilisation, TwoBrushesCanSteadyTheHandDifferently, ABrushThatFollowsTheApplicationWritesNoStabilisationKey`
   - Nullable, so absent means today's behaviour exactly: one setting for the whole app. A brush that says otherwise overrides it. Not a pixel setting and invariant 4 does not reach it — smoothing filters the pointer samples *before* they become the stroke's points, so the mark already carries the result and there is nothing left to re-run.
 - [x] Texture from an image, not only the built-in papers `evidence: TextureRegistry, ImportedTextureTests, AnImportedPaperBitesIntoTheStroke, ThePaperIsAnchoredToTheDocumentRatherThanToTheStroke, AHugeScanIsReducedRatherThanHeldWhole, ATextureThatIsNotRegisteredIsIgnoredRatherThanFatal`
@@ -158,7 +158,8 @@ available in every project, defaulted for the ones that need it.
 - [ ] A drawn line can be re-shaped and keeps the mark it was drawn with `evidence: PathEditSession, StrokeReshapeTests, ReshapingALineKeepsItsBrush, AReshapedStrokeSurvivesAReload`
   - Vector manipulation with the texture of charcoal, pencil or paint. **Half of this already exists and is worth saying so:** a stroke on a `VectorFrame` is the same `Stroke` record with the same `BrushSettings` as a raster one, stamped by the same engine — so a vector line already carries real media rather than a flat outline. Nothing needs a second engine.
   - What is missing is the editing: there is no tool that takes a finished stroke's points and lets an artist drag them. `VectorFrame` holds `List<Stroke>` and nothing reaches into one after it is drawn.
-  - **The design question this raises is genuinely hard, and it is the reason this is not a small item.** Every dab dynamic — scatter, size, roundness, rotation, all three colour jitters — is seeded from dab position via `Hash01`. Move a control point and the dabs near it re-seed, so *the texture changes where the line moves*. That is correct under invariant 2 and wrong to an artist, who expects to nudge a line and see the same line somewhere else. The options are a per-stroke seed origin that travels with the edit, seeding from arc length rather than position, or accepting the change and saying so. This needs a decision in `QUESTIONS.md` before it needs code.
+  - **The design question this raises was genuinely hard, and it is answered.** Every dab dynamic — scatter, size, roundness, rotation, all three colour jitters — is seeded from dab position via `Hash01`. Move a control point and the dabs near it re-seed, so *the texture changes where the line moves*. That is correct under invariant 2 and wrong to an artist, who expects to nudge a line and see the same line somewhere else. **Q26 answered (a): accept it — "the grain belongs to the canvas."** A per-stroke seed origin, arc-length seeding and a blended re-seed radius are all *rejected*, not deferred, so nothing here needs a new field and no tunable enters the render path. What it obliges is a manual line saying the grain shifts and why, with "move the layer rather than the line" as the answer for an artist who needs the mark preserved exactly.
+  - **Unblocked, and the rest is decided too.** Q46–Q51 settle the tooling: two pointers plus isolation mode, Bezier handles carried on an optional `Stroke.Path` beside `Points` rather than widened into `StrokePoint`, shapes staying ordinary strokes, one frame first. `docs/DESIGN-vector-tooling.md`.
 - [ ] Sub-pixel stroke precision that holds up at 8K `evidence: ChordTolerance, SubPixelPrecisionTests, TheChordToleranceFollowsTheOutputScale, ALongCurveHasNoFlatSpotsAtEightK`
   - The geometry is already in doubles and there are six stabilisation modes, so this is not "add smoothing" — it is one number. `GeometryOps.Densify` defaults to `maxChord = 2.0` **document pixels**, and that tolerance does not know the output scale: render or zoom at 4× and every chord becomes 8 device pixels, so a curve that is smooth in the file has visible flat spots on screen and in the export. The same 2 px is simultaneously too coarse at 8K and wasteful on a thumbnail.
   - So the tolerance wants to be derived from the scale the render is happening at, and stored per stroke where it reaches pixels (invariant 4) rather than read from global state. The cost is real and bounded — halving the chord roughly doubles the dab count — which makes it a per-preset trade with a badge, like the other expensive options.
@@ -1096,12 +1097,12 @@ Lightbox differs from competitors in determinism + medium simulation, a combinat
 
 | Item | Pillar | Market Gap | Effort | Impact | Blocker |
 |------|--------|-----------|--------|--------|---------|
-| **Resolve Q19: Seed origin for path editing** | 4 | Design question blocking vector work. Do dabs re-seed from new position or arc-length? | Low (decision) | CRITICAL | None |
-| **Stroke path reshaping (+ Bezier editing)** | 4 | **100% of vector tools have this.** Professional illustrators cannot work without stroke editing. Once resolved, path editing. | High (800 LOC) | CRITICAL | Q19 |
+| ~~**Resolve Q19: Seed origin for path editing**~~ | 0 | **Done, and the number was wrong.** The question is **Q26**, not Q19 (Q19 is the Linux/macOS shipping question). Answered 2026-08-07 (a): accept the grain shift. Arc-length seeding — which this table recommended — is *rejected*, not chosen | — | — | — |
+| **Stroke path reshaping (+ Bezier editing)** | 0 | **100% of vector tools have this.** Professional illustrators cannot work without stroke editing. **Unblocked since Q26**; design in `docs/DESIGN-vector-tooling.md`, and handles ride on an optional `Stroke.Path` rather than a widened `StrokePoint`, so there is no migration | High | CRITICAL | None |
 | **Per-layer onion skin control** | 4 | Show layer history independently. Rare feature; unique to Lightbox. Unblocks animation workflow refinements. | Medium (300 LOC) | Medium | None |
 | **Pressure curve standardization** | 4 | Unsolved workflow gap: artists re-calibrate pressure in Clip Studio vs Procreate vs Adobe. First standardized import/export. | Low (150 LOC) | Medium | None |
 | **Tilt & velocity recording** | 4 | High-end tablet support. Clip Studio, Procreate, Corel all have this. Medium artist request. | Medium (600 LOC) | Medium | StrokePoint migration |
-| **Symmetry & mirrored painting** | 4 | Essential for character design. Every professional tool has it. Blocks character-focused workflows. | Medium (400 LOC) | High | Q19 variant |
+| **Symmetry & mirrored painting** | 0 | Essential for character design. Every professional tool has it. **Unblocked since Q15** — one stroke while drawing, with an explicit "break symmetry" that expands to two, and `Mirror` on the stroke rather than the scene | Medium | High | None |
 | **SVG export with real paths** | 4 | Asset interoperability. Illustrators expect SVG export. Currently only raster-painted SVG (dishonest). | Medium (300 LOC) | Medium | Stroke reshaping |
 
 ### **Why These Matter Competitively**
@@ -1165,12 +1166,14 @@ Lightbox differs from competitors in determinism + medium simulation, a combinat
    - Effort: 150–200 LOC (ResponseCurve → JSON export, import from clipboard)
    - Evidence: PressureCurveExportTests, InteropTests
 
-**Pillar 4 (Animation-aware drawing tools) — Vector Tools**
+**Pillar 0 (The drawing floor) — Vector Tools.** *Filed under Pillar 0, where the
+roadmap body files it. Earlier revisions of this appendix said Pillar 4 and even
+wrote "Pillar 4 (Drawing floor)", conflating the two.*
 
-3. **New Item**: "Resolve design question Q19 — seed origin for path editing" [ ]
-   - Decision-only item: No LOC, blocks multiple vector features
-   - Question: When a dab's point moves, does it re-seed from new position or arc-length?
-   - Market impact: Unblocks stroke reshaping, symmetry, multi-capture tips
+3. ~~**New Item**: "Resolve design question Q19 — seed origin for path editing"~~ **[done, and misnumbered]**
+   - The question is **Q26**, not Q19. Q19 is *"Are Linux and macOS shipping targets?"*, answered (a). The duplicate-numbering that caused this is filed as **B81**.
+   - **Answered 2026-08-07 (a): accept the grain shift** — "the grain belongs to the canvas". A per-stroke seed origin, arc-length seeding and a blended re-seed radius are all *rejected*, so nothing here needs a new field and no tunable enters the render path.
+   - Reshaping, symmetry and multi-capture tips are therefore **not blocked** and have not been since that date.
 
 4. **Upgrade**: "A drawn line can be re-shaped and keeps the mark it was drawn with" [ ]
    - Current status: [unbuilt] with design question unresolved
@@ -1208,8 +1211,8 @@ Lightbox differs from competitors in determinism + medium simulation, a combinat
 
 ### **Why This Order Matters**
 
-1. **Resolve Q19 first** — It blocks three features (path editing, symmetry, multi-capture)
-2. **Path editing second** — Unblocks SVG export and Bezier editing; makes vector layer usable
+1. ~~**Resolve Q19 first**~~ — **done; and it was Q26.** Answered 2026-08-07 (a). Nothing is blocked on it
+2. **Path editing first, then** — Unblocks SVG export and Bezier editing; makes the vector layer usable. Phased in `docs/DESIGN-vector-tooling.md`: pick a line, then the path record, then isolation mode, then the pen
 3. **Pressure curves third** — Quick win, market differentiation, no blocking
 4. **Tilt/velocity fourth** — Important for pros, but non-blocking; medium effort
 

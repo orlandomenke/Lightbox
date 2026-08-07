@@ -1,0 +1,256 @@
+# Vector tooling: making the lines you already drew editable
+
+Status: **agreed design, phase 0 in progress.** Decisions Q46–Q51, answered
+2026-08-07. Unblocked by Q26, which has been answered since the same day and
+which two other documents still describe as open — see *Corrections* at the end.
+
+## The thing that reframes the job
+
+Lightbox calls itself *"a raster + vector desktop application"*, and the vector
+half is one true sentence and one missing feature.
+
+**A Lightbox stroke is a centreline with a width at every point.** In Toon Boom
+Harmony that is exactly a **pencil line** — *"vector information about their
+center line and the width of the line"* — as against a brush line, which is
+stored as an outline and can only be edited on its contour. Harmony had to build
+a separate **Centerline Editor** to give brush strokes what Lightbox's strokes
+have by construction. Disney's **Meander**, the Sci-Tech Award-winning hybrid
+vector/raster system behind *Paperman* and *Feast*, is the same idea: strokes
+recorded as geometry, so they stay editable and can be interpolated.
+
+So the architecture is already right. What is missing is stated plainly by the
+roadmap itself:
+
+> `VectorFrame` holds `List<Stroke>` and **nothing reaches into one after it is
+> drawn.** — `ROADMAP.md:160`
+
+**The whole task is tools that reach into the strokes that already exist.** Not a
+vector layer, not a shape model, not SVG.
+
+## Why not do what Krita did
+
+Krita bolted an SVG shape editor onto a paint program, so its vector layers are a
+second world. Two consequences, both fatal for line art and both quotable:
+
+- *"SVG layers can contain filled areas and even text, but they don't actually
+  contain brush strokes, which makes them useless for most line art."*
+- **You cannot use the brush tool at all while a vector layer is selected.**
+
+Clip Studio Paint did the same idea properly — brush strokes on vector layers,
+control points, a vector eraser that erases up to an intersection — and still
+pays for the split: vector layers are widely reported as sluggish and cannot hold
+fills.
+
+**Lightbox has no second world to pay for.** One `Stroke` record, one
+`BrushEngine`, one render path. That is the asset this design exists to spend
+carefully, and the rule that follows is the first entry under *What this must not
+become*.
+
+## What makes a tool feel safe
+
+The research is one-sided. Every tool that feels safe makes geometry editing a
+**mode you enter deliberately**:
+
+| Tool | How you get in | How you get out |
+| --- | --- | --- |
+| Illustrator | double-click (isolation mode *"automatically locks all other objects"*) | Esc |
+| Figma | Enter, or double-click | Esc |
+| Grease Pencil | switch to Edit mode | switch back |
+
+Every tool that feels mushy uses **a modifier you have to remember**. Krita's own
+vector-tool wiki: *"Alt+drag allows you to start a rubber band without
+accidentally selecting and moving a shape."* Inkscape's node tool: *"the drag
+must not begin on a path unless Shift is used."*
+
+**Modes are safe by default. Modifiers are unsafe by default and ask you to
+remember the antidote.** That is the whole of what Q46 buys.
+
+## The record — one optional field, and `Points` stays the truth
+
+Q47 chose Bezier handles on every node. The obvious implementation — widening
+`StrokePoint(X, Y, Pressure)` — is a migration and a second curve type in the
+renderer, and it is **avoidable**, because a drawn stroke and an authored path are
+different things. A drawn stroke has hundreds of sampled points and wants no
+handles; a pen path has a dozen authored nodes and wants nothing else.
+
+```csharp
+// Stroke.cs — one nullable property, absent unless used
+public StrokePath? Path { get; set; }
+
+public sealed class StrokePath
+{
+    public List<PathNode> Nodes { get; set; } = [];
+    public bool Closed { get; set; }
+}
+
+public readonly record struct PathNode(
+    double X, double Y, double Pressure,
+    double InX, double InY,      // handle offsets, relative to the node
+    double OutX, double OutY,
+    bool Corner);                // handles independent rather than mirrored
+```
+
+| | |
+| --- | --- |
+| **`Points` remains what renders** | `BrushEngine`, `FrameRasterizer`, `StrokeIndex`, `ContourTracer`, `TransformOps` and the AI wire format (`StrokeWire.PointDto`, `MaxWirePoints = 32`) are unchanged. Invariant 1 holds without an argument |
+| **Absent unless used, both ways** | A hand-drawn stroke writes no `path` key; clearing a path removes it. `Assert.DoesNotContain("\"path\"", json)` ships in the same commit |
+| **No second renderer, no migration** | Editing a node re-flattens `Path → Points` and the engine stamps the new polyline exactly as before |
+| **Every existing drawing is editable** | On demand, by fitting a path (Q50) |
+
+### The invariant this creates
+
+> **A stroke's `Path` and `Points` must never disagree.** Any operation that maps
+> points maps the path's nodes and handles too, or drops the path.
+
+`TransformOps.TransformStroke` is the first caller that must obey it and
+`StrokeInterpolator` the second. Asserted by a test, not by a comment: transform
+a stroke that has a path, and flattening the transformed path must reproduce the
+transformed points.
+
+## The tools
+
+**Four things, and what makes them safe is that each does exactly one.**
+
+| | Key | What it touches |
+| --- | --- | --- |
+| **Select** — black arrow | `V` | Whole strokes. Click, shift-click, drag a box. Then move, rotate, scale, delete, recolour. Double-click enters isolation |
+| **Direct select** — white arrow | `A` | Individual nodes and handles, on the isolated stroke |
+| **Pen** | `P` | Places nodes. Click = corner; click-and-drag = smooth node with handles |
+| **Isolation** | double-click in, `Esc` out | Not a tool, a state. Everything else greys and stops responding |
+
+Pen modifiers follow Illustrator so the muscle memory transfers: `Alt` on a
+handle breaks the pair, `Ctrl` temporarily gives Direct select, `Shift`
+constrains to 45°, clicking the first node closes the path.
+
+Then the reshaping set — **CSP's `Correct line` list, which is the proven minimum
+for stroke-level editing**, and notably contains no booleans and no shape
+primitives:
+
+- **Pinch a segment** — drag the line between two nodes, no node selection. The
+  one artists reach for most.
+- **Width along the line** — Illustrator's Width tool over the `Pressure` array.
+  Its "width points" are Lightbox's per-point pressure under another name.
+- **Simplify** — fewer nodes, with a live count.
+- **Cut** and **join**.
+
+### Isolation mode is cheap because the pattern is already here
+
+The transform tool is a modal session with exactly this shape: state on the view
+model (`TransformActive`, `BeginTransform`, `CancelTransform`), a gizmo owning
+interactive state on the canvas, a zoom-invariant hit test
+(`tol = 10.0 / (FitScale() * _zoom)`), an overlay drawn inside the document
+transform with every dimension divided by `view.Scale`, `Enter`/`Escape` handled
+**above** the shortcut switch, and `ToolMode` saved and restored around the
+session.
+
+`PathEditSession` is a second instance of that, not a new mechanism. The roadmap
+reserved the name.
+
+## The one genuinely new primitive
+
+There is no stroke-under-point query anywhere in the codebase. **All three pieces
+exist and are tested; nothing composes them.**
+
+| Piece | Where | Note |
+| --- | --- | --- |
+| `StrokeIndex.Intersecting(SKRectI)` | `src/Lightbox.Raster/StrokeIndex.cs` | Visible only to `TiledRasterizer` today |
+| `GeometryOps.DistToSegment` | `src/Lightbox.Core/Geometry/GeometryOps.cs` | |
+| `BrushEngine.CommitBounds` | `src/Lightbox.Raster/BrushEngine.cs` | Already widened by dab reach, blur and clip feather |
+
+`StrokePicker` queries the index with a tolerance box, refines with
+`DistToSegment`, and returns **topmost-first**. `StrokeIndex`'s own contract is
+*ascending record position, not speed* — because a renderer that returns strokes
+in the wrong order draws a different image. The picker reverses it, and says so
+where it does, because getting that backwards picks the line underneath and looks
+like a tolerance bug.
+
+`CanvasToolMode.Select` and the whole `SelectionManager` picking path already
+exist and are **orphaned** — `SyncCanvasToolMode` never assigns that mode, so
+none of it is reachable. Phase 0 revives it rather than writing a parallel one.
+
+## Phases
+
+One branch, one objective.
+
+| | Branch | What |
+| --- | --- | --- |
+| **0** | `feat/canvas/stroke-selection` | `StrokePicker`; `SelectedStrokeIds`; the black arrow; move/rotate/scale/delete/recolour selected strokes through the existing transform session with a stroke-id filter. **No record change** |
+| **1** | `feat/core/stroke-path` | `StrokePath`, `PathNode`, `Stroke.Path`, flatten, Schneider fit, the agreement invariant. **No UI** |
+| **2** | `feat/canvas/path-editing` | `PathEditSession`, isolation, the white arrow, the node overlay. Closes `ROADMAP.md:158` and ships Q26's manual line |
+| **3** | `feat/canvas/pen-tool` | The pen and its four modifiers |
+| **4** | `feat/canvas/line-correction` | Pinch, width, simplify, cut, join |
+
+**Named so scope cannot drift into them:** cross-frame reshaping (needs the
+correspondence work the inbetweener's verifier depends on); SVG export
+(`ROADMAP.md:209` — *"should not be faked"*, honest only once the vector side is
+richer); the app drawing its own icons (`ROADMAP.md:211`, which the roadmap
+already makes depend on exactly this); boolean operations
+(`DESIGN-performance.md:101` reserves the perf-sweep row and nothing else claims
+them).
+
+## What this must not become
+
+- **Not a second geometry world.** Krita's vector layer cannot take a brush; that
+  is the whole failure. Every tool here operates on the one `Stroke` record.
+- **Not a second renderer.** `Points` renders; a path flattens to points. There is
+  no path-stroking code path, and `SKPaintStyle.Stroke` still never touches
+  artwork.
+- **Not retained shapes.** Q49. A rectangle is a line you can now reshape.
+- **Not required.** An artist who never touches these tools gets no new keys in
+  their files and no change in their renders.
+
+## Verification
+
+1. **Picking is exact and topmost-first.** Two overlapping strokes; a click in
+   the overlap picks the one drawn later. A click one pixel outside a thin
+   stroke's reach picks nothing.
+2. **Absence holds both ways.** A hand-drawn stroke serializes with no `path`
+   key; a path created and then cleared leaves the JSON byte-identical.
+3. **Path and points cannot disagree.** The invariant above, asserted.
+4. **Reshaping keeps the mark.** `ReshapingALineKeepsItsBrush`.
+5. **The grain shift is asserted, not hidden.** A test pins that moving a
+   textured stroke *does* change its dab pattern, naming Q26 — so the accepted
+   behaviour is written down rather than discovered later as a bug.
+6. **Fitting is reported and reversible.** The node count is stated; one undo
+   restores every original point exactly.
+7. **The inbetween rule is visible.** Both the carried and the not-carried status
+   messages asserted — Q51's mitigation is part of the decision, not decoration.
+8. **Isolation actually isolates.** With a stroke isolated, a click on any other
+   stroke changes nothing.
+
+## Corrections this design has to make
+
+Found while auditing. Each currently misleads a reader about this exact work.
+
+1. **`ROADMAP.md:1098` and `brush-engine-gap-analysis.md` (six places) cite
+   "Q19" as the blocking seed-origin question.** Q19 is *"Are Linux and macOS
+   shipping targets"*, answered (a). The real question is **Q26, answered**. Both
+   documents therefore report vector work as blocked when it is not — and the gap
+   analysis recommends **arc-length seeding, which is one of the options Q26
+   explicitly rejected.** Root cause is already filed as **B81**.
+2. **`ROADMAP.md:161`** still says re-shaping "needs a decision in `QUESTIONS.md`
+   before it needs code". Q26 closed it.
+3. **`ROADMAP.md:80`** still says symmetry's record question must be answered
+   first. Q15 closed it.
+4. **`docs/manual/13-keyboard-and-troubleshooting.md`** lists shape tools, vector
+   guides, perspective rulers and grid snapping as *Planned*; all four are built,
+   green with resolving anchors, and documented in sections 3 and 6.
+5. **Q26's manual line does not exist yet** — nothing tells an artist that moving
+   a textured line changes its grain.
+6. **The appendices file vector under Pillar 4** while the roadmap body files it
+   under Pillar 0, and `ROADMAP.md:1199` writes "Pillar 4 (Drawing floor)",
+   conflating the two.
+
+## Sources
+
+- Toon Boom — [About the Pencil Tool](https://docs.toonboom.com/help/harmony-22/advanced/drawing/about-pencil-tool.html), [Centerline Editor](https://learn.toonboom.com/modules/traditional-animation-drawing-tools/topic/centerline-editor)
+- Disney Animation — [Meander](https://disneyanimation.com/technology/meander-1/); [Computer-assisted animation of line and paint in *Paperman*](https://www.researchgate.net/publication/254463426_Computer-assisted_animation_of_line_and_paint_in_Disney's_Paperman)
+- Krita — [Vector Graphics manual](https://docs.krita.org/en/user_manual/vector_graphics.html), [Vector Tool Reported Bugs](https://phabricator.kde.org/w/krita/vector_tool_reported_bugs/), [Overview of Krita's vector tools](https://www.virtualcuriosities.com/articles/1407/overview-vector-tools-in-krita)
+- Clip Studio Paint — [Vector layers](https://help.clip-studio.com/en-us/manual_en/180_layers/Vector_layers.htm), [Correct line tool](https://www.clip-studio.com/site/gd_en/csp/userguide/csp_userguide/500_menu/500_menu_layer_new_vector_edit_senshusei.htm)
+- Adobe Illustrator — [Isolate objects](https://helpx.adobe.com/illustrator/desktop/manage-objects/select-objects/isolate-objects.html), [Width tool](https://helpx.adobe.com/illustrator/using/tool-techniques/width-tool.html), [Curvature tool](https://helpx.adobe.com/illustrator/using/tool-techniques/curvature-tool.html)
+- [Figma — Edit vector layers](https://help.figma.com/hc/en-us/articles/360039957634-Edit-vector-layers)
+- [Inkscape — Editing paths with the node tool](https://inkscape-manuals.readthedocs.io/en/latest/editing-paths.html)
+- [Blender — Grease Pencil sculpting](https://docs.blender.org/manual/en/latest/grease_pencil/modes/sculpting/introduction.html)
+- [Adobe Animate — merge versus object drawing](https://helpx.adobe.com/animate/using/drawing.html)
+- [Joint Stroke Tracing and Correspondence for 2D Animation, TOG/SIGGRAPH 2024](https://markmohr.github.io/JoSTC/); [LayerInbetween, SIGGRAPH 2026](https://dl.acm.org/doi/10.1145/3811364)
+- [Topology-Driven Vectorization of Clean Line Drawings, Disney Research](https://media.disneyanimation.com/uploads/production/publication_asset/2/asset/Topology-Driven_Vectorization_of_Clean_Line_Drawings.pdf)
