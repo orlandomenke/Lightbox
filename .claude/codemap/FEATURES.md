@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2693 tests, derived from the suite itself. Each line is a
+2701 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -591,6 +591,18 @@ regression even when every test still compiles.
 - Catching Up Does Not Dispose The Image The Canvas Is Still Showing — `:151`
 - Every Publish Is ACorrect Full Composite — `:172`
 - Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:215`
+
+## CrashScenarioTests
+`tests/Lightbox.App.Tests/CrashScenarioTests.cs`
+
+- Every Scenario Says What It Proves And What It Costs — `:40`
+- The Destructive Ones Ask First And The Harmless Ones Do Not — `:57`
+- The Survivable Failure Is Survivable And Lands In The Log — `:86`
+- Writing To The Console Does Not Fail When There Is No Console — `:101`
+- The Reporter Listens On All Three Channels AFailure Can Arrive By — `:125`
+- The Dispatcher Handler Records Without Changing What The App Does — `:142`
+- The Triggers Are Absent Until Diagnostics Are Turned On — `:155`
+- Every Menu Entry Names AScenario That Exists — `:168`
 
 ## DiagnosticLogTests
 `tests/Lightbox.App.Tests/DiagnosticLogTests.cs`

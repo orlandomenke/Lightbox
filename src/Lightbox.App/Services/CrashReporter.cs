@@ -38,6 +38,23 @@ internal static class CrashReporter
             // — it has been recorded, which is the thing that was missing.
             e.SetObserved();
         };
+
+        // And the one this reporter was missing, which is where crashes actually
+        // come from. An exception thrown in a click handler, a pointer handler
+        // or a binding callback runs under the dispatcher, and Avalonia has its
+        // own machinery for those — `Dispatcher.UnhandledException`, with an
+        // internal handler that runs unless somebody marks the exception
+        // handled. Registering only AppDomain and TaskScheduler left the
+        // commonest failure in the application depending on what that internal
+        // handler happens to do.
+        Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (_, e) =>
+        {
+            Report(e.Exception, "ui-thread");
+            // Deliberately NOT marking it handled. Doing so would make the app
+            // survive crashes it currently dies from, which is a change to what
+            // the application does smuggled in under a change to what it
+            // records. This adds the report and leaves the outcome alone.
+        };
     }
 
     /// <summary>Write the report, then try to say where it went.</summary>
