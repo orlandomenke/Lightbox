@@ -48,6 +48,7 @@ public partial class MainWindow : Window
         // The canvas is the only place that knows how much of the document is
         // actually visible, and how long presenting a frame took.
         Canvas.DisplayScaleChanged += scale => _vm.SetDisplayScale(scale);
+        Canvas.ViewportChanged += viewport => _vm.SetViewport(viewport);
         Canvas.FrameRendered += ms => _vm.RecordFrameTime(ms);
         Canvas.CursorPressureChanged += (pressure, penDown) => _vm.SetCursorPressure(pressure, penDown);
 

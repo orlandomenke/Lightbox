@@ -446,8 +446,53 @@ public static class ProjectIo
         var path = project.PathOf(reference);
         if (!File.Exists(path)) return null;
         var doc = DocJson.Load(path);
+        ApplyFeatureDefaults(doc, project.Manifest.Type);
         project.Loaded[reference.Id] = doc;
         return doc;
+    }
+
+    /// <summary>
+    /// Resolve missing features in a document by applying project type defaults.
+    /// If the document has no Feature overrides, or the project has no type,
+    /// nothing changes (features remain absent/default).
+    /// </summary>
+    private static void ApplyFeatureDefaults(Doc doc, ProjectType? projectType)
+    {
+        if (projectType is null) return;
+
+        var defaults = new FeatureDefaults();
+        var features = Enum.GetValues<FeatureKey>();
+
+        // Build the effective features: explicit overrides + project defaults
+        var effective = new Dictionary<string, bool>();
+        foreach (var feature in features)
+        {
+            var overrideValue = false;
+            var hasOverride = doc.Features?.TryGetValue(feature.ToString(), out overrideValue) == true;
+            if (hasOverride)
+            {
+                effective[feature.ToString()] = overrideValue;
+            }
+            else
+            {
+                var defaultValue = defaults.GetDefault(projectType.Value, feature);
+                // Only store if it's true; false is the implicit default
+                if (defaultValue)
+                {
+                    effective[feature.ToString()] = true;
+                }
+            }
+        }
+
+        // Replace Features with the merged result if anything was true
+        if (effective.Count > 0)
+        {
+            doc.Features = effective;
+        }
+        else
+        {
+            doc.Features = null;
+        }
     }
 
     // ---- save ---------------------------------------------------------------

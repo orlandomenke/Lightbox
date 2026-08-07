@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2618 tests, derived from the suite itself. Each line is a
+2657 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2207,6 +2207,15 @@ regression even when every test still compiles.
 - Selection Region Limits The Transform To Strokes Inside It — `:157`
 - Empty Scope Refuses To Start — `:177`
 
+## UnboundedCanvasPixelTests
+`tests/Lightbox.App.Tests/UnboundedCanvasPixelTests.cs`
+
+- Tiled Rendering Stroke Across Tile Boundary Has No Visible Seam — `:50`
+- Tiled Rendering Multiple Tiles Stroke Maintains Relative Position — `:81`
+- Tiled Rendering With Viewport Offset Strokes Render Correctly — `:117`
+- Tiled Rendering Multiple Renders Produces Consistent Output — `:152`
+- Tiled Rendering Large Document Renders Tiles Correctly — `:202`
+
 ## UnityExportTests
 `tests/Lightbox.App.Tests/UnityExportTests.cs`
 
@@ -2516,6 +2525,52 @@ regression even when every test still compiles.
 - AFiltered Preset Admits Only The Statuses It Lists — `:97`
 - Staleness Is Two Integers Differing — `:114`
 - Grouping Defaults To One Artifact Per Document — `:127`
+
+## FeatureConflictTests
+`tests/Lightbox.Core.Tests/FeatureConflictTests.cs`
+
+- Unbounded Canvas Excludes Fixed Frame Bounds Export — `:11`
+- Conflict Reason Is Descriptive — `:24`
+- No Conflict When Both False — `:38`
+- No Conflict When First False — `:49`
+- No Conflict When Second False — `:60`
+- Conflict Involves Is Both Orders — `:71`
+- Conflict Other Returns The Other Feature — `:85`
+- Conflicts With Returns All Conflicts For Feature — `:98`
+- Conflicts With Empty For Feature With No Conflicts — `:108`
+- AConflict Holds In Every Project Type — `:116`
+- All Returns All Declared Conflicts — `:133`
+
+## FeatureDefaultsTests
+`tests/Lightbox.Core.Tests/FeatureDefaultsTests.cs`
+
+- Every Feature Is Reachable In Every Project Type — `:11`
+- AProject Type Sets Defaults Rather Than Availability — `:30`
+- AFeature Left At Its Default Writes No Key — `:49`
+- Illustration Defaults Are Minimal — `:66`
+- Animation Defaults Include Exposure Sheet — `:76`
+- Game Art Defaults Include Fixed Frame Bounds Export — `:85`
+- Storyboard Defaults Include Camera — `:93`
+- Asset Library Defaults Include Fixed Frame Bounds Export — `:101`
+- Get Default Throws For Unknown Type — `:107`
+- Features For Returns All Features For Type — `:115`
+- Types For Returns All Types With Feature — `:124`
+- Layers Is Enabled In Every Project Type — `:132`
+
+## FeatureIntegrationTests
+`tests/Lightbox.Core.Tests/FeatureIntegrationTests.cs`
+
+- Document Inherits Project Defaults — `:21`
+- Get Feature Resolves Default — `:34`
+- Document Can Override Default — `:46`
+- Features Only Serialized When Changed — `:61`
+- Conflict Detection For Sprite Export — `:80`
+- Detect Conflict Between Unbounded And Fixed — `:94`
+- No Conflict When Unbounded Disabled — `:116`
+- All Project Types Have Consistent Defaults — `:135`
+- Conflict Is Documented In Feature Key — `:152`
+- Feature Overrides Serialize To Json As Strings — `:172`
+- Unbounded Canvas Conflicts With Fixed Frame Export — `:195`
 
 ## FigureFinderTests
 `tests/Lightbox.Core.Tests/FigureFinderTests.cs`
