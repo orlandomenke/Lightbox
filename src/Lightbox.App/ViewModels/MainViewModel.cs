@@ -9830,12 +9830,26 @@ public sealed partial class MainViewModel : ObservableObject
             nameof(Lightbox.Core.Projects.FeatureKey.UnboundedCanvas), out var enabled) == true && enabled;
         var useUnboundedPath = hasExplicitUnboundedCanvas && _pendingViewport is { Width: > 0, Height: > 0 };
 
-        // B82: Use viewport culling for both bounded and unbounded canvas.
-        // The compositor now knows the visible rectangle and can compose only to that region
-        // instead of the full document. This reduces compose cost from layers × document_area
-        // to layers × viewport_area, directly solving B29 when viewport is much smaller than document.
-        var useViewportCulling = _pendingViewport is { Width: > 0, Height: > 0 } && cameraView is null;
-        SKRectI? composeViewport = useViewportCulling ? _pendingViewport : null;
+        // B82: compose only the visible rectangle, so the cost is proportional to
+        // what the artist can see rather than to the whole document.
+        //
+        // Two conditions, both learned the hard way:
+        //
+        //  * The rectangle is CLAMPED to the document. A zoomed-out view reports a
+        //    viewport far larger than the canvas — {-480,-450,1921,1440} for a
+        //    960×540 document at 50% — and an unclamped rectangle is both a source
+        //    rect off the end of the layer bitmap and a surface bigger than the
+        //    full-document one it was meant to be cheaper than.
+        //  * Culling only pays when the clamped rectangle is actually SMALLER.
+        //    Composing the whole document through the culled path costs an extra
+        //    scale per layer and buys nothing, so the ordinary fitted view keeps
+        //    taking the ComposeRing path it always took — which is also the path
+        //    with the dirty-region optimisation that makes drawing cheap.
+        var composeViewport = ClampToDocument(_pendingViewport, (int)viewWidth, (int)viewHeight);
+        var useViewportCulling = cameraView is null
+            && composeViewport is { } vpTest
+            && (long)vpTest.Width * vpTest.Height < (long)viewWidth * (int)viewHeight;
+        if (!useViewportCulling) composeViewport = null;
 
         // Determine surface size: viewport-sized if culling, document-sized otherwise
         var (surfaceWidth, surfaceHeight) = composeViewport is { } vpCull
@@ -9855,19 +9869,25 @@ public sealed partial class MainViewModel : ObservableObject
         var sw = System.Diagnostics.Stopwatch.StartNew();
         SKRectI? usedClip = null;
 
+        // Which document rectangle the finished image actually covers. Null means
+        // the whole document — the painter needs this to place the image, and it
+        // is a property of the image rather than of what the canvas asked for.
+        SKRectI? imageCovers = null;
+
         SKImage image;
         if (useUnboundedPath)
         {
             // Unbounded canvas: use tiled compositing for only visible viewport
             image = ComposeUnboundedSnapshot(scene, passes, background, renderScale, cameraView, seq);
             usedClip = _pendingViewport;
+            imageCovers = _pendingViewport;
         }
-        else if (useViewportCulling)
+        else if (useViewportCulling && composeViewport is { } cullRect)
         {
-            // B82: Bounded canvas with viewport culling. Create viewport-sized surface and compose
-            // only the visible region. The document is translated so the viewport maps to surface origin.
-            image = ComposeViewportCulled(scene, passes, background, renderScale, cameraView, info, seq);
-            usedClip = _pendingViewport;
+            // B82: bounded canvas, culled to the clamped visible rectangle.
+            image = ComposeViewportCulled(passes, background, renderScale, info, cullRect);
+            usedClip = cullRect;
+            imageCovers = cullRect;
         }
         else
         {
@@ -9887,12 +9907,16 @@ public sealed partial class MainViewModel : ObservableObject
         LastPublishClip = usedClip;
         if (SnapshotChanged is { } handler)
         {
-            // When viewport-culled, image is viewport-sized, so report viewport dimensions.
-            // Otherwise, image is scene-sized so report scene dimensions.
-            var (docWidth, docHeight) = (useUnboundedPath || useViewportCulling) && _pendingViewport is { } vpReport
-                ? (vpReport.Width, vpReport.Height)
-                : ((int)viewWidth, (int)viewHeight);
-            handler(new RenderSnapshot(image, docWidth, docHeight, seq, _pendingViewport));
+            // ALWAYS the full document size, whatever the compositor did. The canvas
+            // derives its fit scale and its pointer mapping from these two numbers,
+            // so reporting a culled image's size here moves the cursor off its mark
+            // (CursorAlignmentTests measures exactly how far).
+            //
+            // The viewport passed alongside is the rectangle THIS image covers — not
+            // the rectangle the canvas last asked for — because it is what tells the
+            // painter where to put the image. Null means "the whole document", which
+            // is what every uncalled path produces.
+            handler(new RenderSnapshot(image, (int)viewWidth, (int)viewHeight, seq, imageCovers));
         }
         else
         {
@@ -10042,72 +10066,89 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// B82: Viewport-culled compositing for bounded canvas.
-    /// Creates a viewport-sized surface and composes only the visible region,
-    /// reducing compose cost from layers × document_area to layers × viewport_area.
-    /// Crops each layer bitmap to the viewport region and scales to render resolution.
+    /// Intersect a reported viewport with the document, or null when there is no
+    /// viewport or nothing of it overlaps the canvas.
     /// </summary>
-    private SKImage ComposeViewportCulled(
-        Lightbox.Core.Documents.Scene scene,
+    /// <remarks>
+    /// A zoomed-out view reports a rectangle far larger than the document — the
+    /// canvas corners map outside the canvas, which is correct and is not a
+    /// rectangle anything may composite from. Clamping is what makes the
+    /// rectangle usable as a source rect and as a surface size.
+    /// </remarks>
+    private static SKRectI? ClampToDocument(SKRectI? viewport, int docWidth, int docHeight)
+    {
+        if (viewport is not { } vp) return null;
+        if (docWidth <= 0 || docHeight <= 0) return null;
+        var left = Math.Clamp(vp.Left, 0, docWidth);
+        var top = Math.Clamp(vp.Top, 0, docHeight);
+        var right = Math.Clamp(vp.Right, 0, docWidth);
+        var bottom = Math.Clamp(vp.Bottom, 0, docHeight);
+        if (right - left <= 0 || bottom - top <= 0) return null;
+        return new SKRectI(left, top, right, bottom);
+    }
+
+    /// <summary>
+    /// B82: compose only the visible rectangle of a bounded canvas, so the cost
+    /// is proportional to what the artist can see rather than to the document.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="viewport"/> must already be clamped to the document — see
+    /// <see cref="ClampToDocument"/>. The surface covers exactly that rectangle,
+    /// so the painter draws the result into the same rectangle in document space
+    /// and the pointer mapping never has to know this happened.
+    /// </remarks>
+    private static SKImage ComposeViewportCulled(
         List<RenderPass> passes,
         SKColor background,
         double renderScale,
-        SKMatrix44? cameraView,
         SKImageInfo info,
-        long seq)
+        SKRectI viewport)
     {
-        var viewport = _pendingViewport!.Value;
         var surface = SKSurface.Create(info);
-        using var canvas = surface.Canvas;
+        if (surface is null) throw new InvalidOperationException("Failed to create render surface");
+
+        var canvas = surface.Canvas;
         canvas.Clear(background);
 
-        // Composite each pass, cropping the viewport region and scaling to render resolution
+        // Document space, offset so the viewport's top-left is the surface origin.
+        // Every pass then draws at its own document coordinates, exactly as it
+        // would into a full-document surface — which is the point: the passes do
+        // not learn about culling, so a culled and an uncalled compose agree.
+        canvas.Scale((float)renderScale, (float)renderScale);
+        canvas.Translate(-viewport.Left, -viewport.Top);
+
+        var visible = new SKRect(viewport.Left, viewport.Top, viewport.Right, viewport.Bottom);
+
         foreach (var pass in passes)
         {
             if (pass.Bitmap is null) continue;
 
-            var paint = new SKPaint
-            {
-                BlendMode = pass.Blend
-            };
-
+            using var paint = new SKPaint { BlendMode = pass.Blend };
             if (pass.Opacity < 1.0)
                 paint.Color = paint.Color.WithAlpha((byte)(pass.Opacity * 255));
-
             if (pass.Tint.HasValue)
                 paint.ColorFilter = SKColorFilter.CreateBlendMode(pass.Tint.Value, SKBlendMode.Multiply);
 
-            // Crop the layer bitmap to the viewport region and scale to surface resolution
-            var srcRect = new SKRectI(
-                (int)viewport.Left, (int)viewport.Top,
-                (int)(viewport.Left + viewport.Width), (int)(viewport.Top + viewport.Height));
-            var dstRect = new SKRectI(0, 0, info.Width, info.Height);
-            canvas.DrawBitmap(pass.Bitmap, srcRect, dstRect, paint);
+            // Only the visible sub-rectangle is read, which is where the saving is:
+            // src and dst are the same rectangle in document space, so no scaling
+            // beyond renderScale and no resampling of the parts nobody can see.
+            canvas.DrawBitmap(pass.Bitmap, visible, visible, paint);
 
-            paint.Dispose();
-
-            // Handle overlay if present (live stroke preview, etc.)
             if (pass.Overlay is { } overlay)
             {
-                // For overlay, crop to viewport as well
-                var overlayPaint = new SKPaint
+                using var overlayPaint = new SKPaint
                 {
-                    BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver
+                    BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
                 };
-
                 if (overlay.Opacity < 1.0)
                     overlayPaint.Color = overlayPaint.Color.WithAlpha((byte)(overlay.Opacity * 255));
-
-                // Overlay is already viewport-sized (from RenderPass), draw as-is
-                canvas.DrawBitmap(overlay.Scratch, 0, 0, overlayPaint);
-                overlayPaint.Dispose();
+                canvas.DrawBitmap(overlay.Scratch, visible, visible, overlayPaint);
             }
         }
 
         canvas.Flush();
         var image = surface.Snapshot();
         surface.Dispose();
-
         return image;
     }
 
