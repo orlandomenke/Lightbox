@@ -48,11 +48,6 @@ public static class StrokeWire
         [JsonPropertyName("inbetweens")] public List<InbetweenFrameDto> Inbetweens { get; set; } = [];
     }
 
-    public sealed class DrawResultDto
-    {
-        [JsonPropertyName("strokes")] public List<StrokeDto> Strokes { get; set; } = [];
-    }
-
     // ---- outbound: Core -> wire --------------------------------------------
 
     public static StrokeDto ToWire(Stroke s)

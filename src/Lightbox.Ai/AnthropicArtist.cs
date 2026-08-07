@@ -44,18 +44,6 @@ public sealed class AnthropicArtist : IAiArtist
         return StrokeParsing.Inbetweens(call, request.Scene, "The model");
     }
 
-    public async Task<AiResult<List<Core.Documents.Stroke>>> DrawAsync(
-        DrawRequest request, CancellationToken ct)
-    {
-        var call = await CallAsync(
-            Prompts.DrawSystem,
-            Prompts.DrawUser(request),
-            StrokeSchemas.DrawResult,
-            request.ReferenceImages,
-            ct);
-        return StrokeParsing.Strokes(call, request.Scene, "The model");
-    }
-
     // ---- shared call path ----------------------------------------------------
 
     /// <summary>Run one structured-output request; returns the raw JSON text.</summary>

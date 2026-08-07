@@ -1,6 +1,6 @@
 # Code index
 
-494 files · 129892 lines · 2594 tests.
+494 files · 129721 lines · 2591 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -8,50 +8,50 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Ai
 
-- `src/Lightbox.Ai/AiConnectionTester.cs` (238 ln) · 2 test files
-  - AiTestDepth:8, AiConnectionCheck:29, AiConnectionTester:48
-- `src/Lightbox.Ai/OpenAiArtist.cs` (192 ln) · 3 test files
-  - OpenAiArtist:21, Choice:72, Message:78, Completion:84
+- `src/Lightbox.Ai/AiConnectionTester.cs` (258 ln) · 2 test files
+  - AiTestDepth:8, AiConnectionCheck:32, AiConnectionTester:56
+- `src/Lightbox.Ai/OpenAiArtist.cs` (183 ln) · 3 test files
+  - OpenAiArtist:21, Choice:63, Message:69, Completion:75
 - `src/Lightbox.Ai/Mcp/StdioMcpChannel.cs` (160 ln) · 1 test files
   - StdioMcpChannel:18
 - `src/Lightbox.Ai/AiProviders.cs` (157 ln) · 3 test files
   - AiTransport:4, AiFieldKind:17, AiField:39, AiProvider:49, AiProviders:62
-- `src/Lightbox.Ai/Mcp/McpArtist.cs` (156 ln) · 1 test files
+- `src/Lightbox.Ai/Mcp/McpArtist.cs` (149 ln) · 1 test files
   - McpArtist:32
-- `src/Lightbox.Ai/AnthropicArtist.cs` (144 ln) · 1 test files
+- `src/Lightbox.Ai/AnthropicArtist.cs` (132 ln) · 1 test files
   - AnthropicArtist:18
-- `src/Lightbox.Ai/StrokePayload.cs` (126 ln) · 3 test files
-  - StrokeWire:15, PointDto:22, StrokeDto:29, InbetweenFrameDto:40, InbetweenResultDto:46, DrawResultDto:51
-- `src/Lightbox.Ai/OllamaArtist.cs` (107 ln) · 2 test files
-  - OllamaArtist:17, ChatMessage:33, ChatResponse:39
+- `src/Lightbox.Ai/StrokePayload.cs` (121 ln) · 3 test files
+  - StrokeWire:15, PointDto:22, StrokeDto:29, InbetweenFrameDto:40, InbetweenResultDto:46
 - `src/Lightbox.Ai/AiSettings.cs` (105 ln) · 2 test files
   - AiSettings:17
+- `src/Lightbox.Ai/OllamaArtist.cs` (101 ln) · 2 test files
+  - OllamaArtist:17, ChatMessage:33, ChatResponse:39
 - `src/Lightbox.Ai/AiConnection.cs` (95 ln) · 3 test files
   - AiConnection:17, AiValueOrigin:89
-- `src/Lightbox.Ai/Prompts.cs` (89 ln) · 2 test files
-  - Prompts:11
 - `src/Lightbox.Ai/ApiKeyProvider.cs` (78 ln) · 2 indirect only
   - ApiKeyProvider:17
-- `src/Lightbox.Ai/StrokeParsing.cs` (74 ln) · 5 indirect only
-  - StrokeParsing:17
-- `src/Lightbox.Ai/StrokeSchemas.cs` (73 ln) · 2 test files
-  - StrokeSchemas:10
 - `src/Lightbox.Ai/AiArtistFactory.cs` (65 ln) · 2 test files
   - AiArtistFactory:10
+- `src/Lightbox.Ai/StrokeSchemas.cs` (62 ln) · 2 test files
+  - StrokeSchemas:10
+- `src/Lightbox.Ai/Prompts.cs` (59 ln) · 2 test files
+  - Prompts:11
+- `src/Lightbox.Ai/StrokeParsing.cs` (52 ln) · 5 indirect only
+  - StrokeParsing:17
 - `src/Lightbox.Ai/AiResult.cs` (41 ln) · 5 test files
   - AiOutcome:3, AiResult:15
-- `src/Lightbox.Ai/IAiArtist.cs` (38 ln) · 7 test files
-  - SceneInfo:6, InbetweenRequest:8, InbetweenFrameResult:17, DrawRequest:19, IAiArtist:32
+- `src/Lightbox.Ai/IAiArtist.cs` (40 ln) · 7 test files
+  - SceneInfo:6, InbetweenRequest:8, InbetweenFrameResult:17, IAiArtist:36
 - `src/Lightbox.Ai/Mcp/IMcpChannel.cs` (28 ln) · 1 test files
   - IMcpChannel:15, McpException:25
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10165 ln) · 4 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10139 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4454, TransformParts:7122
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4302 ln) · 16 test files
   - MainWindow:19, UnsavedChoice:2762
-- `src/Lightbox.App/Views/MainWindow.axaml` (3475 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3469 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (3451 ln) · 10 test files
   - CanvasControl:28, CanvasToolMode:846, GridGesture:903, TxDrag:1050, DrawOp:2770

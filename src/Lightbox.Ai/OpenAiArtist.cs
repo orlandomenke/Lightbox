@@ -60,15 +60,6 @@ public sealed class OpenAiArtist : IAiArtist
         return StrokeParsing.Inbetweens(call, request.Scene, _label);
     }
 
-    public async Task<AiResult<List<Core.Documents.Stroke>>> DrawAsync(
-        DrawRequest request, CancellationToken ct)
-    {
-        var call = await CallAsync(
-            Prompts.DrawSystem, Prompts.DrawUser(request),
-            "draw_result", StrokeSchemas.DrawResult, request.ReferenceImages, ct);
-        return StrokeParsing.Strokes(call, request.Scene, _label);
-    }
-
     private sealed class Choice
     {
         [JsonPropertyName("message")] public Message? Message { get; set; }

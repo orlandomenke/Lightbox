@@ -43,28 +43,6 @@ internal static class StrokeParsing
         }
     }
 
-    public static AiResult<List<Stroke>> Strokes(
-        AiResult<string> call, SceneInfo scene, string noun, string hint = "")
-    {
-        if (call.Outcome != AiOutcome.Success) return Forward<List<Stroke>>(call);
-
-        try
-        {
-            var dto = JsonSerializer.Deserialize<StrokeWire.DrawResultDto>(call.Value!)
-                      ?? throw new JsonException("null payload");
-            var strokes = StrokeWire.FromWire(dto.Strokes, scene);
-            if (strokes.Count == 0)
-                return AiResult<List<Stroke>>.Error(
-                    $"{noun} returned no usable strokes.{hint}", retryable: true);
-            return AiResult<List<Stroke>>.Success(strokes);
-        }
-        catch (JsonException e)
-        {
-            return AiResult<List<Stroke>>.Error(
-                $"Could not parse the response: {e.Message}", retryable: true);
-        }
-    }
-
     public static AiResult<T> Forward<T>(AiResult<string> call) => call.Outcome switch
     {
         AiOutcome.Refused => AiResult<T>.Refused(call.Message ?? "Refused."),

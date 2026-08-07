@@ -59,15 +59,4 @@ public static class StrokeSchemas
           "additionalProperties": false
         }
         """;
-
-    public static readonly string DrawResult = $$"""
-        {
-          "type": "object",
-          "properties": {
-            "strokes": { "type": "array", "items": {{StrokeSchema}} }
-          },
-          "required": ["strokes"],
-          "additionalProperties": false
-        }
-        """;
 }

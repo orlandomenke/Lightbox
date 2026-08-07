@@ -126,8 +126,7 @@ public class McpArtistTests
             : Empty());
         var artist = new McpArtist(channel, "generate");
 
-        var result = await artist.DrawAsync(
-            new DrawRequest(new SceneInfo(64, 64, 12), "x", []), CancellationToken.None);
+        var result = await artist.GenerateInbetweensAsync(Request(), CancellationToken.None);
 
         Assert.Equal(AiOutcome.Error, result.Outcome);
         Assert.Contains("not loaded", result.Message);
@@ -139,8 +138,7 @@ public class McpArtistTests
         var channel = new FakeChannel((_, _) => throw new McpException("server exited", retryable: true));
         var artist = new McpArtist(channel, "generate");
 
-        var result = await artist.DrawAsync(
-            new DrawRequest(new SceneInfo(64, 64, 12), "x", []), CancellationToken.None);
+        var result = await artist.GenerateInbetweensAsync(Request(), CancellationToken.None);
 
         Assert.Equal(AiOutcome.Error, result.Outcome);
         Assert.True(result.Retryable);

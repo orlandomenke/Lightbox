@@ -44,13 +44,6 @@ public sealed class McpArtist(IMcpChannel channel, string toolName) : IAiArtist,
         return StrokeParsing.Inbetweens(call, request.Scene, $"The “{toolName}” tool");
     }
 
-    public async Task<AiResult<List<Stroke>>> DrawAsync(DrawRequest request, CancellationToken ct)
-    {
-        var call = await CallAsync(
-            Prompts.DrawSystem, Prompts.DrawUser(request), StrokeSchemas.DrawResult, ct);
-        return StrokeParsing.Strokes(call, request.Scene, $"The “{toolName}” tool");
-    }
-
     /// <summary>Names of the tools the server offers — what the Configure window checks against.</summary>
     public async Task<IReadOnlyList<string>> ListToolsAsync(CancellationToken ct)
     {

@@ -42,25 +42,6 @@ public static class Prompts
         "with them, and use them to draw parts of the subject that motion " +
         "reveals (e.g. a limb swinging away exposing the body behind it).";
 
-    public const string DrawSystem =
-        "You are a skilled artist drawing inside a paint application. You " +
-        "receive a text request, scene metadata, and optionally the strokes " +
-        "already on the canvas. Produce brush strokes in the given JSON schema " +
-        "that draw what was requested.\n" +
-        "\n" +
-        "- Coordinates are in scene pixels, origin top-left. Keep the drawing " +
-        "inside the scene bounds and compose it sensibly with anything already " +
-        "on the canvas.\n" +
-        "- Build forms from confident, economical strokes (think pencil " +
-        "drawing): outlines first, interior details after.\n" +
-        "- Use pressure (0..1) expressively: taper stroke ends with lower " +
-        "pressure.\n" +
-        "- Give each stroke a short semantic `label` (e.g. \"head-outline\", " +
-        "\"left-ear\") so the strokes can be inbetweened later.\n" +
-        "- If character-sheet reference images are attached, they are the " +
-        "authoritative design of the subject: keep your drawing on-model with " +
-        "them.";
-
     public static string InbetweenUser(InbetweenRequest request)
     {
         var payload = new
@@ -73,17 +54,6 @@ public static class Prompts
         };
         return "Produce one inbetween frame for every t in `requestedTs` (t is the " +
                "position between keyframe A at t=0 and keyframe B at t=1):\n" +
-               JsonSerializer.Serialize(payload, Compact);
-    }
-
-    public static string DrawUser(DrawRequest request)
-    {
-        var payload = new
-        {
-            scene = new { width = request.Scene.Width, height = request.Scene.Height, fps = request.Scene.Fps },
-            existingStrokes = request.ExistingStrokes.Select(StrokeWire.ToWire),
-        };
-        return $"Draw the following: {request.Prompt}\n\nContext:\n" +
                JsonSerializer.Serialize(payload, Compact);
     }
 }

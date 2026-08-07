@@ -8258,9 +8258,6 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _aiStatus = "";
 
-    [ObservableProperty]
-    private string _aiPrompt = "";
-
     public bool IsAiAvailable => _artist is not null;
 
     public bool CanUseAi => IsAiAvailable && !AiBusy;
@@ -8323,6 +8320,11 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_artist is null || AiBusy) return;
         var layer = ActiveLayer;
+        // The AI paths are held to the same layer rules as the artist's own
+        // hand: a hidden or locked layer refuses both. This guard used to live
+        // only on the prompt-drawing command, so removing that would have left
+        // the in-app AI able to write where a brush cannot.
+        if (!CanEdit(layer, "insert inbetweens on it")) return;
         var aIndex = ExposureSheet.KeyIndexAtOrBefore(layer, CurrentFrameIndex);
         if (aIndex < 0) return;
         var bIndex = ExposureSheet.NextKeyIndex(layer, aIndex);
@@ -8357,34 +8359,6 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.InsertInbetweens(layer.Id, aIndex, frames);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
         AiStatus = $"Inserted {frames.Count} AI inbetween(s).";
-    }
-
-    /// <summary>The model paints strokes from a text prompt onto the current frame.</summary>
-    [RelayCommand]
-    private async Task AiDrawAsync()
-    {
-        if (_artist is null || AiBusy || string.IsNullOrWhiteSpace(AiPrompt)) return;
-        var target = PaintTarget();
-        if (target is null) return;
-        if (!CanEdit(ActiveLayer, "draw on it")) return;
-
-        var request = new DrawRequest(
-            new SceneInfo(Scene.Width, Scene.Height, Scene.Fps),
-            AiPrompt.Trim(),
-            StrokesOf(target),
-            CollectReferenceImages());
-
-        var strokes = await RunAiAsync(
-            $"{AiProviderLabel} is drawing…",
-            ct => _artist.DrawAsync(request, ct));
-        if (strokes is null) return;
-
-        _editor.Perform(_ => StrokesOf(target).AddRange(strokes));
-        _cache.Invalidate(target.Id);
-        _dirtyThumbIds.Add(target.Id);
-        PublishSnapshot();
-        RefreshThumbnails();
-        AiStatus = $"Drew {strokes.Count} stroke(s).";
     }
 
     /// <summary>Shared busy/cancel/error plumbing for AI calls; null on failure.</summary>

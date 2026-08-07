@@ -28,15 +28,15 @@ public class HiddenLayerTests
     }
 
     [AvaloniaFact]
-    public void AiDraw_RefusesAHiddenLayer()
+    public void AiInbetween_RefusesAHiddenLayer()
     {
         var fake = new FakeArtist();
-        var vm = new MainViewModel(fake) { AiPrompt = "a circle" };
+        var vm = new MainViewModel(fake);
         vm.LayerRows[0].Visible = false;
 
-        vm.AiDrawCommand.Execute(null);
+        vm.AiInbetweenCommand.Execute(null);
 
-        Assert.Null(fake.LastDrawRequest); // never reached the artist
+        Assert.Null(fake.LastInbetweenRequest); // never reached the artist
         Assert.Contains("hidden", vm.AiStatus);
     }
 }

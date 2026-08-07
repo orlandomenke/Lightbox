@@ -7,14 +7,20 @@ Set the number of inbetweens and an easing, then **＋ Inbetween** interpolates
 between this key and the next. Because a frame is a stroke record, the
 inbetweener matches *strokes*, not pixels.
 
-## AI drawing
+## AI inbetweens
 
-**✦ AI Draw** paints onto the current frame from a prompt. **✦ AI Inbetween**
-asks the model for the frames between two keys. Both need a provider; until one
-is chosen the AI controls are disabled and say where to choose it.
+**✦ AI Inbetween** asks the model for the frames between two keys. It needs a
+provider; until one is chosen the AI controls are disabled and say where to
+choose it.
 
 Anything the AI produces arrives as ordinary strokes — undoable, editable, and
-subject to every rule your own strokes are.
+subject to every rule your own strokes are, including the layer ones. A hidden
+or locked layer refuses the AI exactly as it refuses a brush.
+
+**There is no way to ask for a drawing from nothing.** Everything the AI does
+starts from something you drew: here, the two keys it works between. Lightbox
+has no prompt box, and that is a decision rather than a gap — the AI is here to
+take the tedious parts off an artist, not to make the drawing.
 
 **What gets sent.** Along with the frames, the **first two views on your character
 sheets that have a visible layer** go out as pictures, so the model can see who it
@@ -49,12 +55,14 @@ one, a URL for a local one, a command line for an agent of your own.
 
 ## Testing it
 
-**Test connection** draws rather than pings, because most of the ways this
-fails are not reachability. There are two depths:
+**Test connection** asks for real work rather than pinging, because most of the
+ways this fails are not reachability. Both depths ask for an inbetween — that
+is the only thing Lightbox asks a model for, so testing anything else could
+pass on a provider that cannot do the job. There are two depths:
 
 | | What it does | Cost |
 | --- | --- | --- |
-| **Quick test** | Asks for one short line on a small canvas | Seconds; a few hundred tokens |
+| **Quick test** | One inbetween of a two-point line on a small canvas | Seconds; a few hundred tokens |
 | **Test with a drawing** | The quick test, then a real inbetween between two keyframes | Minutes on a local model |
 
 Both check that the *output* is usable, not just that it parsed: strokes with

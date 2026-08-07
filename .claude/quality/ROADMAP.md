@@ -760,8 +760,23 @@ when the word "assistant" is in the name — arcs, spacing, timing charts and
 contact-frame detection are arithmetic, and filing them here would make this
 section look like the whole roadmap.
 
-Three rules govern everything below, and they are not negotiable per feature:
+Four rules govern everything below, and they are not negotiable per feature:
 
+0. **The AI never starts from nothing.** Every feature here takes something the
+   artist authored and does the tedious part of it — two keys and it fills the
+   gap, pencils and it inks them, a pose and it fleshes it out. There is no
+   entry point that turns an idea into a drawing, and that is a statement about
+   what this application is rather than a feature nobody has built yet.
+   - **This rule was written after breaking it.** `IAiArtist` carried a
+     `DrawAsync` from M2 — a text prompt in, a drawing out — with a prompt box
+     in the AI bar to match. It worked, it was tested, it was documented, and no
+     roadmap item ever claimed it, which is how a capability nobody decided on
+     survived for eleven milestones. It was removed rather than left unused,
+     because a control that is present makes a promise whether or not anybody
+     presses it, and the promise a prompt box makes is the wrong one.
+   - The test that keeps it out is reflection over `IAiArtist`, not a missing
+     button: the button was the symptom, and the interface is where it comes
+     back from.
 1. **A model never renders.** Every AI feature produces an *authored artifact* —
    strokes, a reading, a normal map — which is then stored and replayed by the
    ordinary deterministic path. Invariant 2 is not a constraint AI works around;
@@ -787,9 +802,9 @@ Three rules govern everything below, and they are not negotiable per feature:
   - Six providers behind one `IAiArtist`, chosen in Edit ▸ Configure ▸ AI: Claude, GPT, OpenRouter, Ollama, any OpenAI-compatible endpoint, and an MCP server the user supplies. The page is **generated from the catalogue**, so adding a service is a catalogue entry and a factory case — a page that hard-coded Claude's fields would pass a test that only checked Claude and then show an API key box for a local server.
 - [x] AI assistance can be switched off entirely `evidence: TurningItOffPersistsAndTakesTheArtistWithIt, TheProviderFieldsStayUsableWhileAssistanceIsOff, AiEnabled`
   - On by default, and off removes the AI bar rather than greying it — the camera's rule, for a studio that wants AI nowhere near a shot. The switch beats a complete connection, and the provider fields stay usable while it is off so a provider can be configured and proven before it is turned on.
-- [x] A connection test that checks the output, not just the reply `evidence: AiConnectionTester, AiTestDepth, AiConnectionTesterTests, AThoroughTestFailsWhenTheModelCopiedAKeyInstead, AQuickTestDoesNotAskForAnInbetween`
-  - **It draws rather than pings.** The ways this fails are mostly not reachability: a key with no credit, a model name off by a version, an endpoint that answers but cannot honour a JSON schema, an MCP server whose tool is spelled differently, a small model that returns valid JSON full of nonsense. A ping says "connected" to every one.
-  - Two depths. Quick asks for one line; thorough adds a real inbetween and checks it lands **between** the two keys — the one assertion that separates a working connection from a working inbetweener, and the one a parse check can never make. Three verdicts rather than two, because "unreachable" and "reachable but drawing nonsense" need different fixes.
+- [x] A connection test that checks the output, not just the reply `evidence: AiConnectionTester, AiTestDepth, AiConnectionTesterTests, AThoroughTestFailsWhenTheModelCopiedAKeyInstead, AQuickTestMakesOneCall, TheArtistInterfaceOffersInbetweeningAndNothingElse`
+  - **It asks for real work rather than pinging.** The ways this fails are mostly not reachability: a key with no credit, a model name off by a version, an endpoint that answers but cannot honour a JSON schema, an MCP server whose tool is spelled differently, a small model that returns valid JSON full of nonsense. A ping says "connected" to every one.
+  - Two depths, and **both ask for an inbetween** — it is the only thing the application asks a model for, so a test that exercised anything else could pass on a provider that cannot do the job. Quick takes a two-point line and checks only that what comes back would mark; thorough adds a real inbetween and checks it lands **between** the two keys — the one assertion that separates a working connection from a working inbetweener, and the one a parse check can never make. Three verdicts rather than two, because "unreachable" and "reachable but drawing nonsense" need different fixes.
 - [x] A budget on what a request costs `evidence: AiPayloadBudgetTests, AnInbetweenRequestStaysWithinItsBudget, CostScalesWithStrokeCount_WhichIsWhySendingFewerIsTheRealLever, ResamplingIsWhatKeepsALongStrokeAffordable`
   - The one cost in this app that is invisible locally: a change that doubles a payload shows up on somebody's bill a month later and nothing in the suite says a word. Measured in `docs/DESIGN-ai-payload.md` — a 40-stroke frame pair is 102 KB and at least 26k tokens; `MaxWirePoints` is the constant carrying it, and deleting it would fail no other test.
   - The finding worth keeping: **images are ~87% of a request's bytes and ~5% of its tokens, and strokes are the reverse.** So "make the payload smaller" is two goals recommending opposite changes, and any optimisation has to say which it means. Compression is off the table for the same reason — it takes 82% off the bytes, touches no tokens, and 0.3 s of upload is invisible beside 30–120 s of generation.

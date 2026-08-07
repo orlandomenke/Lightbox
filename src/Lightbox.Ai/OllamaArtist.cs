@@ -49,12 +49,6 @@ public sealed class OllamaArtist : IAiArtist
         return StrokeParsing.Inbetweens(call, request.Scene, "The local model", LargerModel);
     }
 
-    public async Task<AiResult<List<Core.Documents.Stroke>>> DrawAsync(DrawRequest request, CancellationToken ct)
-    {
-        var call = await CallAsync(Prompts.DrawSystem, Prompts.DrawUser(request), StrokeSchemas.DrawResult, ct);
-        return StrokeParsing.Strokes(call, request.Scene, "The local model", LargerModel);
-    }
-
     /// <summary>The advice that is only true of a local model.</summary>
     private const string LargerModel = " Try a larger model.";
 
