@@ -89,6 +89,27 @@ It also makes the thing the owner asked for fall out for free: a character folde
 can hold assets designated only to it, a scene folder can have its own **and**
 the project's, and a folder can be both or neither.
 
+**Decided: `Character` and `ProjectScene` dissolve entirely.** The types go; a
+folder carries the attributes.
+
+### The hazard that comes with deriving it, and the answer
+
+Because character-ness is now *derived from having a taxonomy*, it can be lost
+by an action that does not look like losing it. Under the old model "delete
+character" was an explicit, obviously destructive act. Under this one, clearing
+a folder's taxonomy, or deleting the folder, quietly stops it being a character
+— and takes the pivot, the variants and the reading with it.
+
+**So any action that would end a folder's character-ness or scene-ness says so
+first**, naming what goes: *"This folder is Knight. Clearing its reading also
+discards the pivot and 2 variants."* Not a generic "are you sure" — the specific
+list, the way the export confirmation already counts what it would write.
+
+This is the owner's addition to the decision and it is the part that makes the
+derived model safe rather than merely elegant. Losing a reading an artist
+corrected by hand is the same failure `Reviewed` exists to prevent, arriving
+from the other direction.
+
 ## Ordering is the one thing folders genuinely cannot do
 
 `ProjectManifest` says so explicitly: *"The order of this list is not the display
@@ -123,28 +144,48 @@ itself is a single `manifest.Brush`. *"A project could dictate which brush
 settings need to be used"* needs `brush` as a ninth kind, resolved by `Nearest`
 the way the palette and export preset already are.
 
+**Decided: build it now, scoping the preset id only.** `BrushPreset.Id` is
+already a stable `Ids.NewId("preset")`, and a `ScopedResource` is only a kind
+plus an id — so `Lightbox.Core` needs no knowledge of `BrushPreset`, which lives
+in `Lightbox.App`. It is the palette pattern with a different string.
+
+Scoping the whole `BrushSettings` record was rejected: it is large, it would
+bloat every manifest that used it, and it would create two sources of truth for
+one brush plus a new question about which wins when the preset is edited.
+
+The known cost, inherited rather than new: a document can reference a preset
+that was deleted or never shared. The palette path already has this shape, so
+it wants the same answer rather than a bespoke one.
+
 Note what "dictate" then means, because the machinery already distinguishes it:
 `Resolve` **offers** a set, `Nearest` **selects** one. A project declaring a
 brush and `Nearest` returning it *is* the dictate. No new enforcement concept —
 and for the narrowing kinds, declaring anything already restricts, since
 `VisibleTo` returns null only when nothing is scoped.
 
-## Migration is metadata-only
+## No migration
 
-**No files move and no paths change**, which is what makes this affordable.
-`DocumentRef.Path` already survives independently of the tree — the model notes
-that a document written before folders existed keeps its path and reports no
-folder. So migrating a project is:
+**Decided: there is none.** The application is alpha, single-user, and nothing
+has been produced in it — *"I am currently only testing and no production
+whatsoever has been run."* Writing a migration for zero real projects is cost
+with no beneficiary, and it would be the second code path that this whole
+document exists to remove.
 
-1. For each character, create a folder named after it.
-2. Move its animations into `manifest.Documents` with that `FolderId`. Paths are
-   untouched, so `characters/knight/animations/walk.lightbox.json` stays exactly
-   where it is on disk.
-3. Move `Taxonomy`, `Pivot`, `Variants` onto the folder.
-4. The same for scenes, with `Shots` becoming the folder's `Order`.
+**The consequence, stated plainly because it must not be a surprise: project
+files written before this change will not open.** That is acceptable now and
+would not be a month from now, so the change should carry its own tombstone:
 
-The on-disk layout stops being *required* and becomes *what old projects happen
-to look like*. New work is filed wherever the artist puts it.
+- Bump `ProjectManifest.Version` to **2**.
+- A version-1 manifest is **refused with a sentence**, not crashed on:
+  *"This project was made with an earlier alpha and cannot be opened. Its
+  drawings are intact — the `.lightbox.json` files can be opened individually."*
+
+That last clause is true and worth saying: documents are their own files in
+today's format and this change does not touch them. Only the index is lost, so
+the work survives even though the project does not.
+
+**Write the migration the day a second person has a project**, not before. This
+section is the record that the decision was deliberate rather than overlooked.
 
 ## What this retires
 
@@ -179,12 +220,17 @@ nothing to invent.
    folder wins and the project beats the user.
 6. Four suites green; `codemap.py build`, `roadmap.py sync`, `bugs.py check`.
 
-## What needs deciding
+## What was decided — Q35–Q37, answered 2026-08-07
 
-Asked rather than guessed, per `CLAUDE.md`:
+| | Decision |
+| --- | --- |
+| **The model** | `Character` and `ProjectScene` **dissolve entirely** into folder attributes — plus a warning before any action ends a folder's character-ness |
+| **Migration** | **None.** Alpha, single user, nothing produced. Version bump to 2 and a refusal with a sentence |
+| **Brush presets** | **Ninth scoped kind now**, scoping the preset id only |
 
-- Do `Character` and `ProjectScene` disappear entirely into folder attributes,
-  or survive as thin records pointing at a folder?
-- Does the migration run automatically on load, or on an explicit action?
-- Are brush presets added as the ninth scoped kind now, or after the container
-  work lands?
+One thing to check before the first line is written, because it is the risk the
+first decision carries: **does anything reference a character by id?** The
+cross-project character library (P1d) is the likely holder. If it does, that
+reference becomes a folder id and the library's format changes with it — still
+fine under "no migration", but it is a second format touched by a change that
+looks like one.

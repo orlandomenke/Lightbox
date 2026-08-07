@@ -10,6 +10,76 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q35 · Do Character and Scene survive as records, or dissolve into folder attributes? — **answered: dissolve**
+
+**Answered 2026-08-07: dissolve entirely.** `Character` and `ProjectScene` go.
+A folder carries `Taxonomy`, `Pivot`, `Variants`, `Order` and `Notes`, each
+nullable and absent until used. A character *is* a folder with a taxonomy; a
+scene *is* a folder with an order. Both derived, neither declared.
+
+**With a condition the owner added, and it closes a hazard the recommendation
+missed:** *"but want the user [to know] they're about to do so."* Because
+character-ness is now derived, it can be **lost by an action that does not look
+like losing it** — clearing a taxonomy, or deleting a folder, silently takes the
+pivot, the variants and a hand-corrected reading with it. Under the old model
+"delete character" was explicitly destructive; under this one it is a side
+effect.
+
+So any action that would end a folder's character-ness or scene-ness **names
+what goes before doing it** — *"This folder is Knight. Clearing its reading also
+discards the pivot and 2 variants."* The specific list, not a generic "are you
+sure", the way the export confirmation already counts what it would write.
+
+**One thing to check before the first line is written:** does anything reference
+a character *by id*? The cross-project character library (P1d) is the likely
+holder, and if it does, that reference becomes a folder id and a second format
+is touched by a change that looks like one.
+
+**Blocks:** nothing. It is the fix for **B114**.
+
+## Q36 · When does an existing project get migrated? — **answered: it does not**
+
+**Answered 2026-08-07: no migration.** *"The application is in alpha, only used
+by me, a single user. So no migration is needed. I am currently only testing and
+no production whatsoever has been run."*
+
+Writing a migration for zero real projects is cost with no beneficiary, and it
+would be the second code path that `DESIGN-project-scoping.md` exists to remove.
+
+**The consequence, recorded so it cannot be a surprise: project files written
+before the change will not open.** Acceptable now, not acceptable in a month, so
+the change carries its own tombstone — `ProjectManifest.Version` goes to **2**,
+and a version-1 manifest is **refused with a sentence** rather than crashed on,
+saying that the drawings are intact because documents are their own files in
+their own format. Only the index is lost.
+
+**Write the migration the day a second person has a project.** This entry is the
+record that the decision was deliberate rather than overlooked.
+
+**Blocks:** nothing.
+
+## Q37 · Are brush presets the ninth scoped kind now, or later? — **answered: now**
+
+**Answered 2026-08-07: now, scoping the preset id only.** `BrushPreset.Id` is
+already a stable `Ids.NewId("preset")`, and a `ScopedResource` is a kind plus an
+id — so `Lightbox.Core` needs no knowledge of `BrushPreset`, which lives in
+`Lightbox.App`. It is the palette pattern with a different string.
+
+Scoping the whole `BrushSettings` record was rejected: large, it would bloat
+every manifest using it, and it would put two sources of truth behind one brush
+plus a new question about which wins when the preset is edited.
+
+**What it delivers:** *"a project could dictate which brush settings need to be
+used"* — and it needs no enforcement concept, because the machinery already
+separates the verbs. `Resolve` **offers** a set; `Nearest` **selects** one. A
+project-level declaration coming back from `Nearest` *is* the dictate.
+
+**Known cost, inherited rather than new:** a document can reference a preset
+that was deleted or never shared. The palette path has the same shape and wants
+the same answer, not a bespoke one.
+
+**Blocks:** nothing.
+
 ## Q31 · Does a frame remember that a model made it? — **answered (a)**
 
 **Answered 2026-08-07: (a), stored on the frame, absent unless AI touched it.**
