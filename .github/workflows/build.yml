@@ -18,10 +18,29 @@ name: build
 # PR. The cost is that a branch with no PR open builds no bundle — use the
 # **Run workflow** button, which `workflow_dispatch` keeps available and which
 # always builds.
+#
+# **A draft pull request builds nothing.** That is the remaining trigger and it
+# was the expensive one: `pull_request` fires on every push to an open PR, so a
+# branch that is merged with main twice and has its index rebuilt costs a full
+# suite each time. Open the PR as a draft while that is happening and mark it
+# ready when it is worth checking.
+#
+# `ready_for_review` is in the type list for that reason, and it is the part that
+# is easy to leave out: the default types are `opened`, `synchronize` and
+# `reopened`, none of which fire when a draft is marked ready — so without it a
+# PR drafted and then readied would never build at all.
+#
+# The condition itself is on every job rather than in one place, because Actions
+# has no workflow-level `if`. It reads
+# `github.event_name != 'pull_request' || github.event.pull_request.draft == false`,
+# and the first half is load-bearing: `draft` exists only on a pull_request
+# event, so testing it alone would be comparing an empty string to `false` and
+# would skip the merge build on main.
 on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 # A push that supersedes another on the same branch cancels it. Two runs of one
@@ -52,7 +71,11 @@ jobs:
     #
     # The job is skipped rather than removed, so it still reports a conclusion
     # and a required-check rule has something to read.
-    if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
+    # Draft PRs build nothing (see the `on:` block); beyond that, a
+    # documentation-only change skips the suite it cannot affect.
+    if: >
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+      && (needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
@@ -101,9 +124,18 @@ jobs:
   # cannot run on a documentation-only change is not a check on documentation.
   #
   # No .NET and no checkout depth needed, so it costs a few seconds and runs on
-  # everything.
+  # everything a draft PR does not.
+  #
+  # **That exception is a real cost and worth naming**, because this is the
+  # cheapest job here and the one that catches the failure a merge introduces.
+  # Skipping it on drafts means a draft can carry two bugs with the same id until
+  # it is marked ready. It is deliberate — the rule is "a draft builds nothing",
+  # and a rule with one exception is a rule nobody remembers — but if duplicate
+  # ids start reaching main again, this line is why, and letting `docs` alone run
+  # on drafts is the fix.
   docs:
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
       - name: The manual's contents list matches its sections
@@ -129,6 +161,13 @@ jobs:
   # Tests still run on everything — it is only the bundle that is skipped.
   changes:
     runs-on: ubuntu-latest
+    # A draft builds nothing, and this is where that has to be said as well as on
+    # the jobs that need it: `test` and `publish-win-x64` read
+    # `needs.changes.outputs.code`, so a skipped `changes` would leave them
+    # reading an empty string. They carry the condition too rather than relying on
+    # that, because "it happens to evaluate false" is not the same as "it is
+    # switched off".
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -177,7 +216,8 @@ jobs:
     # What remains is the documentation-only skip: a Windows build of a Markdown
     # edit is 105 MB of quota for a file nobody ships.
     if: >
-      needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+      && (needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5

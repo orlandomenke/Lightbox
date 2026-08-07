@@ -43,7 +43,7 @@ namespace Lightbox.Raster;
 /// repainting. A stroke lying <em>entirely</em> outside the document therefore
 /// reaches nothing as far as the index is concerned, and cannot be picked.
 /// Narrow while documents are fixed-size; it becomes real with the infinite
-/// canvas, and is filed as <b>B125</b> rather than worked around here, because
+/// canvas, and is filed as <b>B134</b> rather than worked around here, because
 /// the fix belongs where the bounds are computed.
 /// </para>
 /// <para>

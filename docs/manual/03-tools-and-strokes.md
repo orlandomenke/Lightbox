@@ -48,7 +48,7 @@ screen.
 If the layer is locked it says so rather than doing nothing — but only when you
 actually click a line on it, not every time you click past one.
 
-A line drawn entirely outside the canvas cannot be picked yet — filed as B125,
+A line drawn entirely outside the canvas cannot be picked yet — filed as B134,
 and it matters mainly for the infinite canvas that is still being built.
 
 *Planned:* moving, scaling, recolouring and deleting what you have picked.

@@ -12,6 +12,56 @@ namespace Lightbox.App.Tests;
 public class WorkspaceStoreTests
 {
     [Fact]
+    public void TheShippedArrangementsTabTheColourTools()
+    {
+        // The rule these follow: tab what you use alternately, never what you
+        // use together. Colour, palette and gradient are three answers to one
+        // question; layers is consulted while doing something else.
+        var illustration = WorkspaceStore.Default().Find("Illustration")!;
+        var slot = illustration.Layout.SlotOf(DockPanelId.Color);
+
+        Assert.Contains(DockPanelId.Palette, slot);
+        Assert.Contains(DockPanelId.Gradient, slot);
+        Assert.DoesNotContain(DockPanelId.Layers, slot);
+        Assert.Equal(DockPanelId.Color, illustration.Layout.ActiveOf(slot));
+    }
+
+    [Fact]
+    public void TabbingOffersMorePanelsWithoutSpendingMoreHeight()
+    {
+        // What tabs actually buy. The palette and the gradient used to be
+        // hidden in most arrangements because neither was worth a slot of
+        // sidebar; now they are reachable, and the strip has the same number of
+        // slots it would have had with the colour panel alone.
+        var illustration = WorkspaceStore.Default().Find("Illustration")!.Layout;
+
+        Assert.True(illustration.IsVisible(DockPanelId.Palette));
+        Assert.True(illustration.IsVisible(DockPanelId.Gradient));
+        Assert.Equal(2, illustration.SlotsIn(DockSide.Right).Count);   // Layers, and colour
+    }
+
+    [Fact]
+    public void NoArrangementTabsTwoPanelsAnArtistNeedsAtOnce()
+    {
+        // The rule stated as a guard rather than a comment. Layers and the
+        // project tree are read while drawing, so tabbing either with anything
+        // trades a scroll for a click on every stroke.
+        foreach (var workspace in WorkspaceStore.Default().Workspaces)
+        {
+            foreach (var side in new[] { DockSide.Right, DockSide.Bottom })
+            {
+                foreach (var slot in workspace.Layout.SlotsIn(side))
+                {
+                    if (slot.Count == 1) continue;
+                    Assert.DoesNotContain(DockPanelId.Layers, slot);
+                    Assert.DoesNotContain(DockPanelId.Project, slot);
+                    Assert.DoesNotContain(DockPanelId.Timeline, slot);
+                }
+            }
+        }
+    }
+
+    [Fact]
     public void EveryProjectTypeHasABuiltInWorkspace()
     {
         var store = WorkspaceStore.Default();
@@ -74,13 +124,13 @@ public class WorkspaceStoreTests
         // meaning something — so a built-in is never overwritten.
         var store = WorkspaceStore.Default();
         var changed = DockLayout.Default();
-        changed.Dock(DockPanelId.Gradient, DockSide.Left, 0);
+        changed.Dock(DockPanelId.Reference, DockSide.Left, 0);
 
         var saved = store.Save("Animation", changed);
 
         Assert.NotEqual("Animation", saved.Name);
         Assert.False(saved.BuiltIn);
-        Assert.False(store.Find("Animation")!.Layout.IsVisible(DockPanelId.Gradient));
+        Assert.False(store.Find("Animation")!.Layout.IsVisible(DockPanelId.Reference));
     }
 
     [Fact]
@@ -154,12 +204,15 @@ public class WorkspaceStoreTests
     {
         var vm = Vm();
         vm.Apply("Animation");
-        vm.SetVisible(DockPanelId.Gradient, true);
-        Assert.True(vm.Layout.IsVisible(DockPanelId.Gradient));
+        // Reference rather than Gradient: the gradient is one of Animation's
+        // colour tabs now, so it is visible from the start and cannot stand in
+        // for "a panel this arrangement keeps hidden".
+        vm.SetVisible(DockPanelId.Reference, true);
+        Assert.True(vm.Layout.IsVisible(DockPanelId.Reference));
 
         vm.Reset();
 
-        Assert.False(vm.Layout.IsVisible(DockPanelId.Gradient));
+        Assert.False(vm.Layout.IsVisible(DockPanelId.Reference));
         Assert.False(vm.IsDirty);
     }
 

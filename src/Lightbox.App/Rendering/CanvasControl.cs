@@ -195,6 +195,61 @@ public sealed class CanvasControl : Control
     }
 
     private RenderSnapshot? _snapshot;
+
+    /// <summary>
+    /// The durable frame the compositor actually draws (B122). Owned here because
+    /// it has to outlive individual draw operations — that is the whole point of
+    /// it — and handed to each <see cref="DrawOp"/> rather than reached back into.
+    /// </summary>
+    private readonly PresentedFrame _presented = new();
+
+    /// <summary>
+    /// Whether the durable presentation frame (B122) is in the paint path at all.
+    /// </summary>
+    /// <remarks>
+    /// Off until B130's use-after-free is fixed with the retirement this class
+    /// already implements for <see cref="RenderSnapshot"/>. Read once and cached,
+    /// because this is consulted inside the render loop.
+    /// </remarks>
+    internal static bool DurableFrameEnabled { get; } =
+        Environment.GetEnvironmentVariable("LIGHTBOX_DURABLE_FRAME") == "1";
+
+    /// <summary>Whether the durable frame is on the GPU, for the status strip.</summary>
+    internal bool PresentedFrameIsOnGpu => _presented.IsGpuBacked;
+
+    /// <summary>Pixels the last present had to copy. Tests and telemetry.</summary>
+    internal long LastPresentedPatchPixels => _presented.LastPatchedPixels;
+
+    /// <summary>
+    /// What the durable frame has done this session, for the render report.
+    /// </summary>
+    internal (long Presents, long Full, long Free, long Patched, long IfAlwaysFull, bool OnGpu, bool GpuFailed)
+        PresentedFrameTotals => (
+            _presented.Presents,
+            _presented.FullPresents,
+            _presented.FreePresents,
+            _presented.TotalPatchedPixels,
+            _presented.TotalPixelsIfAlwaysFull,
+            _presented.IsGpuBacked,
+            _presented.GpuSurfaceRequestFailed);
+
+    /// <summary>
+    /// Run something that needs the compositor's Skia context, on the render
+    /// thread, at the next frame.
+    /// </summary>
+    /// <remarks>
+    /// The context only exists inside a lease, and a lease is only granted inside
+    /// a draw operation — so an upload probe cannot simply be called from a menu
+    /// handler. This queues the work and forces a frame; the callback runs once
+    /// and is cleared, and it receives null when the canvas is on software.
+    /// </remarks>
+    public void RunWithGpuContext(Action<GRContext?> work)
+    {
+        _pendingGpuWork = work;
+        InvalidateVisual();
+    }
+
+    private Action<GRContext?>? _pendingGpuWork;
     private readonly Queue<RenderSnapshot> _retired = new();
 
     /// <summary>Snapshots kept past the current one, even after they've been rendered.</summary>
@@ -329,12 +384,21 @@ public sealed class CanvasControl : Control
     /// <summary>Raised the first time the backend is known.</summary>
     public static event Action? BackendDetected;
 
+    /// <summary>
+    /// The context's texture limit, or null when there is no context. Reported
+    /// rather than merely used: at 4K with display scaling the presentation
+    /// surface approaches this, and exceeding it is what makes a GPU surface fail
+    /// to allocate and fall back to CPU without saying so.
+    /// </summary>
+    public static int? MaxTextureSize { get; private set; }
+
     private static void RecordBackend(ISkiaSharpApiLease lease)
     {
         if (GraphicsBackend != "unknown") return;
         var software = lease.GrContext is null;
         GraphicsBackend = software ? "CPU (software)" : "GPU";
         SoftwareRendering = software;
+        MaxTextureSize = lease.GrContext?.MaxTextureSize;
         BackendDetected?.Invoke();
     }
 
@@ -1540,11 +1604,27 @@ public sealed class CanvasControl : Control
         // the compositor was mid-draw on it.
         if (_retired.Count > RetiredHardCap && _retired.Peek() is { } head && head.Seq >= rendered)
         {
+            // B122: this frame's change never reaches the durable presentation
+            // surface, so it has to be owed or those pixels stay stale.
+            _presented.Skipped(snapshot.ChangedInImage);
             snapshot.Image.Dispose();
             return false;
         }
 
         var old = _snapshot;
+
+        // B122, the second way a change goes missing, and the subtler one. A
+        // snapshot replaced before it was ever rendered was never patched in
+        // either — and the incoming snapshot's own region cannot be relied on to
+        // cover it, because ComposeRing's clip describes what THAT buffer owed
+        // rather than what the presentation surface is missing.
+        if (old is not null && old.Seq > rendered) _presented.Skipped(old.ChangedInImage);
+
+        // A change in which document rectangle the image covers re-bases every
+        // pixel, so a patch computed against the old framing would be nonsense.
+        // Cheap insurance in the one place where being wrong shows stale art.
+        if (old is not null && old.DocViewport != snapshot.DocViewport) _presented.ForceFull();
+
         _snapshot = snapshot;
         if (old is null) ReportDisplayScale(); // first frame: the scale is now knowable
         if (old is not null) _retired.Enqueue(old);
@@ -1656,11 +1736,16 @@ public sealed class CanvasControl : Control
                 _txPerspective);
         }
 
+        // Take the queued context work, if any, and hand it over exactly once.
+        var gpuWork = _pendingGpuWork;
+        _pendingGpuWork = null;
+
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
-            _selectionManager, _getPlacementsForSelection, _selectedLines, LineMarqueeRect()));
+            _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
+            _selectedLines, LineMarqueeRect()));
     }
 
     /// <summary>
@@ -2361,9 +2446,27 @@ public sealed class CanvasControl : Control
         }
     }
 
+    // B126. How many times the pointer has crossed this control's boundary.
+    //
+    // A diagnostic rather than state: the reported pen flicker is the OS pointer
+    // appearing over our ring during hover and never while drawing, and drawing
+    // is exactly where Pointer.Capture pins pointer-over. If these counters climb
+    // while a pen hovers *without moving*, then Avalonia is churning enter/exit
+    // and the flicker is ours to fix; if they stay flat, nothing is churning and
+    // Windows is simply painting over us, which is an upstream problem. The
+    // question has been argued three times and measured none, so it is measured
+    // here — on the only hardware that can answer it.
+    private int _enterCount;
+    private int _exitCount;
+
+    /// <summary>Boundary crossings so far. Tests and the pen diagnostic.</summary>
+    internal (int Entered, int Exited) HoverCrossings => (_enterCount, _exitCount);
+
     protected override void OnPointerEntered(PointerEventArgs e)
     {
         base.OnPointerEntered(e);
+        _enterCount++;
+        ReportHoverChurn(e);
         _hoverPoint = e.GetPosition(this);
         InvalidateVisual();
     }
@@ -2371,8 +2474,30 @@ public sealed class CanvasControl : Control
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
+        _exitCount++;
+        ReportHoverChurn(e);
         _hoverPoint = null;
         InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Put the crossing counts on the status strip, beside the pressure reading.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not gated behind the diagnostics toggle: somebody chasing a
+    /// flicker will not know to turn anything on first, and this costs a string
+    /// only when a boundary is actually crossed — which, if the flicker is what I
+    /// think it is, is the very thing being counted.
+    /// </remarks>
+    private void ReportHoverChurn(PointerEventArgs e)
+    {
+        if (InputDiagnostic is null) return;
+        var device = e.Pointer.Type;
+        InputDiagnostic.Invoke(
+            $"{device} hover — entered {_enterCount}, exited {_exitCount}"
+            + (_exitCount > 0 && _enterCount > 1
+                ? "  (climbing while still = the cursor is being re-evaluated, B126)"
+                : string.Empty));
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
@@ -3027,6 +3152,8 @@ public sealed class CanvasControl : Control
         IReadOnlyList<RigMark>? rigMarks = null,
         ViewModels.SelectionManager? selectionManager = null,
         Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? getPlacementsForSelection = null,
+        PresentedFrame? presented = null,
+        Action<GRContext?>? gpuWork = null,
         IReadOnlyList<SelectedLine>? selectedLines = null,
         SKRect? lineMarquee = null) : ICustomDrawOperation
     {
@@ -3078,11 +3205,51 @@ public sealed class CanvasControl : Control
             canvas.RotateDegrees(view.RotationDeg);
             canvas.Scale(view.Mirrored ? -view.Scale : view.Scale, view.Scale);
             canvas.Translate(-view.DocW / 2f, -view.DocH / 2f);
+            // B122: draw the durable frame rather than this publish's image. The
+            // frame is patched with only what changed, so on a GPU-backed lease the
+            // upload is the dab instead of the canvas — and the frame's own
+            // snapshot is already a texture, making this a GPU-to-GPU blit.
+            //
+            // A null `presented` is the honest fallback for any caller that has not
+            // been given one (tests constructing a DrawOp directly): draw the
+            // publish's image, exactly as before.
+            // B130: the durable frame is OFF by default, and this is a retreat
+            // rather than a tidy-up.
+            //
+            // `PresentedFrame.PresentCore` disposed the previous snapshot on every
+            // present, reasoning that renders are sequential so nothing could still
+            // be drawing it. That is wrong, and wrong in the exact way this file
+            // already documents a few hundred lines up: the compositor may still
+            // hold the image it was handed, and freeing it under Skia is an access
+            // violation inside `sk_canvas_draw_image_rect` — a NATIVE crash, so the
+            // crash reporter's three managed channels never see it and the log is
+            // empty. Reported as "Lightbox dies after the splash screen as soon as
+            // I touch anything, and there is no crash report".
+            //
+            // The retirement machinery in this class exists for precisely that
+            // hazard and B122 did not use it. Until it does, the safe path is the
+            // one that shipped for years: draw the publish's own image, whose
+            // lifetime `_retired` already manages. `LIGHTBOX_DURABLE_FRAME=1` opts
+            // back in for measuring the fix, and it is deliberately an environment
+            // variable rather than a setting — nobody should find this by accident.
+            var artwork = presented is null || !DurableFrameEnabled
+                ? snapshot.Image
+                : presented.Present(lease.GrContext, snapshot.Image, snapshot.ChangedInImage, snapshot.Seq);
+
+            // Queued work that needs the context (the render report's upload
+            // probe). After the frame's own drawing, and wrapped, because a
+            // diagnostic must never be able to take the compositor down — the
+            // catch in Render would survive it, but this frame would be lost.
+            if (gpuWork is not null)
+            {
+                try { gpuWork(lease.GrContext); } catch { /* a report is not worth a frame */ }
+            }
+
             // Checkerboard, artwork, guides — one call, because splitting them
             // apart is how B17 happened. See GuidePainter.PaintDocument.
             GuidePainter.PaintDocument(
                 canvas,
-                snapshot.Image,
+                artwork,
                 view.DocW,
                 view.DocH,
                 view.Scale,

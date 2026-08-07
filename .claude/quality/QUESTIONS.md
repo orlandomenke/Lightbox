@@ -10,6 +10,332 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q46 · What colour does the theme's accent take, and how does a tab say it is the one showing? — **answered 2026-08-07: violet, and an underline**
+
+Three questions in one exchange, because they were three faces of the same
+finding: **the palette had only ever covered half the application.**
+
+Stage 1 tokenised every view, and every test passed, and the application still
+wore two colour systems. Tokenising a view reaches the surfaces somebody aimed
+at a token; every stock control — toggle buttons, slider thumbs, checkboxes,
+radios, focus rings, list selection — paints from the *theme's* palette, and
+Fluent's accent is Windows blue. The proof was one control wearing both at
+once: the opacity slider had our coral track and Fluent's `#0078D7` thumb.
+
+Nothing could have caught it from inside. It took a screenshot, which is the
+part worth keeping: a colour system is only as wide as the surfaces that
+resolve through it, and no assertion about the tokens can tell you which
+surfaces those are.
+
+**(a) The interactive accent is violet `#7B61FF`.** Every "this is on" state —
+toggles, slider thumbs, checkboxes, selection, focus. Violet rather than coral
+because it is *already* the selection colour in the layers list and the cel
+vocabulary, so the selected row and the switched-on toggle become one colour
+instead of two. It also leaves coral meaning "the primary action" without
+competition, which is the rule the button ranks depend on: a screen where every
+"on" state is as loud as the one button you want pressed has ranked nothing.
+
+The cost, taken knowingly: the primary button's gradient no longer shares a
+colour with any control state, so the loudest thing on screen is deliberately
+unrelated to everything around it. That is the point, and it is also the thing
+that will look wrong to somebody wanting the app to be "coral".
+
+**(b) The active tab carries a 2 px accent underline.** The first version had no
+mark at all, reasoning that the header is already a distinct surface and a
+filled tab inside it makes two boxes where the artist needed one word. **The
+boxes part still holds; the conclusion did not.** Three words at slightly
+different brightnesses read as a row of labels rather than as a control — and a
+tab strip that is not legible *as* a tab strip has hidden two panels instead of
+offering them, which is the opposite of what tabbing is for.
+
+An underline is the affordance that adds no box and costs no height. A filled
+pill and full boxed tabs were both rejected for the reason the original
+no-mark version was chosen: they put a second box inside the header, and boxed
+tabs would want a row of their own, spending exactly the height tabbing exists
+to save.
+
+**(c) Dialogs sit on `SurfaceElevated`, one step above the panels.** They were
+painting pure black, which is Fluent's window ground showing through because
+nothing had told the theme otherwise. Elevated rather than the panel surface so
+a dialog reads as floating over the app rather than as a hole cut in it — the
+"anything raised goes one step up" rule the four surfaces already encode.
+
+**What none of this needed deciding about**, so it did not hold the question up:
+the theme's palette is written as hex literals in `App.axaml` and cannot be
+otherwise. A `ColorPaletteResources` is built before the merged dictionaries it
+would look into, so `{StaticResource}` there does not resolve. That is a fact
+about Avalonia rather than a preference, and it is guarded by
+`TheThemePaletteIsWrittenInHexOnPurpose` asserting the literals equal the tokens
+they stand in for.
+
+---
+
+## Q52 · Does the Raster/Vector layer choice survive? — **answered: no, and imports get their own layer**
+
+**Answered 2026-08-07.** The owner's answer, and it is a better design than the
+one recommended:
+
+> *"An imported image is always placed on a separate layer. AI won't read it.
+> Merging layers with an image skips this as well but before merging. Prompt the
+> user if AI is enabled. Otherwise skip it. Remove the layer designation in the
+> UI."*
+
+### Corrected the same day: half of this already exists, and the other half has no caller
+
+**Two things were wrong in the framing this answer was given against, and both
+were mine.** The decision stands; its premise does not.
+
+**1. There is no image import into a frame, and never has been.** Three places
+write `PaintedFrame.PngBase64` — the transform tool resampling an existing
+baseline, frame cloning, and clearing it to empty. Not one is an import. The
+field's own doc comment says it "carries imported/flattened pixels", and nothing
+has ever put an imported pixel in one. So the rule *"an imported image is always
+placed on a separate layer"* guards a path with no caller. It is a **forward
+rule** for whenever import is built, which is fine — deciding before building
+beats retrofitting — but nothing in the roadmap schedules it.
+
+**2. The reference case is built, and it is better than what was being
+designed.** `ReferenceStrip` (`src/Lightbox.Core/Documents/ReferenceStrip.cs`) is
+*"an imported image of an animation — a run cycle, a shot from a film, a contact
+sheet — sliced into frames and laid against the timeline"*. It already settles
+every question that was asked here:
+
+| Asked | Already answered by `ReferenceStrip` |
+| --- | --- |
+| Is it artwork? | *"**Not artwork.** It never exports, never reaches a stroke, and never appears in a flattened document"* — view-only side of invariant 5, same side as onion skin |
+| Embedded or linked? | **Embedded**, base64 in the document, and the reason is written down: *"a reference that lived at a path would break the moment the file moved, and a reference that breaks silently is worse than none"* |
+| Can it animate? | Yes. `Slots` maps each timeline index to a cell, and `FollowsTimeline` moves them along when an inbetween is inserted |
+| Is it a layer? | No, and deliberately not |
+| Absent unless used? | `Scene.References` is null until one is imported |
+
+**Krita reached the same three-way split and Lightbox landed on the better half
+of it.** Krita separates a *reference images tool* (not a layer, never exported,
+per-image choice of embed or link) from a *file layer* (real artwork, linked) —
+and its guidance is to link big files. Lightbox went the other way on storage for
+a domain reason Krita does not have: you draw *against* a reference, so one that
+breaks silently is worse than one that is large. Photoshop offers the same choice
+as Place Embedded / Place Linked and defaulted to embedded for its first two
+decades.
+
+**So the gap this question thought it was closing is much narrower than it
+looked.** Everything about *looking at* or *tracing over* a picture is built. The
+only thing missing is an image that has to appear **in the output** — a
+photographic background that exports, or a scanned pencil test kept as the
+drawing itself. Nobody has asked for either, neither is on the roadmap, and the
+rule above is what will govern them if they arrive.
+
+**What survives unchanged, and is worth doing on its own:** the layer picker
+still asks a question nobody can answer at layer-creation time, the V/R badge
+still implies a difference in what you can draw when there is none, and B132 is
+still a real silent failure. Those were never contingent on import existing.
+
+### Why the choice was questioned
+
+**The question came from noticing the choice does almost nothing.** Two layer
+kinds, and everything you can *make* in Lightbox behaves identically on both —
+same tools, same engine, same marks, because nothing anywhere gates a tool by
+layer kind. The whole difference is two rows: a raster layer can hold **pixels
+that came from outside** (an imported photo, a paste of flattened pixels), and it
+can hold **symbol placements**. So the picker asks, at the moment a layer is
+created, a question about an import that has not happened and probably never
+will.
+
+**The recommendation was to convert a frame on demand, and it was worse.** It
+kept the awkward part — a drawing frame quietly becoming a pixel frame under the
+artist — and paid for it with a prompt. Giving an import its own layer removes
+the problem instead of managing it: **a layer is born knowing what it is, and
+nothing ever converts.** The two frame classes stay because a baseline genuinely
+is different content with different provenance; what goes is the *choice*.
+
+**Where the warning moves, and why that is the good part.** The consequence worth
+knowing has never been about layers at all — it is that the inbetweener reads
+strokes and cannot read pixels, so imported content is skipped. On its own layer
+that is obvious and harmless. It only becomes a loss at the moment somebody
+**merges** a drawing layer into an image layer, because the result is pixels and
+the drawing's machine-readability is gone. So the warning belongs there, before
+the merge, rather than at layer creation where it would be noise.
+
+**And it is conditional: prompt only when AI is enabled.** *Absent unless used*,
+applied to a warning. An artist who never touches the AI features is being told
+about a capability they do not have, which is the definition of noise.
+
+**What it obliges.**
+
+- **Symbols are a blocker, not a nicety.** Placing a symbol currently refuses any
+  layer that is not raster (`activeLayer.Kind != LayerKind.Painted`), and
+  `VectorFrame` has no `Placements` field. If new layers stop being raster,
+  placing a symbol silently does nothing. Nothing anywhere records a reason for
+  that restriction, so it reads as an accident. Filed as **B132**.
+- **`Layer.Kind` stays in the record and leaves the UI.** The literal ask was the
+  UI, and keeping the field is what makes an imported-image layer describable at
+  all. It stops being chosen and starts being a fact about how the layer was
+  born. Old documents therefore need nothing — the field still exists and still
+  means what it meant, so Q36 does not even come up.
+- **The manual's layer section changes**, and the R/V badge goes.
+
+**Blocks:** B132 blocks it. Nothing else.
+
+**The follow-on nobody has to take yet.** If `Placements` belongs on both kinds,
+the only remaining difference is `PngBase64` — and then the two classes want to
+be one `Frame` with a nullable baseline, which is *absent unless used* stated
+properly. That is a serialization-discriminator change and a bigger piece of
+work; it is named here so it is a decision later rather than a surprise.
+
+## Q53 · How does an artist get into point editing? — **answered: Illustrator's model in full**
+
+**Answered 2026-08-07: two pointers *and* isolation mode.** A black-arrow
+**Select** tool for whole strokes, a white-arrow **Direct select** for nodes, a
+**Pen** with modifiers — and double-clicking a stroke isolates it, Esc leaves.
+
+**The property being bought is that geometry editing is a decision, not an
+accident**, and the research is one-sided about how you get it. Illustrator's
+isolation mode *"automatically locks all other objects so that only the objects
+in isolation mode are affected"*; Figma enters vector edit on Enter and leaves on
+Esc; Grease Pencil separates Draw, Edit and Sculpt. The tools that feel mushy use
+a modifier you have to remember instead — Krita's own vector-tool wiki says
+*"Alt+drag allows you to start a rubber band without accidentally selecting and
+moving a shape"*, and Inkscape's node tool requires that *"the drag must not
+begin on a path unless Shift is used"*. **Modes are safe by default; modifiers
+are unsafe by default and ask you to remember the antidote.**
+
+The recommendation was isolation alone; the owner's answer added the two
+pointers, on the grounds that Illustrator has both and the black/white
+distinction is what makes the split legible at a glance. Illustrator's actual
+convention is used — **black selects objects, white edits anchors** — rather than
+the reversed pairing in the original note.
+
+**What it costs.** Three tools rather than one mode, so three walks of the tool
+registration checklist, and a `Select` that overlaps conceptually with the
+existing pixel selection tools. Answered by Q48: they look different and do
+visibly different things.
+
+**Blocks:** nothing. `PathEditSession` is a second instance of the transform
+tool's modal-session pattern.
+
+## Q47 · Does a node carry Bezier handles? — **answered: yes, on a path beside the points**
+
+**Answered 2026-08-07: handles on every node** — full Illustrator levers,
+**against a recommendation of points-only**.
+
+The recommendation was the Curvature-tool model: place points, let the
+centripetal Catmull–Rom the renderer already runs infer the curve, Alt for a
+corner. It is free — `GeometryOps.Densify` already does the interpolation and
+`IsCorner` already exists — and Adobe shipped that tool precisely because the
+handle pen is too hard. The owner chose handles anyway, for control and for
+transferable muscle memory.
+
+**The cost quoted at the time was the wrong cost, and saying so matters.** The
+objection was that `StrokePoint(X, Y, Pressure)` is baked into the record, the AI
+wire format, the contour tracer and every geometry op, so handles meant widening
+it — a migration and a second curve type in the renderer. **That is avoidable,
+because a drawn stroke and an authored path are different things.** A drawn
+stroke has hundreds of sampled points and wants no handles; a pen path has a
+dozen authored nodes and wants nothing else. So handles go on an **optional
+`Stroke.Path`** — a small control net that *generated* the points — and `Points`
+stays what renders. `BrushEngine`, `StrokeIndex`, `ContourTracer` and
+`StrokeWire` are untouched, a hand-drawn stroke writes no `path` key, and there
+is no migration.
+
+**The residual cost is real and is the thing to hold:** a line now has two
+representations that can disagree.
+
+> **A stroke's `Path` and `Points` must never disagree.** Any operation that maps
+> points maps the path's nodes and handles too, or drops the path.
+
+`TransformOps.TransformStroke` is the first caller that must obey it and
+`StrokeInterpolator` the second, and a test asserts it rather than a comment.
+
+**Blocks:** nothing.
+
+## Q48 · Does picking a stroke belong to the existing selection tools? — **answered: a separate line-picker**
+
+**Answered 2026-08-07: a new tool.** The black arrow picks whole strokes — click,
+shift-click, drag a box — and the existing marquee, lasso and wand keep selecting
+*areas of pixels*. Two tools that look different and do visibly different things.
+
+**The rejected option is the interesting one:** folding both into one tool, so a
+click picks a line and a drag on empty canvas picks an area. Fewer tools, and it
+reintroduces exactly the ambiguity Q53 exists to remove — the same click meaning
+two things depending on what happens to be underneath it.
+
+**What it costs.** One genuinely new primitive: a stroke-under-point query, which
+the codebase has never needed. All three pieces exist and are tested and nothing
+composes them — `StrokeIndex.Intersecting`, `GeometryOps.DistToSegment`,
+`BrushEngine.CommitBounds`. `StrokeIndex`'s contract is *ascending record
+position, not speed*, so the picker reverses it for hit order and must say why.
+
+**Blocks:** nothing.
+
+## Q49 · Do shapes become retained objects? — **answered: no, they stay strokes**
+
+**Answered 2026-08-07: a rectangle is still a line painted with your brush** —
+now reshapeable like any other line, but the document does not remember it was
+ever a rectangle.
+
+This **softens rather than reverses** the shipped manual sentence — *"it is not
+re-editable as a shape afterwards"* — which stays true as written: not
+re-editable *as a rectangle*, but re-shapeable like everything else. Grabbing its
+corners is most of what anyone wanted.
+
+**The reason is Krita, from the other direction.** Retained shapes mean two kinds
+of thing in one document and a rule that some tools work on one and not the
+other. Krita has that rule and it is the failure: its SVG layers *"don't actually
+contain brush strokes, which makes them useless for most line art"*, and the
+brush tool is unavailable while one is selected. One `Stroke` record is the
+asset, and it is not being spent here.
+
+**What it costs.** No retyping the width of a rectangle you drew last week; you
+move its corners instead. Live shapes remain reachable later if an artist asks —
+nothing here forecloses them.
+
+**Blocks:** nothing.
+
+## Q50 · What does an artist see on entering edit mode on a hand-drawn line? — **answered: fitted, and it says so**
+
+**Answered 2026-08-07: fit a path and report the count** — "412 points → 12
+nodes" — with one undo restoring every original point.
+
+A drawn line has a point every few pixels. Showing all of them is technically
+lossless and practically unusable: hundreds of nodes a few pixels apart, where
+dragging one moves nothing. Fitting is what Illustrator's Image Trace and CSP's
+Simplify both do, and Schneider's least-squares cubic fit is the standard.
+
+**What it costs, and it is the reason this was asked rather than assumed:** the
+line moves slightly. A fitted curve is not the wobble you drew. That is
+acceptable only because it is *said out loud* and is one keystroke from being
+undone — a silent fit would be the app quietly redrawing your work.
+
+Rejected: showing every point (unusable), and asking each time (a dialog in front
+of a gesture made hundreds of times, answered the same way every time). A detail
+slider was offered and not taken; it stays available later as a tool option.
+
+**Blocks:** nothing.
+
+## Q51 · Do AI inbetweens carry the path? — **answered: only when node counts match**
+
+**Answered 2026-08-07: carry the path through when both keys have the same number
+of nodes, plain strokes otherwise** — **against a recommendation of never**.
+
+The recommendation was that generated frames always come out as ordinary strokes
+with no path, consistent with `StrokeInterpolator` already dropping `Holes`,
+`ClipId`, `GradientId` and `SwatchId`. The owner took the middle: matched counts
+are the common case when one key was copied from the other and edited, and
+node-level correction of frame 4 is worth having when it is honestly available.
+
+**What it costs, stated when it was chosen: the same command produces two
+different results depending on something invisible.** An artist runs *inbetween*
+twice and gets editable nodes once and not the other time, with nothing on screen
+explaining why.
+
+**So the mitigation is not optional and is part of the decision.** The AI status
+line says which happened *and why* — "paths carried" versus "paths not carried:
+keys have 12 and 9 nodes" — the same way every bulk edit in the project window
+says what it did. **A silent version of this answer is a defect, not a
+simplification**, and the test asserts both messages rather than only the
+behaviour.
+
+**Blocks:** nothing.
+
 ## Q45 · How far does the people model go, with no server? — **answered: a name and an id, forever**
 
 **Answered 2026-08-07: `Person` is a label with a stable id, and it never gains
