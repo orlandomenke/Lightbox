@@ -1,6 +1,6 @@
 # Code index
 
-547 files · 143874 lines · 2851 tests.
+548 files · 143970 lines · 2852 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -89,11 +89,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TimelineRuler:17, Handle:101
 - `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (367 ln) · 4 test files
   - ColorMode:9, ColorPickerViewModel:25
+- `src/Lightbox.App/Styles/Density.axaml` (357 ln) · **no tests**
 - `src/Lightbox.App/Rendering/PresentedFrame.cs` (352 ln) · 2 test files
   - PresentedFrame:45
 - `src/Lightbox.App/Services/RenderReport.cs` (339 ln) · 1 test files
   - RenderReport:36
-- `src/Lightbox.App/Styles/Density.axaml` (337 ln) · **no tests**
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` (334 ln) · 6 test files
   - StrokeOverlay:24, RenderPass:50, SceneRenderer:65
 - `src/Lightbox.App/Views/ExportWindow.axaml.cs` (320 ln) · 1 test files
@@ -224,6 +224,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockDropIndicator:23
 - `src/Lightbox.App/Input/CelDragGesture.cs` (101 ln) · 1 test files
   - CelDragGesture:27
+- `src/Lightbox.App/Styles/Theme.axaml` (99 ln) · **no tests**
 - `src/Lightbox.App/Services/DiagnosticsConsole.cs` (97 ln) · 1 test files
   - DiagnosticsConsole:32
 - `src/Lightbox.App/Services/SaveRequirement.cs` (97 ln) · 2 test files
@@ -244,7 +245,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - OnionMode:4, OnionSettings:28
 - `src/Lightbox.App/Rendering/RenderSnapshot.cs` (76 ln) · 21 test files
   - RenderSnapshot:24
-- `src/Lightbox.App/Styles/Theme.axaml` (76 ln) · **no tests**
 - `src/Lightbox.App/Views/NewDocumentPanel.axaml` (75 ln) · **no tests**
   - BackgroundBox, FpsBox, HeightBox, NameBox, PpiBox, PresetBox, TransparentBox, TypeBox …
 - `src/Lightbox.App/ViewModels/DocumentScopedState.cs` (73 ln) · 1 test files

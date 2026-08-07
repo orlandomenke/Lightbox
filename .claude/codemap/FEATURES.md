@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2851 tests, derived from the suite itself. Each line is a
+2852 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -852,6 +852,12 @@ regression even when every test still compiles.
 - ADocument That Cannot Be Read Is Named Rather Than Throwing — `:315`
 - The Confirmation Names What Has Drifted Since It Was Built — `:352`
 
+## FieldShapeTests
+`tests/Lightbox.App.Tests/FieldShapeTests.cs`
+
+- Every Field Is The Same Shape As Every Other One — `:53`
+- AField Is AWell Rather Than ARaised Surface — `:75`
+
 ## FileRevealTests
 `tests/Lightbox.App.Tests/FileRevealTests.cs`
 
@@ -1416,10 +1422,9 @@ regression even when every test still compiles.
 - Every Token The Design Names Resolves — `:45`
 - The Core Surfaces Are The Colours The Design Gave — `:71`
 - The Theme Agrees With The Palette — `:94`
-- AField Is Lighter Than Whatever It Sits On — `:116`
-- Nothing That Floats Keeps Fluents Grey — `:175`
-- The Theme Palette Is Written In Hex On Purpose — `:198`
-- No View Invents Its Own Chrome Colour — `:225`
+- Nothing That Floats Keeps Fluents Grey — `:128`
+- The Theme Palette Is Written In Hex On Purpose — `:151`
+- No View Invents Its Own Chrome Colour — `:178`
 
 ## PresentedFrameTests
 `tests/Lightbox.App.Tests/PresentedFrameTests.cs`

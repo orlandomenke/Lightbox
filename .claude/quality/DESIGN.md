@@ -235,18 +235,23 @@ once. A key like `TextControlBackground` is a *leaf*: nothing is computed from
 it, so nothing else moves when it does, and the only way to correct it is to
 name it. That file is therefore a list, and a list is the right shape for it.
 
-**A field is lighter than what it sits on.** Text boxes, numeric fields and
-combos: Fluent's ground for all of them is `#66000000` — 40% *black* — so every
-field was a hole in its panel, and hovering deepened the hole. The reference has
-them lifted everywhere, 39–52 against a 19–22 ground. This is a direction rather
-than a colour: a sunken field says "a gap in the panel", a raised one says "a
-surface you can put something on", and this application asks an artist to type
-into them all day.
+**A field is a well.** Text boxes, numeric fields and combos all take
+`BackgroundPrimary`, the darkest surface, so a field reads as cut into whatever
+it sits on. That makes a field on a docker, a field on a dialog and a field in a
+flyout **the same colour**, with only the surface behind them changing — which
+is the solidity the design has and a per-surface tint cannot produce.
 
-It is a **tint**, for the reason `SelectionBrush` is: a field on a panel and a
-field in a dialog sit on different grounds, and one flat value cannot lift both.
-An opaque `SurfaceElevated` field would be right on a panel and *invisible* on a
-dialog — the case somebody would only find by opening one.
+*Hover* still lifts, and that half is not negotiable: pointing at something
+makes it lighter, never darker. Fluent's original did the opposite — `#66000000`
+resting against `#99000000` hovered — which is a control dimming under the
+pointer.
+
+**Every boxed control is the same shape**, one corner radius, no exceptions. The
+combo was rounded and the numeric field square, side by side in the same docker
+row; nothing was wrong with either on its own, which is why it survived every
+review that looked at one control at a time. `FieldShapeTests` asserts they
+agree *and* that they are actually rounded, because "they all match" is also
+satisfied by all of them being wrong the same way.
 
 **Anything that floats takes the elevated surface** — context menus, combo
 drop-downs, flyouts, dialogs. They were all on Fluent's `#2b2b2b`, a flat
