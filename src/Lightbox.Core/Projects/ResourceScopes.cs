@@ -566,3 +566,50 @@ public static class ExportScopes
         ResourceScopes.Declare(manifest, scope, Kind, presetId);
     }
 }
+
+/// <summary>Which of a project's brush tips a document is offered.</summary>
+/// <remarks>
+/// <para>
+/// <b>The last thing Q30's design doc promised, and it sat outside the five
+/// steps by its own admission</b> — *"Pillar 0's tip library already says
+/// scoped like palettes, so it joins whenever step 1 exists."* Step 1 existed
+/// for some time before anyone came back for this, which is the ordinary way a
+/// line like that goes unhonoured: nothing is broken, so nothing asks.
+/// </para>
+/// <para>
+/// It behaves like symbols rather than like palettes, and the distinction is
+/// the one that matters when adding a kind: a tip is already offered to every
+/// document, so declaring one <b>narrows</b>. Null means unscoped and therefore
+/// *all of them*, which is what every project in existence means.
+/// </para>
+/// <para>
+/// <b>The user library and the built-in catalogue are never narrowed.</b> A
+/// scope governs the project's own tips; the artist's library follows them
+/// between projects and the built-ins are always there. Painting with either
+/// copies the raster into the document — <c>TipStore.AdoptInto</c>, the same
+/// trade symbols make — so a scope has nothing to say about them.
+/// </para>
+/// </remarks>
+public static class TipScopes
+{
+    /// <summary>The kind string a brush tip is declared under.</summary>
+    public const string Kind = "tip";
+
+    /// <summary>Whether this project scopes its tips at all.</summary>
+    public static bool AnyDeclared(ProjectManifest manifest) =>
+        (manifest.Resources?.Any(r => r.Kind == Kind) ?? false)
+        || ProjectFolders.All(manifest).Any(f => f.Resources?.Any(r => r.Kind == Kind) ?? false);
+
+    /// <summary>
+    /// The tip ids this document is offered, or null when nothing is scoped.
+    /// </summary>
+    public static IReadOnlyList<string>? VisibleTo(ProjectManifest manifest, DocumentRef? document)
+    {
+        if (!AnyDeclared(manifest) || document is null) return null;
+        return [.. ResourceScopes.Resolve(manifest, document, Kind).Select(r => r.Id)];
+    }
+
+    /// <summary>Whether a document is offered this tip — true when nothing is scoped.</summary>
+    public static bool CanUse(ProjectManifest manifest, DocumentRef? document, string tipId) =>
+        VisibleTo(manifest, document) is not { } allowed || allowed.Contains(tipId);
+}

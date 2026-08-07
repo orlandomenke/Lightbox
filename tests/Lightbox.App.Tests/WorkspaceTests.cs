@@ -257,7 +257,8 @@ public sealed class WorkspaceTests : BrushStateIsolated
                  // no view called either, so these two are what make it real.
                  "Export this folder…", "Test export",
                  "Share a palette here",
-                 "Share a gradient here", "Share a symbol here", "Share guides here",
+                 "Share a gradient here", "Share a symbol here", "Share a brush tip here",
+                 "Share guides here",
                  "New documents start from",
                  "Use this as reference", "Stop sharing", "Reach",
                  "Remove from project", "Delete permanently…", "Status"],
