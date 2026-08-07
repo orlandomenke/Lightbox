@@ -24,7 +24,40 @@
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
-    <FluentTheme />
+    <!--
+      Fluent, repointed at our palette.
+
+      **This is the half of the colour system that was missing.** Tokenising
+      the views only reaches surfaces somebody aimed at a token; every stock
+      control — toggle buttons, slider thumbs, checkboxes, radios, focus rings,
+      list selection — keeps painting from the theme's own palette, and the
+      theme's accent is Windows blue. The result was two colour systems in one
+      window, and one control wearing both: the opacity slider had our coral
+      track and Fluent's #0078D7 thumb.
+
+      Two properties fix the whole class of it, which is why they are worth
+      more than the fifty setters they replace:
+
+      * `Accent` — every "this is on" state. Violet rather than coral, so the
+        layer row that is selected, the toggle that is on and the tab that is
+        showing are one colour, and coral is left meaning "the primary action"
+        without competition.
+      * `RegionColor` — the window ground. Dialogs painted pure black because
+        nothing had told the theme otherwise; they now sit one surface above
+        the panels, which is the "anything raised goes one step up" rule the
+        four surfaces already encode.
+
+      Literal hexes rather than {StaticResource}: a ColorPaletteResources is
+      built before the merged dictionaries it would look into, so a reference
+      here cannot resolve. `PaletteTests.TheThemeAgreesWithThePalette` pins
+      them to the tokens instead, which is the check the reference would have
+      been.
+    -->
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Dark" Accent="#7B61FF" RegionColor="#222634" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
     <!-- ColorSpectrum/ColorSlider templates live in a separate theme file;
          without this include they render as nothing at all. -->
     <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
@@ -32,6 +65,10 @@
     <!-- The density scale. See .claude/quality/DESIGN.md for the reasoning;
          the numbers live in one place so no view invents its own. -->
     <StyleInclude Source="avares://Lightbox.App/Styles/Density.axaml" />
+
+    <!-- The control treatments: emphasis, badges, tabs. Sizes stay in
+         Density.axaml — the two are different axes and compose. -->
+    <StyleInclude Source="avares://Lightbox.App/Styles/Controls.axaml" />
 
     <!-- The colour picker's body and the flyout field that reuses it. -->
     <StyleInclude Source="avares://Lightbox.App/Styles/ColorPicker.axaml" />
@@ -83,9 +120,19 @@
                     their own because the whole point of tabbing is to spend less
                     height, and a second row would hand most of it back.
                   -->
+                  <!--
+                    SelectedValue rather than SelectedItem, because ActiveTab is
+                    a DockPanelId and the items are DockPanelInfo. Handing an
+                    enum to SelectedItem is not an error — nothing simply ever
+                    matches, so no tab is ever selected and the strip looks the
+                    same whichever panel is showing. That is what shipped, and
+                    B125 is the entry for it.
+                  -->
                   <ListBox x:Name="PART_Tabs" DockPanel.Dock="Left"
+                           Classes="tabs"
                            ItemsSource="{TemplateBinding Tabs}"
-                           SelectedItem="{TemplateBinding ActiveTab}"
+                           SelectedValue="{TemplateBinding ActiveTab}"
+                           SelectedValueBinding="{Binding Id, DataType=docking:DockPanelInfo}"
                            Background="Transparent" BorderThickness="0"
                            MinHeight="20" Padding="0" Margin="-6,0,0,0"
                            VerticalAlignment="Center">
@@ -97,7 +144,7 @@
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="docking:DockPanelInfo">
                         <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
-                                   Padding="6,0,6,0" VerticalAlignment="Center" />
+                                   VerticalAlignment="Center" />
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>

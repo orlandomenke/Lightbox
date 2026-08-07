@@ -44,7 +44,7 @@
 
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,6,0,0">
       <Button Content="Cancel" Click="OnCancel" />
-      <Button x:Name="ApplyButton" Content="Update" Click="OnApply" IsDefault="True" />
+      <Button Classes="primary" x:Name="ApplyButton" Content="Update" Click="OnApply" IsDefault="True" />
     </StackPanel>
   </StackPanel>
 </Window>

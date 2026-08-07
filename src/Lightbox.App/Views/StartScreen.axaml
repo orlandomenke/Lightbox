@@ -73,7 +73,7 @@
           has to make and cannot get right. Escape still goes straight through,
           which is what Skip was actually for.
         -->
-        <Button Content="Create" IsDefault="True" Click="OnCreate" MinWidth="90"
+        <Button Classes="primary" Content="Create" IsDefault="True" Click="OnCreate" MinWidth="90"
                 ToolTip.Tip="Esc goes straight to the blank document already open" />
       </StackPanel>
       <CheckBox x:Name="DontShowBox" Content="Don't show this again"

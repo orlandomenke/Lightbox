@@ -1,4 +1,5 @@
 using Avalonia.Controls.Presenters;
+using Avalonia.Media;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Avalonia.Controls;
@@ -154,6 +155,77 @@ public sealed class WorkspaceTests : BrushStateIsolated
         // And the hidden tab is parked, not destroyed — the same rule closing a
         // panel has always followed, so it keeps its scroll and its bindings.
         Assert.Single(Pool(w).Children.OfType<Docker>(), d => d.PanelId == DockPanelId.Color);
+    }
+
+    [AvaloniaFact]
+    public void TheTabShowingIsTheOneThatLooksLikeItIsShowing()
+    {
+        // B127. The strip carried `SelectedItem="{TemplateBinding ActiveTab}"`,
+        // and ActiveTab is a DockPanelId while the items are DockPanelInfo.
+        // Handing an enum to SelectedItem is not an error — nothing ever
+        // matches, so no tab is selected, and three tabs render identically
+        // whichever panel is actually in front.
+        //
+        // **Nothing failed.** Every test here asked the model which panel was
+        // active and got the right answer; the model was never wrong. What was
+        // wrong was the one thing no assertion looked at, and it took a
+        // screenshot to see it.
+        //
+        // So this asserts the *rendered* foreground rather than the selection,
+        // because a selection that resolves correctly and paints identically is
+        // the bug, not the fix.
+        var (w, vm) = Open();
+
+        vm.Workspace.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var docker = Strip(w, DockSide.Right).Children.OfType<Docker>()
+            .First(d => d.Tabs is not null);
+        var strip = docker.GetVisualDescendants().OfType<ListBox>().First();
+        var items = strip.GetVisualDescendants().OfType<ListBoxItem>().ToList();
+        Assert.Equal(2, items.Count);
+
+        var active = Assert.Single(items, i => ((DockPanelInfo)i.DataContext!).Id == docker.ActiveTab);
+        var resting = Assert.Single(items, i => i != active);
+
+        static Color Ink(ListBoxItem item) =>
+            (item.GetVisualDescendants().OfType<TextBlock>().First().Foreground
+             as ISolidColorBrush)!.Color;
+
+        // Both numbers printed, not just the comparison: "it passed" and
+        // "230 against 178" are different amounts of evidence, and the second
+        // is the one that says whether the difference is visible or a hair.
+        var (a, r) = (Ink(active), Ink(resting));
+        Assert.True(a.R + a.G + a.B > r.R + r.G + r.B,
+            $"active tab {a} is not brighter than the resting tab {r}");
+
+        // And the resting tab is still legible. A tab nobody can read looks
+        // disabled, and these are all one click away.
+        Assert.True(r.R + r.G + r.B > 3 * 0x60, $"resting tab {r} is too dim to read");
+
+        // The ground is the actual marker, and text weight only supports it —
+        // which is why it is asserted separately rather than trusted to follow.
+        // The design's panel tab is a sheet edge: lit at the top, fading into
+        // the panel below within the tab's own height. A flat fill would be the
+        // segmented-control look these are specifically not.
+        static Border Tab(ListBoxItem item) =>
+            item.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_Tab");
+
+        var lit = Assert.IsType<LinearGradientBrush>(Tab(active).Background);
+        Assert.Equal(2, lit.GradientStops.Count);
+        Assert.True(lit.GradientStops[^1].Color.A == 0,
+            "the active tab's gradient must end transparent — a named end colour is a "
+            + "visible seam on any ground that is not the one it named");
+        Assert.True(lit.GradientStops[^1].Offset < 1,
+            $"the fade ends at {lit.GradientStops[^1].Offset:F2}, so it is not fading fast");
+
+        // The resting tab takes no lit ground — it merges with the header it
+        // sits in. What it does carry is an outline, and that is not incidental:
+        // a strip where only the active tab has a shape reads as one tab beside
+        // two words, which is the same failure as having no marks at all moved
+        // along by one.
+        Assert.IsNotType<LinearGradientBrush>(Tab(resting).Background);
+        Assert.NotNull(Tab(resting).BorderBrush);
     }
 
     [AvaloniaFact]

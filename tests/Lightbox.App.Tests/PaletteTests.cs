@@ -90,6 +90,55 @@ public class PaletteTests
         }
     }
 
+    [AvaloniaFact]
+    public void TheThemeAgreesWithThePalette()
+    {
+        // **The half of the colour system that was missing for a week.**
+        // Tokenising the views only reaches surfaces somebody aimed at a token.
+        // Every stock control — toggle buttons, slider thumbs, checkboxes,
+        // radios, focus rings, list selection — paints from the *theme's*
+        // palette, and Fluent's accent is Windows blue. Nothing was red; the
+        // app simply wore two colour systems, and the opacity slider wore both
+        // at once: our coral track, Fluent's #0078D7 thumb.
+        //
+        // Asserted through the theme's own resource rather than by reading
+        // App.axaml, because what matters is the colour a control resolves at
+        // runtime, not the text somebody typed.
+        Assert.True(Application.Current!.TryFindResource(
+            "SystemAccentColor", Avalonia.Styling.ThemeVariant.Dark, out var accent));
+        var violet = Assert.IsType<Color>(accent);
+
+        Application.Current!.TryFindResource("AccentVioletBrush", out var role);
+        Assert.Equal(((SolidColorBrush)role!).Color, violet);
+    }
+
+    [Fact]
+    public void TheThemePaletteIsWrittenInHexOnPurpose()
+    {
+        // ColorPaletteResources is built before the merged dictionaries it
+        // would look into, so {StaticResource} there cannot resolve — the two
+        // literals in App.axaml are unavoidable rather than sloppy. This is the
+        // check the reference would have been, so the comment saying so is not
+        // the only thing keeping them in step.
+        var app = Read("App.axaml");
+        var palette = Read("Styles", "Palette.axaml");
+
+        foreach (var (property, token) in new[]
+                 {
+                     ("Accent", "AccentViolet"),
+                     ("RegionColor", "SurfaceElevated"),
+                 })
+        {
+            var used = Regex.Match(app, $@"{property}=""(#[0-9a-fA-F]{{6,8}})""");
+            Assert.True(used.Success, $"the theme no longer sets {property}");
+
+            var defined = Regex.Match(palette, $@"x:Key=""{token}"">(#[0-9a-fA-F]{{6,8}})<");
+            Assert.True(defined.Success, $"{token} is no longer in the palette");
+
+            Assert.Equal(defined.Groups[1].Value, used.Groups[1].Value, ignoreCase: true);
+        }
+    }
+
     [Fact]
     public void NoViewInventsItsOwnChromeColour()
     {
@@ -124,6 +173,17 @@ public class PaletteTests
             if (name is "SplashWindow.axaml") continue; // the placeholder; branding is deferred
 
             var text = File.ReadAllText(file);
+
+            // The theme's own palette is the one place a role CANNOT be named:
+            // a ColorPaletteResources is built before the merged dictionaries
+            // it would look into, so {StaticResource} there does not resolve.
+            //
+            // Cut out by element rather than by allowing its values, because an
+            // allowed hex is an exception that outlives its reason — it keeps
+            // passing after the colour it excused has moved. The element is
+            // still guarded: TheThemePaletteIsWrittenInHexOnPurpose asserts
+            // those literals equal the tokens they stand in for.
+            text = Regex.Replace(text, @"<ColorPaletteResources\b[^>]*/?>", "");
 
             // Layer folder colours are DOCUMENT DATA — an artist picks one and
             // the file stores it. Re-mapping them to accents would change what
