@@ -163,16 +163,25 @@
           box that appears on click changes the strip's height as tabs are
           picked; one that is always there and only changes colour does not.
 
-          Bottom corners square and the bottom border absent on purpose: the
-          active tab is supposed to run into the panel under it rather than
-          close itself off, which is the whole difference between a tab and a
-          button that happens to be in a row.
+          Bottom corners square, and **the bottom border is the strip's rule**.
+          It closes a resting tab and is absent on the active one, so the line
+          runs along the strip, past the resting tabs, and stops where the
+          active tab meets its panel. That gap is the whole difference between
+          a tab and a button that happens to be in a row: the active tab and
+          its content are one surface, and the rule is the front edge of the
+          sheets behind it.
+
+          Drawn per tab rather than as one line under the strip, and that is
+          load-bearing. A single rule would have to be *covered* by the active
+          tab, and the active tab cannot cover anything — its gradient ends
+          transparent so it merges into whatever ground it lands on. Anything
+          opaque enough to hide a line would be a seam.
         -->
         <Border Name="PART_Tab"
                 CornerRadius="4,4,0,0"
                 Background="{TemplateBinding Background}"
                 BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="1,1,1,0">
+                BorderThickness="1,1,1,1">
           <ContentPresenter Name="PART_ContentPresenter"
                             Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
@@ -204,10 +213,12 @@
   <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_Tab">
     <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1,1,1,0" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem:selected:pointerover /template/ Border#PART_Tab">
     <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1,1,1,0" />
   </Style>
   <!--
     Both halves, and the second is the one that does the work: the theme sets a

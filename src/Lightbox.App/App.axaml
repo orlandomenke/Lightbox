@@ -10,6 +10,9 @@
         <!-- The colour system. First, so everything below can name a role
              instead of a hex value. See docs/DESIGN-ui-system.md. -->
         <ResourceInclude Source="avares://Lightbox.App/Styles/Palette.axaml" />
+        <!-- After the palette, because it names the palette's roles: the keys
+             Fluent hard-codes rather than deriving from the accent. -->
+        <ResourceInclude Source="avares://Lightbox.App/Styles/Theme.axaml" />
       </ResourceDictionary.MergedDictionaries>
     <!--
       The splash colour, and the only place it is written down.
@@ -148,9 +151,29 @@
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>
-                  <TextBlock Text="{TemplateBinding Title}" FontSize="12" FontWeight="SemiBold"
+                  <!--
+                    The strip's rule, carried on past the last tab.
+
+                    Each tab draws its own bottom edge — that is how the line
+                    can break at the active one, which cannot cover anything
+                    because its gradient ends transparent. But the tabs only
+                    reach as far as their own words, and the reference runs the
+                    rule the full width of the header. This is the rest of it.
+
+                    Height bound to the strip so the two stay on one line
+                    whatever the density scale does; a constant here would be
+                    right until the first retune and then be a visible step in
+                    the middle of a straight line.
+                  -->
+                  <TextBlock DockPanel.Dock="Left"
+                             Text="{TemplateBinding Title}" FontSize="12" FontWeight="SemiBold"
                              Opacity="0.9" VerticalAlignment="Center"
                              IsVisible="{TemplateBinding Tabs, Converter={x:Static ObjectConverters.IsNull}}" />
+                  <Border Height="{Binding #PART_Tabs.Bounds.Height}"
+                          BorderBrush="{StaticResource BorderBrush}"
+                          BorderThickness="0,0,0,1"
+                          VerticalAlignment="Center"
+                          IsVisible="{TemplateBinding Tabs, Converter={x:Static ObjectConverters.IsNotNull}}" />
                 </DockPanel>
               </Border>
               <ContentPresenter DockPanel.Dock="Top" Content="{TemplateBinding TopBar}" />
