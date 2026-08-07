@@ -203,23 +203,27 @@ jobs:
           -c Release -r win-x64 --self-contained true
           -p:PublishTrimmed=false -p:DebugType=none
           -o publish/win-x64
-      # Into the SAME folder as the app, not a subfolder — that is B32's fix and
-      # it is the net10.0 upgrade that made it possible. A self-contained app
-      # only looks for its runtime beside its own executable, so `mcp/` could
-      # never reach the parent's copy and had to carry a second one: 35.3 MB of
-      # a 105 MB bundle. While the app was net8.0 and the server net10.0 those
-      # two copies were genuinely different files and merging them would have
-      # broken whichever executable lost. Both are net10.0 now, so the runtime
-      # files are byte-identical, the second publish overwrites them with the
-      # same bytes, and the two deps.json/runtimeconfig.json pairs have distinct
-      # names and coexist. Measured: the server adds 4 MB instead of 35.3, and
-      # the bundle drops from 105 MB zipped to 74.
-      - name: Publish MCP server into the same bundle
+      # Back into `mcp/`, which reverses half of B32 — deliberately, and it cost
+      # far less than expected. B32 merged the two publishes into one folder so
+      # they could share a runtime, taking the bundle from 105 MB zipped to 74.
+      # Single-file publishing ends that sharing by construction: the app's
+      # runtime is inside Lightbox.App.exe now, and a self-contained executable
+      # only ever looked for its runtime beside itself, so there is nothing left
+      # in the folder for the server to share. It carries its own either way,
+      # and a subfolder is the tidier place for it to do that.
+      #
+      # Measured rather than estimated, because the estimate was wrong by an
+      # order of magnitude. The duplicated runtime was expected to put the
+      # download back at ~105 MB. It did not: dropping 105 MB of native pdbs
+      # (see Lightbox.App.csproj) in the same change nearly cancels it, and the
+      # real numbers are 216 -> 180 MB on disk and 74 -> 76 MB zipped. Two
+      # megabytes for a bundle root of four files and one folder.
+      - name: Publish MCP server into its own folder
         run: >
           dotnet publish src/Lightbox.Mcp/Lightbox.Mcp.csproj
           -c Release -r win-x64 --self-contained true
           -p:PublishTrimmed=false -p:DebugType=none
-          -o publish/win-x64
+          -o publish/win-x64/mcp
       # The artifact (= downloaded zip) name says what kind of build this is:
       #   release-main-…      build of main, for release-style testing
       #   bugfix-<branch>-…   build of a fix/, bugfix/ or hotfix/ branch

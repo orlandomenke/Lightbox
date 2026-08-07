@@ -263,4 +263,6 @@ headless can open a window and click Delete.
 - [ ] **B115** — with `LIGHTBOX_TRACE=1` set, running `Lightbox.App.exe` from a terminal still prints trace lines to that terminal.
 - [ ] **B117** — force a crash (easiest: rename `libSkiaSharp.dll` so the canvas cannot start). A dialog names a file under `…\Lightbox\logs\`, and answering **Yes** opens that folder. The file names the build sha, not just "1.0.0".
 - [ ] **B117** — dismiss that dialog, put the DLL back, and start again. The status strip says the previous run ended unexpectedly and names the file. Start a third time: it does **not** say so again.
-- [ ] `Lightbox.Mcp.exe` works as the Claude Desktop MCP command from the same bundle, at the bundle root beside `Lightbox.App.exe` (it moved out of `mcp\` — B32).
+- [ ] **B116** — `Lightbox.Mcp.exe` works as the Claude Desktop MCP command from `mcp\`, beside `Lightbox.App.exe`. (It moved back into `mcp\`; it was at the bundle root for one stretch of builds — B32.)
+- [ ] **B116** — the bundle root holds `Lightbox.App.exe`, three native DLLs and the `mcp\` folder, and nothing else.
+- [ ] **B116** — `Lightbox.App.exe` starts from the single-file bundle on a machine with no .NET, and rendering is **hardware**: a large document pans and zooms at the usual speed. This is the check that catches a native library silently not resolving — Avalonia falls back to software rendering rather than failing, so the symptom is "the new build feels slow" rather than an error.
