@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Lightbox.App.ViewModels"
+        xmlns:proj="using:Lightbox.Core.Projects"
         x:Class="Lightbox.App.Views.ProjectWindow"
         x:DataType="vm:ProjectWindowViewModel"
         Width="1080" Height="700" MinWidth="720" MinHeight="420"
@@ -128,6 +129,82 @@
             </WrapPanel>
           </Border>
 
+          <!--
+            Q39 put the facet list behind a click and kept it off every row so a
+            tree of forty stays scannable. This is the other half of that trade:
+            the place the facets are *edited*, which is what makes read-only rows
+            an acceptable cost rather than a gap.
+          -->
+          <Border DockPanel.Dock="Right" Width="250" Classes="bar"
+                  IsVisible="{Binding IsEditingFolder}">
+            <ScrollViewer>
+              <StackPanel Spacing="8">
+                <TextBlock Text="{Binding EditingFolderName}" FontWeight="SemiBold" />
+
+                <StackPanel Spacing="2">
+                  <TextBlock Classes="head" Text="NOTES" />
+                  <TextBox Text="{Binding FolderNotes}" AcceptsReturn="True"
+                           MinHeight="54" TextWrapping="Wrap"
+                           Watermark="what this folder is, in your words" />
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                  <TextBlock Classes="head" Text="PIVOT" />
+                  <CheckBox IsChecked="{Binding FolderHasPivot}"
+                            Command="{Binding TogglePivotCommand}"
+                            Content="Asset export registers on a pivot"
+                            ToolTip.Tip="Without one, frames register on the canvas instead" />
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                  <TextBlock Classes="head" Text="READING" />
+                  <TextBlock Classes="dim" TextWrapping="Wrap"
+                             Text="{Binding FolderReadingLabel}"
+                             IsVisible="{Binding FolderHasReading}" />
+                  <TextBlock Classes="dim" TextWrapping="Wrap"
+                             IsVisible="{Binding !FolderHasReading}"
+                             Text="Nothing has read this folder. Right-click it in the Project panel to." />
+                  <CheckBox IsVisible="{Binding FolderHasReading}"
+                            Command="{Binding MarkReadingReviewedCommand}"
+                            Content="This reading is mine"
+                            ToolTip.Tip="A re-read refuses rather than overwriting it" />
+                  <!--
+                    Q35: the specific list, never a bare "are you sure". With the
+                    facets behind a click this sentence is the only place an
+                    artist is told, and it is told at the moment of the act.
+                  -->
+                  <TextBlock Classes="dim" TextWrapping="Wrap" Foreground="{StaticResource StatusWarningBrush}"
+                             Text="{Binding WhatClearingCosts}"
+                             IsVisible="{Binding FolderHasReading}" />
+                  <Button Content="Clear the reading" HorizontalAlignment="Left"
+                          IsVisible="{Binding FolderHasReading}"
+                          Command="{Binding ClearReadingCommand}" />
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                  <TextBlock Classes="head" Text="VARIANTS" />
+                  <ItemsControl ItemsSource="{Binding FolderVariants}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="proj:SubjectVariant">
+                        <Grid ColumnDefinitions="*,auto" MinHeight="24">
+                          <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11"
+                                     VerticalAlignment="Center" />
+                          <Button Grid.Column="1" Content="✕" FontSize="10"
+                                  Command="{Binding $parent[ItemsControl].((vm:ProjectWindowViewModel)DataContext).RemoveVariantCommand}"
+                                  CommandParameter="{Binding}" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBox Width="140" Text="{Binding NewVariantName}" Watermark="Winter Armour…" />
+                    <Button Content="Add" Command="{Binding AddVariantCommand}" />
+                  </StackPanel>
+                </StackPanel>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+
           <Grid DockPanel.Dock="Top" ColumnDefinitions="*,190,110,120,90,200" Margin="8,6,8,2">
             <TextBlock Grid.Column="0" Classes="head" Text="NAME" />
             <TextBlock Grid.Column="1" Classes="head" Text="TAGS" />
@@ -196,8 +273,19 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:StatusColumn">
+                <!--
+                  A column is a drop target and a card is a drag source, so a
+                  status change is the gesture the board is shaped for. The
+                  command behind it is `MoveToStatus`, which is drivable without
+                  a pointer — synthetic input through Xvfb is unreliable here, so
+                  a gesture that only exists in a handler is a gesture nothing
+                  can check.
+                -->
                 <Border Width="190" Margin="3" Padding="6"
-                        Background="{StaticResource BandTintBrush}" CornerRadius="4">
+                        Background="{StaticResource BandTintBrush}" CornerRadius="4"
+                        DragDrop.AllowDrop="True"
+                        DragDrop.DragOver="OnStatusDragOver"
+                        DragDrop.Drop="OnStatusDrop">
                   <DockPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
                       <TextBlock DockPanel.Dock="Right" Classes="dim"
@@ -213,7 +301,8 @@
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:BoardRow">
                           <Border Padding="5,3" Margin="0,0,0,3" CornerRadius="3"
-                                  Background="{StaticResource HoverTintBrush}">
+                                  Background="{StaticResource HoverTintBrush}"
+                                  PointerPressed="OnStatusCardPressed">
                             <StackPanel>
                               <TextBlock Text="{Binding Name}" FontSize="11"
                                          TextTrimming="CharacterEllipsis" />
@@ -242,35 +331,106 @@
             Project, folders and documents are rows of one table here.
           -->
           <Border DockPanel.Dock="Top" Classes="bar">
-            <TextBlock Classes="dim"
-                       Text="Every scope in the project, and what it declares. Nearest wins: a document beats its folder, a folder beats the project, the project beats your own defaults." />
+            <TextBlock Classes="dim" TextWrapping="Wrap"
+                       Text="Every scope in the project, and what it declares. Nearest wins: a document beats its folder, a folder beats the project, the project beats your own defaults. Select a row to give it something; ✕ on a chip takes it back." />
           </Border>
-          <ScrollViewer HorizontalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding Assets}" Margin="6">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:AssetScope">
-                  <Grid ColumnDefinitions="260,*" MinHeight="22">
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
-                      <Border Width="{Binding Indent}" />
-                      <TextBlock Text="{Binding Name}" FontSize="11"
-                                 TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <ItemsControl Grid.Column="1" ItemsSource="{Binding Cells}">
-                      <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                      </ItemsControl.ItemsPanel>
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:AssetCell">
-                          <Border Classes="chip" IsVisible="{Binding Any}">
+          <Border DockPanel.Dock="Bottom" Classes="bar" IsVisible="{Binding HasAssetScope}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Classes="head" VerticalAlignment="Center"
+                         Text="{Binding AssetScopeLabel}" />
+              <ComboBox MinWidth="260" ItemsSource="{Binding OfferChoices}"
+                        SelectedItem="{Binding OfferToDeclare}"
+                        PlaceholderText="share something here…">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:OfferChoice">
+                    <TextBlock Text="{Binding Label}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+          </Border>
+          <ListBox ItemsSource="{Binding Assets}" SelectedItem="{Binding SelectedScope}"
+                   Background="Transparent" BorderThickness="0" Margin="6">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="Padding" Value="2,1" />
+                <Setter Property="MinHeight" Value="24" />
+              </Style>
+            </ListBox.Styles>
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:AssetScope">
+                <Grid ColumnDefinitions="260,*" MinHeight="22">
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                    <Border Width="{Binding Indent}" />
+                    <TextBlock Text="{Binding Name}" FontSize="11"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                  <ItemsControl Grid.Column="1" ItemsSource="{Binding All}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:Declaration">
+                        <Border Classes="chip">
+                          <StackPanel Orientation="Horizontal" Spacing="3">
                             <TextBlock FontSize="10">
-                              <Run Text="{Binding Kind}" FontWeight="SemiBold" />
-                              <Run Text="{Binding Text}" />
+                              <Run Text="{Binding Resource.Kind}" FontWeight="SemiBold" />
+                              <Run Text="{Binding Name}" />
                             </TextBlock>
-                          </Border>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </Grid>
+                            <Button Content="✕" FontSize="9" Padding="2,0"
+                                    Background="Transparent" BorderThickness="0"
+                                    Command="{Binding $parent[ListBox].((vm:ProjectWindowViewModel)DataContext).UndeclareOnScopeCommand}"
+                                    CommandParameter="{Binding}"
+                                    ToolTip.Tip="Stop sharing this here" />
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </TabItem>
+
+      <!-- ============================== EXPORT ============================== -->
+      <TabItem Header="Export">
+        <DockPanel>
+          <!--
+            `ExportPlan` already produced this and only a confirmation dialog
+            read it. A plan you can see only in the half-second before it runs is
+            a plan nobody checks — and the count is the thing worth checking, as
+            the way you learn most of a scope is held back by status before
+            wondering why the sheet came out half empty.
+
+            Read-only: running an export is the export window's job, and a second
+            button is two places that can disagree about what export means.
+          -->
+          <Border DockPanel.Dock="Top" Classes="bar">
+            <TextBlock Classes="dim" Text="{Binding ExportSummary}" />
+          </Border>
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding ExportRows}" Margin="6">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ProjectWindowViewModel+ExportRow">
+                  <Border Padding="6" Margin="0,0,0,4" CornerRadius="3"
+                          Background="{StaticResource BandTintBrush}">
+                    <StackPanel Spacing="2">
+                      <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Classes="dim" Text="{Binding Preset}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock Text="{Binding Scope}" FontWeight="SemiBold" FontSize="11" />
+                          <TextBlock Classes="dim" Text="{Binding Count}" />
+                          <TextBlock Classes="dim" Foreground="{StaticResource StatusWarningBrush}"
+                                     Text="empty" IsVisible="{Binding IsEmpty}" />
+                        </StackPanel>
+                      </DockPanel>
+                      <TextBlock Classes="dim" Text="{Binding Contents}" TextWrapping="Wrap" />
+                      <TextBlock Classes="dim" Foreground="{StaticResource StatusWarningBrush}"
+                                 Text="{Binding Excluded}" IsVisible="{Binding HasExcluded}" />
+                    </StackPanel>
+                  </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>

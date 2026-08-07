@@ -269,6 +269,51 @@ public static class ResourceScopes
         ProjectManifest manifest, ProjectFolder? folder, string kind) =>
         ResolveAt(manifest, folder, kind).FirstOrDefault();
 
+    /// <summary>
+    /// Take a declaration back off whatever it was declared on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One method for all three scopes, because "undeclare this" is one gesture
+    /// and the caller holding the entry already knows nothing about where it
+    /// came from. Empties back to null so a scope that declared something and
+    /// then took it back is byte-identical to one that never did.
+    /// </para>
+    /// <para>
+    /// <b>Deleting a declaration cannot change a drawing.</b> A scoped resource
+    /// is a library to choose from; the choice is captured into the stroke
+    /// record when an artist picks. <c>DeletingFromTheLibraryCannotChangeADrawing</c>
+    /// is the standing guard and it applies here unchanged.
+    /// </para>
+    /// <para>
+    /// Worth knowing for the narrowing kinds: taking back the <em>last</em>
+    /// declaration of a kind puts the project back to "everything applies",
+    /// because <c>AnyDeclared</c> is what switches scoping on. That is a real
+    /// change of behaviour from one click, and a caller near an artist should
+    /// say so.
+    /// </para>
+    /// </remarks>
+    public static bool Undeclare(
+        ProjectManifest manifest, ProjectFolder? scope, ScopedResource resource)
+    {
+        var declared = scope is null ? manifest.Resources : scope.Resources;
+        if (declared is null || !declared.Remove(resource)) return false;
+        if (declared.Count == 0)
+        {
+            if (scope is null) manifest.Resources = null;
+            else scope.Resources = null;
+        }
+        return true;
+    }
+
+    /// <summary>Take a declaration back off a document.</summary>
+    public static bool Undeclare(DocumentRef document, ScopedResource resource)
+    {
+        if (document.Resources is not { } declared || !declared.Remove(resource)) return false;
+        if (declared.Count == 0) document.Resources = null;
+        return true;
+    }
+
     /// <summary>Declare a resource on one document — the narrowest scope.</summary>
     /// <remarks>
     /// A separate method rather than an overload taking a nullable document,

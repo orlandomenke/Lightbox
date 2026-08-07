@@ -254,6 +254,76 @@ public static class ProjectBoard
         return new BoardSummary(manifest.Documents.Count, byStatus, unset, unassigned);
     }
 
+    // ---- what a scope can be given ---------------------------------------------
+
+    /// <summary>Something declarable, named for a person rather than by id.</summary>
+    public readonly record struct Offer(string Id, string Name);
+
+    /// <summary>
+    /// The kinds a scope can declare, in the order a surface should list them.
+    /// </summary>
+    /// <remarks>
+    /// Named here rather than discovered from what is already declared: a column
+    /// that appears only once something exists in it is a column an artist
+    /// cannot use to declare the first one.
+    /// </remarks>
+    public static readonly IReadOnlyList<string> Kinds =
+    [
+        PaletteScopes.Kind, GradientScopes.Kind, ReferenceScopes.Kind, GuideScopes.Kind,
+        TemplateScopes.Kind, ExportScopes.Kind, SymbolScopes.Kind, TipScopes.Kind,
+    ];
+
+    /// <summary>
+    /// What a scope could be given, of one kind.
+    /// </summary>
+    /// <remarks>
+    /// <b>One place, because there were about to be two.</b> The docker has seven
+    /// <c>ShareableX</c> properties and the project window needs the same seven
+    /// lists; a second copy is a second thing to update when a ninth kind
+    /// arrives. Model code for the reason Q29 gave about the tree.
+    /// <para>
+    /// <c>reference</c> is deliberately absent: a reference binds to a
+    /// <em>target</em> as well as an id (<see cref="ReferenceTargets"/>), so
+    /// offering it as a flat list would produce a declaration that names a sheet
+    /// and not what to do with it. It stays a surface that knows about targets.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<Offer> Offers(Project project, string kind)
+    {
+        var manifest = project.Manifest;
+        return kind switch
+        {
+            PaletteScopes.Kind => [.. Named(project.Palettes.Select(p => new Offer(p.Id, p.Name)))],
+            GradientScopes.Kind => [.. Named(project.Gradients.Values.Select(g => new Offer(g.Id, g.Name)))],
+            SymbolScopes.Kind => [.. Named(project.Symbols.Values.Select(s => new Offer(s.Id, s.Name)))],
+            TipScopes.Kind => [.. Named((manifest.Tips ?? []).Select(t => new Offer(t.Id, t.Name)))],
+            GuideScopes.Kind => [.. Named((manifest.GuideSets ?? []).Select(g => new Offer(g.Id, g.Name)))],
+            // The project's own first, then the built-ins — the order the docker
+            // already offers them in, so the two surfaces agree.
+            ExportScopes.Kind =>
+            [
+                .. (manifest.ExportPresets ?? []).Select(p => new Offer(p.Id, p.Name)),
+                .. ExportPreset.BuiltIns.Select(p => new Offer(p.Id, p.Name)),
+            ],
+            TemplateScopes.Kind => [.. Templates.InProject(project).Select(d => new Offer(d.Id, d.Name))],
+            _ => [],
+        };
+
+        static IEnumerable<Offer> Named(IEnumerable<Offer> offers) =>
+            offers.OrderBy(o => o.Name, StringComparer.CurrentCultureIgnoreCase);
+    }
+
+    /// <summary>What an id resolves to, for a chip to read as a name.</summary>
+    /// <remarks>
+    /// Falls back to the id rather than to nothing: a declaration naming
+    /// something deleted is a real state — the palette path has had it since
+    /// Q30 — and an empty chip would hide it rather than showing it as broken.
+    /// </remarks>
+    public static string NameOf(Project project, string kind, string id) =>
+        Offers(project, kind).FirstOrDefault(o => o.Id == id) is { Name.Length: > 0 } found
+            ? found.Name
+            : id;
+
     /// <summary>The documents at one status, in the order the project lists them.</summary>
     /// <remarks>
     /// Null means <em>nobody has said</em>, which stays distinct from Design —

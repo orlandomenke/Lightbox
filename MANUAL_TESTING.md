@@ -4,6 +4,45 @@ Everything algorithmic is covered by `dotnet test` (headless-safe). The items
 below need a real desktop session — they exercise windowing, GPU rendering, and
 input feel that a headless environment cannot verify.
 
+## Driving the real app in a container, when a screenshot is the only evidence
+
+Most of this file is for a person at a screen. Some of it can be automated, and
+**cursor-to-mark alignment is the case worth the setup**: the brush ring is drawn
+in the canvas's render op under a Skia lease, so no headless test can capture it
+beside the ink, and the transform bug of 2026-08-07 was invisible to 2 898 green
+tests. The recipe:
+
+```sh
+apt-get update                                    # <- do this FIRST
+apt-get install -y --no-install-recommends xdotool x11-apps imagemagick
+Xvfb :99 -screen 0 1280x900x24 &
+DISPLAY=:99 dotnet run --project src/Lightbox.App &
+DISPLAY=:99 xdotool search --name Lightbox         # window ids, once it is up
+DISPLAY=:99 xdotool mousemove 500 300 mousedown 1  # …drag…  mouseup 1
+DISPLAY=:99 import -window root shot.png
+```
+
+Three things that cost time to find out:
+
+- **`apt-get install` without `apt-get update` first fails**, and it fails
+  looking like a network policy refusal rather than a stale index. The proxy does
+  block two third-party PPAs, and `update` reports those loudly while still
+  fetching the main archive successfully — so read past the warnings.
+- **`import -window root` is the reliable capture.** Xvfb's `-fbdir` also works
+  and needs no ImageMagick, but it writes an XWD file whose header you then have
+  to decode (`bits_per_pixel` is word 11 and `bytes_per_line` word 12 of
+  `X11/XWDFile.h`, not the neighbours you will guess).
+- **Measure the screenshot, do not squint at it.** `convert x.png txt:-` gives
+  per-pixel values; the densest row and column of ink are the stroke, and
+  comparing those against the coordinates you passed to `xdotool` is the whole
+  measurement. Crop the canvas area first, or the panel borders become the
+  densest row and you will "find" a 240 px error that is a window chrome edge.
+
+Still true, and the reason this is a supplement rather than a replacement:
+`CLAUDE.md` prefers a headless pixel test, because a dropped synthetic click
+looks exactly like a bug. Use this to *see*, and land a pixel test to *guard* —
+`CursorAlignmentTests` is the pair to this recipe.
+
 ## Before that: look at the sheets
 
 ```sh

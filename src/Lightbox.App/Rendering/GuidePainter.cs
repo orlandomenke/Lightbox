@@ -1,4 +1,5 @@
 using SkiaSharp;
+using System;
 
 namespace Lightbox.App.Rendering;
 
@@ -49,14 +50,30 @@ public static class GuidePainter
         float scale,
         Action<SKCanvas>? checkerboard,
         IReadOnlyList<Line>? guides,
-        Line? draft)
+        Line? draft,
+        SKRectI? docViewport = null)
     {
         checkerboard?.Invoke(canvas);
         if (artwork is not null)
         {
             using var paint = new SKPaint { IsAntialias = true };
-            canvas.DrawImage(
-                artwork, new SKRect(0, 0, docW, docH), new SKSamplingOptions(SKFilterMode.Linear), paint);
+
+            // When compositing is viewport-culled, the image is smaller than the document.
+            // Draw it at the viewport position with its actual size.
+            if (docViewport is { } vp && (vp.Width > 0 && vp.Height > 0))
+            {
+                canvas.DrawImage(
+                    artwork,
+                    new SKRect(vp.Left, vp.Top, vp.Left + vp.Width, vp.Top + vp.Height),
+                    new SKSamplingOptions(SKFilterMode.Linear),
+                    paint);
+            }
+            else
+            {
+                // Normal case: draw full-document image at (0,0) to (docW, docH)
+                canvas.DrawImage(
+                    artwork, new SKRect(0, 0, docW, docH), new SKSamplingOptions(SKFilterMode.Linear), paint);
+            }
         }
         Paint(canvas, guides, draft, docW, docH, scale);
     }
