@@ -54,20 +54,40 @@ from **View**.
 
 Each panel's header is three things at once:
 
-- **A title.**
-- **A switcher.** Click it and pick another panel: the two *trade places*. No
-  panel is ever open twice, so "where is the palette" always has one answer.
-  The timeline has no switcher — it has nowhere else to be.
+- **A title** — or **tabs**, when more than one panel shares the slot. Click a
+  tab to bring that panel forward. No panel is ever open twice, so "where is the
+  palette" always has one answer.
 - **A grip.** Press and drag the header to move the panel.
+- **A close button.**
 
-While you drag, a highlight shows where it would land:
+**Panels share a slot by being dragged onto each other's headers.** Drop a panel
+on another panel's header and the two become tabs in one slot; drop it on the
+body, or on an edge, and it gets a slot of its own as before. Dragging the last
+tab out of a group leaves the remaining panel an ordinary panel again — a group
+is nothing more than the panels currently sharing a slot.
+
+Tabbing is how a workspace offers more than it has room for. Colour, palette and
+gradient ship tabbed together in most arrangements: they are three ways of
+answering one question and you want one at a time, so they cost one slot between
+them instead of three. Things you use *at the same time* — the layers list, the
+project tree, the timeline — are never tabbed together, and dragging one there
+is the only way to make it so.
+
+While you drag, two things tell you what is about to happen. A small **ghost**
+follows the pointer naming the panel you are carrying, and a **highlight** shows
+where it would land:
 
 - Near an **edge with nothing on it**, the highlight grows to the size of the
   area that would open.
 - Over an **existing panel**, the highlight is a band above or below it (or
   left/right in a top or bottom strip) showing where it would slot in.
+- Over an **existing panel's header**, the highlight is that header — let go and
+  the two become tabs.
 - Let go **over the canvas** and the panel floats in a window of its own. Drag
   its header back to a dock zone to put it away again.
+
+The ghost stays inside the main window: drag a floating panel out past the edge
+and it stops at the boundary rather than following onto the desktop.
 
 Dragging the last panel out of an edge collapses that edge — no empty gutter.
 

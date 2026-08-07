@@ -30,6 +30,16 @@ public sealed class DockPlacement
 
     public double FloatHeight { get; set; } = 400;
 
+    /// <summary>
+    /// Whether this is the panel showing in its slot.
+    /// </summary>
+    /// <remarks>
+    /// Only means anything when a slot holds more than one panel. Defaults to
+    /// true so a layout written before tabs existed — where every panel had a
+    /// slot of its own — loads with every panel showing, which is what it meant.
+    /// </remarks>
+    public bool TabActive { get; set; } = true;
+
     public DockPlacement Clone() => (DockPlacement)MemberwiseClone();
 }
 
@@ -136,14 +146,106 @@ public sealed class DockLayout
             .ToList();
 
     /// <summary>
+    /// The strip's slots, each holding the panels tabbed together in it.
+    /// </summary>
+    /// <remarks>
+    /// A slot is not an object and a group is not declared anywhere: panels
+    /// that happen to share an <see cref="DockPlacement.Order"/> are tabbed
+    /// together, and a slot of one is an ordinary docker. Drag the last member
+    /// out and the group stops existing, with nothing to clean up.
+    /// </remarks>
+    public List<List<DockPanelId>> SlotsIn(DockSide side) =>
+        Placements
+            .Where(p => p.Value.Side == side)
+            .GroupBy(p => p.Value.Order)
+            .OrderBy(g => g.Key)
+            .Select(g => g.OrderBy(p => (int)p.Key).Select(p => p.Key).ToList())
+            .ToList();
+
+    /// <summary>The panel showing in each slot — one per slot, in strip order.</summary>
+    public List<DockPanelId> ActiveIn(DockSide side) =>
+        SlotsIn(side).Select(ActiveOf).ToList();
+
+    /// <summary>Which member of a slot is showing.</summary>
+    /// <remarks>
+    /// Falls back to the first rather than trusting the flag. A layout can
+    /// arrive from disk with none of a slot's members marked active, or with
+    /// two, and a panel that renders nothing is a worse answer than a panel
+    /// that renders the wrong tab.
+    /// </remarks>
+    public DockPanelId ActiveOf(IReadOnlyList<DockPanelId> slot) =>
+        slot.FirstOrDefault(id => Place(id).TabActive, slot[0]);
+
+    /// <summary>The slot a panel shares, itself included.</summary>
+    public List<DockPanelId> SlotOf(DockPanelId id)
+    {
+        var placement = Place(id);
+        if (placement.Side is DockSide.Hidden or DockSide.Floating) return [id];
+        return SlotsIn(placement.Side).FirstOrDefault(s => s.Contains(id)) ?? [id];
+    }
+
+    /// <summary>
+    /// Set a slot's height, on every panel in it.
+    /// </summary>
+    /// <remarks>
+    /// Extent is stored per panel, which was right when a panel was a slot. With
+    /// tabs the members have to agree, or switching tab resizes the slot to
+    /// whatever height that panel was last given on its own — the layout
+    /// twitching every time you look at another tab.
+    /// </remarks>
+    public void SetExtent(DockPanelId id, double extent)
+    {
+        foreach (var member in SlotOf(id)) Place(member).Extent = extent;
+    }
+
+    /// <summary>Show this panel in its slot, and stop showing its siblings.</summary>
+    public void Activate(DockPanelId id)
+    {
+        foreach (var sibling in SlotOf(id)) Place(sibling).TabActive = sibling == id;
+    }
+
+    /// <summary>
+    /// Tab a panel together with another, taking the target's slot.
+    /// </summary>
+    /// <remarks>
+    /// The joiner becomes the one showing, because the artist just dragged it
+    /// there — landing it behind the panel it was dropped on would look like
+    /// the drop had failed. It also takes the slot's extent, so the group does
+    /// not resize when the tab changes.
+    /// </remarks>
+    public void JoinGroup(DockPanelId id, DockPanelId target)
+    {
+        if (id == target) return;
+        var into = Place(target);
+        if (into.Side is DockSide.Hidden or DockSide.Floating) return;
+        if (!DockPanels.Of(id).Movable) return;
+
+        var placement = Place(id);
+        var from = placement.Side;
+        placement.Side = into.Side;
+        placement.HomeSide = into.Side;
+        placement.Order = into.Order;
+        placement.Extent = into.Extent;
+        Activate(id);
+        if (from != into.Side) Renumber(SlotsIn(from));
+    }
+
+    /// <summary>
     /// True when a strip has nothing in it. The view collapses those rather
     /// than leaving an empty gutter — dragging the last panel out of an area
     /// takes the area with it.
     /// </summary>
     public bool IsEmpty(DockSide side) => !Placements.Any(p => p.Value.Side == side);
 
-    /// <summary>The width a side strip should be, from the panels the layout puts in it.</summary>
-    public double? CapFor(DockSide side) => DockPanels.CapOf(PanelsIn(side));
+    /// <summary>The width a side strip should be, from the panels showing in it.</summary>
+    /// <remarks>
+    /// The panels <em>showing</em>, not every panel the strip holds. An
+    /// uncapped panel removes the ceiling for the whole strip, so counting
+    /// hidden tabs would let a tucked-away Layers tab widen the sidebar for a
+    /// Colour panel that wants to stay narrow — a strip sized by something
+    /// nobody can see.
+    /// </remarks>
+    public double? CapFor(DockSide side) => DockPanels.CapOf(ActiveIn(side));
 
     /// <summary>
     /// Put a panel in a strip at <paramref name="index"/>, pulling it out of
@@ -158,14 +260,18 @@ public sealed class DockLayout
         }
         var placement = Place(id);
         var from = placement.Side;
+        // Out of whatever slot it was in first, so a group it is leaving closes
+        // up behind it and cannot be counted twice by the insert below.
+        placement.Side = DockSide.Hidden;
+        var slots = SlotsIn(side);
+
         placement.Side = side;
         placement.HomeSide = side;
-        placement.Order = int.MinValue;   // sorts first, then the insert puts it right
-        var order = PanelsIn(side).Where(p => p != id).ToList();
-        index = Math.Clamp(index, 0, order.Count);
-        order.Insert(index, id);
-        Renumber(order);
-        if (from != side) Renumber(PanelsIn(from));
+        placement.TabActive = true;       // a slot of its own, so it is showing
+        index = Math.Clamp(index, 0, slots.Count);
+        slots.Insert(index, [id]);
+        Renumber(slots);
+        if (from != side) Renumber(SlotsIn(from));
     }
 
     /// <summary>Detach into its own window at the given screen rectangle.</summary>
@@ -179,7 +285,7 @@ public sealed class DockLayout
         placement.FloatY = y;
         placement.FloatWidth = width;
         placement.FloatHeight = height;
-        if (from is not (DockSide.Floating or DockSide.Hidden)) Renumber(PanelsIn(from));
+        if (from is not (DockSide.Floating or DockSide.Hidden)) Renumber(SlotsIn(from));
     }
 
     /// <summary>Take a panel off screen. Its size and order are kept for reopening.</summary>
@@ -188,7 +294,7 @@ public sealed class DockLayout
         var placement = Place(id);
         var from = placement.Side;
         placement.Side = DockSide.Hidden;
-        if (from is not (DockSide.Floating or DockSide.Hidden)) Renumber(PanelsIn(from));
+        if (from is not (DockSide.Floating or DockSide.Hidden)) Renumber(SlotsIn(from));
     }
 
     /// <summary>
@@ -208,41 +314,52 @@ public sealed class DockLayout
         Dock(id, side, placement.Order);
     }
 
+    // Swap is gone. It was the switcher's mechanism — "this slot shows that
+    // panel instead, and the displaced one goes where it came from" — and with
+    // tabs a slot shows several panels, so trading places is no longer what
+    // choosing another panel means. JoinGroup and Activate replace it.
+
     /// <summary>
-    /// Exchange two panels' positions — the header's panel switcher.
+    /// Make a strip's slots 0..n-1 with no gaps — the one bookkeeping rule
+    /// everything else relies on. Every member of a slot gets that slot's
+    /// number, which is what makes them a group.
     /// </summary>
+    private void Renumber(IReadOnlyList<IReadOnlyList<DockPanelId>> slots)
+    {
+        for (var i = 0; i < slots.Count; i++)
+        {
+            foreach (var id in slots[i]) Place(id).Order = i;
+        }
+        foreach (var slot in slots)
+        {
+            // Exactly one showing per slot, always. Two actives renders the
+            // wrong one; none renders nothing at all.
+            var active = ActiveOf(slot);
+            foreach (var id in slot) Place(id).TabActive = id == active;
+        }
+    }
+
+    /// <summary>A copy that shares nothing with the original.</summary>
     /// <remarks>
-    /// Blender's rule: a header picks what that slot shows, and no panel is
-    /// ever open twice. Choosing "Palette" from the colour docker's switcher
-    /// therefore has to send the colour docker where the palette was, not
-    /// merely open a second palette. A swap with a hidden panel is the same
-    /// operation with one side off screen: the chosen panel takes the slot and
-    /// the displaced one goes where the chosen one came from, which is nowhere.
+    /// <b>Every field, and the three at the bottom are why this has a comment.</b>
+    /// <c>Rulers</c>, <c>GuidesVisible</c> and <c>GuidesLocked</c> were missing,
+    /// and both <c>WorkspaceViewModel.Apply</c> and <c>WorkspaceStore.Save</c>
+    /// go through here — so switching workspace or saving one silently reset
+    /// all three to their defaults. Nothing failed; the settings just went back
+    /// to how they started, which reads as the application forgetting rather
+    /// than as a bug with a place to look.
+    ///
+    /// A field added to this type and not added here has that same failure
+    /// waiting for it, and the compiler will not say a word.
     /// </remarks>
-    public void Swap(DockPanelId a, DockPanelId b)
-    {
-        if (a == b) return;
-        var pa = Place(a);
-        var pb = Place(b);
-        (pa.Side, pb.Side) = (pb.Side, pa.Side);
-        (pa.HomeSide, pb.HomeSide) = (pb.HomeSide, pa.HomeSide);
-        (pa.Order, pb.Order) = (pb.Order, pa.Order);
-        (pa.FloatX, pb.FloatX) = (pb.FloatX, pa.FloatX);
-        (pa.FloatY, pb.FloatY) = (pb.FloatY, pa.FloatY);
-        (pa.FloatWidth, pb.FloatWidth) = (pb.FloatWidth, pa.FloatWidth);
-        (pa.FloatHeight, pb.FloatHeight) = (pb.FloatHeight, pa.FloatHeight);
-    }
-
-    private void Renumber(IReadOnlyList<DockPanelId> order)
-    {
-        for (var i = 0; i < order.Count; i++) Place(order[i]).Order = i;
-    }
-
     public DockLayout Clone() => new()
     {
         Placements = Placements.ToDictionary(p => p.Key, p => p.Value.Clone()),
         AreaExtents = new Dictionary<DockSide, double>(AreaExtents),
         Overlays = Overlays.Clone(),
+        Rulers = Rulers,
+        GuidesVisible = GuidesVisible,
+        GuidesLocked = GuidesLocked,
     };
 
     // ---- persistence ---------------------------------------------------------

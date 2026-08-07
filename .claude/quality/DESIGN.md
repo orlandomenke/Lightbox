@@ -112,6 +112,17 @@ split:
   docker is fine, being unable to use one is not.
 - Hidden dockers cost nothing — `Auto` height, no splitter, no floor.
 
+**Panels may share a slot as tabs**, and that is the other half of the rule
+above. Five stacked dockers means five heights and a scroll; five in two slots
+means two. A group is not a thing that exists — it is the panels currently
+sharing a slot, and a slot of one is an ordinary docker that renders as a plain
+title, so nothing about an untabbed panel changes.
+
+**Tab what is used alternately, never what is used together.** Colour, palette
+and gradient answer one question and you want one at a time. The layers list and
+the project tree are read *while* drawing, so tabbing either trades a scroll for
+a click on every stroke — a worse bargain than the height it saves.
+
 **Content scrolls inside its docker**, so a docker with forty swatches is as
 tall as a docker with four until the artist grows it.
 

@@ -134,4 +134,75 @@ public class DockZoneTests
         Assert.Equal(1, At(700, 100, DockPanelId.Color, a, b)!.Value.Index);
         Assert.Equal(2, At(1100, 100, DockPanelId.Color, a, b)!.Value.Index);
     }
+
+    [Fact]
+    public void DroppingOnAHeaderTabsIntoThatSlot()
+    {
+        // The header sits inside the upper half, so it has to be tested first
+        // or it is unreachable: aiming at a header would insert the panel above
+        // the very slot whose tabs you were aiming for.
+        var content = new DockRect(0, 0, 1000, 800);
+        var slots = new List<PanelSlot>
+        {
+            new(DockPanelId.Layers, DockSide.Right, 0, new DockRect(700, 0, 300, 400), 22),
+            new(DockPanelId.Color, DockSide.Right, 1, new DockRect(700, 400, 300, 400), 22),
+        };
+
+        var drop = DockZones.Resolve(820, 8, content, slots, DockPanelId.Palette, DockLayout.Default());
+
+        Assert.NotNull(drop);
+        Assert.Equal(DockPanelId.Layers, drop!.Value.IntoGroupOf);
+        // And the highlight is the header band itself, not the whole panel —
+        // the preview has to say "this becomes a tab", not "this gets replaced".
+        Assert.Equal(22, drop.Value.Preview.Height);
+    }
+
+    [Fact]
+    public void DroppingOnTheBodyStillMakesASlotOfItsOwn()
+    {
+        // The header band must not have eaten the ordinary insert.
+        var content = new DockRect(0, 0, 1000, 800);
+        var slots = new List<PanelSlot>
+        {
+            new(DockPanelId.Layers, DockSide.Right, 0, new DockRect(700, 0, 300, 400), 22),
+        };
+
+        var drop = DockZones.Resolve(820, 300, content, slots, DockPanelId.Palette, DockLayout.Default());
+
+        Assert.NotNull(drop);
+        Assert.Null(drop!.Value.IntoGroupOf);
+        Assert.Equal(1, drop.Value.Index);   // below the panel it was dropped over
+    }
+
+    [Fact]
+    public void APanelCannotBeTabbedIntoItself()
+    {
+        var content = new DockRect(0, 0, 1000, 800);
+        var slots = new List<PanelSlot>
+        {
+            new(DockPanelId.Layers, DockSide.Right, 0, new DockRect(700, 0, 300, 400), 22),
+            new(DockPanelId.Color, DockSide.Right, 1, new DockRect(700, 400, 300, 400), 22),
+        };
+
+        var drop = DockZones.Resolve(820, 8, content, slots, DockPanelId.Layers, DockLayout.Default());
+
+        Assert.Null(drop?.IntoGroupOf);
+    }
+
+    [Fact]
+    public void AHeaderlessSlotOffersNoTabTarget()
+    {
+        // HeaderHeight of zero means the caller could not measure one. Offering
+        // a tab drop against a band of no height would be a target you cannot
+        // aim at, which is worse than not offering it.
+        var content = new DockRect(0, 0, 1000, 800);
+        var slots = new List<PanelSlot>
+        {
+            new(DockPanelId.Layers, DockSide.Right, 0, new DockRect(700, 0, 300, 400)),
+        };
+
+        var drop = DockZones.Resolve(820, 2, content, slots, DockPanelId.Palette, DockLayout.Default());
+
+        Assert.Null(drop?.IntoGroupOf);
+    }
 }

@@ -125,7 +125,10 @@ public class DockStrip : Grid
             if (child is not Docker docker) continue;
             var index = Vertical ? GetRow(docker) : GetColumn(docker);
             var size = Vertical ? RowDefinitions[index].ActualHeight : ColumnDefinitions[index].ActualWidth;
-            if (size > 0) _layout.Place(docker.PanelId).Extent = size;
+            // Through the layout rather than onto the placement, so every panel
+            // tabbed into this slot gets the height and switching tabs does not
+            // resize it.
+            if (size > 0) _layout.SetExtent(docker.PanelId, size);
         }
         ExtentsChanged?.Invoke();
     }

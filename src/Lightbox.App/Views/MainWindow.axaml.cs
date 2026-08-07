@@ -293,8 +293,10 @@ public partial class MainWindow : Window
         foreach (var panel in PanelPool.Children.OfType<Docker>().ToList())
         {
             _panels[panel.PanelId] = panel;
-            panel.SwitchTargets ??= WorkspaceViewModel.SwitchTargetsFor(panel.PanelId);
-            panel.SwitchRequested += (from, to) => _vm.Workspace.Swap(from.PanelId, to);
+            // Picking a tab shows it and hides its siblings. Through the view
+            // model rather than the layout, so it marks the workspace dirty like
+            // any other rearrangement.
+            panel.TabPicked += (_, id) => _vm.Workspace.Activate(id);
             panel.PanelDragStarted += BeginPanelDrag;
         }
         foreach (var strip in Strips())
@@ -343,7 +345,24 @@ public partial class MainWindow : Window
 
         foreach (var (side, strip) in Strips())
         {
-            var panels = layout.PanelsIn(side).Where(IsPanelUsable).Select(id => _panels[id]).ToList();
+            // One control per slot — the one showing. The others in the slot are
+            // its tabs and stay parked, so a hidden tab costs nothing but a word
+            // in a header, which is the whole point of tabbing.
+            var panels = new List<Docker>();
+            foreach (var slot in layout.SlotsIn(side))
+            {
+                var usable = slot.Where(IsPanelUsable).ToList();
+                if (usable.Count == 0) continue;
+
+                // The active member may be one the document cannot use — a
+                // project panel with no project. Fall back rather than leave
+                // the slot blank.
+                var active = usable.Contains(layout.ActiveOf(slot)) ? layout.ActiveOf(slot) : usable[0];
+                var panel = _panels[active];
+                panel.Tabs = usable.Count > 1 ? usable.Select(DockPanels.Of).ToList() : null;
+                panel.ActiveTab = active;
+                panels.Add(panel);
+            }
             foreach (var panel in panels) Detach(panel);
             strip.Rebuild(panels, layout);
             // The cap comes from the panels actually shown, not from the ones
@@ -894,6 +913,7 @@ public partial class MainWindow : Window
 
     private void OnPanelDragReleased(object? sender, PointerReleasedEventArgs e)
     {
+        DragGhost.Hide();
         if (_dragging is not { } panel) return;
         var target = ResolveDrop(e);
         // Where the pointer is, in screen space, read before the drag state is
@@ -905,7 +925,9 @@ public partial class MainWindow : Window
 
         if (target is { } drop)
         {
-            _vm.Workspace.Dock(panel.PanelId, drop.Side, drop.Index);
+            // Onto a header: tab into that slot. Onto a body: a slot of its own.
+            if (drop.IntoGroupOf is { } host) _vm.Workspace.JoinGroup(panel.PanelId, host);
+            else _vm.Workspace.Dock(panel.PanelId, drop.Side, drop.Index);
             return;
         }
         // Let go over nothing: the panel floats. Dropping a panel into empty
@@ -928,9 +950,24 @@ public partial class MainWindow : Window
         _dragHost = null;
         _dragging = null;
         DropIndicator.Show(null);
+        DragGhost.Hide();
     }
 
-    private void UpdateDropTarget(PointerEventArgs e) => DropIndicator.Show(ResolveDrop(e));
+    /// <summary>
+    /// Both halves of the feedback: what is moving, and where it would land.
+    /// </summary>
+    private void UpdateDropTarget(PointerEventArgs e)
+    {
+        DropIndicator.Show(ResolveDrop(e));
+
+        // Null when the pointer cannot be mapped into this window — a drag that
+        // has wandered off a floating panel onto the desktop. The ghost lives in
+        // this window's overlay, so it stops at the edge rather than following.
+        if (_dragging is { } panel && PointerOverRoot(e) is { } at)
+        {
+            DragGhost.Show(DockPanels.TitleOf(panel.PanelId), at);
+        }
+    }
 
     private DropTarget? ResolveDrop(PointerEventArgs e)
     {
@@ -970,7 +1007,11 @@ public partial class MainWindow : Window
             if (visual.TranslatePoint(default, RootGrid) is not { } origin) continue;
             slots.Add(new PanelSlot(
                 id, side, layout.Place(id).Order,
-                new DockRect(origin.X, origin.Y, panel.Bounds.Width, panel.Bounds.Height)));
+                new DockRect(origin.X, origin.Y, panel.Bounds.Width, panel.Bounds.Height),
+                // Measured rather than assumed a constant: the header carries a
+                // tab strip now, and a band that does not match what is on
+                // screen is a drop target you cannot see to aim at.
+                panel.HeaderHeight));
         }
         return slots;
     }
