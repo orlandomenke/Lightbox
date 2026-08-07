@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2775 tests, derived from the suite itself. Each line is a
+2780 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -604,6 +604,15 @@ regression even when every test still compiles.
 - The Dispatcher Handler Records Without Changing What The App Does — `:142`
 - The Triggers Are Absent Until Diagnostics Are Turned On — `:155`
 - Every Menu Entry Names AScenario That Exists — `:168`
+
+## CursorAlignmentTests
+`tests/Lightbox.App.Tests/CursorAlignmentTests.cs`
+
+- Culling Never Moves The Document Point Under The Pointer — `:88`
+- AViewport Culled Canvas Round Trips ADocument Point — `:138`
+- Ink Lands Under The Pointer With Culling Live — `:170`
+- ACulled Compose Puts The Art Where AFull Compose Does — `:259`
+- Repeated Zooming Does Not Drift The Anchor — `:349`
 
 ## DiagnosticLogTests
 `tests/Lightbox.App.Tests/DiagnosticLogTests.cs`
