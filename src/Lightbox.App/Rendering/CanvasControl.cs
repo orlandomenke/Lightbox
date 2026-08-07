@@ -1654,23 +1654,48 @@ public sealed class CanvasControl : Control
     }
 
     /// <summary>Document → view matrix: center, mirror, scale, rotate, place.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This matrix may never read <see cref="RenderSnapshot.DocViewport"/>,
+    /// and the reason is a cycle rather than a preference.</b>
+    /// <see cref="ReportViewport"/> computes the visible rectangle by inverting
+    /// this matrix, and the view model hands that rectangle back on the next
+    /// publish. So a viewport term here is fed by its own output: every publish
+    /// shifts the matrix that produced the viewport, which shifts the next
+    /// viewport, and the point under the pointer walks away from the mark.
+    /// </para>
+    /// <para>
+    /// It was added twice for the unbounded canvas and measured wrong both
+    /// times. <c>CursorAlignmentTests</c> holds the numbers: a document-space
+    /// offset added to this screen-space translation put the cursor
+    /// <b>108 document units</b> from its mark at 100%, <b>1152</b> at 50%, and
+    /// walked the anchor <b>217 units</b> over ten zoom round trips. The whole
+    /// suite stayed green because every earlier view test published
+    /// <c>DocViewport = null</c>.
+    /// </para>
+    /// <para>
+    /// Culling is a <em>rendering</em> decision and belongs on the rendering
+    /// side of the line: the published image knows which document rectangle it
+    /// covers, and <see cref="GuidePainter.PaintDocument"/> draws it into that
+    /// rectangle. The pointer mapping stays a pure function of the document, so
+    /// it cannot depend on how the compositor chose to do its work — which is
+    /// invariant 5 (<i>the view transform is view-only</i>) read from the other
+    /// direction.
+    /// </para>
+    /// </remarks>
     private Matrix ViewMatrix()
     {
         var snapshot = _snapshot;
         if (snapshot is null) return Matrix.Identity;
         var s = FitScale() * _zoom;
 
-        // For unbounded canvas with viewport: image coordinates are offset by viewport position.
-        // Image (0,0) maps to document (viewport.Left, viewport.Top).
-        // We apply this offset after centering so ViewToDoc transforms correctly.
-        var viewportOffset = snapshot.DocViewport is { } vp
-            ? new Point(vp.Left, vp.Top)
-            : new Point(0, 0);
-
+        // Document size, zoom, pan, rotation, mirror — and NOTHING derived from
+        // the snapshot's viewport. See the remarks: putting the viewport in here
+        // is a feedback loop, because the viewport is computed FROM this matrix.
         return Matrix.CreateTranslation(-snapshot.DocWidth / 2.0, -snapshot.DocHeight / 2.0)
                * Matrix.CreateScale(_mirrored ? -s : s, s)
                * Matrix.CreateRotation(_rotationDeg * Math.PI / 180)
-               * Matrix.CreateTranslation(viewportOffset.X + Bounds.Width / 2 + _pan.X, viewportOffset.Y + Bounds.Height / 2 + _pan.Y);
+               * Matrix.CreateTranslation(Bounds.Width / 2 + _pan.X, Bounds.Height / 2 + _pan.Y);
     }
 
     /// <summary>
@@ -2884,7 +2909,8 @@ public sealed class CanvasControl : Control
                 view.Scale,
                 c => DrawTransparencyCheckerboard(c, view),
                 ToPainterLines(guides),
-                draftGuide is { } d ? ToPainterLine(d) : null);
+                draftGuide is { } d ? ToPainterLine(d) : null,
+                snapshot.DocViewport);
             DrawCameraFrame(canvas);
             DrawGradientAxis(canvas);
             // B58. Over the artwork and over the guides, under the selection ants:

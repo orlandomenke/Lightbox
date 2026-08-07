@@ -24,16 +24,33 @@ namespace Lightbox.App.Rendering;
 public sealed class RenderSnapshot(SKImage image, int docWidth, int docHeight, long seq = 0, SKRectI? docViewport = null)
 {
     public SKImage Image { get; } = image;
+
+    /// <summary>
+    /// The document's size — <b>always</b>, whatever the compositor chose to
+    /// render. The canvas derives its fit scale and its pointer mapping from
+    /// these two numbers, so reporting the image's size here instead moves the
+    /// cursor off the mark it makes. <c>CursorAlignmentTests</c> holds the
+    /// numbers from when it did. Use <c>Image.Width</c> for the image's size.
+    /// </summary>
     public int DocWidth { get; } = docWidth;
+
+    /// <inheritdoc cref="DocWidth"/>
     public int DocHeight { get; } = docHeight;
 
     /// <summary>Monotonic publish counter (0 for snapshots made outside the publish loop).</summary>
     public long Seq { get; } = seq;
 
     /// <summary>
-    /// The visible document rectangle in document space, or null if the whole document is visible.
-    /// Used by the compositor to cull work to what CanvasControl can actually show.
-    /// Set by MainViewModel.SetViewport() based on CanvasControl's zoom/pan/rotation.
+    /// The document rectangle <see cref="Image"/> covers, or null when it covers
+    /// the whole document.
     /// </summary>
+    /// <remarks>
+    /// This describes the <em>image</em>, not the canvas's current view — the
+    /// painter needs to know where to put these pixels, and by the time a frame
+    /// is drawn the view may already have moved on. It is deliberately not an
+    /// input to the pointer mapping; see the remarks on
+    /// <c>CanvasControl.ViewMatrix</c> for why that is a cycle rather than a
+    /// convenience.
+    /// </remarks>
     public SKRectI? DocViewport { get; } = docViewport;
 }
