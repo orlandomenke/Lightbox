@@ -131,9 +131,23 @@ public static class ResourceScopes
     /// </para>
     /// </remarks>
     public static IReadOnlyList<ScopedResource> Resolve(
-        ProjectManifest manifest, DocumentRef document, string kind)
+        ProjectManifest manifest, DocumentRef document, string kind) =>
+        ResolveAt(manifest, ProjectFolders.ById(manifest, document.FolderId), kind);
+
+    /// <summary>
+    /// The same walk, starting from a folder rather than from a document in one.
+    /// </summary>
+    /// <remarks>
+    /// <b>B114.</b> Once a character is a folder, things are asked about the
+    /// folder itself — <em>what palette does this subject paint with</em> — with
+    /// no document in hand to walk up from. Splitting the walk out is what stops
+    /// that question needing a fake <see cref="DocumentRef"/> to answer.
+    /// A null folder resolves the project tier and below, which is what a
+    /// document at the root sees.
+    /// </remarks>
+    public static IReadOnlyList<ScopedResource> ResolveAt(
+        ProjectManifest manifest, ProjectFolder? folder, string kind)
     {
-        var folder = ProjectFolders.ById(manifest, document.FolderId);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var found = new List<ScopedResource>();
 
@@ -180,6 +194,11 @@ public static class ResourceScopes
     public static ScopedResource? Nearest(
         ProjectManifest manifest, DocumentRef document, string kind) =>
         Resolve(manifest, document, kind).FirstOrDefault();
+
+    /// <summary>The one that wins for a folder. <see cref="ResolveAt"/>'s pair.</summary>
+    public static ScopedResource? NearestAt(
+        ProjectManifest manifest, ProjectFolder? folder, string kind) =>
+        ResolveAt(manifest, folder, kind).FirstOrDefault();
 
     /// <summary>Declare a resource on a folder, or on the project when null.</summary>
     public static ScopedResource Declare(

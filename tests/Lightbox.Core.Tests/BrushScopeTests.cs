@@ -108,15 +108,15 @@ public class BrushScopeTests
         try
         {
             var project = ProjectIo.Create("Knight", root);
-            var knight = ProjectIo.AddCharacter(project, "Knight");
-            ProjectIo.AddAnimation(project, knight, "Walk", DocumentFactory.CreateDoc(120, 80, 12));
+            var knight = ProjectFolders.Add(project.Manifest, "Knight");
+            ProjectIo.AddDocument(project, "Walk", DocumentFactory.CreateDoc(120, 80, 12), knight);
             project.Manifest.Brush = new BrushSettings { Size = 19 };
 
             // A page made later, after the brush was chosen.
-            ProjectIo.AddAnimation(project, knight, "Idle", DocumentFactory.CreateDoc(120, 80, 12));
+            ProjectIo.AddDocument(project, "Idle", DocumentFactory.CreateDoc(120, 80, 12), knight);
 
             Assert.Equal(19, project.Manifest.Brush.Size);
-            Assert.Equal(2, knight.Animations.Count);
+            Assert.Equal(2, ProjectFolders.DocumentsIn(project.Manifest, knight).Count);
         }
         finally
         {

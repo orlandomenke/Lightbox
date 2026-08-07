@@ -117,23 +117,7 @@ public sealed class DocumentRef
     /// rather than regenerating with a hole in it.
     /// </para>
     /// </remarks>
-    /// <summary>
-    /// The manifest format. <b>2</b> since <c>DESIGN-project-scoping.md</c>
-    /// dissolved characters and scenes into the folder tree.
-    /// </summary>
-    /// <remarks>
-    /// There is deliberately no migration from 1 — Q36: the application is
-    /// alpha, single-user, and nothing has been produced in it, so writing one
-    /// for zero real projects is cost with no beneficiary. `ProjectIo.Load`
-    /// refuses an older manifest with a sentence rather than crashing on it, and
-    /// says the drawings survive: documents are their own files in their own
-    /// unchanged format, so only the index is lost.
-    ///
-    /// Write the migration the day a second person has a project.
-    /// </remarks>
-    public const int CurrentVersion = 2;
-
-    public int Version { get; set; } = CurrentVersion;
+    public int Version { get; set; } = 1;
 
     /// <summary>Whether anybody has set a status on this document.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
@@ -147,7 +131,23 @@ public sealed class DocumentRef
 /// </summary>
 public sealed class ProjectManifest
 {
-    public int Version { get; set; } = 1;
+    /// <summary>
+    /// The manifest format. <b>2</b> since <c>DESIGN-project-scoping.md</c>
+    /// dissolved characters and scenes into the folder tree.
+    /// </summary>
+    /// <remarks>
+    /// There is deliberately no migration from 1 — Q36: the application is
+    /// alpha, single-user, and nothing has been produced in it, so writing one
+    /// for zero real projects is cost with no beneficiary. <c>ProjectIo.Load</c>
+    /// refuses an older manifest with a sentence rather than crashing on it, and
+    /// says the drawings survive: documents are their own files in their own
+    /// unchanged format, so only the index is lost.
+    ///
+    /// Write the migration the day a second person has a project.
+    /// </remarks>
+    public const int CurrentVersion = 2;
+
+    public int Version { get; set; } = CurrentVersion;
 
     public string Id { get; set; } = Ids.NewId("proj");
 

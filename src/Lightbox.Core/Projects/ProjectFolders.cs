@@ -259,8 +259,144 @@ public static class ProjectFolders
         string.Join('/', AncestryOf(manifest, folder).Select(f => ProjectIo.Slug(f.Name)));
 
     /// <summary>The documents filed directly in this folder, or at the root when null.</summary>
-    public static IReadOnlyList<DocumentRef> DocumentsIn(ProjectManifest manifest, ProjectFolder? folder) =>
-        manifest.Documents.Where(d => d.FolderId == folder?.Id).ToList();
+    /// <remarks>
+    /// A variant's own art is filed here like anything else — it has to be, or
+    /// it resolves no palette and exports nowhere — but it is not one of the
+    /// folder's documents. It <em>stands in for</em> one, so it is excluded here
+    /// and substituted by <see cref="DocumentsFor"/>. Listing both would show a
+    /// character with two walk cycles.
+    /// </remarks>
+    public static IReadOnlyList<DocumentRef> DocumentsIn(ProjectManifest manifest, ProjectFolder? folder)
+    {
+        var replacements = Replacements(folder);
+        return manifest.Documents
+            .Where(d => d.FolderId == folder?.Id && !replacements.Contains(d.Id))
+            .ToList();
+    }
+
+    /// <summary>Every document id that stands in for another one in this folder.</summary>
+    private static HashSet<string> Replacements(ProjectFolder? folder) =>
+        folder?.Variants is not { Count: > 0 } variants
+            ? []
+            : [.. variants.SelectMany(v => v.Overrides.Values)];
+
+    /// <summary>
+    /// What a variant of this subject actually plays: the folder's documents in
+    /// order, with the ones it overrides swapped for its own.
+    /// </summary>
+    /// <remarks>
+    /// <b>"Inherits documents" is this method.</b> A walk cycle drawn once is
+    /// the walk cycle of every variant; a variant that replaced it shows its
+    /// own, in the same place in the running order. Passing null gives the base
+    /// subject, which is what an artist looking at no variant sees.
+    /// </remarks>
+    public static IReadOnlyList<DocumentRef> DocumentsFor(
+        ProjectManifest manifest, ProjectFolder folder, SubjectVariant? variant)
+    {
+        var documents = InOrder(manifest, folder);
+        if (variant is null || variant.Overrides.Count == 0) return documents;
+
+        var byId = manifest.Documents.ToDictionary(d => d.Id);
+        return [.. documents.Select(d =>
+            variant.Overrides.TryGetValue(d.Id, out var replacement)
+            && byId.TryGetValue(replacement, out var over) ? over : d)];
+    }
+
+    /// <summary>
+    /// The documents in a folder, arranged by its <see cref="ProjectFolder.Order"/>.
+    /// </summary>
+    /// <remarks>
+    /// The order is <b>partial</b>: anything it names comes first, in that
+    /// sequence, and everything else follows by name. A scene with three pinned
+    /// opening shots and forty unsorted ones should not require sorting forty,
+    /// and an id left in the order after its document was deleted is skipped
+    /// rather than being an error — an ordering is a preference, not a claim
+    /// about what exists.
+    /// </remarks>
+    public static IReadOnlyList<DocumentRef> InOrder(ProjectManifest manifest, ProjectFolder? folder) =>
+        Arrange(DocumentsIn(manifest, folder), folder?.Order, d => d.Id, d => d.Name);
+
+    /// <summary>
+    /// The child folders of <paramref name="parent"/>, arranged by its
+    /// <see cref="ProjectFolder.Order"/> — a film's scenes in running order.
+    /// </summary>
+    /// <remarks>
+    /// <b>The same <c>Order</c> list, read by a second reader.</b> A folder's
+    /// order names ids, and an id is a document's or a child folder's; each
+    /// reader takes the ones it owns and skips the rest, which is the behaviour
+    /// the partial ordering already has for an id whose document was deleted.
+    /// Two lists would be two things to keep in step for no gain — a scene that
+    /// contains both shots and sub-scenes has one running order, not two.
+    /// </remarks>
+    public static IReadOnlyList<ProjectFolder> ChildrenInOrder(
+        ProjectManifest manifest, ProjectFolder? parent) =>
+        Arrange(ChildrenOf(manifest, parent), parent?.Order, f => f.Id, f => f.Name);
+
+    private static IReadOnlyList<T> Arrange<T>(
+        IReadOnlyList<T> items, List<string>? order, Func<T, string> id, Func<T, string> name)
+    {
+        if (order is not { Count: > 0 }) return [.. items.OrderBy(name)];
+
+        var byId = items.ToDictionary(id);
+        var arranged = new List<T>();
+        foreach (var wanted in order)
+            if (byId.Remove(wanted, out var item)) arranged.Add(item);
+        arranged.AddRange(byId.Values.OrderBy(name));
+        return arranged;
+    }
+
+    /// <summary>
+    /// Move something within a folder's running order, by its current and wanted
+    /// positions among the folder's <em>documents</em>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Materialises the order on first use</b>, which is what keeps "absent
+    /// until used" honest: a folder nobody has arranged carries no <c>order</c>
+    /// key, and the first drag writes the list it implied. Returns false and
+    /// changes nothing for a move that cannot happen, so a caller can bind it to
+    /// a gesture without guarding first.
+    /// </remarks>
+    public static bool MoveDocument(
+        ProjectManifest manifest, ProjectFolder folder, int from, int to)
+    {
+        var documents = InOrder(manifest, folder);
+        if (from < 0 || from >= documents.Count || to < 0 || to >= documents.Count || from == to)
+        {
+            return false;
+        }
+
+        var ids = documents.Select(d => d.Id).ToList();
+        var moved = ids[from];
+        ids.RemoveAt(from);
+        ids.Insert(to, moved);
+
+        // Keep any ids the order names that are not documents here — the child
+        // folders it also arranges, and anything a deleted document left behind.
+        var kept = (folder.Order ?? []).Where(i => !documents.Any(d => d.Id == i));
+        folder.Order = [.. ids, .. kept];
+        return true;
+    }
+
+    /// <summary>Move a child folder within its parent's running order.</summary>
+    public static bool MoveFolder(
+        ProjectManifest manifest, ProjectFolder? parent, int from, int to)
+    {
+        var children = ChildrenInOrder(manifest, parent);
+        if (parent is null) return false;   // the root has no record to arrange
+        if (from < 0 || from >= children.Count || to < 0 || to >= children.Count || from == to)
+        {
+            return false;
+        }
+
+        var ids = children.Select(f => f.Id).ToList();
+        var moved = ids[from];
+        ids.RemoveAt(from);
+        ids.Insert(to, moved);
+
+        var kept = (parent.Order ?? []).Where(i => !children.Any(f => f.Id == i));
+        parent.Order = [.. ids, .. kept];
+        return true;
+    }
 
     /// <summary>
     /// Make a folder inside <paramref name="parent"/>, or at the root.

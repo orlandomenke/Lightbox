@@ -9,9 +9,11 @@ namespace Lightbox.Core.Tests;
 /// about what it is for.
 /// </summary>
 /// <remarks>
-/// Scenes are the second axis of a project — a character groups drawings by
-/// <i>who</i>, a scene by <i>when</i> — and conversion is the promise that
-/// picking a type at creation is not a decision you are stuck with.
+/// Rewritten for B114. A scene is a folder with a running order — there is no
+/// <c>ProjectScene</c>, and a shot is an ordinary document filed in it. What
+/// these tests guard is unchanged: a film has an authored order, that order is
+/// partial, reorganising a film is not the fastest way to delete it, and
+/// conversion never touches artwork.
 /// </remarks>
 public sealed class SceneAndConversionTests : IDisposable
 {
@@ -33,31 +35,29 @@ public sealed class SceneAndConversionTests : IDisposable
     // ---- absence ----------------------------------------------------------------
 
     [Fact]
-    public void AProjectWithNoScenesWritesNoSceneKey()
+    public void AProjectWithNoFoldersWritesNoFolderKey()
     {
-        // A project making sprite sheets has no use for scenes and, following
-        // the camera's rule, carries none.
+        // A project making sprite sheets from loose documents has no use for a
+        // tree and, following the camera's rule, carries none.
         var project = ProjectIo.Create("Sprites", _root);
-        ProjectIo.AddCharacter(project, "Knight");
+        ProjectIo.AddDocument(project, "Knight", Shot());
         ProjectIo.Save(project);
 
         var json = File.ReadAllText(Path.Combine(_root, "project.json"));
 
-        Assert.DoesNotContain("scenes", json, StringComparison.OrdinalIgnoreCase);
-        Assert.False(ProjectIo.Load(_root).HasScenes);
+        Assert.DoesNotContain("\"folders\"", json);
+        Assert.Empty(ProjectFolders.All(ProjectIo.Load(_root).Manifest));
     }
 
     [Fact]
-    public void DeletingTheLastSceneTakesTheSceneListWithIt()
+    public void AFolderNobodyArrangedWritesNoOrderKey()
     {
         var project = ProjectIo.Create("Film", _root);
-        var scene = ProjectIo.AddScene(project, "Opening");
-        Assert.True(project.HasScenes);
+        var scene = ProjectFolders.Add(project.Manifest, "Opening");
+        ProjectIo.AddDocument(project, "1a", Shot(), scene);
+        ProjectIo.Save(project);
 
-        ProjectIo.RemoveScene(project, scene);
-
-        Assert.Null(project.Manifest.Scenes);
-        Assert.False(project.HasScenes);
+        Assert.DoesNotContain("\"order\"", File.ReadAllText(Path.Combine(_root, "project.json")));
     }
 
     // ---- the shape of a film ------------------------------------------------------
@@ -65,50 +65,57 @@ public sealed class SceneAndConversionTests : IDisposable
     [Fact]
     public void AShotIsADocumentLikeAnyOther()
     {
-        // Which is what makes Save write it. Leaving shots out of AllDocuments
-        // is how a save quietly skips every drawing in the film.
+        // Which is what makes Save write it. Leaving shots out of the project's
+        // document list is how a save quietly skips every drawing in the film —
+        // B114 exactly.
         var project = ProjectIo.Create("Film", _root);
-        var scene = ProjectIo.AddScene(project, "Opening");
-        var shot = ProjectIo.AddShot(project, scene, "1a", Shot());
+        var scene = ProjectFolders.Add(project.Manifest, "Opening");
+        var shot = ProjectIo.AddDocument(project, "1a", Shot(), scene);
 
         Assert.Contains(shot, project.AllDocuments);
+        Assert.Contains(shot, project.Manifest.Documents);
 
         ProjectIo.Save(project);
 
         Assert.True(File.Exists(project.PathOf(shot)));
-        Assert.Same(scene, project.SceneOf(shot));
+        Assert.Equal(scene.Id, shot.FolderId);
     }
 
     [Fact]
     public void AFilmSurvivesASaveAndReload()
     {
         var project = ProjectIo.Create("Film", _root);
-        var opening = ProjectIo.AddScene(project, "Opening");
+        var opening = ProjectFolders.Add(project.Manifest, "Opening");
         opening.Notes = "Rain on the window.";
-        ProjectIo.AddShot(project, opening, "1a", Shot());
-        ProjectIo.AddShot(project, opening, "1b", Shot());
-        ProjectIo.AddScene(project, "The chase");
+        var a = ProjectIo.AddDocument(project, "1a", Shot(), opening);
+        var b = ProjectIo.AddDocument(project, "1b", Shot(), opening);
+        opening.Order = [a.Id, b.Id];
+        ProjectFolders.Add(project.Manifest, "The chase");
         ProjectIo.Save(project);
 
         var back = ProjectIo.Load(_root);
+        var scenes = ProjectFolders.ChildrenInOrder(back.Manifest, null);
 
-        Assert.Equal(["Opening", "The chase"], back.Scenes.Select(s => s.Name));
-        Assert.Equal(["1a", "1b"], back.Scenes[0].Shots.Select(s => s.Name));
-        Assert.Equal("Rain on the window.", back.Scenes[0].Notes);
+        Assert.Equal(["Opening", "The chase"], scenes.Select(s => s.Name));
+        Assert.Equal(
+            ["1a", "1b"],
+            ProjectFolders.InOrder(back.Manifest, scenes[0]).Select(s => s.Name));
+        Assert.Equal("Rain on the window.", scenes[0].Notes);
     }
 
     [Fact]
-    public void TwoScenesWithTheSameNameGetDifferentFolders()
+    public void TwoScenesWithTheSameNameAreDistinguished()
     {
         var project = ProjectIo.Create("Film", _root);
-        var first = ProjectIo.AddScene(project, "Chase");
-        var second = ProjectIo.AddScene(project, "Chase");
+        var first = ProjectFolders.Add(project.Manifest, "Chase");
+        var second = ProjectFolders.Add(project.Manifest, "Chase");
 
-        Assert.NotEqual(first.Slug, second.Slug);
+        Assert.NotEqual(first.Id, second.Id);
+        Assert.NotEqual(first.Name, second.Name);
 
         // And their shots do not land on top of each other.
-        var a = ProjectIo.AddShot(project, first, "1a", Shot());
-        var b = ProjectIo.AddShot(project, second, "1a", Shot());
+        var a = ProjectIo.AddDocument(project, "1a", Shot(), first);
+        var b = ProjectIo.AddDocument(project, "1a", Shot(), second);
         Assert.NotEqual(a.Path, b.Path);
     }
 
@@ -116,9 +123,9 @@ public sealed class SceneAndConversionTests : IDisposable
     public void TwoShotsWithTheSameNameInOneSceneDoNotOverwriteEachOther()
     {
         var project = ProjectIo.Create("Film", _root);
-        var scene = ProjectIo.AddScene(project, "Opening");
-        var a = ProjectIo.AddShot(project, scene, "1a", Shot());
-        var b = ProjectIo.AddShot(project, scene, "1a", Shot());
+        var scene = ProjectFolders.Add(project.Manifest, "Opening");
+        var a = ProjectIo.AddDocument(project, "1a", Shot(), scene);
+        var b = ProjectIo.AddDocument(project, "1a", Shot(), scene);
 
         Assert.NotEqual(a.Path, b.Path);
     }
@@ -128,61 +135,94 @@ public sealed class SceneAndConversionTests : IDisposable
     [Fact]
     public void ScenesAndShotsCanBeReordered()
     {
-        // The order is the running order — it is the whole point of the list.
+        // The order is the running order — it is the whole reason a folder
+        // needed one, since membership order explicitly is not display order.
         var project = ProjectIo.Create("Film", _root);
-        var one = ProjectIo.AddScene(project, "One");
-        ProjectIo.AddScene(project, "Two");
-        ProjectIo.AddShot(project, one, "1a", Shot());
-        ProjectIo.AddShot(project, one, "1b", Shot());
+        var film = ProjectFolders.Add(project.Manifest, "Film");
+        var one = ProjectFolders.Add(project.Manifest, "One", film);
+        ProjectFolders.Add(project.Manifest, "Two", film);
+        ProjectIo.AddDocument(project, "1a", Shot(), one);
+        ProjectIo.AddDocument(project, "1b", Shot(), one);
 
-        Assert.True(ProjectIo.MoveScene(project, 1, 0));
-        Assert.Equal(["Two", "One"], project.Scenes.Select(s => s.Name));
+        Assert.True(ProjectFolders.MoveFolder(project.Manifest, film, 1, 0));
+        Assert.Equal(
+            ["Two", "One"],
+            ProjectFolders.ChildrenInOrder(project.Manifest, film).Select(f => f.Name));
 
-        Assert.True(ProjectIo.MoveShot(one, 1, 0));
-        Assert.Equal(["1b", "1a"], one.Shots.Select(s => s.Name));
+        Assert.True(ProjectFolders.MoveDocument(project.Manifest, one, 1, 0));
+        Assert.Equal(
+            ["1b", "1a"],
+            ProjectFolders.InOrder(project.Manifest, one).Select(d => d.Name));
+    }
+
+    [Fact]
+    public void OneOrderArrangesBothTheShotsAndTheSubScenes()
+    {
+        // Two readers over one list: each takes the ids it owns and skips the
+        // rest, so arranging shots cannot scramble sub-scenes.
+        var project = ProjectIo.Create("Film", _root);
+        var act = ProjectFolders.Add(project.Manifest, "Act 1");
+        var interior = ProjectFolders.Add(project.Manifest, "Interior", act);
+        ProjectFolders.Add(project.Manifest, "Exterior", act);
+        ProjectIo.AddDocument(project, "1a", Shot(), act);
+        ProjectIo.AddDocument(project, "1b", Shot(), act);
+
+        act.Order = [interior.Id];                       // pin one sub-scene
+        Assert.True(ProjectFolders.MoveDocument(project.Manifest, act, 1, 0));
+
+        Assert.Equal(
+            ["1b", "1a"],
+            ProjectFolders.InOrder(project.Manifest, act).Select(d => d.Name));
+        Assert.Equal(
+            ["Interior", "Exterior"],
+            ProjectFolders.ChildrenInOrder(project.Manifest, act).Select(f => f.Name));
     }
 
     [Fact]
     public void AnImpossibleMoveChangesNothing()
     {
         var project = ProjectIo.Create("Film", _root);
-        ProjectIo.AddScene(project, "One");
+        var film = ProjectFolders.Add(project.Manifest, "Film");
+        ProjectFolders.Add(project.Manifest, "One", film);
 
-        Assert.False(ProjectIo.MoveScene(project, 0, 0));
-        Assert.False(ProjectIo.MoveScene(project, 0, 7));
-        Assert.False(ProjectIo.MoveScene(project, -1, 0));
-        Assert.Single(project.Scenes);
+        Assert.False(ProjectFolders.MoveFolder(project.Manifest, film, 0, 0));
+        Assert.False(ProjectFolders.MoveFolder(project.Manifest, film, 0, 7));
+        Assert.False(ProjectFolders.MoveFolder(project.Manifest, film, -1, 0));
+        Assert.Single(ProjectFolders.ChildrenOf(project.Manifest, film));
+        // And nothing was materialised, so the folder still writes no order key.
+        Assert.Null(film.Order);
     }
 
     [Fact]
     public void AShotCanMoveToAnotherScene()
     {
         var project = ProjectIo.Create("Film", _root);
-        var one = ProjectIo.AddScene(project, "One");
-        var two = ProjectIo.AddScene(project, "Two");
-        var shot = ProjectIo.AddShot(project, one, "1a", Shot());
+        var one = ProjectFolders.Add(project.Manifest, "One");
+        var two = ProjectFolders.Add(project.Manifest, "Two");
+        var shot = ProjectIo.AddDocument(project, "1a", Shot(), one);
+        Assert.Equal("one/1a.lightbox.json", shot.Path);
 
-        Assert.True(ProjectIo.MoveShotToScene(one, two, shot));
+        Assert.True(ProjectFolders.FileDocument(project.Manifest, shot, two));
 
-        Assert.Empty(one.Shots);
-        Assert.Same(shot, Assert.Single(two.Shots));
-        // The file does not move. The index says where a shot belongs; the path
-        // says where it lives, and rewriting paths on a reorganise is how a
-        // project loses track of its own art.
-        Assert.Contains("/one/", shot.Path);
+        Assert.Empty(ProjectFolders.DocumentsIn(project.Manifest, one));
+        Assert.Equal(shot.Id, Assert.Single(ProjectFolders.DocumentsIn(project.Manifest, two)).Id);
+        // Filing a document is the one gesture that does move the bytes, and it
+        // is the only thing allowed to: `FileDocument` sets `FolderId` and
+        // `Path` together. Renaming the folder afterwards moves nothing.
+        Assert.Equal("two/1a.lightbox.json", shot.Path);
     }
 
     // ---- running time ---------------------------------------------------------------
 
     [Fact]
-    public void ASceneKnowsHowLongItRuns()
+    public void AFolderKnowsHowLongItRuns()
     {
         var project = ProjectIo.Create("Film", _root);
-        var scene = ProjectIo.AddScene(project, "Opening");
-        ProjectIo.AddShot(project, scene, "1a", Shot(frames: 24, fps: 24));
-        ProjectIo.AddShot(project, scene, "1b", Shot(frames: 12, fps: 24));
+        var scene = ProjectFolders.Add(project.Manifest, "Opening");
+        ProjectIo.AddDocument(project, "1a", Shot(frames: 24, fps: 24), scene);
+        ProjectIo.AddDocument(project, "1b", Shot(frames: 12, fps: 24), scene);
 
-        var (frames, seconds) = ProjectIo.SceneDuration(scene);
+        var (frames, seconds) = ProjectIo.FolderDuration(project.Manifest, scene);
 
         Assert.Equal(36, frames);
         Assert.Equal(1.5, seconds!.Value, 3);
@@ -194,11 +234,16 @@ public sealed class SceneAndConversionTests : IDisposable
         // The number somebody schedules against. Silently omitting the shots it
         // could not measure is worse than admitting it does not know.
         var project = ProjectIo.Create("Film", _root);
-        var scene = ProjectIo.AddScene(project, "Opening");
-        ProjectIo.AddShot(project, scene, "1a", Shot(frames: 24, fps: 24));
-        scene.Shots.Add(new DocumentRef { Name = "1b", Path = "scenes/opening/shots/1b.lightbox.json" });
+        var scene = ProjectFolders.Add(project.Manifest, "Opening");
+        ProjectIo.AddDocument(project, "1a", Shot(frames: 24, fps: 24), scene);
+        project.Manifest.Documents.Add(new DocumentRef
+        {
+            Name = "1b",
+            Path = "unassigned-documents/1b.lightbox.json",
+            FolderId = scene.Id,
+        });
 
-        var (_, seconds) = ProjectIo.SceneDuration(scene);
+        var (_, seconds) = ProjectIo.FolderDuration(project.Manifest, scene);
 
         Assert.Null(seconds);
     }
@@ -209,16 +254,16 @@ public sealed class SceneAndConversionTests : IDisposable
         // Derived data in an index, correct at the one moment it can be: the
         // save that produced the file.
         var project = ProjectIo.Create("Film", _root);
-        var scene = ProjectIo.AddScene(project, "Opening");
+        var scene = ProjectFolders.Add(project.Manifest, "Opening");
         var doc = Shot(frames: 12, fps: 24);
-        var shot = ProjectIo.AddShot(project, scene, "1a", doc);
+        var shot = ProjectIo.AddDocument(project, "1a", doc, scene);
 
         DocumentEditor.AppendFrame(doc.Scene);
         DocumentEditor.AppendFrame(doc.Scene);
         ProjectIo.Save(project);
 
         Assert.Equal(14, shot.Frames);
-        Assert.Equal(14, ProjectIo.Load(_root).Scenes[0].Shots[0].Frames);
+        Assert.Equal(14, ProjectIo.Load(_root).Manifest.Documents[0].Frames);
     }
 
     // ---- deleting a scene -----------------------------------------------------------
@@ -228,15 +273,15 @@ public sealed class SceneAndConversionTests : IDisposable
     {
         // Reorganising a film must not be the fastest way to delete it.
         var project = ProjectIo.Create("Film", _root);
-        var scene = ProjectIo.AddScene(project, "Opening");
-        var shot = ProjectIo.AddShot(project, scene, "1a", Shot());
+        var scene = ProjectFolders.Add(project.Manifest, "Opening");
+        var shot = ProjectIo.AddDocument(project, "1a", Shot(), scene);
         ProjectIo.Save(project);
         var path = project.PathOf(shot);
 
-        ProjectIo.RemoveScene(project, scene);
+        var orphaned = ProjectFolders.Remove(project.Manifest, scene);
 
+        Assert.Contains(shot, orphaned);
         Assert.Contains(shot, project.Manifest.Documents);
-        Assert.Contains(shot, project.AllDocuments);
         Assert.True(File.Exists(path));
     }
 
@@ -249,8 +294,8 @@ public sealed class SceneAndConversionTests : IDisposable
         // single document is read, rewritten or recreated.
         var project = ProjectIo.Create("Knight", _root);
         project.Manifest.Type = ProjectType.Illustration;
-        var character = ProjectIo.AddCharacter(project, "Knight");
-        var walk = ProjectIo.AddAnimation(project, character, "Walk", Shot());
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");
+        var walk = ProjectIo.AddDocument(project, "Walk", Shot(), knight);
         ProjectIo.Save(project);
         var path = project.PathOf(walk);
         var before = File.ReadAllBytes(path);
@@ -270,14 +315,14 @@ public sealed class SceneAndConversionTests : IDisposable
         // could risk taking.
         var project = ProjectIo.Create("Film", _root);
         project.Manifest.Type = ProjectType.Animation;
-        var scene = ProjectIo.AddScene(project, "Opening");
+        var scene = ProjectFolders.Add(project.Manifest, "Opening");
         var doc = Shot();
         doc.Scene.Camera = new Camera();
-        ProjectIo.AddShot(project, scene, "1a", doc);
+        ProjectIo.AddDocument(project, "1a", doc, scene);
 
         var report = ProjectIo.Convert(project, ProjectType.GameArt);
 
-        Assert.Single(project.Scenes);
+        Assert.Single(ProjectFolders.All(project.Manifest));
         Assert.NotNull(project.Loaded.Values.Single().Scene.Camera);
         Assert.Contains(report.Notes, n => n.Contains("kept", StringComparison.OrdinalIgnoreCase));
     }
@@ -302,7 +347,8 @@ public sealed class SceneAndConversionTests : IDisposable
     {
         var project = ProjectIo.Create("Knight", _root);
         project.Manifest.Type = ProjectType.Illustration;
-        ProjectIo.AddCharacter(project, "Knight");   // no pivot
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");   // no pivot
+        knight.Taxonomy = new SubjectTaxonomy { Kind = "biped" };
 
         var report = ProjectIo.Convert(project, ProjectType.GameArt);
 

@@ -1,3 +1,5 @@
+using Lightbox.Core.Documents;
+
 namespace Lightbox.Core.Projects;
 
 /// <summary>
@@ -56,10 +58,19 @@ public sealed class SubjectVariant
     public string? PaletteId { get; set; }
 
     /// <summary>
-    /// Documents this variant replaces, base document id → the variant's own
-    /// reference. Everything absent from here is inherited.
+    /// Documents this variant replaces, base document id → the replacing
+    /// document's id. Everything absent from here is inherited.
     /// </summary>
-    public Dictionary<string, DocumentRef> Overrides { get; set; } = [];
+    /// <remarks>
+    /// <b>Two ids, not an id and a reference</b>, and that is B114 applied to
+    /// the last place it still held. A <see cref="DocumentRef"/> stored here
+    /// would be a document living outside <see cref="ProjectManifest.Documents"/>
+    /// — a third container, with the same consequence as the first two: no
+    /// folder's palette would reach a variant's own art and no export plan would
+    /// include it. The override is an ordinary document filed in the subject's
+    /// folder; this only says which one it stands in for.
+    /// </remarks>
+    public Dictionary<string, string> Overrides { get; set; } = [];
 }
 
 /// <summary>One named part of a subject, and where it sits relative to the others.</summary>
