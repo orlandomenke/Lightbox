@@ -27,17 +27,20 @@ And there is already a deterministic inbetweener that always produces a usable,
 if unimaginative, answer.
 
 > **The model proposes; Lightbox disposes.** Reliability is a property of the
-> harness, not of the model. A weak model degrades to the deterministic result —
-> never to garbage.
+> harness, not of the model. A weak model produces *fewer* frames — never worse
+> ones.
 
 That is what makes constraint 2 affordable: any model is safe to plug in
-*because none of them is trusted*.
+*because none of them is trusted*. Note the shape of the guarantee, settled by
+Q32: a weak model does not silently become the cheap engine, it **declines**.
+The deterministic answer is always available; it is simply never served under an
+AI request without being asked for.
 
 ## What already exists and gets reused
 
 | Existing | Path | Used for |
 | --- | --- | --- |
-| `Inbetweener.Inbetween` / `InbetweenSeries` | `src/Lightbox.Core/Inbetween/Inbetweener.cs` | The fallback **and** the reference to measure against |
+| `Inbetweener.Inbetween` / `InbetweenSeries` | `src/Lightbox.Core/Inbetween/Inbetweener.cs` | The reference every check measures against — and the artist's own separate command |
 | `StrokeMatcher.Match` | `src/Lightbox.Core/Inbetween/StrokeMatcher.cs` | Correspondence without labels — constraint 3, already solved |
 | `StrokeInterpolator.Interpolate` | `src/Lightbox.Core/Inbetween/StrokeInterpolator.cs` | Expected position per `t`, so "between" is computable |
 | `StrokeRecordCleaner.EffectiveStrokes` | `src/Lightbox.Core/Inbetween/StrokeRecordCleaner.cs` | The view sent to the model; the verifier must judge the same one |
@@ -53,11 +56,13 @@ That is what makes constraint 2 affordable: any model is safe to plug in
 | 2 | **Clamp** — value validity, bounds, colour | Exists |
 | 3 | **Verify** — is it a correct inbetween | New |
 | 4 | **Repair** — bounded re-ask naming the fault | New |
-| 5 | **Fall back** — the deterministic answer, labelled | New |
+| 5 | **Refuse** — no frame, and a sentence naming which `t` and why | New |
 | 6 | **Report** — the artist knows which frames to look at | New |
 
-Stage 5 is what makes this a guarantee rather than an effort: **the floor is
-today's behaviour, so the AI can never make a scene worse than not using it.**
+Stage 5 is what makes this a guarantee rather than an effort — and per Q32 it
+guarantees by **refusing**, not by substituting: **the AI never produces a frame
+it cannot defend.** The deterministic engine stays one click away for an artist
+who wants it, but it is never quietly served under an AI request.
 
 ## The hard part: the AI is *supposed* to invent
 
@@ -195,7 +200,7 @@ risking the work.
 
 | Phase | What | Why here |
 | --- | --- | --- |
-| **0** | Verifier, deterministic fallback, provenance | Biggest win; no new model calls |
+| **0** | Verifier, refusal path, provenance | Biggest win; no new model calls |
 | **1** | Matcher: shape cost, breakdowns as constraints | Deterministic; improves the non-AI path too |
 | **2** | Golden set + capability profile | Makes reliability a number |
 | **3** | Repair loop | Needs specific findings first |
@@ -209,11 +214,31 @@ No new provider, no new model, no hosted service. No agent requirement. Not the
 placement half of the subject reading — still gated on its measurement. Not
 inking or normal maps; they inherit this pipeline when they arrive.
 
-## What has to be answered before building
+## What was decided — Q31–Q34, answered 2026-08-07
 
-**Q31–Q34** in `QUESTIONS.md`: whether provenance is stored, what happens to an
-unrepairable frame, whether "too close to deterministic" rejects or reports, and
-whether the golden set ships with the app.
+| | Decision |
+| --- | --- |
+| **Provenance** | Stored on the frame, **absent unless AI touched it**. A document that never used the AI is byte-identical to one from before the feature existed |
+| **Unrepairable frame** | **Insert nothing and say why.** Not the deterministic fallback under an AI request |
+| **Too close to deterministic** | **Report, never reject.** A cost signal and a diagnostic, never a veto |
+| **Golden set** | **Ships**, so an artist can grade their own model |
+
+**The second one changes stage 5, and it is the owner's call rather than the
+recommendation.** *Reliable or worthless* means the feature does not hand over
+work it cannot vouch for: inserting a deterministic frame under an AI request
+quietly substitutes a different answer for the one asked for, and an artist who
+wanted the deterministic result can press the deterministic button.
+
+So the floor is not "the AI silently becomes the cheap engine". It is **"the AI
+never produces a frame it cannot defend"**, with the deterministic engine one
+click away. The guarantee is intact — the AI still cannot make a scene worse —
+but it is delivered by refusal rather than by substitution.
+
+The cost, recorded so nobody rediscovers it as a bug: a request for four
+inbetweens can return three. The status must name which `t` was refused and
+why — *"frame 3 of 4 was refused: the near arm did not stay between the keys"* —
+or the gap is a puzzle instead of a decision. Refusal is **per frame**: the ones
+that passed are inserted.
 
 ## Verification
 
@@ -222,11 +247,13 @@ built candidates that fail each check exactly once, so a check that can never
 fire is caught. That is the `BadStrokes` off-canvas lesson — a check that cannot
 fire is worse than no check.
 
-Then: with a stub artist returning rubbish, inserted frames must equal the
-deterministic engine's output exactly and the status must say so; for every
-golden pair the pipeline must score **at least** the deterministic answer, which
-is the guarantee stated as a test; and a document that never calls the AI must
-serialize and render byte-identically.
+Then, per Q32: with a stub artist returning rubbish, **no frame is inserted**,
+the document is unchanged, and the status names which `t` was refused and why —
+a silent no-op and a refusal are different outcomes and the test must tell them
+apart. For every golden pair, an accepted frame must score at least as well as
+the deterministic answer, which is the guarantee stated as a test. And a
+document that never calls the AI must serialize and render byte-identically —
+the provenance key absent, not empty.
 
 Gate **G12** applies — `ai-engineer` and `art-director` both review, and this is
 precisely their disagreement: the engineer will want the verifier strict and

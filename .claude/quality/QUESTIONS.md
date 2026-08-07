@@ -10,7 +10,13 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
-## Q31 · Does a frame remember that a model made it?
+## Q31 · Does a frame remember that a model made it? — **answered (a)**
+
+**Answered 2026-08-07: (a), stored on the frame, absent unless AI touched it.**
+A hand-drawn frame writes no key, so a document that never used the AI is
+byte-identical to one from before the feature existed — the camera's rule.
+
+**Blocks:** nothing. Phase 0 can proceed.
 
 `docs/DESIGN-ai-correctness.md` puts a verifier and a deterministic fallback
 behind every AI inbetween, which means three frames can look alike and have very
@@ -35,7 +41,26 @@ anything, it is a fact about how the frame came to exist.
 
 **Blocks:** phase 0 of the correctness pipeline.
 
-## Q32 · What happens to a frame that fails verification and cannot be repaired?
+## Q32 · What happens to a frame that fails verification and cannot be repaired? — **answered (c)**
+
+**Answered 2026-08-07: (c), insert nothing and say why.** Against the
+recommendation below, and the reasoning is worth keeping: *reliable or
+worthless* means the feature does not hand over work it cannot vouch for.
+Inserting a deterministic frame under an AI request quietly changes what was
+asked for, and an artist who wanted the deterministic answer can press the
+deterministic button.
+
+**What it costs, stated so nobody rediscovers it as a bug.** The artist asked
+for four inbetweens and may get three. The status has to name which `t` was
+refused and why, or the gap is a puzzle rather than a decision — "frame 3 of 4
+was refused: the near arm did not stay between the keys" is the bar.
+
+**Read per frame, not per batch:** the frames that passed are inserted and the
+ones that failed are not. All-or-nothing would throw away good work because one
+frame was bad. Say so if that reading is wrong — it is the one part of this
+answer that was inferred rather than given.
+
+**Blocks:** nothing.
 
 **(a) Insert the deterministic answer, flagged.** Four inbetweens asked for, four
 delivered, the fallen-back ones marked. Nothing silently missing, nothing
@@ -53,7 +78,12 @@ the flag. If Q31 lands on (c), this collapses into (b) whether we like it or not
 
 **Blocks:** phase 0.
 
-## Q33 · An AI answer nearly identical to the deterministic one — reject or report?
+## Q33 · An AI answer nearly identical to the deterministic one — reject or report? — **answered (a)**
+
+**Answered 2026-08-07: (a), report only, never reject.** Distance from the
+deterministic answer is a cost signal and a diagnostic, never a veto.
+
+**Blocks:** nothing.
 
 The deterministic engine is both the fallback and the reference, so distance
 from it is free. Too far is suspicious. Too close means the model added nothing.
@@ -72,7 +102,15 @@ sort of number that gets tuned until it passes.
 
 **Blocks:** nothing — this can be added after phase 0.
 
-## Q34 · Does the golden set ship with the app?
+## Q34 · Does the golden set ship with the app? — **answered (a)**
+
+**Answered 2026-08-07: (a), it ships.** Grading an artist's own model is the
+bring-your-own-model story rather than a development convenience, and it is what
+separates *connectable* from *usable*. The obligation that comes with it: the
+set has to stay honest, so it is committed, reviewed, and changes to it are
+changes to a published claim.
+
+**Blocks:** nothing. Phase 2 can proceed.
 
 A committed set of keyframe pairs with known-good answers, scored by the
 verifier, is what turns "reliable" into a number per model.
