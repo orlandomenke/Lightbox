@@ -4,6 +4,18 @@
              xmlns:docking="using:Lightbox.App.Docking"
              x:Class="Lightbox.App.App"
              RequestedThemeVariant="Dark">
+  <Application.Resources>
+    <!--
+      The splash colour, and the only place it is written down.
+
+      Deliberately a placeholder and deliberately loud: the splash is a flat
+      panel until a designed one replaces it, and this is the line that gets
+      swapped rather than a colour somebody has to go looking for. Not the
+      layer-group amber from MainWindow — sharing that literal would imply a
+      relationship between the two that does not exist.
+    -->
+    <SolidColorBrush x:Key="SplashBackgroundBrush" Color="#FF7A00" />
+  </Application.Resources>
   <Application.Styles>
     <FluentTheme />
     <!-- ColorSpectrum/ColorSlider templates live in a separate theme file;
