@@ -1,6 +1,6 @@
 # Code index
 
-546 files · 143488 lines · 2845 tests.
+546 files · 143644 lines · 2848 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,8 +49,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (10724 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4526, TransformParts:7211
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4561 ln) · 22 test files
-  - MainWindow:19, UnsavedChoice:3003
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4563 ln) · 22 test files
+  - MainWindow:19, UnsavedChoice:3005
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (3648 ln) · 13 test files
   - CanvasControl:28, CanvasToolMode:908, GridGesture:965, TxDrag:1112, DrawOp:2924
 - `src/Lightbox.App/Views/MainWindow.axaml` (3589 ln) · **no tests**
@@ -91,6 +91,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ColorMode:9, ColorPickerViewModel:25
 - `src/Lightbox.App/Rendering/PresentedFrame.cs` (352 ln) · 2 test files
   - PresentedFrame:45
+- `src/Lightbox.App/Services/RenderReport.cs` (339 ln) · 1 test files
+  - RenderReport:36
 - `src/Lightbox.App/Styles/Density.axaml` (337 ln) · **no tests**
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` (334 ln) · 6 test files
   - StrokeOverlay:24, RenderPass:50, SceneRenderer:65
@@ -111,8 +113,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
   - CurveEditor:29
-- `src/Lightbox.App/Services/RenderReport.cs` (269 ln) · 1 test files
-  - RenderReport:36
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 3 test files
   - ComposeRing:31, Buffer:33
 - `src/Lightbox.App/Services/ExportRunner.cs` (256 ln) · 5 test files
