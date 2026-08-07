@@ -34,10 +34,17 @@
   </Style>
 
   <!-- The ordinary button, and what most things are. -->
+  <!--
+    Dark ground, rim light on the top edge — the same treatment the theme now
+    gives every unranked button, restated here so the rank survives a theme
+    change. The reference's buttons are the bar's own dark with only a lit top
+    edge saying "pressable"; the old SurfaceElevated fill made every button a
+    pale box and a row of them a wall.
+  -->
   <Style Selector="Button.secondary">
-    <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+    <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource RimLightBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 
@@ -182,12 +189,25 @@
                 Background="{TemplateBinding Background}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1,1,1,1">
-          <ContentPresenter Name="PART_ContentPresenter"
-                            Content="{TemplateBinding Content}"
-                            ContentTemplate="{TemplateBinding ContentTemplate}"
-                            Foreground="{TemplateBinding Foreground}"
-                            Padding="{TemplateBinding Padding}"
-                            VerticalAlignment="Center" />
+          <Panel>
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Foreground="{TemplateBinding Foreground}"
+                              Padding="{TemplateBinding Padding}"
+                              VerticalAlignment="Center" />
+            <!--
+              The active tab's purple gradient line, along the TOP edge — where
+              the reference draws it (the Brush Settings' active tab), not
+              underneath. Always present and usually transparent, for the same
+              reason as the ground: a mark that appears on click changes the
+              strip's height, one that only changes colour does not. Inset 2px
+              so it does not overrun the rounded corners.
+            -->
+            <Border Name="PART_TopLine" Height="2" Margin="2,0"
+                    VerticalAlignment="Top" CornerRadius="1"
+                    Background="Transparent" IsHitTestVisible="False" />
+          </Panel>
         </Border>
       </ControlTemplate>
     </Setter>
@@ -219,6 +239,9 @@
     <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
     <Setter Property="BorderThickness" Value="1,1,1,0" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_TopLine">
+    <Setter Property="Background" Value="{StaticResource TabActiveLineBrush}" />
   </Style>
   <!--
     Both halves, and the second is the one that does the work: the theme sets a

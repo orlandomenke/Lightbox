@@ -41,7 +41,9 @@
       Two properties fix the whole class of it, which is why they are worth
       more than the fifty setters they replace:
 
-      * `Accent` — every "this is on" state. Violet rather than coral, so the
+      * `Accent` — every "this is on" state. The DEEP violet, because these
+        are fills the size of a button, and full AccentViolet glows at that
+        size; the bright violet stays for marks. Violet rather than coral, so the
         layer row that is selected, the toggle that is on and the tab that is
         showing are one colour, and coral is left meaning "the primary action"
         without competition.
@@ -58,7 +60,7 @@
     -->
     <FluentTheme>
       <FluentTheme.Palettes>
-        <ColorPaletteResources x:Key="Dark" Accent="#7B61FF" RegionColor="#222634" />
+        <ColorPaletteResources x:Key="Dark" Accent="#5B48C8" RegionColor="#222634" />
       </FluentTheme.Palettes>
     </FluentTheme>
     <!-- ColorSpectrum/ColorSlider templates live in a separate theme file;

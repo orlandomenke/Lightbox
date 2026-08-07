@@ -2770,7 +2770,16 @@
                   wheel is always whole, always square, and always the largest
                   it can be in the room it has.
                 -->
-                <Viewbox Stretch="Uniform" StretchDirection="Both" MinHeight="120" MaxHeight="320"
+                <!--
+                  Capped at 190, not 320. The reference's wheel is ~150px in a
+                  docker column — a compact instrument, not the panel's main
+                  event — and at 320 ours was the largest single control in the
+                  application. (The reference also draws a hue RING with the
+                  SV square inside it, which is a different control from this
+                  disc; that redesign is its own piece of work and only the
+                  size is taken here.)
+                -->
+                <Viewbox Stretch="Uniform" StretchDirection="Both" MinHeight="120" MaxHeight="190"
                          IsVisible="{Binding ColorPicker.IsWheelMode}">
                   <Grid ColumnDefinitions="240,8,24" Height="240">
                     <ColorSpectrum Grid.Column="0" Shape="Ring" Components="HueSaturation"

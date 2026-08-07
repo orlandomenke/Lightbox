@@ -212,12 +212,22 @@ public sealed class WorkspaceTests : BrushStateIsolated
             item.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_Tab");
 
         var lit = Assert.IsType<LinearGradientBrush>(Tab(active).Background);
-        Assert.Equal(2, lit.GradientStops.Count);
         Assert.True(lit.GradientStops[^1].Color.A == 0,
             "the active tab's gradient must end transparent — a named end colour is a "
             + "visible seam on any ground that is not the one it named");
-        Assert.True(lit.GradientStops[^1].Offset < 1,
-            $"the fade ends at {lit.GradientStops[^1].Offset:F2}, so it is not fading fast");
+        // The fade runs the tab's whole height. It ended at 0.62 first; the
+        // owner's correction is that the subtlety IS the length of the fade,
+        // and what keeps it from being a filled block is the soft start and
+        // the transparent end, both asserted, not the early stop.
+        Assert.True(lit.GradientStops[0].Color.A < 0xFF,
+            "the fade must start soft, or the tab is a filled block with a soft bottom");
+
+        // And the purple gradient line along the active tab's TOP edge — the
+        // second marker the reference draws, and the one the owner named.
+        static Border TopLine(ListBoxItem item) =>
+            item.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_TopLine");
+        Assert.IsType<LinearGradientBrush>(TopLine(active).Background);
+        Assert.IsNotType<LinearGradientBrush>(TopLine(resting).Background);
 
         // The resting tab takes no lit ground — it merges with the header it
         // sits in. What it does carry is an outline, and that is not incidental:

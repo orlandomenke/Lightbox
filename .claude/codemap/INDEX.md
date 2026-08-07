@@ -1,6 +1,6 @@
 # Code index
 
-548 files · 143970 lines · 2852 tests.
+548 files · 144130 lines · 2853 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -53,7 +53,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MainWindow:19, UnsavedChoice:3007
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (3688 ln) · 13 test files
   - CanvasControl:28, CanvasToolMode:908, GridGesture:965, TxDrag:1112, DrawOp:2964
-- `src/Lightbox.App/Views/MainWindow.axaml` (3589 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3598 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
@@ -79,6 +79,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GradientStopRow:16, GradientDockerViewModel:89, HexColor:452
 - `src/Lightbox.App/Services/UnrealExporter.cs` (442 ln) · 2 test files
   - UnrealExportOptions:9, UnrealExportResult:24, UnrealExporter:61, UnrealBlock:70
+- `src/Lightbox.App/Styles/Density.axaml` (404 ln) · **no tests**
 - `src/Lightbox.App/ViewModels/WorkspaceViewModel.cs` (403 ln) · 1 test files
   - WorkspaceViewModel:20, WorkspaceRow:398
 - `src/Lightbox.App/Views/ConfigureWindow.axaml` (401 ln) · **no tests**
@@ -89,7 +90,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TimelineRuler:17, Handle:101
 - `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (367 ln) · 4 test files
   - ColorMode:9, ColorPickerViewModel:25
-- `src/Lightbox.App/Styles/Density.axaml` (357 ln) · **no tests**
 - `src/Lightbox.App/Rendering/PresentedFrame.cs` (352 ln) · 2 test files
   - PresentedFrame:45
 - `src/Lightbox.App/Services/RenderReport.cs` (339 ln) · 1 test files
@@ -100,6 +100,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ExportWindow:34
 - `src/Lightbox.App/Services/GameMakerExporter.cs` (313 ln) · 2 test files
   - GameMakerExportOptions:10, GameMakerExportResult:28, GameMakerExporter:78, StripRecord:86, GameMakerBlock:99
+- `src/Lightbox.App/Styles/Controls.axaml` (307 ln) · **no tests**
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 23 indirect only
   - RampTrack:10, GradientRamp:41
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (295 ln) · 5 test files
@@ -110,7 +111,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 112 test files
   - MainViewModel:32
-- `src/Lightbox.App/Styles/Controls.axaml` (284 ln) · **no tests**
 - `src/Lightbox.App/Services/GodotExporter.cs` (283 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
@@ -129,7 +129,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
 - `src/Lightbox.App/Services/ShortcutMap.cs` (239 ln) · 7 test files
   - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
-- `src/Lightbox.App/App.axaml` (233 ln) · **no tests**
+- `src/Lightbox.App/Styles/Palette.axaml` (237 ln) · **no tests**
+- `src/Lightbox.App/App.axaml` (235 ln) · **no tests**
   - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (231 ln) · 2 test files
   - FrameBitmapCache:13, EvictionOrder:56
@@ -141,7 +142,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectWatcher:61
 - `src/Lightbox.App/Views/BrushLibraryWindow.axaml.cs` (217 ln) · 1 test files
   - BrushLibraryWindow:34
-- `src/Lightbox.App/Styles/Palette.axaml` (212 ln) · **no tests**
 - `src/Lightbox.App/Services/AppSettings.cs` (208 ln) · 5 test files
   - AppSettings:16
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml` (205 ln) · **no tests**
@@ -192,6 +192,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Desktop:7, FileReveal:35
 - `src/Lightbox.App/Docking/CanvasOverlays.cs` (123 ln) · 2 test files
   - OverlayId:12, CanvasEdge:21, OverlayPlacement:30, CanvasOverlayLayout:54
+- `src/Lightbox.App/Styles/Theme.axaml` (120 ln) · **no tests**
 - `src/Lightbox.App/Rendering/SelectionRenderer.cs` (117 ln) · **no tests**
   - SelectionRenderer:10
 - `src/Lightbox.App/Views/ProjectWindow.axaml.cs` (117 ln) · **no tests**
@@ -224,7 +225,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockDropIndicator:23
 - `src/Lightbox.App/Input/CelDragGesture.cs` (101 ln) · 1 test files
   - CelDragGesture:27
-- `src/Lightbox.App/Styles/Theme.axaml` (99 ln) · **no tests**
 - `src/Lightbox.App/Services/DiagnosticsConsole.cs` (97 ln) · 1 test files
   - DiagnosticsConsole:32
 - `src/Lightbox.App/Services/SaveRequirement.cs` (97 ln) · 2 test files

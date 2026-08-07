@@ -108,7 +108,11 @@ public class PaletteTests
             "SystemAccentColor", Avalonia.Styling.ThemeVariant.Dark, out var accent));
         var violet = Assert.IsType<Color>(accent);
 
-        Application.Current!.TryFindResource("AccentVioletBrush", out var role);
+        // The DEEP violet, not the bright one — the theme's accent paints
+        // fills the size of a button, and full AccentViolet glows at that
+        // size. The bright violet stays for marks: dots, gradients, the tab
+        // line, focus.
+        Application.Current!.TryFindResource("AccentVioletDeepBrush", out var role);
         Assert.Equal(((SolidColorBrush)role!).Color, violet);
     }
 
@@ -160,7 +164,7 @@ public class PaletteTests
 
         foreach (var (property, token) in new[]
                  {
-                     ("Accent", "AccentViolet"),
+                     ("Accent", "AccentVioletDeep"),
                      ("RegionColor", "SurfaceElevated"),
                  })
         {

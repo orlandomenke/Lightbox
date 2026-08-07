@@ -13,6 +13,22 @@
     in a comment at the site.
   -->
 
+  <!--
+    The application's base font size, and the single biggest reason the UI read
+    LARGER than Krita's on the same monitor. Fluent's default is 14, and
+    anything without an explicit FontSize — layer names, dialog labels, menu
+    items, most plain TextBlocks — rendered at it, towering over the 11s and
+    12s around them. The scale's font row starts at 12, so 12 is what
+    "unstyled" means here.
+
+    `:is(Window)` rather than `Window`, because a bare type selector does not
+    match subclasses and every window in this application is one. FontSize
+    inherits down the logical tree, so this reaches popups and flyouts too.
+  -->
+  <Style Selector=":is(Window)">
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+
   <!-- Numeric fields: no spinner arrows anywhere.
 
        The up/down buttons cost ~20px of width and a couple of height, and no
@@ -48,21 +64,6 @@
     <Setter Property="Width" Value="96" />
   </Style>
 
-  <!--
-    The inner box a NumericUpDown wraps. Its `PART_BorderElement` paints the
-    ground on top of the NumericUpDown's own rounded border, so without a
-    matching radius here the corners come out square while the ComboBox beside
-    it is round — which is what shipped, and what "every boxed element has
-    rounded corners except those text boxes" was reporting.
-  -->
-  <Style Selector="NumericUpDown /template/ TextBox">
-    <Setter Property="Padding" Value="4,0" />
-    <Setter Property="MinHeight" Value="20" />
-    <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
-  </Style>
-  <Style Selector="NumericUpDown /template/ TextBox /template/ Border#PART_BorderElement">
-    <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
-  </Style>
   <Style Selector="NumericUpDown">
     <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
   </Style>
@@ -77,6 +78,42 @@
     <Setter Property="MinHeight" Value="24" />
     <Setter Property="Padding" Value="6,2" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!--
+    The inner box a NumericUpDown wraps — and it must come AFTER the generic
+    TextBox rule above, which is the fix for the squarest-looking bug in the
+    application.
+
+    Every numeric field rendered with square corners and no top border while
+    the ComboBox beside it was round, and the reason was not the radius: this
+    rule set the inner TextBox to fit its 22px host, and then the generic
+    `TextBox MinHeight=24` two rules LATER silently won, because Avalonia
+    resolves competing styles by order. A 24px box inside a 22px host is
+    clipped top and bottom — the rounded corners and the top border were not
+    painted square, they were CUT OFF, which no property probe can see because
+    every property reads correct. This file already documents order being
+    load-bearing for the overlay bars; this is the same trap with a subtler
+    symptom, and it also explains the `MinHeight="0" Height="22"` hand-fixes
+    two views had grown around specific fields.
+  -->
+  <Style Selector="NumericUpDown /template/ TextBox">
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
+  </Style>
+  <Style Selector="NumericUpDown /template/ TextBox /template/ Border#PART_BorderElement">
+    <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
+  </Style>
+  <!--
+    The actual thief, found by measuring geometry after every property read
+    correct: Fluent's ButtonSpinner carries MinHeight 32, so inside our 22px
+    NumericUpDown the whole inner stack overflowed by five pixels top and
+    bottom and was CLIPPED — taking the rounded corners and the top border
+    with it. `FieldShapeTests.TheInnerTextBoxFitsInsideTheFieldThatHostsIt`
+    is the geometry check that finally saw it.
+  -->
+  <Style Selector="NumericUpDown /template/ ButtonSpinner">
+    <Setter Property="MinHeight" Value="0" />
   </Style>
 
   <Style Selector="ComboBox">
@@ -313,6 +350,16 @@
   <Style Selector="Menu">
     <Setter Property="Padding" Value="0" />
     <Setter Property="Height" Value="24" />
+    <!--
+      The menu is the same surface as the toolbar under it, separated by a 1px
+      line of the deepest background — measured off the reference, where the
+      menu flows into the toolbar rather than being its own strip. Two strips
+      of one colour with a scored line between them read as one piece of
+      chrome; two strips of different colours read as a stack.
+    -->
+    <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BackgroundPrimaryBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
   </Style>
   <Style Selector="MenuItem.top">
     <Setter Property="Height" Value="24" />

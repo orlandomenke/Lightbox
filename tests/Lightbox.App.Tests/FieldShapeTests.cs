@@ -72,6 +72,25 @@ public class FieldShapeTests
     }
 
     [AvaloniaFact]
+    public void TheInnerTextBoxFitsInsideTheFieldThatHostsIt()
+    {
+        // The first version of the corner fix passed while the screen stayed
+        // square, because every property read correct: the radius was set, and
+        // the corners were CLIPPED, not painted square. The generic
+        // `TextBox MinHeight=24` rule sat later in Density.axaml than the
+        // template-scoped one and silently won — a 24px inner box inside a
+        // 22px host loses its top border and all four corners to the clip.
+        // Properties cannot see that; only geometry can, so this measures it.
+        Host(out _, out var num, out _);
+
+        var inner = num.GetVisualDescendants().OfType<TextBox>().First();
+        Assert.True(inner.Bounds.Height <= num.Bounds.Height + 0.5,
+            $"the inner text box is {inner.Bounds.Height} tall inside a "
+            + $"{num.Bounds.Height} host — its corners and top border are being "
+            + "clipped off, which reads as a square field");
+    }
+
+    [AvaloniaFact]
     public void AFieldIsAWellRatherThanARaisedSurface()
     {
         // The reversal, stated as the rule rather than as a colour: a field
