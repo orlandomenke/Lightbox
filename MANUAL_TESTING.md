@@ -253,4 +253,6 @@ headless can open a window and click Delete.
 ## Windows bundle (no admin)
 
 - [ ] The Actions artifact unzips and `Lightbox.App.exe` starts on a machine with no .NET installed and no admin rights.
-- [ ] `Lightbox.Mcp.exe` works as the Claude Desktop MCP command from the same bundle, at the bundle root beside `Lightbox.App.exe` (it moved out of `mcp\` — B32).
+- [ ] **B116** — `Lightbox.Mcp.exe` works as the Claude Desktop MCP command from `mcp\`, beside `Lightbox.App.exe`. (It moved back into `mcp\`; it was at the bundle root for one stretch of builds — B32.)
+- [ ] **B116** — the bundle root holds `Lightbox.App.exe`, three native DLLs and the `mcp\` folder, and nothing else.
+- [ ] **B116** — `Lightbox.App.exe` starts from the single-file bundle on a machine with no .NET, and rendering is **hardware**: a large document pans and zooms at the usual speed. This is the check that catches a native library silently not resolving — Avalonia falls back to software rendering rather than failing, so the symptom is "the new build feels slow" rather than an error.
