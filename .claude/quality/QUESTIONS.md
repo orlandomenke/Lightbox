@@ -10,6 +10,66 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q52 · Does the Raster/Vector layer choice survive? — **answered: no, and imports get their own layer**
+
+**Answered 2026-08-07.** The owner's answer, and it is a better design than the
+one recommended:
+
+> *"An imported image is always placed on a separate layer. AI won't read it.
+> Merging layers with an image skips this as well but before merging. Prompt the
+> user if AI is enabled. Otherwise skip it. Remove the layer designation in the
+> UI."*
+
+**The question came from noticing the choice does almost nothing.** Two layer
+kinds, and everything you can *make* in Lightbox behaves identically on both —
+same tools, same engine, same marks, because nothing anywhere gates a tool by
+layer kind. The whole difference is two rows: a raster layer can hold **pixels
+that came from outside** (an imported photo, a paste of flattened pixels), and it
+can hold **symbol placements**. So the picker asks, at the moment a layer is
+created, a question about an import that has not happened and probably never
+will.
+
+**The recommendation was to convert a frame on demand, and it was worse.** It
+kept the awkward part — a drawing frame quietly becoming a pixel frame under the
+artist — and paid for it with a prompt. Giving an import its own layer removes
+the problem instead of managing it: **a layer is born knowing what it is, and
+nothing ever converts.** The two frame classes stay because a baseline genuinely
+is different content with different provenance; what goes is the *choice*.
+
+**Where the warning moves, and why that is the good part.** The consequence worth
+knowing has never been about layers at all — it is that the inbetweener reads
+strokes and cannot read pixels, so imported content is skipped. On its own layer
+that is obvious and harmless. It only becomes a loss at the moment somebody
+**merges** a drawing layer into an image layer, because the result is pixels and
+the drawing's machine-readability is gone. So the warning belongs there, before
+the merge, rather than at layer creation where it would be noise.
+
+**And it is conditional: prompt only when AI is enabled.** *Absent unless used*,
+applied to a warning. An artist who never touches the AI features is being told
+about a capability they do not have, which is the definition of noise.
+
+**What it obliges.**
+
+- **Symbols are a blocker, not a nicety.** Placing a symbol currently refuses any
+  layer that is not raster (`activeLayer.Kind != LayerKind.Painted`), and
+  `VectorFrame` has no `Placements` field. If new layers stop being raster,
+  placing a symbol silently does nothing. Nothing anywhere records a reason for
+  that restriction, so it reads as an accident. Filed as **B123**.
+- **`Layer.Kind` stays in the record and leaves the UI.** The literal ask was the
+  UI, and keeping the field is what makes an imported-image layer describable at
+  all. It stops being chosen and starts being a fact about how the layer was
+  born. Old documents therefore need nothing — the field still exists and still
+  means what it meant, so Q36 does not even come up.
+- **The manual's layer section changes**, and the R/V badge goes.
+
+**Blocks:** B123 blocks it. Nothing else.
+
+**The follow-on nobody has to take yet.** If `Placements` belongs on both kinds,
+the only remaining difference is `PngBase64` — and then the two classes want to
+be one `Frame` with a nullable baseline, which is *absent unless used* stated
+properly. That is a serialization-discriminator change and a bigger piece of
+work; it is named here so it is a decision later rather than a surprise.
+
 ## Q46 · How does an artist get into point editing? — **answered: Illustrator's model in full**
 
 **Answered 2026-08-07: two pointers *and* isolation mode.** A black-arrow
