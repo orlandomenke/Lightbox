@@ -1,0 +1,166 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    The control treatments from the design, in one place.
+
+    Two axes, and keeping them apart is the whole reason this file is separate
+    from Density.axaml. **Size is a role** — icon, text, tool — and lives there,
+    because it is about hitting a control. **Emphasis is a rank** — primary,
+    secondary, tertiary, ghost — and lives here, because it is about which
+    control an artist should reach for first.
+
+    They compose: `Classes="text primary"` is a text-sized button carrying the
+    primary treatment. That is why the ranks below set no sizes at all. A rank
+    that also set a height would silently override the role beside it, and the
+    row it sat in would stop lining up — the failure DESIGN.md calls "the most
+    common way this app has looked unfinished".
+  -->
+
+  <!-- ===== Buttons: four ranks ======================================== -->
+  <!--
+    One primary per view, and usually none. The gradient is loud on purpose:
+    it means "this is the thing you came here to do", and a screen with three
+    of them has told the artist nothing.
+  -->
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+  </Style>
+
+  <!-- The ordinary button, and what most things are. -->
+  <Style Selector="Button.secondary">
+    <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <!-- Outlined: present, clearly not the answer. -->
+  <Style Selector="Button.tertiary">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <!--
+    No box until you touch it. For the ones that would otherwise turn a panel
+    into a wall of buttons — and for anything destructive, which should not be
+    the most eye-catching thing in the room.
+  -->
+  <Style Selector="Button.ghost">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+
+  <!-- ===== Badges ==================================================== -->
+  <!--
+    Four meanings, named for the meaning rather than the colour. A badge is a
+    label with a state, not a button: it never takes a click, so it never
+    carries a hover.
+
+    Tinted grounds rather than filled ones. A solid amber block beside a solid
+    red one reads as two warnings shouting; the text carries the message and
+    the colour only says which kind it is.
+  -->
+  <Style Selector="Border.badge">
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="6,1" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="Border.badge > TextBlock">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Border.badge.info">
+    <Setter Property="BorderBrush" Value="{StaticResource StatusInfoBrush}" />
+  </Style>
+  <Style Selector="Border.badge.info > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource StatusInfoBrush}" />
+  </Style>
+
+  <Style Selector="Border.badge.warning">
+    <Setter Property="BorderBrush" Value="{StaticResource StatusWarningBrush}" />
+  </Style>
+  <Style Selector="Border.badge.warning > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource StatusWarningBrush}" />
+  </Style>
+
+  <Style Selector="Border.badge.error">
+    <Setter Property="BorderBrush" Value="{StaticResource StatusErrorBrush}" />
+  </Style>
+  <Style Selector="Border.badge.error > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource StatusErrorBrush}" />
+  </Style>
+
+  <Style Selector="Border.badge.success">
+    <Setter Property="BorderBrush" Value="{StaticResource StatusSuccessBrush}" />
+  </Style>
+  <Style Selector="Border.badge.success > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource StatusSuccessBrush}" />
+  </Style>
+
+  <!-- ===== Tabs ====================================================== -->
+  <!--
+    The docker headers that tabbing just introduced, and any tab strip after
+    them. Scoped by the strip rather than by a class on each item, because the
+    items are generated and `Classes` cannot be set from a Setter — it is a
+    collection, and trying produces a XAML load failure at runtime rather than
+    a build error. The active tab is the one carrying full-strength text; the others
+    step back rather than being greyed out — a tab you can barely read looks
+    disabled, and these are all reachable.
+
+    No background on the active tab. The header is already a distinct surface,
+    and a filled tab inside it makes two boxes where the artist needed one word.
+  -->
+  <Style Selector="ListBox.tabs > ListBoxItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="6,0" />
+    <Setter Property="MinHeight" Value="20" />
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:selected">
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+  </Style>
+
+  <!-- ===== Sliders =================================================== -->
+  <!--
+    The filled part of the track carries the accent, so a glance says roughly
+    where the value sits without reading the number beside it. The number is
+    still there — DESIGN.md's rule is slider *plus* field, because a value
+    explored by feel still has to be typed exactly sometimes.
+  -->
+  <Style Selector="Slider">
+    <Setter Property="Foreground" Value="{StaticResource AccentCoralBrush}" />
+  </Style>
+
+  <!-- ===== Toggles and checks ======================================== -->
+  <Style Selector="ToggleSwitch">
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+  <Style Selector="ToggleSwitch:checked /template/ Border#SwitchKnobBounds">
+    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
+  </Style>
+  <Style Selector="CheckBox:checked /template/ Border#NormalRectangle">
+    <Setter Property="Background" Value="{StaticResource AccentVioletBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource AccentVioletBrush}" />
+  </Style>
+</Styles>

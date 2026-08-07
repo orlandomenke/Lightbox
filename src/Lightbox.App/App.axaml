@@ -33,6 +33,10 @@
          the numbers live in one place so no view invents its own. -->
     <StyleInclude Source="avares://Lightbox.App/Styles/Density.axaml" />
 
+    <!-- The control treatments: emphasis, badges, tabs. Sizes stay in
+         Density.axaml — the two are different axes and compose. -->
+    <StyleInclude Source="avares://Lightbox.App/Styles/Controls.axaml" />
+
     <!-- The colour picker's body and the flyout field that reuses it. -->
     <StyleInclude Source="avares://Lightbox.App/Styles/ColorPicker.axaml" />
 
@@ -84,6 +88,7 @@
                     height, and a second row would hand most of it back.
                   -->
                   <ListBox x:Name="PART_Tabs" DockPanel.Dock="Left"
+                           Classes="tabs"
                            ItemsSource="{TemplateBinding Tabs}"
                            SelectedItem="{TemplateBinding ActiveTab}"
                            Background="Transparent" BorderThickness="0"
@@ -97,7 +102,7 @@
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="docking:DockPanelInfo">
                         <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
-                                   Padding="6,0,6,0" VerticalAlignment="Center" />
+                                   VerticalAlignment="Center" />
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2809 tests, derived from the suite itself. Each line is a
+2815 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -592,6 +592,16 @@ regression even when every test still compiles.
 - Catching Up Does Not Dispose The Image The Canvas Is Still Showing — `:151`
 - Every Publish Is ACorrect Full Composite — `:172`
 - Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:215`
+
+## ControlTreatmentTests
+`tests/Lightbox.App.Tests/ControlTreatmentTests.cs`
+
+- The Button Enter Presses Is The One That Looks Like The Answer — `:44`
+- Nothing Destructive Is The Primary Button — `:71`
+- ARank Never Sets ASize — `:101`
+- Every Rank And Badge Resolves — `:124`
+- The Primary Rank Carries The Accent Gradient — `:142`
+- Badges Are Named For Meaning Rather Than Colour — `:153`
 
 ## CrashScenarioTests
 `tests/Lightbox.App.Tests/CrashScenarioTests.cs`

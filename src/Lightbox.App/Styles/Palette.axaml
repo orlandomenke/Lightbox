@@ -25,12 +25,22 @@
   <Color x:Key="TextPrimary">#E6E8F0</Color>
   <Color x:Key="TextSecondary">#9AA1B2</Color>
 
+  <!--
+    Text that sits ON an accent rather than on a surface — the primary button's
+    label, and anything else riding the gradient. It is a role of its own rather
+    than TextPrimary because the two move in opposite directions: TextPrimary is
+    light because the surfaces are dark, and if the surfaces ever went light it
+    would follow them down while this one stayed put.
+  -->
+  <Color x:Key="TextOnAccent">#FFFFFF</Color>
+
   <SolidColorBrush x:Key="BackgroundPrimaryBrush" Color="{StaticResource BackgroundPrimary}" />
   <SolidColorBrush x:Key="BackgroundSecondaryBrush" Color="{StaticResource BackgroundSecondary}" />
   <SolidColorBrush x:Key="SurfacePanelBrush" Color="{StaticResource SurfacePanel}" />
   <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="{StaticResource SurfaceElevated}" />
   <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}" />
   <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondary}" />
+  <SolidColorBrush x:Key="TextOnAccentBrush" Color="{StaticResource TextOnAccent}" />
 
   <!-- ===== Borders — derived, and that is worth stating ============== -->
   <!--

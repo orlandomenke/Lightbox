@@ -65,6 +65,40 @@ Two buttons that do comparable things must be the same size. A row of
 buttons share one width and the text buttons share another. Mixed sizes inside
 one bar is the most common way this app has looked unfinished.
 
+**Emphasis is a rank, and it is a different axis from size.** Size answers *how
+do I hit this*; emphasis answers *which of these should I reach for first*. They
+compose — `Classes="text primary"` is a text-sized button carrying the primary
+treatment — and they compose only because they stay disjoint. **A rank never
+sets a size.** One that also set a height would silently override the role
+beside it and the row would stop lining up, which is the failure above wearing
+a different hat. `ControlTreatmentTests.ARankNeverSetsASize` holds the line.
+
+| Rank | Treatment | When |
+| --- | --- | --- |
+| `primary` | Accent gradient, no border | The one thing you came to this view to do |
+| `secondary` | Elevated surface, thin border | The ordinary button, and what most things are |
+| `tertiary` | Outlined, transparent ground | Present, clearly not the answer — Cancel |
+| `ghost` | No box until hover | Rows of them, where boxes would be a wall |
+
+**One primary per view, and usually none.** The gradient means "this is the
+thing", and a screen with three of them has said nothing. **The button Enter
+presses is the one that looks like the answer**: `IsDefault="True"` and
+`primary` say the same thing in two languages, one to the keyboard and one to
+the eye, and a dialog with a loud button that Enter does not press is worse than
+one with neither. That agreement is checked, not remembered.
+
+**Nothing destructive is ever `primary`.** Delete, Remove and Clear are the
+things an artist arrives at by accident, and making one the loudest object on
+the screen is how it gets pressed by reflex. Also checked, because it is exactly
+the rule somebody breaks while making a delete dialog feel decisive.
+
+**Badges are named for the meaning, not the colour** — `info`, `warning`,
+`error`, `success`. A badge that says "amber" has to be renamed when the design
+changes its mind. Their grounds are tinted rather than filled: a solid amber
+block beside a solid red one reads as two warnings shouting, when the text
+already carries the message and the colour only says which kind it is. A badge
+is a label with a state, never a button, so it carries no hover.
+
 ## Colour
 
 **Every colour in the chrome names a role. None of them is a hex value.** The
