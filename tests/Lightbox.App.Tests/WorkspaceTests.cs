@@ -160,7 +160,7 @@ public sealed class WorkspaceTests : BrushStateIsolated
     [AvaloniaFact]
     public void TheTabShowingIsTheOneThatLooksLikeItIsShowing()
     {
-        // B125. The strip carried `SelectedItem="{TemplateBinding ActiveTab}"`,
+        // B127. The strip carried `SelectedItem="{TemplateBinding ActiveTab}"`,
         // and ActiveTab is a DockPanelId while the items are DockPanelInfo.
         // Handing an enum to SelectedItem is not an error — nothing ever
         // matches, so no tab is selected, and three tabs render identically

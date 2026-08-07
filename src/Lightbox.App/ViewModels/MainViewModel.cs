@@ -9949,7 +9949,9 @@ public sealed partial class MainViewModel : ObservableObject
             // the rectangle the canvas last asked for — because it is what tells the
             // painter where to put the image. Null means "the whole document", which
             // is what every uncalled path produces.
-            handler(new RenderSnapshot(image, (int)viewWidth, (int)viewHeight, seq, imageCovers));
+            handler(new RenderSnapshot(
+                image, (int)viewWidth, (int)viewHeight, seq, imageCovers,
+                ChangedInImageSpace(usedClip, imageCovers, renderScale, cameraView)));
         }
         else
         {
@@ -10096,6 +10098,45 @@ public sealed partial class MainViewModel : ObservableObject
         surface.Dispose();
 
         return image;
+    }
+
+    /// <summary>
+    /// Convert the document rectangle a publish repainted into the image's own
+    /// pixel space, for <see cref="PresentedFrame"/> to patch (B122).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two transforms and one refusal. The rectangle is offset by whatever the
+    /// image covers — a culled image starts at the viewport's corner rather than
+    /// the document's — and then scaled by <paramref name="renderScale"/>, since
+    /// the surface may be smaller than the document. It is grown by a pixel on
+    /// every side afterwards, because the composite's own edges are antialiased
+    /// and a patch that is exact to the rectangle can leave a seam.
+    /// </para>
+    /// <para>
+    /// The refusal is the important part: <b>under a camera this returns null</b>.
+    /// A camera maps the document through an arbitrary matrix, so a document
+    /// rectangle is not an axis-aligned image rectangle at all, and a wrong
+    /// rectangle here would show stale pixels rather than merely cost a repaint.
+    /// Null is always safe — it means "repaint everything" — so anything this
+    /// function is not certain about must return it.
+    /// </para>
+    /// </remarks>
+    private static SKRectI? ChangedInImageSpace(
+        SKRectI? changedInDoc, SKRectI? imageCovers, double renderScale, SKMatrix44? cameraView)
+    {
+        if (cameraView is not null) return null;
+        if (changedInDoc is not { } doc) return null;
+        if (!double.IsFinite(renderScale) || renderScale <= 0) return null;
+
+        var offsetX = imageCovers?.Left ?? 0;
+        var offsetY = imageCovers?.Top ?? 0;
+        var left = (int)Math.Floor((doc.Left - offsetX) * renderScale) - 1;
+        var top = (int)Math.Floor((doc.Top - offsetY) * renderScale) - 1;
+        var right = (int)Math.Ceiling((doc.Right - offsetX) * renderScale) + 1;
+        var bottom = (int)Math.Ceiling((doc.Bottom - offsetY) * renderScale) + 1;
+        if (right <= left || bottom <= top) return null;
+        return new SKRectI(left, top, right, bottom);
     }
 
     /// <summary>

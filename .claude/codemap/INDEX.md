@@ -1,6 +1,6 @@
 # Code index
 
-538 files · 141306 lines · 2818 tests.
+540 files · 141931 lines · 2826 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,14 +47,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10649 ln) · 4 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10690 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4508, TransformParts:7177
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4467 ln) · 20 test files
   - MainWindow:19, UnsavedChoice:2909
 - `src/Lightbox.App/Views/MainWindow.axaml` (3589 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
-- `src/Lightbox.App/Rendering/CanvasControl.cs` (3522 ln) · 12 test files
-  - CanvasControl:28, CanvasToolMode:844, GridGesture:901, TxDrag:1048, DrawOp:2840
+- `src/Lightbox.App/Rendering/CanvasControl.cs` (3568 ln) · 12 test files
+  - CanvasControl:28, CanvasToolMode:857, GridGesture:914, TxDrag:1061, DrawOp:2869
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
@@ -118,6 +118,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RulerStrip:27
 - `src/Lightbox.App/ViewModels/SelectionManager.cs` (250 ln) · 4 indirect only
   - SelectionManager:7
+- `src/Lightbox.App/Rendering/PresentedFrame.cs` (246 ln) · 1 test files
+  - PresentedFrame:45
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
 - `src/Lightbox.App/Services/ShortcutMap.cs` (239 ln) · 7 test files
@@ -238,6 +240,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolLibrary:32
 - `src/Lightbox.App/Services/OnionSettings.cs` (77 ln) · 1 test files
   - OnionMode:4, OnionSettings:28
+- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (76 ln) · 20 test files
+  - RenderSnapshot:24
 - `src/Lightbox.App/Views/NewDocumentPanel.axaml` (75 ln) · **no tests**
   - BackgroundBox, FpsBox, HeightBox, NameBox, PpiBox, PresetBox, TransparentBox, TypeBox …
 - `src/Lightbox.App/ViewModels/DocumentScopedState.cs` (73 ln) · 1 test files
@@ -258,8 +262,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ThumbnailRenderer:7
 - `src/Lightbox.App/Input/StrokeBuilder.cs` (58 ln) · 4 indirect only
   - StrokeBuilder:10
-- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (56 ln) · 20 test files
-  - RenderSnapshot:24
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 20 indirect only
   - SaveFirstChoice:7, SaveFirstDialog:32
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml` (50 ln) · **no tests**
