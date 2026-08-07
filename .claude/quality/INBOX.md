@@ -91,10 +91,15 @@ archive. The archive is `BUGS.md` itself.
    - Pointer coordinates get transformed to wrong document positions
    - Strokes painted end up offset/clipped to the small viewport area
 
-**Fix approach**: When using unbounded canvas path, either:
-- Option A: Pass viewport dimensions to RenderSnapshot instead of scene dimensions, and communicate to CanvasControl that these dimensions are viewport-relative
-- Option B: Modify CanvasControl.ViewMatrix to use DocViewport positioning when available instead of centering on DocWidth/DocHeight
-- Option C: Pass offset information to RenderSnapshot so CanvasControl can adjust transforms
+**Fix applied** (commit c6e42ce):
+- Option B chosen: Modified CanvasControl.ViewMatrix (lines 1668-1697) to center on viewport center when DocViewport is set (unbounded canvas) instead of document center
+- This ensures ViewToDoc() transforms input coordinates correctly for viewport-sized images
+- Expected to fix cursor/stroke misalignment and painting bounds issues
+
+**Remaining issues to test**:
+- Background layer rendering: may have seams between tiles or may not extend smoothly - needs visual testing
+- Zoom behavior: verify that zooming out properly expands viewport and shows more tiles - should work now with corrected ViewMatrix
+- Test with actual painting to verify input coordinates are correct end-to-end
 
 ## Needs a decision
 
