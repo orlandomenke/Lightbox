@@ -66,6 +66,36 @@ archive. The archive is `BUGS.md` itself.
    - Canvas appears size-limited rather than infinite
    - Expected: zooming out should reveal more of the infinite canvas (tiles beyond current view)
 
+### Root Cause Analysis
+
+**The core issue is a dimension mismatch in RenderSnapshot:**
+
+1. **ComposeUnboundedSnapshot** (MainViewModel.cs:9849) creates a viewport-sized image:
+   - Surface dimensions: viewport width × viewport height (line 9862-9864)
+   - Canvas translated by (-viewport.Left, -viewport.Top) (line 9896)
+   - Result: small image with viewport-positioned content
+
+2. **RenderSnapshot creation** (MainViewModel.cs:9832) passes wrong dimensions:
+   - DocWidth = scene.Width (full document/canvas)
+   - DocHeight = scene.Height (full document/canvas)
+   - DocViewport = viewport (correct)
+   - But the actual `image` is viewport-sized, not scene-sized!
+
+3. **CanvasControl.ViewMatrix** (CanvasControl.cs:1668) centers based on DocWidth/DocHeight:
+   - Assumes DocWidth/DocHeight match the image dimensions
+   - For unbounded canvas: image is viewport-sized, but ViewMatrix centers using scene dimensions
+   - This causes viewport offset to not be accounted for in the transform
+
+4. **Input path affected**:
+   - ViewToDoc() uses ViewMatrix() which is incorrectly centered
+   - Pointer coordinates get transformed to wrong document positions
+   - Strokes painted end up offset/clipped to the small viewport area
+
+**Fix approach**: When using unbounded canvas path, either:
+- Option A: Pass viewport dimensions to RenderSnapshot instead of scene dimensions, and communicate to CanvasControl that these dimensions are viewport-relative
+- Option B: Modify CanvasControl.ViewMatrix to use DocViewport positioning when available instead of centering on DocWidth/DocHeight
+- Option C: Pass offset information to RenderSnapshot so CanvasControl can adjust transforms
+
 ## Needs a decision
 
 <!-- Reports that could not be turned into a BUGS.md entry without a human call. -->
