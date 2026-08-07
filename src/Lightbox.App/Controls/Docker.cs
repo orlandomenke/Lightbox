@@ -117,6 +117,7 @@ public class Docker : ContentControl
 
 
     private ListBox? _tabs;
+    private Border? _header;
 
     protected override void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
     {
@@ -124,6 +125,7 @@ public class Docker : ContentControl
 
         if (e.NameScope.Find<Border>("PART_Header") is { } header)
         {
+            _header = header;
             header.PointerPressed += (_, args) => HeaderPressed(args);
             header.PointerMoved += (_, args) => HeaderMoved(args);
             header.PointerReleased += (_, _) => HeaderReleased();
@@ -145,6 +147,18 @@ public class Docker : ContentControl
         // otherwise mark the workspace dirty for a click that did nothing.
         if (picked.Id != ActiveTab) TabPicked?.Invoke(this, picked.Id);
     }
+
+    /// <summary>
+    /// How deep this docker's header strip is, for the drop arithmetic.
+    /// </summary>
+    /// <remarks>
+    /// Read from the realised header rather than declared as a constant. The
+    /// header holds a tab strip now and its height follows the density scale,
+    /// so a hard-coded band would be right until the first time somebody
+    /// retuned the scale and then silently wrong — a drop target that no longer
+    /// matches the thing it is drawn over.
+    /// </remarks>
+    public double HeaderHeight => _header?.Bounds.Height ?? 0;
 
     private Point? _pressed;
 

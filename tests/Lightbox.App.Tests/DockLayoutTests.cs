@@ -307,4 +307,38 @@ public class DockLayoutTests
         Assert.False(layout.IsVisible(DockPanelId.Palette));
         Assert.Equal(300, layout.AreaExtents[DockSide.Right]);
     }
+
+    [Fact]
+    public void SizingASlotSizesEveryTabInIt()
+    {
+        // Extent is stored per panel, which was right when a panel was a slot.
+        // With tabs the members have to agree, or switching tab resizes the
+        // slot to whatever height that panel was last given on its own — the
+        // layout twitching every time you look at another tab.
+        var layout = DockLayout.Default();
+        layout.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
+
+        layout.SetExtent(DockPanelId.Color, 333);
+
+        Assert.Equal(333, layout.Place(DockPanelId.Color).Extent);
+        Assert.Equal(333, layout.Place(DockPanelId.Palette).Extent);
+    }
+
+    [Fact]
+    public void AStripIsSizedByTheTabsShowingNotTheOnesHidden()
+    {
+        // An uncapped panel removes the ceiling for a whole strip. Counting
+        // hidden tabs would let a tucked-away Layers tab widen the sidebar for
+        // a Colour panel that wants to stay narrow — a strip sized by something
+        // nobody can see.
+        var layout = DockLayout.Default();
+        layout.Dock(DockPanelId.Color, DockSide.Left, 0);
+        Assert.NotNull(layout.CapFor(DockSide.Left));   // Color is capped
+
+        layout.JoinGroup(DockPanelId.Layers, DockPanelId.Color);   // Layers is not
+        Assert.Null(layout.CapFor(DockSide.Left));                 // and it is showing
+
+        layout.Activate(DockPanelId.Color);                        // now it is not
+        Assert.NotNull(layout.CapFor(DockSide.Left));
+    }
 }

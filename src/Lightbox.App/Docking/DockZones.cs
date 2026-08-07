@@ -14,7 +14,18 @@ public readonly record struct DockRect(double X, double Y, double Width, double 
 }
 
 /// <summary>Where one docked panel currently is on screen.</summary>
-public readonly record struct PanelSlot(DockPanelId Id, DockSide Side, int Order, DockRect Bounds);
+/// <param name="HeaderHeight">
+/// How deep the panel's header strip is. Carried because dropping onto a
+/// header means something different from dropping onto the panel — the header
+/// tabs, the body inserts — and the arithmetic cannot know a header exists
+/// otherwise.
+/// </param>
+public readonly record struct PanelSlot(
+    DockPanelId Id, DockSide Side, int Order, DockRect Bounds, double HeaderHeight = 0)
+{
+    /// <summary>The header band, which is the tab target.</summary>
+    public DockRect Header => new(Bounds.X, Bounds.Y, Bounds.Width, Math.Min(HeaderHeight, Bounds.Height));
+}
 
 /// <summary>
 /// The answer to "if I let go here, what happens" — the strip, the position
@@ -28,6 +39,18 @@ public readonly record struct DropTarget(DockSide Side, int Index, DockRect Prev
     /// strip that is not there to see.
     /// </summary>
     public bool OpensArea { get; init; }
+
+    /// <summary>
+    /// Set when the drop tabs the panel into an existing slot rather than
+    /// making a new one. Names the panel whose slot to join.
+    /// </summary>
+    /// <remarks>
+    /// A separate field rather than a magic <see cref="Index"/> value, because
+    /// the two are genuinely different operations — one inserts a slot and
+    /// shifts everything after it, the other changes nobody's position. A
+    /// sentinel index would have made every caller remember which.
+    /// </remarks>
+    public DockPanelId? IntoGroupOf { get; init; }
 }
 
 /// <summary>
@@ -103,6 +126,14 @@ public static class DockZones
     private static DropTarget Beside(
         PanelSlot slot, double x, double y, DockPanelId dragged, IReadOnlyList<PanelSlot> slots)
     {
+        // The header first, because it is inside the upper half and would
+        // otherwise never be reachable: aiming at a header would insert the
+        // panel above the one whose tabs you were aiming for.
+        if (slot.HeaderHeight > 0 && slot.Header.Contains(x, y) && slot.Id != dragged)
+        {
+            return new DropTarget(slot.Side, slot.Order, slot.Header) { IntoGroupOf = slot.Id };
+        }
+
         var vertical = slot.Side is DockSide.Left or DockSide.Right;
         var along = vertical ? y - slot.Bounds.Y : x - slot.Bounds.X;
         var span = vertical ? slot.Bounds.Height : slot.Bounds.Width;

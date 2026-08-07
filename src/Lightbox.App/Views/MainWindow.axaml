@@ -3579,6 +3579,9 @@
            no pointer input at all — an overlay that did would swallow the very
            moves it exists to follow. -->
       <controls:DockDropIndicator x:Name="DropIndicator" Grid.RowSpan="5" />
+    <!-- Over the indicator, because the ghost is the thing in your hand and
+         the highlight is the thing on the table. Neither takes the pointer. -->
+    <controls:DockDragGhost x:Name="DragGhost" Grid.RowSpan="5" />
     </Grid>
 
 

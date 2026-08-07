@@ -184,6 +184,20 @@ public sealed class DockLayout
         return SlotsIn(placement.Side).FirstOrDefault(s => s.Contains(id)) ?? [id];
     }
 
+    /// <summary>
+    /// Set a slot's height, on every panel in it.
+    /// </summary>
+    /// <remarks>
+    /// Extent is stored per panel, which was right when a panel was a slot. With
+    /// tabs the members have to agree, or switching tab resizes the slot to
+    /// whatever height that panel was last given on its own — the layout
+    /// twitching every time you look at another tab.
+    /// </remarks>
+    public void SetExtent(DockPanelId id, double extent)
+    {
+        foreach (var member in SlotOf(id)) Place(member).Extent = extent;
+    }
+
     /// <summary>Show this panel in its slot, and stop showing its siblings.</summary>
     public void Activate(DockPanelId id)
     {

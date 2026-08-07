@@ -913,6 +913,7 @@ public partial class MainWindow : Window
 
     private void OnPanelDragReleased(object? sender, PointerReleasedEventArgs e)
     {
+        DragGhost.Hide();
         if (_dragging is not { } panel) return;
         var target = ResolveDrop(e);
         // Where the pointer is, in screen space, read before the drag state is
@@ -924,7 +925,9 @@ public partial class MainWindow : Window
 
         if (target is { } drop)
         {
-            _vm.Workspace.Dock(panel.PanelId, drop.Side, drop.Index);
+            // Onto a header: tab into that slot. Onto a body: a slot of its own.
+            if (drop.IntoGroupOf is { } host) _vm.Workspace.JoinGroup(panel.PanelId, host);
+            else _vm.Workspace.Dock(panel.PanelId, drop.Side, drop.Index);
             return;
         }
         // Let go over nothing: the panel floats. Dropping a panel into empty
@@ -947,9 +950,24 @@ public partial class MainWindow : Window
         _dragHost = null;
         _dragging = null;
         DropIndicator.Show(null);
+        DragGhost.Hide();
     }
 
-    private void UpdateDropTarget(PointerEventArgs e) => DropIndicator.Show(ResolveDrop(e));
+    /// <summary>
+    /// Both halves of the feedback: what is moving, and where it would land.
+    /// </summary>
+    private void UpdateDropTarget(PointerEventArgs e)
+    {
+        DropIndicator.Show(ResolveDrop(e));
+
+        // Null when the pointer cannot be mapped into this window — a drag that
+        // has wandered off a floating panel onto the desktop. The ghost lives in
+        // this window's overlay, so it stops at the edge rather than following.
+        if (_dragging is { } panel && PointerOverRoot(e) is { } at)
+        {
+            DragGhost.Show(DockPanels.TitleOf(panel.PanelId), at);
+        }
+    }
 
     private DropTarget? ResolveDrop(PointerEventArgs e)
     {
@@ -989,7 +1007,11 @@ public partial class MainWindow : Window
             if (visual.TranslatePoint(default, RootGrid) is not { } origin) continue;
             slots.Add(new PanelSlot(
                 id, side, layout.Place(id).Order,
-                new DockRect(origin.X, origin.Y, panel.Bounds.Width, panel.Bounds.Height)));
+                new DockRect(origin.X, origin.Y, panel.Bounds.Width, panel.Bounds.Height),
+                // Measured rather than assumed a constant: the header carries a
+                // tab strip now, and a band that does not match what is on
+                // screen is a drop target you cannot see to aim at.
+                panel.HeaderHeight));
         }
         return slots;
     }

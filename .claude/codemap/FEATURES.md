@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2771 tests, derived from the suite itself. Each line is a
+2782 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -636,6 +636,15 @@ regression even when every test still compiles.
 - ANever Saved Document Badges But Only Prompts Once Drawn In — `:179`
 - ASheet Edit Raises The Badge On Both Tabs — `:210`
 
+## DockDragGhostTests
+`tests/Lightbox.App.Tests/DockDragGhostTests.cs`
+
+- It Is Not There Until Something Is Being Dragged — `:20`
+- It Never Takes The Pointer — `:26`
+- Showing It Puts It On Screen And Hiding Takes It Off — `:41`
+- Hiding What Is Already Hidden Is Harmless — `:53`
+- It Follows The Pointer Without Being Rebuilt — `:68`
+
 ## DockLayoutTests
 `tests/Lightbox.App.Tests/DockLayoutTests.cs`
 
@@ -657,6 +666,8 @@ regression even when every test still compiles.
 - Cloning ALayout Keeps The Rulers And Guide Flags — `:230`
 - AClone Shares Nothing With The Original — `:250`
 - ALayout Saved Before Tabs Existed Still Loads — `:266`
+- Sizing ASlot Sizes Every Tab In It — `:312`
+- AStrip Is Sized By The Tabs Showing Not The Ones Hidden — `:328`
 
 ## DockZoneTests
 `tests/Lightbox.App.Tests/DockZoneTests.cs`
@@ -672,6 +683,10 @@ regression even when every test still compiles.
 - Dragging The Only Panel Of AStrip Over Itself Offers Nothing — `:102`
 - AGap Below AShort Stack Appends To It — `:110`
 - ATop Strip Splits Left To Right Rather Than Top To Bottom — `:126`
+- Dropping On AHeader Tabs Into That Slot — `:139`
+- Dropping On The Body Still Makes ASlot Of Its Own — `:161`
+- APanel Cannot Be Tabbed Into Itself — `:178`
+- AHeaderless Slot Offers No Tab Target — `:193`
 
 ## LayerRowTests
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
