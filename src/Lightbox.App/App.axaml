@@ -5,6 +5,12 @@
              x:Class="Lightbox.App.App"
              RequestedThemeVariant="Dark">
   <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <!-- The colour system. First, so everything below can name a role
+             instead of a hex value. See docs/DESIGN-ui-system.md. -->
+        <ResourceInclude Source="avares://Lightbox.App/Styles/Palette.axaml" />
+      </ResourceDictionary.MergedDictionaries>
     <!--
       The splash colour, and the only place it is written down.
 
@@ -14,7 +20,8 @@
       layer-group amber from MainWindow — sharing that literal would imply a
       relationship between the two that does not exist.
     -->
-    <SolidColorBrush x:Key="SplashBackgroundBrush" Color="#FF7A00" />
+      <SolidColorBrush x:Key="SplashBackgroundBrush" Color="#FF7A00" />
+    </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
     <FluentTheme />
@@ -31,19 +38,19 @@
 
     <!-- Docker: title strip, optional top/bottom option bars, content between. -->
     <Style Selector="controls|Docker">
-      <Setter Property="Background" Value="#242424" />
+      <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
       <Setter Property="Template">
         <ControlTemplate>
           <Border Background="{TemplateBinding Background}"
-                  BorderBrush="#383838" BorderThickness="1" CornerRadius="4">
+                  BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
             <DockPanel>
               <!--
                 The header is both the panel switcher and the drag grip.
 
-                The switcher is Blender's rule: the header names what this slot
-                shows, and picking another panel trades places with it rather
-                than opening a second copy. It renders as the title until you
-                click it, so a header still reads as a title.
+                Panels sharing a slot appear as tabs here, and a slot of one
+                renders as a plain title — so most dockers look exactly as they
+                always did. Blender's rule still holds underneath: no panel is
+                ever open twice, so "where is the palette" has one answer.
 
                 The switcher's negative margin is doing real work. It had no left
                 padding, so on hover — the only time its box is visible — the
@@ -58,7 +65,7 @@
                 and pull to move the panel. The threshold lives in Docker so a
                 click to focus is not a tear-out.
               -->
-              <Border x:Name="PART_Header" DockPanel.Dock="Top" Background="#1b1b1b" Padding="8,2">
+              <Border x:Name="PART_Header" DockPanel.Dock="Top" Background="{StaticResource BackgroundSecondaryBrush}" Padding="8,2">
                 <DockPanel>
                   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
                     <ContentPresenter Content="{TemplateBinding TitleBarExtra}" VerticalAlignment="Center" />
@@ -67,24 +74,36 @@
                             IsVisible="{TemplateBinding CloseCommand, Converter={x:Static ObjectConverters.IsNotNull}}"
                             ToolTip.Tip="Close this panel (reopen via the View menu)" />
                   </StackPanel>
-                  <ComboBox x:Name="PART_Switcher" DockPanel.Dock="Left"
-                            ItemsSource="{TemplateBinding SwitchTargets}"
-                            IsVisible="{TemplateBinding ShowSwitcher}"
-                            PlaceholderText="{TemplateBinding Title}"
-                            MinWidth="0" MinHeight="20" Height="20" FontSize="12" FontWeight="SemiBold"
-                            Background="Transparent" BorderThickness="0"
-                            Padding="6,0,4,0" Margin="-6,0,0,0"
-                            VerticalAlignment="Center"
-                            ToolTip.Tip="Show a different panel here — the two trade places">
-                    <ComboBox.ItemTemplate>
+                  <!--
+                    The tab strip, which is also the title.
+
+                    A slot holds one panel or several; with one, this renders as
+                    the plain title it always was, so an untabbed docker is
+                    unchanged. Tabs live in the header row rather than a row of
+                    their own because the whole point of tabbing is to spend less
+                    height, and a second row would hand most of it back.
+                  -->
+                  <ListBox x:Name="PART_Tabs" DockPanel.Dock="Left"
+                           ItemsSource="{TemplateBinding Tabs}"
+                           SelectedItem="{TemplateBinding ActiveTab}"
+                           Background="Transparent" BorderThickness="0"
+                           MinHeight="20" Padding="0" Margin="-6,0,0,0"
+                           VerticalAlignment="Center">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="2" />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="docking:DockPanelInfo">
-                        <TextBlock Text="{Binding Title}" FontWeight="Normal" />
+                        <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
+                                   Padding="6,0,6,0" VerticalAlignment="Center" />
                       </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                  </ComboBox>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                   <TextBlock Text="{TemplateBinding Title}" FontSize="12" FontWeight="SemiBold"
                              Opacity="0.9" VerticalAlignment="Center"
-                             IsVisible="{Binding !ShowSwitcher, RelativeSource={RelativeSource TemplatedParent}}" />
+                             IsVisible="{TemplateBinding Tabs, Converter={x:Static ObjectConverters.IsNull}}" />
                 </DockPanel>
               </Border>
               <ContentPresenter DockPanel.Dock="Top" Content="{TemplateBinding TopBar}" />
@@ -103,15 +122,18 @@
       along the edge and every icon in it stays the right way up.
     -->
     <Style Selector="controls|CanvasOverlayBar">
-      <Setter Property="Background" Value="#cc1f1f1f" />
+      <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
       <Setter Property="Template">
         <ControlTemplate>
           <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="2"
-                  BorderBrush="#3a3a3a" BorderThickness="1">
+                  BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
             <StackPanel Spacing="2"
                         Orientation="{Binding IsVertical, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
               <!-- Grip. Everything else in the bar is a button, so the grip
                    has to be its own target or a drag would press one. -->
+              <!-- Not a colour: a very nearly transparent fill is what makes the
+                   grip a hit target at all. Left as a literal because naming it
+                   in the palette would imply it is something you could re-skin. -->
               <Border x:Name="PART_Grip" Cursor="SizeAll" Background="#00000001"
                       MinWidth="12" MinHeight="12"
                       ToolTip.Tip="Drag to any edge of the canvas">
@@ -134,7 +156,7 @@
 
     <!-- Shared look for a docker's option bars. -->
     <Style Selector="Border.dockerBar">
-      <Setter Property="Background" Value="#202020" />
+      <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}" />
       <Setter Property="Padding" Value="6,4" />
     </Style>
   </Application.Styles>

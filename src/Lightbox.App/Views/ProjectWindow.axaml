@@ -29,11 +29,11 @@
       <Setter Property="CornerRadius" Value="3" />
       <Setter Property="Padding" Value="4,0" />
       <Setter Property="Margin" Value="0,0,3,0" />
-      <Setter Property="Background" Value="#22808080" />
+      <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
     </Style>
     <Style Selector="Border.bar">
       <Setter Property="Padding" Value="8,5" />
-      <Setter Property="Background" Value="#11808080" />
+      <Setter Property="Background" Value="{StaticResource BandTintBrush}" />
     </Style>
   </Window.Styles>
 
@@ -173,7 +173,7 @@
                     facets behind a click this sentence is the only place an
                     artist is told, and it is told at the moment of the act.
                   -->
-                  <TextBlock Classes="dim" TextWrapping="Wrap" Foreground="#c08040"
+                  <TextBlock Classes="dim" TextWrapping="Wrap" Foreground="{StaticResource StatusWarningBrush}"
                              Text="{Binding WhatClearingCosts}"
                              IsVisible="{Binding FolderHasReading}" />
                   <Button Content="Clear the reading" HorizontalAlignment="Left"
@@ -282,7 +282,7 @@
                   can check.
                 -->
                 <Border Width="190" Margin="3" Padding="6"
-                        Background="#0C808080" CornerRadius="4"
+                        Background="{StaticResource BandTintBrush}" CornerRadius="4"
                         DragDrop.AllowDrop="True"
                         DragDrop.DragOver="OnStatusDragOver"
                         DragDrop.Drop="OnStatusDrop">
@@ -301,7 +301,7 @@
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:BoardRow">
                           <Border Padding="5,3" Margin="0,0,0,3" CornerRadius="3"
-                                  Background="#14808080"
+                                  Background="{StaticResource HoverTintBrush}"
                                   PointerPressed="OnStatusCardPressed">
                             <StackPanel>
                               <TextBlock Text="{Binding Name}" FontSize="11"
@@ -415,19 +415,19 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ProjectWindowViewModel+ExportRow">
                   <Border Padding="6" Margin="0,0,0,4" CornerRadius="3"
-                          Background="#0C808080">
+                          Background="{StaticResource BandTintBrush}">
                     <StackPanel Spacing="2">
                       <DockPanel>
                         <TextBlock DockPanel.Dock="Right" Classes="dim" Text="{Binding Preset}" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
                           <TextBlock Text="{Binding Scope}" FontWeight="SemiBold" FontSize="11" />
                           <TextBlock Classes="dim" Text="{Binding Count}" />
-                          <TextBlock Classes="dim" Foreground="#c08040"
+                          <TextBlock Classes="dim" Foreground="{StaticResource StatusWarningBrush}"
                                      Text="empty" IsVisible="{Binding IsEmpty}" />
                         </StackPanel>
                       </DockPanel>
                       <TextBlock Classes="dim" Text="{Binding Contents}" TextWrapping="Wrap" />
-                      <TextBlock Classes="dim" Foreground="#c08040"
+                      <TextBlock Classes="dim" Foreground="{StaticResource StatusWarningBrush}"
                                  Text="{Binding Excluded}" IsVisible="{Binding HasExcluded}" />
                     </StackPanel>
                   </Border>

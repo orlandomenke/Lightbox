@@ -80,6 +80,26 @@ reported 100% coverage on an empty image.
 - [ ] After the handoff, typing goes to the main window without clicking it first. (Focus is the one part of the sequence no test here can reach.)
 - [ ] The canvas shows a white 960×540 "paper" centered on a dark background, scaled to fit the window; resizing the window rescales it without distortion.
 
+## Tabbed dockers (B121)
+
+- [ ] Drag a panel's header onto another panel's **header**. They become tabs in one
+      slot, and the one you dropped is the one showing.
+- [ ] Drag onto the panel's **body** instead. It gets a slot of its own, above or
+      below depending on which half you dropped in — unchanged from before.
+- [ ] While dragging, a ghost follows the pointer naming the panel, and the landing
+      region highlights. Both at once, and they read as one gesture.
+- [ ] Let go over nothing. The ghost disappears. Press Escape mid-drag, or drag out of
+      the window and back: still no ghost left behind.
+- [ ] Click between two tabs. The slot does **not** change height.
+- [ ] Drag the last tab out of a group. The remaining panel goes back to a plain title.
+- [ ] Clicking a tab switches it — it does not tear the panel out. (This is the one
+      that broke first in development.)
+- [ ] The picker shows `*` after any of the above, and **closing and reopening the app
+      brings the saved arrangement back** — the rearrangement is session-only until
+      *View ▸ Workspace ▸ Save current workspace*.
+- [ ] A `workspaces.json` written before this change still opens, with every panel in
+      a slot of its own.
+
 ## Painting
 
 - [ ] Left-drag paints a black stroke that follows the cursor with no visible lag or rubber-banding.

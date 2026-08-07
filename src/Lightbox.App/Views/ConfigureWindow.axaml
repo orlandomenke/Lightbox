@@ -9,7 +9,7 @@
   <Grid ColumnDefinitions="150,1,*">
 
     <!-- Categories (left) -->
-    <ListBox x:Name="CategoryList" Grid.Column="0" SelectedIndex="0" Background="#1c1c1c"
+    <ListBox x:Name="CategoryList" Grid.Column="0" SelectedIndex="0" Background="{StaticResource BackgroundSecondaryBrush}"
              SelectionChanged="OnCategoryChanged">
       <ListBoxItem Content="Shortcuts" />
       <ListBoxItem Content="Performance" />
@@ -21,7 +21,7 @@
       <ListBoxItem Content="AI" />
     </ListBox>
 
-    <Border Grid.Column="1" Background="#141414" />
+    <Border Grid.Column="1" Background="{StaticResource BackgroundPrimaryBrush}" />
 
     <!-- Content (center): shortcuts page -->
     <DockPanel x:Name="ShortcutsPage" Grid.Column="2" Margin="10">
@@ -31,7 +31,7 @@
                TextChanged="OnSearchChanged" Margin="0,0,0,8" />
 
       <!-- Conflict warning: shown before a clashing binding can be committed -->
-      <Border x:Name="ConflictBar" DockPanel.Dock="Bottom" Background="#4a3320" CornerRadius="4"
+      <Border x:Name="ConflictBar" DockPanel.Dock="Bottom" Background="{StaticResource StatusWarningSurfaceBrush}" CornerRadius="4"
               Padding="10,8" Margin="0,8,0,0" IsVisible="False">
         <DockPanel>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
@@ -107,7 +107,7 @@
           </DockPanel>
         </StackPanel>
 
-        <Border Background="#20262c" CornerRadius="4" Padding="10">
+        <Border Background="{StaticResource SurfaceElevatedBrush}" CornerRadius="4" Padding="10">
           <StackPanel Spacing="4">
             <TextBlock Text="Measured now" FontWeight="SemiBold" FontSize="12" />
             <TextBlock x:Name="MeasuredText" FontSize="11" Opacity="0.85" TextWrapping="Wrap" />
@@ -195,7 +195,7 @@
           <ItemsControl x:Name="GridsHost">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="views:GridRow">
-                <Border Background="#20262c" CornerRadius="4" Padding="10" Margin="0,0,0,6">
+                <Border Background="{StaticResource SurfaceElevatedBrush}" CornerRadius="4" Padding="10" Margin="0,0,0,6">
                   <StackPanel Spacing="6">
                     <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" />
                     <DockPanel>
@@ -310,7 +310,7 @@
           <TextBlock x:Name="AiTestExplain" TextWrapping="Wrap" FontSize="11" Opacity="0.6" />
         </StackPanel>
 
-        <Border Background="#20262c" CornerRadius="4" Padding="10">
+        <Border Background="{StaticResource SurfaceElevatedBrush}" CornerRadius="4" Padding="10">
           <StackPanel Spacing="4">
             <TextBlock Text="The other direction" FontWeight="SemiBold" FontSize="12" />
             <TextBlock FontSize="11" Opacity="0.75" TextWrapping="Wrap"
