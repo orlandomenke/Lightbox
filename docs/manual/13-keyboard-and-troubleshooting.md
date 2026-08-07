@@ -166,8 +166,8 @@ Not built. Listed so the gap is visible rather than implied.
 **Drawing**
 - Pixel-perfect mode
 - Brush symmetry
-- Perspective rulers, vanishing points, grid and snapping
-- Shape tools and vector guides
+- Reshaping a line after you have drawn it — picking a stroke, dragging its
+  points, a pen tool
 - Pattern fills
 
 **Layers**

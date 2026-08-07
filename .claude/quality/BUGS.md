@@ -202,6 +202,32 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### project
 
+- [ ] **B133** `P2` `project` A shared reference is written and never read, and the manual promises two kinds nothing can create `evidence: ASharedReferenceReachesTheDocumentsUnderIt, ASheetCanBeSharedOnAFolder, AnImageCanBeSharedOnAFolder`
+  - Measured by comparing the five scoped kinds against each other. Every other kind is declared **and consumed**; references are declared only:
+
+    ```
+    PaletteScopes.VisibleTo   -> MainViewModel.cs:1938        consumed
+    GradientScopes.VisibleTo  -> MainViewModel.cs:1947        consumed
+    SymbolScopes.VisibleTo    -> SymbolBrowserViewModel.cs:210 consumed
+    TipScopes.VisibleTo       -> TipStore.cs:105              consumed
+    ReferenceScopes.VisibleTo -> (nothing in src/)            never read
+    ReferenceScopes.OfTarget  -> (nothing in src/)            never read
+    ```
+
+  - So **"Use this as reference" writes an entry into the manifest and nothing anywhere resolves it.** The declaration shows up in the folder's *Stop sharing* and *Reach* lists (`ProjectViewModel.cs:1228` labels it `"Reference"`), which is the whole of what it does. No drawing is ever shown a reference because a folder shares one.
+  - **Two of the three targets have no producer either.** `ScopedResource.Target` exists precisely because *"a reference is different"* and needs a second word (`ResourceScopes.cs:60-75`), and `ReferenceTargets` declares `Sheet`, `Document` and `Image`. The only production caller is `ProjectViewModel.ShareSelectedAsReference` (`:1136`), which always passes `Document`. `Sheet` and `Image` appear in tests and nowhere else in `src/`.
+  - **And the manual sells all three** — `docs/manual/02-documents-and-projects.md`, *"References a document draws against"*, with a row reading *"**An image** | A photo or a scan, brought in."* There is no way to share an image as a reference and nothing would read it if there were. `CLAUDE.md` is explicit that this is the worst kind: *"a manual that documents a feature nobody can use is worse than no manual, because it cannot be trusted anywhere."*
+  - P2 on reach and silence rather than severity, the same reasoning as B114: it is invisible, it affects the scoping feature Q30 shipped, and it makes a documented capability look implemented while doing nothing. Nothing is corrupted and no work is lost, so not P1.
+  - **Not to be confused with the reference that works.** `ReferenceStrip` — View → Reference, the imported sheet laid against the timeline — is fully built, embedded, animated and consumed. The two systems are entirely disconnected: what actually appears under a drawing is `Scene.References` on the document, never a scoped declaration. Fixing this means deciding whether they should meet, which is a design question and not this entry's to answer.
+  - Fix: either wire a consumer (a document resolves the references reaching it and offers them, the way `TipStore` does) or withdraw the claim from the manual and mark it *Planned*. The manual half is a two-line honesty fix and is worth doing immediately either way. Cost: S for the manual, M for the consumer.
+
+- [ ] **B132** `P2` `project` A symbol cannot be placed on a vector layer, and nothing records a reason `evidence: ASymbolCanBePlacedOnAnyLayer, AVectorFrameCarriesItsPlacements, AFrameWithNoPlacementsWritesNoPlacementsKey`
+  - Repro: add a vector layer, select a symbol, place it. Nothing happens. `MainViewModel.Symbols.cs:738` returns early on `activeLayer.Kind != LayerKind.Painted`, and the guard is silent — no status line, no refusal message, no cursor change.
+  - Cause is structural rather than a policy: `PaintedFrame` has `Placements`, `VectorFrame` does not (`Frame.cs`). The check exists because the field does not, and **no design doc, question or roadmap item gives a reason why a symbol should need raster pixels underneath it.** A placement is a reference plus a transform; it has nothing to do with a baseline PNG. `SymbolRasterizer.Render` already handles both frame kinds (`SymbolRasterizer.cs:245-246`), so the renderer was written expecting this to work.
+  - P2 rather than P3 on two counts. It is **silent** — the one failure mode `bugs.py`'s own conventions treat as worse than a crash, because the artist concludes the symbol is broken rather than the layer. And it **blocks Q52**: with the layer picker removed, new layers are stroke layers, so placing a symbol would stop working everywhere rather than on the layer kind nobody picks today.
+  - Fix: move `Placements` onto `Frame` (nullable, absent unless used, as it already is) and delete the guard. `FrameConverter` gains the key on the vector branch; `FrameBitmapCache.cs:100,146` and `MainViewModel.cs:4724` already null-check rather than assuming. Cost: S.
+  - The larger question this opens is recorded in Q52 rather than here: once placements are on both, `PngBase64` is the only difference left between the two frame classes, and they want to be one class with a nullable baseline.
+
 - [ ] **B81** `P3` `project` Two questions are called Q20 and two are called Q21, so a cross-reference can land on the wrong one `evidence: manual`
   - Repro: `python3 scripts/bugs.py check` already reports it — `DUPLICATE Q Q20 used 2 times`. `QUESTIONS.md` has **Q20** at both *"What frame bounds does an Asset project export from an unbounded canvas?"* and *"When a textured line is re-shaped, may its texture change?"*, and **Q21** at both *"Is the infinite canvas a document property or a project-type default?"* and *"How big does a reference the model has to read need to be?"*.
   - It is already wrong in the docs rather than merely risky: `docs/DESIGN-ai-payload.md` cites **Q21** meaning reference-image size while `docs/DESIGN-infinite-canvas.md` and `ROADMAP.md` cite **Q21** meaning the canvas property. Same token, two referents, no way for a reader to tell which without opening the file and guessing from context.
