@@ -34,6 +34,11 @@ reported 100% coverage on an empty image.
 ## Launch
 
 - [ ] `dotnet run --project src/Lightbox.App` opens a dark-themed window titled "Lightbox".
+- [ ] A plain orange panel with no title bar appears first, and does not appear in the taskbar.
+- [ ] It stays up for a moment even on a fast machine — it never blinks in and out. (The minimum is asserted in `StartupTimingTests`; whether it *reads* as a flash is this line.)
+- [ ] The main window replaces it with no flash of an empty or white window in between, and the panel does not linger over the main window.
+- [ ] The start screen appears **over the main window**, centred on it, with the orange panel already gone.
+- [ ] After the handoff, typing goes to the main window without clicking it first. (Focus is the one part of the sequence no test here can reach.)
 - [ ] The canvas shows a white 960×540 "paper" centered on a dark background, scaled to fit the window; resizing the window rescales it without distortion.
 
 ## Painting
@@ -253,4 +258,11 @@ headless can open a window and click Delete.
 ## Windows bundle (no admin)
 
 - [ ] The Actions artifact unzips and `Lightbox.App.exe` starts on a machine with no .NET installed and no admin rights.
-- [ ] `Lightbox.Mcp.exe` works as the Claude Desktop MCP command from the same bundle, at the bundle root beside `Lightbox.App.exe` (it moved out of `mcp\` — B32).
+- [ ] **B115** — double-clicking `Lightbox.App.exe` opens the Lightbox window and **no console or PowerShell window at all**, and there is no second taskbar entry. Nothing on screen can be closed that takes the app down except the app's own window.
+- [ ] **B115** — `Lightbox.Mcp.exe` still runs as a stdio server and Claude Desktop still lists the Lightbox tools. This is the check that catches `WinExe` applied to the wrong project: a stdio server with no stdin fails silently, and the tools simply do not appear.
+- [ ] **B115** — with `LIGHTBOX_TRACE=1` set, running `Lightbox.App.exe` from a terminal still prints trace lines to that terminal.
+- [ ] **B117** — force a crash (easiest: rename `libSkiaSharp.dll` so the canvas cannot start). A dialog names a file under `…\Lightbox\logs\`, and answering **Yes** opens that folder. The file names the build sha, not just "1.0.0".
+- [ ] **B117** — dismiss that dialog, put the DLL back, and start again. The status strip says the previous run ended unexpectedly and names the file. Start a third time: it does **not** say so again.
+- [ ] **B116** — `Lightbox.Mcp.exe` works as the Claude Desktop MCP command from `mcp\`, beside `Lightbox.App.exe`. (It moved back into `mcp\`; it was at the bundle root for one stretch of builds — B32.)
+- [ ] **B116** — the bundle root holds `Lightbox.App.exe`, three native DLLs and the `mcp\` folder, and nothing else.
+- [ ] **B116** — `Lightbox.App.exe` starts from the single-file bundle on a machine with no .NET, and rendering is **hardware**: a large document pans and zooms at the usual speed. This is the check that catches a native library silently not resolving — Avalonia falls back to software rendering rather than failing, so the symptom is "the new build feels slow" rather than an error.

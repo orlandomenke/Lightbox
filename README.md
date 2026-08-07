@@ -81,7 +81,7 @@ Prefer building yourself? Install the .NET SDK per-user (no admin) with the offi
 
 ## Use Claude without an API key — the MCP server
 
-If you have the **Claude Desktop app** (Pro is enough), your subscription can drive Lightbox directly — no API key. The bundle ships an MCP server (`Lightbox.Mcp.exe`, beside `Lightbox.App.exe`) that exposes Lightbox to Claude as tools: `get_scene`, `get_frame_strokes`, `render_frame` (Claude *sees* your drawing), `insert_inbetweens`, and `draw_strokes`. Everything Claude does arrives through the same validation and undo path as your own edits — one Ctrl+Z removes it.
+If you have the **Claude Desktop app** (Pro is enough), your subscription can drive Lightbox directly — no API key. The bundle ships an MCP server (`Lightbox.Mcp.exe`, in the `mcp\` folder beside `Lightbox.App.exe`) that exposes Lightbox to Claude as tools: `get_scene`, `get_frame_strokes`, `render_frame` (Claude *sees* your drawing), `insert_inbetweens`, and `draw_strokes`. Everything Claude does arrives through the same validation and undo path as your own edits — one Ctrl+Z removes it.
 
 Setup:
 
@@ -92,20 +92,33 @@ Setup:
 {
   "mcpServers": {
     "lightbox": {
-      "command": "C:\\Users\\you\\AppData\\Local\\Lightbox\\Lightbox.Mcp.exe",
+      "command": "C:\\Users\\you\\AppData\\Local\\Lightbox\\mcp\\Lightbox.Mcp.exe",
       "args": []
     }
   }
 }
 ```
 
-> **Upgrading from a bundle built before this changed?** The server used to sit
-> in an `mcp\` subfolder, so an older config points at
-> `…\Lightbox\mcp\Lightbox.Mcp.exe`. Drop the `mcp\` and it works. The move is
-> what stopped the bundle shipping a second copy of .NET — 105 MB down to 74 —
-> because a self-contained executable only finds its runtime beside itself, so a
-> subfolder had to carry its own. Claude Desktop does not report a bad `command`
-> loudly: the server simply fails to start and the Lightbox tools are missing.
+> **Upgrading?** The server lives in `mcp\` — and this path has now moved
+> twice, so check which one your config has rather than assuming:
+>
+> - Pointing at `…\Lightbox\Lightbox.Mcp.exe` (the bundle root)? Add the `mcp\`.
+>   That was the layout for one stretch of builds and is the one that changed.
+> - Pointing at `…\Lightbox\mcp\Lightbox.Mcp.exe` already? Nothing to do — the
+>   oldest configs are correct again.
+>
+> Being asked to edit this twice is a fair complaint, so here is the reason
+> plainly. It first moved *out* of `mcp\` because a self-contained executable
+> only finds its runtime beside itself, so a subfolder had to carry a second
+> copy of .NET — 105 MB down to 74 to remove it. It has now moved *back*
+> because the app ships as a single file: its runtime is inside
+> `Lightbox.App.exe`, so there is nothing in the folder left to share and the
+> server carries its own wherever it sits. What that bought is a bundle root of
+> four files instead of 266, for 2 MB of download — the duplicated runtime is
+> very nearly paid for by no longer shipping 105 MB of native debug symbols.
+>
+> Claude Desktop does not report a bad `command` loudly: the server simply fails
+> to start and the Lightbox tools are missing.
 
 3. Fully quit Claude Desktop (from the tray) and reopen — servers load at startup.
 4. Draw two keyframes in Lightbox, then ask Claude something like:

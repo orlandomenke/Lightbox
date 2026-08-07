@@ -76,6 +76,32 @@ time in Configure, and it will stay changed.
 repaint and per frame, the headroom left, and what is worth changing about the
 document if there is none.
 
+## When something goes wrong
+
+If Lightbox closes on its own, it writes down what happened before it goes. You
+get a message naming the file and offering to open the folder it is in; if the
+failure was bad enough that the message could not be shown, the next start says
+so in the status strip instead.
+
+The file lives with your other Lightbox settings, in a `logs` folder inside your
+app data folder — the same place the autosave recovery copy goes. It holds the
+time, the exact build, your operating system, and what failed. **Attaching it to
+a bug report is the single most useful thing you can do**, because it names the
+build: "the newest one" is several different programs a week.
+
+Two smaller things end up in the same folder:
+
+- `diagnostics.log` — problems Lightbox survived rather than closed for. The
+  canvas is built to keep drawing through a failure rather than take the window
+  down with it, and this is where it notes that it did. Each kind is recorded
+  **once per session**: a fault in the drawing loop can repeat hundreds of times
+  a second, and a log that grows by a megabyte a second is a second problem
+  rather than a record of the first.
+- The status strip also names the file at the moment such a problem happens, so
+  you can tell "that looked wrong" from "something actually broke".
+
+Nothing here is sent anywhere. It is written to your own disk and stays there.
+
 ## Planned
 
 Not built. Listed so the gap is visible rather than implied.

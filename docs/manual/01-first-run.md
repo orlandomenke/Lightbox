@@ -2,7 +2,13 @@
 
 ## First run
 
-Lightbox opens on an untitled document — 960 × 540 at 12 fps, on white paper —
+While Lightbox loads, a plain orange panel with the application's name sits in
+the middle of the screen. It stays for about half a second and then the main
+window replaces it. It is deliberately plain — a placeholder, not a design —
+and it appears once Lightbox is far enough along to draw anything at all, so on
+a cold start there is still a moment before it shows up.
+
+Lightbox then opens on an untitled document — 960 × 540 at 12 fps, on white paper —
 with a brush selected. You can draw immediately. Nothing has to be created,
 named or configured first.
 

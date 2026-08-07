@@ -20,10 +20,57 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <!--
+      WinExe, not Exe: on Windows this is the difference between a
+      GUI-subsystem apphost and a console-subsystem one. A console-subsystem
+      executable with no console gets one allocated and attached, which is the
+      terminal window that used to open beside the app and take the app down
+      with it when closed. Lightbox.Mcp and Lightbox.Bench stay Exe — a stdio
+      server and a CLI harness want the console they are given.
+    -->
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <!--
+    Publishing for a specific runtime bundles the app into one executable.
+
+    Conditioned on the RID rather than set outright, and that condition is
+    load-bearing: an unconditional PublishSingleFile fails any publish that has
+    no RuntimeIdentifier, and this repository builds and tests on Linux without
+    one all day. Keyed this way the group is empty on every path `dotnet build`
+    and `dotnet test` take, and populated only when somebody is producing a
+    bundle to ship.
+
+    Native libraries stay loose beside the executable on purpose. See
+    docs/DESIGN-net10-upgrade.md: .NET 10 stopped unconditionally adding a
+    single-file app's own directory to the native search path, and Avalonia
+    loads ANGLE through a raw LoadLibrary that never consulted it anyway.
+    Self-extracting the natives into %TEMP% is the configuration where those two
+    facts collide, and the failure is silent — the app falls back to software
+    rendering and simply feels slow. Three named files in the folder cost
+    nothing at runtime and sidestep the question entirely.
+  -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <!--
+    Native debug symbols are not part of a shipped bundle.
+
+    Measured before removing them: libSkiaSharp.pdb is 84 MB and
+    libHarfBuzzSharp.pdb is 21 MB, so 105 MB of a 216 MB publish was symbols for
+    somebody else's C++. DebugType=none does not touch these — they are not this
+    project's pdbs, they arrive as native runtime assets from the NuGet packages
+    and the SDK copies everything under runtimes/<rid>/native/.
+  -->
+  <Target Name="RemoveNativeSymbolsFromPublish" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
 
 </Project>
