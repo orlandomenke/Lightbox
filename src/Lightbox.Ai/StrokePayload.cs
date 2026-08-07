@@ -48,6 +48,19 @@ public static class StrokeWire
         [JsonPropertyName("inbetweens")] public List<InbetweenFrameDto> Inbetweens { get; set; } = [];
     }
 
+    public sealed class SubjectPartDto
+    {
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+        [JsonPropertyName("parent")] public string? Parent { get; set; }
+        [JsonPropertyName("depth")] public int Depth { get; set; }
+    }
+
+    public sealed class SubjectResultDto
+    {
+        [JsonPropertyName("kind")] public string Kind { get; set; } = "";
+        [JsonPropertyName("parts")] public List<SubjectPartDto> Parts { get; set; } = [];
+    }
+
     // ---- outbound: Core -> wire --------------------------------------------
 
     public static StrokeDto ToWire(Stroke s)

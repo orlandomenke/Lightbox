@@ -28,6 +28,32 @@ is drawing. They are sent at up to 768 pixels on the long edge — your sheet ke
 whatever size you drew it at, and only the copy in the request is smaller. Hide
 every layer in a view and it stops being sent.
 
+## Reading a character
+
+Right-click a character in the **Project** panel and choose **Read this
+character…**. The model looks at that character's sheets and writes down what it
+is — a biped, say, with a head, a torso and two arms, and which arm is normally
+in front. That reading then rides along with every inbetween of that character,
+so the model knows the arm passes in front of the body instead of guessing.
+
+**Once per character, not once per frame.** The answer is kept on the character
+in the project, so a twenty-four frame cycle pays for it once and the next
+animation of the same character pays nothing at all.
+
+**It is yours to correct.** Once you have edited a reading, Lightbox will not
+overwrite it — asking again says so rather than throwing your corrections away.
+A reading is a starting point, and where you have said what something is, that
+is what it is.
+
+Two things it deliberately does not do. It never describes a *pose* — where an
+arm is in frame 12 changes every frame and is not worth keeping. And it never
+reaches a pixel: delete every reading in a project and your drawings render
+exactly the same, because the reading tells the model what it is looking at and
+nothing else.
+
+A character with no sheets has nothing to read; draw one first, or make a layer
+on it visible.
+
 ## Turning AI off
 
 **Edit ▸ Configure ▸ AI ▸ Use AI assistance.** On by default. Off removes the

@@ -60,6 +60,15 @@ public sealed class OpenAiArtist : IAiArtist
         return StrokeParsing.Inbetweens(call, request.Scene, _label);
     }
 
+    public async Task<AiResult<Core.Projects.SubjectTaxonomy>> ReadSubjectAsync(
+        SubjectRequest request, CancellationToken ct)
+    {
+        var call = await CallAsync(
+            Prompts.SubjectSystem, Prompts.SubjectUser(request),
+            "subject_result", StrokeSchemas.SubjectResult, request.ReferenceImages, ct);
+        return StrokeParsing.Subject(call, _label);
+    }
+
     private sealed class Choice
     {
         [JsonPropertyName("message")] public Message? Message { get; set; }

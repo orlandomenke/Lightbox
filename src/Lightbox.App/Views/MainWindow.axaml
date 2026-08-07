@@ -2033,6 +2033,14 @@
                                       ToolTip.Tip="Everything under it, grouped the way its preset says. Counts what it would write before writing anything." />
                             <MenuItem Header="Test export" Click="OnProjectTestExport"
                                       ToolTip.Tip="This one drawing, into test-exports/ beside the project. Never over a deliverable." />
+                            <Separator />
+                            <!--
+                              Here rather than in the AI bar because a reading
+                              belongs to a character, and a character lives in
+                              this panel. The AI bar acts on the open drawing.
+                            -->
+                            <MenuItem Header="Read this character…" Click="OnProjectReadSubject"
+                                      ToolTip.Tip="Ask the model what this character is, from its sheets. Once per character — the answer is kept and you can edit it." />
                             <!--
                               Q30's declaration surface. Four kinds resolved
                               correctly and could not be declared from anywhere

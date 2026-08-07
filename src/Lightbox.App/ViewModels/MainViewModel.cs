@@ -8345,7 +8345,8 @@ public sealed partial class MainViewModel : ObservableObject
             StrokeRecordCleaner.EffectiveStrokes(StrokesOf(layer.Cels[bIndex].Frame!)),
             ts,
             TweenEasing,
-            CollectReferenceImages());
+            CollectReferenceImages(),
+            TaxonomyForActiveDocument());
 
         var result = await RunAiAsync(
             $"{AiProviderLabel} is drawing {TweenCount} inbetween(s)…",
@@ -8360,6 +8361,72 @@ public sealed partial class MainViewModel : ObservableObject
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
         AiStatus = $"Inserted {frames.Count} AI inbetween(s).";
     }
+
+    /// <summary>
+    /// What the project knows about the character this document belongs to, or
+    /// null when there is no project, no owning character, or nothing read yet.
+    /// </summary>
+    /// <remarks>
+    /// Null is the ordinary answer and costs nothing: a request with no
+    /// taxonomy is byte-for-byte the request Lightbox sent before this feature
+    /// existed. Optional means absent here too.
+    /// </remarks>
+    private SubjectTaxonomy? TaxonomyForActiveDocument() =>
+        ProjectDocker.Project is { } project
+            ? project.Manifest.CharacterOwning(SaveTargetTab?.Source?.Id)?.Taxonomy
+            : null;
+
+    /// <summary>
+    /// Read what the selected character is, from the sheets drawn of it, and
+    /// keep the answer on the character.
+    /// </summary>
+    /// <remarks>
+    /// Once per character rather than once per frame — the whole economic
+    /// argument for storing it. A 24-frame cycle pays for this once, and the
+    /// next animation of the same character pays nothing.
+    ///
+    /// It refuses to overwrite a reading somebody has edited. A guess is a
+    /// default, never an override of something a person stated, and a re-read
+    /// that silently discarded an artist's corrections would teach them not to
+    /// make any.
+    /// </remarks>
+    [RelayCommand]
+    private async Task AiReadSubjectAsync()
+    {
+        if (_artist is null || AiBusy) return;
+        if (ProjectDocker.Project is null)
+        {
+            AiStatus = "Reading a subject needs a project — that is where a character lives.";
+            return;
+        }
+        if (ProjectDocker.SelectedCharacter is not { } character)
+        {
+            AiStatus = "Select a character in the Project panel first.";
+            return;
+        }
+        if (character.Taxonomy is { Reviewed: true })
+        {
+            AiStatus = $"“{character.Name}” has a reading you edited. Clear it first to read again.";
+            return;
+        }
+        if (CollectReferenceImages() is not { Count: > 0 } sheets)
+        {
+            AiStatus = "No character sheet to read — draw one, or make a layer on it visible.";
+            return;
+        }
+
+        var taxonomy = await RunAiAsync(
+            $"{AiProviderLabel} is reading “{character.Name}”…",
+            ct => _artist.ReadSubjectAsync(new SubjectRequest(character.Name, sheets), ct));
+        if (taxonomy is null) return;
+
+        character.Taxonomy = taxonomy;
+        ProjectDocker.MarkManifestChanged();
+        AiStatus = $"Read “{character.Name}”: {taxonomy.Kind}, "
+                 + $"{Plural(taxonomy.Parts.Count, "part")}. Edit it and it will not be overwritten.";
+    }
+
+    private static string Plural(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 
     /// <summary>Shared busy/cancel/error plumbing for AI calls; null on failure.</summary>
     private async Task<T?> RunAiAsync<T>(string busyMessage, Func<CancellationToken, Task<AiResult<T>>> call)

@@ -1,5 +1,6 @@
 using Lightbox.Core.Documents;
 using Lightbox.Core.Inbetween;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.Ai;
 
@@ -11,7 +12,21 @@ public sealed record InbetweenRequest(
     IReadOnlyList<Stroke> KeyframeB,
     IReadOnlyList<double> Ts,
     Easing Easing,
-    IReadOnlyList<string>? ReferenceImages = null);
+    IReadOnlyList<string>? ReferenceImages = null,
+    SubjectTaxonomy? Taxonomy = null);
+
+/// <summary>
+/// Ask what a character is, from the sheets the artist drew of it.
+/// </summary>
+/// <remarks>
+/// The taxonomy half of a subject reading — once per character, not once per
+/// frame. That distinction is the whole economic argument: a 24-frame cycle
+/// pays for this once instead of twenty-four times, and the second animation
+/// of the same character pays nothing.
+/// </remarks>
+public sealed record SubjectRequest(
+    string CharacterName,
+    IReadOnlyList<string> ReferenceImages);
 
 /// <summary>One generated inbetween: its timing parameter and its strokes.</summary>
 public sealed record InbetweenFrameResult(double T, List<Stroke> Strokes);
@@ -37,4 +52,11 @@ public interface IAiArtist
 {
     Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(
         InbetweenRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// Read what a character is, from the sheets drawn of it. Once per
+    /// character; the answer is stored on the character and edited by hand.
+    /// </summary>
+    Task<AiResult<SubjectTaxonomy>> ReadSubjectAsync(
+        SubjectRequest request, CancellationToken ct);
 }

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2591 tests, derived from the suite itself. Each line is a
+2614 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -119,6 +119,29 @@ regression even when every test still compiles.
 - Hitting The Output Limit Is Truncation Rather Than AParse Failure — `:165`
 - Something That Is Not AChat Completion Says So — `:176`
 
+## SubjectReadingTests
+`tests/Lightbox.Ai.Tests/SubjectReadingTests.cs`
+
+- An Ordinary Reading Survives Intact — `:28`
+- APart Naming AParent Nobody Declared Is Orphaned Rather Than Kept — `:53`
+- APart Cannot Be Its Own Ancestor — `:68`
+- The Same Name Twice Is One Part — `:100`
+- AReading With No Parts Is AFailure Rather Than An Empty Answer — `:116`
+- The Schema Cannot Carry Geometry — `:128`
+- Without ATaxonomy The Request Is The One Lightbox Always Sent — `:161`
+- The Taxonomy Goes At The Front Where ACache Prefix Can Cover It — `:169`
+- ATaxonomy Is Cheap Against The Frame Data It Rides On — `:205`
+- ATaxonomy Round Trips Through The Project File — `:233`
+- ACharacter That Was Never Read Writes No Key — `:250`
+- An Animation Finds The Character That Owns It — `:264`
+- An Animation Reached Through AVariant Still Belongs To Its Character — `:281`
+
+## TaxonomyMeasurementTests
+`tests/Lightbox.Ai.Tests/TaxonomyMeasurementTests.cs`
+
+- The Two Arms Of The Comparison Differ In Exactly The Taxonomy — `:98`
+- Does The Taxonomy Alone Improve An Inbetween — `:113`
+
 ## ActiveColorTests
 `tests/Lightbox.App.Tests/ActiveColorTests.cs`
 
@@ -159,12 +182,12 @@ regression even when every test still compiles.
 ## AiIntegrationTests
 `tests/Lightbox.App.Tests/AiIntegrationTests.cs`
 
-- No Artist Disables Ai — `:46`
-- Ai Inbetween Inserts Frames Through Shared Path — `:55`
-- Ai Inbetween Refusal Surfaces Message No Mutation — `:86`
-- Ai Inbetween Without Second Key Asks For One — `:102`
-- Ai Inbetween Refuses ALocked Layer — `:112`
-- The Artist Interface Offers Inbetweening And Nothing Else — `:142`
+- No Artist Disables Ai — `:56`
+- Ai Inbetween Inserts Frames Through Shared Path — `:65`
+- Ai Inbetween Refusal Surfaces Message No Mutation — `:96`
+- Ai Inbetween Without Second Key Asks For One — `:112`
+- Ai Inbetween Refuses ALocked Layer — `:122`
+- Every Artist Method Starts From Something The Artist Drew — `:157`
 
 ## AiProviderPageTests
 `tests/Lightbox.App.Tests/AiProviderPageTests.cs`
@@ -1864,6 +1887,16 @@ regression even when every test still compiles.
 - When The Burst Has Drained The Mark Reaches The Pen — `:212`
 - Smoothings Own Lag Is Measured Separately — `:246`
 
+## SubjectReadingWiringTests
+`tests/Lightbox.App.Tests/SubjectReadingWiringTests.cs`
+
+- Reading ACharacter Keeps The Answer On It — `:66`
+- AReading Somebody Edited Is Not Overwritten By ARe Read — `:83`
+- Without AProject It Says So Rather Than Failing Quietly — `:104`
+- With No Sheet To Read It Says What Is Missing — `:116`
+- An Inbetween On ACharacters Animation Carries Its Taxonomy — `:136`
+- ADocument With No Character Sends No Taxonomy At All — `:171`
+
 ## SymbolBrowserTests
 `tests/Lightbox.App.Tests/SymbolBrowserTests.cs`
 
@@ -2295,9 +2328,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:172`
 - The Canvas Gets The Room Left Over By The Strips — `:195`
 - The Project Row Menu Actually Does Something When Clicked — `:219`
-- The New Menu Actually Makes Things — `:348`
-- The Reference Panel Is Absent Until It Is Asked For — `:415`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:431`
+- The New Menu Actually Makes Things — `:352`
+- The Reference Panel Is Absent Until It Is Asked For — `:419`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:435`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
@@ -3637,6 +3670,12 @@ regression even when every test still compiles.
 - AStroke That Reaches Nothing Is Recorded Rather Than Skipped — `:138`
 - Negative Coordinates Index And Query The Same As Positive Ones — `:152`
 - ATile Sized Query Touches AFraction Of ABusy Drawing — `:176`
+
+## SubjectReadingIsNotRenderedTests
+`tests/Lightbox.Raster.Tests/SubjectReadingIsNotRenderedTests.cs`
+
+- Deleting Every Reading Changes No Pixel — `:59`
+- Renaming APart Changes No Pixel — `:99`
 
 ## SymbolFlattenTests
 `tests/Lightbox.Raster.Tests/SymbolFlattenTests.cs`

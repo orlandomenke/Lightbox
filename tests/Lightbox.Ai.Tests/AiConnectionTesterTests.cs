@@ -234,5 +234,9 @@ public class AiConnectionTesterTests
                 [Frame(0.5, (20, 60), (100, 60))]));
         }
 
+        public Task<AiResult<Lightbox.Core.Projects.SubjectTaxonomy>> ReadSubjectAsync(
+            SubjectRequest request, CancellationToken ct) =>
+            throw new NotSupportedException("The connection test never reads a subject.");
+
     }
 }

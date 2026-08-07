@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Lightbox.Ai;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.App.Tests;
 
@@ -9,7 +10,9 @@ namespace Lightbox.App.Tests;
 internal sealed class FakeArtist : IAiArtist
 {
     public AiResult<List<InbetweenFrameResult>>? InbetweenResult { get; set; }
+    public AiResult<SubjectTaxonomy>? SubjectResult { get; set; }
     public InbetweenRequest? LastInbetweenRequest { get; private set; }
+    public SubjectRequest? LastSubjectRequest { get; private set; }
 
     public Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(
         InbetweenRequest request, CancellationToken ct)
@@ -17,6 +20,13 @@ internal sealed class FakeArtist : IAiArtist
         LastInbetweenRequest = request;
         return Task.FromResult(InbetweenResult
             ?? AiResult<List<InbetweenFrameResult>>.Error("unscripted", false));
+    }
+
+    public Task<AiResult<SubjectTaxonomy>> ReadSubjectAsync(
+        SubjectRequest request, CancellationToken ct)
+    {
+        LastSubjectRequest = request;
+        return Task.FromResult(SubjectResult ?? AiResult<SubjectTaxonomy>.Error("unscripted", false));
     }
 }
 
@@ -127,9 +137,10 @@ public class AiIntegrationTests
     }
 
     /// <summary>
-    /// The AI assists an artist; it does not draw instead of one, so there is
-    /// no way to ask a model for a drawing from nothing. Everything it produces
-    /// starts from something the artist authored — here, two keyframes.
+    /// The AI assists an artist; it does not draw instead of one. Every method
+    /// on the artist interface must start from something the artist authored —
+    /// two keyframes for an inbetween, a character sheet for a reading — and
+    /// this list is the place that says so.
     /// </summary>
     /// <remarks>
     /// Written as reflection over the interface rather than as a missing
@@ -137,13 +148,19 @@ public class AiIntegrationTests
     /// <c>DrawAsync</c> from M2 and the prompt box followed from it; a test
     /// that only checked the view would pass on a build where the capability
     /// was one binding away from returning.
+    ///
+    /// Adding a name here is therefore a decision, not a formality: it is the
+    /// moment to ask what the new call starts from. If the answer is "whatever
+    /// somebody types", it does not belong in this application.
     /// </remarks>
     [Fact]
-    public void TheArtistInterfaceOffersInbetweeningAndNothingElse()
+    public void EveryArtistMethodStartsFromSomethingTheArtistDrew()
     {
-        var methods = typeof(IAiArtist).GetMethods().Select(m => m.Name).ToList();
+        var methods = typeof(IAiArtist).GetMethods().Select(m => m.Name).Order().ToList();
 
-        Assert.Equal([nameof(IAiArtist.GenerateInbetweensAsync)], methods);
+        Assert.Equal(
+            [nameof(IAiArtist.GenerateInbetweensAsync), nameof(IAiArtist.ReadSubjectAsync)],
+            methods);
         Assert.Null(typeof(MainViewModel).GetProperty("AiDrawCommand"));
         Assert.Null(typeof(MainViewModel).GetProperty("AiPrompt"));
     }
