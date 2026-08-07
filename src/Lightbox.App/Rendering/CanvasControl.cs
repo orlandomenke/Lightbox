@@ -195,6 +195,19 @@ public sealed class CanvasControl : Control
     }
 
     private RenderSnapshot? _snapshot;
+
+    /// <summary>
+    /// The durable frame the compositor actually draws (B122). Owned here because
+    /// it has to outlive individual draw operations — that is the whole point of
+    /// it — and handed to each <see cref="DrawOp"/> rather than reached back into.
+    /// </summary>
+    private readonly PresentedFrame _presented = new();
+
+    /// <summary>Whether the durable frame is on the GPU, for the status strip.</summary>
+    internal bool PresentedFrameIsOnGpu => _presented.IsGpuBacked;
+
+    /// <summary>Pixels the last present had to copy. Tests and telemetry.</summary>
+    internal long LastPresentedPatchPixels => _presented.LastPatchedPixels;
     private readonly Queue<RenderSnapshot> _retired = new();
 
     /// <summary>Snapshots kept past the current one, even after they've been rendered.</summary>
@@ -1474,11 +1487,27 @@ public sealed class CanvasControl : Control
         // the compositor was mid-draw on it.
         if (_retired.Count > RetiredHardCap && _retired.Peek() is { } head && head.Seq >= rendered)
         {
+            // B122: this frame's change never reaches the durable presentation
+            // surface, so it has to be owed or those pixels stay stale.
+            _presented.Skipped(snapshot.ChangedInImage);
             snapshot.Image.Dispose();
             return false;
         }
 
         var old = _snapshot;
+
+        // B122, the second way a change goes missing, and the subtler one. A
+        // snapshot replaced before it was ever rendered was never patched in
+        // either — and the incoming snapshot's own region cannot be relied on to
+        // cover it, because ComposeRing's clip describes what THAT buffer owed
+        // rather than what the presentation surface is missing.
+        if (old is not null && old.Seq > rendered) _presented.Skipped(old.ChangedInImage);
+
+        // A change in which document rectangle the image covers re-bases every
+        // pixel, so a patch computed against the old framing would be nonsense.
+        // Cheap insurance in the one place where being wrong shows stale art.
+        if (old is not null && old.DocViewport != snapshot.DocViewport) _presented.ForceFull();
+
         _snapshot = snapshot;
         if (old is null) ReportDisplayScale(); // first frame: the scale is now knowable
         if (old is not null) _retired.Enqueue(old);
@@ -1594,7 +1623,7 @@ public sealed class CanvasControl : Control
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
-            _selectionManager, _getPlacementsForSelection));
+            _selectionManager, _getPlacementsForSelection, _presented));
     }
 
     /// <summary>
@@ -2849,7 +2878,8 @@ public sealed class CanvasControl : Control
         GuideLine? draftGuide = null,
         IReadOnlyList<RigMark>? rigMarks = null,
         ViewModels.SelectionManager? selectionManager = null,
-        Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? getPlacementsForSelection = null) : ICustomDrawOperation
+        Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? getPlacementsForSelection = null,
+        PresentedFrame? presented = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -2899,11 +2929,27 @@ public sealed class CanvasControl : Control
             canvas.RotateDegrees(view.RotationDeg);
             canvas.Scale(view.Mirrored ? -view.Scale : view.Scale, view.Scale);
             canvas.Translate(-view.DocW / 2f, -view.DocH / 2f);
+            // B122: draw the durable frame rather than this publish's image. The
+            // frame is patched with only what changed, so on a GPU-backed lease the
+            // upload is the dab instead of the canvas — and the frame's own
+            // snapshot is already a texture, making this a GPU-to-GPU blit.
+            //
+            // A null `presented` is the honest fallback for any caller that has not
+            // been given one (tests constructing a DrawOp directly): draw the
+            // publish's image, exactly as before.
+            // The seq is what makes a cursor-only repaint free: the canvas repaints
+            // on every pointer move to move the brush ring, far more often than the
+            // compositor publishes, and re-patching an unchanged frame each time
+            // would be work for nothing.
+            var artwork = presented is null
+                ? snapshot.Image
+                : presented.Present(lease.GrContext, snapshot.Image, snapshot.ChangedInImage, snapshot.Seq);
+
             // Checkerboard, artwork, guides — one call, because splitting them
             // apart is how B17 happened. See GuidePainter.PaintDocument.
             GuidePainter.PaintDocument(
                 canvas,
-                snapshot.Image,
+                artwork,
                 view.DocW,
                 view.DocH,
                 view.Scale,
