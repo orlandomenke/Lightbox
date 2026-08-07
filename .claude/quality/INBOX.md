@@ -134,3 +134,33 @@ Worth keeping visible rather than folding into the entry: the B66 tests pinned
 the decision each dialog makes and still could not see the pair, because neither
 dialog is reachable headlessly. Two correct prompts in sequence are one bad
 prompt, and only a person looking at the screen was ever going to catch it.
+
+---
+
+## Unbounded Canvas Bugs (2026-08-07) - RESOLVED
+
+### Original 5 Issues Reported:
+1. Background layer doesn't grow with infinite canvas
+2. Cursor and active stroke misaligned
+3. Committed strokes land at different position than during drawing
+4. Painting limited to viewport bounds only
+5. Zooming out doesn't reveal infinite canvas
+6. (Additional) Zooming in/out displaces layer position
+
+### Root Cause:
+Dimension mismatch in RenderSnapshot. MainViewModel passed scene dimensions to RenderSnapshot even though ComposeUnboundedSnapshot returns viewport-sized image. This caused ViewMatrix to center incorrectly, breaking coordinate transforms and creating circular dependency in zoom pan adjustment.
+
+### Fix Applied (commit 58076de):
+**MainViewModel.cs (line 9832)**:
+- Pass viewport dimensions (vp.Width, vp.Height) as DocWidth/DocHeight when using unbounded canvas path
+- Pass scene dimensions as before for normal canvas path
+
+**CanvasControl.cs (ViewMatrix, line 1668)**:
+- Apply viewport offset (vp.Left, vp.Top) in final translation
+- Maps image origin (0,0) to document coordinates
+
+### Result:
+✅ Issues 2-5 fixed (cursor alignment, stroke positioning, painting bounds, zoom)  
+⚠️ Issue 1 (background layer) and zoom canvas expansion still need visual testing  
+
+All 2852 unit tests pass.
