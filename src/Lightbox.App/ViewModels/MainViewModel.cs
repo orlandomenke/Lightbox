@@ -1775,6 +1775,36 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Whether a console window opens at startup carrying the diagnostic traces.
+    /// </summary>
+    /// <remarks>
+    /// Takes effect on the next start rather than immediately, and the menu
+    /// says so. Opening one mid-session is possible but would produce a window
+    /// that had missed everything up to that point — which is the opposite of
+    /// what somebody turning this on wants.
+    /// </remarks>
+    public bool ShowDiagnosticsConsole
+    {
+        get => Settings.ShowDiagnosticsConsole;
+        set
+        {
+            if (Settings.ShowDiagnosticsConsole == value) return;
+            Settings.ShowDiagnosticsConsole = value;
+            Settings.Save();
+            OnPropertyChanged();
+            AiStatus = value
+                ? "The diagnostics console will open the next time Lightbox starts."
+                : "The diagnostics console will not open next time.";
+        }
+    }
+
+    /// <summary>Where the crash reports and the survivable-failure log live.</summary>
+    public string DiagnosticsFolder => Services.DiagnosticLog.Directory;
+
+    /// <summary>The exact build, for a bug report to name.</summary>
+    public string BuildLabel => $"Lightbox {Services.DiagnosticLog.Build}";
+
     public bool AutosaveInPlace
     {
         get => Settings.AutosaveInPlace;
