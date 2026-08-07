@@ -226,6 +226,75 @@ public class PresentedFrameTests(ITestOutputHelper output)
         Assert.Equal(0, Differing(presented, latest));
     }
 
+    /// <summary>
+    /// B130: an image handed to the compositor must not be freed underneath it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The crash this guards is native — an access violation inside
+    /// <c>sk_canvas_draw_image_rect</c> — so none of the crash reporter's three
+    /// managed channels sees it and no report is written. It presented as
+    /// "Lightbox dies after the splash screen as soon as I touch anything, and
+    /// there is no crash report", which is the least diagnosable shape a bug has.
+    /// </para>
+    /// <para>
+    /// <c>PresentCore</c> used to <c>Dispose()</c> the previous snapshot on every
+    /// present. <c>CanvasControl</c> documents the identical failure for
+    /// <c>RenderSnapshot</c> and keeps a retirement queue for it; this class did
+    /// not. So the assertion is the same one <c>HeldImagesAlive</c> makes there:
+    /// the handle of an image we handed out is still valid after later presents.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AnImageHandedOutSurvivesLaterPresents()
+    {
+        using var frame = new PresentedFrame();
+        using var start = Composite(SKColors.White);
+        var first = frame.Present(null, start, null, seq: 1);
+
+        // Whoever received `first` may still be drawing it. Present again — which
+        // is what a pointer move does — and it must not be freed.
+        var dab = new SKRectI(180, 140, 224, 168);
+        using var next = Composite(SKColors.White, (dab, SKColors.Black));
+        var second = frame.Present(null, next, dab, seq: 2);
+
+        output.WriteLine($"first handle {(first.Handle == IntPtr.Zero ? "FREED" : "alive")}, "
+                         + $"second {(second.Handle == IntPtr.Zero ? "FREED" : "alive")}, "
+                         + $"retired {frame.RetiredCount}");
+
+        Assert.NotEqual(IntPtr.Zero, first.Handle);
+        Assert.NotEqual(IntPtr.Zero, second.Handle);
+        Assert.True(frame.HeldImagesAlive);
+
+        // And still readable, not merely non-null — a freed SKImage can keep a
+        // stale handle, so the check that matters is that the pixels answer.
+        using var bmp = SKBitmap.FromImage(first);
+        Assert.NotNull(bmp);
+        Assert.Equal(W, bmp!.Width);
+    }
+
+    /// <summary>
+    /// Retirement has to be bounded, or the crash is traded for the copy-on-write
+    /// cost this class exists to avoid: a snapshot of a surface still being drawn
+    /// into forces Skia to duplicate it.
+    /// </summary>
+    [Fact]
+    public void RetirementIsBoundedRatherThanUnlimited()
+    {
+        using var frame = new PresentedFrame();
+        using var img = Composite(SKColors.White);
+
+        for (var i = 0; i < 40; i++)
+        {
+            frame.Present(null, img, new SKRectI(0, 0, 20, 20), seq: i + 1);
+        }
+
+        output.WriteLine($"after 40 presents, {frame.RetiredCount} images retired");
+        Assert.True(frame.RetiredCount <= 3,
+            $"{frame.RetiredCount} superseded images are being held — retirement is unbounded");
+        Assert.True(frame.HeldImagesAlive);
+    }
+
     /// <summary>A resize cannot be patched onto — it must repaint in full.</summary>
     [Fact]
     public void AResizeRepaintsInFull()
