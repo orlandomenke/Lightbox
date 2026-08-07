@@ -61,6 +61,11 @@ public sealed class ShortcutMap
             new("tool.gradient", "Gradient", "Tools", G(Key.G)),
             new("tool.select", "Select / next variant", "Tools", G(Key.S)),
             new("tool.move", "Move (drawing and guides)", "Tools", G(Key.V)),
+            // Illustrator's black arrow is V, which Move already has here and
+            // has had for longer. A is Illustrator's other pointer and is free,
+            // so the pair stays adjacent in the hand even though the letters do
+            // not match Adobe's exactly.
+            new("tool.arrow", "Arrow (select lines, guides, symbols)", "Tools", G(Key.A)),
             // Brush sizing by eye. It was Shift+drag on the canvas until Shift
             // became the constraint key on every tool; these are the two keys
             // every other application uses for it.

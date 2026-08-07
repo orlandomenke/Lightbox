@@ -8,6 +8,35 @@ public enum ToolId
     Fill,
     Select,
 
+    /// <summary>
+    /// The black arrow: picks <b>things</b> — a drawn line, a guide, a placed
+    /// symbol, a rig anchor. Not areas of pixels.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Illustrator's Selection tool, and deliberately a second tool rather than
+    /// a mode of <see cref="Select"/> — Q48. That one selects a *region*, which
+    /// becomes a clip a stroke is painted under; this one selects *records* you
+    /// can then move, recolour or delete. Folding them together would make one
+    /// click mean two things depending on what happened to be beneath it, which
+    /// is the ambiguity the whole vector design exists to avoid.
+    /// </para>
+    /// <para>
+    /// <b>It picks more than lines, and that is not scope creep — it is a
+    /// revival.</b> <c>CanvasToolMode.Select</c> has carried a full hit-test
+    /// chain for placements, guides, reference boxes, anchors and collision
+    /// shapes since the selection manager landed, and <c>SyncCanvasToolMode</c>
+    /// never assigned that mode — so none of it has ever been reachable. This is
+    /// the tool that code was always for.
+    /// </para>
+    /// <para>
+    /// Chrome beats artwork where they overlap: a guide crossing a line picks
+    /// the guide. The drawing is the thing that is everywhere, so if it won, a
+    /// guide would become unclickable wherever somebody had drawn.
+    /// </para>
+    /// </remarks>
+    Arrow,
+
     /// <summary>Eyedropper: click the canvas to pick the color under the cursor.</summary>
     Picker,
 
