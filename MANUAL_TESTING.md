@@ -263,6 +263,10 @@ headless can open a window and click Delete.
 - [ ] **B115** — with `LIGHTBOX_TRACE=1` set, running `Lightbox.App.exe` from a terminal still prints trace lines to that terminal.
 - [ ] **B117** — force a crash (easiest: rename `libSkiaSharp.dll` so the canvas cannot start). A dialog names a file under `…\Lightbox\logs\`, and answering **Yes** opens that folder. The file names the build sha, not just "1.0.0".
 - [ ] **B117** — dismiss that dialog, put the DLL back, and start again. The status strip says the previous run ended unexpectedly and names the file. Start a third time: it does **not** say so again.
+- [ ] **B118** — **Help ▸ Open the diagnostics folder** opens `…\Lightbox\logs\` in Explorer, including on a clean install where nothing has been logged yet (the folder is made rather than missing).
+- [ ] **B118** — tick **Help ▸ Show a console while drawing**, restart. A console window appears alongside Lightbox. With `LIGHTBOX_TRACE=1` also set, trace lines arrive in it while drawing. This is the check that matters: the app was **double-clicked**, so there was no terminal to attach to and the console had to be created.
+- [ ] **B118** — untick it, restart. No console window. The setting survived both restarts.
+- [ ] **B118** — **Help ▸ Lightbox 1.0.0+…** shows a build with a commit after the `+`, and clicking it copies that text.
 - [ ] **B116** — `Lightbox.Mcp.exe` works as the Claude Desktop MCP command from `mcp\`, beside `Lightbox.App.exe`. (It moved back into `mcp\`; it was at the bundle root for one stretch of builds — B32.)
 - [ ] **B116** — the bundle root holds `Lightbox.App.exe`, three native DLLs and the `mcp\` folder, and nothing else.
 - [ ] **B116** — `Lightbox.App.exe` starts from the single-file bundle on a machine with no .NET, and rendering is **hardware**: a large document pans and zooms at the usual speed. This is the check that catches a native library silently not resolving — Avalonia falls back to software rendering rather than failing, so the symptom is "the new build feels slow" rather than an error.

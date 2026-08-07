@@ -102,6 +102,21 @@ Two smaller things end up in the same folder:
 
 Nothing here is sent anywhere. It is written to your own disk and stays there.
 
+**Help → Open the diagnostics folder** takes you straight there, so you never
+have to know the path.
+
+**Help → Show a console while drawing** opens a console window alongside
+Lightbox carrying the same information as it happens, rather than after the
+fact. It is off, it stays off until you turn it on, and it takes effect the
+**next** time Lightbox starts — which is the way it gets used: switch it on,
+restart, and make the problem happen again while you watch. Turn it off the
+same way.
+
+**Help → Lightbox 1.0.0+…** is the exact build you are running, and clicking it
+copies that text. It is worth putting in any bug report: "the newest build" is
+several different programs in a week, and the part after the `+` says precisely
+which one.
+
 ## Planned
 
 Not built. Listed so the gap is visible rather than implied.

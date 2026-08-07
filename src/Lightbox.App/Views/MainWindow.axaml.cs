@@ -677,6 +677,49 @@ public partial class MainWindow : Window
 
     // ---- workspace commands ----------------------------------------------------
 
+    /// <summary>Show the artist where the crash reports and the log are.</summary>
+    /// <remarks>
+    /// The folder rather than a message naming it: a path an artist has to
+    /// retype is a path they will not use, and this is the moment they are
+    /// already looking for the file. <c>FileReveal</c> knows how each desktop
+    /// spells this and promises not to throw.
+    /// </remarks>
+    private void OnOpenDiagnosticsFolder(object? sender, RoutedEventArgs e)
+    {
+        var folder = _vm.DiagnosticsFolder;
+        // The folder is created when something is first written to it, which
+        // on a healthy installation may be never. Opening nothing would look
+        // broken, so make it rather than explain it.
+        try { System.IO.Directory.CreateDirectory(folder); }
+        catch (Exception ex) { Rendering.CanvasControl.LogDiag("diagnostics-folder", ex); }
+
+        if (!Services.FileReveal.Open(folder))
+        {
+            _vm.AiStatus = $"Could not open the folder — it is at {folder}";
+        }
+    }
+
+    /// <summary>Put the build on the clipboard, because a bug report needs it.</summary>
+    /// <remarks>
+    /// "The newest build" is several different programs in a week. The label is
+    /// the informational version, which carries the commit.
+    /// </remarks>
+    private async void OnCopyBuildLabel(object? sender, RoutedEventArgs e)
+    {
+        if (Clipboard is not { } clipboard) return;
+        try
+        {
+            using var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(DataFormat.Text, _vm.BuildLabel));
+            await clipboard.SetDataAsync(transfer);
+            _vm.AiStatus = $"Copied: {_vm.BuildLabel}";
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("copy-build-label", ex);
+        }
+    }
+
     private void OnSaveWorkspace(object? sender, RoutedEventArgs e)
     {
         _vm.Workspace.SaveCurrent();

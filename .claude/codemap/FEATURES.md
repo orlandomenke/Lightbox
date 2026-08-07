@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2687 tests, derived from the suite itself. Each line is a
+2693 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -602,6 +602,15 @@ regression even when every test still compiles.
 - ASurvivable Failure Is Recorded Once Per Context — `:98`
 - An Unwritable Folder Is Survived Rather Than Thrown — `:112`
 - The Log Sits Beside The Other App Data — `:126`
+
+## DiagnosticsMenuTests
+`tests/Lightbox.App.Tests/DiagnosticsMenuTests.cs`
+
+- The Console Switch Is Off Until Somebody Asks — `:24`
+- The Switch Is Listed In The Settings File Like Every Other Preference — `:30`
+- The Switch Survives The Restart It Exists For — `:43`
+- Help Offers The Folder The Console And The Build — `:53`
+- The Build Label Names The Commit Rather Than Just AVersion — `:72`
 
 ## DirtyRevisionTests
 `tests/Lightbox.App.Tests/DirtyRevisionTests.cs`
@@ -3333,6 +3342,7 @@ regression even when every test still compiles.
 - The App Ships As AGui Program So No Console Window Opens Beside It — `:63`
 - The Stdio Programs Stay Console Programs — `:71`
 - The Opt In Traces Still Have Somewhere To Print — `:84`
+- Asking For AConsole Works Even When There Is No Terminal To Attach To — `:98`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`
