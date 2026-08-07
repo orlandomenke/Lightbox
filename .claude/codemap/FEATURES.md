@@ -1367,7 +1367,7 @@ regression even when every test still compiles.
 
 - Every Token The Design Names Resolves — `:45`
 - The Core Surfaces Are The Colours The Design Gave — `:71`
-- The Shared Chrome Names Roles Rather Than Colours — `:94`
+- No View Invents Its Own Chrome Colour — `:94`
 
 ## ProjectCreateMenuTests
 `tests/Lightbox.App.Tests/ProjectCreateAndRenameTests.cs`

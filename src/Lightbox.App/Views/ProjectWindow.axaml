@@ -28,11 +28,11 @@
       <Setter Property="CornerRadius" Value="3" />
       <Setter Property="Padding" Value="4,0" />
       <Setter Property="Margin" Value="0,0,3,0" />
-      <Setter Property="Background" Value="#22808080" />
+      <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
     </Style>
     <Style Selector="Border.bar">
       <Setter Property="Padding" Value="8,5" />
-      <Setter Property="Background" Value="#11808080" />
+      <Setter Property="Background" Value="{StaticResource BandTintBrush}" />
     </Style>
   </Window.Styles>
 
@@ -197,7 +197,7 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:StatusColumn">
                 <Border Width="190" Margin="3" Padding="6"
-                        Background="#0C808080" CornerRadius="4">
+                        Background="{StaticResource BandTintBrush}" CornerRadius="4">
                   <DockPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
                       <TextBlock DockPanel.Dock="Right" Classes="dim"
@@ -213,7 +213,7 @@
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:BoardRow">
                           <Border Padding="5,3" Margin="0,0,0,3" CornerRadius="3"
-                                  Background="#14808080">
+                                  Background="{StaticResource HoverTintBrush}">
                             <StackPanel>
                               <TextBlock Text="{Binding Name}" FontSize="11"
                                          TextTrimming="CharacterEllipsis" />

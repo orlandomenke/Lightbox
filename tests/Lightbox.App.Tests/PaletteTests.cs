@@ -91,21 +91,62 @@ public class PaletteTests
     }
 
     [Fact]
-    public void TheSharedChromeNamesRolesRatherThanColours()
+    public void NoViewInventsItsOwnChromeColour()
     {
-        // App.axaml carries the docker and overlay templates, so every panel in
-        // the application inherits whatever it says. It is the one file where a
-        // stray literal is worst, which is why it is the one held to this.
-        var app = Read("App.axaml");
+        // Every view — a literal in one panel is how two panels come to be
+        // *nearly* the same colour, which nobody can see deliberately and
+        // everybody can see accidentally.
+        //
+        // Matches colour ASSIGNMENTS, not anything hex-shaped. The first version
+        // matched any #rrggbb and reported a tooltip reading "Hex colour, e.g.
+        // #1a1a1a" and a comment about transcribing #c04a2f — prose, both of
+        // them. A guard that cries wolf gets an exception added to shut it up,
+        // and then it is guarding nothing.
+        var assignment = new Regex(
+            @"(?:Background|Foreground|BorderBrush|Fill|Stroke|Color|Value)=""(#[0-9a-fA-F]{6,8})""");
 
-        var literals = Regex.Matches(app, @"#[0-9a-fA-F]{6,8}\b")
-            .Select(m => m.Value)
-            .Where(v => v is not "#00000001")   // the grip's hit target, not a colour
-            .Where(v => v is not "#FF7A00")     // the splash placeholder; branding is deferred
-            .ToList();
+        string[] allowed =
+        [
+            "#00000001",  // the drag grip's fill: a hit target, not a colour
+            "#FF7A00",    // the splash placeholder, defined in App.axaml;
+                          // branding is deferred entirely until the vector
+                          // tooling exists, so this is the one colour the
+                          // design deliberately has no opinion about yet
+        ];
 
-        Assert.True(
-            literals.Count == 0,
-            $"raw colours left in the shared chrome: {string.Join(", ", literals)}");
+        var offenders = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(
+                     Path.Combine(RepoRoot(), "src", "Lightbox.App"), "*.axaml",
+                     SearchOption.AllDirectories))
+        {
+            var name = Path.GetFileName(file);
+            if (name is "Palette.axaml") continue;      // where colour is defined
+            if (name is "SplashWindow.axaml") continue; // the placeholder; branding is deferred
+
+            var text = File.ReadAllText(file);
+
+            // Layer folder colours are DOCUMENT DATA — an artist picks one and
+            // the file stores it. Re-mapping them to accents would change what
+            // is already saved in people's work, which is not a re-skin.
+            //
+            // Derived from the file's own Tag values rather than listed here,
+            // because each swatch writes its colour twice: once as the Tag that
+            // is stored, once on the icon that previews it. Listing them would
+            // mean editing this test to add a colour to a menu.
+            var documentData = Regex.Matches(text, @"Tag=""(#[0-9a-fA-F]{6,8})""")
+                .Select(m => m.Groups[1].Value)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (Match m in assignment.Matches(text))
+            {
+                var value = m.Groups[1].Value;
+                if (allowed.Contains(value)) continue;
+                if (documentData.Contains(value)) continue;
+                offenders.Add($"{name}: {value}");
+            }
+        }
+
+        Assert.True(offenders.Count == 0,
+            "views naming raw colours instead of roles:\n  " + string.Join("\n  ", offenders));
     }
 }

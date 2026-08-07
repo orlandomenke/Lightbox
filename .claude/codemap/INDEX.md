@@ -1,6 +1,6 @@
 # Code index
 
-532 files · 137992 lines · 2763 tests.
+532 files · 138078 lines · 2763 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -168,6 +168,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DiagnosticLog:22
 - `src/Lightbox.App/Services/BrushImportJob.cs` (144 ln) · 1 test files
   - BrushImportProgress:11, BrushImportOutcome:23, BrushImportJob:52
+- `src/Lightbox.App/Styles/Palette.axaml` (141 ln) · **no tests**
 - `src/Lightbox.App/Services/TipStore.cs` (139 ln) · 2 test files
   - TipStore:32, State:45
 - `src/Lightbox.App/Services/CrashScenarios.cs` (138 ln) · 1 test files
@@ -218,7 +219,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DiagnosticsConsole:32
 - `src/Lightbox.App/Services/SaveRequirement.cs` (97 ln) · 2 test files
   - SaveGate:4, SaveRequirement:43
-- `src/Lightbox.App/Styles/Palette.axaml` (96 ln) · **no tests**
 - `src/Lightbox.App/Rendering/CameraTransform.cs` (95 ln) · 1 test files
   - CameraTransform:16
 - `src/Lightbox.App/Views/BrushLibraryWindow.axaml` (92 ln) · **no tests**
@@ -267,7 +267,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RenderSnapshot:24
 - `src/Lightbox.App/Views/SplashWindow.axaml` (39 ln) · **no tests**
   - Backdrop, Status
-- `src/Lightbox.App/Views/SplashWindow.axaml.cs` (38 ln) · 1 test files
+- `src/Lightbox.App/Views/SplashWindow.axaml.cs` (38 ln) · 2 test files
   - SplashWindow:33
 - `src/Lightbox.App/Services/PlaybackClock.cs` (35 ln) · 1 test files
   - PlaybackClock:9
@@ -368,15 +368,15 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolUse:9, SymbolUsage:12, SymbolGraph:46
 - `src/Lightbox.Core/Documents/CollisionShapes.cs` (157 ln) · 5 test files
   - CollisionShapes:21
-- `src/Lightbox.Core/Documents/Stroke.cs` (156 ln) · 101 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (156 ln) · 102 test files
   - Stroke:9, BakedSample:148
 - `src/Lightbox.Core/Documents/Camera.cs` (146 ln) · 6 test files
   - CameraKey:10, Camera:46, CameraOps:65
 - `src/Lightbox.Core/Documents/Anchors.cs` (144 ln) · 8 test files
   - Anchors:13
-- `src/Lightbox.Core/Documents/Palette.cs` (144 ln) · 17 test files
+- `src/Lightbox.Core/Documents/Palette.cs` (144 ln) · 18 test files
   - Swatch:8, Palette:30, GimpPalette:55
-- `src/Lightbox.Core/Documents/Layer.cs` (143 ln) · 39 test files
+- `src/Lightbox.Core/Documents/Layer.cs` (143 ln) · 40 test files
   - LayerKind:5, LayerBlendMode:16, Cel:40, LayerGroup:51, Layer:69
 - `src/Lightbox.Core/Export/UnrealConvert.cs` (143 ln) · 2 test files
   - UnrealConvert:31

@@ -76,6 +76,51 @@
     <GradientStop Offset="1" Color="{StaticResource AccentMagenta}" />
   </LinearGradientBrush>
 
+  <!-- ===== Derived states ============================================ -->
+  <!--
+    Two roles the design does not name and the application cannot do without:
+    the row you have selected, and the ground under a warning.
+
+    Derived from the accents by opacity rather than given hex values of their
+    own, and that is deliberate. A picked value is a seventh and eighth colour
+    nobody agreed to, and it drifts the moment an accent is retuned; a tint
+    composites over whatever surface it lands on and follows its accent for
+    free. It also means a selected row on a panel and a selected row on an
+    elevated panel differ in the way they should, rather than being the same
+    flat colour in two places where it reads differently.
+  -->
+  <SolidColorBrush x:Key="SelectionBrush" Color="{StaticResource AccentViolet}" Opacity="0.30" />
+  <SolidColorBrush x:Key="StatusWarningSurfaceBrush" Color="{StaticResource AccentAmber}" Opacity="0.18" />
+
+  <!-- ===== The exposure sheet's vocabulary ============================ -->
+  <!--
+    A cel is read at a glance, in a grid, while scrubbing — so its colour is
+    information rather than decoration, and the *hue* is what carries it.
+
+    Mapped to keep the reading an animator already has: breakdowns were blue and
+    stay in the violet family, inbetweens were green and stay in the cool-bright
+    family. Inverting those to suit a palette would be a redesign of the
+    exposure sheet dressed up as a re-skin.
+
+    Tints rather than full accents. At full strength six of these in a row is a
+    fruit salad, and the grid has to stay scannable with a hundred cels on it.
+  -->
+  <SolidColorBrush x:Key="CelBrush" Color="{StaticResource SurfaceElevated}" />
+  <SolidColorBrush x:Key="CelBreakdownBrush" Color="{StaticResource AccentViolet}" Opacity="0.34" />
+  <SolidColorBrush x:Key="CelTweenBrush" Color="{StaticResource AccentCyan}" Opacity="0.30" />
+  <SolidColorBrush x:Key="CelCurrentBrush" Color="{StaticResource AccentViolet}" Opacity="0.62" />
+  <SolidColorBrush x:Key="CelSelectedBrush" Color="{StaticResource AccentViolet}" Opacity="0.44" />
+
+  <!-- A group's row sits above the layers it holds, so it takes the raised
+       surface rather than a colour of its own. -->
+  <SolidColorBrush x:Key="GroupRowBrush" Color="{StaticResource SurfaceElevated}" />
+
+  <!-- Hover and banding: a tint of nothing in particular, over whatever is
+       beneath. Grey by intent — these must not read as a state that means
+       something, which any accent immediately would. -->
+  <SolidColorBrush x:Key="HoverTintBrush" Color="#808080" Opacity="0.13" />
+  <SolidColorBrush x:Key="BandTintBrush" Color="#808080" Opacity="0.07" />
+
   <!-- ===== Meaning ==================================================== -->
   <!--
     Status colours point at accents rather than restating them, so the palette
