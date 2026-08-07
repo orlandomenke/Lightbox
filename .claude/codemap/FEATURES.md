@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2660 tests, derived from the suite itself. Each line is a
+2687 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -591,6 +591,17 @@ regression even when every test still compiles.
 - Catching Up Does Not Dispose The Image The Canvas Is Still Showing — `:151`
 - Every Publish Is ACorrect Full Composite — `:172`
 - Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:215`
+
+## DiagnosticLogTests
+`tests/Lightbox.App.Tests/DiagnosticLogTests.cs`
+
+- ACrash Is Written Down With The Build It Came From — `:43`
+- The Cause Underneath Is Not Lost — `:65`
+- The Next Run Is Told Once And Then Not Again — `:79`
+- AClean Run Has Nothing To Report — `:91`
+- ASurvivable Failure Is Recorded Once Per Context — `:98`
+- An Unwritable Folder Is Survived Rather Than Thrown — `:112`
+- The Log Sits Beside The Other App Data — `:126`
 
 ## DirtyRevisionTests
 `tests/Lightbox.App.Tests/DirtyRevisionTests.cs`
@@ -1811,6 +1822,13 @@ regression even when every test still compiles.
 - Publishes That Outrun The Renderer Never Free An Image Still In Flight — `:37`
 - Once Rendered The Old Frames Are Still Released — `:77`
 
+## SplashScreenTests
+`tests/Lightbox.App.Tests/SplashScreenTests.cs`
+
+- The Splash Is Orange — `:23`
+- The Splash Takes Its Colour From One Place — `:33`
+- The Splash Looks Like ASplash Rather Than AWindow — `:49`
+
 ## SpriteSheetExportTests
 `tests/Lightbox.App.Tests/SpriteSheetExportTests.cs`
 
@@ -1880,6 +1898,22 @@ regression even when every test still compiles.
 - Saving Somewhere New Records It Too — `:161`
 - Clearing The List Empties It On Disk As Well — `:184`
 - Only What Is Still On Disk Is Offered — `:207`
+
+## StartupHandoffTests
+`tests/Lightbox.App.Tests/StartupHandoffTests.cs`
+
+- The Main Window Is Up Before The Splash Goes Down — `:72`
+- The Splash Is Never The Window The Application Adopts — `:90`
+- The Application Adopts The Main Window Before It Is Shown — `:103`
+- The Start Screen Is Offered Only After The Splash Has Gone — `:114`
+
+## StartupTimingTests
+`tests/Lightbox.App.Tests/StartupTimingTests.cs`
+
+- An Instant Load Still Shows The Splash For The Minimum — `:19`
+- APart Loaded Splash Waits Out The Remainder — `:27`
+- ASlow Load Is Not Padded Further — `:35`
+- The Minimum Is Long Enough To Be Seen And Short Enough Not To Be Waited On — `:44`
 
 ## StrokeLatencyTests
 `tests/Lightbox.App.Tests/StrokeLatencyTests.cs`
@@ -2883,6 +2917,16 @@ regression even when every test still compiles.
 - Deleting The Last Folder Reaches The Disk — `:415`
 - APalette Filed Under AMissing Folder Still Shows Up On Load — `:432`
 
+## PublishLayoutTests
+`tests/Lightbox.Core.Tests/PublishLayoutTests.cs`
+
+- The Windows Bundle Is Published As ASingle File — `:73`
+- Native Libraries Are Not Self Extracted — `:87`
+- Native Debug Symbols Are Not Shipped — `:105`
+- The Server Publishes Into Its Own Folder And The App Does Not — `:116`
+- The Documented Server Path Matches Where It Is Published — `:127`
+- The Manual Testing Checklist Names The Folder The Server Is In — `:140`
+
 ## ReferenceScopeTests
 `tests/Lightbox.Core.Tests/ReferenceScopeTests.cs`
 
@@ -3282,6 +3326,13 @@ regression even when every test still compiles.
 - Get Milestones Filters Versions By Status — `:183`
 - Version Entry Get All Descendants Recurses Tree — `:202`
 - Clear Version History Removes All Versions For Resource — `:218`
+
+## WindowsSubsystemTests
+`tests/Lightbox.Core.Tests/WindowsSubsystemTests.cs`
+
+- The App Ships As AGui Program So No Console Window Opens Beside It — `:63`
+- The Stdio Programs Stay Console Programs — `:71`
+- The Opt In Traces Still Have Somewhere To Print — `:84`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`

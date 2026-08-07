@@ -27,6 +27,10 @@ public class TestAppBuilder
         var scratch = Path.Combine(Path.GetTempPath(), $"lightbox-tests-{Guid.NewGuid():N}");
         WorkspaceStore.Path = Path.Combine(scratch, "workspaces.json");
         Lightbox.App.Services.AppSettings.Path = Path.Combine(scratch, "settings.json");
+        // Diagnostics too, or a test that exercises the crash path writes a
+        // crash report into whoever ran the suite — and leaves a marker that
+        // tells their next real launch it had crashed.
+        Lightbox.App.Services.DiagnosticLog.DirectoryOverride = Path.Combine(scratch, "logs");
     }
 
     public static AppBuilder BuildAvaloniaApp() =>
