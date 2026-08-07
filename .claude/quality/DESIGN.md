@@ -50,6 +50,17 @@ scale is then describing controls that do not exist.
 | `--label` | 52 | Label column in a labelled-row layout, so rows align |
 | `--field` | 64 | Numeric field beside a slider |
 
+**A strip is as tall as its tallest control plus 2 above and below.** The four
+strips above the canvas — menu, tool options, AI, document tabs — each wrapped
+their contents in 6 to 12 px of padding, which on a 30 px bar is a third again
+of its height for nothing. Every pixel of those is taken from the canvas
+permanently, on every document, whether or not the strip has anything to say.
+
+The same rule the whole file opens with, applied to the least-examined chrome in
+the application: a strip is a container, and a container's padding is not where
+comfort comes from. Comfort is the size of the thing you are aiming at, which is
+`--tile` and `--tool` and is unchanged.
+
 Font sizes: **12** in docker content, **11** in dense rows and option bars,
 **10** for status and hints. **No text smaller** — below 10 the app stops being
 readable on a laptop panel.
