@@ -29,7 +29,7 @@
       still not say which of fifty-six files it was on.
     -->
     <Border x:Name="ProgressRow" DockPanel.Dock="Top" IsVisible="False"
-            Background="#1f1f1f" CornerRadius="4" Padding="8,6" Margin="0,0,0,10">
+            Background="{StaticResource BackgroundSecondaryBrush}" CornerRadius="4" Padding="8,6" Margin="0,0,0,10">
       <DockPanel>
         <Button x:Name="CancelButton" DockPanel.Dock="Right" Content="Stop" Click="OnCancelImport"
                 Margin="8,0,0,0"
@@ -70,14 +70,14 @@
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="views:BrushChoice">
           <DockPanel Margin="0,1" ToolTip.Tip="{Binding Tip}">
-            <Border DockPanel.Dock="Left" Width="120" Height="42" Background="#f2f0ec"
+            <Border DockPanel.Dock="Left" Width="120" Height="42" Background="{StaticResource CanvasPaperBrush}"
                     CornerRadius="3" Margin="0,0,10,0">
               <Image Source="{Binding Preview}" Stretch="None"
                      HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <TextBlock DockPanel.Dock="Right" Text="{Binding Origin}" VerticalAlignment="Center"
                        FontSize="10" Opacity="0.5" Margin="8,0,4,0" />
-            <TextBlock DockPanel.Dock="Right" Text="{Binding CostBadge}" Foreground="#d9a05b"
+            <TextBlock DockPanel.Dock="Right" Text="{Binding CostBadge}" Foreground="{StaticResource StatusWarningBrush}"
                        FontSize="11" VerticalAlignment="Center" Margin="6,0,0,0" />
             <StackPanel VerticalAlignment="Center" Spacing="2">
               <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />

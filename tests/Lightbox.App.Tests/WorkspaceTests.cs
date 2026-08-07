@@ -1,4 +1,5 @@
 using Avalonia.Controls.Presenters;
+using Avalonia.Media;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Avalonia.Controls;
@@ -134,40 +135,140 @@ public sealed class WorkspaceTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
-    public void TheHeaderSwitcherTradesTwoPanelsPlaces()
+    public void TabbedPanelsShareOneSlotAndOneShows()
     {
-        // Blender's rule: no panel is ever open twice, so choosing the palette
-        // from the colour header sends the colour panel where the palette was.
+        // Replaces the two switcher tests that were here. The switcher traded
+        // two panels' places; tabs put several in one slot and show one, so
+        // there is nothing left for a trade to mean.
         var (w, vm) = Open();
-        Assert.DoesNotContain(DockPanelId.Palette, Shown(w, DockSide.Right));
 
-        vm.Workspace.Swap(DockPanelId.Color, DockPanelId.Palette);
+        vm.Workspace.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        Assert.Contains(DockPanelId.Palette, Shown(w, DockSide.Right));
-        Assert.DoesNotContain(DockPanelId.Color, Shown(w, DockSide.Right));
+        // One control in the strip for the pair, carrying both as tabs.
+        var shown = Strip(w, DockSide.Right).Children.OfType<Docker>().ToList();
+        var docker = Assert.Single(shown, d => d.PanelId == DockPanelId.Palette);
+        Assert.NotNull(docker.Tabs);
+        Assert.Contains(docker.Tabs!, t => t.Id == DockPanelId.Color);
+        Assert.DoesNotContain(shown, d => d.PanelId == DockPanelId.Color);
+
+        // And the hidden tab is parked, not destroyed — the same rule closing a
+        // panel has always followed, so it keeps its scroll and its bindings.
         Assert.Single(Pool(w).Children.OfType<Docker>(), d => d.PanelId == DockPanelId.Color);
     }
 
     [AvaloniaFact]
-    public void EveryPanelExceptTheTimelineOffersASwitcher()
+    public void TheTabShowingIsTheOneThatLooksLikeItIsShowing()
     {
-        var (w, _) = Open();
-        var pool = Pool(w).Children.OfType<Docker>()
-            .Concat(Strip(w, DockSide.Right).Children.OfType<Docker>())
-            .Concat(Strip(w, DockSide.Bottom).Children.OfType<Docker>())
-            .ToList();
+        // B127. The strip carried `SelectedItem="{TemplateBinding ActiveTab}"`,
+        // and ActiveTab is a DockPanelId while the items are DockPanelInfo.
+        // Handing an enum to SelectedItem is not an error — nothing ever
+        // matches, so no tab is selected, and three tabs render identically
+        // whichever panel is actually in front.
+        //
+        // **Nothing failed.** Every test here asked the model which panel was
+        // active and got the right answer; the model was never wrong. What was
+        // wrong was the one thing no assertion looked at, and it took a
+        // screenshot to see it.
+        //
+        // So this asserts the *rendered* foreground rather than the selection,
+        // because a selection that resolves correctly and paints identically is
+        // the bug, not the fix.
+        var (w, vm) = Open();
 
-        foreach (var panel in pool)
+        vm.Workspace.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var docker = Strip(w, DockSide.Right).Children.OfType<Docker>()
+            .First(d => d.Tabs is not null);
+        var strip = docker.GetVisualDescendants().OfType<ListBox>().First();
+        var items = strip.GetVisualDescendants().OfType<ListBoxItem>().ToList();
+        Assert.Equal(2, items.Count);
+
+        var active = Assert.Single(items, i => ((DockPanelInfo)i.DataContext!).Id == docker.ActiveTab);
+        var resting = Assert.Single(items, i => i != active);
+
+        static Color Ink(ListBoxItem item) =>
+            (item.GetVisualDescendants().OfType<TextBlock>().First().Foreground
+             as ISolidColorBrush)!.Color;
+
+        // Both numbers printed, not just the comparison: "it passed" and
+        // "230 against 178" are different amounts of evidence, and the second
+        // is the one that says whether the difference is visible or a hair.
+        var (a, r) = (Ink(active), Ink(resting));
+        Assert.True(a.R + a.G + a.B > r.R + r.G + r.B,
+            $"active tab {a} is not brighter than the resting tab {r}");
+
+        // And the resting tab is still legible. A tab nobody can read looks
+        // disabled, and these are all one click away.
+        Assert.True(r.R + r.G + r.B > 3 * 0x60, $"resting tab {r} is too dim to read");
+
+        // The ground is the actual marker, and text weight only supports it —
+        // which is why it is asserted separately rather than trusted to follow.
+        // The design's panel tab is a sheet edge: lit at the top, fading into
+        // the panel below within the tab's own height. A flat fill would be the
+        // segmented-control look these are specifically not.
+        static Border Tab(ListBoxItem item) =>
+            item.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_Tab");
+
+        var lit = Assert.IsType<LinearGradientBrush>(Tab(active).Background);
+        Assert.Equal(2, lit.GradientStops.Count);
+        Assert.True(lit.GradientStops[^1].Color.A == 0,
+            "the active tab's gradient must end transparent — a named end colour is a "
+            + "visible seam on any ground that is not the one it named");
+        Assert.True(lit.GradientStops[^1].Offset < 1,
+            $"the fade ends at {lit.GradientStops[^1].Offset:F2}, so it is not fading fast");
+
+        // The resting tab takes no lit ground — it merges with the header it
+        // sits in. What it does carry is an outline, and that is not incidental:
+        // a strip where only the active tab has a shape reads as one tab beside
+        // two words, which is the same failure as having no marks at all moved
+        // along by one.
+        Assert.IsNotType<LinearGradientBrush>(Tab(resting).Background);
+        Assert.NotNull(Tab(resting).BorderBrush);
+
+        // **The rule runs along the strip and breaks at the active tab.** Each
+        // tab draws its own bottom edge, which is what lets the line stop: a
+        // single rule under the strip would have to be *covered*, and the
+        // active tab cannot cover anything — its gradient ends transparent so
+        // it merges into whatever ground it lands on. Anything opaque enough to
+        // hide a line would be a seam.
+        Assert.Equal(0, Tab(active).BorderThickness.Bottom);
+        Assert.True(Tab(resting).BorderThickness.Bottom > 0,
+            "a resting tab must close at the bottom, or the rule has nothing to run along");
+
+        // The other three sides are the same on both, so the gap reads as the
+        // line breaking rather than as the active tab having lost its box.
+        Assert.Equal(Tab(resting).BorderThickness.Top, Tab(active).BorderThickness.Top);
+        Assert.Equal(Tab(resting).BorderThickness.Left, Tab(active).BorderThickness.Left);
+    }
+
+    [AvaloniaFact]
+    public void AnUntabbedDockerLooksExactlyAsItDid()
+    {
+        // Most dockers hold one panel, and they must not have grown a tab strip
+        // for a group of one.
+        var (w, _) = Open();
+
+        foreach (var docker in Strip(w, DockSide.Right).Children.OfType<Docker>())
         {
-            if (panel.PanelId == DockPanelId.Timeline)
-            {
-                Assert.False(panel.ShowSwitcher);
-                continue;
-            }
-            Assert.NotNull(panel.SwitchTargets);
-            Assert.DoesNotContain(panel.SwitchTargets!, t => t.Id == panel.PanelId);
+            Assert.Null(docker.Tabs);
         }
+    }
+
+    [AvaloniaFact]
+    public void GroupingAPanelMarksTheWorkspaceUnsaved()
+    {
+        // The session contract: rearranging is live but not persisted, and the
+        // star is what says so. It also proves the change went through Mutate
+        // rather than writing to the layout behind its back.
+        var (_, vm) = Open();
+        Assert.False(vm.Workspace.IsDirty);
+
+        vm.Workspace.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
+
+        Assert.True(vm.Workspace.IsDirty);
+        Assert.EndsWith("*", vm.Workspace.CurrentLabel);
     }
 
     [AvaloniaFact]

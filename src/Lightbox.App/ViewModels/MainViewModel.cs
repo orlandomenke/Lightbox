@@ -99,6 +99,24 @@ public sealed partial class MainViewModel : ObservableObject
         _ => Math.Clamp(_displayScale, 0.125, 1.0),
     };
 
+    /// <summary>
+    /// The numbers the render report needs, named for that use so nobody mistakes
+    /// them for view state. Read-only, and deliberately narrow: the alternative
+    /// was making <c>Scene</c>, <c>ComposeScale</c> and <c>_displayScale</c>
+    /// public, which would expose three things to everything in order to tell one
+    /// diagnostic three facts.
+    /// </summary>
+    internal int ReportDocWidth => Scene.Width;
+
+    /// <inheritdoc cref="ReportDocWidth"/>
+    internal int ReportDocHeight => Scene.Height;
+
+    /// <inheritdoc cref="ReportDocWidth"/>
+    internal double ReportComposeScale => ComposeScale;
+
+    /// <inheritdoc cref="ReportDocWidth"/>
+    internal double ReportDisplayScale => _displayScale;
+
     /// <summary>Called by the canvas when zoom or window size changes what it can show.</summary>
     public void SetDisplayScale(double scale)
     {
@@ -4624,11 +4642,27 @@ public sealed partial class MainViewModel : ObservableObject
     /// How tall a timeline row is.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Matched to the layer rows beside it. They were 44 against the Layers
     /// docker's shorter rows, which made the two lists of the same layers read
     /// as two unrelated things.
+    /// </para>
+    /// <para>
+    /// <b>26, matching the Layers docker again after the density retune.</b> The
+    /// two lists show the same layers and have to be read across, so the number
+    /// that matters is not this one on its own — it is that this one and a
+    /// docker row agree. They had drifted to 28 against 33; both are 26 now,
+    /// which is the icon tile with no padding either side.
+    /// </para>
+    /// <para>
+    /// The floor is the thumbnail, not the row: <see cref="TimelineThumbHeight"/>
+    /// is 16 and the cel needs a couple of pixels around it. <c>DESIGN.md</c>
+    /// protects timeline cells from being shrunk — "a 12 px cell is a misdrop
+    /// waiting to happen" — and 26 is nowhere near that. It is a scale entry
+    /// rather than a free number, so it moves when the scale does.
+    /// </para>
     /// </remarks>
-    public double TimelineRowHeight => 28;
+    public double TimelineRowHeight => 26;
 
     public double TimelineThumbWidth => Math.Max(12, TimelineFrameWidth - 8);
 
@@ -9949,7 +9983,9 @@ public sealed partial class MainViewModel : ObservableObject
             // the rectangle the canvas last asked for — because it is what tells the
             // painter where to put the image. Null means "the whole document", which
             // is what every uncalled path produces.
-            handler(new RenderSnapshot(image, (int)viewWidth, (int)viewHeight, seq, imageCovers));
+            handler(new RenderSnapshot(
+                image, (int)viewWidth, (int)viewHeight, seq, imageCovers,
+                ChangedInImageSpace(usedClip, imageCovers, renderScale, cameraView)));
         }
         else
         {
@@ -10096,6 +10132,45 @@ public sealed partial class MainViewModel : ObservableObject
         surface.Dispose();
 
         return image;
+    }
+
+    /// <summary>
+    /// Convert the document rectangle a publish repainted into the image's own
+    /// pixel space, for <see cref="PresentedFrame"/> to patch (B122).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two transforms and one refusal. The rectangle is offset by whatever the
+    /// image covers — a culled image starts at the viewport's corner rather than
+    /// the document's — and then scaled by <paramref name="renderScale"/>, since
+    /// the surface may be smaller than the document. It is grown by a pixel on
+    /// every side afterwards, because the composite's own edges are antialiased
+    /// and a patch that is exact to the rectangle can leave a seam.
+    /// </para>
+    /// <para>
+    /// The refusal is the important part: <b>under a camera this returns null</b>.
+    /// A camera maps the document through an arbitrary matrix, so a document
+    /// rectangle is not an axis-aligned image rectangle at all, and a wrong
+    /// rectangle here would show stale pixels rather than merely cost a repaint.
+    /// Null is always safe — it means "repaint everything" — so anything this
+    /// function is not certain about must return it.
+    /// </para>
+    /// </remarks>
+    private static SKRectI? ChangedInImageSpace(
+        SKRectI? changedInDoc, SKRectI? imageCovers, double renderScale, SKMatrix44? cameraView)
+    {
+        if (cameraView is not null) return null;
+        if (changedInDoc is not { } doc) return null;
+        if (!double.IsFinite(renderScale) || renderScale <= 0) return null;
+
+        var offsetX = imageCovers?.Left ?? 0;
+        var offsetY = imageCovers?.Top ?? 0;
+        var left = (int)Math.Floor((doc.Left - offsetX) * renderScale) - 1;
+        var top = (int)Math.Floor((doc.Top - offsetY) * renderScale) - 1;
+        var right = (int)Math.Ceiling((doc.Right - offsetX) * renderScale) + 1;
+        var bottom = (int)Math.Ceiling((doc.Bottom - offsetY) * renderScale) + 1;
+        if (right <= left || bottom <= top) return null;
+        return new SKRectI(left, top, right, bottom);
     }
 
     /// <summary>

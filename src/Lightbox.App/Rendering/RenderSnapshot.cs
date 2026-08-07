@@ -21,9 +21,29 @@ namespace Lightbox.App.Rendering;
 /// and compositing pixels the user cannot see. Null means the whole document is visible
 /// (ordinary case when compose surface is full document size).
 /// </summary>
-public sealed class RenderSnapshot(SKImage image, int docWidth, int docHeight, long seq = 0, SKRectI? docViewport = null)
+public sealed class RenderSnapshot(
+    SKImage image,
+    int docWidth,
+    int docHeight,
+    long seq = 0,
+    SKRectI? docViewport = null,
+    SKRectI? changedInImage = null)
 {
     public SKImage Image { get; } = image;
+
+    /// <summary>
+    /// The region of <see cref="Image"/> this publish actually repainted, in
+    /// <em>image pixel</em> space, or null when the whole image was repainted.
+    /// </summary>
+    /// <remarks>
+    /// This is what lets <see cref="PresentedFrame"/> upload a dab instead of a
+    /// canvas (B122). Image space rather than document space on purpose: the
+    /// consumer copies pixels, and asking every consumer to redo the scale and
+    /// the viewport offset is how the two get out of step. Null is the safe
+    /// value — it costs a full repaint and can never show stale pixels — so
+    /// anything unsure should leave it null rather than guess a rectangle.
+    /// </remarks>
+    public SKRectI? ChangedInImage { get; } = changedInImage;
 
     /// <summary>
     /// The document's size — <b>always</b>, whatever the compositor chose to

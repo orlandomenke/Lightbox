@@ -10,6 +10,66 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q46 · What colour does the theme's accent take, and how does a tab say it is the one showing? — **answered 2026-08-07: violet, and an underline**
+
+Three questions in one exchange, because they were three faces of the same
+finding: **the palette had only ever covered half the application.**
+
+Stage 1 tokenised every view, and every test passed, and the application still
+wore two colour systems. Tokenising a view reaches the surfaces somebody aimed
+at a token; every stock control — toggle buttons, slider thumbs, checkboxes,
+radios, focus rings, list selection — paints from the *theme's* palette, and
+Fluent's accent is Windows blue. The proof was one control wearing both at
+once: the opacity slider had our coral track and Fluent's `#0078D7` thumb.
+
+Nothing could have caught it from inside. It took a screenshot, which is the
+part worth keeping: a colour system is only as wide as the surfaces that
+resolve through it, and no assertion about the tokens can tell you which
+surfaces those are.
+
+**(a) The interactive accent is violet `#7B61FF`.** Every "this is on" state —
+toggles, slider thumbs, checkboxes, selection, focus. Violet rather than coral
+because it is *already* the selection colour in the layers list and the cel
+vocabulary, so the selected row and the switched-on toggle become one colour
+instead of two. It also leaves coral meaning "the primary action" without
+competition, which is the rule the button ranks depend on: a screen where every
+"on" state is as loud as the one button you want pressed has ranked nothing.
+
+The cost, taken knowingly: the primary button's gradient no longer shares a
+colour with any control state, so the loudest thing on screen is deliberately
+unrelated to everything around it. That is the point, and it is also the thing
+that will look wrong to somebody wanting the app to be "coral".
+
+**(b) The active tab carries a 2 px accent underline.** The first version had no
+mark at all, reasoning that the header is already a distinct surface and a
+filled tab inside it makes two boxes where the artist needed one word. **The
+boxes part still holds; the conclusion did not.** Three words at slightly
+different brightnesses read as a row of labels rather than as a control — and a
+tab strip that is not legible *as* a tab strip has hidden two panels instead of
+offering them, which is the opposite of what tabbing is for.
+
+An underline is the affordance that adds no box and costs no height. A filled
+pill and full boxed tabs were both rejected for the reason the original
+no-mark version was chosen: they put a second box inside the header, and boxed
+tabs would want a row of their own, spending exactly the height tabbing exists
+to save.
+
+**(c) Dialogs sit on `SurfaceElevated`, one step above the panels.** They were
+painting pure black, which is Fluent's window ground showing through because
+nothing had told the theme otherwise. Elevated rather than the panel surface so
+a dialog reads as floating over the app rather than as a hole cut in it — the
+"anything raised goes one step up" rule the four surfaces already encode.
+
+**What none of this needed deciding about**, so it did not hold the question up:
+the theme's palette is written as hex literals in `App.axaml` and cannot be
+otherwise. A `ColorPaletteResources` is built before the merged dictionaries it
+would look into, so `{StaticResource}` there does not resolve. That is a fact
+about Avalonia rather than a preference, and it is guarded by
+`TheThemePaletteIsWrittenInHexOnPurpose` asserting the literals equal the tokens
+they stand in for.
+
+---
+
 ## Q52 · Does the Raster/Vector layer choice survive? — **answered: no, and imports get their own layer**
 
 **Answered 2026-08-07.** The owner's answer, and it is a better design than the
@@ -66,7 +126,7 @@ rule above is what will govern them if they arrive.
 
 **What survives unchanged, and is worth doing on its own:** the layer picker
 still asks a question nobody can answer at layer-creation time, the V/R badge
-still implies a difference in what you can draw when there is none, and B123 is
+still implies a difference in what you can draw when there is none, and B132 is
 still a real silent failure. Those were never contingent on import existing.
 
 ### Why the choice was questioned
@@ -105,7 +165,7 @@ about a capability they do not have, which is the definition of noise.
   layer that is not raster (`activeLayer.Kind != LayerKind.Painted`), and
   `VectorFrame` has no `Placements` field. If new layers stop being raster,
   placing a symbol silently does nothing. Nothing anywhere records a reason for
-  that restriction, so it reads as an accident. Filed as **B123**.
+  that restriction, so it reads as an accident. Filed as **B132**.
 - **`Layer.Kind` stays in the record and leaves the UI.** The literal ask was the
   UI, and keeping the field is what makes an imported-image layer describable at
   all. It stops being chosen and starts being a fact about how the layer was
@@ -113,7 +173,7 @@ about a capability they do not have, which is the definition of noise.
   means what it meant, so Q36 does not even come up.
 - **The manual's layer section changes**, and the R/V badge goes.
 
-**Blocks:** B123 blocks it. Nothing else.
+**Blocks:** B132 blocks it. Nothing else.
 
 **The follow-on nobody has to take yet.** If `Placements` belongs on both kinds,
 the only remaining difference is `PngBase64` — and then the two classes want to
@@ -121,7 +181,7 @@ be one `Frame` with a nullable baseline, which is *absent unless used* stated
 properly. That is a serialization-discriminator change and a bigger piece of
 work; it is named here so it is a decision later rather than a surprise.
 
-## Q46 · How does an artist get into point editing? — **answered: Illustrator's model in full**
+## Q53 · How does an artist get into point editing? — **answered: Illustrator's model in full**
 
 **Answered 2026-08-07: two pointers *and* isolation mode.** A black-arrow
 **Select** tool for whole strokes, a white-arrow **Direct select** for nodes, a
@@ -195,7 +255,7 @@ shift-click, drag a box — and the existing marquee, lasso and wand keep select
 
 **The rejected option is the interesting one:** folding both into one tool, so a
 click picks a line and a drag on empty canvas picks an area. Fewer tools, and it
-reintroduces exactly the ambiguity Q46 exists to remove — the same click meaning
+reintroduces exactly the ambiguity Q53 exists to remove — the same click meaning
 two things depending on what happens to be underneath it.
 
 **What it costs.** One genuinely new primitive: a stroke-under-point query, which

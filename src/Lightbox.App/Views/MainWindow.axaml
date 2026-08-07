@@ -22,27 +22,42 @@
     <Style Selector="DockPanel.animationRow">
       <Setter Property="Margin" Value="16,0,0,0" />
     </Style>
+    <!--
+      A row is as tall as its icon tile and no taller.
+
+      `Padding="2,0"` rather than `2`: the horizontal 2 keeps the first icon off
+      the edge, the vertical 0 is the density. The tile is already 26 with the
+      glyph centred in it, so vertical padding was buying nothing but height —
+      4 px a row, which is a whole extra row every eight layers.
+
+      Declared here rather than on each template, which is also why the three
+      inline copies are gone. They were identical by luck: the layers docker,
+      the group row and the timeline's layer column each wrote their own, so a
+      change to one silently split the lists that are meant to line up.
+    -->
     <Style Selector="Border.layerRow">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="2,0" />
     </Style>
     <Style Selector="Border.layerRow.active">
-      <Setter Property="Background" Value="#33507a" />
+      <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
     </Style>
     <Style Selector="Border.layerRow.hiddenLayer">
       <Setter Property="Opacity" Value="0.35" />
     </Style>
     <Style Selector="Border.layerRow.lockedLayer">
-      <Setter Property="BorderBrush" Value="#8a6a3a" />
+      <Setter Property="BorderBrush" Value="{StaticResource StatusWarningBrush}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.groupRow.lockedLayer">
-      <Setter Property="BorderBrush" Value="#8a6a3a" />
+      <Setter Property="BorderBrush" Value="{StaticResource StatusWarningBrush}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.groupRow">
-      <Setter Property="Background" Value="#26313e" />
+      <Setter Property="Background" Value="{StaticResource GroupRowBrush}" />
       <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="2,0" />
     </Style>
     <Style Selector="Border.groupRow.hiddenLayer">
       <Setter Property="Opacity" Value="0.35" />
@@ -51,14 +66,14 @@
       <Setter Property="Margin" Value="14,0,0,0" />
     </Style>
     <Style Selector="Button.cel">
-      <Setter Property="Background" Value="#2a2a2a" />
+      <Setter Property="Background" Value="{StaticResource CelBrush}" />
     </Style>
     <!-- Frame-role colors: key (default), breakdown, inbetween -->
     <Style Selector="Button.cel.breakdown">
-      <Setter Property="Background" Value="#2e4053" />
+      <Setter Property="Background" Value="{StaticResource CelBreakdownBrush}" />
     </Style>
     <Style Selector="Button.cel.tween">
-      <Setter Property="Background" Value="#2f4032" />
+      <Setter Property="Background" Value="{StaticResource CelTweenBrush}" />
     </Style>
     <Style Selector="Button.cel.virtualCell">
       <Setter Property="Opacity" Value="0.35" />
@@ -67,35 +82,29 @@
       <Setter Property="Opacity" Value="0.45" />
     </Style>
     <Style Selector="Button.cel.current">
-      <Setter Property="Background" Value="#4a6ea9" />
+      <Setter Property="Background" Value="{StaticResource CelCurrentBrush}" />
     </Style>
     <Style Selector="Button.cel.sel">
-      <Setter Property="Background" Value="#3f5a86" />
+      <Setter Property="Background" Value="{StaticResource CelSelectedBrush}" />
     </Style>
     <Style Selector="GridSplitter">
-      <Setter Property="Background" Value="#141414" />
+      <Setter Property="Background" Value="{StaticResource BackgroundPrimaryBrush}" />
     </Style>
     <!-- Headroom meter: amber once the document is costing the machine real time -->
     <Style Selector="ProgressBar.strained /template/ Border#PART_Indicator">
       <Setter Property="Background" Value="#e0a030" />
     </Style>
     <Style Selector="Border.docTab">
-      <Setter Property="Background" Value="#242424" />
+      <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
       <Setter Property="CornerRadius" Value="4,4,0,0" />
     </Style>
     <Style Selector="Border.docTab.active">
-      <Setter Property="Background" Value="#33507a" />
+      <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
     </Style>
-    <!-- Toolbar buttons: icon-only tiles by default; the toolbar's "labels"
-         class (set from code-behind at a width threshold) reveals the names. -->
-    <Style Selector="ToggleButton.tool">
-      <Setter Property="Height" Value="34" />
-      <Setter Property="Margin" Value="1" />
-      <Setter Property="Padding" Value="4,0" />
-      <Setter Property="HorizontalAlignment" Value="Stretch" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
+    <!-- ToggleButton.tool is sized by Density.axaml. Only the alignment
+         changes here: the toolbar's "labels" class (set from code-behind at a
+         width threshold) reveals the names beside the icons, and a name reads
+         left rather than centred. -->
     <Style Selector="Border#Toolbar.labels ToggleButton.tool">
       <Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
@@ -117,27 +126,9 @@
     <Style Selector="controls|OverflowBar TextBlock">
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
-    <!-- Icon buttons outside the overlay bars, which set their own fixed square
-         in Density.axaml. A **square** minimum rather than 26x24, because a
-         non-square minimum is what silently breaks a tile grid: give a row of
-         tiles different proportions and it stops reading as a row, which is the
-         defect the overlay bar's fixed square already exists to prevent. -->
-    <Style Selector="Button.icon">
-      <Setter Property="MinWidth" Value="26" />
-      <Setter Property="MinHeight" Value="26" />
-      <Setter Property="Padding" Value="0" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="ClipToBounds" Value="False" />
-    </Style>
-    <Style Selector="ToggleButton.icon">
-      <Setter Property="MinWidth" Value="26" />
-      <Setter Property="MinHeight" Value="26" />
-      <Setter Property="Padding" Value="0" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="ClipToBounds" Value="False" />
-    </Style>
+    <!-- Icon buttons are sized by Density.axaml, which now carries the square
+         and the reason for it. This block declared 26 against the scale's 24
+         and won, so the scale described a size no control in this window had. -->
     <Style Selector="TextBlock.toolname">
       <Setter Property="IsVisible" Value="False" />
     </Style>
@@ -150,7 +141,7 @@
 
     <!-- Menu bar -->
     <Menu DockPanel.Dock="Top">
-      <MenuItem Header="_File">
+      <MenuItem Header="_File" Classes="top">
         <MenuItem Header="_New…" Click="OnNewClicked" />
         <MenuItem Header="_Open…" Click="OnOpenClicked" />
         <!--
@@ -209,7 +200,7 @@
         <MenuItem Header="Export for a _game engine…" Click="OnExportSheetClicked"
                   ToolTip.Tip="Sprite sheet, sidecar and optional Unity importer. Trim, layout and background handling live here." />
       </MenuItem>
-      <MenuItem Header="_Edit">
+      <MenuItem Header="_Edit" Classes="top">
         <MenuItem Header="_Configure…" Click="OnConfigureClicked" />
         <MenuItem Header="Brush _library…" Click="OnBrushLibraryClicked" />
         <MenuItem Header="Brush _tips…" Click="OnBrushTipsClicked" />
@@ -249,7 +240,7 @@
                   IsChecked="{Binding ShowStartScreen, Mode=TwoWay}"
                   ToolTip.Tip="The start screen. Escape on it always drops through to a blank document." />
       </MenuItem>
-      <MenuItem Header="_View">
+      <MenuItem Header="_View" Classes="top">
         <!--
           Guides are document data, like the camera, so they live under View
           next to the other things you turn on rather than in a panel that
@@ -344,12 +335,21 @@
         half of the same question, and it is remembered across restarts because
         the way it gets used is "turn it on, restart, reproduce".
       -->
-      <MenuItem Header="_Help">
+      <MenuItem Header="_Help" Classes="top">
         <MenuItem Header="Open the diagnostics folder" Click="OnOpenDiagnosticsFolder"
                   ToolTip.Tip="Crash reports and the log of problems Lightbox survived" />
         <MenuItem Header="Show a console while drawing" ToggleType="CheckBox"
                   IsChecked="{Binding ShowDiagnosticsConsole, Mode=TwoWay}"
                   ToolTip.Tip="Opens a console window at the next start, carrying the diagnostic traces" />
+        <!--
+          Always visible, unlike the crash scenarios below: this one is how a
+          performance report gets made, and asking somebody to turn diagnostics
+          on first is a step they will not know to take when the app feels slow.
+          A short version is written on every start; this is the full one, with
+          what has been measured since and an upload probe timed on the real GPU.
+        -->
+        <MenuItem Header="Write a render report" Click="OnWriteRenderReport"
+                  ToolTip.Tip="Measures this machine's drawing path and writes it to the diagnostics folder" />
         <!--
           Absent unless diagnostics are on, the same way the Project menu items
           are absent without a project: an item you can click that then does
@@ -387,7 +387,7 @@
     </Menu>
 
     <!-- Dynamic tool options bar: contents depend on the selected tool -->
-    <Border DockPanel.Dock="Top" Padding="8,6" Background="#1f1f1f">
+    <Border DockPanel.Dock="Top" Padding="8,2" Background="{StaticResource BackgroundSecondaryBrush}">
       <DockPanel>
 
         <!--
@@ -403,7 +403,7 @@
         <!-- A rule between the two, because the bar's overflow control ends up
              directly beside this one and without a divider the pair reads as
              one group belonging to the workspace. -->
-        <Border DockPanel.Dock="Right" Width="1" Margin="10,3" Background="#3a3a3a" />
+        <Border DockPanel.Dock="Right" Width="1" Margin="10,3" Background="{StaticResource BorderBrush}" />
         <ComboBox x:Name="WorkspacePicker" DockPanel.Dock="Right"
                   ItemsSource="{Binding Workspace.WorkspaceChoices}"
                   PlaceholderText="{Binding Workspace.CurrentLabel}"
@@ -516,10 +516,10 @@
                 Command="{Binding SwapColorsCommand}" ToolTip.Tip="Swap foreground and background (X)" />
         <!-- A rule, so the tool's own options read as a separate group rather
              than as more colour controls. -->
-        <Border Width="1" Margin="6,3,0,3" Background="#3a3a3a" />
+        <Border Width="1" Margin="6,3,0,3" Background="{StaticResource BorderBrush}" />
       </StackPanel>
 
-      <controls:OverflowBar Height="30" Spacing="14" VerticalAlignment="Center">
+      <controls:OverflowBar Spacing="14" VerticalAlignment="Center">
 
         <!-- Transform session (Ctrl+T): shown above whatever tool was active -->
         <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding TransformActive}">
@@ -582,7 +582,7 @@
               <TextBlock DockPanel.Dock="Right" Text="▾" FontSize="10" Opacity="0.6"
                          VerticalAlignment="Center" Margin="4,0,0,0" />
               <!-- The dot says the brush has drifted from the preset named beside it -->
-              <TextBlock DockPanel.Dock="Right" Text="{Binding BrushModifiedBadge}" Foreground="#d9a05b"
+              <TextBlock DockPanel.Dock="Right" Text="{Binding BrushModifiedBadge}" Foreground="{StaticResource StatusWarningBrush}"
                          FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"
                          ToolTip.Tip="{Binding BrushModifiedTip}" />
               <TextBlock x:Name="BrushPickerName" Text="Brush" VerticalAlignment="Center"
@@ -638,7 +638,7 @@
                         <DataTemplate x:DataType="views:BrushChoice">
                           <StackPanel Margin="0,2" Spacing="2" ToolTip.Tip="{Binding Tip}">
                             <Panel>
-                              <Border Height="44" Background="#f2f0ec" CornerRadius="3">
+                              <Border Height="44" Background="{StaticResource CanvasPaperBrush}" CornerRadius="3">
                                 <Image Source="{Binding Preview}" Stretch="None"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
                               </Border>
@@ -648,12 +648,12 @@
                                 looking at, and a price tag off to the side of
                                 a grid is read as decoration.
                               -->
-                              <TextBlock Text="{Binding CostBadge}" Foreground="#b07a2a" FontSize="11"
+                              <TextBlock Text="{Binding CostBadge}" Foreground="{StaticResource StatusWarningBrush}" FontSize="11"
                                          HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,1,3,0" />
                               <!-- The one thing the picture cannot carry: the brush's real size -->
-                              <Border Background="#d0f2f0ec" CornerRadius="2" Padding="3,0"
+                              <Border Background="{StaticResource CanvasPaperBrush}" CornerRadius="2" Padding="3,0"
                                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,2,2">
-                                <TextBlock Text="{Binding SizeLabel}" FontSize="9" Foreground="#4a4a4a" />
+                                <TextBlock Text="{Binding SizeLabel}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" />
                               </Border>
                             </Panel>
                             <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" />
@@ -679,7 +679,7 @@
                 -->
                 <Grid Width="470" MinHeight="240" MaxHeight="760" ColumnDefinitions="120,8,*">
                   <ListBox x:Name="BrushCategoryList" Grid.Column="0" SelectedIndex="0"
-                           SelectionChanged="OnBrushCategoryChanged" Background="#1c1c1c">
+                           SelectionChanged="OnBrushCategoryChanged" Background="{StaticResource BackgroundSecondaryBrush}">
                     <ListBoxItem Content="General" />
                     <ListBoxItem Content="Effects" />
                     <ListBoxItem Content="Medium" />
@@ -730,7 +730,7 @@
                                   Padding="4" Click="OnTipPickerOpen"
                                   ToolTip.Tip="The shape each dab stamps. Painting with one copies it into the drawing.">
                             <DockPanel>
-                              <Border DockPanel.Dock="Left" Width="26" Height="26" Background="#242424"
+                              <Border DockPanel.Dock="Left" Width="26" Height="26" Background="{StaticResource SurfacePanelBrush}"
                                       CornerRadius="3" Margin="0,0,8,0">
                                 <Image x:Name="TipPickerThumb" Stretch="Uniform" Margin="1" />
                               </Border>
@@ -754,7 +754,7 @@
                                       <ListBox.ItemTemplate>
                                         <DataTemplate x:DataType="views:TipChoice">
                                           <StackPanel Margin="0,2" Spacing="2">
-                                            <Border Height="60" Background="#242424" CornerRadius="3">
+                                            <Border Height="60" Background="{StaticResource SurfacePanelBrush}" CornerRadius="3">
                                               <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="3" />
                                             </Border>
                                             <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" />
@@ -1082,7 +1082,7 @@
                                   IsChecked="{Binding CursorTracksPressure}"
                                   ToolTip.Tip="On, the ring shows the thickness the stroke is laying down right now. Off, it stays at the brush's full size as a stable target. Hovering always shows the maximum." />
                         <TextBlock Text="Pen pressure" FontWeight="SemiBold" FontSize="12" />
-                        <TextBlock Text="{Binding PenDiagnostic}" FontSize="11" Foreground="#7fd0ff"
+                        <TextBlock Text="{Binding PenDiagnostic}" FontSize="11" Foreground="{StaticResource AccentCyanBrush}"
                                    TextWrapping="Wrap"
                                    ToolTip.Tip="Live report of what Windows delivers while you draw" />
                         <TextBlock Text="Seeing Mouse instead of Pen? Enable “Windows Ink” in your Huion/Wacom driver settings, then restart Lightbox."
@@ -1109,7 +1109,7 @@
                       <StackPanel x:Name="BrushPagePresets" Spacing="6" IsVisible="False">
                         <TextBlock Text="Presets" FontWeight="SemiBold" FontSize="12" />
 
-                        <Border x:Name="PresetModifiedNote" Background="#33291a" CornerRadius="4"
+                        <Border x:Name="PresetModifiedNote" Background="{StaticResource StatusWarningSurfaceBrush}" CornerRadius="4"
                                 Padding="8,6" IsVisible="False">
                           <TextBlock x:Name="PresetModifiedText" TextWrapping="Wrap" FontSize="11" />
                         </Border>
@@ -1520,7 +1520,7 @@
 
     <!-- AI bar. Absent, not greyed, when assistance is switched off: a row
          that can never do anything is worse than no row. -->
-    <Border DockPanel.Dock="Top" Padding="8,4" Background="#232323"
+    <Border DockPanel.Dock="Top" Padding="8,2" Background="{StaticResource SurfacePanelBrush}"
             IsVisible="{Binding AiEnabled}"
             ToolTip.Tip="{Binding AiUnavailableHint}">
       <StackPanel Orientation="Horizontal" Spacing="10">
@@ -1541,8 +1541,8 @@
     </Border>
 
     <!-- Info strip: what the document is, and how much room the machine has left -->
-    <Border DockPanel.Dock="Bottom" Background="#191919" BorderBrush="#2c2c2c" BorderThickness="0,1,0,0"
-            Padding="10,4">
+    <Border DockPanel.Dock="Bottom" Background="{StaticResource BackgroundSecondaryBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
+            Padding="10,2">
       <DockPanel LastChildFill="False">
         <TextBlock DockPanel.Dock="Left" Text="{Binding DocumentSizeLabel}" FontSize="11" Opacity="0.85"
                    VerticalAlignment="Center" ToolTip.Tip="Canvas size and resolution of the open document" />
@@ -1570,7 +1570,7 @@
     </Border>
 
     <!-- Open documents: click to switch, ✕ to close, • marks unsaved changes -->
-    <Border DockPanel.Dock="Top" Background="#191919" Padding="4,3,4,0">
+    <Border DockPanel.Dock="Top" Background="{StaticResource BackgroundSecondaryBrush}" Padding="4,2,4,0">
       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
         <ItemsControl ItemsSource="{Binding Tabs}">
           <ItemsControl.ItemsPanel>
@@ -1580,9 +1580,9 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:DocumentTab">
-              <Border Classes="docTab" Classes.active="{Binding IsActive}" Padding="2,2,2,2">
+              <Border Classes="docTab" Classes.active="{Binding IsActive}" Padding="2,0">
                 <StackPanel Orientation="Horizontal" Spacing="0">
-                  <Button Content="{Binding DisplayTitle}" Background="Transparent" Padding="8,3"
+                  <Button Content="{Binding DisplayTitle}" Background="Transparent" Padding="8,1"
                           Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateTabCommand}"
                           CommandParameter="{Binding}" />
                   <Button Classes="icon" Content="✕" FontSize="10" Background="Transparent"
@@ -1638,7 +1638,7 @@
           <ColumnDefinition Width="300" MinWidth="200" />
         </Grid.ColumnDefinitions>
 
-        <Border x:Name="Toolbar" Grid.Column="0" Background="#1c1c1c" SizeChanged="OnToolbarSizeChanged">
+        <Border x:Name="Toolbar" Grid.Column="0" Background="{StaticResource BackgroundSecondaryBrush}" SizeChanged="OnToolbarSizeChanged">
           <ScrollViewer VerticalScrollBarVisibility="Auto">
             <WrapPanel x:Name="ToolButtons" Margin="3">
               <ToggleButton Classes="tool" IsChecked="{Binding IsBrushTool, Mode=OneWay}"
@@ -1776,7 +1776,7 @@
                                HorizontalAlignment="Left" VerticalAlignment="Stretch"
                                Margin="0,18,0,0"
                                IsVisible="{Binding Workspace.RulersVisible}" />
-          <Border x:Name="RulerCorner" Width="18" Height="18" Background="#1c1c1c"
+          <Border x:Name="RulerCorner" Width="18" Height="18" Background="{StaticResource BackgroundSecondaryBrush}"
                   HorizontalAlignment="Left" VerticalAlignment="Top"
                   IsVisible="{Binding Workspace.RulersVisible}" />
           <!--
@@ -1904,7 +1904,6 @@
              its slot; ApplyDockLayout leaves it out until there is a project. -->
         <controls:Docker x:Name="ProjectPanel" PanelId="Project"
                          Title="{Binding ProjectDocker.ProjectName}"
-                         SwitchTargets="{Binding Workspace.ProjectSwitchTargets}"
                          CloseCommand="{Binding ToggleProjectPanelCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -2393,7 +2392,7 @@
                                    ToolTip.Tip="In the project, not written to disk yet. Save to write it." />
                         <TextBlock DockPanel.Dock="Right" Text="{Binding MissingHint}"
                                    IsVisible="{Binding Missing}"
-                                   FontSize="10" Foreground="#d08770" FontWeight="SemiBold"
+                                   FontSize="10" Foreground="{StaticResource AccentCoralBrush}" FontWeight="SemiBold"
                                    Margin="6,0,2,0" VerticalAlignment="Center"
                                    ToolTip.Tip="This is in your project and its file cannot be found. Removing it from the project stays your decision." />
                         <Panel MinHeight="20">
@@ -2416,7 +2415,6 @@
             </controls:Docker>
 
         <controls:Docker x:Name="LayersDocker" PanelId="Layers" Title="Layers"
-                         SwitchTargets="{Binding Workspace.LayersSwitchTargets}"
                          CloseCommand="{Binding ToggleLayersPanelCommand}">
               <controls:Docker.TitleBarExtra>
                 <Button Content="⇄" FontSize="11" Padding="6,2"
@@ -2426,7 +2424,7 @@
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
                   <StackPanel Spacing="4">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
                       <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
                               ToolTip.Tip="Add a new layer of the selected kind" />
                       <Button Content="🗑" Command="{Binding DeleteActiveLayerCommand}"
@@ -2463,7 +2461,7 @@
                   <ItemsControl.DataTemplates>
                     <DataTemplate x:DataType="vm:GroupRow">
                       <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}"
-                              Classes.lockedLayer="{Binding Locked}" Padding="2"
+                              Classes.lockedLayer="{Binding Locked}"
                               BorderBrush="{Binding ColorBrush}" BorderThickness="4,0,0,0" CornerRadius="3">
                         <Border.ContextMenu>
                           <ContextMenu>
@@ -2522,7 +2520,7 @@
                     <DataTemplate x:DataType="vm:LayerRow">
                       <Border Classes="layerRow" Classes.active="{Binding IsActive}" Classes.grouped="{Binding IsGrouped}"
                               Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}"
-                              Padding="2" Focusable="True"
+                              Focusable="True"
                               PointerPressed="OnLayerRowPressed">
                         <Border.ContextMenu>
                           <ContextMenu>
@@ -2606,7 +2604,6 @@
           prop, FX) are the Kind filter below, not six panels.
         -->
         <controls:Docker x:Name="SymbolsPanel" PanelId="Symbols" Title="Symbols"
-                         SwitchTargets="{Binding Workspace.SymbolsSwitchTargets}"
                          CloseCommand="{Binding ToggleSymbolsPanelCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -2696,7 +2693,7 @@
                       <DataTemplate>
                         <StackPanel Width="72" Margin="1" Spacing="1"
                                     ToolTip.Tip="{Binding Tags}">
-                          <Border Background="#20262c" CornerRadius="3" Height="48">
+                          <Border Background="{StaticResource SurfaceElevatedBrush}" CornerRadius="3" Height="48">
                             <Image Source="{Binding Thumb}" Stretch="Uniform" />
                           </Border>
                           <TextBlock Text="{Binding Name}" FontSize="10" TextTrimming="CharacterEllipsis" />
@@ -2714,7 +2711,6 @@
             </controls:Docker>
 
         <controls:Docker x:Name="ColorPanel" PanelId="Color" Title="Color"
-                         SwitchTargets="{Binding Workspace.ColorSwitchTargets}"
                          CloseCommand="{Binding ToggleColorDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -2883,7 +2879,6 @@
             </controls:Docker>
 
         <controls:Docker x:Name="SheetsPanel" PanelId="Sheets" Title="Reference sheets"
-                         SwitchTargets="{Binding Workspace.SheetsSwitchTargets}"
                          CloseCommand="{Binding ToggleSheetsDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -2935,7 +2930,6 @@
             </controls:Docker>
 
         <controls:Docker x:Name="PalettePanel" PanelId="Palette" Title="Palette"
-                         SwitchTargets="{Binding Workspace.PaletteSwitchTargets}"
                          CloseCommand="{Binding TogglePaletteDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -3086,7 +3080,6 @@
             </controls:Docker>
 
         <controls:Docker x:Name="GradientPanel" PanelId="Gradient" Title="Gradient"
-                         SwitchTargets="{Binding Workspace.GradientSwitchTargets}"
                          CloseCommand="{Binding ToggleGradientDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -3176,7 +3169,6 @@
              sheet. Never artwork — it is the photograph taped to the lightbox,
              and it never reaches an exported pixel. -->
         <controls:Docker x:Name="ReferencePanel" PanelId="Reference" Title="Reference"
-                         SwitchTargets="{Binding Workspace.ReferenceSwitchTargets}"
                          CloseCommand="{Binding ToggleReferenceDockerCommand}">
           <controls:Docker.TopBar>
             <Border Classes="dockerBar">
@@ -3234,7 +3226,7 @@
                 <TextBlock Text="Frames" FontWeight="SemiBold" FontSize="11" Margin="0,4,0,0" />
                 <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
                            Text="Detection reads the gaps between the drawings. Two rows that touch have no gap to find — say how many columns and rows instead." />
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="4">
                   <TextBlock Text="Cols" VerticalAlignment="Center" FontSize="11" />
                   <NumericUpDown Value="{Binding ReferenceColumns}" Minimum="0" Maximum="64"
                                  Increment="1" FormatString="0" Width="56" />
@@ -3242,7 +3234,7 @@
                   <NumericUpDown Value="{Binding ReferenceRows}" Minimum="0" Maximum="64"
                                  Increment="1" FormatString="0" Width="56" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="4">
                   <Button Content="Apply grid" Command="{Binding ApplyReferenceGridCommand}" />
                   <Button Content="Detect" Command="{Binding DetectReferenceFramesCommand}"
                           ToolTip.Tip="Find the frames from the image again" />
@@ -3274,11 +3266,10 @@
              so a 300px sidebar is a placement that cannot work. No switcher
              either, for the same reason. -->
         <controls:Docker x:Name="TimelineDocker" PanelId="Timeline" Title="Timeline"
-                         ShowSwitcher="False"
                          CloseCommand="{Binding ToggleTimelineCommand}">
         <controls:Docker.TopBar>
           <Border Classes="dockerBar">
-            <StackPanel Orientation="Horizontal" Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="4">
               <Button Content="＋" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
               <Button Content="⧉" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
               <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
@@ -3482,7 +3473,7 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:LayerRow">
                   <Border Classes="layerRow" Classes.active="{Binding IsActive}"
-                          Classes.hiddenLayer="{Binding !Visible}" Padding="2">
+                          Classes.hiddenLayer="{Binding !Visible}">
                     <StackPanel Orientation="Horizontal" Spacing="2">
                       <!-- Both explicitly centred. They looked inconsistent
                            because they were relying on the default, and ◉ and
@@ -3588,6 +3579,9 @@
            no pointer input at all — an overlay that did would swallow the very
            moves it exists to follow. -->
       <controls:DockDropIndicator x:Name="DropIndicator" Grid.RowSpan="5" />
+    <!-- Over the indicator, because the ghost is the thing in your hand and
+         the highlight is the thing on the table. Neither takes the pointer. -->
+    <controls:DockDragGhost x:Name="DragGhost" Grid.RowSpan="5" />
     </Grid>
 
 

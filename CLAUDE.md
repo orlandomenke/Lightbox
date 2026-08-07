@@ -164,6 +164,7 @@ session start when it is stale.
 | What is known broken? | `python3 scripts/bugs.py next` |
 | What is broken in the area I am editing? | `python3 scripts/bugs.py mine <domain>` |
 | What does the app do, from the artist's side? | `python3 scripts/manual.py find X`, then read that one section |
+| What is this supposed to *look* like? | read `docs/design/ui-reference.png`, then `.claude/quality/DESIGN.md` — the image is the source, the file is the rules read off it |
 | What does an AI request cost? | read `docs/DESIGN-ai-payload.md` — do not re-derive it |
 | What should I pick up next? | `python3 scripts/roadmap.py next` |
 

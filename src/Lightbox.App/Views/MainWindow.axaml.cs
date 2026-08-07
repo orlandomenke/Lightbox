@@ -50,6 +50,15 @@ public partial class MainWindow : Window
         Canvas.DisplayScaleChanged += scale => _vm.SetDisplayScale(scale);
         Canvas.ViewportChanged += viewport => _vm.SetViewport(viewport);
         Canvas.FrameRendered += ms => _vm.RecordFrameTime(ms);
+        // The backend is only knowable once a frame has been drawn, so the
+        // startup report waits for that rather than for construction. One frame
+        // later than "startup", and the only point at which it has an answer.
+        //
+        // BackendDetected is static and this handler is an instance method, so
+        // the subscription would outlive the window and keep it alive. Detached
+        // in OnClosed — a diagnostic has no business being the reason a window
+        // cannot be collected.
+        Rendering.CanvasControl.BackendDetected += WriteStartupRenderReport;
         Canvas.CursorPressureChanged += (pressure, penDown) => _vm.SetCursorPressure(pressure, penDown);
 
         // Transform session: the VM owns the frames, the canvas owns the gizmo.
@@ -293,8 +302,10 @@ public partial class MainWindow : Window
         foreach (var panel in PanelPool.Children.OfType<Docker>().ToList())
         {
             _panels[panel.PanelId] = panel;
-            panel.SwitchTargets ??= WorkspaceViewModel.SwitchTargetsFor(panel.PanelId);
-            panel.SwitchRequested += (from, to) => _vm.Workspace.Swap(from.PanelId, to);
+            // Picking a tab shows it and hides its siblings. Through the view
+            // model rather than the layout, so it marks the workspace dirty like
+            // any other rearrangement.
+            panel.TabPicked += (_, id) => _vm.Workspace.Activate(id);
             panel.PanelDragStarted += BeginPanelDrag;
         }
         foreach (var strip in Strips())
@@ -343,7 +354,24 @@ public partial class MainWindow : Window
 
         foreach (var (side, strip) in Strips())
         {
-            var panels = layout.PanelsIn(side).Where(IsPanelUsable).Select(id => _panels[id]).ToList();
+            // One control per slot — the one showing. The others in the slot are
+            // its tabs and stay parked, so a hidden tab costs nothing but a word
+            // in a header, which is the whole point of tabbing.
+            var panels = new List<Docker>();
+            foreach (var slot in layout.SlotsIn(side))
+            {
+                var usable = slot.Where(IsPanelUsable).ToList();
+                if (usable.Count == 0) continue;
+
+                // The active member may be one the document cannot use — a
+                // project panel with no project. Fall back rather than leave
+                // the slot blank.
+                var active = usable.Contains(layout.ActiveOf(slot)) ? layout.ActiveOf(slot) : usable[0];
+                var panel = _panels[active];
+                panel.Tabs = usable.Count > 1 ? usable.Select(DockPanels.Of).ToList() : null;
+                panel.ActiveTab = active;
+                panels.Add(panel);
+            }
             foreach (var panel in panels) Detach(panel);
             strip.Rebuild(panels, layout);
             // The cap comes from the panels actually shown, not from the ones
@@ -699,6 +727,93 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Let go of the static subscription this window took out.</summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        Rendering.CanvasControl.BackendDetected -= WriteStartupRenderReport;
+        base.OnClosed(e);
+    }
+
+    /// <summary>
+    /// Gather what the render report needs from the places that own each fact.
+    /// </summary>
+    /// <remarks>
+    /// Assembled here rather than inside <c>RenderReport</c> so that class reaches
+    /// into nothing: the backend is a static on the canvas, the frame's state is
+    /// the canvas's, and the document and quality belong to the view model. A
+    /// diagnostic that reaches across the app to collect itself is a diagnostic
+    /// that breaks when any of them move.
+    /// </remarks>
+    private Services.RenderReport.Facts RenderFacts()
+    {
+        var totals = Canvas.PresentedFrameTotals;
+        return new Services.RenderReport.Facts(
+            Rendering.CanvasControl.GraphicsBackend,
+            Rendering.CanvasControl.SoftwareRendering,
+            totals.OnGpu,
+            totals.GpuFailed,
+            Rendering.CanvasControl.MaxTextureSize,
+            _vm.ReportDocWidth,
+            _vm.ReportDocHeight,
+            _vm.ReportDisplayScale,
+            _vm.CanvasQuality.ToString(),
+            _vm.ReportComposeScale,
+            Rendering.CanvasControl.DurableFrameEnabled,
+            totals.Presents > 0);
+    }
+
+    /// <summary>
+    /// Write the startup report once the backend is knowable — which is the first
+    /// frame, not construction: before anything is drawn there is no lease and so
+    /// no answer to the only question this report exists to settle.
+    /// </summary>
+    private void WriteStartupRenderReport()
+    {
+        try
+        {
+            Services.RenderReport.WriteStartup(RenderFacts());
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("render-report-startup", ex);
+        }
+    }
+
+    /// <summary>
+    /// Write a full report, running the upload probe inside a lease first.
+    /// </summary>
+    /// <remarks>
+    /// The probe needs the compositor's context, which only exists inside a draw
+    /// operation, so this queues it and writes when it comes back. If no frame
+    /// arrives — a hidden window — the report is still written, without a probe,
+    /// because the facts and the session totals are most of its value.
+    /// </remarks>
+    private void OnWriteRenderReport(object? sender, RoutedEventArgs e)
+    {
+        var t = Canvas.PresentedFrameTotals;
+        var totals = new Services.RenderReport.Totals(
+            t.Presents, t.Full, t.Free, t.Patched, t.IfAlwaysFull,
+            _vm.Performance.PublishMs, _vm.Performance.FrameMs);
+
+        // The probe runs at the size the app is actually compositing at, so its
+        // answer is about this document rather than a fixed benchmark canvas.
+        var width = (int)Math.Ceiling(_vm.ReportDocWidth * _vm.ReportComposeScale);
+        var height = (int)Math.Ceiling(_vm.ReportDocHeight * _vm.ReportComposeScale);
+
+        Canvas.RunWithGpuContext(gpu =>
+        {
+            var probe = Services.RenderReport.RunUploadProbe(gpu, width, height);
+            // Back to the UI thread to write and to report where it went.
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                var path = Services.RenderReport.WriteOnDemand(RenderFacts(), totals, probe);
+                _vm.AiStatus = path is null
+                    ? "Could not write the render report"
+                    : $"Render report written to {path}";
+            });
+        });
+    }
+
     /// <summary>Run a deliberate failure, after asking if there is anything to lose.</summary>
     /// <remarks>
     /// The warning is the scenario's own, not this method's: a survivable failure
@@ -894,6 +1009,7 @@ public partial class MainWindow : Window
 
     private void OnPanelDragReleased(object? sender, PointerReleasedEventArgs e)
     {
+        DragGhost.Hide();
         if (_dragging is not { } panel) return;
         var target = ResolveDrop(e);
         // Where the pointer is, in screen space, read before the drag state is
@@ -905,7 +1021,9 @@ public partial class MainWindow : Window
 
         if (target is { } drop)
         {
-            _vm.Workspace.Dock(panel.PanelId, drop.Side, drop.Index);
+            // Onto a header: tab into that slot. Onto a body: a slot of its own.
+            if (drop.IntoGroupOf is { } host) _vm.Workspace.JoinGroup(panel.PanelId, host);
+            else _vm.Workspace.Dock(panel.PanelId, drop.Side, drop.Index);
             return;
         }
         // Let go over nothing: the panel floats. Dropping a panel into empty
@@ -928,9 +1046,24 @@ public partial class MainWindow : Window
         _dragHost = null;
         _dragging = null;
         DropIndicator.Show(null);
+        DragGhost.Hide();
     }
 
-    private void UpdateDropTarget(PointerEventArgs e) => DropIndicator.Show(ResolveDrop(e));
+    /// <summary>
+    /// Both halves of the feedback: what is moving, and where it would land.
+    /// </summary>
+    private void UpdateDropTarget(PointerEventArgs e)
+    {
+        DropIndicator.Show(ResolveDrop(e));
+
+        // Null when the pointer cannot be mapped into this window — a drag that
+        // has wandered off a floating panel onto the desktop. The ghost lives in
+        // this window's overlay, so it stops at the edge rather than following.
+        if (_dragging is { } panel && PointerOverRoot(e) is { } at)
+        {
+            DragGhost.Show(DockPanels.TitleOf(panel.PanelId), at);
+        }
+    }
 
     private DropTarget? ResolveDrop(PointerEventArgs e)
     {
@@ -970,7 +1103,11 @@ public partial class MainWindow : Window
             if (visual.TranslatePoint(default, RootGrid) is not { } origin) continue;
             slots.Add(new PanelSlot(
                 id, side, layout.Place(id).Order,
-                new DockRect(origin.X, origin.Y, panel.Bounds.Width, panel.Bounds.Height)));
+                new DockRect(origin.X, origin.Y, panel.Bounds.Width, panel.Bounds.Height),
+                // Measured rather than assumed a constant: the header carries a
+                // tab strip now, and a band that does not match what is on
+                // screen is a drop target you cannot see to aim at.
+                panel.HeaderHeight));
         }
         return slots;
     }

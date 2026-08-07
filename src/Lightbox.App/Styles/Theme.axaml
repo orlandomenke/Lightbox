@@ -1,0 +1,76 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    The bridge between Fluent's own resource names and our palette.
+
+    `DESIGN.md` says the colour system has two halves and the views are only
+    one of them. `App.axaml`'s `ColorPaletteResources` is most of the second —
+    two properties that repoint every accent and the window ground. This file
+    is the rest: the keys Fluent does *not* derive from the accent, which it
+    instead hard-codes as translucent black and white.
+
+    **Why these need naming one at a time.** A ColorPaletteResources entry is a
+    seed the theme derives a family from, so `Accent` fixes fifty controls. A
+    key like `TextControlBackground` is a leaf — nothing else is computed from
+    it, so nothing else changes when it does, and the only way to correct it is
+    to say so. That is why this file is a list rather than two lines, and why
+    it is a separate file rather than more of `Palette.axaml`: the palette is
+    what the design *says*, this is what Fluent has to be *told*.
+
+    Unlike `ColorPaletteResources`, these resolve normally, so they name roles.
+    A literal here would be a defect the same as one in a view.
+  -->
+
+  <!-- ===== Fields ==================================================== -->
+  <!--
+    Text boxes, numeric fields and combo boxes, everywhere: dialogs, dockers,
+    the tool options bar, flyouts, and anything added later. There is no list of
+    call sites to keep in step because there is no call site — a control that
+    has never heard of this file still comes out right, which is the whole
+    reason to fix it here rather than with a style per control.
+
+    Fluent's values are `#66000000` resting and `#99000000` hovered — 40% and
+    60% black. So today a field is a hole in its panel and *hovering deepens
+    the hole*, which is the opposite of a control lighting up under the pointer.
+  -->
+  <StaticResource x:Key="TextControlBackground" ResourceKey="FieldGroundBrush" />
+  <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="FieldGroundHoverBrush" />
+  <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="FieldGroundHoverBrush" />
+  <StaticResource x:Key="TextControlBackgroundDisabled" ResourceKey="FieldGroundDisabledBrush" />
+
+  <!--
+    `#99ffffff` is 60% white, which on a dark panel is a bright wire around
+    every field — the single loudest thing in a form, drawn around the part that
+    is only a container. A border is a boundary, not an emphasis: it takes the
+    strong border role, the same hairline a raised edge uses.
+  -->
+  <StaticResource x:Key="TextControlBorderBrush" ResourceKey="BorderStrongBrush" />
+  <StaticResource x:Key="TextControlBorderBrushPointerOver" ResourceKey="BorderStrongBrush" />
+  <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="TextSecondaryBrush" />
+
+  <!--
+    `TextControlBorderBrushFocused` is deliberately absent: Fluent derives it
+    from the accent, so it is already our violet. Restating it here would be a
+    second place to change it and a first place for the two to disagree.
+  -->
+
+  <StaticResource x:Key="ComboBoxBackground" ResourceKey="FieldGroundBrush" />
+  <StaticResource x:Key="ComboBoxBackgroundPointerOver" ResourceKey="FieldGroundHoverBrush" />
+  <StaticResource x:Key="ComboBoxBackgroundPressed" ResourceKey="FieldGroundHoverBrush" />
+  <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="BorderStrongBrush" />
+
+  <!-- ===== Things that float ========================================= -->
+  <!--
+    Context menus, combo drop-downs and flyouts all sat on `#ff2b2b2b` — a flat
+    neutral grey with no blue in it at all, which is why a right-click used to
+    look like it belonged to a different application. It did: that value is
+    Fluent's, and nothing in the palette had ever reached it.
+
+    They take the elevated surface for the same reason dialogs do. Anything
+    floating above the window goes one step up, which is the whole meaning of
+    the four surfaces.
+  -->
+  <StaticResource x:Key="ComboBoxDropDownBackground" ResourceKey="SurfaceElevatedBrush" />
+  <StaticResource x:Key="FlyoutPresenterBackground" ResourceKey="SurfaceElevatedBrush" />
+  <StaticResource x:Key="MenuFlyoutPresenterBackground" ResourceKey="SurfaceElevatedBrush" />
+</ResourceDictionary>

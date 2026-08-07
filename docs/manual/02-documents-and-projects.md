@@ -207,7 +207,7 @@ that both backgrounds and characters work from actually needs.
 choice: the drawing appears in the folder's **Reach** list and can be stopped
 from sharing. It does **not** yet put anything in front of you — nothing reads
 the declaration back and offers the reference to the drawings under that folder.
-Filed as **B124**, and the two *Planned* rows above are part of the same gap.
+Filed as **B133**, and the two *Planned* rows above are part of the same gap.
 
 **The reference you can actually draw against is a different feature and it
 works** — **View → Reference**, further on in *Onion skin, references and the

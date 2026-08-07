@@ -1,0 +1,212 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    The colour system, in one file, from docs/DESIGN-ui-system.md.
+
+    Before this there were 120 colour literals across 60 distinct values and six
+    resource references, which made "change the application's colour" a hundred
+    edits with no way to check they agreed. The point of a token is not tidiness:
+    it is that a surface and the surface beside it are the *same* colour because
+    they name the same thing, rather than because two people typed the same hex.
+
+    Named for the ROLE, never the colour. `SurfacePanelBrush` survives the panel
+    becoming blue; `DarkGreyBrush` does not, and a codebase that has been through
+    one re-skin is full of tokens whose names are lies.
+  -->
+
+  <!-- ===== Core ===================================================== -->
+  <!-- Four surfaces, from furthest back to nearest front. The order is the
+       whole meaning: anything raised above its neighbour goes one step up. -->
+  <Color x:Key="BackgroundPrimary">#0B0D12</Color>
+  <Color x:Key="BackgroundSecondary">#13161D</Color>
+  <Color x:Key="SurfacePanel">#1A1E27</Color>
+  <Color x:Key="SurfaceElevated">#222634</Color>
+
+  <Color x:Key="TextPrimary">#E6E8F0</Color>
+  <Color x:Key="TextSecondary">#9AA1B2</Color>
+
+  <!--
+    Text that sits ON an accent rather than on a surface — the primary button's
+    label, and anything else riding the gradient. It is a role of its own rather
+    than TextPrimary because the two move in opposite directions: TextPrimary is
+    light because the surfaces are dark, and if the surfaces ever went light it
+    would follow them down while this one stayed put.
+  -->
+  <Color x:Key="TextOnAccent">#FFFFFF</Color>
+
+  <SolidColorBrush x:Key="BackgroundPrimaryBrush" Color="{StaticResource BackgroundPrimary}" />
+  <SolidColorBrush x:Key="BackgroundSecondaryBrush" Color="{StaticResource BackgroundSecondary}" />
+  <SolidColorBrush x:Key="SurfacePanelBrush" Color="{StaticResource SurfacePanel}" />
+  <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="{StaticResource SurfaceElevated}" />
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}" />
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondary}" />
+  <SolidColorBrush x:Key="TextOnAccentBrush" Color="{StaticResource TextOnAccent}" />
+
+  <!-- ===== Borders — derived, and that is worth stating ============== -->
+  <!--
+    The design gives six core colours and no border. The application leans on
+    borders heavily (every docker, every overlay bar), so one has to exist, and
+    inventing it silently would leave the next person unable to tell which
+    values came from the design and which came from us.
+
+    Derived rather than picked: a border is the next surface up, which is what
+    makes a raised edge read as raised rather than as a drawn line. The strong
+    variant is for a focused or dragged edge that has to win against content.
+  -->
+  <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource SurfaceElevated}" />
+  <SolidColorBrush x:Key="BorderStrongBrush" Color="#2E3444" />
+
+  <!-- ===== Accents =================================================== -->
+  <!--
+    Six, and they are a vocabulary rather than decoration: the mockup colours
+    timeline tracks and layer groups with them, so they have to be
+    distinguishable side by side at the size of a keyframe dot.
+  -->
+  <Color x:Key="AccentCoral">#FF6A3D</Color>
+  <Color x:Key="AccentMagenta">#D946FF</Color>
+  <Color x:Key="AccentViolet">#7B61FF</Color>
+  <Color x:Key="AccentCyan">#00D1BC</Color>
+  <Color x:Key="AccentLime">#A7E72E</Color>
+  <Color x:Key="AccentAmber">#FFB020</Color>
+
+  <SolidColorBrush x:Key="AccentCoralBrush" Color="{StaticResource AccentCoral}" />
+  <SolidColorBrush x:Key="AccentMagentaBrush" Color="{StaticResource AccentMagenta}" />
+  <SolidColorBrush x:Key="AccentVioletBrush" Color="{StaticResource AccentViolet}" />
+  <SolidColorBrush x:Key="AccentCyanBrush" Color="{StaticResource AccentCyan}" />
+  <SolidColorBrush x:Key="AccentLimeBrush" Color="{StaticResource AccentLime}" />
+  <SolidColorBrush x:Key="AccentAmberBrush" Color="{StaticResource AccentAmber}" />
+
+  <!--
+    The primary action gradient, coral into magenta. One definition: the mockup
+    uses it on the primary button and the loading bar, and two hand-built copies
+    would drift the moment either is touched.
+  -->
+  <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0%,0%" EndPoint="100%,0%">
+    <GradientStop Offset="0" Color="{StaticResource AccentCoral}" />
+    <GradientStop Offset="1" Color="{StaticResource AccentMagenta}" />
+  </LinearGradientBrush>
+
+  <!-- ===== Derived states ============================================ -->
+  <!--
+    Two roles the design does not name and the application cannot do without:
+    the row you have selected, and the ground under a warning.
+
+    Derived from the accents by opacity rather than given hex values of their
+    own, and that is deliberate. A picked value is a seventh and eighth colour
+    nobody agreed to, and it drifts the moment an accent is retuned; a tint
+    composites over whatever surface it lands on and follows its accent for
+    free. It also means a selected row on a panel and a selected row on an
+    elevated panel differ in the way they should, rather than being the same
+    flat colour in two places where it reads differently.
+  -->
+  <SolidColorBrush x:Key="SelectionBrush" Color="{StaticResource AccentViolet}" Opacity="0.30" />
+  <SolidColorBrush x:Key="StatusWarningSurfaceBrush" Color="{StaticResource AccentAmber}" Opacity="0.18" />
+
+  <!--
+    The ground under the tab that is showing, straight off the design reference
+    in docs/design/. Measured rather than guessed: a column down the active
+    "Layers" tab in the mockup runs from about #222B2A at the top to the panel's
+    own ground by two thirds of the way down, which is `SurfaceElevated` fading
+    out — the tab is lit from the top and merges into the panel below it.
+
+    **It ends at Transparent rather than at a colour.** The header, a floating
+    panel and a docked strip are not all the same ground, and a gradient that
+    named its destination would be a visible seam on two of the three. Fading to
+    nothing merges into whatever is actually behind it, which is what "fades
+    into the background" has to mean when the background is not one thing.
+
+    The last stop is at 0.62, not 1. The design fades *fast* — most of the tab
+    is already the panel colour, and it is the lit top edge that says "this one
+    is in front", not an evenly shaded box. Stretching it to 1 gives a tab that
+    reads as a lighter block, which is the segmented-control look the docker
+    tabs are specifically not.
+
+    The 12% lean is the reference's, and it is the only part of this that is
+    decoration rather than meaning.
+  -->
+  <LinearGradientBrush x:Key="TabActiveGroundBrush" StartPoint="0%,0%" EndPoint="12%,100%">
+    <GradientStop Offset="0" Color="{StaticResource SurfaceElevated}" />
+    <GradientStop Offset="0.62" Color="#00222634" />
+  </LinearGradientBrush>
+
+  <!-- ===== Fields ==================================================== -->
+  <!--
+    The ground under anything you type into or pick from — text boxes, numeric
+    fields, combo boxes, search boxes.
+
+    **A field is LIGHTER than what it sits on, and the theme had it backwards.**
+    Fluent's `TextControlBackground` is `#66000000`: 40% *black*, so a field
+    darkens its container wherever it lands. Measured against the design
+    reference, a field interior reads 39–52 against a 19–22 ground — a lift,
+    every time, in the tool bar, the dockers and the dialogs alike.
+
+    That is not a colour preference, it is which way the light goes. A sunken
+    field says "a hole in the panel"; a raised one says "a surface you can put
+    something on", and this application asks you to type into these all day.
+
+    **A tint rather than a colour**, for the reason `SelectionBrush` above gives:
+    a field on a panel and a field in a dialog sit on different grounds, and one
+    flat value cannot be a lift on both. It also cannot vanish — an opaque
+    `SurfaceElevated` field on an elevated dialog would be invisible, which is
+    exactly the dialog case.
+
+    White rather than grey: grey at these opacities pulls the blue out of the
+    surface underneath and the field reads faintly warm against a cool panel,
+    which nobody can name and everybody can see.
+  -->
+  <SolidColorBrush x:Key="FieldGroundBrush" Color="#FFFFFF" Opacity="0.09" />
+  <SolidColorBrush x:Key="FieldGroundHoverBrush" Color="#FFFFFF" Opacity="0.14" />
+  <!--
+    Weaker than the resting ground, not stronger. Fluent's disabled field is
+    `#33ffffff` — brighter than its enabled one, so switching a field off makes
+    it stand out more.
+  -->
+  <SolidColorBrush x:Key="FieldGroundDisabledBrush" Color="#FFFFFF" Opacity="0.04" />
+
+  <!-- ===== The exposure sheet's vocabulary ============================ -->
+  <!--
+    A cel is read at a glance, in a grid, while scrubbing — so its colour is
+    information rather than decoration, and the *hue* is what carries it.
+
+    Mapped to keep the reading an animator already has: breakdowns were blue and
+    stay in the violet family, inbetweens were green and stay in the cool-bright
+    family. Inverting those to suit a palette would be a redesign of the
+    exposure sheet dressed up as a re-skin.
+
+    Tints rather than full accents. At full strength six of these in a row is a
+    fruit salad, and the grid has to stay scannable with a hundred cels on it.
+  -->
+  <SolidColorBrush x:Key="CelBrush" Color="{StaticResource SurfaceElevated}" />
+  <SolidColorBrush x:Key="CelBreakdownBrush" Color="{StaticResource AccentViolet}" Opacity="0.34" />
+  <SolidColorBrush x:Key="CelTweenBrush" Color="{StaticResource AccentCyan}" Opacity="0.30" />
+  <SolidColorBrush x:Key="CelCurrentBrush" Color="{StaticResource AccentViolet}" Opacity="0.62" />
+  <SolidColorBrush x:Key="CelSelectedBrush" Color="{StaticResource AccentViolet}" Opacity="0.44" />
+
+  <!-- A group's row sits above the layers it holds, so it takes the raised
+       surface rather than a colour of its own. -->
+  <SolidColorBrush x:Key="GroupRowBrush" Color="{StaticResource SurfaceElevated}" />
+
+  <!-- Hover and banding: a tint of nothing in particular, over whatever is
+       beneath. Grey by intent — these must not read as a state that means
+       something, which any accent immediately would. -->
+  <SolidColorBrush x:Key="HoverTintBrush" Color="#808080" Opacity="0.13" />
+  <SolidColorBrush x:Key="BandTintBrush" Color="#808080" Opacity="0.07" />
+
+  <!-- ===== Meaning ==================================================== -->
+  <!--
+    Status colours point at accents rather than restating them, so the palette
+    stays one list. Named for what they mean: an error is an error whichever
+    colour the design later decides that is.
+  -->
+  <SolidColorBrush x:Key="StatusInfoBrush" Color="{StaticResource AccentViolet}" />
+  <SolidColorBrush x:Key="StatusWarningBrush" Color="{StaticResource AccentAmber}" />
+  <SolidColorBrush x:Key="StatusErrorBrush" Color="#FF5A5A" />
+  <SolidColorBrush x:Key="StatusSuccessBrush" Color="{StaticResource AccentCyan}" />
+
+  <!--
+    The paper. Not a surface and not a token to be re-skinned: it is what the
+    artist is drawing on, and it is white because paper is white. It lives here
+    so nobody mistakes it for chrome and "fixes" it to a dark value.
+  -->
+  <SolidColorBrush x:Key="CanvasPaperBrush" Color="#F2F0EC" />
+</ResourceDictionary>

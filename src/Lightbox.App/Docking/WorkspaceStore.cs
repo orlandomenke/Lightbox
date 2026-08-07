@@ -123,6 +123,24 @@ public sealed class WorkspaceStore
     /// of them is editable, and the point of saving your own is that you
     /// disagreed.
     /// </remarks>
+    /// <summary>
+    /// The three ways of choosing a colour, in one slot.
+    /// </summary>
+    /// <remarks>
+    /// <b>The rule these arrangements follow: tab what you use alternately,
+    /// never what you use together.</b> Colour, palette and gradient are three
+    /// answers to one question and you want one of them at a time — layers and
+    /// the canvas are consulted *while* doing something else, so tabbing those
+    /// would trade a scroll for a click on every stroke.
+    ///
+    /// What tabs actually buy here is not compression. It is that a workspace
+    /// can now <em>offer</em> the palette and the gradient at all: both used to
+    /// be hidden in most arrangements because neither was worth a slot of
+    /// sidebar, and a tab costs a word in a header.
+    /// </remarks>
+    private static readonly DockPanelId[] Colour =
+        [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient];
+
     public static WorkspaceStore Default()
     {
         var store = new WorkspaceStore();
@@ -133,36 +151,57 @@ public sealed class WorkspaceStore
             Layout = DockLayout.Default(),
         });
         store.Workspaces.Add(Built("Illustration", ProjectType.Illustration,
-            right: [DockPanelId.Layers, DockPanelId.Color, DockPanelId.Palette],
+            right: [[DockPanelId.Layers], Colour],
             bottom: []));
         store.Workspaces.Add(Built("Animation", ProjectType.Animation,
-            right: [DockPanelId.Project, DockPanelId.Layers, DockPanelId.Color],
-            bottom: [DockPanelId.Timeline]));
+            right: [[DockPanelId.Project], [DockPanelId.Layers], Colour],
+            bottom: [[DockPanelId.Timeline]]));
         store.Workspaces.Add(Built("Game art", ProjectType.GameArt,
-            right: [DockPanelId.Project, DockPanelId.Layers, DockPanelId.Palette],
-            bottom: [DockPanelId.Timeline]));
+            right: [[DockPanelId.Project], [DockPanelId.Layers], [DockPanelId.Palette, DockPanelId.Color]],
+            bottom: [[DockPanelId.Timeline]]));
         store.Workspaces.Add(Built("Storyboard", ProjectType.Storyboard,
-            right: [DockPanelId.Project, DockPanelId.Sheets],
-            bottom: [DockPanelId.Timeline]));
+            right: [[DockPanelId.Project], [DockPanelId.Sheets]],
+            bottom: [[DockPanelId.Timeline]]));
         store.Workspaces.Add(Built("Comic", ProjectType.Comic,
-            right: [DockPanelId.Project, DockPanelId.Layers, DockPanelId.Color, DockPanelId.Sheets],
+            right: [[DockPanelId.Project], [DockPanelId.Layers], Colour, [DockPanelId.Sheets]],
             bottom: []));
         store.Workspaces.Add(Built("Asset library", ProjectType.AssetLibrary,
-            right: [DockPanelId.Project, DockPanelId.Palette],
+            right: [[DockPanelId.Project], [DockPanelId.Palette, DockPanelId.Color]],
             bottom: []));
         store.Current = "Default";
         return store;
     }
 
+    /// <summary>
+    /// A built-in arrangement. Each inner array is one slot; several panels in
+    /// it are tabbed together.
+    /// </summary>
     private static Workspace Built(
-        string name, ProjectType type, DockPanelId[] right, DockPanelId[] bottom)
+        string name, ProjectType type, DockPanelId[][] right, DockPanelId[][] bottom)
     {
         var layout = new DockLayout();
-        for (var i = 0; i < right.Length; i++) layout.Dock(right[i], DockSide.Right, i);
-        for (var i = 0; i < bottom.Length; i++) layout.Dock(bottom[i], DockSide.Bottom, i);
+        Fill(layout, DockSide.Right, right);
+        Fill(layout, DockSide.Bottom, bottom);
         layout.AreaExtents[DockSide.Right] = 300;
         layout.AreaExtents[DockSide.Bottom] = 280;
         return new Workspace { Name = name, BuiltIn = true, DefaultFor = type, Layout = layout };
+    }
+
+    /// <summary>Dock a strip's slots, tabbing the ones that share a slot.</summary>
+    /// <remarks>
+    /// The first of each group is docked and the rest join it, so the leader is
+    /// the tab that shows. That ordering is the whole of what "which one is in
+    /// front" means in a built-in, and it is why these arrays are written with
+    /// the panel an artist reaches for first at the head.
+    /// </remarks>
+    private static void Fill(DockLayout layout, DockSide side, DockPanelId[][] slots)
+    {
+        for (var i = 0; i < slots.Length; i++)
+        {
+            layout.Dock(slots[i][0], side, i);
+            foreach (var tabbed in slots[i].Skip(1)) layout.JoinGroup(tabbed, slots[i][0]);
+            layout.Activate(slots[i][0]);
+        }
     }
 
     // ---- persistence ---------------------------------------------------------

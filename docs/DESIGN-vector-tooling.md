@@ -1,6 +1,6 @@
 # Vector tooling: making the lines you already drew editable
 
-Status: **agreed design, phase 0 in progress.** Decisions Q46–Q51, answered
+Status: **agreed design, phase 0 in progress.** Decisions Q47–Q53, answered
 2026-08-07. Unblocked by Q26, which has been answered since the same day and
 which two other documents still describe as open — see *Corrections* at the end.
 
@@ -63,7 +63,7 @@ accidentally selecting and moving a shape."* Inkscape's node tool: *"the drag
 must not begin on a path unless Shift is used."*
 
 **Modes are safe by default. Modifiers are unsafe by default and ask you to
-remember the antidote.** That is the whole of what Q46 buys.
+remember the antidote.** That is the whole of what Q53 buys.
 
 ## The record — one optional field, and `Points` stays the truth
 

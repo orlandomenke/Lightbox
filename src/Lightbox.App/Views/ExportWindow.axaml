@@ -101,7 +101,7 @@
 
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button Content="Cancel" Click="OnCancel" />
-      <Button Content="Export…" Click="OnExport" IsDefault="True" />
+      <Button Classes="primary" Content="Export…" Click="OnExport" IsDefault="True" />
     </StackPanel>
   </StackPanel>
 </Window>
