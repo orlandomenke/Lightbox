@@ -75,6 +75,12 @@ accepted cost is a branch wider than "one branch, one objective" likes; it is
 taken knowingly because the three tabs share the traversal, the selection model
 and the window, and splitting them means building the window twice.
 
+**Export followed on the next branch, as this said it would**, alongside the
+three things the first cut shipped read-only or not at all: the Assets tab
+writes, a single selected folder gets its facets edited, and a status card drags
+between columns. Five tabs now, and the deferral cost nothing — `ExportPlan`
+had not moved.
+
 ## Q43 · How is "who is working on this" modelled? — **answered: a people list**
 
 **Answered 2026-08-07: named people on the project, assigned by picking.**

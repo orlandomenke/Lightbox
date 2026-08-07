@@ -360,7 +360,7 @@ drawing — find it, open it, move it. This is what you use *between* drawings,
 and it is a separate window so it can sit on a second monitor while the canvas
 keeps the first.
 
-Four tabs, and a footer on all of them saying what the project holds and what is
+Five tabs, and a footer on all of them saying what the project holds and what is
 wrong with it: *47 documents · 12 Ready · 3 Reopened · 5 unassigned*.
 
 **Structure** is the tree with the columns the docker has no width for — glyph,

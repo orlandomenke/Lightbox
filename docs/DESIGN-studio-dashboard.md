@@ -47,10 +47,11 @@ is the argument for building it now rather than later: the traversal is written,
 the statuses are on the right object, and the one-tree change removed the
 special cases a dashboard would otherwise have had to carry.
 
-## What is genuinely missing
+## What was genuinely missing — all four landed
 
-Four gaps, and each is small. They are listed separately from the window itself
-because three of them are model changes that stand on their own.
+Four gaps, and each was small. They are listed separately from the window itself
+because three of them were model changes that stood on their own. Kept here as
+written, because the reasoning is what makes the shapes they took defensible.
 
 ### 1. Tags on a document
 
@@ -245,8 +246,6 @@ that kind rather than the tab forgetting it.
    is three places to drift.
 6. Four suites green; `codemap.py build`, `roadmap.py sync`, `bugs.py check`,
    `manual.py sync`.
-
-## The roadmap entry was edited, as this predicted
 
 ## The roadmap entry needed editing either way
 
