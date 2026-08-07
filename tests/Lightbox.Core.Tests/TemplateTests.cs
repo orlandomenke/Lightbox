@@ -124,9 +124,9 @@ public class TemplateTests
     public void TheProjectListsItsTemplatesApartFromItsAnimations()
     {
         var project = ProjectIo.Create("Knight", "/tmp/does-not-need-to-exist.lbproj");
-        var character = ProjectIo.AddCharacter(project, "Knight");
-        var plain = ProjectIo.AddAnimation(project, character, "walk", new Doc());
-        var template = ProjectIo.AddAnimation(project, character, "walk-start", Template());
+        var character = ProjectFolders.Add(project.Manifest, "Knight");
+        var plain = ProjectIo.AddDocument(project, "walk", new Doc(), character);
+        var template = ProjectIo.AddDocument(project, "walk-start", Template(), character);
 
         var found = Templates.InProject(project);
 

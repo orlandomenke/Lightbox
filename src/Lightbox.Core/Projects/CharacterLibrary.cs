@@ -3,16 +3,21 @@ using Lightbox.Core.Serialization;
 
 namespace Lightbox.Core.Projects;
 
-/// <summary>One character available for import, and the project it lives in.</summary>
-public sealed record LibraryEntry(Project Source, Character Character)
+/// <summary>One subject available for import, and the project it lives in.</summary>
+/// <remarks>
+/// A subject is a folder with a reading — see <c>DESIGN-project-scoping.md</c>.
+/// The library used to enumerate a `Character` list; it now enumerates the
+/// folders that describe one, which is the same set expressed once.
+/// </remarks>
+public sealed record LibraryEntry(Project Source, ProjectFolder Folder)
 {
-    public string Name => Character.Name;
+    public string Name => Folder.Name;
 
     public string LibraryName => Source.Name;
 
-    public int AnimationCount => Character.Animations.Count;
+    public int DocumentCount => ProjectFolders.DocumentsIn(Source.Manifest, Folder).Count;
 
-    public int VariantCount => Character.Variants.Count;
+    public int VariantCount => Folder.Variants?.Count ?? 0;
 }
 
 /// <summary>
@@ -62,7 +67,13 @@ public static class CharacterLibrary
                     continue;
                 }
                 if (project.Manifest.Type != ProjectType.AssetLibrary) continue;
-                entries.AddRange(project.Characters.Select(c => new LibraryEntry(project, c)));
+                // Q40: every folder, not only the ones something has read. A
+                // shared environment or a prop set is exactly the thing a library
+                // is for, and offering only folders with a reading would make
+                // "character" a designation again — this time one that decides
+                // what can be shared.
+                entries.AddRange(
+                    ProjectFolders.All(project.Manifest).Select(f => new LibraryEntry(project, f)));
             }
         }
         return entries;
@@ -89,12 +100,20 @@ public static class CharacterLibrary
     /// lets the imported variants keep working, since a variant is a second
     /// palette carrying the same ids.
     /// </remarks>
-    public static Character Import(LibraryEntry entry, Project target)
+    public static ProjectFolder Import(LibraryEntry entry, Project target)
     {
-        var copy = ProjectIo.AddCharacter(target, entry.Character.Name);
-        copy.Pivot = entry.Character.Pivot;
+        var copy = ProjectFolders.Add(target.Manifest, entry.Folder.Name);
+        copy.Pivot = entry.Folder.Pivot;
+        copy.Notes = entry.Folder.Notes;
+        // The reading travels with the subject: it describes the character, not
+        // the project, and re-reading it in the target would spend a request to
+        // learn what is already known. `Reviewed` travels too — a correction an
+        // artist made is theirs wherever the subject goes.
+        copy.Taxonomy = entry.Folder.Taxonomy;
 
-        // Palettes first: the animations are about to reference them.
+        // Palettes first: the documents are about to reference them.
+        var sourcePaletteId =
+            ResourceScopes.NearestAt(entry.Source.Manifest, entry.Folder, PaletteScopes.Kind)?.Id;
         var palettes = new Dictionary<string, string>(); // source palette id → copy's id
         foreach (var palette in PalettesUsedBy(entry))
         {
@@ -110,42 +129,48 @@ public static class CharacterLibrary
             target.Palettes.Add(duplicate);
             palettes[palette.Id] = duplicate.Id;
         }
-        if (entry.Character.PaletteId is { } basePalette)
+
+        // Declaring it on the folder is how the copy paints from it. Under the
+        // old model this was `Character.PaletteId`; scoping it means the
+        // imported subject's palette also reaches every subfolder of it, which
+        // the character field could not express.
+        if (sourcePaletteId is not null && palettes.TryGetValue(sourcePaletteId, out var mine))
         {
-            copy.PaletteId = palettes.GetValueOrDefault(basePalette);
+            ResourceScopes.Declare(target.Manifest, copy, PaletteScopes.Kind, mine);
         }
 
-        var animations = new Dictionary<string, DocumentRef>(); // source ref id → copy's ref
-        foreach (var source in entry.Character.Animations)
+        var documents = new Dictionary<string, DocumentRef>(); // source ref id → copy's ref
+        foreach (var source in ProjectFolders.DocumentsIn(entry.Source.Manifest, entry.Folder))
         {
             if (ProjectIo.LoadDocument(entry.Source, source) is not { } doc) continue;
-            animations[source.Id] = ProjectIo.AddAnimation(target, copy, source.Name, DocJson.Clone(doc));
+            documents[source.Id] = ProjectIo.AddDocument(target, source.Name, DocJson.Clone(doc), copy);
         }
 
-        foreach (var variant in entry.Character.Variants)
+        foreach (var variant in entry.Folder.Variants ?? [])
         {
-            var duplicate = new CharacterVariant
+            var duplicate = new SubjectVariant
             {
                 Name = variant.Name,
                 PaletteId = variant.PaletteId is null ? null : palettes.GetValueOrDefault(variant.PaletteId),
             };
-            foreach (var (baseId, over) in variant.AnimationOverrides)
+            foreach (var (baseId, overrideId) in variant.Overrides)
             {
-                if (!animations.TryGetValue(baseId, out var rebased)) continue;
+                if (!documents.TryGetValue(baseId, out var rebased)) continue;
+                var over = entry.Source.Manifest.Documents.FirstOrDefault(d => d.Id == overrideId);
+                if (over is null) continue;
                 if (ProjectIo.LoadDocument(entry.Source, over) is not { } doc) continue;
-                duplicate.AnimationOverrides[rebased.Id] =
-                    ProjectIo.OverrideAnimation(target, copy, duplicate, rebased, DocJson.Clone(doc));
+                ProjectIo.OverrideDocument(target, copy, duplicate, rebased, DocJson.Clone(doc));
             }
-            copy.Variants.Add(duplicate);
+            (copy.Variants ??= []).Add(duplicate);
         }
         return copy;
     }
 
     private static IEnumerable<Palette> PalettesUsedBy(LibraryEntry entry)
     {
-        var wanted = entry.Character.Variants
+        var wanted = (entry.Folder.Variants ?? [])
             .Select(v => v.PaletteId)
-            .Append(entry.Character.PaletteId)
+            .Append(ResourceScopes.NearestAt(entry.Source.Manifest, entry.Folder, PaletteScopes.Kind)?.Id)
             .OfType<string>()
             .ToHashSet();
         return entry.Source.Palettes.Where(p => wanted.Contains(p.Id));

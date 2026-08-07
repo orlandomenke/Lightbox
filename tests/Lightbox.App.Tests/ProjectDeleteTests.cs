@@ -51,7 +51,7 @@ public sealed class ProjectDeleteTests(ITestOutputHelper output) : BrushStateIso
         var vm = Open();
         var docker = vm.ProjectDocker;
         docker.Selected = null;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Colour test");
         vm.SaveProject(everything: true);
 
         var onDisk = Path.Combine(_root, "unassigned-documents", "colour-test.lightbox.json");
@@ -79,7 +79,7 @@ public sealed class ProjectDeleteTests(ITestOutputHelper output) : BrushStateIso
         var vm = Open();
         var docker = vm.ProjectDocker;
         docker.Selected = null;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Colour test");
         vm.SaveProject(everything: true);
         var onDisk = Path.Combine(_root, "unassigned-documents", "colour-test.lightbox.json");
 
@@ -108,7 +108,7 @@ public sealed class ProjectDeleteTests(ITestOutputHelper output) : BrushStateIso
         var vm = Open();
         var docker = vm.ProjectDocker;
         docker.Selected = null;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Colour test");
         vm.SaveProject(everything: true);
 
         docker.Selected = DocRow(docker, "Colour test");
@@ -154,7 +154,7 @@ public sealed class ProjectDeleteTests(ITestOutputHelper output) : BrushStateIso
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Art");
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Backgrounds");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Rooftop");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Rooftop");
         vm.SaveProject(everything: true);
 
         docker.Selected = FolderRow(docker, "Art");
@@ -181,7 +181,7 @@ public sealed class ProjectDeleteTests(ITestOutputHelper output) : BrushStateIso
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Art");
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Backgrounds");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Rooftop");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Rooftop");
         vm.SaveProject(everything: true);
         Assert.True(File.Exists(Path.Combine(_root, "art", "backgrounds", "rooftop.lightbox.json")));
 
@@ -211,7 +211,7 @@ public sealed class ProjectDeleteTests(ITestOutputHelper output) : BrushStateIso
         var vm = Open();
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Art");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Rooftop");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Rooftop");
         vm.SaveProject(everything: true);
 
         docker.Selected = FolderRow(docker, "Art");

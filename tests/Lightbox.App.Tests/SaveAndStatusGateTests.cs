@@ -155,25 +155,24 @@ public sealed class SaveAndStatusGateTests : BrushStateIsolated
         var (_, vm) = Open();
 
         var row = new ProjectRow(
-            owner: null,
-            new DocumentRef { Name = "walk", Path = "characters/hero/animations/walk.lightbox.json" });
+            new DocumentRef { Name = "walk", Path = "hero/walk.lightbox.json" });
         var facts = vm.SaveFactsFor(row);
 
         // No project is open, so there is no root to resolve against and the honest answer
         // is "nowhere yet" — not the active tab's path.
         Assert.Null(facts.FilePath);
-        Assert.NotEqual("characters/hero/animations/walk.lightbox.json", vm.SaveTargetTab?.FilePath);
+        Assert.NotEqual("hero/walk.lightbox.json", vm.SaveTargetTab?.FilePath);
         Assert.Equal(SaveGate.AskWhereItGoes, SaveRequirement.For(facts.FilePath, facts.HasUnsavedEdits));
     }
 
     [AvaloniaFact]
     public void ARowWithNoDocumentAtAllIsNotTreatedAsSaved()
     {
-        // A character or scene row has no animation behind it. Reporting "saved" for one
+        // A folder row has no document behind it. Reporting "saved" for one
         // would let a status through on nothing.
         var (_, vm) = Open();
 
-        var facts = vm.SaveFactsFor(new ProjectRow(new Character { Name = "Hero" }));
+        var facts = vm.SaveFactsFor(new ProjectRow(new ProjectFolder { Name = "Hero" }, depth: 0));
 
         Assert.Null(facts.FilePath);
         Assert.Equal(SaveGate.AskWhereItGoes, SaveRequirement.For(facts.FilePath, facts.HasUnsavedEdits));

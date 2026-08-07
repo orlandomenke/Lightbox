@@ -89,7 +89,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Art");
         var art = ProjectFolders.All(docker.Project!.Manifest).First();
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Backgrounds");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Rooftop");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Rooftop");
 
         var expanded = docker.Rows.Count;
         Assert.Contains(docker.Rows, r => r.Name == "Rooftop");
@@ -180,7 +180,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Art");
         var art = ProjectFolders.All(docker.Project!.Manifest).First();
         docker.Selected = null;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Colour test");
         var doc = docker.Project!.Manifest.Documents.First(d => d.Name == "Colour test");
         var row = docker.Rows.First(r => r.Animation?.Id == doc.Id);
 
@@ -213,7 +213,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         var backgrounds = ProjectFolders.All(docker.Project!.Manifest)
             .First(f => f.Name == "Backgrounds");
 
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Rooftop");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Rooftop");
 
         var doc = docker.Project!.Manifest.Documents.First(d => d.Name == "Rooftop");
         output.WriteLine($"path: {doc.Path}");
@@ -229,11 +229,11 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         var vm = Open();
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Art");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Rooftop");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Rooftop");
         var first = docker.Project!.Manifest.Documents.First(d => d.Name == "Rooftop");
 
         // Creating selects what it made, so the next one is made beside it.
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Alleyway");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Alleyway");
 
         var second = docker.Project!.Manifest.Documents.First(d => d.Name == "Alleyway");
         Assert.Equal(first.FolderId, second.FolderId);
@@ -254,7 +254,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Art");
         docker.Selected = null;
 
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Colour test");
 
         var doc = docker.Project!.Manifest.Documents.First(d => d.Name == "Colour test");
         Assert.Null(doc.FolderId);
@@ -276,7 +276,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Episode 2");
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Act 1");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Sc 014");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Sc 014");
         vm.SaveProject(everything: true);
 
         var expected = Path.Combine(_root, "episode-2", "act-1", "sc-014.lightbox.json");
@@ -320,7 +320,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Art");
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Backgrounds");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Rooftop");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Rooftop");
 
         var art = docker.Rows.First(r => r is { IsFolder: true, Name: "Art" });
         var backgrounds = docker.Rows.First(r => r is { IsFolder: true, Name: "Backgrounds" });
@@ -367,7 +367,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
         var knight = ProjectFolders.All(docker.Project!.Manifest).First();
         docker.Selected = null;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
         vm.SaveProject(everything: true);
 
         var before = Path.Combine(_root, "unassigned-documents", "walk.lightbox.json");
@@ -401,7 +401,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         var vm = Open();
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
         vm.SaveProject(everything: true);
 
         var inFolder = Path.Combine(_root, "knight", "walk.lightbox.json");
@@ -434,7 +434,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
         var knight = ProjectFolders.All(docker.Project!.Manifest).First();
         docker.Selected = null;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
         vm.SaveProject(everything: true);
 
         // Something the manifest does not know about, in the way.
@@ -474,13 +474,13 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
 
-        var suggested = docker.SuggestedNameFor(ProjectViewModel.NewLooseDocument);
+        var suggested = docker.SuggestedNameFor(ProjectViewModel.NewDocumentItem);
         output.WriteLine($"suggested: “{suggested}”");
         Assert.Equal("Knight - ", suggested);
 
         // Overwritable, and that is the point of a suggestion: what the artist
         // types is what is made, prefix or no prefix.
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Knight - Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Knight - Walk");
         // Named rather than first: NewProject adopts the drawing that was open,
         // so the project already holds one document before this one.
         var doc = docker.Project!.Manifest.Documents.First(d => d.Name == "Knight - Walk");
@@ -505,8 +505,8 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
 
         docker.AddItemNamed(
-            ProjectViewModel.NewLooseDocument,
-            docker.SuggestedNameFor(ProjectViewModel.NewLooseDocument));
+            ProjectViewModel.NewDocumentItem,
+            docker.SuggestedNameFor(ProjectViewModel.NewDocumentItem));
 
         var doc = docker.Project!.Manifest.Documents.First(d => d.Name == "Knight");
         output.WriteLine($"name: “{doc.Name}”, path: {doc.Path}");
@@ -532,7 +532,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
 
         // Two, not one: the project adopted the drawing that was open when it
         // was created, and the number counts what is already there.
-        Assert.Equal("Document 2", docker.SuggestedNameFor(ProjectViewModel.NewLooseDocument));
+        Assert.Equal("Document 2", docker.SuggestedNameFor(ProjectViewModel.NewDocumentItem));
     }
 
     /// <summary>
@@ -614,7 +614,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         Assert.Equal(Path.Combine(_root, "knight"), docker.SelectedPath);
 
         // And the create that follows lands inside it rather than at the root.
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
         var made = docker.Project!.Manifest.Documents.First(d => d.Name == "Walk");
         Assert.Equal(knight.Id, made.FolderId);
         Assert.Equal("knight/walk.lightbox.json", made.Path);
@@ -635,7 +635,7 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
         var knight = ProjectFolders.All(docker.Project!.Manifest).First();
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
 
         docker.ToggleCollapsed(RowFor(docker, knight));
 
@@ -664,8 +664,8 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
         var vm = Open();
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
-        docker.AddItemNamed(ProjectViewModel.NewSceneItem, "Sc 014");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Sc 014");
 
         foreach (var row in docker.Rows.ToList())
         {

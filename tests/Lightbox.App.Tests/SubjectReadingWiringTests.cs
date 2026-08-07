@@ -45,15 +45,21 @@ public class SubjectReadingWiringTests(ITestOutputHelper output) : BrushStateIso
         SubjectResult = AiResult<SubjectTaxonomy>.Success(Knight()),
     };
 
-    /// <summary>A project with one character that has a sheet the AI can see.</summary>
-    private static (MainViewModel Vm, Character Character) WithCharacter(FakeArtist artist, Scratch scratch)
+    /// <summary>A project with one folder that has a sheet the AI can see.</summary>
+    /// <remarks>
+    /// <b>B114.</b> An ordinary folder, with no reading on it — reading it is
+    /// what makes it a character, so requiring one to exist first was the old
+    /// model's assumption rather than the feature's.
+    /// </remarks>
+    private static (MainViewModel Vm, ProjectFolder Character) WithCharacter(
+        FakeArtist artist, Scratch scratch)
     {
         var vm = new MainViewModel(artist);
         vm.NewProject(scratch.Root, "Production");
         var project = vm.ProjectDocker.Project!;
-        var character = ProjectIo.AddCharacter(project, "Knight");
+        var character = ProjectFolders.Add(project.Manifest, "Knight");
         vm.ProjectDocker.Adopt(project);
-        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Character == character);
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Folder == character);
 
         // A reference sheet with a visible layer — what CollectReferenceImages
         // sends, and the only thing a reading has to look at.
@@ -120,9 +126,9 @@ public class SubjectReadingWiringTests(ITestOutputHelper output) : BrushStateIso
         var vm = new MainViewModel(artist);
         vm.NewProject(scratch.Root, "Production");
         var project = vm.ProjectDocker.Project!;
-        var character = ProjectIo.AddCharacter(project, "Knight");
+        var character = ProjectFolders.Add(project.Manifest, "Knight");
         vm.ProjectDocker.Adopt(project);
-        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Character == character);
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.Folder == character);
 
         await vm.AiReadSubjectCommand.ExecuteAsync(null);
 
@@ -143,10 +149,10 @@ public class SubjectReadingWiringTests(ITestOutputHelper output) : BrushStateIso
         var vm = new MainViewModel(artist);
         vm.NewProject(scratch.Root, "Production");
         var project = vm.ProjectDocker.Project!;
-        var character = ProjectIo.AddCharacter(project, "Knight");
+        var character = ProjectFolders.Add(project.Manifest, "Knight");
         character.Taxonomy = Knight();
 
-        var walk = ProjectIo.AddAnimation(project, character, "walk", vm.Doc);
+        var walk = ProjectIo.AddDocument(project, "walk", vm.Doc, character);
         vm.ProjectDocker.Adopt(project);
         // Open it the way the docker does, so the tab carries the DocumentRef
         // the taxonomy lookup resolves against.

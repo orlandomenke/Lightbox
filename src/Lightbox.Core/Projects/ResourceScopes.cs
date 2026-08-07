@@ -131,9 +131,84 @@ public static class ResourceScopes
     /// </para>
     /// </remarks>
     public static IReadOnlyList<ScopedResource> Resolve(
-        ProjectManifest manifest, DocumentRef document, string kind)
+        ProjectManifest manifest, DocumentRef document, string kind) =>
+        Resolve(manifest, document, kind, user: null);
+
+    /// <summary>
+    /// The whole four-tier chain: <b>document → folder path → project → user</b>,
+    /// nearest first.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The two ends this class always described and never had.</b> Its own
+    /// remarks say the chain is four deep; only the middle two were built, so
+    /// "this one drawing paints from that palette" had no target and an artist's
+    /// own library was reachable by one kind (<c>TipStore.Available</c>) and no
+    /// mechanism.
+    /// </para>
+    /// <para>
+    /// The precedence falls out of the order rather than being decided: a
+    /// project <em>can</em> override an artist's default because the user tier
+    /// is widest, and a document beats its folder because it is narrowest.
+    /// Nothing new had to be invented for either sentence.
+    /// </para>
+    /// <para>
+    /// <paramref name="user"/> is null for every caller that does not have a
+    /// user library to offer, which is most of them — and a null user tier
+    /// resolves exactly what <see cref="Resolve(ProjectManifest, DocumentRef, string)"/>
+    /// always did.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<ScopedResource> Resolve(
+        ProjectManifest manifest,
+        DocumentRef document,
+        string kind,
+        IReadOnlyList<ScopedResource>? user)
     {
-        var folder = ProjectFolders.ById(manifest, document.FolderId);
+        var found = new List<ScopedResource>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        // 0. The document itself, nearest of all.
+        Collect(document.Resources, kind, seen, found);
+
+        foreach (var r in ResolveAt(manifest, ProjectFolders.ById(manifest, document.FolderId), kind))
+        {
+            if (seen.Add(r.Id)) found.Add(r);
+        }
+
+        // 4. The artist's own library, widest, so a project overrides it.
+        Collect(user, kind, seen, found);
+        return found;
+    }
+
+    private static void Collect(
+        IEnumerable<ScopedResource>? declared,
+        string kind,
+        HashSet<string> seen,
+        List<ScopedResource> into)
+    {
+        if (declared is null) return;
+        foreach (var r in declared)
+        {
+            if (!string.Equals(r.Kind, kind, StringComparison.Ordinal)) continue;
+            if (seen.Add(r.Id)) into.Add(r);
+        }
+    }
+
+    /// <summary>
+    /// The same walk, starting from a folder rather than from a document in one.
+    /// </summary>
+    /// <remarks>
+    /// <b>B114.</b> Once a character is a folder, things are asked about the
+    /// folder itself — <em>what palette does this subject paint with</em> — with
+    /// no document in hand to walk up from. Splitting the walk out is what stops
+    /// that question needing a fake <see cref="DocumentRef"/> to answer.
+    /// A null folder resolves the project tier and below, which is what a
+    /// document at the root sees.
+    /// </remarks>
+    public static IReadOnlyList<ScopedResource> ResolveAt(
+        ProjectManifest manifest, ProjectFolder? folder, string kind)
+    {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var found = new List<ScopedResource>();
 
@@ -180,6 +255,44 @@ public static class ResourceScopes
     public static ScopedResource? Nearest(
         ProjectManifest manifest, DocumentRef document, string kind) =>
         Resolve(manifest, document, kind).FirstOrDefault();
+
+    /// <summary>The one that wins for a document, with the artist's library behind it.</summary>
+    public static ScopedResource? Nearest(
+        ProjectManifest manifest,
+        DocumentRef document,
+        string kind,
+        IReadOnlyList<ScopedResource>? user) =>
+        Resolve(manifest, document, kind, user).FirstOrDefault();
+
+    /// <summary>The one that wins for a folder. <see cref="ResolveAt"/>'s pair.</summary>
+    public static ScopedResource? NearestAt(
+        ProjectManifest manifest, ProjectFolder? folder, string kind) =>
+        ResolveAt(manifest, folder, kind).FirstOrDefault();
+
+    /// <summary>Declare a resource on one document — the narrowest scope.</summary>
+    /// <remarks>
+    /// A separate method rather than an overload taking a nullable document,
+    /// because "declare on nothing" already means the project and a second null
+    /// with a different meaning is how a call site quietly does the wrong thing.
+    /// </remarks>
+    public static ScopedResource DeclareOn(
+        DocumentRef document,
+        string kind,
+        string id,
+        string? target = null)
+    {
+        var entry = new ScopedResource
+        {
+            Id = id,
+            Kind = kind,
+            Target = target,
+            // Reach is meaningless on a document — there is nothing below it to
+            // subtree into, and publishing project-wide from one drawing is the
+            // folder's job. Left null, so it writes no key.
+        };
+        (document.Resources ??= []).Add(entry);
+        return entry;
+    }
 
     /// <summary>Declare a resource on a folder, or on the project when null.</summary>
     public static ScopedResource Declare(

@@ -71,3 +71,4 @@ Worth keeping visible rather than folding into the entry: the B66 tests pinned
 the decision each dialog makes and still could not see the pair, because neither
 dialog is reachable headlessly. Two correct prompts in sequence are one bad
 prompt, and only a person looking at the screen was ever going to catch it.
+

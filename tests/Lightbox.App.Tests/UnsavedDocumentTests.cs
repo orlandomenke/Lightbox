@@ -68,7 +68,7 @@ public sealed class UnsavedDocumentTests(ITestOutputHelper output) : BrushStateI
         vm.NewProject(_root, "Production");
         var docker = vm.ProjectDocker;
 
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Colour test");
         var made = Assert.Single(docker.Project!.Manifest.Documents, d => d.Name == "Colour test");
         var path = Path.Combine(_root, made.Path.Replace('/', Path.DirectorySeparatorChar));
         output.WriteLine($"manifest path {made.Path}, on disk {File.Exists(path)}");
@@ -91,7 +91,7 @@ public sealed class UnsavedDocumentTests(ITestOutputHelper output) : BrushStateI
         var docker = vm.ProjectDocker;
 
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Backgrounds");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Colour test");
 
         var document = Row(docker, "Colour test");
         var folder = Row(docker, "Backgrounds");
@@ -140,7 +140,7 @@ public sealed class UnsavedDocumentTests(ITestOutputHelper output) : BrushStateI
         vm.NewProject(_root, "Production");
         var docker = vm.ProjectDocker;
 
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Colour test");
         vm.SaveProject();
         Assert.True(Row(docker, "Colour test").IsOnDisk);
 
@@ -172,7 +172,7 @@ public sealed class UnsavedDocumentTests(ITestOutputHelper output) : BrushStateI
         vm.NewProject(_root, "Production");
         var docker = vm.ProjectDocker;
 
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Colour test");
         var made = Assert.Single(docker.Project!.Manifest.Documents, d => d.Name == "Colour test");
         var path = Path.Combine(_root, made.Path.Replace('/', Path.DirectorySeparatorChar));
 

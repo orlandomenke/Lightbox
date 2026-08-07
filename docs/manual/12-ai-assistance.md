@@ -28,17 +28,24 @@ is drawing. They are sent at up to 768 pixels on the long edge — your sheet ke
 whatever size you drew it at, and only the copy in the request is smaller. Hide
 every layer in a view and it stops being sent.
 
-## Reading a character
+## Reading a folder
 
-Right-click a character in the **Project** panel and choose **Read this
-character…**. The model looks at that character's sheets and writes down what it
-is — a biped, say, with a head, a torso and two arms, and which arm is normally
-in front. That reading then rides along with every inbetween of that character,
-so the model knows the arm passes in front of the body instead of guessing.
+Right-click a folder in the **Project** panel and choose **Read this folder…**.
+The model looks at the sheets you have drawn and writes down what it is — a
+biped, say, with a head, a torso and two arms, and which arm is normally in
+front. That reading then rides along with every inbetween of a drawing in that
+folder, so the model knows the arm passes in front of the body instead of
+guessing.
 
-**Once per character, not once per frame.** The answer is kept on the character
-in the project, so a twenty-four frame cycle pays for it once and the next
-animation of the same character pays nothing at all.
+**Any folder can be read**, and reading it is what makes it a character as far
+as Lightbox is concerned — you do not declare one first. Put the work in a
+folder, read it, and give it a glyph if you want it to look like one.
+
+**Once per folder, not once per frame.** The answer is kept on the folder in the
+project, so a twenty-four frame cycle pays for it once and the next animation in
+the same folder pays nothing at all. A drawing in a sub-folder inherits the
+reading above it, and a sub-folder with its own reading overrides it — nearest
+wins, the same rule palettes follow.
 
 **It is yours to correct.** Once you have edited a reading, Lightbox will not
 overwrite it — asking again says so rather than throwing your corrections away.
@@ -51,8 +58,8 @@ reaches a pixel: delete every reading in a project and your drawings render
 exactly the same, because the reading tells the model what it is looking at and
 nothing else.
 
-A character with no sheets has nothing to read; draw one first, or make a layer
-on it visible.
+A folder with no sheets has nothing to read; draw one first, or make a layer on
+it visible.
 
 ## Turning AI off
 

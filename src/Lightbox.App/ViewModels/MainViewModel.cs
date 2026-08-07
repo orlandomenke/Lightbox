@@ -77,6 +77,9 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly ComposeRing _composeRing = new();
     private long _publishSeq;
 
+    /// <summary>Cache of TileStores by bitmap identity to avoid reconverting unchanged frames.</summary>
+    private readonly Dictionary<int, (SKBitmap Bitmap, TileStore Store)> _tileStoreCache = new();
+
     /// <summary>Document region changed since the last publish (null = everything).</summary>
     private SKRectI? _pendingDirty;
     private bool _dirtyIsWholeCanvas = true;
@@ -773,7 +776,7 @@ public sealed partial class MainViewModel : ObservableObject
             ProjectDocker.Adopt(project);
             // Open the first animation so the project is not an empty shell —
             // and so the registries have something to resolve against.
-            if (project.Characters.SelectMany(c => c.Animations).FirstOrDefault() is { } first
+            if (project.Manifest.Documents.FirstOrDefault() is { } first
                 && ProjectIo.LoadDocument(project, first) is { } doc)
             {
                 OpenProjectDocument(first, doc);
@@ -874,9 +877,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         var copy = Core.Projects.Templates.NewFromTemplate(template, reference.Id);
         var name = $"{reference.Name} copy";
-        var added = ProjectDocker.SelectedCharacter is { } character
-            ? ProjectIo.AddAnimation(project, character, name, copy)
-            : ProjectIo.AddDocument(project, name, copy);
+        var added = ProjectIo.AddDocument(project, name, copy, ProjectDocker.TargetFolder);
 
         ProjectDocker.Adopt(project);
         ProjectDocker.MarkDirty(added);
@@ -899,10 +900,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (ProjectDocker.Project is not { } project) return null;
         if (SaveTargetTab?.Doc.TemplateId is not { Length: > 0 } id) return null;
-        var reference = project.Manifest.Characters.SelectMany(c => c.Animations)
-            .Concat(project.Manifest.Documents)
-            .Concat(project.Manifest.Scenes?.SelectMany(s => s.Shots) ?? [])
-            .FirstOrDefault(r => r.Id == id);
+        // B114. Was a concat of three lists; the project has one.
+        var reference = project.Manifest.Documents.FirstOrDefault(r => r.Id == id);
         if (reference is null) return null;
         var template = ProjectIo.LoadDocument(project, reference);
         return template is { IsTemplateDocument: true } ? template : null;
@@ -4648,6 +4647,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentFrameIndexChanged(int value)
     {
         _lastStrokeEnd = null;   // and it stops being true on another drawing
+        _tileStoreCache.Clear();  // Clear cached tiles when frame changes
         RefreshCellHighlights();
         RefreshLayerThumbs();
         RefreshCamera();
@@ -8418,17 +8418,22 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// What the project knows about the character this document belongs to, or
-    /// null when there is no project, no owning character, or nothing read yet.
+    /// What the project knows about the subject this document belongs to, or
+    /// null when there is no project, no subject above it, or nothing read yet.
     /// </summary>
     /// <remarks>
+    /// <b>B114.</b> Walks up the folder tree rather than searching a list of
+    /// characters, so a drawing two folders below Knight is still Knight's — the
+    /// old model could not express that at all.
+    /// <para>
     /// Null is the ordinary answer and costs nothing: a request with no
     /// taxonomy is byte-for-byte the request Lightbox sent before this feature
     /// existed. Optional means absent here too.
+    /// </para>
     /// </remarks>
     private SubjectTaxonomy? TaxonomyForActiveDocument() =>
-        ProjectDocker.Project is { } project
-            ? project.Manifest.CharacterOwning(SaveTargetTab?.Source?.Id)?.Taxonomy
+        ProjectDocker.Project is { } project && SaveTargetTab?.Source is { } source
+            ? project.ReadingFor(source)?.Taxonomy
             : null;
 
     /// <summary>
@@ -8454,9 +8459,13 @@ public sealed partial class MainViewModel : ObservableObject
             AiStatus = "Reading a subject needs a project — that is where a character lives.";
             return;
         }
-        if (ProjectDocker.SelectedCharacter is not { } character)
+        // B114. A folder, not a `Character` — and the folder need not already be
+        // one, because reading it is what makes it one. Selecting an ordinary
+        // folder full of a character's drawings and asking to read it is the
+        // whole gesture; the old model needed the character to exist first.
+        if (ProjectDocker.TargetFolder is not { } character)
         {
-            AiStatus = "Select a character in the Project panel first.";
+            AiStatus = "Select a folder in the Project panel first — that is what gets read.";
             return;
         }
         if (character.Taxonomy is { Reviewed: true })
@@ -9821,9 +9830,21 @@ public sealed partial class MainViewModel : ObservableObject
             nameof(Lightbox.Core.Projects.FeatureKey.UnboundedCanvas), out var enabled) == true && enabled;
         var useUnboundedPath = hasExplicitUnboundedCanvas && _pendingViewport is { Width: > 0, Height: > 0 };
 
+        // B82: Use viewport culling for both bounded and unbounded canvas.
+        // The compositor now knows the visible rectangle and can compose only to that region
+        // instead of the full document. This reduces compose cost from layers × document_area
+        // to layers × viewport_area, directly solving B29 when viewport is much smaller than document.
+        var useViewportCulling = _pendingViewport is { Width: > 0, Height: > 0 } && cameraView is null;
+        SKRectI? composeViewport = useViewportCulling ? _pendingViewport : null;
+
+        // Determine surface size: viewport-sized if culling, document-sized otherwise
+        var (surfaceWidth, surfaceHeight) = composeViewport is { } vpCull
+            ? ((int)Math.Ceiling(vpCull.Width * renderScale), (int)Math.Ceiling(vpCull.Height * renderScale))
+            : ((int)Math.Ceiling(viewWidth * renderScale), (int)Math.Ceiling(viewHeight * renderScale));
+
         var info = new SKImageInfo(
-            Math.Max(1, (int)Math.Ceiling(viewWidth * renderScale)),
-            Math.Max(1, (int)Math.Ceiling(viewHeight * renderScale)),
+            Math.Max(1, surfaceWidth),
+            Math.Max(1, surfaceHeight),
             SKColorType.Rgba8888,
             SKAlphaType.Premul);
         var dirty = _dirtyIsWholeCanvas ? null : _pendingDirty;
@@ -9841,9 +9862,16 @@ public sealed partial class MainViewModel : ObservableObject
             image = ComposeUnboundedSnapshot(scene, passes, background, renderScale, cameraView, seq);
             usedClip = _pendingViewport;
         }
+        else if (useViewportCulling)
+        {
+            // B82: Bounded canvas with viewport culling. Create viewport-sized surface and compose
+            // only the visible region. The document is translated so the viewport maps to surface origin.
+            image = ComposeViewportCulled(scene, passes, background, renderScale, cameraView, info, seq);
+            usedClip = _pendingViewport;
+        }
         else
         {
-            // Bounded canvas: use full-document compositing as before
+            // Bounded canvas without culling: use full-document compositing as before
             image = _composeRing.Publish(info, dirty, (surface, clip) =>
             {
                 usedClip = clip;
@@ -9859,7 +9887,12 @@ public sealed partial class MainViewModel : ObservableObject
         LastPublishClip = usedClip;
         if (SnapshotChanged is { } handler)
         {
-            handler(new RenderSnapshot(image, viewWidth, viewHeight, seq, _pendingViewport));
+            // When viewport-culled, image is viewport-sized, so report viewport dimensions.
+            // Otherwise, image is scene-sized so report scene dimensions.
+            var (docWidth, docHeight) = (useUnboundedPath || useViewportCulling) && _pendingViewport is { } vpReport
+                ? (vpReport.Width, vpReport.Height)
+                : ((int)viewWidth, (int)viewHeight);
+            handler(new RenderSnapshot(image, docWidth, docHeight, seq, _pendingViewport));
         }
         else
         {
@@ -9906,10 +9939,31 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (pass.Bitmap is null) continue;
 
-            // Convert the pass bitmap to a TileStore. This is currently done per-frame
-            // for simplicity, but ideally frames would be cached or rendered directly
-            // to tiles to avoid the full-bitmap allocation.
-            var tileStore = Lightbox.Raster.TileStore.FromBitmap(pass.Bitmap);
+            // Convert the pass bitmap to a TileStore, with caching to avoid reconverting
+            // unchanged bitmaps on subsequent viewport changes (e.g., during zoom).
+            var bitmapHash = pass.Bitmap.GetHashCode();
+            TileStore tileStore;
+
+            if (_tileStoreCache.TryGetValue(bitmapHash, out var cached) && ReferenceEquals(cached.Bitmap, pass.Bitmap))
+            {
+                // Bitmap is unchanged, reuse cached TileStore
+                tileStore = cached.Store;
+            }
+            else
+            {
+                // Bitmap is new or changed, create fresh TileStore and cache it
+                tileStore = Lightbox.Raster.TileStore.FromBitmap(pass.Bitmap);
+
+                // Cap cache size to prevent unbounded growth (e.g., during rapid undo/redo)
+                if (_tileStoreCache.Count >= 10)
+                {
+                    // Evict oldest entry (simple FIFO approximation via enumeration)
+                    var oldestKey = _tileStoreCache.Keys.First();
+                    _tileStoreCache.Remove(oldestKey);
+                }
+
+                _tileStoreCache[bitmapHash] = (pass.Bitmap, tileStore);
+            }
 
             try
             {
@@ -9977,6 +10031,76 @@ public sealed partial class MainViewModel : ObservableObject
                 canvas.DrawBitmap(overlay.Scratch, 0, 0, overlayPaint);
                 overlayPaint.Dispose();
                 canvas.Restore();
+            }
+        }
+
+        canvas.Flush();
+        var image = surface.Snapshot();
+        surface.Dispose();
+
+        return image;
+    }
+
+    /// <summary>
+    /// B82: Viewport-culled compositing for bounded canvas.
+    /// Creates a viewport-sized surface and composes only the visible region,
+    /// reducing compose cost from layers × document_area to layers × viewport_area.
+    /// Crops each layer bitmap to the viewport region and scales to render resolution.
+    /// </summary>
+    private SKImage ComposeViewportCulled(
+        Lightbox.Core.Documents.Scene scene,
+        List<RenderPass> passes,
+        SKColor background,
+        double renderScale,
+        SKMatrix44? cameraView,
+        SKImageInfo info,
+        long seq)
+    {
+        var viewport = _pendingViewport!.Value;
+        var surface = SKSurface.Create(info);
+        using var canvas = surface.Canvas;
+        canvas.Clear(background);
+
+        // Composite each pass, cropping the viewport region and scaling to render resolution
+        foreach (var pass in passes)
+        {
+            if (pass.Bitmap is null) continue;
+
+            var paint = new SKPaint
+            {
+                BlendMode = pass.Blend
+            };
+
+            if (pass.Opacity < 1.0)
+                paint.Color = paint.Color.WithAlpha((byte)(pass.Opacity * 255));
+
+            if (pass.Tint.HasValue)
+                paint.ColorFilter = SKColorFilter.CreateBlendMode(pass.Tint.Value, SKBlendMode.Multiply);
+
+            // Crop the layer bitmap to the viewport region and scale to surface resolution
+            var srcRect = new SKRectI(
+                (int)viewport.Left, (int)viewport.Top,
+                (int)(viewport.Left + viewport.Width), (int)(viewport.Top + viewport.Height));
+            var dstRect = new SKRectI(0, 0, info.Width, info.Height);
+            canvas.DrawBitmap(pass.Bitmap, srcRect, dstRect, paint);
+
+            paint.Dispose();
+
+            // Handle overlay if present (live stroke preview, etc.)
+            if (pass.Overlay is { } overlay)
+            {
+                // For overlay, crop to viewport as well
+                var overlayPaint = new SKPaint
+                {
+                    BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver
+                };
+
+                if (overlay.Opacity < 1.0)
+                    overlayPaint.Color = overlayPaint.Color.WithAlpha((byte)(overlay.Opacity * 255));
+
+                // Overlay is already viewport-sized (from RenderPass), draw as-is
+                canvas.DrawBitmap(overlay.Scratch, 0, 0, overlayPaint);
+                overlayPaint.Dispose();
             }
         }
 
