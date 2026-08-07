@@ -878,6 +878,36 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
                 : $"{symbol.Name} shared with {ShareScopeLabel}.");
     }
 
+    /// <summary>The project's own brush tips, which a scope can narrow to.</summary>
+    /// <remarks>
+    /// The project's, not the user library's or the built-in catalogue's: those
+    /// two follow the artist rather than the project, and painting with either
+    /// copies the raster into the document anyway. See <see cref="TipScopes"/>.
+    /// </remarks>
+    public IReadOnlyList<BrushTip> ShareableTips =>
+        Project?.Manifest.Tips is not { } tips
+            ? []
+            : [.. tips.OrderBy(t => t.Name, StringComparer.CurrentCultureIgnoreCase)];
+
+    [RelayCommand]
+    private void ShareTipEntry(BrushTip? tip)
+    {
+        if (Project is not { } project || tip?.Id is not { Length: > 0 } id) return;
+        var scope = ScopeOfSelected();
+        if (Already(scope, TipScopes.Kind, id)) return;
+        var first = !TipScopes.AnyDeclared(project.Manifest);
+        ResourceScopes.Declare(project.Manifest, scope, TipScopes.Kind, id);
+        // Same announcement symbols make, for the same reason: this is the click
+        // that turns "every tip everywhere" into "only what is declared", and a
+        // picker that quietly shrinks is a bad way to learn that.
+        AfterScopeChange(
+            project,
+            first
+                ? $"{tip.Name} shared with {ShareScopeLabel}. Tips are now scoped: "
+                  + "elsewhere only what is declared there is offered."
+                : $"{tip.Name} shared with {ShareScopeLabel}.");
+    }
+
     /// <summary>The guide sets an artist can share onto the selected scope.</summary>
     public IReadOnlyList<GuideSet> ShareableGuideSets =>
         Project?.Manifest.GuideSets ?? (IReadOnlyList<GuideSet>)[];
@@ -1008,6 +1038,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public IReadOnlyList<ScopeMenuEntry> SymbolMenu =>
         Entries(ShareableSymbols, s => s.Name, ShareSymbolEntryCommand);
 
+    public IReadOnlyList<ScopeMenuEntry> TipMenu =>
+        Entries(ShareableTips, t => t.Name, ShareTipEntryCommand);
+
     public IReadOnlyList<ScopeMenuEntry> GuideSetMenu =>
         Entries(ShareableGuideSets, g => g.Name, ShareGuideSetEntryCommand);
 
@@ -1032,6 +1065,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             GradientScopes.Kind => Project?.Gradients.GetValueOrDefault(resource.Id)?.Name,
             GuideScopes.Kind => Project?.Manifest.GuideSets?.FirstOrDefault(g => g.Id == resource.Id)?.Name,
             SymbolScopes.Kind => Project?.Symbols.GetValueOrDefault(resource.Id)?.Name,
+            TipScopes.Kind => Project?.Manifest.Tips?.FirstOrDefault(t => t.Id == resource.Id)?.Name,
             ExportScopes.Kind => ShareableExportPresets.FirstOrDefault(p => p.Id == resource.Id)?.Name,
             _ => DocumentByIdOrNull(resource.Id)?.Name,
         };
@@ -1041,6 +1075,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             GradientScopes.Kind => "Gradient",
             GuideScopes.Kind => "Guides",
             SymbolScopes.Kind => "Symbol",
+            TipScopes.Kind => "Brush tip",
             TemplateScopes.Kind => "Template",
             ExportScopes.Kind => "Export",
             ReferenceScopes.Kind => "Reference",

@@ -2095,6 +2095,21 @@
                                 </Style>
                               </MenuItem.Styles>
                             </MenuItem>
+                            <MenuItem Header="Share a brush tip here"
+                                      ItemsSource="{Binding Owner.TipMenu}"
+                                      ToolTip.Tip="Narrows which of the project's tips are offered under this folder. Your own library and the built-ins are never narrowed.">
+                              <MenuItem.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
+                                  <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                              </MenuItem.ItemTemplate>
+                              <MenuItem.Styles>
+                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
+                                  <Setter Property="Command" Value="{Binding Command}" />
+                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
+                                </Style>
+                              </MenuItem.Styles>
+                            </MenuItem>
                             <MenuItem Header="Share guides here"
                                       ItemsSource="{Binding Owner.GuideSetMenu}"
                                       ToolTip.Tip="Drawings under this folder can pull these guides in. The roadmap's character height guide is one of these and a declaration.">

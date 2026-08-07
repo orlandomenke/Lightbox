@@ -261,7 +261,8 @@ public sealed class WorkspaceTests : BrushStateIsolated
                  // the AI bar, which acts on the open drawing.
                  "Read this character…",
                  "Share a palette here",
-                 "Share a gradient here", "Share a symbol here", "Share guides here",
+                 "Share a gradient here", "Share a symbol here", "Share a brush tip here",
+                 "Share guides here",
                  "New documents start from",
                  "Use this as reference", "Stop sharing", "Reach",
                  "Remove from project", "Delete permanently…", "Status"],

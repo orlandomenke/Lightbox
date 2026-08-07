@@ -454,4 +454,79 @@ public sealed class ScopeDeclarationTests(ITestOutputHelper output) : BrushState
         Assert.Null(SymbolScopes.VisibleTo(
             docker.Project!.Manifest, docker.Project!.Manifest.Documents.FirstOrDefault()));
     }
+
+
+    // ---- brush tips, the design doc's loose end ------------------------------
+
+    /// <summary>
+    /// Declaring a tip narrows the picker, and leaves the user library alone.
+    /// </summary>
+    /// <remarks>
+    /// Through <c>TipStore.Available</c> rather than through <c>TipScopes</c>,
+    /// because the resolver was the easy half — what this closes is a promise
+    /// the design doc made and nothing read. The second assertion is the one
+    /// worth having: a scope must not reach the artist's own library, which
+    /// follows them between projects and is not the project's to narrow.
+    /// </remarks>
+    [AvaloniaFact]
+    public void DeclaringABrushTipNarrowsTheProjectsOwnAndNotTheUserLibrary()
+    {
+        var vm = Vm();
+        var docker = vm.ProjectDocker;
+        var manifest = docker.Project!.Manifest;
+
+        var nib = new BrushTip { Name = "Nib", Png = "x" };
+        var wash = new BrushTip { Name = "Wash", Png = "x" };
+        (manifest.Tips ??= []).AddRange([nib, wash]);
+        var mine = new Lightbox.App.Services.TipStore.State
+        {
+            Tips = { new BrushTip { Name = "My marker", Png = "x" } },
+        };
+
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Inking");
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Inking");
+        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Clean-up");
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Inking");
+
+        // Unscoped: both project tips offered, plus the user's.
+        var before = Lightbox.App.Services.TipStore.Available(
+            docker.Project!, mine, includeBuiltIn: false).Select(t => t.Name).ToList();
+        Assert.Contains("Nib", before);
+        Assert.Contains("Wash", before);
+
+        docker.ShareTipEntryCommand.Execute(
+            Assert.Single(docker.ShareableTips, t => t.Name == "Nib"));
+        output.WriteLine(docker.Status);
+        Assert.Contains("now scoped", docker.Status);
+
+        var line = manifest.Documents.Single(d => d.Name == "Clean-up");
+        var after = Lightbox.App.Services.TipStore.Available(
+            docker.Project!, mine, includeBuiltIn: false, inView: line).Select(t => t.Name).ToList();
+
+        output.WriteLine($"before: {string.Join(", ", before)} / after: {string.Join(", ", after)}");
+        Assert.Contains("Nib", after);
+        Assert.DoesNotContain("Wash", after);
+        // The artist's own library is not the project's to narrow.
+        Assert.Contains("My marker", after);
+    }
+
+    /// <summary>A tip declaration reads as one, and undoes to unscoped.</summary>
+    [AvaloniaFact]
+    public void ATipDeclarationSaysWhatItIsAndUndoesToUnscoped()
+    {
+        var vm = Vm();
+        var docker = vm.ProjectDocker;
+        var nib = new BrushTip { Name = "Nib", Png = "x" };
+        (docker.Project!.Manifest.Tips ??= []).Add(nib);
+
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Inking");
+        docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Inking");
+        docker.ShareTipEntryCommand.Execute(docker.ShareableTips[0]);
+
+        var row = Assert.Single(docker.Declarations);
+        Assert.Equal("Brush tip: Nib", row.Label);
+
+        docker.UnshareEntryCommand.Execute(row);
+        Assert.False(TipScopes.AnyDeclared(docker.Project!.Manifest));
+    }
 }
