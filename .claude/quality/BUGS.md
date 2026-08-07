@@ -926,6 +926,14 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B125** `P2` `ui` Every tab in a group looks the same, so the strip never says which panel is showing `evidence: WorkspaceTests, TheTabShowingIsTheOneThatLooksLikeItIsShowing`
+  - Repro: switch to the Animation workspace. Colour, Palette and Gradient share a slot; Colour is the one showing. All three labels render at the same weight, and clicking between them changes the panel without changing the strip.
+  - Cause: the header carried `SelectedItem="{TemplateBinding ActiveTab}"`. `ActiveTab` is a `DockPanelId`; the items are `DockPanelInfo`. Handing an enum to `SelectedItem` is not an error — **nothing simply ever matches**, so the strip has no selection at all and `:selected` never applies to anything.
+  - Fix: `SelectedValue` with `SelectedValueBinding="{Binding Id}"`, which is the pair built for exactly this — a selection identified by a key rather than by the item. Plus the `:selected` foreground moved onto the ContentPresenter, because the theme sets one there and it beats anything inherited from the item; without that the active tab looked right by the theme's accident and would have changed with it.
+  - **Nothing failed, and that is the whole entry.** `TabbedPanelsShareOneSlotAndOneShows` and four more asked the model which panel was active and got the right answer every time — the model was never wrong. What was wrong was the one thing no assertion looked at. It took a screenshot to see, and then a pixel measurement to believe: all three labels read `#9AA1B2` exactly, which is the sort of coincidence that is never a coincidence.
+  - The lesson is the one `CLAUDE.md` already records for brush measurement, pointed at UI: **assert the rendered value, not the state that should produce it.** The regression test reads the `TextBlock`'s actual foreground, because a selection that resolves correctly and paints identically is the bug rather than the fix.
+  - Found while taking a screenshot of the redesign for review, four days after the feature landed green. Cost: S
+
 - [x] **B123** `P2` `ui` Switching or saving a workspace silently resets rulers and guide visibility `evidence: DockLayoutTests, CloningALayoutKeepsTheRulersAndGuideFlags, ACloneSharesNothingWithTheOriginal`
   - Repro: turn rulers on, or hide guides, or lock them. Switch workspace, or save the one you are in. All three go back to their defaults.
   - Cause: `DockLayout.Clone()` copied `Placements`, `AreaExtents` and `Overlays` and stopped there. `Rulers`, `GuidesVisible` and `GuidesLocked` are fields on the same type and were never copied, so the clone got their initializer values instead.

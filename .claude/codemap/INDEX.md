@@ -1,6 +1,6 @@
 # Code index
 
-538 files · 140998 lines · 2815 tests.
+538 files · 141064 lines · 2816 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -148,17 +148,17 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockZones:67
 - `src/Lightbox.App/Controls/OverflowBar.cs` (178 ln) · 2 test files
   - OverflowBar:25
+- `src/Lightbox.App/App.axaml` (177 ln) · **no tests**
+  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Rendering/GuidePainter.cs` (177 ln) · 1 test files
   - GuidePainter:27
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 3 test files
   - CanvasOverlayBar:28
+- `src/Lightbox.App/Styles/Controls.axaml` (175 ln) · **no tests**
 - `src/Lightbox.App/Styles/ColorPicker.axaml` (174 ln) · **no tests**
   - PART_Clear, PART_Swatch
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln) · **no tests**
   - ColorField:29
-- `src/Lightbox.App/App.axaml` (168 ln) · **no tests**
-  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
-- `src/Lightbox.App/Styles/Controls.axaml` (166 ln) · **no tests**
 - `src/Lightbox.App/Rendering/RigOverlayPainter.cs` (152 ln) · 1 test files
   - RigOverlayPainter:36
 - `src/Lightbox.App/Styles/Palette.axaml` (151 ln) · **no tests**

@@ -1,4 +1,5 @@
 using Avalonia.Controls.Presenters;
+using Avalonia.Media;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Avalonia.Controls;
@@ -154,6 +155,53 @@ public sealed class WorkspaceTests : BrushStateIsolated
         // And the hidden tab is parked, not destroyed — the same rule closing a
         // panel has always followed, so it keeps its scroll and its bindings.
         Assert.Single(Pool(w).Children.OfType<Docker>(), d => d.PanelId == DockPanelId.Color);
+    }
+
+    [AvaloniaFact]
+    public void TheTabShowingIsTheOneThatLooksLikeItIsShowing()
+    {
+        // B125. The strip carried `SelectedItem="{TemplateBinding ActiveTab}"`,
+        // and ActiveTab is a DockPanelId while the items are DockPanelInfo.
+        // Handing an enum to SelectedItem is not an error — nothing ever
+        // matches, so no tab is selected, and three tabs render identically
+        // whichever panel is actually in front.
+        //
+        // **Nothing failed.** Every test here asked the model which panel was
+        // active and got the right answer; the model was never wrong. What was
+        // wrong was the one thing no assertion looked at, and it took a
+        // screenshot to see it.
+        //
+        // So this asserts the *rendered* foreground rather than the selection,
+        // because a selection that resolves correctly and paints identically is
+        // the bug, not the fix.
+        var (w, vm) = Open();
+
+        vm.Workspace.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var docker = Strip(w, DockSide.Right).Children.OfType<Docker>()
+            .First(d => d.Tabs is not null);
+        var strip = docker.GetVisualDescendants().OfType<ListBox>().First();
+        var items = strip.GetVisualDescendants().OfType<ListBoxItem>().ToList();
+        Assert.Equal(2, items.Count);
+
+        var active = Assert.Single(items, i => ((DockPanelInfo)i.DataContext!).Id == docker.ActiveTab);
+        var resting = Assert.Single(items, i => i != active);
+
+        static Color Ink(ListBoxItem item) =>
+            (item.GetVisualDescendants().OfType<TextBlock>().First().Foreground
+             as ISolidColorBrush)!.Color;
+
+        // Both numbers printed, not just the comparison: "it passed" and
+        // "230 against 178" are different amounts of evidence, and the second
+        // is the one that says whether the difference is visible or a hair.
+        var (a, r) = (Ink(active), Ink(resting));
+        Assert.True(a.R + a.G + a.B > r.R + r.G + r.B,
+            $"active tab {a} is not brighter than the resting tab {r}");
+
+        // And the resting tab is still legible. A tab nobody can read looks
+        // disabled, and these are all one click away.
+        Assert.True(r.R + r.G + r.B > 3 * 0x60, $"resting tab {r} is too dim to read");
     }
 
     [AvaloniaFact]
