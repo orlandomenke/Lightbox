@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2657 tests, derived from the suite itself. Each line is a
+2660 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2699,6 +2699,13 @@ regression even when every test still compiles.
 - Guides Survive ASave And Reload — `:242`
 - No Guides Means No Snapping — `:264`
 
+## BoxEdgeMatchTests
+`tests/Lightbox.Core.Tests/Inbetween/BoxEdgeMatchTests.cs`
+
+- Each Edge Pairs With Its Own Edge — `:46`
+- The Midway Frame Is Still ABox — `:70`
+- The Match Is Minimum Total Cost Rather Than Cheapest First — `:87`
+
 ## EraserResurrectionTests
 `tests/Lightbox.Core.Tests/Inbetween/CleanerTests.cs`
 
@@ -2735,7 +2742,7 @@ regression even when every test still compiles.
 `tests/Lightbox.Core.Tests/Inbetween/InbetweenTests.cs`
 
 - Label Match Beats Proximity — `:16`
-- Greedy Matching Picks Nearest Centroids — `:29`
+- Geometric Matching Picks Nearest Centroids — `:29`
 - Length Mismatch Inflates Cost — `:42`
 - Unmatched Pair With Null — `:52`
 - Empty Frames Produce Only One Sided Pairs — `:60`
