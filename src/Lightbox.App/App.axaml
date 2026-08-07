@@ -5,6 +5,12 @@
              x:Class="Lightbox.App.App"
              RequestedThemeVariant="Dark">
   <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <!-- The colour system. First, so everything below can name a role
+             instead of a hex value. See docs/DESIGN-ui-system.md. -->
+        <ResourceInclude Source="avares://Lightbox.App/Styles/Palette.axaml" />
+      </ResourceDictionary.MergedDictionaries>
     <!--
       The splash colour, and the only place it is written down.
 
@@ -14,7 +20,8 @@
       layer-group amber from MainWindow — sharing that literal would imply a
       relationship between the two that does not exist.
     -->
-    <SolidColorBrush x:Key="SplashBackgroundBrush" Color="#FF7A00" />
+      <SolidColorBrush x:Key="SplashBackgroundBrush" Color="#FF7A00" />
+    </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
     <FluentTheme />
@@ -31,11 +38,11 @@
 
     <!-- Docker: title strip, optional top/bottom option bars, content between. -->
     <Style Selector="controls|Docker">
-      <Setter Property="Background" Value="#242424" />
+      <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
       <Setter Property="Template">
         <ControlTemplate>
           <Border Background="{TemplateBinding Background}"
-                  BorderBrush="#383838" BorderThickness="1" CornerRadius="4">
+                  BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
             <DockPanel>
               <!--
                 The header is both the panel switcher and the drag grip.
@@ -58,7 +65,7 @@
                 and pull to move the panel. The threshold lives in Docker so a
                 click to focus is not a tear-out.
               -->
-              <Border x:Name="PART_Header" DockPanel.Dock="Top" Background="#1b1b1b" Padding="8,2">
+              <Border x:Name="PART_Header" DockPanel.Dock="Top" Background="{StaticResource BackgroundSecondaryBrush}" Padding="8,2">
                 <DockPanel>
                   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
                     <ContentPresenter Content="{TemplateBinding TitleBarExtra}" VerticalAlignment="Center" />
@@ -103,15 +110,18 @@
       along the edge and every icon in it stays the right way up.
     -->
     <Style Selector="controls|CanvasOverlayBar">
-      <Setter Property="Background" Value="#cc1f1f1f" />
+      <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
       <Setter Property="Template">
         <ControlTemplate>
           <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="2"
-                  BorderBrush="#3a3a3a" BorderThickness="1">
+                  BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
             <StackPanel Spacing="2"
                         Orientation="{Binding IsVertical, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
               <!-- Grip. Everything else in the bar is a button, so the grip
                    has to be its own target or a drag would press one. -->
+              <!-- Not a colour: a very nearly transparent fill is what makes the
+                   grip a hit target at all. Left as a literal because naming it
+                   in the palette would imply it is something you could re-skin. -->
               <Border x:Name="PART_Grip" Cursor="SizeAll" Background="#00000001"
                       MinWidth="12" MinHeight="12"
                       ToolTip.Tip="Drag to any edge of the canvas">
@@ -134,7 +144,7 @@
 
     <!-- Shared look for a docker's option bars. -->
     <Style Selector="Border.dockerBar">
-      <Setter Property="Background" Value="#202020" />
+      <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}" />
       <Setter Property="Padding" Value="6,4" />
     </Style>
   </Application.Styles>
