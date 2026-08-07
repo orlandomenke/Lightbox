@@ -1670,7 +1670,26 @@ public sealed class CanvasControl : Control
         var snapshot = _snapshot;
         if (snapshot is null) return Matrix.Identity;
         var s = FitScale() * _zoom;
-        return Matrix.CreateTranslation(-snapshot.DocWidth / 2.0, -snapshot.DocHeight / 2.0)
+
+        // For unbounded canvas (when DocViewport is set), center on the viewport's visible region.
+        // For normal canvas, center on the full document (DocWidth/DocHeight).
+        // This ensures ViewToDoc() transforms coordinates correctly when the rendered image
+        // is viewport-sized (unbounded) rather than full-canvas-sized (normal).
+        double centerX, centerY;
+        if (snapshot.DocViewport is { } vp)
+        {
+            // Unbounded canvas: center on the visible viewport region
+            centerX = vp.Left + vp.Width / 2.0;
+            centerY = vp.Top + vp.Height / 2.0;
+        }
+        else
+        {
+            // Normal canvas: center on full document
+            centerX = snapshot.DocWidth / 2.0;
+            centerY = snapshot.DocHeight / 2.0;
+        }
+
+        return Matrix.CreateTranslation(-centerX, -centerY)
                * Matrix.CreateScale(_mirrored ? -s : s, s)
                * Matrix.CreateRotation(_rotationDeg * Math.PI / 180)
                * Matrix.CreateTranslation(Bounds.Width / 2 + _pan.X, Bounds.Height / 2 + _pan.Y);
