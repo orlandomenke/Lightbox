@@ -1,6 +1,6 @@
 # Code index
 
-545 files · 143341 lines · 2844 tests.
+546 files · 143426 lines · 2845 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,11 +49,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (10708 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4526, TransformParts:7195
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4561 ln) · 21 test files
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4561 ln) · 22 test files
   - MainWindow:19, UnsavedChoice:3003
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (3648 ln) · 13 test files
   - CanvasControl:28, CanvasToolMode:908, GridGesture:965, TxDrag:1112, DrawOp:2924
-- `src/Lightbox.App/Views/MainWindow.axaml` (3574 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3589 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
@@ -97,14 +97,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ExportWindow:34
 - `src/Lightbox.App/Services/GameMakerExporter.cs` (313 ln) · 2 test files
   - GameMakerExportOptions:10, GameMakerExportResult:28, GameMakerExporter:78, StripRecord:86, GameMakerBlock:99
-- `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 21 indirect only
+- `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 22 indirect only
   - RampTrack:10, GradientRamp:41
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (295 ln) · 4 test files
   - Workspace:13, WorkspaceStore:51
 - `src/Lightbox.App/Styles/Density.axaml` (291 ln) · **no tests**
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
-- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 110 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 111 test files
   - MainViewModel:32
 - `src/Lightbox.App/Styles/Controls.axaml` (284 ln) · **no tests**
 - `src/Lightbox.App/Services/GodotExporter.cs` (283 ln) · 2 test files
@@ -259,13 +259,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - OverlayConverters:7
 - `src/Lightbox.App/Program.cs` (61 ln) · 1 test files
   - Program:7
-- `src/Lightbox.App/Views/NewProjectPanel.axaml.cs` (61 ln) · 21 indirect only
+- `src/Lightbox.App/Views/NewProjectPanel.axaml.cs` (61 ln) · 22 indirect only
   - NewProjectSettings:8, NewProjectPanel:16, TypeChoice:18, PanelChoice:34
 - `src/Lightbox.App/Rendering/ThumbnailRenderer.cs` (60 ln) · 4 indirect only
   - ThumbnailRenderer:7
 - `src/Lightbox.App/Input/StrokeBuilder.cs` (58 ln) · 4 indirect only
   - StrokeBuilder:10
-- `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 21 indirect only
+- `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 22 indirect only
   - SaveFirstChoice:7, SaveFirstDialog:32
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml` (50 ln) · **no tests**
   - ApplyButton, CameraBox, ChangesPanel, DrawnOnList, DrawnOnPanel, FpsBox, GuidesBox, LayerPropertiesBox …
@@ -281,15 +281,15 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
-- `src/Lightbox.App/Views/PlacementChoiceDialog.axaml.cs` (34 ln) · 21 indirect only
+- `src/Lightbox.App/Views/PlacementChoiceDialog.axaml.cs` (34 ln) · 22 indirect only
   - PlacementChoiceDialog:11, PlacementChoice:30
 - `src/Lightbox.App/Views/PlacementChoiceDialog.axaml` (32 ln) · **no tests**
   - DontAskAgain, ImportOption, ReferenceOption
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml` (26 ln) · **no tests**
   - Message, RevertButton, SaveButton
-- `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 21 indirect only
+- `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 22 indirect only
   - NewProjectDialog:10
-- `src/Lightbox.App/Views/NewDocumentDialog.axaml.cs` (22 ln) · 21 indirect only
+- `src/Lightbox.App/Views/NewDocumentDialog.axaml.cs` (22 ln) · 22 indirect only
   - NewDocumentDialog:15
 - `src/Lightbox.App/Views/NewDocumentDialog.axaml` (17 ln) · **no tests**
   - Fields

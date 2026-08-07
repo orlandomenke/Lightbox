@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2844 tests, derived from the suite itself. Each line is a
+2845 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2284,6 +2284,11 @@ regression even when every test still compiles.
 
 - Master Switch Writes Into The Stroke Record — `:127`
 - Per Setting Checkboxes Map To The Response Curves — `:141`
+
+## TimelineRowAlignmentTests
+`tests/Lightbox.App.Tests/TimelineRowAlignmentTests.cs`
+
+- ALayers Name And Its Cels Share One Row — `:35`
 
 ## TimingPresetUiTests
 `tests/Lightbox.App.Tests/TimingPresetUiTests.cs`

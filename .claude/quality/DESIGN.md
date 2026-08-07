@@ -51,8 +51,15 @@ scale is then describing controls that do not exist.
 | `--field` | 64 | Numeric field beside a slider |
 
 Font sizes: **12** in docker content, **11** in dense rows and option bars,
-**10** for status and hints. Nothing smaller — below 10 the app stops being
+**10** for status and hints. **No text smaller** — below 10 the app stops being
 readable on a laptop panel.
+
+*Text*, and the word is doing work. A **glyph used as an icon** is a shape
+rather than something to read, and it is sized by the box it has to fit: the
+stacked layer-reorder arrows are 8 px in an 11 px button, deliberately half
+height each so the pair fits one row without setting the row's height. Raising
+those to 10 would make the arrows crowd their box to satisfy a rule about
+reading words. The floor applies to anything with a word in it.
 
 **`--tile` is 26 because of the glyph, not because of the scale.** 24 is the
 tidier number and it does not survive contact with the content: the icons are
