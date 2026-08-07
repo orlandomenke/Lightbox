@@ -188,6 +188,25 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### project
 
+- [ ] **B124** `P2` `project` A shared reference is written and never read, and the manual promises two kinds nothing can create `evidence: ASharedReferenceReachesTheDocumentsUnderIt, ASheetCanBeSharedOnAFolder, AnImageCanBeSharedOnAFolder`
+  - Measured by comparing the five scoped kinds against each other. Every other kind is declared **and consumed**; references are declared only:
+
+    ```
+    PaletteScopes.VisibleTo   -> MainViewModel.cs:1938        consumed
+    GradientScopes.VisibleTo  -> MainViewModel.cs:1947        consumed
+    SymbolScopes.VisibleTo    -> SymbolBrowserViewModel.cs:210 consumed
+    TipScopes.VisibleTo       -> TipStore.cs:105              consumed
+    ReferenceScopes.VisibleTo -> (nothing in src/)            never read
+    ReferenceScopes.OfTarget  -> (nothing in src/)            never read
+    ```
+
+  - So **"Use this as reference" writes an entry into the manifest and nothing anywhere resolves it.** The declaration shows up in the folder's *Stop sharing* and *Reach* lists (`ProjectViewModel.cs:1228` labels it `"Reference"`), which is the whole of what it does. No drawing is ever shown a reference because a folder shares one.
+  - **Two of the three targets have no producer either.** `ScopedResource.Target` exists precisely because *"a reference is different"* and needs a second word (`ResourceScopes.cs:60-75`), and `ReferenceTargets` declares `Sheet`, `Document` and `Image`. The only production caller is `ProjectViewModel.ShareSelectedAsReference` (`:1136`), which always passes `Document`. `Sheet` and `Image` appear in tests and nowhere else in `src/`.
+  - **And the manual sells all three** — `docs/manual/02-documents-and-projects.md`, *"References a document draws against"*, with a row reading *"**An image** | A photo or a scan, brought in."* There is no way to share an image as a reference and nothing would read it if there were. `CLAUDE.md` is explicit that this is the worst kind: *"a manual that documents a feature nobody can use is worse than no manual, because it cannot be trusted anywhere."*
+  - P2 on reach and silence rather than severity, the same reasoning as B114: it is invisible, it affects the scoping feature Q30 shipped, and it makes a documented capability look implemented while doing nothing. Nothing is corrupted and no work is lost, so not P1.
+  - **Not to be confused with the reference that works.** `ReferenceStrip` — View → Reference, the imported sheet laid against the timeline — is fully built, embedded, animated and consumed. The two systems are entirely disconnected: what actually appears under a drawing is `Scene.References` on the document, never a scoped declaration. Fixing this means deciding whether they should meet, which is a design question and not this entry's to answer.
+  - Fix: either wire a consumer (a document resolves the references reaching it and offers them, the way `TipStore` does) or withdraw the claim from the manual and mark it *Planned*. The manual half is a two-line honesty fix and is worth doing immediately either way. Cost: S for the manual, M for the consumer.
+
 - [ ] **B123** `P2` `project` A symbol cannot be placed on a vector layer, and nothing records a reason `evidence: ASymbolCanBePlacedOnAnyLayer, AVectorFrameCarriesItsPlacements, AFrameWithNoPlacementsWritesNoPlacementsKey`
   - Repro: add a vector layer, select a symbol, place it. Nothing happens. `MainViewModel.Symbols.cs:738` returns early on `activeLayer.Kind != LayerKind.Painted`, and the guard is silent — no status line, no refusal message, no cursor change.
   - Cause is structural rather than a policy: `PaintedFrame` has `Placements`, `VectorFrame` does not (`Frame.cs`). The check exists because the field does not, and **no design doc, question or roadmap item gives a reason why a symbol should need raster pixels underneath it.** A placement is a reference plus a transform; it has nothing to do with a baseline PNG. `SymbolRasterizer.Render` already handles both frame kinds (`SymbolRasterizer.cs:245-246`), so the renderer was written expecting this to work.

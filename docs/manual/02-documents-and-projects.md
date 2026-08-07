@@ -195,14 +195,24 @@ a palette is — so it reaches everything under it, at any depth. Three kinds:
 
 | | |
 | --- | --- |
-| **A sheet** | Several views on their own canvases — Front, Side, Back, Expressions. What a character sheet has always been, now filed wherever it belongs rather than trapped inside one drawing. |
 | **A document** | An ordinary drawing used as reference — one big environment layout, a style guide, a colour key. Not squeezed into a sheet, because it is not that shape. |
-| **An image** | A photo or a scan, brought in. |
+| **A sheet** — *Planned* | Several views on their own canvases — Front, Side, Back, Expressions. |
+| **An image** — *Planned* | A photo or a scan, brought in. |
 
-Put a sheet on a character's folder and every drawing under it can reach it. Use
-a drawing as reference **for the whole project**, or publish one later from
-**Reach**, and everything can — which is what an environment layout that both
-backgrounds and characters work from actually needs.
+Use a drawing as reference **for the whole project**, or publish one later from
+**Reach**, and everything can reach it — which is what an environment layout
+that both backgrounds and characters work from actually needs.
+
+**What sharing a reference does today, and what it does not.** It records the
+choice: the drawing appears in the folder's **Reach** list and can be stopped
+from sharing. It does **not** yet put anything in front of you — nothing reads
+the declaration back and offers the reference to the drawings under that folder.
+Filed as **B124**, and the two *Planned* rows above are part of the same gap.
+
+**The reference you can actually draw against is a different feature and it
+works** — **View → Reference**, further on in *Onion skin, references and the
+camera*. That one imports a picture, slices it into frames and lays it under
+your drawing. The two are unrelated today.
 
 The panel is called **Reference sheets** rather than Character sheets, because
 nothing about it was ever specific to characters.
