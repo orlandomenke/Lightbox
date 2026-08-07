@@ -22,9 +22,23 @@
     <Style Selector="DockPanel.animationRow">
       <Setter Property="Margin" Value="16,0,0,0" />
     </Style>
+    <!--
+      A row is as tall as its icon tile and no taller.
+
+      `Padding="2,0"` rather than `2`: the horizontal 2 keeps the first icon off
+      the edge, the vertical 0 is the density. The tile is already 26 with the
+      glyph centred in it, so vertical padding was buying nothing but height —
+      4 px a row, which is a whole extra row every eight layers.
+
+      Declared here rather than on each template, which is also why the three
+      inline copies are gone. They were identical by luck: the layers docker,
+      the group row and the timeline's layer column each wrote their own, so a
+      change to one silently split the lists that are meant to line up.
+    -->
     <Style Selector="Border.layerRow">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="2,0" />
     </Style>
     <Style Selector="Border.layerRow.active">
       <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
@@ -43,6 +57,7 @@
     <Style Selector="Border.groupRow">
       <Setter Property="Background" Value="{StaticResource GroupRowBrush}" />
       <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="2,0" />
     </Style>
     <Style Selector="Border.groupRow.hiddenLayer">
       <Setter Property="Opacity" Value="0.35" />
@@ -86,16 +101,10 @@
     <Style Selector="Border.docTab.active">
       <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
     </Style>
-    <!-- Toolbar buttons: icon-only tiles by default; the toolbar's "labels"
-         class (set from code-behind at a width threshold) reveals the names. -->
-    <Style Selector="ToggleButton.tool">
-      <Setter Property="Height" Value="34" />
-      <Setter Property="Margin" Value="1" />
-      <Setter Property="Padding" Value="4,0" />
-      <Setter Property="HorizontalAlignment" Value="Stretch" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
+    <!-- ToggleButton.tool is sized by Density.axaml. Only the alignment
+         changes here: the toolbar's "labels" class (set from code-behind at a
+         width threshold) reveals the names beside the icons, and a name reads
+         left rather than centred. -->
     <Style Selector="Border#Toolbar.labels ToggleButton.tool">
       <Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
@@ -117,27 +126,9 @@
     <Style Selector="controls|OverflowBar TextBlock">
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
-    <!-- Icon buttons outside the overlay bars, which set their own fixed square
-         in Density.axaml. A **square** minimum rather than 26x24, because a
-         non-square minimum is what silently breaks a tile grid: give a row of
-         tiles different proportions and it stops reading as a row, which is the
-         defect the overlay bar's fixed square already exists to prevent. -->
-    <Style Selector="Button.icon">
-      <Setter Property="MinWidth" Value="26" />
-      <Setter Property="MinHeight" Value="26" />
-      <Setter Property="Padding" Value="0" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="ClipToBounds" Value="False" />
-    </Style>
-    <Style Selector="ToggleButton.icon">
-      <Setter Property="MinWidth" Value="26" />
-      <Setter Property="MinHeight" Value="26" />
-      <Setter Property="Padding" Value="0" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="ClipToBounds" Value="False" />
-    </Style>
+    <!-- Icon buttons are sized by Density.axaml, which now carries the square
+         and the reason for it. This block declared 26 against the scale's 24
+         and won, so the scale described a size no control in this window had. -->
     <Style Selector="TextBlock.toolname">
       <Setter Property="IsVisible" Value="False" />
     </Style>
@@ -528,7 +519,7 @@
         <Border Width="1" Margin="6,3,0,3" Background="{StaticResource BorderBrush}" />
       </StackPanel>
 
-      <controls:OverflowBar Height="30" Spacing="14" VerticalAlignment="Center">
+      <controls:OverflowBar Spacing="14" VerticalAlignment="Center">
 
         <!-- Transform session (Ctrl+T): shown above whatever tool was active -->
         <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding TransformActive}">
@@ -2433,7 +2424,7 @@
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
                   <StackPanel Spacing="4">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
                       <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
                               ToolTip.Tip="Add a new layer of the selected kind" />
                       <Button Content="🗑" Command="{Binding DeleteActiveLayerCommand}"
@@ -2470,7 +2461,7 @@
                   <ItemsControl.DataTemplates>
                     <DataTemplate x:DataType="vm:GroupRow">
                       <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}"
-                              Classes.lockedLayer="{Binding Locked}" Padding="2"
+                              Classes.lockedLayer="{Binding Locked}"
                               BorderBrush="{Binding ColorBrush}" BorderThickness="4,0,0,0" CornerRadius="3">
                         <Border.ContextMenu>
                           <ContextMenu>
@@ -2529,7 +2520,7 @@
                     <DataTemplate x:DataType="vm:LayerRow">
                       <Border Classes="layerRow" Classes.active="{Binding IsActive}" Classes.grouped="{Binding IsGrouped}"
                               Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}"
-                              Padding="2" Focusable="True"
+                              Focusable="True"
                               PointerPressed="OnLayerRowPressed">
                         <Border.ContextMenu>
                           <ContextMenu>
@@ -3235,7 +3226,7 @@
                 <TextBlock Text="Frames" FontWeight="SemiBold" FontSize="11" Margin="0,4,0,0" />
                 <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
                            Text="Detection reads the gaps between the drawings. Two rows that touch have no gap to find — say how many columns and rows instead." />
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="4">
                   <TextBlock Text="Cols" VerticalAlignment="Center" FontSize="11" />
                   <NumericUpDown Value="{Binding ReferenceColumns}" Minimum="0" Maximum="64"
                                  Increment="1" FormatString="0" Width="56" />
@@ -3243,7 +3234,7 @@
                   <NumericUpDown Value="{Binding ReferenceRows}" Minimum="0" Maximum="64"
                                  Increment="1" FormatString="0" Width="56" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="4">
                   <Button Content="Apply grid" Command="{Binding ApplyReferenceGridCommand}" />
                   <Button Content="Detect" Command="{Binding DetectReferenceFramesCommand}"
                           ToolTip.Tip="Find the frames from the image again" />
@@ -3278,7 +3269,7 @@
                          CloseCommand="{Binding ToggleTimelineCommand}">
         <controls:Docker.TopBar>
           <Border Classes="dockerBar">
-            <StackPanel Orientation="Horizontal" Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="4">
               <Button Content="＋" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
               <Button Content="⧉" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
               <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
@@ -3482,7 +3473,7 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:LayerRow">
                   <Border Classes="layerRow" Classes.active="{Binding IsActive}"
-                          Classes.hiddenLayer="{Binding !Visible}" Padding="2">
+                          Classes.hiddenLayer="{Binding !Visible}">
                     <StackPanel Orientation="Horizontal" Spacing="2">
                       <!-- Both explicitly centred. They looked inconsistent
                            because they were relying on the default, and ◉ and
