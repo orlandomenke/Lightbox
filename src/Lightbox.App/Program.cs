@@ -11,7 +11,7 @@ internal static class Program
     {
         // First, so a failure anywhere after this point leaves a file behind.
         CrashReporter.Install();
-        AttachConsoleForTracing();
+        OpenConsoleIfAsked();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 
@@ -22,45 +22,40 @@ internal static class Program
             .LogToTrace();
 
     /// <summary>
-    /// Give the opt-in traces somewhere to land when the app is run from a
-    /// terminal.
+    /// Open a console when somebody has asked to watch the traces.
     /// </summary>
     /// <remarks>
-    /// The app is a GUI-subsystem executable, which is what stops a console
-    /// window opening beside it — and it means the process is given no console
-    /// of its own. Two diagnostics write to <c>Console.Error</c> and are gated
-    /// behind environment variables: <c>LIGHTBOX_TRACE</c> in
-    /// <c>CanvasControl</c> and <c>LIGHTBOX_PERFTRACE</c> in
-    /// <c>MainViewModel</c>.
-    ///
-    /// <b>This makes that deterministic rather than rescuing it.</b> A GUI
-    /// process started from a shell may already inherit that shell's stderr
-    /// handle, in which case the traces would have printed anyway; whether they
-    /// do depends on how the launcher passes handles, which is not something
-    /// this repository can test from Linux. Attaching to the launching
-    /// terminal's console makes the answer the same either way, and the failure
-    /// it guards against is the quiet kind — silence reads as the tracing being
-    /// broken rather than as there being nowhere to print.
-    ///
-    /// Costs nothing when neither variable is set, and is skipped entirely off
-    /// Windows. Called before anything touches <c>Console</c>, because the
-    /// streams bind to whatever handles exist the first time they are used.
+    /// <para>
+    /// Two ways to ask, and they answer different situations. The environment
+    /// variables are the developer's, set for one run from a terminal. The
+    /// setting is the artist's, turned on from <b>Help</b> and remembered —
+    /// because the way it gets used is "switch this on, restart, and make the
+    /// problem happen again", and a switch that forgot itself between runs
+    /// would be no use for that.
+    /// </para>
+    /// <para>
+    /// Called before anything touches <c>Console</c>, because the streams bind
+    /// to whatever handles exist the first time they are used. Reading the
+    /// settings file here costs one small read on a path that has not started
+    /// Avalonia yet.
+    /// </para>
     /// </remarks>
-    private static void AttachConsoleForTracing()
+    private static void OpenConsoleIfAsked()
     {
-        if (!OperatingSystem.IsWindows()) return;
-        if (Environment.GetEnvironmentVariable("LIGHTBOX_TRACE") is null &&
-            Environment.GetEnvironmentVariable("LIGHTBOX_PERFTRACE") is null) return;
+        var traced = Environment.GetEnvironmentVariable("LIGHTBOX_TRACE") is not null
+                  || Environment.GetEnvironmentVariable("LIGHTBOX_PERFTRACE") is not null;
 
-        // Not being launched from a console is the ordinary case and not a
-        // failure: there is simply nothing to attach to, and the traces are
-        // lost the way they would have been anyway.
-        AttachConsole(AttachParentProcess);
+        var asked = false;
+        try
+        {
+            asked = AppSettings.Load().ShowDiagnosticsConsole;
+        }
+        catch
+        {
+            // An unreadable settings file must not stop the app starting. The
+            // environment variables still work, which is the developer's path.
+        }
+
+        if (traced || asked) DiagnosticsConsole.Open();
     }
-
-    private const uint AttachParentProcess = 0xFFFFFFFF;
-
-    [DllImport("kernel32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool AttachConsole(uint dwProcessId);
 }

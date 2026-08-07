@@ -56,6 +56,18 @@ public sealed class AppSettings
     public bool ShowStartScreen { get; set; } = true;
 
     /// <summary>
+    /// Whether to open a console window at startup for the diagnostic traces.
+    /// </summary>
+    /// <remarks>
+    /// Off, and it stays off unless somebody deliberately turns it on from
+    /// <b>Help</b>. It is remembered rather than asked each time because the
+    /// use for it is "turn this on, restart, and make the problem happen
+    /// again" — a switch that forgot itself between runs would be no use for
+    /// the one job it has.
+    /// </remarks>
+    public bool ShowDiagnosticsConsole { get; set; }
+
+    /// <summary>
     /// Whether to autosave over the document's own file once it has one,
     /// rather than only to the recovery copy.
     /// </summary>

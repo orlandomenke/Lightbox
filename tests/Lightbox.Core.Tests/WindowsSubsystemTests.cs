@@ -83,14 +83,34 @@ public class WindowsSubsystemTests(ITestOutputHelper output)
     [Fact]
     public void TheOptInTracesStillHaveSomewhereToPrint()
     {
-        // A GUI-subsystem process starts with no console, so Console.Error
-        // goes nowhere. Both trace variables are useless without the attach,
-        // and the failure is silence rather than an error — which reads as the
-        // tracing being broken rather than as there being nothing to print.
+        // A GUI-subsystem process starts with no console, so Console.Error goes
+        // nowhere. Both trace variables are useless without something arranging
+        // one, and the failure is silence rather than an error — which reads as
+        // the tracing being broken rather than as there being nothing to print.
         var program = File.ReadAllText(
             Path.Combine(RepoRoot(), "src", "Lightbox.App", "Program.cs"));
-        Assert.Contains("AttachConsole", program);
         Assert.Contains("LIGHTBOX_TRACE", program);
         Assert.Contains("LIGHTBOX_PERFTRACE", program);
+        Assert.Contains("DiagnosticsConsole.Open", program);
     }
+
+    [Fact]
+    public void AskingForAConsoleWorksEvenWhenThereIsNoTerminalToAttachTo()
+    {
+        // The whole point, and the thing an AttachConsole-only version got
+        // wrong: attaching needs a parent console, and the ordinary way to
+        // start Lightbox is to double-click it, where there is none. Without
+        // AllocConsole "give me a console" is unanswerable for exactly the
+        // launch an artist uses.
+        var console = File.ReadAllText(Path.Combine(
+            RepoRoot(), "src", "Lightbox.App", "Services", "DiagnosticsConsole.cs"));
+
+        Assert.Contains("AttachConsole", console);
+        Assert.Contains("AllocConsole", console);
+        // And the streams are pointed at the console device explicitly, so it
+        // does not matter what the process inherited — the question B115 could
+        // not settle from Linux stops mattering rather than being answered.
+        Assert.Contains("CONOUT$", console);
+    }
+
 }
