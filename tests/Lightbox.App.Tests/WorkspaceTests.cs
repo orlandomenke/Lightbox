@@ -7,6 +7,7 @@ using Lightbox.App.Controls;
 using Lightbox.App.Docking;
 using Lightbox.App.ViewModels;
 using Lightbox.App.Views;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.App.Tests;
 
@@ -33,16 +34,17 @@ public sealed class WorkspaceTests : BrushStateIsolated
     private static void WithKnight(MainViewModel vm)
     {
         var project = vm.ProjectDocker.Project!;
-        var knight = Lightbox.Core.Projects.ProjectIo.AddCharacter(project, "Knight");
-        foreach (var adopted in project.Manifest.Documents.ToList())
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");
+        vm.ProjectDocker.Refresh();
+        // Through the docker, so the file moves with the manifest entry.
+        foreach (var row in vm.ProjectDocker.Rows.Where(r => r.Animation is not null).ToList())
         {
-            Lightbox.Core.Projects.ProjectIo.MoveDocument(project, adopted, knight);
+            vm.ProjectDocker.MoveInto(row, knight);
         }
         vm.SaveProject(everything: true);
         vm.ProjectDocker.Refresh();
-        // Selected, because "add an animation" with nothing selected invents a
-        // character to hang it on — and these tests count characters.
-        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.IsCharacter);
+        // Selected, because a new document lands in the selected folder.
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.IsFolder);
     }
 
     private static (MainWindow Window, MainViewModel Vm) Open()
@@ -306,7 +308,7 @@ public sealed class WorkspaceTests : BrushStateIsolated
             Assert.EndsWith(".lightbox.json", vm.ProjectDocker.CopiedPath);
 
             Click(items, "Duplicate");
-            Assert.Equal(2, vm.ProjectDocker.Project!.Characters.First().Animations.Count);
+            Assert.Equal(2, vm.ProjectDocker.Project!.Manifest.Documents.Count);
 
             Click(items, "Rename…");
             Assert.True(vm.ProjectDocker.Selected!.IsRenaming);
@@ -379,8 +381,7 @@ public sealed class WorkspaceTests : BrushStateIsolated
             // the menu has to say which entries are containers, and saying it in
             // a tooltip nobody hovers is not saying it.
             Assert.Equal(
-                ["🗀  Folder", "🗀  Character", "🗀  Scene",
-                 "▣  Animation", "▣  Shot", "▣  Document"],
+                ["🗀  Folder", "▣  Document"],
                 items.Select(i => i.Header?.ToString()).ToList());
 
             // Every entry is wired to a handler. Clicking used to be assertable
@@ -397,14 +398,20 @@ public sealed class WorkspaceTests : BrushStateIsolated
 
             // The half that is still mechanical: each kind creates its thing.
             var docker = vm.ProjectDocker;
-            docker.AddItemNamed(ProjectViewModel.NewAnimation, "Walk");
-            Assert.Equal(2, docker.Project!.Characters.First().Animations.Count);
+            docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
+            Assert.Equal(2, docker.Project!.Manifest.Documents.Count);
 
-            docker.AddItemNamed(ProjectViewModel.NewCharacterItem, "Squire");
-            Assert.Equal(2, docker.Project.Characters.Count());
+            docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Squire");
+            var squire = ProjectFolders.All(docker.Project!.Manifest).Single(f => f.Name == "Squire");
+            Assert.Equal(2, ProjectFolders.All(docker.Project!.Manifest).Count);
 
-            docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Colour test");
-            Assert.Single(docker.Project.Manifest.Documents);
+            // Creating selects what it made, so the next one lands in it — B85's
+            // "created where you are", which after B114 is the one rule for every
+            // container rather than one for folders and another for characters.
+            docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Colour test");
+            Assert.Equal(
+                squire.Id,
+                docker.Project.Manifest.Documents.Single(d => d.Name == "Colour test").FolderId);
         }
         finally
         {

@@ -169,10 +169,10 @@ public sealed class ProjectCreateMenuTests(ITestOutputHelper output) : ProjectPa
         var kinds = docker.NewItemKinds;
 
         Assert.Equal(
-            ["Folder", "Character", "Scene"],
+            ["Folder"],
             kinds.Where(k => k.IsContainer).Select(k => k.Label));
         Assert.Equal(
-            ["Animation", "Shot", "Document"],
+            ["Document"],
             kinds.Where(k => !k.IsContainer).Select(k => k.Label));
 
         // Grouped, not interleaved: every container comes before every drawing.
@@ -198,7 +198,7 @@ public sealed class RenameProjectItemTests(ITestOutputHelper output) : ProjectPa
         var vm = Open();
         var docker = vm.ProjectDocker;
         docker.Selected = null;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Rooftop");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Rooftop");
         vm.SaveProject(everything: true);
         Assert.True(File.Exists(Path.Combine(Root, "unassigned-documents", "rooftop.lightbox.json")));
 
@@ -222,7 +222,7 @@ public sealed class RenameProjectItemTests(ITestOutputHelper output) : ProjectPa
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Art");
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Backgrounds");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Rooftop");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Rooftop");
         vm.SaveProject(everything: true);
         Assert.True(File.Exists(Path.Combine(Root, "art", "backgrounds", "rooftop.lightbox.json")));
 
@@ -308,7 +308,7 @@ public sealed class RenameProjectItemTests(ITestOutputHelper output) : ProjectPa
         var vm = Open();
         var docker = vm.ProjectDocker;
         docker.Selected = null;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Untitled");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Untitled");
 
         Assert.True(docker.Rename(Row(docker, "Untitled"), "Rooftop"));
 

@@ -773,7 +773,7 @@ public sealed partial class MainViewModel : ObservableObject
             ProjectDocker.Adopt(project);
             // Open the first animation so the project is not an empty shell —
             // and so the registries have something to resolve against.
-            if (project.Characters.SelectMany(c => c.Animations).FirstOrDefault() is { } first
+            if (project.Manifest.Documents.FirstOrDefault() is { } first
                 && ProjectIo.LoadDocument(project, first) is { } doc)
             {
                 OpenProjectDocument(first, doc);
@@ -874,9 +874,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         var copy = Core.Projects.Templates.NewFromTemplate(template, reference.Id);
         var name = $"{reference.Name} copy";
-        var added = ProjectDocker.SelectedCharacter is { } character
-            ? ProjectIo.AddAnimation(project, character, name, copy)
-            : ProjectIo.AddDocument(project, name, copy);
+        var added = ProjectIo.AddDocument(project, name, copy, ProjectDocker.TargetFolder);
 
         ProjectDocker.Adopt(project);
         ProjectDocker.MarkDirty(added);
@@ -899,10 +897,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (ProjectDocker.Project is not { } project) return null;
         if (SaveTargetTab?.Doc.TemplateId is not { Length: > 0 } id) return null;
-        var reference = project.Manifest.Characters.SelectMany(c => c.Animations)
-            .Concat(project.Manifest.Documents)
-            .Concat(project.Manifest.Scenes?.SelectMany(s => s.Shots) ?? [])
-            .FirstOrDefault(r => r.Id == id);
+        // B114. Was a concat of three lists; the project has one.
+        var reference = project.Manifest.Documents.FirstOrDefault(r => r.Id == id);
         if (reference is null) return null;
         var template = ProjectIo.LoadDocument(project, reference);
         return template is { IsTemplateDocument: true } ? template : null;
@@ -8388,17 +8384,22 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// What the project knows about the character this document belongs to, or
-    /// null when there is no project, no owning character, or nothing read yet.
+    /// What the project knows about the subject this document belongs to, or
+    /// null when there is no project, no subject above it, or nothing read yet.
     /// </summary>
     /// <remarks>
+    /// <b>B114.</b> Walks up the folder tree rather than searching a list of
+    /// characters, so a drawing two folders below Knight is still Knight's — the
+    /// old model could not express that at all.
+    /// <para>
     /// Null is the ordinary answer and costs nothing: a request with no
     /// taxonomy is byte-for-byte the request Lightbox sent before this feature
     /// existed. Optional means absent here too.
+    /// </para>
     /// </remarks>
     private SubjectTaxonomy? TaxonomyForActiveDocument() =>
-        ProjectDocker.Project is { } project
-            ? project.Manifest.CharacterOwning(SaveTargetTab?.Source?.Id)?.Taxonomy
+        ProjectDocker.Project is { } project && SaveTargetTab?.Source is { } source
+            ? project.SubjectOf(source)?.Taxonomy
             : null;
 
     /// <summary>
@@ -8424,9 +8425,13 @@ public sealed partial class MainViewModel : ObservableObject
             AiStatus = "Reading a subject needs a project — that is where a character lives.";
             return;
         }
-        if (ProjectDocker.SelectedCharacter is not { } character)
+        // B114. A folder, not a `Character` — and the folder need not already be
+        // one, because reading it is what makes it one. Selecting an ordinary
+        // folder full of a character's drawings and asking to read it is the
+        // whole gesture; the old model needed the character to exist first.
+        if (ProjectDocker.TargetFolder is not { } character)
         {
-            AiStatus = "Select a character in the Project panel first.";
+            AiStatus = "Select a folder in the Project panel first — that is what gets read.";
             return;
         }
         if (character.Taxonomy is { Reviewed: true })

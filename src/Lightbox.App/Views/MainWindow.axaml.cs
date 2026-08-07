@@ -3173,20 +3173,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void OnProjectNewAnimation(object? sender, RoutedEventArgs e) =>
-        await CreateProjectItemAsync(ProjectViewModel.NewAnimation);
-
-    private async void OnProjectNewCharacter(object? sender, RoutedEventArgs e) =>
-        await CreateProjectItemAsync(ProjectViewModel.NewCharacterItem);
-
-    private async void OnProjectNewScene(object? sender, RoutedEventArgs e) =>
-        await CreateProjectItemAsync(ProjectViewModel.NewSceneItem);
-
-    private async void OnProjectNewShot(object? sender, RoutedEventArgs e) =>
-        await CreateProjectItemAsync(ProjectViewModel.NewShotItem);
-
+    // B114. Five handlers became one: Animation, Character, Scene, Shot and
+    // Document were four names for two things, and the New menu says so now.
     private async void OnProjectNewDocument(object? sender, RoutedEventArgs e) =>
-        await CreateProjectItemAsync(ProjectViewModel.NewLooseDocument);
+        await CreateProjectItemAsync(ProjectViewModel.NewDocumentItem);
 
     private async void OnProjectNewFolder(object? sender, RoutedEventArgs e) =>
         await CreateProjectItemAsync(ProjectViewModel.NewFolderItem);
@@ -3564,33 +3554,30 @@ public partial class MainWindow : Window
         if (_draggedRow is not { } row) return;
         if (DropTargetFor(e) is not { } target) return;
         e.Handled = true;
-        _vm.ProjectDocker.Move(row, target.Character);
+        _vm.ProjectDocker.Move(row, target.Folder);
     }
 
     /// <summary>
-    /// Where a drop would land: the character under the pointer, or the
-    /// project itself when the pointer is over a loose document or past the
-    /// end of the list. Null when the drop would change nothing.
+    /// Where a drop would land: the folder under the pointer, or the project
+    /// itself when the pointer is over a loose document or past the end of the
+    /// list. Null when the drop would change nothing.
     /// </summary>
-    private (Character? Character, bool Valid)? DropTargetFor(DragEventArgs e)
+    /// <remarks>
+    /// <b>B114.</b> Two axes collapsed into one. This used to read
+    /// <c>over?.Character</c> and compare characters and folders separately,
+    /// with a comment (B94) about a third axis slipping past — there is one axis
+    /// now, so there is nothing to keep in step.
+    /// <para>
+    /// Dropping into the empty space below the tree means the project, and so
+    /// does dropping onto the project row: neither has a folder.
+    /// </para>
+    /// </remarks>
+    private (ProjectFolder? Folder, bool Valid)? DropTargetFor(DragEventArgs e)
     {
-        if (_draggedRow is not { } dragged) return null;
+        if (_draggedRow is null) return null;
         var over = (e.Source as Control)?.DataContext as ProjectRow;
-
-        // Over nothing in particular means the project: dropping into the
-        // empty space below the tree is the natural way to say "not under any
-        // character". B62 gave it a second, more findable way — the project row
-        // has no Character either, so dropping onto it means the same thing.
-        var destination = over?.Character;
-        // B94. The guard used to compare characters alone, which was the only
-        // way to group documents when it was written — B85/B86 added the folder
-        // tree beside it and this was never widened, so dragging a document
-        // within the folder it already sits in read as a real move and marked
-        // the project unsaved. Both axes, so a third could not slip past either.
-        var sameCharacter = ReferenceEquals(destination, dragged.Character);
-        var sameFolder = string.Equals(over?.Folder?.Id, dragged.Folder?.Id, StringComparison.Ordinal);
-        if (sameCharacter && sameFolder) return null;
-        return (destination, true);
+        // A document row means the folder it is in; a folder row means itself.
+        return (over?.Folder, true);
     }
 
     private async void OnExportDocumentClicked(object? sender, RoutedEventArgs e)

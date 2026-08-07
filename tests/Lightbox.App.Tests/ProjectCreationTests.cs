@@ -35,7 +35,7 @@ public class ProjectCreationTests(ITestOutputHelper output) : BrushStateIsolated
         Assert.DoesNotContain("shots", folders);
         Assert.DoesNotContain("assets", folders);
         // And the manifest has no character invented for it.
-        Assert.Empty(vm.ProjectDocker.Project!.Manifest.Characters);
+        Assert.Empty(ProjectFolders.All(vm.ProjectDocker.Project!.Manifest));
     }
 
     /// <summary>
@@ -143,11 +143,11 @@ public class ProjectCreationTests(ITestOutputHelper output) : BrushStateIsolated
 
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Art");
         docker.Selected = null;
-        docker.AddItemNamed(ProjectViewModel.NewCharacterItem, "Knight");
-        docker.AddItemNamed(ProjectViewModel.NewAnimation, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
         docker.Selected = null;
-        docker.AddItemNamed(ProjectViewModel.NewSceneItem, "The duel");
-        docker.AddItemNamed(ProjectViewModel.NewShotItem, "Sc 014");
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "The duel");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Sc 014");
         vm.SaveProject(everything: true);
 
         var unaccounted = ProjectIo.UnaccountedFolders(docker.Project!);

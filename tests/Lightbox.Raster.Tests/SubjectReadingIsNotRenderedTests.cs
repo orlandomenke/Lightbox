@@ -62,29 +62,21 @@ public class SubjectReadingIsNotRenderedTests
 
         // A project that has read its subject, and the same one after the
         // reading is thrown away. The strokes are untouched in both.
-        var read = new ProjectManifest
+        var read = new ProjectManifest();
+        var knight = ProjectFolders.Add(read, "Knight");
+        knight.Taxonomy = new SubjectTaxonomy
         {
-            Characters =
-            {
-                new Character
-                {
-                    Name = "Knight",
-                    Taxonomy = new SubjectTaxonomy
-                    {
-                        Kind = "biped",
-                        Reviewed = true,
-                        Parts =
-                        [
-                            new SubjectPart { Name = "torso", Depth = 0 },
-                            new SubjectPart { Name = "near-arm", Parent = "torso", Depth = 2 },
-                        ],
-                    },
-                },
-            },
+            Kind = "biped",
+            Reviewed = true,
+            Parts =
+            [
+                new SubjectPart { Name = "torso", Depth = 0 },
+                new SubjectPart { Name = "near-arm", Parent = "torso", Depth = 2 },
+            ],
         };
         var withReading = Render(strokes);
 
-        read.Characters[0].Taxonomy = null;
+        knight.Taxonomy = null;
         var withoutReading = Render(strokes);
 
         Assert.Equal(withReading, withoutReading);

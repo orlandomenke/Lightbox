@@ -233,27 +233,27 @@ public class SubjectReadingTests(ITestOutputHelper output)
     public void ATaxonomyRoundTripsThroughTheProjectFile()
     {
         var manifest = new ProjectManifest();
-        var character = new Character { Name = "Knight", Taxonomy = Knight() };
-        manifest.Characters.Add(character);
+        ProjectFolders.Add(manifest, "Knight").Taxonomy = Knight();
 
         var json = JsonSerializer.Serialize(manifest, DocJson.Options);
         var back = JsonSerializer.Deserialize<ProjectManifest>(json, DocJson.Options)!;
 
-        var parts = back.Characters[0].Taxonomy!.Parts;
-        Assert.Equal("biped", back.Characters[0].Taxonomy!.Kind);
+        var subject = Assert.Single(ProjectFolders.Subjects(back));
+        var parts = subject.Taxonomy!.Parts;
+        Assert.Equal("biped", subject.Taxonomy!.Kind);
         Assert.Equal(4, parts.Count);
         Assert.Equal("torso", parts.Single(p => p.Name == "near-arm").Parent);
         Assert.Equal(-1, parts.Single(p => p.Name == "far-arm").Depth);
     }
 
     [Fact]
-    public void ACharacterThatWasNeverReadWritesNoKey()
+    public void AFolderThatWasNeverReadWritesNoKey()
     {
         // "Optional means absent." Serialize and look, rather than trusting the
         // model — the two ways this has gone wrong before were both invisible
         // from the type.
         var manifest = new ProjectManifest();
-        manifest.Characters.Add(new Character { Name = "Knight" });
+        ProjectFolders.Add(manifest, "Knight");
 
         var json = JsonSerializer.Serialize(manifest, DocJson.Options);
 
@@ -261,42 +261,58 @@ public class SubjectReadingTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AnAnimationFindsTheCharacterThatOwnsIt()
+    public void ADocumentFindsTheSubjectItBelongsTo()
     {
         // Getting this wrong reads the WRONG subject, which is worse than
         // reading none: it would look like it worked.
-        var walk = new DocumentRef { Name = "walk" };
-        var run = new DocumentRef { Name = "run" };
-        var knight = new Character { Name = "Knight", Animations = [walk] };
-        var goblin = new Character { Name = "Goblin", Animations = [run] };
-        var manifest = new ProjectManifest { Characters = [knight, goblin] };
+        var manifest = new ProjectManifest();
+        var knight = ProjectFolders.Add(manifest, "Knight");
+        knight.Taxonomy = Knight();
+        var goblin = ProjectFolders.Add(manifest, "Goblin");
+        goblin.Taxonomy = Knight();
 
-        Assert.Same(knight, manifest.CharacterOwning(walk.Id));
-        Assert.Same(goblin, manifest.CharacterOwning(run.Id));
-        Assert.Null(manifest.CharacterOwning("no-such-document"));
-        Assert.Null(manifest.CharacterOwning(null));
+        var walk = new DocumentRef { Name = "walk", FolderId = knight.Id };
+        var run = new DocumentRef { Name = "run", FolderId = goblin.Id };
+        var loose = new DocumentRef { Name = "background" };
+        manifest.Documents.AddRange([walk, run, loose]);
+
+        Assert.Same(knight, ProjectFolders.SubjectFor(manifest, walk));
+        Assert.Same(goblin, ProjectFolders.SubjectFor(manifest, run));
+        Assert.Null(ProjectFolders.SubjectFor(manifest, loose));
+        Assert.Null(ProjectFolders.SubjectFor(manifest, null));
     }
 
     [Fact]
-    public void AnAnimationReachedThroughAVariantStillBelongsToItsCharacter()
+    public void ADocumentInASubfolderStillBelongsToTheSubjectAboveIt()
     {
-        var walk = new DocumentRef { Name = "walk" };
-        var armoured = new DocumentRef { Name = "walk-armoured" };
-        var knight = new Character
-        {
-            Name = "Knight",
-            Animations = [walk],
-            Variants =
-            [
-                new CharacterVariant
-                {
-                    Name = "Armoured",
-                    AnimationOverrides = { [walk.Id] = armoured },
-                },
-            ],
-        };
-        var manifest = new ProjectManifest { Characters = [knight] };
+        // B114. The old model searched a list of characters and could not
+        // express this at all: an animation was in a character's list or it was
+        // not. Walking the tree makes a subfolder inherit the reading above it.
+        var manifest = new ProjectManifest();
+        var knight = ProjectFolders.Add(manifest, "Knight");
+        knight.Taxonomy = Knight();
+        var locomotion = ProjectFolders.Add(manifest, "Locomotion", knight);
 
-        Assert.Same(knight, manifest.CharacterOwning(armoured.Id));
+        var walk = new DocumentRef { Name = "walk", FolderId = locomotion.Id };
+        manifest.Documents.Add(walk);
+
+        Assert.Same(knight, ProjectFolders.SubjectFor(manifest, walk));
+    }
+
+    [Fact]
+    public void ANearerReadingWinsOverTheOneAboveIt()
+    {
+        // The same nearest-first rule ResourceScopes.Resolve uses, so a variant
+        // folder inside a character can carry its own reading.
+        var manifest = new ProjectManifest();
+        var knight = ProjectFolders.Add(manifest, "Knight");
+        knight.Taxonomy = Knight();
+        var horse = ProjectFolders.Add(manifest, "Mount", knight);
+        horse.Taxonomy = new SubjectTaxonomy { Kind = "quadruped" };
+
+        var canter = new DocumentRef { Name = "canter", FolderId = horse.Id };
+        manifest.Documents.Add(canter);
+
+        Assert.Same(horse, ProjectFolders.SubjectFor(manifest, canter));
     }
 }
