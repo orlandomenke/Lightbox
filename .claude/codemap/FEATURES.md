@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2724 tests, derived from the suite itself. Each line is a
+2745 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1458,6 +1458,31 @@ regression even when every test still compiles.
 - Selecting On Toggle Does Not Stop The Toggle — `:632`
 - APress Selects Any Kind Of Row — `:662`
 - The Reveal Button Runs The Same Command As The Menu — `:695`
+
+## ProjectWindowTests
+`tests/Lightbox.App.Tests/ProjectWindowTests.cs`
+
+- The Window And The Docker List The Same Documents — `:39`
+- AFolder Is Followed By What Is In It — `:56`
+- Setting AStatus On ASelection Changes Every Document In It — `:71`
+- AFolder In The Selection Is Skipped By AStatus Edit — `:85`
+- Tagging ASelection Takes Folders And Documents Alike — `:100`
+- ABulk Edit That Changed Nothing Says So — `:116`
+- An Edit Tells The Owner The Project Moved — `:130`
+- The Selection Survives The Rebuild An Edit Causes — `:144`
+- ATag Filter Keeps AFolder Only For What Is Under It — `:161`
+- AFolder Tag Reaches The Documents Under It In The Filter Too — `:176`
+- Clearing AFilter Brings Everything Back — `:191`
+- The Status Board Narrows With The Filter — `:204`
+- No Status Is Its Own Column And Comes Last — `:223`
+- Dragging Between Columns Moves One Document — `:236`
+- Renaming Somebody Fixes Every Row At Once — `:251`
+- Removing Somebody Says What It Costs Before It Happens — `:269`
+- Unassigning Is In The Same List As Assigning — `:286`
+- Removing The Filtered Person Clears The Filter — `:304`
+- The Assets Tab Shows All Three Levels At Once — `:322`
+- AScope That Declares Nothing Says So — `:344`
+- The Footer Counts What Is True — `:354`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`

@@ -171,6 +171,15 @@
         <MenuItem Header="New _project…" Click="OnNewProjectClicked" />
         <MenuItem Header="Open p_roject…" Click="OnOpenProjectClicked" />
         <!--
+          Q29's other surface, in its own window by Q41. Absent unless a project
+          is open, because everything it shows is a question about one — and the
+          gesture is registered in ShortcutMap rather than written onto this
+          item, which is the trap Ctrl+S fell into.
+        -->
+        <MenuItem Header="Pro_ject window…" Click="OnProjectWindowClicked"
+                  IsVisible="{Binding HasProject}"
+                  ToolTip.Tip="Structure, status, tags, assets and people — what you do between drawings" />
+        <!--
           Conversion is a change of intent, not a migration: no document is
           read, rewritten or recreated. Absent unless a project is open, since
           there is nothing to convert otherwise.

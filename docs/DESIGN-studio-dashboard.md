@@ -1,7 +1,8 @@
 # The project window: what you do between drawings
 
-Status: **design, nothing built.** Answers Q29's second half — the docker is the
-quick view, this is the other surface. Depends on B114's one tree, which landed.
+Status: **built, 2026-08-07.** Answers Q29's second half — the docker is the
+quick view, this is the other surface. Depended on B114's one tree, which
+landed first.
 
 ## What it is for
 
@@ -91,13 +92,24 @@ override an artist's default without anything special.
 ### 4. Who is working on it
 
 The roadmap entry names *"assigned artist"* and *"workload"*, and there is no
-user model of any kind — no accounts, no sync, no auth. Inventing a people
-registry for a single-user alpha is a table nobody maintains.
+user model of any kind — no accounts, no sync, no auth.
 
-**`DocumentRef.Assignee`, a nullable string.** A name is a label, like the
-folder glyph: nothing resolves it, nothing validates it, and the completion list
-is derived from the names in use. If Lightbox ever grows accounts, a string is
-what a real identity replaces — a half-invented registry is what it fights.
+**Decided (Q43): a people list on the project, assigned by picking**, against a
+recommendation of free text. The case that won is the feature's own purpose:
+this is the surface that replaces a spreadsheet, and two spellings of one person
+is exactly the spreadsheet problem. Grouping by assignee has to be exact, and a
+rename has to fix every row.
+
+**And the boundary that comes with it (Q45): `Person` is a name and an id, and
+never gains a role or rights.** The manifest is plain JSON on disk, so a
+permission here is one a text editor defeats — and a permission that cannot be
+enforced is a UI that lies about what it enforces. An advisory role field was
+rejected for the same reason: a role that grants nothing gets read as granting
+something, and by the time somebody asks, the studio has organised around it.
+
+Sharing is the project file over git or a drive. A tracker adapter — ShotGrid,
+Kitsu, Flow — is the seam if a studio ever needs one, and it needs no new model
+because documents already have stable ids to match a shot against.
 
 ## The window
 
@@ -169,6 +181,20 @@ dialog reads them. The same plan, standing still, so it can be read before
 anything is run: which artifacts, from which documents, how many held back by
 status, which are empty.
 
+## What was decided — Q41–Q45, answered 2026-08-07
+
+| | Decision |
+| --- | --- |
+| **Where it lives** | **Its own window** with tabs inside, opened like Configure. A docker is 200 pixels and the point is columns; a main-window tab gives up the second monitor |
+| **First cut** | **Structure, Status and Assets**, plus the model gaps they need. Export follows — `ExportPlan` exists and the row menu already reaches that view |
+| **People** | **A registry, not a typed name** (Q43), and **never a role or a right** (Q45) |
+| **Bulk undo** | **None.** Metadata, not artwork; each edit says what it did, including when it did nothing |
+
+Two shipped beyond the cut because they fell out of it: a **People** tab, since
+a registry with no way to add to it is a registry nobody can use, and **filters**
+above the tabs rather than inside one — narrowing the tree and then finding the
+status board showing something else would be two projects on one screen.
+
 ## What this must not become
 
 - **Not a second tree implementation.** Q29's whole point. If a traversal is
@@ -194,17 +220,19 @@ status, which are empty.
 3. **The chain is four tiers and nearest wins.** With the same kind declared at
    user, project, folder and document, the document wins and each tier beats the
    one wider than it.
-4. **A bulk edit is one undo, or none.** Setting nine statuses must not be nine
-   steps to take back. Status is manifest metadata rather than document state,
-   so the honest answer may be that it is not undoable at all — decided before
-   it is built, not after.
+4. **A bulk edit is one undo, or none.** Answered by Q44: none, because status
+   is manifest metadata rather than document state.
+   `NothingHereNeedsTheDocumentOpen` is what makes that honest rather than a
+   shortcut — it asserts a bulk edit reads no artwork file at all.
 5. **The counts are the same counts.** The footer, the status view and
    `ExportPlan.Describe` must agree; three places counting documents separately
    is three places to drift.
 6. Four suites green; `codemap.py build`, `roadmap.py sync`, `bugs.py check`,
    `manual.py sync`.
 
-## The roadmap entry needs editing either way
+## The roadmap entry was edited, as this predicted
+
+## The roadmap entry needed editing either way
 
 Its evidence anchors are `StudioDashboard, ShotStatusView, DashboardTests,
 AllShotsVisibleWithStatusAtAGlance, BlockedShotsAreHighlighted,

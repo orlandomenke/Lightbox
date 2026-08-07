@@ -2508,6 +2508,13 @@ public partial class MainWindow : Window
                 _vm.ProjectDocker.RefreshFromDiskCommand.Execute(null);
                 e.Handled = true;
                 break;
+            case "project.window":
+                // Harmless with no project, for the same reason as above: the
+                // method guards on it rather than the key handler holding a
+                // second copy of the condition.
+                _ = OpenProjectWindowAsync();
+                e.Handled = true;
+                break;
             case "canvas.pickColor":
                 _vm.ActiveTool = ToolId.Picker;
                 break;
@@ -2647,6 +2654,27 @@ public partial class MainWindow : Window
         // A rebind has to reach the menu labels, or they advertise the old key.
         ShowSaveGestures();
     }
+
+    /// <summary>
+    /// Open the project window — Q29's second surface.
+    /// </summary>
+    /// <remarks>
+    /// Modal on the main window, like Configure and Export. It edits the same
+    /// manifest the docker is showing, and two surfaces writing one project with
+    /// neither knowing about the other is the class of bug B61 was; the docker
+    /// re-reads on close through the same <c>changed</c> callback every other
+    /// edit uses.
+    /// </remarks>
+    private async Task OpenProjectWindowAsync()
+    {
+        if (_vm.ProjectDocker.Project is not { } project) return;
+        await new Views.ProjectWindow(project, () => _vm.ProjectDocker.MarkManifestChanged())
+            .ShowDialog(this);
+        _vm.ProjectDocker.Refresh();
+    }
+
+    private async void OnProjectWindowClicked(object? sender, RoutedEventArgs e) =>
+        await OpenProjectWindowAsync();
 
     /// <summary>
     /// The tip workshop. A window rather than a docker because making a tip is

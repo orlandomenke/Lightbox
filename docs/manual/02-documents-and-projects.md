@@ -353,6 +353,68 @@ Deleting a folder keeps its drawings — they come back to the project root.
 Reorganising a film must not be the fastest way to delete it, and the files on
 disk are never touched either way.
 
+### The project window
+
+**File ▸ Project window…**, or **Ctrl+P**. The docker is what you use while
+drawing — find it, open it, move it. This is what you use *between* drawings,
+and it is a separate window so it can sit on a second monitor while the canvas
+keeps the first.
+
+Four tabs, and a footer on all of them saying what the project holds and what is
+wrong with it: *47 documents · 12 Ready · 3 Reopened · 5 unassigned*.
+
+**Structure** is the tree with the columns the docker has no width for — glyph,
+name, tags, status, who is on it, how long it runs, and what each folder
+carries. Select several rows and a bar appears: set the status of nine drawings
+at once, tag a folder and everything under it, assign a sequence to somebody.
+The docker has no multi-select on purpose; a bulk edit is exactly the thing you
+do between drawings rather than during one.
+
+**There is no undo here, and nothing here is destructive.** Status, tags and who
+is on something are notes *about* a drawing rather than part of it — none of
+them touches a stroke or needs the drawing open — so setting one back is the
+same gesture as setting it. Every bulk edit says what it did, and says so when
+it did nothing.
+
+**Status** is the same documents as columns: the six statuses in order, and
+*No status* last on its own. "Nobody has said" is not the same as *Design*, and
+folding them together would invent a pipeline stage for every file you imported.
+Drag a card between columns to change one.
+
+**Assets** is the one thing a right-click menu cannot be. A menu declares on one
+scope at a time and shows nothing about the others, so *why is this drawing
+painting from the studio palette* is answerable only by working it out. Here the
+project, every folder and every document are rows of one table, and what each
+declares is visible at once. Nearest wins: a document beats its folder, a folder
+beats the project, and the project beats your own defaults.
+
+**People** is names. Add somebody and they can be assigned; rename them and
+every row they are on changes at once, which is why it is a list rather than a
+name typed per drawing. Removing somebody says how many documents they are on
+before it unassigns them.
+
+**No roles and no rights, deliberately.** A project is plain JSON in a folder —
+that is what lets it live in git and be read by anything — so a permission
+Lightbox enforced would be one a text editor defeats. Rather than claim
+something it cannot keep, Lightbox stays out of it: share the project the way
+you share any other files, and if your studio runs ShotGrid, Kitsu or Flow, that
+is the system that owns who does what.
+
+#### Tags
+
+**Type one and it exists.** There is no list to maintain and no vocabulary to
+set up first — the tags offered are the ones the project already uses, and a new
+word joins by being used. `Rough` and `rough` are the same tag.
+
+Tags go on folders and on documents, and **a folder's tags reach everything
+under it**. Tag `characters/` as `hero` once and every animation in it answers
+to `hero`, without listing them. The tag column shows inherited tags as well as
+a row's own, so it is always clear why something matched.
+
+The **TAG** and **WHO** pickers at the top narrow every tab at once — filtering
+the tree and then finding the status board showing something else would be two
+projects on one screen.
+
 ### Templates
 
 **A template is an ordinary document with a flag set.** Not a new file type, not
