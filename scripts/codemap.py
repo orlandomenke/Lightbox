@@ -23,12 +23,17 @@ Usage
     codemap.py file <path>        one file's symbols, dependents and tests
     codemap.py promises <term>    the behaviour inventory, filtered — the
                                   queryable form of FEATURES.md
-    codemap.py stale              exit 0 if the map is current, 1 if not
+    codemap.py stale              exit 0 if the map is current, 1 if not —
+                                  mtime-based, so a local answer only
+    codemap.py verify             exit 1 if the committed INDEX.md or FEATURES.md
+                                  disagrees with the tree. Derives and compares
+                                  bytes, so it works in a fresh clone
     codemap.py refresh            rebuild only if the map is out of date
 """
 
 from __future__ import annotations
 
+import difflib
 import json
 import os
 import re
@@ -393,7 +398,14 @@ def human(name: str) -> str:
     return text[0].upper() + text[1:] if text else text
 
 
-def build() -> dict:
+def analyse() -> dict:
+    """Everything `build` knows, with nothing written.
+
+    Split out so `verify` can derive the truth and compare it against what is
+    committed without touching the working tree — a check that has to modify the
+    files it is checking cannot be run on a clean tree, which is the only tree
+    worth checking.
+    """
     paths = collect_files()
     files: dict[str, FileInfo] = {}
     for path in paths:
@@ -419,17 +431,21 @@ def build() -> dict:
         "files": {path: asdict(info) for path, info in sorted(files.items())},
         "tests": tests,
     }
+    return data
 
+
+def build() -> dict:
+    data = analyse()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUT_DIR / "map.json").write_text(json.dumps(data, indent=1), encoding="utf-8")
-    write_index(data)
+    (OUT_DIR / "INDEX.md").write_text(render_index(data), encoding="utf-8")
     write_hotspots(data)
-    write_features(data)
+    (OUT_DIR / "FEATURES.md").write_text(render_features(data), encoding="utf-8")
     (OUT_DIR / ".stamp").write_text(fingerprint(), encoding="utf-8")
     return data
 
 
-def write_index(data: dict) -> None:
+def render_index(data: dict) -> str:
     by_project: dict[str, list[dict]] = defaultdict(list)
     for path, info in data["files"].items():
         if info["kind"] == "test":
@@ -475,7 +491,7 @@ def write_index(data: dict) -> None:
             if names:
                 out.append(f"  - {names}{suffix}")
         out.append("")
-    (OUT_DIR / "INDEX.md").write_text("\n".join(out), encoding="utf-8")
+    return "\n".join(out)
 
 
 def write_hotspots(data: dict) -> None:
@@ -518,7 +534,7 @@ def write_hotspots(data: dict) -> None:
     (OUT_DIR / "HOTSPOTS.md").write_text("\n".join(out) + "\n", encoding="utf-8")
 
 
-def write_features(data: dict) -> None:
+def render_features(data: dict) -> str:
     """The behaviour inventory: every test, phrased as the promise it guards."""
     by_class: dict[str, list[dict]] = defaultdict(list)
     for entry in data["tests"]:
@@ -544,7 +560,7 @@ def write_features(data: dict) -> None:
         for entry in sorted(entries, key=lambda e: e["line"]):
             out.append(f"- {human(entry['test'])} — `:{entry['line']}`")
         out.append("")
-    (OUT_DIR / "FEATURES.md").write_text("\n".join(out), encoding="utf-8")
+    return "\n".join(out)
 
 
 def fingerprint() -> str:
@@ -736,6 +752,71 @@ def cmd_stale() -> None:
     print("current")
 
 
+def cmd_verify() -> None:
+    """The two committed artefacts say what this tree actually contains.
+
+    **Why `stale` cannot do this job.** `is_stale` compares a stored fingerprint
+    of file count and newest mtime. Both are local facts: a fresh clone gives
+    every file the same recent mtime, so the fingerprint is meaningless on a build
+    machine and a stale index in a clone reads as current. This derives the
+    artefacts instead and compares the bytes, which is the same trick the ledger
+    uses — the checkbox is not believed, it is recomputed.
+
+    **What it catches, given the merge driver exists.** `scripts/codemap-merge.sh`
+    rebuilds these two on a local merge, and it is the reason they stopped being
+    hand-resolved. Three ways a wrong version still reaches a commit:
+
+    - **GitHub does not run merge drivers.** A pull request merged in the web UI
+      resolves them however GitHub chooses, and nothing rebuilds afterwards.
+    - **The driver gives up when the build is red**, which is right — an index
+      parsed from files carrying conflict markers would be wrong rather than
+      stale — but it then keeps one side and says so, and that side is committed
+      unless somebody acts on the message.
+    - **An ordinary commit that adds a type and forgets to rebuild.** The most
+      common one by far, and invisible: the index is merely out of date, so it
+      answers "where does X live" with silence.
+
+    Not in the pre-push hook, deliberately: a full analysis is about ten seconds,
+    against a few milliseconds for the ledger ids. This is a CI check, and the
+    session-start staleness check is what catches it locally.
+    """
+    data = analyse()
+    expected = {"INDEX.md": render_index(data), "FEATURES.md": render_features(data)}
+
+    wrong = []
+    for name, want in expected.items():
+        path = OUT_DIR / name
+        if not path.exists():
+            wrong.append((name, "missing entirely", 0, 0))
+            continue
+        have = path.read_text(encoding="utf-8")
+        if have == want:
+            print(f"  {name} matches the tree ({len(want.splitlines())} lines)")
+            continue
+        have_lines, want_lines = have.splitlines(), want.splitlines()
+        # A real diff rather than a positional comparison. One inserted line
+        # shifts every line after it, so zipping the two lists and counting
+        # mismatches reports thousands of differences for a one-line change —
+        # a number that is arithmetically correct and tells a reader nothing.
+        changed = sum(1 for line in difflib.ndiff(have_lines, want_lines)
+                      if line[:1] in "+-")
+        first = next((n + 1 for n, (a, b) in enumerate(zip(have_lines, want_lines)) if a != b),
+                     min(len(have_lines), len(want_lines)) + 1)
+        wrong.append((name, f"{changed} line(s) added or removed, first change at :{first}",
+                      len(have_lines), len(want_lines)))
+
+    if not wrong:
+        print(f"  the index describes this tree — {data['file_count']} files, "
+              f"{data['test_count']} tests")
+        return
+
+    for name, why, have_n, want_n in wrong:
+        print(f"  DRIFTED  {name}  {why}  (committed {have_n} lines, tree wants {want_n})")
+    print("\nThe committed index does not describe this tree. It is derived, so there is "
+          "nothing to merge or\nedit by hand — regenerate it:\n\n    python3 scripts/codemap.py build\n")
+    sys.exit(1)
+
+
 def main() -> None:
     args = sys.argv[1:]
     if not args or args[0] in {"-h", "--help", "help"}:
@@ -754,6 +835,8 @@ def main() -> None:
         cmd_promises(" ".join(args[1:]))
     elif command == "stale":
         cmd_stale()
+    elif command == "verify":
+        cmd_verify()
     elif command == "refresh":
         # Rebuild only when the sources have moved on. Cheap enough to run
         # after every turn: a no-op costs a few milliseconds of stat calls,

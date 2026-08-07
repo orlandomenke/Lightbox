@@ -16,6 +16,7 @@ That is the property that makes the ledger worth keeping.
 Commands
     check           report; exit 1 if a mark disagrees with the code
     sync            rewrite the checkboxes in place
+    ids             ids only: unique, and none lost in a merge. No index, instant
     next            highest-priority open bugs, for a loop to pick from
     mine <domain>   open bugs in one domain — what a working agent greps
     stats           counts per priority and per domain
@@ -23,7 +24,9 @@ Commands
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -178,11 +181,158 @@ def duplicate_questions() -> dict[str, list[str]]:
     """
     if not QUESTIONS.exists():
         return {}
+    return duplicates_in(question_ids_in(QUESTIONS.read_text(encoding="utf-8")))
+
+
+# ---------------------------------------------------------------------------
+# The ids, read from text rather than from disk
+#
+# Everything below works on a *string* so that one parse serves three callers:
+# the working file, `git show <parent>:<ledger>` for the other side of a merge,
+# and a synthetic fixture in a test. `duplicate_ids` above stays as it is —
+# it reports `Bug` objects, which is what the rest of `check` wants.
+# ---------------------------------------------------------------------------
+
+
+def bug_ids_in(text: str) -> list[tuple[str, str]]:
+    return [(m["id"], m["title"].strip())
+            for line in text.splitlines() if (m := ENTRY.match(line))]
+
+
+def question_ids_in(text: str) -> list[tuple[str, str]]:
+    return [(m["id"], m["title"]) for line in text.splitlines() if (m := QUESTION.match(line))]
+
+
+def duplicates_in(pairs: list[tuple[str, str]]) -> dict[str, list[str]]:
     seen: dict[str, list[str]] = {}
-    for line in QUESTIONS.read_text(encoding="utf-8").splitlines():
-        if match := QUESTION.match(line):
-            seen.setdefault(match["id"], []).append(match["title"])
+    for entry_id, title in pairs:
+        seen.setdefault(entry_id, []).append(title)
     return {i: t for i, t in seen.items() if len(t) > 1}
+
+
+def _git(*args: str) -> str | None:
+    """Git, or None. Every caller here has a sensible answer for "no git"."""
+    try:
+        done = subprocess.run(("git", *args), cwd=ROOT, capture_output=True, text=True)
+    except OSError:
+        return None
+    return done.stdout if done.returncode == 0 else None
+
+
+def text_at(spec: str, path: Path) -> str | None:
+    """A ledger as of `spec` — a path on disk, or a git ref.
+
+    A path is tried first and it is not a fallback: it is how a test hands in a
+    fixture without needing a repository at all.
+    """
+    candidate = Path(spec)
+    if candidate.exists():
+        return candidate.read_text(encoding="utf-8")
+    return _git("show", f"{spec}:{path.relative_to(ROOT).as_posix()}")
+
+
+def merge_parents() -> list[str]:
+    """The parents of HEAD, or nothing at all unless HEAD is a merge.
+
+    This is the whole trick. A duplicate id is created by two branches and only
+    *exists* in the merged file, so the moment to look at two ledgers at once is
+    the moment a merge commit exists. Outside a merge there is nothing to compare
+    against and this returns an empty list rather than guessing at a base — a
+    branch that simply has not merged `main` yet is not missing anything.
+    """
+    line = _git("rev-list", "--parents", "-n", "1", "HEAD")
+    if not line:
+        return []
+    # `<commit> <parent>...` — so the parents are everything after the first
+    # field, and two or more of them is what makes HEAD a merge. Both sides are
+    # returned rather than just the one merged in: an entry can be dropped from
+    # either, and taking "ours" loses theirs exactly as easily as the reverse.
+    parents = line.split()[1:]
+    return parents if len(parents) > 1 else []
+
+
+ALLOW_DELETION = "LIGHTBOX_ALLOW_LEDGER_DELETION"
+
+
+def lost_ids(before: list[tuple[str, str]], after: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Ids that were there and are not any more.
+
+    **This is the failure the duplicate check cannot see, and it is the worse of
+    the two.** When two branches have each filed a bug under the same id, the
+    ledger conflicts, and the mechanical way to resolve a conflict is to take one
+    side. That deletes the other branch's entry — and leaves a file with no
+    duplicate in it, so every check passes and the loss is permanent and silent.
+    A duplicate, by contrast, is loud and costs a renumber.
+
+    Nothing in this repository deletes a ledger entry: a fixed bug keeps its id
+    and moves below the rule, and an answered question keeps its heading with the
+    answer appended. So a vanished id is always worth refusing. When one really
+    must go, `LIGHTBOX_ALLOW_LEDGER_DELETION=1` says so deliberately.
+    """
+    present = {entry_id for entry_id, _ in after}
+    return [(i, t) for i, t in before if i not in present]
+
+
+LEDGERS = (
+    ("ID", BUGS, bug_ids_in),
+    ("Q ", QUESTIONS, question_ids_in),
+)
+
+
+def cmd_ids(argv: list[str]) -> int:
+    """Ids only: unique within the file, and none dropped by a merge.
+
+    Deliberately separate from `check`, which resolves every evidence anchor
+    against the generated code index and rebuilds it when stale. That is the
+    right thing for CI and far too slow for a git hook — and the hook is where
+    this has to run, because CI only sees a collision after it is published.
+    """
+    ledgers = {name: (path, reader) for name, path, reader in LEDGERS}
+    overrides = {
+        "ID": next((a.split("=", 1)[1] for a in argv if a.startswith("--ledger=")), None),
+        "Q ": next((a.split("=", 1)[1] for a in argv if a.startswith("--questions=")), None),
+    }
+
+    # Explicit refs win; otherwise the parents of HEAD, and only when the ledgers
+    # are the real ones. An overridden ledger compared against this repository's
+    # history would report every id in `main` as lost, which is true of the
+    # fixture and says nothing about the tree.
+    against = [a for a in argv if not a.startswith("-")]
+    if not against and not any(overrides.values()):
+        against = merge_parents()
+
+    problems = 0
+    for name, (path, reader) in ledgers.items():
+        source = Path(overrides[name] or path)
+        if not source.exists():
+            continue
+        now = reader(source.read_text(encoding="utf-8"))
+        print(f"  {len(now)} {'bug' if name == 'ID' else 'question'} ids in {source.name}")
+
+        for entry_id, titles in duplicates_in(now).items():
+            problems += 1
+            print(f"  DUPLICATE {name} {entry_id}  used {len(titles)} times: "
+                  + " / ".join(t[:40] for t in titles))
+            print("               renumber all but one — an id is cited from tests and docs")
+
+        for spec in against:
+            if (before := text_at(spec, path)) is None:
+                continue
+            for entry_id, title in lost_ids(reader(before), now):
+                if os.environ.get(ALLOW_DELETION) == "1":
+                    print(f"  DELETED   {name} {entry_id}  {title[:50]} — allowed by {ALLOW_DELETION}")
+                    continue
+                problems += 1
+                where = Path(spec).name if Path(spec).exists() else spec[:12]
+                print(f"  LOST      {name} {entry_id}  was in {where} and is gone: {title[:50]}")
+                print("               a merge resolved by taking one side drops the other side's "
+                      f"entry — keep both and renumber, or set {ALLOW_DELETION}=1 if it really goes")
+
+    if problems:
+        print(f"\n{problems} problem(s) — the ledger ids are not safe to push")
+        return 1
+    print("  ids unique, none lost" + (f" (against {len(against)} ref(s))" if against else ""))
+    return 0
 
 
 OPEN_HEADING = "## Open"
@@ -369,6 +519,18 @@ def cmd_check() -> int:
     clashing_questions = duplicate_questions()
     partial = [b for b in bugs if b.partly_resolved]
 
+    # The other half of the merge failure, and the half nothing used to look for.
+    # Reported here as well as in `ids` so a push to main is checked even when the
+    # hook was bypassed — which is exactly the push that matters.
+    lost: list[tuple[str, str, str]] = []
+    if os.environ.get(ALLOW_DELETION) != "1":
+        for spec in merge_parents():
+            for name, path, reader in LEDGERS:
+                if not path.exists() or (before := text_at(spec, path)) is None:
+                    continue
+                now = reader(path.read_text(encoding="utf-8"))
+                lost += [(name, i, t) for i, t in lost_ids(reader(before), now)]
+
     open_bugs = [b for b in bugs if b.status != "x"]
     counts = {p: sum(1 for b in open_bugs if b.priority == p) for p in ("P1", "P2", "P3", "P4")}
     print(f"{len(bugs)} bugs — {len(open_bugs)} open "
@@ -396,6 +558,11 @@ def cmd_check() -> int:
         print(f"  DUPLICATE Q  {question_id}  used {len(titles)} times: "
               + " / ".join(t[:40] for t in titles))
         print("               renumber all but one — QUESTIONS.md ids are cited by name")
+    for name, entry_id, title in lost:
+        print(f"  LOST      {name} {entry_id}  a merge parent has it and this tree does not: "
+              f"{title[:50]}")
+        print("               taking one side of a ledger conflict drops the other side's entry "
+              f"— keep both and renumber, or set {ALLOW_DELETION}=1 if it really goes")
     for bug in drifted:
         want = "fixed" if bug.status == "x" else "open"
         print(f"  DRIFTED      {bug.id}  marked '{bug.mark}' but the code says {want}")
@@ -403,7 +570,7 @@ def cmd_check() -> int:
             print(f"               missing: {', '.join(bug.missing)}")
 
     # `partial` is deliberately absent from this condition — see `partly_resolved`.
-    if drifted or unverifiable or wrong_domain or duplicates or clashing_questions:
+    if drifted or unverifiable or wrong_domain or duplicates or clashing_questions or lost:
         # sync fixes drift and placement; the rest need a person, so say so honestly
         # rather than pointing at a command that will not help.
         if drifted:
@@ -474,6 +641,8 @@ def main() -> None:
         cmd_sync()
     elif cmd == "check":
         sys.exit(cmd_check())
+    elif cmd == "ids":
+        sys.exit(cmd_ids(sys.argv[2:]))
     elif cmd == "next":
         cmd_next()
     elif cmd == "mine":

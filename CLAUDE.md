@@ -342,6 +342,16 @@ do, both worth knowing before relying on it:
   rather than stale. The driver falls back to keeping one side and says so; the
   staleness check at session start picks it up.
 
+**Neither of those is trusted any more, because `codemap.py verify` derives both
+files and compares the bytes.** It is the ledger's own trick moved one artefact
+along: a committed derived file is not believed, it is recomputed. That closes
+all three ways a wrong index reaches a commit — a merge GitHub performed, a
+driver that gave up while the build was red, and the ordinary case of adding a
+type and forgetting to rebuild, which is by far the most common and the most
+invisible, since the index merely answers "where does X live" with silence. CI
+runs it; the hook does not, because a full analysis is about ten seconds against
+milliseconds for the ledger ids, and a hook nobody can afford gets switched off.
+
 **It covers those two files and no more, and that is a rule rather than a
 backlog.** The ledgers collide on parallel branches just as reliably, so the
 obvious next step is to add them — and it would destroy work. The test is *what
@@ -352,9 +362,30 @@ rather than a way of resolving them. `bugs.py sync`, `roadmap.py sync` and
 marked block; every entry around those is authored prose no script can
 reproduce. Two branches that each filed a bug have two entries that both have to
 survive, and which id each keeps is a judgement. So the driver refuses any path
-outside `.claude/codemap/`, and what guards the ledgers is `bugs.py check` in
-CI — it fails on duplicate ids, which is the one thing a hand-merge of two
-ledgers reliably gets wrong.
+outside `.claude/codemap/`, and the ledgers are guarded by a check instead of a
+driver.
+
+**That guard is `.githooks/pre-push` running `python3 scripts/bugs.py ids`, and
+where it runs is the whole point.** `bugs.py check` has failed on duplicate ids
+since two bugs shared B39, and CI has run it all along — and on 2026-08-07 four
+ids collided across two merges with it green throughout. Not because the check
+was weak: **a collision does not exist in either branch, only in the merged
+file**, so the earliest CI can see one is after it is pushed and other branches
+have rebased onto the bad resolution. `ids` is the cheap half of `check` — no
+evidence anchors, no code index, milliseconds — so it can run on every push,
+which is the last moment the mistake is private.
+
+It also refuses the failure a duplicate check *cannot* see, and this is the one
+to remember when resolving a ledger conflict by hand:
+
+> **Taking one side deletes the other side's entry, and leaves a file with no
+> duplicate in it.** Every check passes and the loss is permanent. A duplicate is
+> loud and costs a renumber; this is silent and costs a bug.
+
+So when HEAD is a merge, every id in every parent must still be present. Both
+entries survive and the later one is renumbered above the highest id on either
+side. `LIGHTBOX_ALLOW_LEDGER_DELETION=1` exists for a deletion that is genuinely
+meant, and typing it is a decision in the same way `LIGHTBOX_PUSH_TO_MAIN=1` is.
 
 **`python3 scripts/branchstate.py` answers "would this merge?" before a reviewer
 does**, and separates the two kinds of conflict — authored files, which need a
