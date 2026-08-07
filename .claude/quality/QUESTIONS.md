@@ -20,6 +20,57 @@ one recommended:
 > user if AI is enabled. Otherwise skip it. Remove the layer designation in the
 > UI."*
 
+### Corrected the same day: half of this already exists, and the other half has no caller
+
+**Two things were wrong in the framing this answer was given against, and both
+were mine.** The decision stands; its premise does not.
+
+**1. There is no image import into a frame, and never has been.** Three places
+write `PaintedFrame.PngBase64` — the transform tool resampling an existing
+baseline, frame cloning, and clearing it to empty. Not one is an import. The
+field's own doc comment says it "carries imported/flattened pixels", and nothing
+has ever put an imported pixel in one. So the rule *"an imported image is always
+placed on a separate layer"* guards a path with no caller. It is a **forward
+rule** for whenever import is built, which is fine — deciding before building
+beats retrofitting — but nothing in the roadmap schedules it.
+
+**2. The reference case is built, and it is better than what was being
+designed.** `ReferenceStrip` (`src/Lightbox.Core/Documents/ReferenceStrip.cs`) is
+*"an imported image of an animation — a run cycle, a shot from a film, a contact
+sheet — sliced into frames and laid against the timeline"*. It already settles
+every question that was asked here:
+
+| Asked | Already answered by `ReferenceStrip` |
+| --- | --- |
+| Is it artwork? | *"**Not artwork.** It never exports, never reaches a stroke, and never appears in a flattened document"* — view-only side of invariant 5, same side as onion skin |
+| Embedded or linked? | **Embedded**, base64 in the document, and the reason is written down: *"a reference that lived at a path would break the moment the file moved, and a reference that breaks silently is worse than none"* |
+| Can it animate? | Yes. `Slots` maps each timeline index to a cell, and `FollowsTimeline` moves them along when an inbetween is inserted |
+| Is it a layer? | No, and deliberately not |
+| Absent unless used? | `Scene.References` is null until one is imported |
+
+**Krita reached the same three-way split and Lightbox landed on the better half
+of it.** Krita separates a *reference images tool* (not a layer, never exported,
+per-image choice of embed or link) from a *file layer* (real artwork, linked) —
+and its guidance is to link big files. Lightbox went the other way on storage for
+a domain reason Krita does not have: you draw *against* a reference, so one that
+breaks silently is worse than one that is large. Photoshop offers the same choice
+as Place Embedded / Place Linked and defaulted to embedded for its first two
+decades.
+
+**So the gap this question thought it was closing is much narrower than it
+looked.** Everything about *looking at* or *tracing over* a picture is built. The
+only thing missing is an image that has to appear **in the output** — a
+photographic background that exports, or a scanned pencil test kept as the
+drawing itself. Nobody has asked for either, neither is on the roadmap, and the
+rule above is what will govern them if they arrive.
+
+**What survives unchanged, and is worth doing on its own:** the layer picker
+still asks a question nobody can answer at layer-creation time, the V/R badge
+still implies a difference in what you can draw when there is none, and B123 is
+still a real silent failure. Those were never contingent on import existing.
+
+### Why the choice was questioned
+
 **The question came from noticing the choice does almost nothing.** Two layer
 kinds, and everything you can *make* in Lightbox behaves identically on both —
 same tools, same engine, same marks, because nothing anywhere gates a tool by
