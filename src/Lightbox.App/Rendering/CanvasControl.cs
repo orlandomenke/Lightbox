@@ -203,6 +203,17 @@ public sealed class CanvasControl : Control
     /// </summary>
     private readonly PresentedFrame _presented = new();
 
+    /// <summary>
+    /// Whether the durable presentation frame (B122) is in the paint path at all.
+    /// </summary>
+    /// <remarks>
+    /// Off until B130's use-after-free is fixed with the retirement this class
+    /// already implements for <see cref="RenderSnapshot"/>. Read once and cached,
+    /// because this is consulted inside the render loop.
+    /// </remarks>
+    internal static bool DurableFrameEnabled { get; } =
+        Environment.GetEnvironmentVariable("LIGHTBOX_DURABLE_FRAME") == "1";
+
     /// <summary>Whether the durable frame is on the GPU, for the status strip.</summary>
     internal bool PresentedFrameIsOnGpu => _presented.IsGpuBacked;
 
@@ -2982,11 +2993,26 @@ public sealed class CanvasControl : Control
             // A null `presented` is the honest fallback for any caller that has not
             // been given one (tests constructing a DrawOp directly): draw the
             // publish's image, exactly as before.
-            // The seq is what makes a cursor-only repaint free: the canvas repaints
-            // on every pointer move to move the brush ring, far more often than the
-            // compositor publishes, and re-patching an unchanged frame each time
-            // would be work for nothing.
-            var artwork = presented is null
+            // B130: the durable frame is OFF by default, and this is a retreat
+            // rather than a tidy-up.
+            //
+            // `PresentedFrame.PresentCore` disposed the previous snapshot on every
+            // present, reasoning that renders are sequential so nothing could still
+            // be drawing it. That is wrong, and wrong in the exact way this file
+            // already documents a few hundred lines up: the compositor may still
+            // hold the image it was handed, and freeing it under Skia is an access
+            // violation inside `sk_canvas_draw_image_rect` — a NATIVE crash, so the
+            // crash reporter's three managed channels never see it and the log is
+            // empty. Reported as "Lightbox dies after the splash screen as soon as
+            // I touch anything, and there is no crash report".
+            //
+            // The retirement machinery in this class exists for precisely that
+            // hazard and B122 did not use it. Until it does, the safe path is the
+            // one that shipped for years: draw the publish's own image, whose
+            // lifetime `_retired` already manages. `LIGHTBOX_DURABLE_FRAME=1` opts
+            // back in for measuring the fix, and it is deliberately an environment
+            // variable rather than a setting — nobody should find this by accident.
+            var artwork = presented is null || !DurableFrameEnabled
                 ? snapshot.Image
                 : presented.Present(lease.GrContext, snapshot.Image, snapshot.ChangedInImage, snapshot.Seq);
 

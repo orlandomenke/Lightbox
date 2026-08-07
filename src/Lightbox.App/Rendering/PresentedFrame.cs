@@ -237,16 +237,51 @@ public sealed class PresentedFrame : IDisposable
         _needsFull = false;
 
         // The old snapshot described the frame before this patch, so it cannot be
-        // handed out again. Renders are sequential, so by the time a present runs
-        // the previous image is no longer being drawn.
-        _image?.Dispose();
+        // handed out again — but it must NOT be freed here.
+        //
+        // **B130.** This line used to be `_image?.Dispose()`, on the reasoning that
+        // renders are sequential so the previous image could not still be in use.
+        // The compositor may still be holding it, and freeing it under Skia is an
+        // access violation inside `sk_canvas_draw_image_rect` — a native crash, so
+        // no managed handler sees it and no crash report is written. `CanvasControl`
+        // documents the identical failure for `RenderSnapshot`, which is why it has
+        // a retirement queue; this class simply did not use one.
+        //
+        // So retire instead: hold the last few and free the oldest. Three is the
+        // same reasoning `ComposeRing` uses for its buffers — the compositor
+        // realistically holds the current frame and at most one in flight, so by
+        // the time a third has been handed out the first is provably done with.
+        Retire(_image);
         _image = _surface.Snapshot();
         return _image;
     }
 
+    /// <summary>Images handed to the compositor that are no longer current.</summary>
+    private readonly Queue<SKImage> _retired = new();
+
+    /// <summary>
+    /// How many superseded images to keep alive. Bounded, because a snapshot the
+    /// surface is still being drawn into forces Skia to copy on write — holding
+    /// them forever would trade a crash for the cost this class exists to avoid.
+    /// </summary>
+    private const int RetiredKeep = 3;
+
+    private void Retire(SKImage? image)
+    {
+        if (image is not null) _retired.Enqueue(image);
+        while (_retired.Count > RetiredKeep) _retired.Dequeue().Dispose();
+    }
+
     private void Reset(GRContext? gpu, SKImageInfo info)
     {
-        _image?.Dispose();
+        // B130 again, and the worse half: a resize freed the image AND the surface
+        // backing it while the compositor could still be drawing that image. The
+        // image is retired rather than disposed; the surface is safe to drop only
+        // because a retired snapshot owns its own pixels once the surface moves on
+        // — which is exactly what makes the retirement above bounded rather than
+        // free. A resize is rare, so paying a copy there is the cheap side of the
+        // trade.
+        Retire(_image);
         _image = null;
         _surface?.Dispose();
         _surface = gpu is not null
@@ -280,12 +315,36 @@ public sealed class PresentedFrame : IDisposable
         return existing;
     }
 
+    /// <summary>
+    /// Whether every image this frame is still holding is alive — the current one
+    /// and everything retired behind it. Tests only; the mirror of
+    /// <c>CanvasControl.HeldImagesAlive</c>, and the property B130 broke.
+    /// </summary>
+    internal bool HeldImagesAlive
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return (_image is null || _image.Handle != IntPtr.Zero)
+                       && _retired.All(r => r.Handle != IntPtr.Zero);
+            }
+        }
+    }
+
+    /// <summary>How many superseded images are still held. Tests only.</summary>
+    internal int RetiredCount
+    {
+        get { lock (_gate) return _retired.Count; }
+    }
+
     public void Dispose()
     {
         lock (_gate)
         {
             _image?.Dispose();
             _image = null;
+            while (_retired.Count > 0) _retired.Dequeue().Dispose();
             _surface?.Dispose();
             _surface = null;
         }
