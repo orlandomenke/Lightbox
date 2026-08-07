@@ -81,8 +81,7 @@ box: select it and type to replace it entirely. Accept it untouched and you get
 
 An animation is named after the character it lands under, the same way. Folders
 are not prefixed — they are structure, and *Knight - Locomotion* would compound
-into *Knight - Locomotion - Knight - Walk* one level down. Scenes and shots keep
-their numbers, because a shot's number is its place in the running order.
+into *Knight - Locomotion - Knight - Walk* one level down.
 
 **Rename…** on the right-click menu, or slow double-click a row. The rename
 reaches disk: renaming a folder moves the folder and everything under it.
@@ -91,9 +90,6 @@ If the name is already taken, or the file cannot be moved — open in another
 program, or a permission — the rename is **refused**, the box stays open so you
 can fix it, and the panel's status line says which of those it was. Nothing
 changes by half.
-
-Characters and scenes rename in the panel only; their folders on disk keep the
-name they were created with.
 
 #### Removing and deleting
 
@@ -289,12 +285,40 @@ outside the project and it leaves the project**, because you have given it a hom
 somewhere else; the file is yours and nothing is written inside the project for
 it.
 
-#### Characters and scenes
+#### What a folder is
 
-A **character** and a **scene** are still their own things, because they carry
-more than a name: a character has a palette, a pivot and variants that inherit
-its animations, and a scene has a running order and a running time. They sit
-alongside your folders rather than inside them, for now.
+**There is one kind of container, and it is the folder.** A character is a
+folder holding a character's work; a scene is a folder holding a scene's. There
+is no separate character and no separate scene to make, and nothing is filed
+outside the tree.
+
+That is not only tidiness. A folder is what decides which palette, references,
+guides, template and export preset a drawing can reach, and what a whole-project
+export contains. While a character was a second kind of container, none of that
+reached a character's animations — most of the content of an animation project
+resolved nothing and exported nowhere.
+
+**A folder is described by what it carries, not by a kind.** Any folder can have:
+
+| | |
+| --- | --- |
+| **a reading** | what the AI understands the subject to be — see *AI assistance* |
+| **a pivot** | where a game engine positions it from, for sprite-sheet export |
+| **variants** | versions that reuse its work — Winter Armour, Player Two |
+| **a running order** | the sequence its contents play or list in |
+| **notes** | what it is, in your words |
+| **shared resources** | a palette, references, guides, a template, an export preset |
+
+Each is absent until you add it, and any combination is allowed — a folder with
+a reading *and* a running order is both, and nothing has to decide which it
+"really" is. Select a folder and the bar under the panel lists what it carries.
+
+**You say what a folder is with its glyph.** Right-click ▸ **Glyph** offers a
+grid of common ones — 🎬 🧍 🐾 🗡 🏠 🌳 🚗 ✨ and more — and **Glyph ▸ something
+else…** takes anything you type. A production has props, environments, effects,
+crowds and vehicles, and no fixed list of kinds would name them; the grid is a
+starting point rather than a vocabulary. Nothing in Lightbox reads the glyph, so
+it can mean exactly what you want it to.
 
 Plain JSON throughout, and every drawing is an ordinary document — so an old
 loose file *is* one, and a project is readable in a text editor.
@@ -302,28 +326,32 @@ loose file *is* one, and a project is readable in a text editor.
 A project opens by reading its index only. Forty drawings open without loading
 forty files; each is read when you open it.
 
-### Scenes
+### The running order
 
-A character groups drawings by **who**; a scene groups them by **when**. They
-cross — one scene holds several characters, one character appears in several
-scenes — so neither is a folder inside the other, and the Project panel shows
-both, characters first.
+Folders list what is in them by name until you arrange them. **↑** and **↓**
+move the selected row within whatever contains it — a drawing among its folder's
+drawings, a folder among its siblings — and the first move is what gives that
+folder an order. A folder nobody arranged carries none.
 
-**＋ New → Scene** makes one; **Shot** adds a drawing under the selected scene,
-making the first scene if there is none. Scenes are for the *shots* output
-target: a film or a show, where the canvas is a world and a camera frames part
-of it. A project making sprite sheets never needs one and, until you make one,
-has no scene rows, no running order and no reorder buttons.
+**The order is partial.** Pin the three opening shots and leave the other forty
+alone; what you named comes first, in the sequence you set, and the rest follow
+by name. An order that names something you later deleted simply skips it — an
+ordering is a preference, not a claim about what exists.
 
-Each scene row shows how long it runs — `0:04.5 · 108f` — summed from its shots.
-The lengths are recorded when each shot is saved, so a shot you have never saved
-shows nothing rather than zero: a running time that quietly counts unmeasured
-shots as empty is the number somebody schedules against. **↑** and **↓** move
-the selected scene or shot in the running order.
+One order per folder, read twice: it arranges the folder's drawings and its
+sub-folders both, so a scene containing shots *and* sub-scenes has one running
+order rather than two that can disagree.
 
-Deleting a scene keeps its shots — they become project documents. Reorganising
-a film must not be the fastest way to delete it, and the files on disk are never
-touched either way.
+Each folder row shows how long it runs — `0:04.5 · 108f` — summed from what is
+in it. The lengths are recorded when each drawing is saved, so one you have
+never saved shows nothing rather than zero: a running time that quietly counts
+unmeasured drawings as empty is the number somebody schedules against. The
+panel's total covers the folders you arranged, because those are the ones where
+a running time means something.
+
+Deleting a folder keeps its drawings — they come back to the project root.
+Reorganising a film must not be the fastest way to delete it, and the files on
+disk are never touched either way.
 
 ### Templates
 
@@ -397,18 +425,21 @@ not applied: which panels you want is a preference, converting is a decision
 about the project, and rearranging your screen as a side effect of a menu item
 is not something a tool should do.
 
-**The Project panel** lists characters with their animations underneath, and
-below them any documents that belong to the project rather than to a character.
-Double-click one to open it as a tab.
+**The Project panel** lists your folder tree, each folder's drawings underneath
+it, and below them any drawings that belong to the project rather than to a
+folder. Double-click one to open it as a tab.
 
-**＋ New** offers what to make, and each lands somewhere specific — creating
-work inside a project should not be followed by a second step that files it:
+**＋ New** offers two things, because there are two — creating work inside a
+project should not be followed by a second step that files it:
 
 | | Where it goes |
 | --- | --- |
-| **Animation** | Under the selected character |
-| **Character** | A new character, with its own animations and palette |
-| **Document** | The project itself — a background, a colour test, a one-off |
+| **Folder** | Inside the selected one |
+| **Document** | In the selected folder, or the project itself when nothing is |
+
+There is no *Character*, no *Scene*, no *Animation* and no *Shot* on this menu.
+A character is a folder you have read, a scene is a folder you have arranged,
+and all four of those words named the same two things.
 
 **Right-click a row** for everything else:
 
@@ -416,10 +447,11 @@ work inside a project should not be followed by a second step that files it:
 | --- | --- |
 | **Open** | As a tab in Lightbox — the same as double-clicking |
 | **Open with default app…** | Hands the file to whatever application your desktop associates with it. A `.lightbox.json` usually lands in a text editor. |
-| **Show in file manager** | Reveals it in Explorer, Finder or your Linux file manager. A character shows its folder; an animation shows its file, selected where the platform can do that. |
+| **Show in file manager** | Reveals it in Explorer, Finder or your Linux file manager. A folder shows its directory; a drawing shows its file, selected where the platform can do that. |
 | **Copy path** | The absolute path, on the clipboard |
-| **Duplicate** | Copies an animation, art and all, into the same character. A walk you want to turn into a limp starts here. The copy reaches disk on the next save. |
+| **Duplicate** | Copies a drawing, art and all, into the same folder. A walk you want to turn into a limp starts here. The copy reaches disk on the next save. |
 | **Rename…** | Edits the name in place. Enter commits, Escape cancels. |
+| **Glyph** | What this folder is, in your words. A grid of common ones, or type anything. |
 | **Remove from project** | Takes it out of the index. The file stays on disk. |
 
 The **🗁** at the right of the panel's header shows **whatever you have
@@ -433,7 +465,7 @@ what the button used to do whatever you had picked. With nothing selected at
 all, it opens the project folder too.
 
 You can select it, drop a document onto it to take that document out of every
-character, and copy its path. You cannot rename it, remove it or delete it from
+folder, and copy its path. You cannot rename it, remove it or delete it from
 here: that is a folder your whole project lives in, and renaming it is a thing
 to do with the application closed.
 

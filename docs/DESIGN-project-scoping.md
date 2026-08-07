@@ -85,6 +85,16 @@ folder has, the way `bugs.py` derives a checkbox from whether a test exists.
 Nothing is locked behind a kind, which is the *every feature is reachable in
 every project type* rule applied to the project tree itself.
 
+> **Superseded in part by Q38–Q40, and the correction is worth reading before
+> the rest of this section.** Deriving *two nouns* from the facets is the same
+> rigidity one level down. A production has props, environments, effects,
+> vehicles, layouts and crowds; under two privileged nouns every one of them is
+> "just a folder", and the code has to invent a tie-break for a folder carrying
+> both. So the nouns are gone: a folder has **facets**, the artist names it with
+> a **glyph**, and the questions the application asks are about a facet —
+> *the nearest folder above this with a reading* — never about a kind. See
+> *What was decided* below.
+
 It also makes the thing the owner asked for fall out for free: a character folder
 can hold assets designated only to it, a scene folder can have its own **and**
 the project's, and a folder can be both or neither.
@@ -227,6 +237,36 @@ nothing to invent.
 | **The model** | `Character` and `ProjectScene` **dissolve entirely** into folder attributes — plus a warning before any action ends a folder's character-ness |
 | **Migration** | **None.** Alpha, single user, nothing produced. Version bump to 2 and a refusal with a sentence |
 | **Brush presets** | **Ninth scoped kind now**, scoping the preset id only |
+
+## What was decided — Q38–Q40, answered 2026-08-07
+
+Q35 dissolved the two records and then collapsed the facets straight back into
+two nouns. These three finish the job.
+
+| | Decision |
+| --- | --- |
+| **Glyph** | **The artist picks it** — a grid of common production glyphs plus free entry. Deriving it from facets forces the code to choose a winner, and it chooses wrong the first time somebody makes a prop folder with a pivot |
+| **Facet summary** | **In the details panel, not on every row.** Against the recommendation; the tree has to stay scannable at forty rows |
+| **The nouns** | **Gone from the code and the UI.** `IsSubject`→`HasReading`, `Subjects()`→`WithReading()`, `SubjectFor`→`ReadingFor`, and the menu says *Read this folder…* |
+
+**The line that keeps the glyph from becoming a second designation: it is a
+label, the facets are the data.** Nothing reads it. The AI path asks for *the
+nearest folder above this with a reading*; export asks for a pivot; neither asks
+what the icon is. An artist's vocabulary is theirs and nothing downstream
+depends on it.
+
+Two places the old nouns were quietly making decisions, both removed:
+
+- `IsScene` excluded folders that had been read, so a character could not
+  accidentally be a scene. Inventing that tie-break is what a designation costs.
+- The library offered only folders with a reading, so "character" decided what
+  could be shared — and a shared environment or prop set is exactly what a
+  library is for.
+
+The cost of the row decision is recorded rather than waved past: nothing tells
+you a folder holds a hand-corrected reading until you select it. What keeps that
+from being a defect is Q35's warning, which fires at the moment of the
+destructive act. If a reading is ever lost anyway, Q39 is the entry to revisit.
 
 One thing to check before the first line is written, because it is the risk the
 first decision carries: **does anything reference a character by id?** The
