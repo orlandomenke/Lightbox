@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2816 tests, derived from the suite itself. Each line is a
+2818 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1408,7 +1408,9 @@ regression even when every test still compiles.
 
 - Every Token The Design Names Resolves — `:45`
 - The Core Surfaces Are The Colours The Design Gave — `:71`
-- No View Invents Its Own Chrome Colour — `:94`
+- The Theme Agrees With The Palette — `:94`
+- The Theme Palette Is Written In Hex On Purpose — `:116`
+- No View Invents Its Own Chrome Colour — `:143`
 
 ## ProjectCreateMenuTests
 `tests/Lightbox.App.Tests/ProjectCreateAndRenameTests.cs`

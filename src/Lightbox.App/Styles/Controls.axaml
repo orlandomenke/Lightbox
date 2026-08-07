@@ -122,14 +122,59 @@
     step back rather than being greyed out — a tab you can barely read looks
     disabled, and these are all reachable.
 
-    No background on the active tab. The header is already a distinct surface,
-    and a filled tab inside it makes two boxes where the artist needed one word.
+    **An accent underline marks the active tab, and weight alone does not.**
+    The first version had no mark at all, on the reasoning that the header is
+    already a distinct surface and a filled tab inside it makes two boxes where
+    the artist needed one word. The boxes part still holds; the conclusion did
+    not. Three words at slightly different brightnesses read as a row of
+    labels, not as a control you can click — and a tab strip that is not
+    legible *as* a tab strip has hidden two panels rather than offered them.
+    The underline is the affordance that costs no height and adds no box, which
+    is why it is a 2 px bar rather than a pill or a border.
+
+    It takes a template because a ListBoxItem has nowhere to put one otherwise,
+    and the template is deliberately the smallest thing that works: a presenter
+    and a bar. Anything more here would be re-implementing a control we do not
+    need.
   -->
   <Style Selector="ListBox.tabs > ListBoxItem">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="6,0" />
     <Setter Property="MinHeight" Value="20" />
     <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="{TemplateBinding Background}">
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Foreground="{TemplateBinding Foreground}"
+                            Padding="{TemplateBinding Padding}"
+                            Margin="0,0,0,3"
+                            VerticalAlignment="Center" />
+          <!--
+            Named and always present, rather than added on selection. A bar
+            that appears changes the row's height as tabs are clicked; a bar
+            that is always there and merely changes colour does not.
+          -->
+          <Border Name="PART_Underline" Height="2" CornerRadius="1"
+                  VerticalAlignment="Bottom" Background="Transparent" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_Underline">
+    <Setter Property="Background" Value="{StaticResource AccentVioletBrush}" />
+  </Style>
+  <!--
+    A hint of it under the pointer, so a tab reads as clickable before it is
+    clicked. Weaker than the real one — this says "you could", not "you are".
+  -->
+  <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ Border#PART_Underline">
+    <Setter Property="Background" Value="{StaticResource BorderStrongBrush}" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:selected:pointerover /template/ Border#PART_Underline">
+    <Setter Property="Background" Value="{StaticResource AccentVioletBrush}" />
   </Style>
   <!--
     Both halves, and the second is the one that does the work: the theme sets a
@@ -146,30 +191,50 @@
   <Style Selector="ListBox.tabs > ListBoxItem:selected">
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
   </Style>
+  <!--
+    No hover tint on the presenter. The underline is the hover affordance now,
+    and a tinted box behind the word would put back exactly the second box the
+    underline exists to avoid.
+  -->
   <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Background" Value="Transparent" />
   </Style>
 
   <!-- ===== Sliders =================================================== -->
   <!--
-    The filled part of the track carries the accent, so a glance says roughly
-    where the value sits without reading the number beside it. The number is
-    still there — DESIGN.md's rule is slider *plus* field, because a value
-    explored by feel still has to be typed exactly sometimes.
+    The filled part of the track carries the accent gradient, so a glance says
+    roughly where the value sits without reading the number beside it. The
+    number is still there — DESIGN.md's rule is slider *plus* field, because a
+    value explored by feel still has to be typed exactly sometimes.
+
+    **The gradient spans the filled part, not the whole track**, which is what a
+    brush on `Foreground` gives without retemplating the control. The trade is
+    that the colours travel as the value changes rather than staying put; at the
+    widths these sliders actually are — a docker column, not a page — that reads
+    as one warm bar rather than as a moving smear, which is why it is not worth
+    a template to fix. If a slider ever gets long enough for it to show, the fix
+    is a track-spanning gradient in the template, not a flat colour here.
+
+    The thumb is the theme's, and now agrees, because the theme's accent is
+    ours. Before it was #0078D7 against a coral track — one control wearing two
+    colour systems, and the clearest evidence that repointing the theme was the
+    missing half of the palette rather than a polish item.
   -->
   <Style Selector="Slider">
-    <Setter Property="Foreground" Value="{StaticResource AccentCoralBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource AccentGradientBrush}" />
   </Style>
 
   <!-- ===== Toggles and checks ======================================== -->
+  <!--
+    Only the label. The checked grounds used to be set here — the switch to the
+    gradient, the box to violet — and both are gone, because the theme's accent
+    is now violet and it already paints them. Two rules had to hold at once and
+    the setters broke the second: **one colour means "on"**, and a switch
+    wearing the gradient while the checkbox beside it wore violet said "on" in
+    two voices. Leaving it to the accent is also what makes the next control
+    nobody has styled yet come out right by default.
+  -->
   <Style Selector="ToggleSwitch">
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-  </Style>
-  <Style Selector="ToggleSwitch:checked /template/ Border#SwitchKnobBounds">
-    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
-  </Style>
-  <Style Selector="CheckBox:checked /template/ Border#NormalRectangle">
-    <Setter Property="Background" Value="{StaticResource AccentVioletBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource AccentVioletBrush}" />
   </Style>
 </Styles>

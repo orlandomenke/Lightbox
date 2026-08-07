@@ -1,6 +1,6 @@
 # Code index
 
-538 files · 141064 lines · 2816 tests.
+538 files · 141222 lines · 2818 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -117,6 +117,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RulerStrip:27
 - `src/Lightbox.App/ViewModels/SelectionManager.cs` (250 ln) · 4 indirect only
   - SelectionManager:7
+- `src/Lightbox.App/Styles/Controls.axaml` (240 ln) · **no tests**
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
 - `src/Lightbox.App/Services/ShortcutMap.cs` (239 ln) · 7 test files
@@ -134,6 +135,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Docker:16
 - `src/Lightbox.App/Views/BrushLibraryWindow.axaml.cs` (217 ln) · 1 test files
   - BrushLibraryWindow:34
+- `src/Lightbox.App/App.axaml` (210 ln) · **no tests**
+  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Services/AppSettings.cs` (208 ln) · 5 test files
   - AppSettings:16
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml` (205 ln) · **no tests**
@@ -148,13 +151,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockZones:67
 - `src/Lightbox.App/Controls/OverflowBar.cs` (178 ln) · 2 test files
   - OverflowBar:25
-- `src/Lightbox.App/App.axaml` (177 ln) · **no tests**
-  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Rendering/GuidePainter.cs` (177 ln) · 1 test files
   - GuidePainter:27
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 3 test files
   - CanvasOverlayBar:28
-- `src/Lightbox.App/Styles/Controls.axaml` (175 ln) · **no tests**
 - `src/Lightbox.App/Styles/ColorPicker.axaml` (174 ln) · **no tests**
   - PART_Clear, PART_Swatch
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln) · **no tests**

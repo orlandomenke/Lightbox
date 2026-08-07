@@ -92,6 +92,14 @@ things an artist arrives at by accident, and making one the loudest object on
 the screen is how it gets pressed by reflex. Also checked, because it is exactly
 the rule somebody breaks while making a delete dialog feel decisive.
 
+**A tab strip has to be legible as a tab strip.** The active tab carries a 2 px
+accent underline, not weight alone. Three words at slightly different
+brightnesses read as a row of labels rather than as a control — and a tab strip
+nobody recognises has *hidden* the panels it was meant to offer, which is the
+opposite of what tabbing is for. An underline is the affordance that adds no box
+and costs no height; a filled pill or a boxed tab puts a second box inside the
+header, which is the thing tabs are in the header to avoid.
+
 **Badges are named for the meaning, not the colour** — `info`, `warning`,
 `error`, `success`. A badge that says "amber" has to be renamed when the design
 changes its mind. Their grounds are tinted rather than filled: a solid amber
@@ -104,6 +112,36 @@ is a label with a state, never a button, so it carries no hover.
 **Every colour in the chrome names a role. None of them is a hex value.** The
 tokens live in `src/Lightbox.App/Styles/Palette.axaml`; this section is the rule
 they implement, the same way `Density.axaml` implements *Sizes* above.
+
+**The palette has two halves, and only one of them is the views.** Tokenising a
+view reaches the surfaces somebody aimed at a token. Every *stock* control —
+toggle buttons, slider thumbs, checkboxes, radios, focus rings, list selection —
+paints from the **theme's** palette instead, so the theme has to be repointed at
+ours or the application wears two colour systems at once. It did for a week: the
+opacity slider had our coral track and Fluent's `#0078D7` thumb, and no test
+could see it because both halves were internally consistent.
+
+Two properties on `FluentTheme.Palettes` carry the whole second half:
+
+| Property | Governs | Ours |
+| --- | --- | --- |
+| `Accent` | every "this is on" state | `AccentViolet` |
+| `RegionColor` | the window ground, so dialogs | `SurfaceElevated` |
+
+**One colour means "on".** Violet is the accent because it was already the
+selection colour in the layers list and the cel vocabulary — a selected row and
+a switched-on toggle should not be two different colours. It also leaves coral
+meaning *the primary action*, which is what the button ranks above depend on: if
+every "on" state is as loud as the one button you want pressed, nothing has been
+ranked. A local setter that gives one control its own "on" colour breaks this,
+which is why the ToggleSwitch and CheckBox ones were deleted rather than kept
+for being pretty.
+
+Those two values are the one place a role **cannot** be named: a
+`ColorPaletteResources` is built before the merged dictionaries it would look
+into, so `{StaticResource}` there does not resolve. They are hex literals on
+purpose, and `TheThemePaletteIsWrittenInHexOnPurpose` asserts they equal the
+tokens they stand in for.
 
 Four surfaces, back to front — `BackgroundPrimary`, `BackgroundSecondary`,
 `SurfacePanel`, `SurfaceElevated`. The order is the meaning: anything raised

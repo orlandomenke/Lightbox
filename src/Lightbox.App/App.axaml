@@ -24,7 +24,40 @@
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
-    <FluentTheme />
+    <!--
+      Fluent, repointed at our palette.
+
+      **This is the half of the colour system that was missing.** Tokenising
+      the views only reaches surfaces somebody aimed at a token; every stock
+      control — toggle buttons, slider thumbs, checkboxes, radios, focus rings,
+      list selection — keeps painting from the theme's own palette, and the
+      theme's accent is Windows blue. The result was two colour systems in one
+      window, and one control wearing both: the opacity slider had our coral
+      track and Fluent's #0078D7 thumb.
+
+      Two properties fix the whole class of it, which is why they are worth
+      more than the fifty setters they replace:
+
+      * `Accent` — every "this is on" state. Violet rather than coral, so the
+        layer row that is selected, the toggle that is on and the tab that is
+        showing are one colour, and coral is left meaning "the primary action"
+        without competition.
+      * `RegionColor` — the window ground. Dialogs painted pure black because
+        nothing had told the theme otherwise; they now sit one surface above
+        the panels, which is the "anything raised goes one step up" rule the
+        four surfaces already encode.
+
+      Literal hexes rather than {StaticResource}: a ColorPaletteResources is
+      built before the merged dictionaries it would look into, so a reference
+      here cannot resolve. `PaletteTests.TheThemeAgreesWithThePalette` pins
+      them to the tokens instead, which is the check the reference would have
+      been.
+    -->
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Dark" Accent="#7B61FF" RegionColor="#222634" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
     <!-- ColorSpectrum/ColorSlider templates live in a separate theme file;
          without this include they render as nothing at all. -->
     <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
