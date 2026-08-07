@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2628 tests, derived from the suite itself. Each line is a
+2633 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2174,6 +2174,15 @@ regression even when every test still compiles.
 - Entire Animation Scope Moves Every Layer — `:138`
 - Selection Region Limits The Transform To Strokes Inside It — `:157`
 - Empty Scope Refuses To Start — `:177`
+
+## UnboundedCanvasPixelTests
+`tests/Lightbox.App.Tests/UnboundedCanvasPixelTests.cs`
+
+- Tiled Rendering Stroke Across Tile Boundary Has No Visible Seam — `:50`
+- Tiled Rendering Multiple Tiles Stroke Maintains Relative Position — `:81`
+- Tiled Rendering With Viewport Offset Strokes Render Correctly — `:117`
+- Tiled Rendering Multiple Renders Produces Consistent Output — `:152`
+- Tiled Rendering Large Document Renders Tiles Correctly — `:202`
 
 ## UnityExportTests
 `tests/Lightbox.App.Tests/UnityExportTests.cs`

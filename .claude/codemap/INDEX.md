@@ -1,6 +1,6 @@
 # Code index
 
-501 files · 131031 lines · 2628 tests.
+502 files · 131272 lines · 2633 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -95,7 +95,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
-- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 105 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 106 test files
   - MainViewModel:32
 - `src/Lightbox.App/Docking/DockLayout.cs` (276 ln) · 3 test files
   - DockPlacement:7, DockLayout:51
@@ -242,7 +242,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushFilter:12
 - `src/Lightbox.App/Services/IpcProtocol.cs` (43 ln) · 7 test files
   - IpcProtocol:12, Request:23, Response:29
-- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (39 ln) · 17 test files
+- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (39 ln) · 18 test files
   - RenderSnapshot:24
 - `src/Lightbox.App/Services/PlaybackClock.cs` (35 ln) · 1 test files
   - PlaybackClock:9
@@ -271,7 +271,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `tools/Lightbox.Bench/AnimationSweeps.cs` (605 ln) · 9 test files
   - AnimationSweeps:18, Target:103, Rig:129, Sides:270
-- `tools/Lightbox.Bench/Harness.cs` (236 ln) · 14 test files
+- `tools/Lightbox.Bench/Harness.cs` (236 ln) · 15 test files
   - Cadence:23, Budgets:38, Sample:50, Scenario:66, Curve:96, Runner:176
 - `tools/Lightbox.Bench/DrawingSweeps.cs` (215 ln) · 9 indirect only
   - DrawingSweeps:27, Sheet:51
@@ -343,7 +343,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CollisionShapes:21
 - `src/Lightbox.Core/Projects/SymbolUsage.cs` (157 ln) · 1 test files
   - SymbolUse:9, SymbolUsage:12, SymbolGraph:46
-- `src/Lightbox.Core/Documents/Stroke.cs` (156 ln) · 96 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (156 ln) · 97 test files
   - Stroke:9, BakedSample:148
 - `src/Lightbox.Core/Projects/CharacterLibrary.cs` (153 ln) · 1 test files
   - LibraryEntry:7, CharacterLibrary:39
@@ -421,7 +421,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ReferenceSheet:11, ReferenceView:21
 - `src/Lightbox.Core/Inbetween/StrokeInterpolator.cs` (43 ln) · 1 test files
   - StrokeInterpolator:6
-- `src/Lightbox.Core/Projects/FeatureKey.cs` (30 ln) · 3 test files
+- `src/Lightbox.Core/Projects/FeatureKey.cs` (30 ln) · 4 test files
   - FeatureKey:14
 - `src/Lightbox.Core/Geometry/ColorOps.cs` (29 ln) · 1 test files
   - ColorOps:3
@@ -466,7 +466,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FloodFill:13, Options:15, Result:21, ContourTracer:297
 - `src/Lightbox.Raster/Tips/TipGenerator.cs` (420 ln) · 3 test files
   - TipGenerator:33
-- `src/Lightbox.Raster/Media/PaperField.cs` (406 ln) · 4 test files
+- `src/Lightbox.Raster/Media/PaperField.cs` (406 ln) · 5 test files
   - PaperField:26, Tile:81
 - `src/Lightbox.Raster/Media/MediumSimulator.cs` (398 ln) · 4 test files
   - MediumSimulator:22
