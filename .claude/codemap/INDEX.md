@@ -1,6 +1,6 @@
 # Code index
 
-546 files · 143426 lines · 2845 tests.
+546 files · 143488 lines · 2845 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,8 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10708 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4526, TransformParts:7195
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10724 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4526, TransformParts:7211
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4561 ln) · 22 test files
   - MainWindow:19, UnsavedChoice:3003
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (3648 ln) · 13 test files
@@ -91,6 +91,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ColorMode:9, ColorPickerViewModel:25
 - `src/Lightbox.App/Rendering/PresentedFrame.cs` (352 ln) · 2 test files
   - PresentedFrame:45
+- `src/Lightbox.App/Styles/Density.axaml` (337 ln) · **no tests**
 - `src/Lightbox.App/Rendering/SceneRenderer.cs` (334 ln) · 6 test files
   - StrokeOverlay:24, RenderPass:50, SceneRenderer:65
 - `src/Lightbox.App/Views/ExportWindow.axaml.cs` (320 ln) · 1 test files
@@ -101,7 +102,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RampTrack:10, GradientRamp:41
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (295 ln) · 4 test files
   - Workspace:13, WorkspaceStore:51
-- `src/Lightbox.App/Styles/Density.axaml` (291 ln) · **no tests**
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 111 test files
