@@ -1019,6 +1019,26 @@ public sealed class CanvasControl : Control
         _pickLine = pick;
 
     /// <summary>
+    /// A marquee dragged with the arrow: the rect in document space, and
+    /// whether Shift was held at the press to add rather than replace.
+    /// </summary>
+    public event Action<SKRect, bool>? LinesMarqueed;
+
+    private (double X, double Y)? _lineMarqueeFrom;
+    private (double X, double Y) _lineMarqueeTo;
+    private bool _lineMarqueeAdds;
+
+    /// <summary>
+    /// Below this, a drag was a click with a shaky hand.
+    /// </summary>
+    /// <remarks>
+    /// Screen pixels, so it means the same thing at every zoom. Without it, a
+    /// click that moved two pixels would select a two-pixel box's worth of
+    /// nothing and silently drop whatever the click had just picked.
+    /// </remarks>
+    private const double MarqueeMinimumPixels = 3.0;
+
+    /// <summary>
     /// How near a click has to land, in screen pixels, before it counts.
     /// </summary>
     /// <remarks>
@@ -1026,6 +1046,16 @@ public sealed class CanvasControl : Control
     /// enough to have meant it" rather than two that drift apart.
     /// </remarks>
     private const double GrabPixels = 10.0;
+
+    /// <summary>The marquee in flight, or null when there is not one.</summary>
+    private SKRect? LineMarqueeRect()
+    {
+        if (_lineMarqueeFrom is not { } from) return null;
+        var to = _lineMarqueeTo;
+        return SKRect.Create(
+            (float)Math.Min(from.X, to.X), (float)Math.Min(from.Y, to.Y),
+            (float)Math.Abs(to.X - from.X), (float)Math.Abs(to.Y - from.Y));
+    }
 
     /// <summary>Screen pixels as document units at the current zoom.</summary>
     private double DocTolerance(double screenPixels) =>
@@ -1630,7 +1660,7 @@ public sealed class CanvasControl : Control
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
-            _selectionManager, _getPlacementsForSelection, _selectedLines));
+            _selectionManager, _getPlacementsForSelection, _selectedLines, LineMarqueeRect()));
     }
 
     /// <summary>
@@ -2288,7 +2318,18 @@ public sealed class CanvasControl : Control
                         // guide crossing a line has to win, or the guide becomes
                         // unclickable wherever an artist has drawn — and the
                         // drawing is the thing that is everywhere.
-                        _pickLine?.Invoke(x, y, DocTolerance(GrabPixels), shift, alt);
+                        if (_pickLine?.Invoke(x, y, DocTolerance(GrabPixels), shift, alt) != true)
+                        {
+                            // Nothing under the cursor, so the press is the
+                            // start of a marquee rather than a click that
+                            // missed. Illustrator's rule, and the reason the
+                            // pick is a delegate that answers rather than an
+                            // event that does not: the canvas has to know.
+                            e.Pointer.Capture(this);
+                            _lineMarqueeFrom = (x, y);
+                            _lineMarqueeTo = (x, y);
+                            _lineMarqueeAdds = shift;
+                        }
                     }
                     e.Handled = true;
                     return;
@@ -2509,6 +2550,13 @@ public sealed class CanvasControl : Control
                 e.Handled = true;
                 return;
             }
+            if (_lineMarqueeFrom is not null)
+            {
+                _lineMarqueeTo = ViewToDoc(e.GetPosition(this));
+                InvalidateVisual();
+                e.Handled = true;
+                return;
+            }
             if (_dragAnchor is { } anchor && ToolMode is CanvasToolMode.SelectRect or CanvasToolMode.SelectEllipse)
             {
                 var (dx, dy) = ViewToDoc(e.GetPosition(this));
@@ -2679,6 +2727,29 @@ public sealed class CanvasControl : Control
             e.Handled = true;
             return;
         }
+        if (_lineMarqueeFrom is { } from)
+        {
+            _lineMarqueeFrom = null;
+            e.Pointer.Capture(null);
+            var to = ViewToDoc(e.GetPosition(this));
+            var scale = Math.Max(0.01, FitScale() * _zoom);
+            var moved = Math.Max(Math.Abs(to.X - from.X), Math.Abs(to.Y - from.Y)) * scale;
+            if (moved >= MarqueeMinimumPixels)
+            {
+                LinesMarqueed?.Invoke(
+                    SKRect.Create(
+                        (float)Math.Min(from.X, to.X), (float)Math.Min(from.Y, to.Y),
+                        (float)Math.Abs(to.X - from.X), (float)Math.Abs(to.Y - from.Y)),
+                    // The flag from the press, not from now — the same reason
+                    // the pixel marquee reads its own: Shift arriving mid-drag
+                    // means something else, and reading it live would union by
+                    // accident.
+                    _lineMarqueeAdds);
+            }
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
         if (_dragShape.Count > 0 || _dragAnchor is not null)
         {
             var shape = _dragShape.ToList();
@@ -2759,6 +2830,14 @@ public sealed class CanvasControl : Control
         {
             _movingRefBoxes = false;
             // Reference box move cancellation
+            return;
+        }
+        if (_lineMarqueeFrom is not null)
+        {
+            // Abandon. Losing capture is not a decision the artist made, and a
+            // half-dragged box is not a selection they asked for.
+            _lineMarqueeFrom = null;
+            InvalidateVisual();
             return;
         }
         if (_movingContent)
@@ -2948,7 +3027,8 @@ public sealed class CanvasControl : Control
         IReadOnlyList<RigMark>? rigMarks = null,
         ViewModels.SelectionManager? selectionManager = null,
         Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? getPlacementsForSelection = null,
-        IReadOnlyList<SelectedLine>? selectedLines = null) : ICustomDrawOperation
+        IReadOnlyList<SelectedLine>? selectedLines = null,
+        SKRect? lineMarquee = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -3152,6 +3232,34 @@ public sealed class CanvasControl : Control
         /// by the zoom, so the marker stays the same thickness on screen at any
         /// magnification, like every other piece of chrome here.
         /// </remarks>
+        /// <summary>
+        /// The box being dragged with the arrow.
+        /// </summary>
+        /// <remarks>
+        /// <b>Its own dashes rather than the marching ants.</b> The ants mean
+        /// "this is an area, and paint will be confined to it" — the pixel
+        /// selection. Borrowing them for an object selection would say the
+        /// wrong thing with the app's own vocabulary, which is exactly the
+        /// confusion Q48 separated these two tools to avoid. Cyan and static,
+        /// matching the trace it is about to produce.
+        /// </remarks>
+        private void DrawLineMarquee(SKCanvas canvas)
+        {
+            if (lineMarquee is not { } rect) return;
+            var scale = Math.Max(0.01f, view.Scale);
+            using var paint = new SKPaint
+            {
+                Color = SKColors.Cyan,
+                StrokeWidth = 1f / scale,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+                PathEffect = SKPathEffect.CreateDash([4f / scale, 4f / scale], 0),
+            };
+            using var fill = new SKPaint { Color = SKColors.Cyan.WithAlpha(20) };
+            canvas.DrawRect(rect, fill);
+            canvas.DrawRect(rect, paint);
+        }
+
         private void DrawSelectedLines(SKCanvas canvas)
         {
             if (selectedLines is null || selectedLines.Count == 0) return;
@@ -3191,6 +3299,7 @@ public sealed class CanvasControl : Control
         private void DrawObjectSelections(SKCanvas canvas)
         {
             DrawSelectedLines(canvas);
+            DrawLineMarquee(canvas);
             if (selectionManager is null || !selectionManager.HasSelection) return;
 
             var scale = view.Scale;

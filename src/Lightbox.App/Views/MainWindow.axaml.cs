@@ -29,6 +29,7 @@ public partial class MainWindow : Window
         Canvas.SetSelectionManager(_vm.Selection);
         Canvas.SetLinePicker(_vm.PickStrokeAt);
         _vm.SelectedLinesChanged += Canvas.SetSelectedLines;
+        Canvas.LinesMarqueed += (rect, add) => _vm.PickStrokesIn(rect, add);
         Canvas.SetPlacementProvider(_vm.GetCurrentFramePlacements);
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);

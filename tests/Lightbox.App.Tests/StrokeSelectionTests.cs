@@ -129,7 +129,7 @@ public class StrokeSelectionTests
     {
         var a = Line(100, 300, 300, 300);
         var b = Line(100, 400, 300, 400);
-        var far = Line(100, 900, 300, 900);
+        var far = Line(100, 520, 300, 520);
         var vm = WithStrokes(a, b, far);
 
         var count = vm.PickStrokesIn(SKRect.Create(150, 250, 100, 250));
@@ -146,8 +146,51 @@ public class StrokeSelectionTests
         var vm = WithStrokes(Line(100, 300, 300, 300));
         vm.PickStrokeAt(200, 300, tolerance: 2);
 
-        Assert.Equal(0, vm.PickStrokesIn(SKRect.Create(600, 600, 100, 100)));
+        // On canvas (960x540) and genuinely empty — an off-canvas rect would
+        // catch nothing for the wrong reason.
+        Assert.Equal(0, vm.PickStrokesIn(SKRect.Create(600, 100, 100, 100)));
         Assert.False(vm.HasStrokeSelection);
+    }
+
+    /// <summary>
+    /// Shift-marquee adds to what is already picked rather than replacing it.
+    /// </summary>
+    [AvaloniaFact]
+    public void AShiftMarqueeAddsToTheSelection()
+    {
+        // Inside 960x540 — a stroke whose bounds fall off the surface is
+        // indexed as reaching nothing, so an off-canvas line is not a marquee
+        // miss, it is invisible to the picker entirely.
+        var a = Line(100, 100, 300, 100);
+        var b = Line(100, 400, 300, 400);
+        var vm = WithStrokes(a, b);
+
+        vm.PickStrokeAt(200, 100, tolerance: 2);
+        vm.PickStrokesIn(SKRect.Create(150, 350, 100, 100), add: true);
+
+        Assert.Equal(2, vm.Selection.SelectedStrokeIds.Count);
+    }
+
+    /// <summary>
+    /// The arrow's marquee is not the pixel selection, and must not become one.
+    /// </summary>
+    /// <remarks>
+    /// The two live side by side and mean different things — an area you paint
+    /// inside versus a set of records you can move. If picking lines also set
+    /// the clip region, every stroke drawn afterwards would be confined to
+    /// whatever box you last dragged, which is Q48's confusion arriving as a
+    /// bug rather than as a UI question.
+    /// </remarks>
+    [AvaloniaFact]
+    public void PickingLinesDoesNotTouchThePixelSelection()
+    {
+        var vm = WithStrokes(Line(100, 300, 300, 300));
+
+        vm.PickStrokesIn(SKRect.Create(50, 250, 400, 100));
+
+        Assert.True(vm.HasStrokeSelection);
+        Assert.False(vm.HasSelection);          // the pixel region
+        Assert.Empty(vm.SelectionContours);
     }
 
     // ---- what the selection survives -----------------------------------------

@@ -1,6 +1,6 @@
 # Code index
 
-536 files · 141075 lines · 2817 tests.
+536 files · 141238 lines · 2819 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,10 +49,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (10658 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4512, TransformParts:7186
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4437 ln) · 20 test files
-  - MainWindow:19, UnsavedChoice:2879
-- `src/Lightbox.App/Rendering/CanvasControl.cs` (3669 ln) · 13 test files
-  - CanvasControl:28, CanvasToolMode:844, GridGesture:901, TxDrag:1084, DrawOp:2938
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4438 ln) · 20 test files
+  - MainWindow:19, UnsavedChoice:2880
+- `src/Lightbox.App/Rendering/CanvasControl.cs` (3778 ln) · 13 test files
+  - CanvasControl:28, CanvasToolMode:844, GridGesture:901, TxDrag:1114, DrawOp:3017
 - `src/Lightbox.App/Views/MainWindow.axaml` (3615 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
@@ -506,8 +506,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipImageSettings:15, TipImageResult:43, TipFromImage:68
 - `src/Lightbox.Raster/BrushPreviewRenderer.cs` (248 ln) · 2 test files
   - BrushPreviewRenderer:34
-- `src/Lightbox.Raster/StrokePicker.cs` (236 ln) · 1 test files
-  - StrokePicker:47
+- `src/Lightbox.Raster/StrokePicker.cs` (246 ln) · 1 test files
+  - StrokePicker:57
 - `src/Lightbox.Raster/TileStore.cs` (219 ln) · 3 test files
   - TileStore:37
 - `src/Lightbox.Raster/TiledRasterizer.cs` (216 ln) · 2 test files

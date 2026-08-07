@@ -24,6 +24,12 @@ a Shift-click that misses leaves your selection alone, because you are part-way
 through building one. **What you have picked is traced in cyan**, so it is
 always clear which line you got.
 
+**Drag from empty canvas** to sweep up everything the box touches — touched, not
+enclosed, so a box across a limb takes its lines without your having to draw one
+round the whole character. Hold **Shift** as you start the drag to add to what
+you already have. The box is cyan and dashed rather than the marching ants of an
+area selection, because it is doing a different job.
+
 It picks what you can see. Where two lines cross you get the one on top, and an
 eraser stroke never steals a click from ink that is visible underneath it —
 though an eraser on its own is selectable, so a stray one can still be removed.
@@ -42,8 +48,10 @@ screen.
 If the layer is locked it says so rather than doing nothing — but only when you
 actually click a line on it, not every time you click past one.
 
-*Planned:* moving, scaling, recolouring and deleting what you have picked, and
-dragging a box round several lines at once.
+A line drawn entirely outside the canvas cannot be picked yet — filed as B125,
+and it matters mainly for the infinite canvas that is still being built.
+
+*Planned:* moving, scaling, recolouring and deleting what you have picked.
 
 ## What a stroke is
 

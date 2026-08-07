@@ -37,6 +37,16 @@ namespace Lightbox.Raster;
 /// eraser.
 /// </para>
 /// <para>
+/// <b>One limitation, inherited rather than chosen.</b> The index is built from
+/// <see cref="BrushEngine.CommitBounds"/>, which clamps to the surface because
+/// its job is deciding what to repaint — and nothing outside the surface needs
+/// repainting. A stroke lying <em>entirely</em> outside the document therefore
+/// reaches nothing as far as the index is concerned, and cannot be picked.
+/// Narrow while documents are fixed-size; it becomes real with the infinite
+/// canvas, and is filed as <b>B125</b> rather than worked around here, because
+/// the fix belongs where the bounds are computed.
+/// </para>
+/// <para>
 /// <b>What this does not know about, deliberately.</b> Layer visibility and
 /// locking are the caller's business: the picker is handed a stroke list, and a
 /// list from a hidden layer should never have been assembled. Keeping the filter

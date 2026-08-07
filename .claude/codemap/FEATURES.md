@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2817 tests, derived from the suite itself. Each line is a
+2819 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2013,19 +2013,21 @@ regression even when every test still compiles.
 - Clicking ASecond Line Without Shift Replaces The Selection — `:113`
 - AMarquee Picks Every Line It Touches — `:128`
 - AMarquee Over Nothing Lets Go — `:144`
-- Deleting An Earlier Line Does Not Repoint The Selection — `:161`
-- ALine That Is Gone Is Dropped From The Selection — `:183`
-- Moving To Another Layer Lets Go Of The Selection — `:213`
-- AHeld Cel Keeps The Selection — `:230`
-- ALocked Layer Refuses And Says Why — `:248`
-- ALocked Layer Is Quiet When You Click Nothing — `:263`
-- Picking On An Empty Layer Creates Nothing — `:278`
-- Picking ALine Publishes Its Outline — `:313`
-- Letting Go Takes The Outline Away — `:334`
-- AFills Outline Is Closed — `:354`
-- The Canvas Takes The Outlines It Is Handed — `:379`
-- The Arrow Tool Is Reachable And Bindable — `:400`
-- The Arrow Tool Has ABindable Shortcut — `:421`
+- AShift Marquee Adds To The Selection — `:159`
+- Picking Lines Does Not Touch The Pixel Selection — `:185`
+- Deleting An Earlier Line Does Not Repoint The Selection — `:204`
+- ALine That Is Gone Is Dropped From The Selection — `:226`
+- Moving To Another Layer Lets Go Of The Selection — `:256`
+- AHeld Cel Keeps The Selection — `:273`
+- ALocked Layer Refuses And Says Why — `:291`
+- ALocked Layer Is Quiet When You Click Nothing — `:306`
+- Picking On An Empty Layer Creates Nothing — `:321`
+- Picking ALine Publishes Its Outline — `:356`
+- Letting Go Takes The Outline Away — `:377`
+- AFills Outline Is Closed — `:397`
+- The Canvas Takes The Outlines It Is Handed — `:422`
+- The Arrow Tool Is Reachable And Bindable — `:443`
+- The Arrow Tool Has ABindable Shortcut — `:464`
 
 ## SubjectReadingWiringTests
 `tests/Lightbox.App.Tests/SubjectReadingWiringTests.cs`

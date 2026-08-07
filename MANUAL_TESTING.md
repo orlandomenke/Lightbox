@@ -319,3 +319,6 @@ headless can open a window and click Delete.
 - [ ] **Arrow** — Shift-click a second line: both traced. Shift-click one of them again: it drops out. Click empty canvas: everything lets go.
 - [ ] **Arrow** — click a **guide** where it crosses a line. The guide is selected, not the line. Then click a placed **symbol**. Neither of these was reachable before the arrow existed — `CanvasToolMode.Select` was never assigned.
 - [ ] **Arrow** — switch layers with something selected. The trace goes, because that line is not on this layer.
+- [ ] **Arrow** — drag from empty canvas across two lines. A cyan dashed box follows the pointer, and on release both lines are traced. It must be **dashes, not marching ants** — the ants mean an area selection, and using them here would say the wrong thing with the app's own vocabulary.
+- [ ] **Arrow** — click a line, then click-and-nudge two pixels on empty canvas. That is a click, not a marquee: the selection lets go rather than being replaced by a two-pixel box's worth of nothing.
+- [ ] **Arrow** — start a marquee and drag off the window so capture is lost. Nothing is selected and the box disappears; a half-dragged box is not a decision you made.
