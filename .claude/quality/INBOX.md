@@ -164,3 +164,55 @@ Dimension mismatch in RenderSnapshot. MainViewModel passed scene dimensions to R
 ⚠️ Issue 1 (background layer) and zoom canvas expansion still need visual testing  
 
 All 2852 unit tests pass.
+
+### Unbounded Canvas Performance - Zoom Out Delay (2026-08-07)
+
+**Symptom**: Significant delay when zooming out, especially with white background layer
+
+**Root Cause - TileStore.FromBitmap Bottleneck**:
+1. **ComposeUnboundedSnapshot** (line 9887) calls `TileStore.FromBitmap(pass.Bitmap)` per pass per frame
+2. **FromBitmap** (TileStore.cs:175-211) iterates ALL tiles covering the bitmap:
+   - Allocates new SKBitmap for each tile via store.Rent()
+   - Creates SKCanvas for each tile
+   - Copies source region via DrawBitmap
+3. **Zoom out amplifies cost**: Larger viewport → more visible tiles → more allocations
+4. **Background layer**: Spans entire document, so zooming out creates N×M tiles for canvas
+
+**Current Code Issues**:
+- FromBitmap converts ENTIRE frame to tiles every frame (not cached)
+- Doesn't leverage viewport culling - converts everything first, then composites visible
+- Even empty tiles are created and allocated
+- Comment at line 9851-9852 explicitly marks this as "not yet optimized"
+
+**Potential Optimizations** (in priority order):
+
+1. **Cache TileStores per frame** (High impact, moderate cost)
+   - Store last computed TileStore per frame/pass
+   - Reuse if bitmap and viewport unchanged
+   - Skip reconstruction on subsequent compositions
+
+2. **Viewport-aware TileStore conversion** (High impact, high cost)
+   - Modify FromBitmap to accept viewport bounds
+   - Only convert viewport region to tiles
+   - Rest remains as full bitmap or lazy-loaded
+
+3. **Lazy tile creation** (Moderate impact, high complexity)
+   - Create tiles only during TileCompositor.Composite
+   - On-demand extraction from source bitmap
+   - Trades memory for CPU
+
+4. **Background optimization** (Moderate impact, low cost)
+   - Detect if background layer is solid color
+   - Skip tiling; use canvas.Clear(color)
+   - Check if background passes empty vs solid
+
+5. **Render scale throttling** (Moderate impact, low cost)
+   - Reduce renderScale when zoomed out beyond threshold
+   - E.g., cap surface size to window size to avoid huge allocations
+
+**Measured Cost** (with performance tracing):
+- Enable via `LIGHTBOX_PERFTRACE=1` environment variable
+- PublishSnapshot logs: dirty, clip, pass count, elapsed ms
+- Can identify if bottleneck is in ComposeUnboundedSnapshot or TileCompositor
+
+**Recommended Next Step**: Implement cache (option 1) - quick win with large impact.
