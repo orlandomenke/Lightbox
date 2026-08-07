@@ -9830,10 +9830,19 @@ public sealed partial class MainViewModel : ObservableObject
             nameof(Lightbox.Core.Projects.FeatureKey.UnboundedCanvas), out var enabled) == true && enabled;
         var useUnboundedPath = hasExplicitUnboundedCanvas && _pendingViewport is { Width: > 0, Height: > 0 };
 
+        // What changed since the last publish. Null means "everything", which is
+        // what a frame change, a layer edit or a view change produces.
+        //
+        // Read BEFORE the culling decision on purpose: whether culling is worth
+        // taking depends entirely on this, per B121 below.
+        var dirty = _dirtyIsWholeCanvas ? null : _pendingDirty;
+        _pendingDirty = null;
+        _dirtyIsWholeCanvas = false;
+
         // B82: compose only the visible rectangle, so the cost is proportional to
         // what the artist can see rather than to the whole document.
         //
-        // Two conditions, both learned the hard way:
+        // Three conditions, every one of them learned by breaking it:
         //
         //  * The rectangle is CLAMPED to the document. A zoomed-out view reports a
         //    viewport far larger than the canvas — {-480,-450,1921,1440} for a
@@ -9841,12 +9850,19 @@ public sealed partial class MainViewModel : ObservableObject
         //    rect off the end of the layer bitmap and a surface bigger than the
         //    full-document one it was meant to be cheaper than.
         //  * Culling only pays when the clamped rectangle is actually SMALLER.
-        //    Composing the whole document through the culled path costs an extra
-        //    scale per layer and buys nothing, so the ordinary fitted view keeps
-        //    taking the ComposeRing path it always took — which is also the path
-        //    with the dirty-region optimisation that makes drawing cheap.
+        //  * **Only on a whole-canvas publish (B121).** This is the one that
+        //    mattered. `ComposeViewportCulled` builds a fresh surface, so it has
+        //    to fill all of it — it cannot honour a dirty region the way
+        //    `ComposeRing` does. Culling an incremental publish therefore turns a
+        //    dab-sized repaint into a viewport-sized one: measured at 1 232 px
+        //    against 134 400 px for the same dab, a 109× enlargement, and 0.26 ms
+        //    against 76 ms on a 4K document. Since a small dirty region is already
+        //    area-independent, culling can only ever lose there. It wins on the
+        //    publishes that would repaint everything anyway, which is exactly the
+        //    frame change B29 is about.
         var composeViewport = ClampToDocument(_pendingViewport, (int)viewWidth, (int)viewHeight);
         var useViewportCulling = cameraView is null
+            && dirty is null
             && composeViewport is { } vpTest
             && (long)vpTest.Width * vpTest.Height < (long)viewWidth * (int)viewHeight;
         if (!useViewportCulling) composeViewport = null;
@@ -9861,9 +9877,6 @@ public sealed partial class MainViewModel : ObservableObject
             Math.Max(1, surfaceHeight),
             SKColorType.Rgba8888,
             SKAlphaType.Premul);
-        var dirty = _dirtyIsWholeCanvas ? null : _pendingDirty;
-        _pendingDirty = null;
-        _dirtyIsWholeCanvas = false;
         var seq = ++_publishSeq;
         var background = SceneRenderer.BackgroundOf(scene);
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -9888,6 +9901,26 @@ public sealed partial class MainViewModel : ObservableObject
             image = ComposeViewportCulled(passes, background, renderScale, info, cullRect);
             usedClip = cullRect;
             imageCovers = cullRect;
+            // This publish went around the ring, so every buffer in it now holds
+            // an older frame than the artist is looking at. ComposeRing decides
+            // what to repaint from its own staleness, so a buffer that believes
+            // it is current would repaint a dab onto the previous frame's art and
+            // leave the rest of it showing.
+            //
+            // **Honest note: this is unproven defence, not a tested fix.** I could
+            // not construct the stale case through the public API —
+            // `AnIncrementalPublishAfterACulledOneDoesNotShowThePreviousFrame`
+            // passes with this line deleted, because every EndStroke publishes
+            // whole-canvas and marks the other two buffers NeedsFull, so the
+            // rotation lands on a buffer that repaints in full anyway. It is kept
+            // because it costs nothing (it only runs on a publish that repaints
+            // everything regardless) and because stale pixels are wrong quietly,
+            // which is the failure this codebase is least able to notice. If a
+            // later change makes ComposeRing keep buffers warm across full
+            // publishes, this line stops being redundant and starts being load-
+            // bearing — do not delete it as dead code on the strength of the test
+            // passing without it.
+            _composeRing.InvalidateAll();
         }
         else
         {
