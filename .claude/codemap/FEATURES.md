@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2681 tests, derived from the suite itself. Each line is a
+2687 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2916,6 +2916,16 @@ regression even when every test still compiles.
 - AProject With No Folders Writes No Folder File — `:403`
 - Deleting The Last Folder Reaches The Disk — `:415`
 - APalette Filed Under AMissing Folder Still Shows Up On Load — `:432`
+
+## PublishLayoutTests
+`tests/Lightbox.Core.Tests/PublishLayoutTests.cs`
+
+- The Windows Bundle Is Published As ASingle File — `:73`
+- Native Libraries Are Not Self Extracted — `:87`
+- Native Debug Symbols Are Not Shipped — `:105`
+- The Server Publishes Into Its Own Folder And The App Does Not — `:116`
+- The Documented Server Path Matches Where It Is Published — `:127`
+- The Manual Testing Checklist Names The Folder The Server Is In — `:140`
 
 ## ReferenceScopeTests
 `tests/Lightbox.Core.Tests/ReferenceScopeTests.cs`

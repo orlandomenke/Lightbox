@@ -1,6 +1,6 @@
 # Code index
 
-519 files · 133776 lines · 2681 tests.
+520 files · 133923 lines · 2687 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -176,7 +176,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StartChoice:14, StartScreen:61
 - `src/Lightbox.App/Controls/ValueDrag.cs` (126 ln) · 4 indirect only
   - ValueDrag:27, Session:43
-- `src/Lightbox.App/Services/FileReveal.cs` (125 ln) · 2 test files
+- `src/Lightbox.App/Services/FileReveal.cs` (125 ln) · 3 test files
   - Desktop:7, FileReveal:35
 - `src/Lightbox.App/Docking/CanvasOverlays.cs` (123 ln) · 2 test files
   - OverlayId:12, CanvasEdge:21, OverlayPlacement:30, CanvasOverlayLayout:54
