@@ -216,3 +216,36 @@ All 2852 unit tests pass.
 - Can identify if bottleneck is in ComposeUnboundedSnapshot or TileCompositor
 
 **Recommended Next Step**: Implement cache (option 1) - quick win with large impact.
+
+---
+
+## Unbounded Canvas Performance Optimization Implemented (2026-08-07)
+
+**Status**: ✅ COMPLETED
+
+**Optimization Applied**: Cache TileStores by bitmap identity (commit 18bd617)
+
+**What Changed**:
+1. **Added _tileStoreCache** (MainViewModel line 81): Dictionary caching TileStore objects by bitmap hash
+2. **Modified ComposeUnboundedSnapshot** (line 9890-9915): Before calling expensive TileStore.FromBitmap:
+   - Check cache using bitmap's GetHashCode() and ReferenceEquals() to verify same object
+   - If found and unchanged, reuse cached TileStore (zero cost)
+   - If new/changed, create fresh TileStore and store in cache
+3. **Cache eviction** (line 9907-9911): Cap cache at 10 entries with FIFO eviction to prevent growth during rapid undo/redo
+4. **Frame-level invalidation** (MainViewModel line 4624): Clear cache when playhead moves to new frame, since bitmaps are different
+
+**Why This Works**:
+- Zoom/pan changes viewport but reuses same frame bitmap
+- Same bitmap → same tile decomposition needed
+- Caching TileStore avoids calling expensive FromBitmap when viewport changes
+- On zoom out, viewport expands but calls to ComposeUnboundedSnapshot use cached tiles
+- Only clears when frame actually changes (not on every viewport change)
+
+**Performance Impact**:
+- Expected: Significant reduction in zoom-out delay, especially with large background layers
+- No regression: All 2852 tests pass
+- Memory: Bounded by 10-entry cache limit; each entry holds TileStore references
+
+**Still Open**:
+- Visual testing recommended: zooming in/out at various magnification levels should feel smooth
+- Further optimizations possible (options 2-5 in analysis) if profiling shows further opportunity
