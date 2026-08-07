@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2883 tests, derived from the suite itself. Each line is a
+2893 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -3010,6 +3010,20 @@ regression even when every test still compiles.
 - AShorter List Is Handled Rather Than Indexed Past — `:116`
 - Under Three Points Behaves Like Densify — `:137`
 - An Append Costs AFraction Of Re Densifying — `:199`
+
+## LedgerGateTests _Category=Performance_
+`tests/Lightbox.Core.Tests/LedgerGateTests.cs`
+
+- Two Bugs With The Same Id Fail The Gate — `:122`
+- Two Questions With The Same Id Fail The Gate — `:133`
+- AMerge That Keeps Only One Side Of ALedger Conflict Fails The Gate — `:148`
+- ADeletion Can Be Allowed Deliberately — `:165`
+- The Ledgers In This Tree Pass Their Own Gate — `:182`
+- The Pre Push Hook Runs The Ledger Gate — `:190`
+- Ci Checks The Ledger Too — `:208`
+- The Committed Index Describes This Tree — `:251`
+- Ci Verifies The Committed Index — `:259`
+- The Index Carries No Commit Stamp So It Is Reproducible — `:278`
 
 ## NormalMapTests
 `tests/Lightbox.Core.Tests/NormalMapTests.cs`
