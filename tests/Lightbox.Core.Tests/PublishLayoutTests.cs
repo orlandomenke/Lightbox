@@ -113,6 +113,25 @@ public class PublishLayoutTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void CrashReportsCanNameTheLineTheyCameFrom()
+    {
+        // The bundle shipped with DebugType=none, so a crash report named methods
+        // and nothing else — half of what makes one actionable. `embedded` puts
+        // the debug information inside the assembly rather than in a .pdb beside
+        // it, which is what lets it survive single-file publishing without adding
+        // a file to a root that is deliberately four. Measured: +0.4 MB on the
+        // executable, nothing once zipped.
+        var directives = WorkflowDirectives();
+        Assert.Contains("-p:DebugType=embedded", directives);
+
+        // `portable` would also give line numbers and would drop loose .pdb files
+        // into the bundle root, undoing B116. Named so the cheaper-looking option
+        // is refused on purpose rather than by luck.
+        Assert.DoesNotContain("-p:DebugType=none", directives);
+        Assert.DoesNotContain("-p:DebugType=portable", directives);
+    }
+
+    [Fact]
     public void TheServerPublishesIntoItsOwnFolderAndTheAppDoesNot()
     {
         var directives = WorkflowDirectives();

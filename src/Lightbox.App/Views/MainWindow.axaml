@@ -350,6 +350,36 @@
         <MenuItem Header="Show a console while drawing" ToggleType="CheckBox"
                   IsChecked="{Binding ShowDiagnosticsConsole, Mode=TwoWay}"
                   ToolTip.Tip="Opens a console window at the next start, carrying the diagnostic traces" />
+        <!--
+          Absent unless diagnostics are on, the same way the Project menu items
+          are absent without a project: an item you can click that then does
+          something nobody wanted is worse than one that is not there.
+
+          Bound to the same setting as the console, so turning diagnostics on
+          brings both. Unlike the console — which needs a restart, because one
+          opened mid-session has missed everything — this appears the moment the
+          box is ticked.
+        -->
+        <MenuItem Header="Trigger a test failure" IsVisible="{Binding ShowDiagnosticsConsole}"
+                  ToolTip.Tip="Deliberate failures, so the crash report and the console can be seen working">
+          <!--
+            The Tag is the scenario's key, and CrashScenarios owns what each one
+            does. Spelled out here rather than generated from the list because
+            every other menu in this file is spelled out, and a menu that builds
+            itself is harder to read than the seven lines it saves. A test holds
+            the two sides together.
+          -->
+          <MenuItem Header="A failure the app survives" Tag="survivable" Click="OnRunCrashScenario" />
+          <MenuItem Header="Write a line to the console" Tag="console" Click="OnRunCrashScenario" />
+          <MenuItem Header="A background task nobody waited for" Tag="unobserved-task" Click="OnRunCrashScenario" />
+          <Separator />
+          <MenuItem Header="Crash on the drawing thread" Tag="ui-thread" Click="OnRunCrashScenario" />
+          <MenuItem Header="Crash on a background thread" Tag="background-thread" Click="OnRunCrashScenario" />
+          <MenuItem Header="Crash with a cause underneath" Tag="inner-exception" Click="OnRunCrashScenario" />
+          <Separator />
+          <MenuItem Header="Kill the process outright" Tag="hard-kill" Click="OnRunCrashScenario" />
+        </MenuItem>
+
         <Separator />
         <MenuItem Header="{Binding BuildLabel}" Click="OnCopyBuildLabel"
                   ToolTip.Tip="Click to copy — a bug report is far more useful with the build in it" />

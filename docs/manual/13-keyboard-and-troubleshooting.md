@@ -112,6 +112,15 @@ fact. It is off, it stays off until you turn it on, and it takes effect the
 restart, and make the problem happen again while you watch. Turn it off the
 same way.
 
+**Help → Trigger a test failure** appears alongside the console switch, and only
+while it is on. It holds a short list of deliberate failures — one the app
+survives, one that only writes to the console, and several that end it on
+purpose — so you can confirm the crash report, the dialog and the console
+actually work on your machine rather than hoping they will the day you need
+them. Each entry says what it proves, and the ones that end Lightbox ask first
+when the drawing has unsaved edits. Turning the console switch off takes the
+whole list away again.
+
 **Help → Lightbox 1.0.0+…** is the exact build you are running, and clicking it
 copies that text. It is worth putting in any bug report: "the newest build" is
 several different programs in a week, and the part after the `+` says precisely
