@@ -1133,7 +1133,7 @@ test reopens the bug.
   - Fix: relay `ProjectViewModel.PropertyChanged` for `HasProject` directly.
   - Reported from a build. Cost: S
 
-- [x] **B130** `P3` `ui` The density scale describes sizes no control in the application has `evidence: DensityScaleTests, TheScaleTheDocDescribesIsTheScaleTheCodeApplies, NoViewRedeclaresASizeTheScaleOwns, TheOverlayTileAgreesWithTheScale`
+- [x] **B131** `P3` `ui` The density scale describes sizes no control in the application has `evidence: DensityScaleTests, TheScaleTheDocDescribesIsTheScaleTheCodeApplies, NoViewRedeclaresASizeTheScaleOwns, TheOverlayTileAgreesWithTheScale`
   - Repro: read `DESIGN.md` for a tool button's height and you are told 30. Measure one and it is 34. Same for the icon tile: documented 24, rendered 26. Same for text buttons: documented `MinWidth 64`, applied 70. Same for icon padding: documented `4,2`, applied `0`.
   - Cause: **four sources for one number, and the least discoverable one wins.** `DESIGN.md`'s table, `Density.axaml`, per-view `<Style>` blocks in `MainWindow.axaml`, and two constants in C#. Avalonia resolves competing styles by *order*, and a window's own styles are applied after the application's — so a view could restate a class the scale owned and silently beat it, in that window only.
   - Two more numbers were reachable from nowhere at all: the tool options bar's height was an inline attribute on the control (`MainWindow.axaml:531`), and the tab strip had two competing minimums, 22 on the item and 20 on the strip.
