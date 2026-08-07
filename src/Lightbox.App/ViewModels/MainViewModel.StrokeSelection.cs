@@ -134,11 +134,27 @@ public partial class MainViewModel
         OnStrokeSelectionChanged();
     }
 
+    /// <summary>
+    /// The outlines of what is selected, for the canvas to trace.
+    /// </summary>
+    /// <remarks>
+    /// Raised on a selection change rather than polled, so the canvas repaints
+    /// once per change and never per pointer move. A fill is closed — it is a
+    /// contour and its last point joins its first — and everything else is open.
+    /// </remarks>
+    public event Action<IReadOnlyList<(IReadOnlyList<StrokePoint> Points, bool Closed)>?>? SelectedLinesChanged;
+
     private void OnStrokeSelectionChanged()
     {
         OnPropertyChanged(nameof(SelectedStrokes));
         OnPropertyChanged(nameof(StrokeSelectionSummary));
         OnPropertyChanged(nameof(HasStrokeSelection));
+
+        var selected = SelectedStrokes;
+        SelectedLinesChanged?.Invoke(selected.Count == 0
+            ? null
+            : [.. selected.Select(s =>
+                ((IReadOnlyList<StrokePoint>)s.Points, s.Tool == ToolKind.Fill))]);
     }
 
     /// <summary>Whether any line is selected — for enabling the actions that need one.</summary>

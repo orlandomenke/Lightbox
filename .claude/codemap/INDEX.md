@@ -1,6 +1,6 @@
 # Code index
 
-536 files · 140651 lines · 2809 tests.
+536 files · 141075 lines · 2817 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,14 +47,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10649 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4508, TransformParts:7177
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4426 ln) · 20 test files
-  - MainWindow:19, UnsavedChoice:2868
-- `src/Lightbox.App/Views/MainWindow.axaml` (3595 ln) · **no tests**
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10658 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4512, TransformParts:7186
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4437 ln) · 20 test files
+  - MainWindow:19, UnsavedChoice:2879
+- `src/Lightbox.App/Rendering/CanvasControl.cs` (3669 ln) · 13 test files
+  - CanvasControl:28, CanvasToolMode:844, GridGesture:901, TxDrag:1084, DrawOp:2938
+- `src/Lightbox.App/Views/MainWindow.axaml` (3615 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
-- `src/Lightbox.App/Rendering/CanvasControl.cs` (3522 ln) · 12 test files
-  - CanvasControl:28, CanvasToolMode:844, GridGesture:901, TxDrag:1048, DrawOp:2840
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
@@ -117,10 +117,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - NewDocumentSettings:20, WorkspaceChoice:32, DocumentTabKind:41, DocumentTab:60
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
+- `src/Lightbox.App/Services/ShortcutMap.cs` (244 ln) · 7 test files
+  - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
-- `src/Lightbox.App/Services/ShortcutMap.cs` (239 ln) · 7 test files
-  - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
 - `src/Lightbox.App/Styles/Density.axaml` (233 ln) · **no tests**
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (231 ln) · 2 test files
   - FrameBitmapCache:13, EvictionOrder:56
@@ -150,12 +150,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GuidePainter:27
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 3 test files
   - CanvasOverlayBar:28
+- `src/Lightbox.App/ViewModels/MainViewModel.StrokeSelection.cs` (176 ln) · **no tests**
+  - MainViewModel:26
 - `src/Lightbox.App/Styles/ColorPicker.axaml` (174 ln) · **no tests**
   - PART_Clear, PART_Swatch
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln) · **no tests**
   - ColorField:29
-- `src/Lightbox.App/ViewModels/MainViewModel.StrokeSelection.cs` (160 ln) · **no tests**
-  - MainViewModel:26
+- `src/Lightbox.App/ViewModels/Tools.cs` (166 ln) · 23 test files
+  - ToolId:4, CanvasQuality:75, TransformScope:88, TransformSampling:114, SelectVariant:127, HoldDrawing:146
 - `src/Lightbox.App/Docking/DockZones.cs` (159 ln) · 1 test files
   - DockZones:44
 - `src/Lightbox.App/Rendering/RigOverlayPainter.cs` (152 ln) · 1 test files
@@ -174,8 +176,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipStore:32, State:45
 - `src/Lightbox.App/Services/CrashScenarios.cs` (138 ln) · 1 test files
   - CrashWarning:4, CrashScenario:17, CrashScenarios:47
-- `src/Lightbox.App/ViewModels/Tools.cs` (137 ln) · 22 test files
-  - ToolId:4, CanvasQuality:46, TransformScope:59, TransformSampling:85, SelectVariant:98, HoldDrawing:117
 - `src/Lightbox.App/Controls/DockStrip.cs` (132 ln) · 1 test files
   - DockStrip:24
 - `src/Lightbox.App/Services/RecentItems.cs` (132 ln) · 2 test files
@@ -256,7 +256,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ThumbnailRenderer:7
 - `src/Lightbox.App/Input/StrokeBuilder.cs` (58 ln) · 4 indirect only
   - StrokeBuilder:10
-- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (56 ln) · 20 test files
+- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (56 ln) · 21 test files
   - RenderSnapshot:24
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 20 indirect only
   - SaveFirstChoice:7, SaveFirstDialog:32

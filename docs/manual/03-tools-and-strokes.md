@@ -4,10 +4,46 @@
 ## Tools
 
 Down the left: **Brush** (B), **Eraser** (E), **Fill**, **Picker**,
-**Gradient**, **Select** (S). Press Select again to cycle its variants, or hold
-it for the list: Freehand, Polygon, Box, Circle, Magic wand.
+**Gradient**, **Arrow** (A), **Select** (S). Press Select again to cycle its
+variants, or hold it for the list: Freehand, Polygon, Box, Circle, Magic wand.
 
 Hold **Ctrl** at any time to pick a colour off the canvas without changing tool.
+
+### Arrow and Select are not the same tool
+
+They sound alike and they do different things, so it is worth one paragraph.
+
+| | |
+| --- | --- |
+| **Select** (S) | Picks an **area**. Draw a shape round part of the drawing and what you paint afterwards is confined to it. What you have selected is a region, not any particular mark. |
+| **Arrow** (A) | Picks a **thing**. Click a line and you have got that line — the entire stroke you drew in one go, however far it runs. It also picks guides, placed symbols and rig anchors. |
+
+Click to take something; **Shift**-click to add another, and Shift-click one you
+already have to put it back. Click empty canvas to let go of everything — though
+a Shift-click that misses leaves your selection alone, because you are part-way
+through building one. **What you have picked is traced in cyan**, so it is
+always clear which line you got.
+
+It picks what you can see. Where two lines cross you get the one on top, and an
+eraser stroke never steals a click from ink that is visible underneath it —
+though an eraser on its own is selectable, so a stray one can still be removed.
+Clicking inside a filled shape picks the fill; clicking in a hole in that shape
+does not, because the hole is not part of it. A gradient is picked by the line
+you dragged to make it, not by everywhere it reaches.
+
+**Guides and symbols win over lines** where they overlap. The drawing is the
+thing that is everywhere, so if it won, a guide crossing a line would be
+unclickable wherever you had drawn.
+
+Moving to another layer lets go of what you had picked, because it is not there
+any more. Stepping along a **hold** does not — the same drawing is still on
+screen.
+
+If the layer is locked it says so rather than doing nothing — but only when you
+actually click a line on it, not every time you click past one.
+
+*Planned:* moving, scaling, recolouring and deleting what you have picked, and
+dragging a box round several lines at once.
 
 ## What a stroke is
 

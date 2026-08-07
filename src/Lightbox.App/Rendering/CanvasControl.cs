@@ -996,6 +996,42 @@ public sealed class CanvasControl : Control
     public event Action<double, double, bool>? GradientDragEnded;
 
     /// <summary>
+    /// The black arrow pressed at a point: <c>(x, y, tolerance, shift, alt)</c>,
+    /// answering whether a line was actually there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A delegate rather than an event because the canvas needs the answer back.
+    /// Same shape as <c>_getPlacementsForSelection</c>, which asks the view model
+    /// a question for the same reason.
+    /// </para>
+    /// <para>
+    /// The tolerance travels with the call because only the canvas knows the
+    /// zoom and only the view model knows the strokes. A fixed document-space
+    /// number would make a thin line unhittable zoomed out and grab the wrong
+    /// one zoomed in.
+    /// </para>
+    /// </remarks>
+    private Func<double, double, double, bool, bool, bool>? _pickLine;
+
+    /// <summary>Hand the canvas the question it asks on a black-arrow press.</summary>
+    public void SetLinePicker(Func<double, double, double, bool, bool, bool>? pick) =>
+        _pickLine = pick;
+
+    /// <summary>
+    /// How near a click has to land, in screen pixels, before it counts.
+    /// </summary>
+    /// <remarks>
+    /// The same 10 the transform gizmo's handles use. One number for "close
+    /// enough to have meant it" rather than two that drift apart.
+    /// </remarks>
+    private const double GrabPixels = 10.0;
+
+    /// <summary>Screen pixels as document units at the current zoom.</summary>
+    private double DocTolerance(double screenPixels) =>
+        screenPixels / Math.Max(0.01, FitScale() * _zoom);
+
+    /// <summary>
     /// A shape drag. The modifiers travel with the move and the end because
     /// they are read live — Shift held halfway through a rectangle squares it
     /// there and then, which is the only behaviour anybody expects.
@@ -1594,7 +1630,7 @@ public sealed class CanvasControl : Control
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
-            _selectionManager, _getPlacementsForSelection));
+            _selectionManager, _getPlacementsForSelection, _selectedLines));
     }
 
     /// <summary>
@@ -2245,6 +2281,14 @@ public sealed class CanvasControl : Control
                             e.Handled = true;
                             return;
                         }
+
+                        // Artwork last, and the order is the point: placements,
+                        // guides, reference boxes, anchors and collision shapes
+                        // are all chrome sitting *on top of* the drawing. A
+                        // guide crossing a line has to win, or the guide becomes
+                        // unclickable wherever an artist has drawn — and the
+                        // drawing is the thing that is everywhere.
+                        _pickLine?.Invoke(x, y, DocTolerance(GrabPixels), shift, alt);
                     }
                     e.Handled = true;
                     return;
@@ -2785,6 +2829,60 @@ public sealed class CanvasControl : Control
     private readonly record struct LazyGizmo(
         float AnchorX, float AnchorY, float CursorX, float CursorY, float Radius, float BrushRadius);
 
+    /// <summary>
+    /// One selected line, traced so the artist can see which line they picked.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A snapshot in document space, not a live view of the stroke.</b> The
+    /// same rule as <see cref="ReferenceBox"/> and for the same reason: the
+    /// render runs off the UI thread, so anything it reads has to be immutable
+    /// by the time it gets there.
+    /// </para>
+    /// <para>
+    /// <b>The line itself rather than a box round it.</b> A bounding box round a
+    /// long diagonal covers half the frame and says almost nothing; tracing the
+    /// path says <i>that</i> line. The box arrives with the transform handles,
+    /// where it is the thing you grab rather than decoration.
+    /// </para>
+    /// </remarks>
+    private readonly record struct SelectedLine(SKPoint[] Points, bool Closed);
+
+    private IReadOnlyList<SelectedLine>? _selectedLines;
+
+    /// <summary>
+    /// Hand the canvas the outlines of whatever is selected, or null for none.
+    /// </summary>
+    /// <remarks>
+    /// Called when the selection changes — user-paced — never per pointer move.
+    /// Rebuilding these on a move would be work proportional to the drawing in a
+    /// move handler, which is what invariant 6 exists to forbid.
+    /// </remarks>
+    public void SetSelectedLines(IReadOnlyList<(IReadOnlyList<Core.Documents.StrokePoint> Points, bool Closed)>? lines)
+    {
+        if (lines is null || lines.Count == 0)
+        {
+            if (_selectedLines is null) return;
+            _selectedLines = null;
+            InvalidateVisual();
+            return;
+        }
+
+        var built = new List<SelectedLine>(lines.Count);
+        foreach (var (points, closed) in lines)
+        {
+            if (points.Count < 2) continue;
+            var pts = new SKPoint[points.Count];
+            for (var i = 0; i < points.Count; i++)
+            {
+                pts[i] = new SKPoint((float)points[i].X, (float)points[i].Y);
+            }
+            built.Add(new SelectedLine(pts, closed));
+        }
+        _selectedLines = built;
+        InvalidateVisual();
+    }
+
     /// <summary>Transform gizmo, all in document space: the transformed quad, pivot, and mode.</summary>
     private readonly record struct TxGizmoData(
         SKPoint C0, SKPoint C1, SKPoint C2, SKPoint C3, SKPoint Pivot, bool Perspective);
@@ -2849,7 +2947,8 @@ public sealed class CanvasControl : Control
         GuideLine? draftGuide = null,
         IReadOnlyList<RigMark>? rigMarks = null,
         ViewModels.SelectionManager? selectionManager = null,
-        Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? getPlacementsForSelection = null) : ICustomDrawOperation
+        Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? getPlacementsForSelection = null,
+        IReadOnlyList<SelectedLine>? selectedLines = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -3042,8 +3141,56 @@ public sealed class CanvasControl : Control
             if (newBox is { } drawing) canvas.DrawRect(drawing, chosen);
         }
 
+        /// <summary>
+        /// Trace every selected line, so the artist can see which they picked.
+        /// </summary>
+        /// <remarks>
+        /// Two passes: a wide translucent halo under a thin opaque core. One
+        /// stroke alone disappears against art of a similar colour — a black
+        /// line highlighted in cyan on a cyan drawing is not highlighted — and
+        /// the halo is what makes it read on anything. Both widths are divided
+        /// by the zoom, so the marker stays the same thickness on screen at any
+        /// magnification, like every other piece of chrome here.
+        /// </remarks>
+        private void DrawSelectedLines(SKCanvas canvas)
+        {
+            if (selectedLines is null || selectedLines.Count == 0) return;
+
+            var scale = Math.Max(0.01f, view.Scale);
+            using var halo = new SKPaint
+            {
+                Color = SKColors.Cyan.WithAlpha(70),
+                StrokeWidth = 6f / scale,
+                Style = SKPaintStyle.Stroke,
+                StrokeCap = SKStrokeCap.Round,
+                StrokeJoin = SKStrokeJoin.Round,
+                IsAntialias = true,
+            };
+            using var core = new SKPaint
+            {
+                Color = SKColors.Cyan,
+                StrokeWidth = 1.5f / scale,
+                Style = SKPaintStyle.Stroke,
+                StrokeCap = SKStrokeCap.Round,
+                StrokeJoin = SKStrokeJoin.Round,
+                IsAntialias = true,
+            };
+
+            foreach (var line in selectedLines)
+            {
+                if (line.Points.Length < 2) continue;
+                using var path = new SKPath();
+                path.MoveTo(line.Points[0]);
+                for (var i = 1; i < line.Points.Length; i++) path.LineTo(line.Points[i]);
+                if (line.Closed) path.Close();
+                canvas.DrawPath(path, halo);
+                canvas.DrawPath(path, core);
+            }
+        }
+
         private void DrawObjectSelections(SKCanvas canvas)
         {
+            DrawSelectedLines(canvas);
             if (selectionManager is null || !selectionManager.HasSelection) return;
 
             var scale = view.Scale;

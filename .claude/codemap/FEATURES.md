@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2809 tests, derived from the suite itself. Each line is a
+2817 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2015,9 +2015,17 @@ regression even when every test still compiles.
 - AMarquee Over Nothing Lets Go — `:144`
 - Deleting An Earlier Line Does Not Repoint The Selection — `:161`
 - ALine That Is Gone Is Dropped From The Selection — `:183`
-- ALocked Layer Refuses And Says Why — `:203`
-- ALocked Layer Is Quiet When You Click Nothing — `:218`
-- Picking On An Empty Layer Creates Nothing — `:233`
+- Moving To Another Layer Lets Go Of The Selection — `:213`
+- AHeld Cel Keeps The Selection — `:230`
+- ALocked Layer Refuses And Says Why — `:248`
+- ALocked Layer Is Quiet When You Click Nothing — `:263`
+- Picking On An Empty Layer Creates Nothing — `:278`
+- Picking ALine Publishes Its Outline — `:313`
+- Letting Go Takes The Outline Away — `:334`
+- AFills Outline Is Closed — `:354`
+- The Canvas Takes The Outlines It Is Handed — `:379`
+- The Arrow Tool Is Reachable And Bindable — `:400`
+- The Arrow Tool Has ABindable Shortcut — `:421`
 
 ## SubjectReadingWiringTests
 `tests/Lightbox.App.Tests/SubjectReadingWiringTests.cs`

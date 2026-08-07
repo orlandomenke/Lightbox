@@ -1431,6 +1431,18 @@
         </StackPanel>
 
         <!-- Fill options -->
+        <!-- The arrow. Nothing to configure yet: what it has to say is what is
+             selected, and the actions that need a selection arrive with V3. An
+             empty bar would still be right to register now, because a tool with
+             no options panel is a tool the bar has never heard of. -->
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsArrowTool}">
+          <TextBlock Text="{Binding StrokeSelectionSummary}" VerticalAlignment="Center"
+                     ToolTip.Tip="Click a line to select it, Shift to add. Click empty canvas to let go." />
+          <TextBlock Text="Click a line, a guide or a symbol to select it."
+                     VerticalAlignment="Center" Opacity="0.6"
+                     IsVisible="{Binding !HasStrokeSelection}" />
+        </StackPanel>
+
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsFillTool}">
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Tolerance" VerticalAlignment="Center" />
@@ -1712,6 +1724,14 @@
                 <StackPanel Orientation="Horizontal" Spacing="6">
                   <TextBlock Text="✥" FontSize="15" />
                   <TextBlock Text="Move" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsArrowTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Arrow}"
+                            ToolTip.Tip="Arrow (A) — click to select a whole line, a guide, a placed symbol or a rig anchor. Shift adds. Selects things, not areas of pixels.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="➤" FontSize="15" />
+                  <TextBlock Text="Arrow" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
               <ToggleButton x:Name="SelectToolButton" Classes="tool" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
