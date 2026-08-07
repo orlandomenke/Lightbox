@@ -1,6 +1,6 @@
 # Code index
 
-540 files · 141931 lines · 2826 tests.
+541 files · 142172 lines · 2828 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -103,9 +103,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 110 test files
   - MainViewModel:32
+- `src/Lightbox.App/Styles/Controls.axaml` (284 ln) · **no tests**
 - `src/Lightbox.App/Services/GodotExporter.cs` (283 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
-- `src/Lightbox.App/Styles/Controls.axaml` (273 ln) · **no tests**
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
   - CurveEditor:29
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 3 test files
@@ -124,6 +124,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
 - `src/Lightbox.App/Services/ShortcutMap.cs` (239 ln) · 7 test files
   - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
+- `src/Lightbox.App/App.axaml` (233 ln) · **no tests**
+  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Styles/Density.axaml` (233 ln) · **no tests**
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (231 ln) · 2 test files
   - FrameBitmapCache:13, EvictionOrder:56
@@ -137,8 +139,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Docker:16
 - `src/Lightbox.App/Views/BrushLibraryWindow.axaml.cs` (217 ln) · 1 test files
   - BrushLibraryWindow:34
-- `src/Lightbox.App/App.axaml` (210 ln) · **no tests**
-  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
+- `src/Lightbox.App/Styles/Palette.axaml` (212 ln) · **no tests**
 - `src/Lightbox.App/Services/AppSettings.cs` (208 ln) · 5 test files
   - AppSettings:16
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml` (205 ln) · **no tests**
@@ -153,7 +154,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockZones:67
 - `src/Lightbox.App/Controls/OverflowBar.cs` (178 ln) · 2 test files
   - OverflowBar:25
-- `src/Lightbox.App/Styles/Palette.axaml` (178 ln) · **no tests**
 - `src/Lightbox.App/Rendering/GuidePainter.cs` (177 ln) · 1 test files
   - GuidePainter:27
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 3 test files
@@ -242,6 +242,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - OnionMode:4, OnionSettings:28
 - `src/Lightbox.App/Rendering/RenderSnapshot.cs` (76 ln) · 20 test files
   - RenderSnapshot:24
+- `src/Lightbox.App/Styles/Theme.axaml` (76 ln) · **no tests**
 - `src/Lightbox.App/Views/NewDocumentPanel.axaml` (75 ln) · **no tests**
   - BackgroundBox, FpsBox, HeightBox, NameBox, PpiBox, PresetBox, TransparentBox, TypeBox …
 - `src/Lightbox.App/ViewModels/DocumentScopedState.cs` (73 ln) · 1 test files
