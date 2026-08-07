@@ -119,9 +119,96 @@ public sealed class DocumentRef
     /// </remarks>
     public int Version { get; set; } = 1;
 
+    /// <summary>
+    /// Tags an artist put on this document, or null when nobody has.
+    /// </summary>
+    /// <remarks>
+    /// <b>The same shape <see cref="ProjectFolder.Tags"/> already has</b>, and
+    /// it had nowhere to go on a document until the project window needed it —
+    /// tagging is half of what that window is for.
+    /// <para>
+    /// <b>Free strings, and the vocabulary is derived.</b> Every tag in use
+    /// anywhere in the project is the offered list; typing a new one adds it by
+    /// using it. A declared vocabulary is a registry somebody maintains and a
+    /// wall in front of the first word that is not in it.
+    /// </para>
+    /// </remarks>
+    public List<string>? Tags { get; set; }
+
+    /// <summary>
+    /// Resources declared on this document itself — the narrowest scope.
+    /// </summary>
+    /// <remarks>
+    /// <b>The tier <see cref="ResourceScopes"/> always described and never
+    /// had.</b> Its own comment says the chain is four deep — user library →
+    /// project → folder path → document — and only the middle two existed, so
+    /// "this one drawing paints from that palette" had no target.
+    /// <para>
+    /// Nullable and absent until something is declared, and nearest already
+    /// wins, so a document's own palette beating its folder's needs no new rule.
+    /// </para>
+    /// </remarks>
+    public List<ScopedResource>? Resources { get; set; }
+
+    /// <summary>
+    /// Who is working on this, by <see cref="Person.Id"/>, or null when nobody
+    /// has said.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q43.</b> An id into <see cref="ProjectManifest.People"/> rather than a
+    /// typed name, and the reason is the feature's own purpose: this is the
+    /// surface that replaces a spreadsheet, and two spellings of one person is
+    /// exactly the spreadsheet problem. Grouping by assignee has to be exact to
+    /// be worth having.
+    /// <para>
+    /// It can name somebody who has been deleted. That is the shape the palette
+    /// path already has and it takes the same answer — the id stays, resolution
+    /// returns null, and removing a person says how many documents name them
+    /// before it happens.
+    /// </para>
+    /// </remarks>
+    public string? AssigneeId { get; set; }
+
     /// <summary>Whether anybody has set a status on this document.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasStatus => Status is not null;
+}
+
+/// <summary>
+/// Somebody working on the project.
+/// </summary>
+/// <remarks>
+/// <b>Q43 for the record, Q45 for the boundary — and the boundary matters
+/// more.</b> A name and an id. <b>It never gains a role and never gains
+/// rights</b>, and that is a decision rather than an omission: the manifest is
+/// plain JSON on disk, so a permission here is one a text editor defeats. A
+/// permission that cannot be enforced is a UI that lies about what it enforces.
+/// <para>
+/// It is not the first half of an accounts system either — no auth, no sync, no
+/// identity. Sharing is the project file over git or a drive; a tracker adapter
+/// is the seam if a studio needs one, and it needs no new model because
+/// documents already have stable ids. If Lightbox ever grows real accounts, this
+/// is what one replaces.
+/// </para>
+/// <para>
+/// The point of the id is that a rename fixes every row rather than none — which
+/// is the whole reason a registry won over a typed name.
+/// </para>
+/// </remarks>
+public sealed class Person
+{
+    public string Id { get; set; } = Ids.NewId("person");
+
+    public string Name { get; set; } = "";
+
+    /// <summary>
+    /// A colour for their rows and chips, or null to let the surface pick one.
+    /// </summary>
+    /// <remarks>
+    /// Nullable so a project that never chose one writes no key, and so a
+    /// surface that wants to derive a colour from the name may.
+    /// </remarks>
+    public string? Color { get; set; }
 }
 
 
@@ -257,6 +344,16 @@ public sealed class ProjectManifest
     /// produced it — a scope makes one deliverable, so the scope names it.
     /// </remarks>
     public Dictionary<string, ExportRecord>? ExportRecords { get; set; }
+
+    /// <summary>
+    /// The people working on this project, once somebody has been added.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q43.</b> Null and absent until the first person, so a project one
+    /// artist works on alone carries no people key — the ordinary state, and the
+    /// one where a registry would be pure overhead.
+    /// </remarks>
+    public List<Person>? People { get; set; }
 
     public Documents.BrushSettings? Brush { get; set; }
 

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2707 tests, derived from the suite itself. Each line is a
+2724 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2884,6 +2884,27 @@ regression even when every test still compiles.
 - ACycle In The File Is Broken Rather Than Looped Over — `:182`
 - ADocument With No Folders Writes No Folder Keys — `:201`
 - The Hierarchy Survives ASave And AReload — `:214`
+
+## ProjectBoardTests
+`tests/Lightbox.Core.Tests/ProjectBoardTests.cs`
+
+- ADocument Nobody Tagged Or Assigned Writes Neither Key — `:33`
+- Tagging And Untagging Leaves Nothing Behind — `:49`
+- The Vocabulary Is Every Tag In Use — `:65`
+- The Same Tag In Two Cases Is One Tag — `:79`
+- ATag On AFolder Reaches Every Document Under It — `:93`
+- ALoose Document Sees Only Its Own Tags — `:114`
+- Adding The Same Person Twice Is One Person — `:127`
+- Renaming APerson Fixes Every Row At Once — `:140`
+- Removing Somebody Says How Many Documents Named Them — `:157`
+- APerson Carries No Role And No Rights — `:179`
+- The Summary Counts What Is True Rather Than The Whole Enum — `:192`
+- Nobody Has Said Is Its Own Column Rather Than Design — `:214`
+- The Chain Is Four Deep And Nearest Wins — `:229`
+- AProject Overrides The Artists Own Default — `:247`
+- With No User Library The Chain Is Exactly What It Always Was — `:259`
+- ADocument Declaration Writes No Reach Key — `:271`
+- Nothing Here Needs The Document Open — `:287`
 
 ## ProjectFolderTests
 `tests/Lightbox.Core.Tests/ProjectFolderTests.cs`

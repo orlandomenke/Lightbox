@@ -1,6 +1,6 @@
 # Code index
 
-520 files · 134663 lines · 2707 tests.
+522 files · 135422 lines · 2724 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -291,16 +291,18 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.Core/Projects/ProjectIo.cs` (997 ln) · 28 test files
   - ProjectIo:31, ConversionReport:519
+- `src/Lightbox.Core/Projects/ResourceScopes.cs` (728 ln) · 13 test files
+  - ResourceReach:12, ScopedResource:47, ResourceScopes:110, PaletteScopes:396, ReferenceTargets:439, ReferenceScopes:476, GradientScopes:544, TemplateScopes:579 …
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (669 ln) · 9 test files
   - DocumentEditor:14, IEditStep:141, SnapshotStep:154, DeltaStep:173
-- `src/Lightbox.Core/Projects/ResourceScopes.cs` (634 ln) · 12 test files
-  - ResourceReach:12, ScopedResource:47, ResourceScopes:110, PaletteScopes:302, ReferenceTargets:345, ReferenceScopes:382, GradientScopes:450, TemplateScopes:485 …
-- `src/Lightbox.Core/Projects/ProjectFolders.cs` (604 ln) · 28 test files
+- `src/Lightbox.Core/Projects/ProjectFolders.cs` (604 ln) · 29 test files
   - ProjectFolder:25, ProjectFolders:189
 - `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 85 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
+- `src/Lightbox.Core/Projects/ProjectManifest.cs` (373 ln) · 27 test files
+  - ProjectType:11, DocumentRef:29, Person:198, ProjectManifest:219
 - `src/Lightbox.Core/Projects/ExportPreset.cs` (352 ln) · 12 test files
   - SpriteTrim:7, SpritePack:32, ExportGrouping:59, ExportTarget:75, ExportPreset:146
 - `src/Lightbox.Core/Projects/Templates.cs` (333 ln) · 3 test files
@@ -311,8 +313,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GeometryOps:5
 - `src/Lightbox.Core/Documents/ResponseCurve.cs` (294 ln) · 5 test files
   - BrushDynamic:22, ResponseCurve:70, PressureResponse:230
-- `src/Lightbox.Core/Projects/ProjectManifest.cs` (276 ln) · 26 test files
-  - ProjectType:11, DocumentRef:29, ProjectManifest:132
+- `src/Lightbox.Core/Projects/ProjectBoard.cs` (266 ln) · 1 test files
+  - ProjectBoard:22
 - `src/Lightbox.Core/Export/NormalMapGenerator.cs` (244 ln) · 2 test files
   - NormalGreen:18, NormalMapOptions:40, NormalMapGenerator:75
 - `src/Lightbox.Core/Documents/MediumSettings.cs` (242 ln) · 18 test files
@@ -343,7 +345,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PaletteFolder:20, PaletteTree:40
 - `src/Lightbox.Core/Projects/CharacterLibrary.cs` (178 ln) · 1 test files
   - LibraryEntry:12, CharacterLibrary:44
-- `src/Lightbox.Core/Documents/Doc.cs` (177 ln) · 39 test files
+- `src/Lightbox.Core/Documents/Doc.cs` (177 ln) · 40 test files
   - Doc:8, ClipRegion:171
 - `src/Lightbox.Core/Documents/BrushTip.cs` (169 ln) · 5 test files
   - TipShape:4, TipRecipe:70, BrushTip:138
@@ -375,7 +377,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TileGrid:33
 - `src/Lightbox.Core/Timeline/ExposureSheet.cs` (125 ln) · 4 test files
   - ExposureSheet:8
-- `src/Lightbox.Core/Projects/Project.cs` (116 ln) · 10 test files
+- `src/Lightbox.Core/Projects/Project.cs` (116 ln) · 11 test files
   - Project:15
 - `src/Lightbox.Core/Documents/Guide.cs` (114 ln) · 5 test files
   - GuideKind:4, Guide:60
@@ -407,7 +409,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameRole:8, Frame:19, VectorFrame:57, PaintedFrame:70
 - `src/Lightbox.Core/Export/GodotConvert.cs` (91 ln) · 2 test files
   - GodotConvert:24
-- `src/Lightbox.Core/Projects/AssetStatus.cs` (91 ln) · 7 test files
+- `src/Lightbox.Core/Projects/AssetStatus.cs` (91 ln) · 8 test files
   - AssetStatus:30, AssetStatuses:49
 - `src/Lightbox.Core/Timeline/OnionSkin.cs` (88 ln) · 1 test files
   - OnionSkin:27
@@ -419,7 +421,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushScope:8, BrushScopeDefaults:47
 - `src/Lightbox.Core/Projects/FeatureConflict.cs` (78 ln) · 2 test files
   - FeatureConflict:19, FeatureConflicts:40
-- `src/Lightbox.Core/Serialization/DocJson.cs` (77 ln) · 32 test files
+- `src/Lightbox.Core/Serialization/DocJson.cs` (77 ln) · 33 test files
   - DocJson:11
 - `src/Lightbox.Core/Versioning/VersionEntry.cs` (77 ln) · 1 test files
   - VersionEntry:10
