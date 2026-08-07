@@ -27,9 +27,15 @@ public class ContextShortcutTests
         Assert.Equal("tool.brush", map.IdFor(b, ShortcutContext.Canvas));
         Assert.Equal("tool.brush", map.IdFor(b, ShortcutContext.Timeline));
 
+        // Delete is a context twin rather than a docker-only binding. It was the
+        // latter until the Arrow tool gained something to delete; this assertion
+        // used to read `Assert.Null(... Canvas)` and was correct at the time.
+        // Both halves are asserted so neither can quietly take the other's key.
         var delete = new KeyEventArgs { Key = Key.Delete, KeyModifiers = KeyModifiers.None };
         Assert.Equal("docker.deleteLayer", map.IdFor(delete, ShortcutContext.LayersDocker));
-        Assert.Null(map.IdFor(delete, ShortcutContext.Canvas)); // docker-only binding
+        Assert.Equal("lines.delete", map.IdFor(delete, ShortcutContext.Canvas));
+        // And neither is global, or it would fire over the other's area too.
+        Assert.Null(map.IdFor(delete, ShortcutContext.Timeline));
     }
 
     [Fact]
