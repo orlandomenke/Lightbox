@@ -1,6 +1,6 @@
 # Code index
 
-531 files · 139283 lines · 2780 tests.
+532 files · 139577 lines · 2784 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,7 +47,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10616 ln) · 4 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10649 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4508, TransformParts:7177
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4426 ln) · 20 test files
   - MainWindow:19, UnsavedChoice:2868
@@ -97,7 +97,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RampTrack:10, GradientRamp:41
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
-- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 109 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 110 test files
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (283 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
@@ -105,7 +105,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockPlacement:7, DockLayout:51
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
   - CurveEditor:29
-- `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 2 test files
+- `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 3 test files
   - ComposeRing:31, Buffer:33
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (256 ln) · 3 test files
   - Workspace:13, WorkspaceStore:51
@@ -254,7 +254,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ThumbnailRenderer:7
 - `src/Lightbox.App/Input/StrokeBuilder.cs` (58 ln) · 4 indirect only
   - StrokeBuilder:10
-- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (56 ln) · 19 test files
+- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (56 ln) · 20 test files
   - RenderSnapshot:24
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 20 indirect only
   - SaveFirstChoice:7, SaveFirstDialog:32
@@ -415,7 +415,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Inbetweener:19
 - `src/Lightbox.Core/Documents/BrushCost.cs` (92 ln) · 2 test files
   - BrushCost:7, BrushCostOf:57
-- `src/Lightbox.Core/Documents/Frame.cs` (92 ln) · 91 test files
+- `src/Lightbox.Core/Documents/Frame.cs` (92 ln) · 92 test files
   - FrameRole:8, Frame:19, VectorFrame:57, PaintedFrame:70
 - `src/Lightbox.Core/Export/GodotConvert.cs` (91 ln) · 2 test files
   - GodotConvert:24

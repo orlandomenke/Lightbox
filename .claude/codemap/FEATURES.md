@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2780 tests, derived from the suite itself. Each line is a
+2784 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2413,6 +2413,14 @@ regression even when every test still compiles.
 - ANew Document With No Project Open Changes Nothing — `:361`
 - Saving ADocument Outside The Project Takes It Out Of The Project — `:409`
 - Saving ADocument Into The Project Repaths Its Row — `:450`
+
+## ViewportCullingPerformanceTests
+`tests/Lightbox.App.Tests/ViewportCullingPerformanceTests.cs`
+
+- APointer Event In ACulled Viewport Repaints The Dab Not The Viewport — `:50`
+- Culling Does Not Enlarge The Clip AStroke Implies — `:99`
+- AWhole Canvas Publish Still Composes Only The Viewport — `:139`
+- An Incremental Publish After ACulled One Does Not Show The Previous Frame — `:191`
 
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
