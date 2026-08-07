@@ -1,6 +1,6 @@
 # Code index
 
-494 files · 130124 lines · 2598 tests.
+496 files · 130367 lines · 2601 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -59,7 +59,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectRow:20, ScopeMenuEntry:359, DeclarationRow:370, ProjectViewModel:397, PlannedArtifact:637, NewItemKind:1667
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
   - FrameImportChoice:12, MainViewModel:29
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (910 ln) · 99 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (910 ln) · 100 test files
   - SpriteSheetOptions:14, SpriteSheetResult:58, SpriteSheetExporter:122, SheetDocument:782, SheetFrame:788, SheetMeta:821, SheetTag:852, SheetEvent:866 …
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
@@ -285,7 +285,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocumentEditor:14, IEditStep:141, SnapshotStep:154, DeltaStep:173
 - `src/Lightbox.Core/Projects/ResourceScopes.cs` (615 ln) · 9 test files
   - ResourceReach:12, ScopedResource:47, ResourceScopes:110, PaletteScopes:283, ReferenceTargets:326, ReferenceScopes:363, GradientScopes:431, TemplateScopes:466 …
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 82 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 83 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
@@ -299,7 +299,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameMarker:4, TagDirection:66, AnimationTag:99, Scene:136
 - `src/Lightbox.Core/Projects/ProjectFolders.cs` (306 ln) · 15 test files
   - ProjectFolder:25, ProjectFolders:76
-- `src/Lightbox.Core/Geometry/GeometryOps.cs` (296 ln) · 5 test files
+- `src/Lightbox.Core/Geometry/GeometryOps.cs` (296 ln) · 6 test files
   - GeometryOps:5
 - `src/Lightbox.Core/Documents/ResponseCurve.cs` (294 ln) · 5 test files
   - BrushDynamic:22, ResponseCurve:70, PressureResponse:230
@@ -341,7 +341,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CollisionShapes:21
 - `src/Lightbox.Core/Projects/SymbolUsage.cs` (157 ln) · 1 test files
   - SymbolUse:9, SymbolUsage:12, SymbolGraph:46
-- `src/Lightbox.Core/Documents/Stroke.cs` (156 ln) · 96 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (156 ln) · 97 test files
   - Stroke:9, BakedSample:148
 - `src/Lightbox.Core/Projects/CharacterLibrary.cs` (153 ln) · 1 test files
   - LibraryEntry:7, CharacterLibrary:39
@@ -369,19 +369,23 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Project:15
 - `src/Lightbox.Core/Documents/Guide.cs` (114 ln) · 5 test files
   - GuideKind:4, Guide:60
+- `src/Lightbox.Core/Geometry/Assignment.cs` (114 ln) · 2 indirect only
+  - Assignment:26
 - `src/Lightbox.Core/Projects/ExportStaleness.cs` (114 ln) · 1 test files
   - ExportRecord:11, ExportStaleness:26, ExportTriggers:89
 - `src/Lightbox.Core/Documents/DocumentFactory.cs` (103 ln) · 42 test files
   - DocumentFactory:3
 - `src/Lightbox.Core/Documents/CollisionShape.cs` (101 ln) · 5 test files
   - ShapeRole:13, CollisionShape:67, ShapeBox:87
+- `src/Lightbox.Core/Inbetween/StrokeMatcher.cs` (101 ln) · 2 test files
+  - StrokePair:6, StrokeMatcher:36
 - `src/Lightbox.Core/Timeline/TimingPreset.cs` (101 ln) · 3 test files
   - TimingPreset:34
 - `src/Lightbox.Core/Serialization/FrameConverter.cs` (100 ln) · 1 test files
   - FrameConverter:14
 - `src/Lightbox.Core/Export/GameMakerConvert.cs` (95 ln) · 2 test files
   - GameMakerConvert:34
-- `src/Lightbox.Core/Inbetween/Inbetweener.cs` (94 ln) · 2 test files
+- `src/Lightbox.Core/Inbetween/Inbetweener.cs` (94 ln) · 3 test files
   - Inbetweener:19
 - `src/Lightbox.Core/Documents/BrushCost.cs` (92 ln) · 2 test files
   - BrushCost:7, BrushCostOf:57
@@ -403,8 +407,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocJson:11
 - `src/Lightbox.Core/Versioning/VersionEntry.cs` (77 ln) · 1 test files
   - VersionEntry:10
-- `src/Lightbox.Core/Inbetween/StrokeMatcher.cs` (73 ln) · 1 test files
-  - StrokePair:6, StrokeMatcher:13
 - `src/Lightbox.Core/Documents/Anchor.cs` (70 ln) · 10 test files
   - AnchorKind:4, Anchor:53, AnchorPoint:70
 - `src/Lightbox.Core/Documents/BrushStabilisation.cs` (66 ln) · 2 test files
@@ -423,7 +425,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameGroup:7
 - `src/Lightbox.Core/Documents/ToolKind.cs` (23 ln) · 77 test files
   - ToolKind:3
-- `src/Lightbox.Core/Inbetween/Easing.cs` (20 ln) · 9 test files
+- `src/Lightbox.Core/Inbetween/Easing.cs` (20 ln) · 10 test files
   - Easing:3, EasingOps:11
 - `src/Lightbox.Core/Documents/Pivot.cs` (16 ln) · 6 test files
   - Pivot:7

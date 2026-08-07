@@ -26,7 +26,7 @@ public class MatchTests
     }
 
     [Fact]
-    public void GreedyMatching_PicksNearestCentroids()
+    public void GeometricMatching_PicksNearestCentroids()
     {
         var a1 = At(0, 0);
         var a2 = At(100, 100);

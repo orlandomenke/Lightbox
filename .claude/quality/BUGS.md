@@ -791,6 +791,14 @@ test reopens the bug.
 
 ### timeline
 
+- [x] **B113** `P1` `timeline` Inbetweening crosses matched strokes over, so a moved box collapses `evidence: BoxEdgeMatchTests, EachEdgePairsWithItsOwnEdge, TheMidwayFrameIsStillABox, TheMatchIsMinimumTotalCostRatherThanCheapestFirst, Assignment`
+  - Reported from a real drawing: two boxes, two frames, four unlabelled lines each. Run the inbetweener and **the top edge animates downwards through the shape** instead of travelling with the box.
+  - Reproduced exactly. A box at y=20..80 moved to y=60..120 pairs **old-bottom → new-top** and **old-top → new-bottom**, and at t=0.5 all four edges land on y=70 — the box has no height at all mid-motion. The reported symptom is the top edge; the worse half is the collapse.
+  - Cause is `StrokeMatcher`'s second pass, which sorted every candidate pair by cost and took them cheapest-first. old-bottom→new-top costs 20 and is the single cheapest pair on the board, so greedy commits to it and leaves old-top nothing but new-bottom at 100. **Greedy total 120; optimal 80.** The right answer was reachable and not taken.
+  - A box is the smallest drawing that exposes it: top and bottom are the same length and differ only in position, so the cost function is symmetric between them and only global optimality breaks the tie correctly. Anything that moves by more than half its own height hits it — which is most of a walk cycle.
+  - **P1 because it is silent and it is the floor.** No error, no warning, just wrong art; and the deterministic engine is what the AI path falls back to, so a wrong pairing here is wrong output with or without a model.
+  - Fixed by replacing the greedy pass with minimum-total-cost assignment (`Assignment.Solve`, Hungarian). The cost function is unchanged — this is which pairs get taken, not how they are scored. Cost: M
+
 - [x] **B9** `P1` `timeline` The paper disappears on every frame but the first `evidence: AddingAFrame_HoldsThePaperRatherThanBlankingIt`
   - Repro: open the app, add a frame. The new frame has no paper — transparent canvas, checkerboard.
   - Cause: `DocumentEditor.AddFrameAfter` inserts `NewEmptyFrame(layer)` on **every** layer, including the Background. A blank key on the paper layer shadows the paper.
