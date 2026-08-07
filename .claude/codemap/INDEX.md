@@ -1,6 +1,6 @@
 # Code index
 
-532 files · 139577 lines · 2784 tests.
+534 files · 140144 lines · 2796 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -65,7 +65,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ShortcutRow:13, ShortcutGroup:25, GridRow:40, FeatureToggleRow:97, AiFieldRow:164, ConfigureWindow:215
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (805 ln) · 103 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (805 ln) · 104 test files
   - SpriteSheetOptions:14, SpriteSheetResult:54, SpriteSheetExporter:103, SheetDocument:677, SheetFrame:683, SheetMeta:716, SheetTag:747, SheetEvent:761 …
 - `src/Lightbox.App/Services/UnityExporter.cs` (666 ln) · 15 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
@@ -307,7 +307,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DocumentEditor:14, IEditStep:141, SnapshotStep:154, DeltaStep:173
 - `src/Lightbox.Core/Projects/ProjectFolders.cs` (604 ln) · 30 test files
   - ProjectFolder:25, ProjectFolders:189
-- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 85 test files
+- `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 86 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
@@ -317,12 +317,12 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SpriteTrim:7, SpritePack:32, ExportGrouping:59, ExportTarget:75, ExportPreset:146
 - `src/Lightbox.Core/Projects/ProjectBoard.cs` (336 ln) · 1 test files
   - ProjectBoard:22
+- `src/Lightbox.Core/Geometry/GeometryOps.cs` (335 ln) · 6 test files
+  - GeometryOps:5
 - `src/Lightbox.Core/Projects/Templates.cs` (333 ln) · 3 test files
   - Templates:25, NewLayer:85, LayerChange:96, PullPreview:107, PullOptions:125
 - `src/Lightbox.Core/Documents/Scene.cs` (316 ln) · 15 test files
   - FrameMarker:4, TagDirection:66, AnimationTag:99, Scene:136
-- `src/Lightbox.Core/Geometry/GeometryOps.cs` (296 ln) · 6 test files
-  - GeometryOps:5
 - `src/Lightbox.Core/Documents/ResponseCurve.cs` (294 ln) · 5 test files
   - BrushDynamic:22, ResponseCurve:70, PressureResponse:230
 - `src/Lightbox.Core/Export/NormalMapGenerator.cs` (244 ln) · 2 test files
@@ -367,7 +367,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolUse:9, SymbolUsage:12, SymbolGraph:46
 - `src/Lightbox.Core/Documents/CollisionShapes.cs` (157 ln) · 5 test files
   - CollisionShapes:21
-- `src/Lightbox.Core/Documents/Stroke.cs` (156 ln) · 101 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (156 ln) · 102 test files
   - Stroke:9, BakedSample:148
 - `src/Lightbox.Core/Documents/Camera.cs` (146 ln) · 6 test files
   - CameraKey:10, Camera:46, CameraOps:65
@@ -453,7 +453,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ColorOps:3
 - `src/Lightbox.Core/Documents/FrameGroup.cs` (26 ln) · 15 indirect only
   - FrameGroup:7
-- `src/Lightbox.Core/Documents/ToolKind.cs` (23 ln) · 78 test files
+- `src/Lightbox.Core/Documents/ToolKind.cs` (23 ln) · 79 test files
   - ToolKind:3
 - `src/Lightbox.Core/Inbetween/Easing.cs` (20 ln) · 12 test files
   - Easing:3, EasingOps:11
@@ -461,7 +461,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Pivot:7
 - `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 1 test files
   - Ids:3
-- `src/Lightbox.Core/Projects/FeatureConflictException.cs` (11 ln) · 103 indirect only
+- `src/Lightbox.Core/Projects/FeatureConflictException.cs` (11 ln) · 104 indirect only
   - FeatureConflictException:7
 
 ## Lightbox.Import
@@ -504,13 +504,15 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipImageSettings:15, TipImageResult:43, TipFromImage:68
 - `src/Lightbox.Raster/BrushPreviewRenderer.cs` (248 ln) · 2 test files
   - BrushPreviewRenderer:34
+- `src/Lightbox.Raster/StrokePicker.cs` (236 ln) · 1 test files
+  - StrokePicker:47
 - `src/Lightbox.Raster/TileStore.cs` (219 ln) · 3 test files
   - TileStore:37
 - `src/Lightbox.Raster/TiledRasterizer.cs` (216 ln) · 2 test files
   - TiledRasterizer:37
 - `src/Lightbox.Raster/TileCompositor.cs` (153 ln) · 1 test files
   - TileCompositor:52
-- `src/Lightbox.Raster/StrokeIndex.cs` (151 ln) · 1 test files
+- `src/Lightbox.Raster/StrokeIndex.cs` (151 ln) · 2 test files
   - StrokeIndex:37
 - `src/Lightbox.Raster/BrushTipOutline.cs` (150 ln) · 1 test files
   - BrushTipOutline:42

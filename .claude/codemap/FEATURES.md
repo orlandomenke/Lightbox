@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2784 tests, derived from the suite itself. Each line is a
+2796 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -3908,6 +3908,22 @@ regression even when every test still compiles.
 - AStroke That Reaches Nothing Is Recorded Rather Than Skipped — `:138`
 - Negative Coordinates Index And Query The Same As Positive Ones — `:152`
 - ATile Sized Query Touches AFraction Of ABusy Drawing — `:176`
+
+## StrokePickerTests
+`tests/Lightbox.Raster.Tests/StrokePickerTests.cs`
+
+- The Stroke On Top Is The Picked One — `:59`
+- An Eraser Does Not Steal AClick From Ink Under It — `:76`
+- An Eraser With Nothing Under It Is Still Picked — `:93`
+- AClick Beside The Line Picks Nothing — `:108`
+- AWide Stroke Is Wide To Hit — `:127`
+- AFill Is Picked From The Inside — `:147`
+- AHole In AFill Is Not Part Of It — `:161`
+- AGradient Is Picked By Its Axis Rather Than Its Coverage — `:188`
+- AMarquee Catches What It Touches Rather Than Only What It Encloses — `:211`
+- AMarquee Returns Record Order — `:232`
+- AZero Area Marquee Catches Nothing — `:252`
+- Bounds Are Narrowed By Geometry Rather Than Trusted — `:269`
 
 ## SubjectReadingIsNotRenderedTests
 `tests/Lightbox.Raster.Tests/SubjectReadingIsNotRenderedTests.cs`

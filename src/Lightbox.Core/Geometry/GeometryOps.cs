@@ -278,6 +278,45 @@ public static class GeometryOps
         return Dist(p, proj);
     }
 
+    /// <summary>
+    /// Is the point inside these closed contours, counting even-odd?
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The same rule <see cref="BrushEngine"/> fills a region under
+    /// (<c>SKPathFillType.EvenOdd</c>), so "inside" here means exactly the pixels
+    /// that got painted — a hole reads as outside, and a hole inside a hole reads
+    /// as inside again. Answering it any other way would let a hit test disagree
+    /// with the render, which is a defect the artist experiences as the
+    /// application picking something that is not there.
+    /// </para>
+    /// <para>
+    /// Ray casting along +X, counting crossings. A contour is closed implicitly,
+    /// so the last point joins the first whether or not it repeats it — that
+    /// matches <c>PathFromContours</c>, which calls <c>Close()</c> regardless.
+    /// </para>
+    /// </remarks>
+    public static bool ContainsEvenOdd(
+        IEnumerable<IReadOnlyList<StrokePoint>> contours, double x, double y)
+    {
+        var inside = false;
+        foreach (var contour in contours)
+        {
+            if (contour.Count < 3) continue;
+            for (int i = 0, j = contour.Count - 1; i < contour.Count; j = i++)
+            {
+                var pi = contour[i];
+                var pj = contour[j];
+                // Half-open on Y so a vertex exactly on the ray is counted once
+                // rather than twice, which would flip the answer at every corner.
+                if (pi.Y > y == pj.Y > y) continue;
+                var t = (y - pi.Y) / (pj.Y - pi.Y);
+                if (x < pi.X + t * (pj.X - pi.X)) inside = !inside;
+            }
+        }
+        return inside;
+    }
+
     public readonly record struct BBox(double MinX, double MinY, double MaxX, double MaxY);
 
     public static BBox BoundsOf(IReadOnlyList<StrokePoint> points)
