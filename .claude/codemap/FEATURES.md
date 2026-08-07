@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2839 tests, derived from the suite itself. Each line is a
+2841 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1423,8 +1423,10 @@ regression even when every test still compiles.
 - Not Being Told About ADropped Frame Is What Would Lose It — `:156`
 - ARepaint With No New Publish Costs Nothing — `:181`
 - The Seq Shortcut Still Honours An Owed Region — `:209`
-- AResize Repaints In Full — `:231`
-- Force Full Repaints Everything Even When ASmall Region Is Offered — `:258`
+- An Image Handed Out Survives Later Presents — `:249`
+- Retirement Is Bounded Rather Than Unlimited — `:282`
+- AResize Repaints In Full — `:300`
+- Force Full Repaints Everything Even When ASmall Region Is Offered — `:327`
 
 ## ProjectCreateMenuTests
 `tests/Lightbox.App.Tests/ProjectCreateAndRenameTests.cs`
