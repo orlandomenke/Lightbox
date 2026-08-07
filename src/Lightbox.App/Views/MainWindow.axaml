@@ -334,6 +334,26 @@
                     ToolTip.Tip="Discard the changes and go back to what this workspace says" />
         </MenuItem>
       </MenuItem>
+
+      <!--
+        Help, and the first thing under it is not documentation.
+
+        The app writes a crash report and a survivable-failure log to disk, and
+        a file nobody can find helps nobody — so the folder is one click from
+        the menu bar rather than a path in the manual. The console is the live
+        half of the same question, and it is remembered across restarts because
+        the way it gets used is "turn it on, restart, reproduce".
+      -->
+      <MenuItem Header="_Help">
+        <MenuItem Header="Open the diagnostics folder" Click="OnOpenDiagnosticsFolder"
+                  ToolTip.Tip="Crash reports and the log of problems Lightbox survived" />
+        <MenuItem Header="Show a console while drawing" ToggleType="CheckBox"
+                  IsChecked="{Binding ShowDiagnosticsConsole, Mode=TwoWay}"
+                  ToolTip.Tip="Opens a console window at the next start, carrying the diagnostic traces" />
+        <Separator />
+        <MenuItem Header="{Binding BuildLabel}" Click="OnCopyBuildLabel"
+                  ToolTip.Tip="Click to copy — a bug report is far more useful with the build in it" />
+      </MenuItem>
     </Menu>
 
     <!-- Dynamic tool options bar: contents depend on the selected tool -->

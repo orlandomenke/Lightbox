@@ -1659,10 +1659,18 @@ public sealed class CanvasControl : Control
         var snapshot = _snapshot;
         if (snapshot is null) return Matrix.Identity;
         var s = FitScale() * _zoom;
+
+        // For unbounded canvas with viewport: image coordinates are offset by viewport position.
+        // Image (0,0) maps to document (viewport.Left, viewport.Top).
+        // We apply this offset after centering so ViewToDoc transforms correctly.
+        var viewportOffset = snapshot.DocViewport is { } vp
+            ? new Point(vp.Left, vp.Top)
+            : new Point(0, 0);
+
         return Matrix.CreateTranslation(-snapshot.DocWidth / 2.0, -snapshot.DocHeight / 2.0)
                * Matrix.CreateScale(_mirrored ? -s : s, s)
                * Matrix.CreateRotation(_rotationDeg * Math.PI / 180)
-               * Matrix.CreateTranslation(Bounds.Width / 2 + _pan.X, Bounds.Height / 2 + _pan.Y);
+               * Matrix.CreateTranslation(viewportOffset.X + Bounds.Width / 2 + _pan.X, viewportOffset.Y + Bounds.Height / 2 + _pan.Y);
     }
 
     /// <summary>
