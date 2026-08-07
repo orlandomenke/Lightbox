@@ -1,0 +1,273 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    The control treatments from the design, in one place.
+
+    Two axes, and keeping them apart is the whole reason this file is separate
+    from Density.axaml. **Size is a role** — icon, text, tool — and lives there,
+    because it is about hitting a control. **Emphasis is a rank** — primary,
+    secondary, tertiary, ghost — and lives here, because it is about which
+    control an artist should reach for first.
+
+    They compose: `Classes="text primary"` is a text-sized button carrying the
+    primary treatment. That is why the ranks below set no sizes at all. A rank
+    that also set a height would silently override the role beside it, and the
+    row it sat in would stop lining up — the failure DESIGN.md calls "the most
+    common way this app has looked unfinished".
+  -->
+
+  <!-- ===== Buttons: four ranks ======================================== -->
+  <!--
+    One primary per view, and usually none. The gradient is loud on purpose:
+    it means "this is the thing you came here to do", and a screen with three
+    of them has told the artist nothing.
+  -->
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+  </Style>
+
+  <!-- The ordinary button, and what most things are. -->
+  <Style Selector="Button.secondary">
+    <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <!-- Outlined: present, clearly not the answer. -->
+  <Style Selector="Button.tertiary">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <!--
+    No box until you touch it. For the ones that would otherwise turn a panel
+    into a wall of buttons — and for anything destructive, which should not be
+    the most eye-catching thing in the room.
+  -->
+  <Style Selector="Button.ghost">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+
+  <!-- ===== Badges ==================================================== -->
+  <!--
+    Four meanings, named for the meaning rather than the colour. A badge is a
+    label with a state, not a button: it never takes a click, so it never
+    carries a hover.
+
+    Tinted grounds rather than filled ones. A solid amber block beside a solid
+    red one reads as two warnings shouting; the text carries the message and
+    the colour only says which kind it is.
+  -->
+  <Style Selector="Border.badge">
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="6,1" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="Border.badge > TextBlock">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Border.badge.info">
+    <Setter Property="BorderBrush" Value="{StaticResource StatusInfoBrush}" />
+  </Style>
+  <Style Selector="Border.badge.info > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource StatusInfoBrush}" />
+  </Style>
+
+  <Style Selector="Border.badge.warning">
+    <Setter Property="BorderBrush" Value="{StaticResource StatusWarningBrush}" />
+  </Style>
+  <Style Selector="Border.badge.warning > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource StatusWarningBrush}" />
+  </Style>
+
+  <Style Selector="Border.badge.error">
+    <Setter Property="BorderBrush" Value="{StaticResource StatusErrorBrush}" />
+  </Style>
+  <Style Selector="Border.badge.error > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource StatusErrorBrush}" />
+  </Style>
+
+  <Style Selector="Border.badge.success">
+    <Setter Property="BorderBrush" Value="{StaticResource StatusSuccessBrush}" />
+  </Style>
+  <Style Selector="Border.badge.success > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource StatusSuccessBrush}" />
+  </Style>
+
+  <!-- ===== Tabs ====================================================== -->
+  <!--
+    The docker headers that tabbing just introduced, and any tab strip after
+    them. Scoped by the strip rather than by a class on each item, because the
+    items are generated and `Classes` cannot be set from a Setter — it is a
+    collection, and trying produces a XAML load failure at runtime rather than
+    a build error. The active tab is the one carrying full-strength text; the others
+    step back rather than being greyed out — a tab you can barely read looks
+    disabled, and these are all reachable.
+
+    **The design has two kinds of tab and they are not interchangeable.** The
+    reference in `docs/design/` shows both, and the difference is what they
+    divide:
+
+    * **Panel tabs** — Layers / Channels / History, and these docker headers.
+      The active one is a *sheet edge*: a lighter ground with rounded top
+      corners fading fast into the panel below, so the tab and its content read
+      as one surface and the others as sheets behind it. No accent anywhere.
+    * **Section tabs** — PAINT / ANIMATE / COMPOSITING, and the timeline's
+      modes. No ground at all, and an accent underline. They divide a *mode*
+      rather than a stack of panels, so there is nothing behind them to be
+      behind.
+
+    These are the panel kind, and the treatment below is the first one measured
+    off the reference rather than reasoned from the tokens: a column down the
+    active tab in the mockup starts at `SurfaceElevated` and is back at the
+    panel's own ground by two thirds of the way down.
+
+    An accent underline was here for one commit and was wrong — it is the
+    section treatment, and wearing it made a docker header claim to divide the
+    application. The version before *that* had no mark at all, which was wrong
+    the other way: three words at slightly different brightnesses read as a row
+    of labels rather than as a control, and a tab strip nobody recognises has
+    hidden two panels instead of offering them.
+
+    It takes a template because a ListBoxItem has nowhere to put a rounded top
+    otherwise, and the template is the smallest thing that works: one border
+    and a presenter.
+  -->
+  <Style Selector="ListBox.tabs > ListBoxItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="10,3" />
+    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <!--
+          Named and always present, rather than a border added on selection. A
+          box that appears on click changes the strip's height as tabs are
+          picked; one that is always there and only changes colour does not.
+
+          Bottom corners square and the bottom border absent on purpose: the
+          active tab is supposed to run into the panel under it rather than
+          close itself off, which is the whole difference between a tab and a
+          button that happens to be in a row.
+        -->
+        <Border Name="PART_Tab"
+                CornerRadius="4,4,0,0"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1,1,1,0">
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Foreground="{TemplateBinding Foreground}"
+                            Padding="{TemplateBinding Padding}"
+                            VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <!--
+    Three states, and each says one more thing than the last: **every** tab is
+    outlined so the row reads as tabs at rest, hover lifts the ground so one
+    reads as reachable, and the active one takes the lit gradient. The
+    reference outlines the resting tabs too — a strip where only the active tab
+    has a shape reads as one tab beside two words, which is the failure the
+    no-mark version had, moved along by one.
+  -->
+  <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ Border#PART_Tab">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+  </Style>
+  <!--
+    After the hover rules, not before. Avalonia takes the last matching style,
+    so a selected tab under the pointer would otherwise lose its ground to the
+    hover tint — the active tab going *dimmer* when you point at it, which
+    looks like a click that failed.
+  -->
+  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_Tab">
+    <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:selected:pointerover /template/ Border#PART_Tab">
+    <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+  </Style>
+  <!--
+    Both halves, and the second is the one that does the work: the theme sets a
+    selected item's Foreground on the ContentPresenter, which beats anything
+    inherited from the ListBoxItem. Setting only the item leaves the active tab
+    looking right by the theme's accident rather than by this rule, and the day
+    the theme changes its selected colour the tab strip changes with it for no
+    reason anybody can find.
+  -->
+  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:selected">
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+  <!--
+    No hover tint on the presenter. The tab outline is the hover affordance now,
+    and a tinted box behind the word would put back exactly the second box the
+    underline exists to avoid.
+  -->
+  <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <!-- ===== Sliders =================================================== -->
+  <!--
+    The filled part of the track carries the accent gradient, so a glance says
+    roughly where the value sits without reading the number beside it. The
+    number is still there — DESIGN.md's rule is slider *plus* field, because a
+    value explored by feel still has to be typed exactly sometimes.
+
+    **The gradient spans the filled part, not the whole track**, which is what a
+    brush on `Foreground` gives without retemplating the control. The trade is
+    that the colours travel as the value changes rather than staying put; at the
+    widths these sliders actually are — a docker column, not a page — that reads
+    as one warm bar rather than as a moving smear, which is why it is not worth
+    a template to fix. If a slider ever gets long enough for it to show, the fix
+    is a track-spanning gradient in the template, not a flat colour here.
+
+    The thumb is the theme's, and now agrees, because the theme's accent is
+    ours. Before it was #0078D7 against a coral track — one control wearing two
+    colour systems, and the clearest evidence that repointing the theme was the
+    missing half of the palette rather than a polish item.
+  -->
+  <Style Selector="Slider">
+    <Setter Property="Foreground" Value="{StaticResource AccentGradientBrush}" />
+  </Style>
+
+  <!-- ===== Toggles and checks ======================================== -->
+  <!--
+    Only the label. The checked grounds used to be set here — the switch to the
+    gradient, the box to violet — and both are gone, because the theme's accent
+    is now violet and it already paints them. Two rules had to hold at once and
+    the setters broke the second: **one colour means "on"**, and a switch
+    wearing the gradient while the checkbox beside it wore violet said "on" in
+    two voices. Leaving it to the accent is also what makes the next control
+    nobody has styled yet come out right by default.
+  -->
+  <Style Selector="ToggleSwitch">
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+</Styles>

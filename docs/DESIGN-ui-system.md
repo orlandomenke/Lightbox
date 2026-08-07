@@ -4,6 +4,18 @@ A visual design for Lightbox exists as a mockup: a colour system, a set of contr
 treatments, and a full application layout. This records what it asks for, what the
 codebase already has that answers it, and the order the gap gets closed in.
 
+> **The mockup is checked in at `docs/design/ui-reference.png`**, and it outlives
+> this plan. When the last stage lands and this document is deleted, the image
+> stays: it is the visual source of truth `.claude/quality/DESIGN.md` reads its
+> rules off, and **ui-critic** consults it on any change to a treatment.
+>
+> Two stages were built before it was in the repository, from a description of
+> it, and both had to be redone — the panel tab was given a section tab's accent
+> underline, which made a docker header claim to divide the application. Reading
+> the image would have caught it in a minute. **Measure it rather than
+> describing it**: a pixel column down the mockup's active tab settles a gradient
+> that no amount of arguing about it will.
+
 > **This is a migration plan, not the design system.** The design system is
 > `.claude/quality/DESIGN.md` — one file, and it stays the one file. Each stage
 > below lands its rules *there* and its numbers in `Styles/`. This document is

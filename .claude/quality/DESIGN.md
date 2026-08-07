@@ -3,6 +3,17 @@
 The rules the UI is held to. Numbers live here, not in individual views — a
 control that sets its own height is how a panel drifts.
 
+**`docs/design/ui-reference.png` is the visual source of truth**, and this file
+is the rules read off it. Where they disagree the image wins and this file is
+wrong. It carries the brand, the palette with its hex values, the four control
+ranks, both kinds of tab, the badges, and a full window showing how they sit
+together — which is the part no written rule captures, because "what does this
+look like beside the thing next to it" is the question a style guide cannot
+answer about itself. **Look at it before proposing a treatment**, and measure it
+rather than describing it: the panel-tab gradient below came off a pixel column
+down the mockup's active tab, and the guess it replaced was wrong in a way
+nobody would have argued with.
+
 The tension this file exists to settle is **screen efficiency versus comfort**.
 Lightbox is a drawing app: the canvas is the work, and every pixel of chrome is
 taken from it. But an artist tuning a brush mid-stroke needs to hit a slider on
@@ -65,11 +76,107 @@ Two buttons that do comparable things must be the same size. A row of
 buttons share one width and the text buttons share another. Mixed sizes inside
 one bar is the most common way this app has looked unfinished.
 
+**Emphasis is a rank, and it is a different axis from size.** Size answers *how
+do I hit this*; emphasis answers *which of these should I reach for first*. They
+compose — `Classes="text primary"` is a text-sized button carrying the primary
+treatment — and they compose only because they stay disjoint. **A rank never
+sets a size.** One that also set a height would silently override the role
+beside it and the row would stop lining up, which is the failure above wearing
+a different hat. `ControlTreatmentTests.ARankNeverSetsASize` holds the line.
+
+| Rank | Treatment | When |
+| --- | --- | --- |
+| `primary` | Accent gradient, no border | The one thing you came to this view to do |
+| `secondary` | Elevated surface, thin border | The ordinary button, and what most things are |
+| `tertiary` | Outlined, transparent ground | Present, clearly not the answer — Cancel |
+| `ghost` | No box until hover | Rows of them, where boxes would be a wall |
+
+**One primary per view, and usually none.** The gradient means "this is the
+thing", and a screen with three of them has said nothing. **The button Enter
+presses is the one that looks like the answer**: `IsDefault="True"` and
+`primary` say the same thing in two languages, one to the keyboard and one to
+the eye, and a dialog with a loud button that Enter does not press is worse than
+one with neither. That agreement is checked, not remembered.
+
+**Nothing destructive is ever `primary`.** Delete, Remove and Clear are the
+things an artist arrives at by accident, and making one the loudest object on
+the screen is how it gets pressed by reflex. Also checked, because it is exactly
+the rule somebody breaks while making a delete dialog feel decisive.
+
+**A tab strip has to be legible as a tab strip**, and weight alone does not do
+it. Three words at slightly different brightnesses read as a row of labels — and
+a tab strip nobody recognises has *hidden* the panels it was meant to offer,
+which is the opposite of what tabbing is for.
+
+**There are two kinds of tab and they are not interchangeable.** What separates
+them is what they divide:
+
+| Kind | Where | Treatment |
+| --- | --- | --- |
+| **Panel** | docker headers; the timeline's modes | Rounded top corners, outlined at rest, and the active one lit from the top and fading into the panel below. No accent. |
+| **Section** | the workspace tabs | No ground at all, and an accent underline. |
+
+A panel tab is a **sheet edge**: the active tab and its content are one surface,
+and the others are sheets behind it. That is why its bottom corners are square
+and it has no bottom border — it runs *into* the panel, which is the whole
+difference between a tab and a button that happens to sit in a row. A section
+tab divides a mode rather than a stack, so there is nothing behind it to be
+behind, and it takes the accent because switching one changes what the whole
+window is for.
+
+Getting this backwards is not a small miss: an underline on a docker header
+makes a panel group claim to divide the application.
+
+The active panel tab's gradient **ends transparent and ends early**. Transparent
+because a header, a floating panel and a docked strip are not the same ground,
+and a gradient that named its destination would be a visible seam on two of the
+three. Early — around 0.6 — because the design fades *fast*: it is the lit top
+edge that says "this one is in front", and a fade stretched to the full height
+gives a lighter block, which is the segmented-control look panel tabs are
+specifically not.
+
+**Badges are named for the meaning, not the colour** — `info`, `warning`,
+`error`, `success`. A badge that says "amber" has to be renamed when the design
+changes its mind. Their grounds are tinted rather than filled: a solid amber
+block beside a solid red one reads as two warnings shouting, when the text
+already carries the message and the colour only says which kind it is. A badge
+is a label with a state, never a button, so it carries no hover.
+
 ## Colour
 
 **Every colour in the chrome names a role. None of them is a hex value.** The
 tokens live in `src/Lightbox.App/Styles/Palette.axaml`; this section is the rule
 they implement, the same way `Density.axaml` implements *Sizes* above.
+
+**The palette has two halves, and only one of them is the views.** Tokenising a
+view reaches the surfaces somebody aimed at a token. Every *stock* control —
+toggle buttons, slider thumbs, checkboxes, radios, focus rings, list selection —
+paints from the **theme's** palette instead, so the theme has to be repointed at
+ours or the application wears two colour systems at once. It did for a week: the
+opacity slider had our coral track and Fluent's `#0078D7` thumb, and no test
+could see it because both halves were internally consistent.
+
+Two properties on `FluentTheme.Palettes` carry the whole second half:
+
+| Property | Governs | Ours |
+| --- | --- | --- |
+| `Accent` | every "this is on" state | `AccentViolet` |
+| `RegionColor` | the window ground, so dialogs | `SurfaceElevated` |
+
+**One colour means "on".** Violet is the accent because it was already the
+selection colour in the layers list and the cel vocabulary — a selected row and
+a switched-on toggle should not be two different colours. It also leaves coral
+meaning *the primary action*, which is what the button ranks above depend on: if
+every "on" state is as loud as the one button you want pressed, nothing has been
+ranked. A local setter that gives one control its own "on" colour breaks this,
+which is why the ToggleSwitch and CheckBox ones were deleted rather than kept
+for being pretty.
+
+Those two values are the one place a role **cannot** be named: a
+`ColorPaletteResources` is built before the merged dictionaries it would look
+into, so `{StaticResource}` there does not resolve. They are hex literals on
+purpose, and `TheThemePaletteIsWrittenInHexOnPurpose` asserts they equal the
+tokens they stand in for.
 
 Four surfaces, back to front — `BackgroundPrimary`, `BackgroundSecondary`,
 `SurfacePanel`, `SurfaceElevated`. The order is the meaning: anything raised

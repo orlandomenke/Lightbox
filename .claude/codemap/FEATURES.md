@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2817 tests, derived from the suite itself. Each line is a
+2826 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -592,6 +592,16 @@ regression even when every test still compiles.
 - Catching Up Does Not Dispose The Image The Canvas Is Still Showing — `:151`
 - Every Publish Is ACorrect Full Composite — `:172`
 - Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:215`
+
+## ControlTreatmentTests
+`tests/Lightbox.App.Tests/ControlTreatmentTests.cs`
+
+- The Button Enter Presses Is The One That Looks Like The Answer — `:44`
+- Nothing Destructive Is The Primary Button — `:71`
+- ARank Never Sets ASize — `:101`
+- Every Rank And Badge Resolves — `:124`
+- The Primary Rank Carries The Accent Gradient — `:142`
+- Badges Are Named For Meaning Rather Than Colour — `:153`
 
 ## CrashScenarioTests
 `tests/Lightbox.App.Tests/CrashScenarioTests.cs`
@@ -1398,7 +1408,9 @@ regression even when every test still compiles.
 
 - Every Token The Design Names Resolves — `:45`
 - The Core Surfaces Are The Colours The Design Gave — `:71`
-- No View Invents Its Own Chrome Colour — `:94`
+- The Theme Agrees With The Palette — `:94`
+- The Theme Palette Is Written In Hex On Purpose — `:116`
+- No View Invents Its Own Chrome Colour — `:143`
 
 ## PresentedFrameTests
 `tests/Lightbox.App.Tests/PresentedFrameTests.cs`
@@ -2495,19 +2507,20 @@ regression even when every test still compiles.
 ## WorkspaceTests
 `tests/Lightbox.App.Tests/WorkspaceTests.cs`
 
-- Panels Land In The Strip The Layout Names — `:72`
-- Moving APanel Moves The Control — `:84`
-- An Empty Edge Collapses And AFilled One Opens — `:96`
-- Closing APanel Parks It Rather Than Destroying It — `:118`
-- Tabbed Panels Share One Slot And One Shows — `:137`
-- An Untabbed Docker Looks Exactly As It Did — `:160`
-- Grouping APanel Marks The Workspace Unsaved — `:173`
-- The Project Panel Appears As Soon As There Is AProject — `:188`
-- The Canvas Gets The Room Left Over By The Strips — `:211`
-- The Project Row Menu Actually Does Something When Clicked — `:235`
-- The New Menu Actually Makes Things — `:372`
-- The Reference Panel Is Absent Until It Is Asked For — `:444`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:460`
+- Panels Land In The Strip The Layout Names — `:73`
+- Moving APanel Moves The Control — `:85`
+- An Empty Edge Collapses And AFilled One Opens — `:97`
+- Closing APanel Parks It Rather Than Destroying It — `:119`
+- Tabbed Panels Share One Slot And One Shows — `:138`
+- The Tab Showing Is The One That Looks Like It Is Showing — `:161`
+- An Untabbed Docker Looks Exactly As It Did — `:232`
+- Grouping APanel Marks The Workspace Unsaved — `:245`
+- The Project Panel Appears As Soon As There Is AProject — `:260`
+- The Canvas Gets The Room Left Over By The Strips — `:283`
+- The Project Row Menu Actually Does Something When Clicked — `:307`
+- The New Menu Actually Makes Things — `:444`
+- The Reference Panel Is Absent Until It Is Asked For — `:516`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:532`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
