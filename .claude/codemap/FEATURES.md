@@ -2501,14 +2501,14 @@ regression even when every test still compiles.
 - Closing APanel Parks It Rather Than Destroying It — `:119`
 - Tabbed Panels Share One Slot And One Shows — `:138`
 - The Tab Showing Is The One That Looks Like It Is Showing — `:161`
-- An Untabbed Docker Looks Exactly As It Did — `:208`
-- Grouping APanel Marks The Workspace Unsaved — `:221`
-- The Project Panel Appears As Soon As There Is AProject — `:236`
-- The Canvas Gets The Room Left Over By The Strips — `:259`
-- The Project Row Menu Actually Does Something When Clicked — `:283`
-- The New Menu Actually Makes Things — `:420`
-- The Reference Panel Is Absent Until It Is Asked For — `:492`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:508`
+- An Untabbed Docker Looks Exactly As It Did — `:232`
+- Grouping APanel Marks The Workspace Unsaved — `:245`
+- The Project Panel Appears As Soon As There Is AProject — `:260`
+- The Canvas Gets The Room Left Over By The Strips — `:283`
+- The Project Row Menu Actually Does Something When Clicked — `:307`
+- The New Menu Actually Makes Things — `:444`
+- The Reference Panel Is Absent Until It Is Asked For — `:516`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:532`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

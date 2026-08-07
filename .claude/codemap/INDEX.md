@@ -1,6 +1,6 @@
 # Code index
 
-538 files · 141222 lines · 2818 tests.
+538 files · 141306 lines · 2818 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -105,6 +105,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (283 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
+- `src/Lightbox.App/Styles/Controls.axaml` (273 ln) · **no tests**
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
   - CurveEditor:29
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 3 test files
@@ -117,7 +118,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RulerStrip:27
 - `src/Lightbox.App/ViewModels/SelectionManager.cs` (250 ln) · 4 indirect only
   - SelectionManager:7
-- `src/Lightbox.App/Styles/Controls.axaml` (240 ln) · **no tests**
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
 - `src/Lightbox.App/Services/ShortcutMap.cs` (239 ln) · 7 test files
@@ -151,6 +151,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockZones:67
 - `src/Lightbox.App/Controls/OverflowBar.cs` (178 ln) · 2 test files
   - OverflowBar:25
+- `src/Lightbox.App/Styles/Palette.axaml` (178 ln) · **no tests**
 - `src/Lightbox.App/Rendering/GuidePainter.cs` (177 ln) · 1 test files
   - GuidePainter:27
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 3 test files
@@ -161,7 +162,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ColorField:29
 - `src/Lightbox.App/Rendering/RigOverlayPainter.cs` (152 ln) · 1 test files
   - RigOverlayPainter:36
-- `src/Lightbox.App/Styles/Palette.axaml` (151 ln) · **no tests**
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml.cs` (150 ln) · 1 test files
   - TemplatePullRow:31, UpdateFromTemplateWindow:47
 - `src/Lightbox.App/Views/BrushChoice.cs` (149 ln) · 2 test files

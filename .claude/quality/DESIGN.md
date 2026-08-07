@@ -3,6 +3,17 @@
 The rules the UI is held to. Numbers live here, not in individual views — a
 control that sets its own height is how a panel drifts.
 
+**`docs/design/ui-reference.png` is the visual source of truth**, and this file
+is the rules read off it. Where they disagree the image wins and this file is
+wrong. It carries the brand, the palette with its hex values, the four control
+ranks, both kinds of tab, the badges, and a full window showing how they sit
+together — which is the part no written rule captures, because "what does this
+look like beside the thing next to it" is the question a style guide cannot
+answer about itself. **Look at it before proposing a treatment**, and measure it
+rather than describing it: the panel-tab gradient below came off a pixel column
+down the mockup's active tab, and the guess it replaced was wrong in a way
+nobody would have argued with.
+
 The tension this file exists to settle is **screen efficiency versus comfort**.
 Lightbox is a drawing app: the canvas is the work, and every pixel of chrome is
 taken from it. But an artist tuning a brush mid-stroke needs to hit a slider on
@@ -92,13 +103,37 @@ things an artist arrives at by accident, and making one the loudest object on
 the screen is how it gets pressed by reflex. Also checked, because it is exactly
 the rule somebody breaks while making a delete dialog feel decisive.
 
-**A tab strip has to be legible as a tab strip.** The active tab carries a 2 px
-accent underline, not weight alone. Three words at slightly different
-brightnesses read as a row of labels rather than as a control — and a tab strip
-nobody recognises has *hidden* the panels it was meant to offer, which is the
-opposite of what tabbing is for. An underline is the affordance that adds no box
-and costs no height; a filled pill or a boxed tab puts a second box inside the
-header, which is the thing tabs are in the header to avoid.
+**A tab strip has to be legible as a tab strip**, and weight alone does not do
+it. Three words at slightly different brightnesses read as a row of labels — and
+a tab strip nobody recognises has *hidden* the panels it was meant to offer,
+which is the opposite of what tabbing is for.
+
+**There are two kinds of tab and they are not interchangeable.** What separates
+them is what they divide:
+
+| Kind | Where | Treatment |
+| --- | --- | --- |
+| **Panel** | docker headers; the timeline's modes | Rounded top corners, outlined at rest, and the active one lit from the top and fading into the panel below. No accent. |
+| **Section** | the workspace tabs | No ground at all, and an accent underline. |
+
+A panel tab is a **sheet edge**: the active tab and its content are one surface,
+and the others are sheets behind it. That is why its bottom corners are square
+and it has no bottom border — it runs *into* the panel, which is the whole
+difference between a tab and a button that happens to sit in a row. A section
+tab divides a mode rather than a stack, so there is nothing behind it to be
+behind, and it takes the accent because switching one changes what the whole
+window is for.
+
+Getting this backwards is not a small miss: an underline on a docker header
+makes a panel group claim to divide the application.
+
+The active panel tab's gradient **ends transparent and ends early**. Transparent
+because a header, a floating panel and a docked strip are not the same ground,
+and a gradient that named its destination would be a visible seam on two of the
+three. Early — around 0.6 — because the design fades *fast*: it is the lit top
+edge that says "this one is in front", and a fade stretched to the full height
+gives a lighter block, which is the segmented-control look panel tabs are
+specifically not.
 
 **Badges are named for the meaning, not the colour** — `info`, `warning`,
 `error`, `success`. A badge that says "amber" has to be renamed when the design

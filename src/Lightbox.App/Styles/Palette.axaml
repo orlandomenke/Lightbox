@@ -102,6 +102,33 @@
   <SolidColorBrush x:Key="SelectionBrush" Color="{StaticResource AccentViolet}" Opacity="0.30" />
   <SolidColorBrush x:Key="StatusWarningSurfaceBrush" Color="{StaticResource AccentAmber}" Opacity="0.18" />
 
+  <!--
+    The ground under the tab that is showing, straight off the design reference
+    in docs/design/. Measured rather than guessed: a column down the active
+    "Layers" tab in the mockup runs from about #222B2A at the top to the panel's
+    own ground by two thirds of the way down, which is `SurfaceElevated` fading
+    out — the tab is lit from the top and merges into the panel below it.
+
+    **It ends at Transparent rather than at a colour.** The header, a floating
+    panel and a docked strip are not all the same ground, and a gradient that
+    named its destination would be a visible seam on two of the three. Fading to
+    nothing merges into whatever is actually behind it, which is what "fades
+    into the background" has to mean when the background is not one thing.
+
+    The last stop is at 0.62, not 1. The design fades *fast* — most of the tab
+    is already the panel colour, and it is the lit top edge that says "this one
+    is in front", not an evenly shaded box. Stretching it to 1 gives a tab that
+    reads as a lighter block, which is the segmented-control look the docker
+    tabs are specifically not.
+
+    The 12% lean is the reference's, and it is the only part of this that is
+    decoration rather than meaning.
+  -->
+  <LinearGradientBrush x:Key="TabActiveGroundBrush" StartPoint="0%,0%" EndPoint="12%,100%">
+    <GradientStop Offset="0" Color="{StaticResource SurfaceElevated}" />
+    <GradientStop Offset="0.62" Color="#00222634" />
+  </LinearGradientBrush>
+
   <!-- ===== The exposure sheet's vocabulary ============================ -->
   <!--
     A cel is read at a glance, in a grid, while scrubbing — so its colour is

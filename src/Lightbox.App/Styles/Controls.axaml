@@ -122,59 +122,92 @@
     step back rather than being greyed out — a tab you can barely read looks
     disabled, and these are all reachable.
 
-    **An accent underline marks the active tab, and weight alone does not.**
-    The first version had no mark at all, on the reasoning that the header is
-    already a distinct surface and a filled tab inside it makes two boxes where
-    the artist needed one word. The boxes part still holds; the conclusion did
-    not. Three words at slightly different brightnesses read as a row of
-    labels, not as a control you can click — and a tab strip that is not
-    legible *as* a tab strip has hidden two panels rather than offered them.
-    The underline is the affordance that costs no height and adds no box, which
-    is why it is a 2 px bar rather than a pill or a border.
+    **The design has two kinds of tab and they are not interchangeable.** The
+    reference in `docs/design/` shows both, and the difference is what they
+    divide:
 
-    It takes a template because a ListBoxItem has nowhere to put one otherwise,
-    and the template is deliberately the smallest thing that works: a presenter
-    and a bar. Anything more here would be re-implementing a control we do not
-    need.
+    * **Panel tabs** — Layers / Channels / History, and these docker headers.
+      The active one is a *sheet edge*: a lighter ground with rounded top
+      corners fading fast into the panel below, so the tab and its content read
+      as one surface and the others as sheets behind it. No accent anywhere.
+    * **Section tabs** — PAINT / ANIMATE / COMPOSITING, and the timeline's
+      modes. No ground at all, and an accent underline. They divide a *mode*
+      rather than a stack of panels, so there is nothing behind them to be
+      behind.
+
+    These are the panel kind, and the treatment below is the first one measured
+    off the reference rather than reasoned from the tokens: a column down the
+    active tab in the mockup starts at `SurfaceElevated` and is back at the
+    panel's own ground by two thirds of the way down.
+
+    An accent underline was here for one commit and was wrong — it is the
+    section treatment, and wearing it made a docker header claim to divide the
+    application. The version before *that* had no mark at all, which was wrong
+    the other way: three words at slightly different brightnesses read as a row
+    of labels rather than as a control, and a tab strip nobody recognises has
+    hidden two panels instead of offering them.
+
+    It takes a template because a ListBoxItem has nowhere to put a rounded top
+    otherwise, and the template is the smallest thing that works: one border
+    and a presenter.
   -->
   <Style Selector="ListBox.tabs > ListBoxItem">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Padding" Value="6,0" />
-    <Setter Property="MinHeight" Value="20" />
+    <Setter Property="Padding" Value="10,3" />
+    <Setter Property="MinHeight" Value="22" />
     <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Background="{TemplateBinding Background}">
+        <!--
+          Named and always present, rather than a border added on selection. A
+          box that appears on click changes the strip's height as tabs are
+          picked; one that is always there and only changes colour does not.
+
+          Bottom corners square and the bottom border absent on purpose: the
+          active tab is supposed to run into the panel under it rather than
+          close itself off, which is the whole difference between a tab and a
+          button that happens to be in a row.
+        -->
+        <Border Name="PART_Tab"
+                CornerRadius="4,4,0,0"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1,1,1,0">
           <ContentPresenter Name="PART_ContentPresenter"
                             Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
                             Foreground="{TemplateBinding Foreground}"
                             Padding="{TemplateBinding Padding}"
-                            Margin="0,0,0,3"
                             VerticalAlignment="Center" />
-          <!--
-            Named and always present, rather than added on selection. A bar
-            that appears changes the row's height as tabs are clicked; a bar
-            that is always there and merely changes colour does not.
-          -->
-          <Border Name="PART_Underline" Height="2" CornerRadius="1"
-                  VerticalAlignment="Bottom" Background="Transparent" />
-        </Panel>
+        </Border>
       </ControlTemplate>
     </Setter>
   </Style>
-  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_Underline">
-    <Setter Property="Background" Value="{StaticResource AccentVioletBrush}" />
+  <!--
+    Three states, and each says one more thing than the last: **every** tab is
+    outlined so the row reads as tabs at rest, hover lifts the ground so one
+    reads as reachable, and the active one takes the lit gradient. The
+    reference outlines the resting tabs too — a strip where only the active tab
+    has a shape reads as one tab beside two words, which is the failure the
+    no-mark version had, moved along by one.
+  -->
+  <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ Border#PART_Tab">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
   </Style>
   <!--
-    A hint of it under the pointer, so a tab reads as clickable before it is
-    clicked. Weaker than the real one — this says "you could", not "you are".
+    After the hover rules, not before. Avalonia takes the last matching style,
+    so a selected tab under the pointer would otherwise lose its ground to the
+    hover tint — the active tab going *dimmer* when you point at it, which
+    looks like a click that failed.
   -->
-  <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ Border#PART_Underline">
-    <Setter Property="Background" Value="{StaticResource BorderStrongBrush}" />
+  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_Tab">
+    <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
   </Style>
-  <Style Selector="ListBox.tabs > ListBoxItem:selected:pointerover /template/ Border#PART_Underline">
-    <Setter Property="Background" Value="{StaticResource AccentVioletBrush}" />
+  <Style Selector="ListBox.tabs > ListBoxItem:selected:pointerover /template/ Border#PART_Tab">
+    <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
   </Style>
   <!--
     Both halves, and the second is the one that does the work: the theme sets a
@@ -192,7 +225,7 @@
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
   </Style>
   <!--
-    No hover tint on the presenter. The underline is the hover affordance now,
+    No hover tint on the presenter. The tab outline is the hover affordance now,
     and a tinted box behind the word would put back exactly the second box the
     underline exists to avoid.
   -->
