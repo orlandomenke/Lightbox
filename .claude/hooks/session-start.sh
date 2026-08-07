@@ -116,3 +116,28 @@ if [ ! -f src/Lightbox.Core/obj/project.assets.json ]; then
 fi
 
 echo "toolchain: ready"
+
+# Surface unanswered questions, because a question nobody sees is a guess.
+#
+# WHY THIS EXISTS. `CLAUDE.md` says to ask a blocking question in the
+# conversation, with a recommendation, and write it to the file afterwards —
+# "asking first makes the file record an answer; asking after makes it record a
+# guess waiting to be corrected." On 2026-08-07 that failed in the way the rule
+# was written to prevent: four questions were asked in prose, went unanswered
+# twice, and were written to the file anyway. The owner had to say "prompt me
+# the questions instead of letting me navigate to the file."
+#
+# Prose in a long message is skippable. A list at the top of a session is not,
+# and it costs one line when the file is clean.
+(
+  cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}"
+  q=".claude/quality/QUESTIONS.md"
+  if [ -f "$q" ]; then
+    # A heading is answered when it says so; everything else is still open.
+    open=$(grep -E "^## Q[0-9]+ " "$q" | grep -v "answered" || true)
+    if [ -n "$open" ]; then
+      echo "questions: $(echo "$open" | wc -l | tr -d " ") unanswered — ASK these, do not expect them to be read:"
+      echo "$open" | sed "s/^## /  /"
+    fi
+  fi
+)

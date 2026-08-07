@@ -116,7 +116,11 @@ The protocol:
   would put a model in the render path or make a mark unreproducible, that is
   invariant 2 and the answer is no regardless of how much better it would look.
 - **Where you disagree and cannot measure, write it down** in
-  `.claude/quality/QUESTIONS.md` rather than letting whoever ran last win.
+  `.claude/quality/QUESTIONS.md` rather than letting whoever ran last win —
+  and say in your report that it needs **asking**, not filing. Whoever is on the
+  main thread has to put it to the owner with `AskUserQuestion` before the file
+  is written; a question that lands in the file unasked is a guess wearing a
+  heading. See `CLAUDE.md` → *Ask with the question prompt, not with prose*.
 
 ## Output
 

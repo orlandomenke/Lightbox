@@ -223,11 +223,20 @@ inking or normal maps; they inherit this pipeline when they arrive.
 | **Too close to deterministic** | **Report, never reject.** A cost signal and a diagnostic, never a veto |
 | **Golden set** | **Ships**, so an artist can grade their own model |
 
-**The second one changes stage 5, and it is the owner's call rather than the
-recommendation.** *Reliable or worthless* means the feature does not hand over
-work it cannot vouch for: inserting a deterministic frame under an AI request
-quietly substitutes a different answer for the one asked for, and an artist who
-wanted the deterministic result can press the deterministic button.
+**The second one changes stage 5, and it defeats the recommendation rather than
+overruling it.** The recommendation rested on treating the deterministic engine
+as a *floor*. The owner's objection: *"for complex subjects — a human, a dog or
+something else complex and organic — I believe the deterministic inbetweener is
+prone to make mistakes. I'd rather have nothing than a frustration."*
+
+**That is correct, and B113 proves it.** Four straight lines making a box, and
+the matcher crossed the top and bottom edges over so the shape collapsed
+mid-motion. On a box the error is obvious the moment you look. On a quadruped's
+legs it is a subtly wrong walk that costs an afternoon to find.
+
+So the deterministic engine is a floor **for simple subjects and not for
+complex organic ones**, and substituting it under a failed AI request swaps one
+unreliable answer for another while calling the swap safety.
 
 So the floor is not "the AI silently becomes the cheap engine". It is **"the AI
 never produces a frame it cannot defend"**, with the deterministic engine one
@@ -239,6 +248,19 @@ inbetweens can return three. The status must name which `t` was refused and
 why — *"frame 3 of 4 was refused: the near arm did not stay between the keys"* —
 or the gap is a puzzle instead of a decision. Refusal is **per frame**: the ones
 that passed are inserted.
+
+**Q32 and Q33 interact, and it constrains both.** If the deterministic engine is
+untrustworthy on complex organic subjects, then *distance from the deterministic
+answer* — Q33's free signal — is weakest exactly where correctness matters most.
+The rule that falls out: **distance from the deterministic answer is evidence
+about cost, never about correctness.** Far from it on a dog means very little;
+close to it on a dog might mean both answers are wrong the same way.
+
+**And it tells the golden set what to contain.** A set of boxes and swinging
+arms would certify a model on the cases where the reference is reliable and say
+nothing about the cases the owner actually worries about. It needs complex
+organic subjects — a quadruped's gait, a figure turning — with *hand-drawn*
+known-good answers rather than deterministic ones.
 
 ## Verification
 

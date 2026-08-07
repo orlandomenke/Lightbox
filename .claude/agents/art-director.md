@@ -127,7 +127,11 @@ The protocol:
   boils at 12 fps and a request nobody can afford are the same kind of failure:
   something that works on one drawing and not on two hundred.
 - **Where you disagree and cannot measure, write it down** in
-  `.claude/quality/QUESTIONS.md` rather than letting whoever ran last win.
+  `.claude/quality/QUESTIONS.md` rather than letting whoever ran last win —
+  and say in your report that it needs **asking**, not filing. Whoever is on the
+  main thread has to put it to the owner with `AskUserQuestion` before the file
+  is written; a question that lands in the file unasked is a guess wearing a
+  heading. See `CLAUDE.md` → *Ask with the question prompt, not with prose*.
 
 ## Output
 
