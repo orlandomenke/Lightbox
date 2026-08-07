@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2633 tests, derived from the suite itself. Each line is a
+2657 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -8,18 +8,18 @@ regression even when every test still compiles.
 ## AiConnectionTesterTests
 `tests/Lightbox.Ai.Tests/AiConnectionTesterTests.cs`
 
-- AQuick Test Passes On One Good Line — `:71`
-- AQuick Test Does Not Ask For An Inbetween — `:81`
-- AThorough Test Asks For Both — `:92`
-- AStroke With One Point Is Unusable Rather Than APass — `:104`
-- AStroke With No Extent Is Unusable — `:115`
-- Points Off The Canvas Are Clamped Before The Tester Sees Them — `:127`
-- An Empty Drawing Fails — `:144`
-- AThorough Test Passes When The Inbetween Lands Between The Keys — `:155`
-- AThorough Test Fails When The Model Copied AKey Instead — `:165`
-- ATiming Outside The Keys Leaves No Usable Frame — `:178`
-- The Checks Name The Problem Rather Than Just Failing — `:187`
-- Each Stage Is Reported So ALong Test Can Say What It Is Doing — `:198`
+- AQuick Test Passes On One Good Line — `:68`
+- AQuick Test Makes One Call — `:78`
+- AThorough Test Makes Two — `:91`
+- AStroke With One Point Is Unusable Rather Than APass — `:102`
+- AStroke With No Extent Is Unusable — `:113`
+- Points Off The Canvas Are Clamped Before The Tester Sees Them — `:125`
+- An Empty Reply Fails — `:142`
+- AThorough Test Passes When The Inbetween Lands Between The Keys — `:153`
+- AThorough Test Fails When The Model Copied AKey Instead — `:163`
+- ATiming Outside The Keys Leaves No Usable Frame — `:176`
+- The Checks Name The Problem Rather Than Just Failing — `:185`
+- Each Stage Is Reported So ALong Test Can Say What It Is Doing — `:196`
 
 ## AiPayloadBudgetTests _Category=Performance_
 `tests/Lightbox.Ai.Tests/AiPayloadBudgetTests.cs`
@@ -28,7 +28,6 @@ regression even when every test still compiles.
 - Resampling Is What Keeps ALong Stroke Affordable — `:81`
 - The Fixed Overhead Is Not Worth Optimising — `:99`
 - Cost Scales With Stroke Count Which Is Why Sending Fewer Is The Real Lever — `:115`
-- ADraw Request With An Empty Canvas Is Tiny — `:130`
 
 ## AiArtistFactoryTests
 `tests/Lightbox.Ai.Tests/AiProviderTests.cs`
@@ -60,31 +59,30 @@ regression even when every test still compiles.
 ## PromptTests
 `tests/Lightbox.Ai.Tests/AiTests.cs`
 
-- Inbetween User Contains Scene Bounds And All Ts — `:168`
-- Draw User Contains Prompt And Context — `:183`
-- System Prompts Mention Core Principles — `:193`
+- Inbetween User Contains Scene Bounds And All Ts — `:159`
+- System Prompts Mention Core Principles — `:174`
 
 ## SchemaTests
 `tests/Lightbox.Ai.Tests/AiTests.cs`
 
-- Schemas Are Valid Json — `:13`
-- Schemas Every Object Forbids Additional Properties — `:23`
-- Schemas Contain No Numeric Range Constraints — `:52`
+- Schemas Are Valid Json — `:11`
+- Schemas Every Object Forbids Additional Properties — `:18`
+- Schemas Contain No Numeric Range Constraints — `:44`
 
 ## WireMappingTests
 `tests/Lightbox.Ai.Tests/AiTests.cs`
 
-- To Wire Resamples Long Strokes And Rounds Coords — `:67`
-- To Wire Keeps Short Strokes Intact — `:86`
-- From Wire Clamps Everything — `:93`
-- From Wire Rejects Unusable Strokes — `:118`
-- From Wire Maps Eraser And Label — `:127`
-- From Wire List Drops Bad Keeps Good — `:147`
+- To Wire Resamples Long Strokes And Rounds Coords — `:58`
+- To Wire Keeps Short Strokes Intact — `:77`
+- From Wire Clamps Everything — `:84`
+- From Wire Rejects Unusable Strokes — `:109`
+- From Wire Maps Eraser And Label — `:118`
+- From Wire List Drops Bad Keeps Good — `:138`
 
 ## WireRoundTripTests
 `tests/Lightbox.Ai.Tests/AiTests.cs`
 
-- Inbetween Result Dto Parses Model Shaped Json — `:205`
+- Inbetween Result Dto Parses Model Shaped Json — `:184`
 
 ## McpArtistTests
 `tests/Lightbox.Ai.Tests/McpArtistTests.cs`
@@ -93,11 +91,11 @@ regression even when every test still compiles.
 - The Tool Is Called With System Prompt And Schema — `:82`
 - Text Blocks Are Joined Rather Than Truncated To The First — `:100`
 - ATool Error Is Reported Not Parsed — `:122`
-- AProtocol Failure Becomes AValue Rather Than An Exception — `:137`
-- List Tools Reads The Names — `:151`
-- Testing An Mcp Connection Names The Tools When The Chosen One Is Absent — `:164`
-- Disposing The Artist Closes The Channel — `:179`
-- Arguments Split Like AShell Would — `:197`
+- AProtocol Failure Becomes AValue Rather Than An Exception — `:136`
+- List Tools Reads The Names — `:149`
+- Testing An Mcp Connection Names The Tools When The Chosen One Is Absent — `:162`
+- Disposing The Artist Closes The Channel — `:177`
+- Arguments Split Like AShell Would — `:195`
 
 ## OllamaTests
 `tests/Lightbox.Ai.Tests/OllamaTests.cs`
@@ -107,7 +105,6 @@ regression even when every test still compiles.
 - Connection Refused Maps To Retryable With Hint — `:89`
 - Model Not Found Suggests Pull — `:102`
 - Empty Or Unusable Frames Is Retryable Error — `:117`
-- Draw Parses Strokes — `:129`
 
 ## OpenAiTests
 `tests/Lightbox.Ai.Tests/OpenAiTests.cs`
@@ -118,9 +115,32 @@ regression even when every test still compiles.
 - Reference Images Ride Along As Data Uris Before The Task — `:93`
 - Success Parses Into Strokes — `:110`
 - Status Codes Become Sentences Somebody Can Act — `:130`
-- ARefusal Is ARefusal Rather Than An Error — `:148`
-- Hitting The Output Limit Is Truncation Rather Than AParse Failure — `:167`
-- Something That Is Not AChat Completion Says So — `:179`
+- ARefusal Is ARefusal Rather Than An Error — `:147`
+- Hitting The Output Limit Is Truncation Rather Than AParse Failure — `:165`
+- Something That Is Not AChat Completion Says So — `:176`
+
+## SubjectReadingTests
+`tests/Lightbox.Ai.Tests/SubjectReadingTests.cs`
+
+- An Ordinary Reading Survives Intact — `:28`
+- APart Naming AParent Nobody Declared Is Orphaned Rather Than Kept — `:53`
+- APart Cannot Be Its Own Ancestor — `:68`
+- The Same Name Twice Is One Part — `:100`
+- AReading With No Parts Is AFailure Rather Than An Empty Answer — `:116`
+- The Schema Cannot Carry Geometry — `:128`
+- Without ATaxonomy The Request Is The One Lightbox Always Sent — `:161`
+- The Taxonomy Goes At The Front Where ACache Prefix Can Cover It — `:169`
+- ATaxonomy Is Cheap Against The Frame Data It Rides On — `:205`
+- ATaxonomy Round Trips Through The Project File — `:233`
+- ACharacter That Was Never Read Writes No Key — `:250`
+- An Animation Finds The Character That Owns It — `:264`
+- An Animation Reached Through AVariant Still Belongs To Its Character — `:281`
+
+## TaxonomyMeasurementTests
+`tests/Lightbox.Ai.Tests/TaxonomyMeasurementTests.cs`
+
+- The Two Arms Of The Comparison Differ In Exactly The Taxonomy — `:98`
+- Does The Taxonomy Alone Improve An Inbetween — `:113`
 
 ## ActiveColorTests
 `tests/Lightbox.App.Tests/ActiveColorTests.cs`
@@ -162,12 +182,12 @@ regression even when every test still compiles.
 ## AiIntegrationTests
 `tests/Lightbox.App.Tests/AiIntegrationTests.cs`
 
-- No Artist Disables Ai — `:54`
-- Ai Inbetween Inserts Frames Through Shared Path — `:63`
-- Ai Inbetween Refusal Surfaces Message No Mutation — `:94`
-- Ai Inbetween Without Second Key Asks For One — `:110`
-- Ai Draw Appends Strokes Undoable — `:120`
-- Ai Draw Empty Prompt Does Nothing — `:143`
+- No Artist Disables Ai — `:56`
+- Ai Inbetween Inserts Frames Through Shared Path — `:65`
+- Ai Inbetween Refusal Surfaces Message No Mutation — `:96`
+- Ai Inbetween Without Second Key Asks For One — `:112`
+- Ai Inbetween Refuses ALocked Layer — `:122`
+- Every Artist Method Starts From Something The Artist Drew — `:157`
 
 ## AiProviderPageTests
 `tests/Lightbox.App.Tests/AiProviderPageTests.cs`
@@ -411,7 +431,7 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/BrushToolTests.cs`
 
 - Painting On AHidden Layer Is Blocked Until Visible Again — `:11`
-- Ai Draw Refuses AHidden Layer — `:31`
+- Ai Inbetween Refuses AHidden Layer — `:31`
 
 ## CameraCompositingTests
 `tests/Lightbox.App.Tests/CameraCompositingTests.cs`
@@ -1718,6 +1738,8 @@ regression even when every test still compiles.
 - ADeclaration Pointing At Nothing Still Shows And Still Clears — `:367`
 - Declaring ASymbol Narrows The Grid For Other Folders — `:395`
 - ASymbol Declaration Says What It Is And Undoes To Unscoped — `:436`
+- Declaring ABrush Tip Narrows The Projects Own And Not The User Library — `:472`
+- ATip Declaration Says What It Is And Undoes To Unscoped — `:515`
 
 ## SelectionAdjustTests
 `tests/Lightbox.App.Tests/SelectionAdjustTests.cs`
@@ -1866,6 +1888,16 @@ regression even when every test still compiles.
 - APen Burst Is One Frame Not One Per Event — `:180`
 - When The Burst Has Drained The Mark Reaches The Pen — `:212`
 - Smoothings Own Lag Is Measured Separately — `:246`
+
+## SubjectReadingWiringTests
+`tests/Lightbox.App.Tests/SubjectReadingWiringTests.cs`
+
+- Reading ACharacter Keeps The Answer On It — `:66`
+- AReading Somebody Edited Is Not Overwritten By ARe Read — `:83`
+- Without AProject It Says So Rather Than Failing Quietly — `:104`
+- With No Sheet To Read It Says What Is Missing — `:116`
+- An Inbetween On ACharacters Animation Carries Its Taxonomy — `:136`
+- ADocument With No Character Sends No Taxonomy At All — `:171`
 
 ## SymbolBrowserTests
 `tests/Lightbox.App.Tests/SymbolBrowserTests.cs`
@@ -2307,9 +2339,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:172`
 - The Canvas Gets The Room Left Over By The Strips — `:195`
 - The Project Row Menu Actually Does Something When Clicked — `:219`
-- The New Menu Actually Makes Things — `:348`
-- The Reference Panel Is Absent Until It Is Asked For — `:415`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:431`
+- The New Menu Actually Makes Things — `:353`
+- The Reference Panel Is Absent Until It Is Asked For — `:420`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:436`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
@@ -2887,6 +2919,8 @@ regression even when every test still compiles.
 - ADocument At The Project Root Still Resolves — `:161`
 - AProject That Declares Nothing Writes No Resource Keys — `:178`
 - Only APromoted Resource Writes Its Reach — `:190`
+- With Nothing Declared Every Tip Is Still Offered — `:216`
+- ATip Declared On AFolder Is Offered There And Not Elsewhere — `:230`
 
 ## PressureResponseTests
 `tests/Lightbox.Core.Tests/ResponseCurveTests.cs`
@@ -3695,6 +3729,12 @@ regression even when every test still compiles.
 - AStroke That Reaches Nothing Is Recorded Rather Than Skipped — `:138`
 - Negative Coordinates Index And Query The Same As Positive Ones — `:152`
 - ATile Sized Query Touches AFraction Of ABusy Drawing — `:176`
+
+## SubjectReadingIsNotRenderedTests
+`tests/Lightbox.Raster.Tests/SubjectReadingIsNotRenderedTests.cs`
+
+- Deleting Every Reading Changes No Pixel — `:59`
+- Renaming APart Changes No Pixel — `:99`
 
 ## SymbolFlattenTests
 `tests/Lightbox.Raster.Tests/SymbolFlattenTests.cs`
