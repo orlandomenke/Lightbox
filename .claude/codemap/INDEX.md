@@ -1,6 +1,6 @@
 # Code index
 
-540 files · 141960 lines · 2825 tests.
+542 files · 142622 lines · 2834 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -65,7 +65,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ShortcutRow:13, ShortcutGroup:25, GridRow:40, FeatureToggleRow:97, AiFieldRow:164, ConfigureWindow:215
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (805 ln) · 104 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (805 ln) · 105 test files
   - SpriteSheetOptions:14, SpriteSheetResult:54, SpriteSheetExporter:103, SheetDocument:677, SheetFrame:683, SheetMeta:716, SheetTag:747, SheetEvent:761 …
 - `src/Lightbox.App/Services/UnityExporter.cs` (666 ln) · 15 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
@@ -107,6 +107,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (283 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
+- `src/Lightbox.App/Styles/Controls.axaml` (273 ln) · **no tests**
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
   - CurveEditor:29
 - `src/Lightbox.App/Services/RenderReport.cs` (269 ln) · 1 test files
@@ -138,6 +139,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Docker:16
 - `src/Lightbox.App/Views/BrushLibraryWindow.axaml.cs` (217 ln) · 1 test files
   - BrushLibraryWindow:34
+- `src/Lightbox.App/App.axaml` (210 ln) · **no tests**
+  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Services/AppSettings.cs` (208 ln) · 5 test files
   - AppSettings:16
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml` (205 ln) · **no tests**
@@ -152,6 +155,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockZones:67
 - `src/Lightbox.App/Controls/OverflowBar.cs` (178 ln) · 2 test files
   - OverflowBar:25
+- `src/Lightbox.App/Styles/Palette.axaml` (178 ln) · **no tests**
 - `src/Lightbox.App/Rendering/GuidePainter.cs` (177 ln) · 1 test files
   - GuidePainter:27
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 3 test files
@@ -160,8 +164,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PART_Clear, PART_Swatch
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln) · **no tests**
   - ColorField:29
-- `src/Lightbox.App/App.axaml` (163 ln) · **no tests**
-  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Rendering/RigOverlayPainter.cs` (152 ln) · 1 test files
   - RigOverlayPainter:36
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml.cs` (150 ln) · 1 test files
@@ -172,7 +174,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DiagnosticLog:22
 - `src/Lightbox.App/Services/BrushImportJob.cs` (144 ln) · 1 test files
   - BrushImportProgress:11, BrushImportOutcome:23, BrushImportJob:52
-- `src/Lightbox.App/Styles/Palette.axaml` (141 ln) · **no tests**
 - `src/Lightbox.App/Services/TipStore.cs` (139 ln) · 2 test files
   - TipStore:32, State:45
 - `src/Lightbox.App/Services/CrashScenarios.cs` (138 ln) · 1 test files
@@ -468,7 +469,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Pivot:7
 - `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 1 test files
   - Ids:3
-- `src/Lightbox.Core/Projects/FeatureConflictException.cs` (11 ln) · 104 indirect only
+- `src/Lightbox.Core/Projects/FeatureConflictException.cs` (11 ln) · 105 indirect only
   - FeatureConflictException:7
 
 ## Lightbox.Import
