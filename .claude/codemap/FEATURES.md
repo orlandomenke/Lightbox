@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2817 tests, derived from the suite itself. Each line is a
+2825 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1676,6 +1676,18 @@ regression even when every test still compiles.
 - Removing The Last Reference Leaves The Document With No Key For One — `:345`
 - ADocument With No Reference Composites Exactly As It Always Has — `:358`
 - AReference Survives Saving And Reopening — `:374`
+
+## RenderReportTests
+`tests/Lightbox.App.Tests/RenderReportTests.cs`
+
+- The Startup Report Lands In The Diagnostics Folder And Names The Build — `:51`
+- The Startup Report Is Written Only Once — `:69`
+- ASilent Fallback To Cpu Is Reported Loudly — `:83`
+- The On Demand Report Carries The Session Totals And The Saving — `:101`
+- The Upload Probe Compares Two Presents Without AGpu — `:125`
+- The Probe Refuses ADegenerate Surface Instead Of Throwing — `:147`
+- An Unwritable Folder Is Survived Rather Than Thrown — `:158`
+- The Presented Frame Counts Full Against Patched And Free Repaints — `:176`
 
 ## RigEditingTests
 `tests/Lightbox.App.Tests/RigEditingTests.cs`

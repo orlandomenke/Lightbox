@@ -1,6 +1,6 @@
 # Code index
 
-538 files · 141269 lines · 2817 tests.
+540 files · 141948 lines · 2825 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,14 +47,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10690 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4508, TransformParts:7177
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4467 ln) · 20 test files
-  - MainWindow:19, UnsavedChoice:2909
-- `src/Lightbox.App/Views/MainWindow.axaml` (3589 ln) · **no tests**
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10708 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4526, TransformParts:7195
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4549 ln) · 20 test files
+  - MainWindow:19, UnsavedChoice:2991
+- `src/Lightbox.App/Rendering/CanvasControl.cs` (3622 ln) · 12 test files
+  - CanvasControl:28, CanvasToolMode:897, GridGesture:954, TxDrag:1101, DrawOp:2913
+- `src/Lightbox.App/Views/MainWindow.axaml` (3598 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
-- `src/Lightbox.App/Rendering/CanvasControl.cs` (3568 ln) · 12 test files
-  - CanvasControl:28, CanvasToolMode:857, GridGesture:914, TxDrag:1061, DrawOp:2869
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
@@ -99,6 +99,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RampTrack:10, GradientRamp:41
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (295 ln) · 4 test files
   - Workspace:13, WorkspaceStore:51
+- `src/Lightbox.App/Rendering/PresentedFrame.cs` (293 ln) · 2 test files
+  - PresentedFrame:45
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 110 test files
@@ -107,6 +109,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
   - CurveEditor:29
+- `src/Lightbox.App/Services/RenderReport.cs` (269 ln) · 1 test files
+  - RenderReport:36
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 3 test files
   - ComposeRing:31, Buffer:33
 - `src/Lightbox.App/Services/ExportRunner.cs` (256 ln) · 5 test files
@@ -117,8 +121,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - RulerStrip:27
 - `src/Lightbox.App/ViewModels/SelectionManager.cs` (250 ln) · 4 indirect only
   - SelectionManager:7
-- `src/Lightbox.App/Rendering/PresentedFrame.cs` (246 ln) · 1 test files
-  - PresentedFrame:45
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
 - `src/Lightbox.App/Services/ShortcutMap.cs` (239 ln) · 7 test files
@@ -166,7 +168,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TemplatePullRow:31, UpdateFromTemplateWindow:47
 - `src/Lightbox.App/Views/BrushChoice.cs` (149 ln) · 2 test files
   - BrushChoice:26
-- `src/Lightbox.App/Services/DiagnosticLog.cs` (145 ln) · 3 test files
+- `src/Lightbox.App/Services/DiagnosticLog.cs` (145 ln) · 4 test files
   - DiagnosticLog:22
 - `src/Lightbox.App/Services/BrushImportJob.cs` (144 ln) · 1 test files
   - BrushImportProgress:11, BrushImportOutcome:23, BrushImportJob:52

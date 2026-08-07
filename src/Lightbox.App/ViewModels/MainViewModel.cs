@@ -99,6 +99,24 @@ public sealed partial class MainViewModel : ObservableObject
         _ => Math.Clamp(_displayScale, 0.125, 1.0),
     };
 
+    /// <summary>
+    /// The numbers the render report needs, named for that use so nobody mistakes
+    /// them for view state. Read-only, and deliberately narrow: the alternative
+    /// was making <c>Scene</c>, <c>ComposeScale</c> and <c>_displayScale</c>
+    /// public, which would expose three things to everything in order to tell one
+    /// diagnostic three facts.
+    /// </summary>
+    internal int ReportDocWidth => Scene.Width;
+
+    /// <inheritdoc cref="ReportDocWidth"/>
+    internal int ReportDocHeight => Scene.Height;
+
+    /// <inheritdoc cref="ReportDocWidth"/>
+    internal double ReportComposeScale => ComposeScale;
+
+    /// <inheritdoc cref="ReportDocWidth"/>
+    internal double ReportDisplayScale => _displayScale;
+
     /// <summary>Called by the canvas when zoom or window size changes what it can show.</summary>
     public void SetDisplayScale(double scale)
     {

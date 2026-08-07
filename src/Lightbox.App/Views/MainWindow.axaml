@@ -351,6 +351,15 @@
                   IsChecked="{Binding ShowDiagnosticsConsole, Mode=TwoWay}"
                   ToolTip.Tip="Opens a console window at the next start, carrying the diagnostic traces" />
         <!--
+          Always visible, unlike the crash scenarios below: this one is how a
+          performance report gets made, and asking somebody to turn diagnostics
+          on first is a step they will not know to take when the app feels slow.
+          A short version is written on every start; this is the full one, with
+          what has been measured since and an upload probe timed on the real GPU.
+        -->
+        <MenuItem Header="Write a render report" Click="OnWriteRenderReport"
+                  ToolTip.Tip="Measures this machine's drawing path and writes it to the diagnostics folder" />
+        <!--
           Absent unless diagnostics are on, the same way the Project menu items
           are absent without a project: an item you can click that then does
           something nobody wanted is worse than one that is not there.
