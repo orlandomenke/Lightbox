@@ -160,7 +160,7 @@ they need to know:
 ## What has to be answered before building
 
 In `QUESTIONS.md` rather than guessed here — Q16 (is a reading stored, and what
-invalidates it), Q17 (does an inking pass replace the pencils or sit on a new
+invalidates it — **answered (c)**), Q17 (does an inking pass replace the pencils or sit on a new
 layer). Both change the record, and both are cheaper to decide than to migrate.
 
 ## Order
@@ -446,8 +446,7 @@ nothing, and that is a real mistake to make once.
 
 ## Still open after this
 
-- **Q17** — does an inking pass replace the pencils or land on its own layer.
-  Blocks inking only; nothing on this track waits for it.
+- ~~**Q17**~~ — **answered (c)**: one Ink layer for the whole sequence, run over a range. Inking is unblocked.
 - **What a taxonomy editor looks like.** The reading is hand-correctable by
   design, and "hand-correctable" without a UI means "hand-correctable by editing
   JSON". Not designed here, and it is not a prerequisite for the measurement —

@@ -94,7 +94,7 @@ a model that has seen a million `{"x": …}` objects has seen very few
 `[[123.4,567.8,0.55], …]`. Trading 57% of the tokens for a model that
 occasionally drops a label or transposes a coordinate is a bad trade, and
 whether it does can only be settled by running both against a real provider.
-Recorded as **Q18** rather than guessed.
+Recorded as **Q18**, and **answered (c) on 2026-08-07**: flat arrays for points only, objects for everything else. Points are 99% of the volume; `tool`, `color` and `label` keep their names, so the field whose loss costs an inbetween keeps its key. The adherence claim is still unmeasured — label retention goes into the golden set's scores (Q34) so a regression is a number rather than a bad inbetween somebody notices weeks later.
 
 **Sending fewer strokes is six times bigger than any encoding trick**, and it
 is the thing actually worth building. A 120-stroke frame is ~79k tokens, and
@@ -140,7 +140,7 @@ in the downscaled reference against an empty sheet of the same size.
 A cap is a ceiling and not a target: a 400×300 sheet is sent at 400×300.
 Upscaling would spend tokens on pixels the artist never drew.
 
-**768 is not settled, and it is now written down as unsettled — Q27.**
+**768 is settled — Q27, answered (d) on 2026-08-07: choose the cap per view from what is in it.** One number never fitted both a face turnaround and a walk-cycle sheet. The objection to a heuristic stands and is answered in the build rather than argued away: the chosen cap is shown per view, a view can be pinned, and the heuristic is a pure function tested on the fixtures `RenderReferenceViewPng` already has.
 art-director rendered a face close-up and a naturally-small head through the
 real path at authored, 768 and 512: a body silhouette survives even 512, but
 eyebrows vanish and eyes turn to grey smudges on the faces, because mipmapped

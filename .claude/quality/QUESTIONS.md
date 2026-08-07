@@ -618,7 +618,21 @@ from the start. Recorded because it is a real limitation and an artist erasing
 into a wash will find this hard-edged: **if that turns out to matter, the fix is
 a new brush, not a change to the eraser.**
 
-## Q15 · Is a mirrored stroke one stroke or two?
+## Q15 · Is a mirrored stroke one stroke or two? — **answered (c)**
+
+**Answered 2026-08-07: (c), one stroke while drawing with an explicit "break
+symmetry" that expands to two.** So `Mirror` lives **on the stroke**, not on the
+scene — that is the part this answer actually settles, and the reason it could
+not be deferred.
+
+Turning symmetry off is meaningful while the stroke is whole: it removes the
+reflection rather than leaving an orphan. Breaking symmetry is a deliberate,
+undoable act that writes two ordinary strokes and forgets the pairing, which is
+correct — after the break they are two marks and pretending otherwise would owe
+the artist a promise nothing keeps.
+
+**Blocks:** nothing. Symmetry can be built.
+
 
 Symmetry does not exist yet and it should — for character design, which is what
 this application is for, a vertical mirror is not a nicety. What has to be
@@ -713,7 +727,20 @@ Leaning (c) for placement and stored-on-the-character for taxonomy, because it
 puts the durable half where an artist can edit it and the disposable half where
 losing it is free.
 
-## Q17 · Does an inking pass replace the pencils or land on its own layer?
+## Q17 · Does an inking pass replace the pencils or land on its own layer? — **answered (c)**
+
+**Answered 2026-08-07: (c), one Ink layer for the whole sequence**, its cels
+lined up with the pencils'. Non-destructive without the two-hundred-layer
+problem, and it uses the layer model as it already stands.
+
+**It carries a UI commitment, and that is the half worth writing down:** an
+inking pass runs over a **range**, not a frame. A per-frame gesture would make
+one layer per frame by accident, which is the option this answer rejected. So
+the surface that starts an inking pass takes a range the way the exposure-sheet
+operations already do.
+
+**Blocks:** nothing. Inking is unblocked — it was the last thing waiting on this.
+
 
 **(a) Its own layer, pencils untouched and hidden.** What an inker does on
 paper, non-destructive, and the artist can re-run with a different style
@@ -735,7 +762,22 @@ The reason it cannot be deferred: (a) and (b) produce different documents from
 the same gesture, and a file written under one cannot be reinterpreted as the
 other. Pick before the first pass ships, not after.
 
-## Q18 · Do flat point arrays cost schema adherence?
+## Q18 · Do flat point arrays cost schema adherence? — **answered (c)**
+
+**Answered 2026-08-07: (c), flat arrays for points only, objects for everything
+else.** Points are 99% of the volume and the only part that repeats; `tool`,
+`color` and `label` keep their names, so the field whose loss actually costs an
+inbetween keeps its key.
+
+**Adopt it with the measurement rather than instead of it.** The adherence
+claim in `StrokePayload.cs` was undated and unmeasured, and this answer does not
+make it true — it makes the risk small enough to take. The golden set (Q34) is
+the natural place to watch it: **label retention** belongs in the scores, so a
+regression shows up as a number rather than as a bad inbetween somebody notices
+weeks later.
+
+**Blocks:** nothing.
+
 
 The measurement is settled and the trade is not. `docs/DESIGN-ai-payload.md`
 has the numbers: writing a point as `[123.4,567.8,0.55]` instead of
@@ -777,7 +819,27 @@ it is still a guess until somebody runs it.
 This is the standing disagreement between **ai-engineer** and **art-director**,
 and it is written here rather than settled by whichever of them ran last.
 
-## Q26 · When a textured line is re-shaped, may its texture change?
+## Q26 · When a textured line is re-shaped, may its texture change? — **answered (a)**
+
+**Answered 2026-08-07: (a), accept it. The grain belongs to the canvas.** A mark
+is a function of where it is, the way a real pencil's grain is a function of the
+paper's tooth under it.
+
+**This closes the question rather than deferring it, and that is worth the
+sentence:** (b), (c) and (d) are now *rejected*, not "later". Nothing needs a
+seed origin on the stroke, nothing needs arc-length seeding, and — the one that
+matters most — **no tunable radius enters the render path**. Invariant 4's
+suspicion of hidden knobs is upheld for free, and invariant 2 stays exactly as
+written, with no second costume to check for.
+
+**What it obliges.** Pillar 0's re-shaping item ships with a manual line saying
+that moving a textured line changes its grain, and saying *why* — not as an
+apology but as the same fact as the paper's tooth. An artist who wants the mark
+preserved exactly moves the layer rather than the line, which is a real answer
+and should be the one the manual gives.
+
+**Blocks:** nothing. Re-shaping is unblocked.
+
 
 Invariant 2 seeds every dab dynamic — scatter, size, roundness, rotation, all
 three colour jitters — from the dab's position via `Hash01`. That is what makes
@@ -825,7 +887,30 @@ re-shaped stroke has to land where the record says. (c) is the one I would open
 the argument with, on the grounds that grain belonging to the stroke is what it
 belongs to on paper, but the start-of-stroke cascade may sink it.
 
-## Q27 · How big does a reference the model has to read need to be?
+## Q27 · How big does a reference the model has to read need to be? — **answered (d)**
+
+**Answered 2026-08-07: (d), choose per view from what is in it.** Measure thin-
+line density and pick the cap, rather than sending a face turnaround and a
+walk-cycle sheet at the same size.
+
+**The objection recorded against (d) still stands and has to be answered in the
+build, not argued away:** a heuristic that decides what leaves the machine is
+unpredictable in the way invariant 4 distrusts, one level up from pixels. It is
+answerable, and cheaply — **make the choice visible and overridable**:
+
+- The request shows what cap each view got, so the artist can see that the face
+  sheet went at 1024 and the silhouette at 512.
+- A view can be pinned to a size, which is (c) surviving inside (d) as the
+  escape hatch rather than as the mechanism.
+- The heuristic is a pure function of the view, tested on the same fixtures
+  `RenderReferenceViewPng` already has, so it is inspectable rather than felt.
+
+**That guard is inferred rather than given** — say so if the intent was the bare
+heuristic. Without it this is a number nobody can predict changing what the
+model sees, which is the one failure mode the objection named.
+
+**Blocks:** nothing.
+
 
 B31 capped reference views at **768 px on the long edge** on the way into a
 request, and the number is doing real work: providers bill by area regardless of
