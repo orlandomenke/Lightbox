@@ -71,6 +71,11 @@ public class CursorAlignmentTests(ITestOutputHelper output)
             Canvas.Framing = f with { PanX = f.PanX + x, PanY = f.PanY + y };
         }
 
+        public void Frame(double rotationDeg, bool mirrored)
+        {
+            Canvas.Framing = Canvas.Framing with { RotationDeg = rotationDeg, Mirrored = mirrored };
+        }
+
         private long _seq;
     }
 
@@ -78,15 +83,33 @@ public class CursorAlignmentTests(ITestOutputHelper output)
     /// The heart of it: culling is a rendering decision, so it must not move a
     /// single document coordinate. Same gesture, both paths, same answer.
     /// </summary>
+    /// <remarks>
+    /// <b>Rotation and mirror are in the matrix on purpose, and were the gap in
+    /// the first version of this file.</b> The offending term lived in
+    /// <c>ViewMatrix</c>'s <em>final translation</em>, which is the one factor
+    /// rotation reorders — so a viewport term that happened to look right at
+    /// zoom and pan can still be wrong the moment the canvas is turned. A theory
+    /// that only sweeps zoom and pan would pass on that, which is the same shape
+    /// of hole that let the original bug ship.
+    /// </remarks>
     [AvaloniaTheory]
-    [InlineData(1.0, 0, 0)]
-    [InlineData(2.0, 0, 0)]
-    [InlineData(0.5, 0, 0)]
-    [InlineData(1.0, 120, -80)]
-    [InlineData(3.0, 200, 150)]
-    [InlineData(0.25, -300, 90)]
+    // zoom,  panX, panY, rotationDeg, mirrored
+    [InlineData(1.0, 0, 0, 0, false)]
+    [InlineData(2.0, 0, 0, 0, false)]
+    [InlineData(0.5, 0, 0, 0, false)]
+    [InlineData(1.0, 120, -80, 0, false)]
+    [InlineData(3.0, 200, 150, 0, false)]
+    [InlineData(0.25, -300, 90, 0, false)]
+    // …and the same again turned and flipped, where a translation-order error hides.
+    [InlineData(1.0, 0, 0, 90, false)]
+    [InlineData(1.0, 0, 0, 37, false)]
+    [InlineData(2.0, 140, -60, 17, false)]
+    [InlineData(0.5, -220, 110, -45, false)]
+    [InlineData(1.0, 0, 0, 0, true)]
+    [InlineData(2.5, 90, 70, 0, true)]
+    [InlineData(1.5, -110, 40, 23, true)]
     public void CullingNeverMovesTheDocumentPointUnderThePointer(
-        double zoom, double panX, double panY)
+        double zoom, double panX, double panY, double rotationDeg, bool mirrored)
     {
         var probes = new[]
         {
@@ -105,6 +128,7 @@ public class CursorAlignmentTests(ITestOutputHelper output)
         {
             rig.Canvas.ZoomAt(new Point(400, 300), zoom);
             rig.Pan(panX, panY);
+            rig.Frame(rotationDeg, mirrored);
             rig.Publish();   // the app republishes after every view change
         }
 
@@ -117,6 +141,12 @@ public class CursorAlignmentTests(ITestOutputHelper output)
             if (err > worst) worst = err;
             output.WriteLine(
                 $"view {p.X,4},{p.Y,4}  plain {ax,9:F2},{ay,9:F2}   culled {bx,9:F2},{by,9:F2}   off {err:F2}");
+
+            // And the other direction, because ViewToDoc agreeing does not prove
+            // DocToView does — they are separate call sites on the same matrix.
+            var (fax, fay) = plain.Canvas.DocToView(ax, ay);
+            var (fbx, fby) = culled.Canvas.DocToView(ax, ay);
+            worst = Math.Max(worst, Math.Max(Math.Abs(fax - fbx), Math.Abs(fay - fby)));
         }
 
         output.WriteLine($"viewport reported: {culled.Reported}");

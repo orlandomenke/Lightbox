@@ -608,11 +608,11 @@ regression even when every test still compiles.
 ## CursorAlignmentTests
 `tests/Lightbox.App.Tests/CursorAlignmentTests.cs`
 
-- Culling Never Moves The Document Point Under The Pointer — `:88`
-- AViewport Culled Canvas Round Trips ADocument Point — `:138`
-- Ink Lands Under The Pointer With Culling Live — `:170`
-- ACulled Compose Puts The Art Where AFull Compose Does — `:259`
-- Repeated Zooming Does Not Drift The Anchor — `:349`
+- Culling Never Moves The Document Point Under The Pointer — `:111`
+- AViewport Culled Canvas Round Trips ADocument Point — `:168`
+- Ink Lands Under The Pointer With Culling Live — `:200`
+- ACulled Compose Puts The Art Where AFull Compose Does — `:289`
+- Repeated Zooming Does Not Drift The Anchor — `:379`
 
 ## DiagnosticLogTests
 `tests/Lightbox.App.Tests/DiagnosticLogTests.cs`
