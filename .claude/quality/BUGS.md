@@ -175,6 +175,24 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### project
 
+- [ ] **B114** `P1` `project` A character's animations are invisible to export and to scoped resources `evidence: CharacterDocumentsAreInTheProject, AWholeProjectExportIncludesCharacterAnimations, AFolderPaletteReachesACharactersAnimation`
+  - Measured, not reasoned about. A project with one character owning `walk`, plus one loose `background` filed in a folder that declares a palette:
+
+    ```
+    manifest.Documents            : background
+    knight.Animations             : walk
+    walk.FolderId                 : (null)
+    whole-project export plan     : background          <- walk is missing
+    palettes visible to walk      : 0
+    palettes visible to loose doc : 1
+    ```
+
+  - **Two containers, and only one of them is wired up.** `ProjectIo.AddAnimation` puts the reference in `character.Animations` and never in `manifest.Documents`, and never sets `FolderId`. `ProjectIo.MoveDocument` treats the two lists as mutually exclusive — a document is *either* loose-and-foldered *or* a character's animation.
+  - Everything built on the folder tree therefore reads half the project. `ExportPlan.DocumentsUnder` returns `manifest.Documents`, so **exporting a whole project silently omits every animation in it** — the main content of the thing the application is for. `ResourceScopes.Resolve` keys off `document.FolderId`, so a folder's palette, gradients, references, guides, templates and export preset **never reach a character's work**.
+  - P1 on reach rather than on severity: it is silent, it affects the primary workflow, and it makes two shipped features (Q30 scoping, folder export) look implemented while covering the smaller half of a real project.
+  - **`docs/DESIGN-project-scoping.md` is the write-up**: one container, folders scope everything, character-ness and scene-ness become folder attributes. Crucially the migration is **metadata-only** — no file moves, no path changes — because `DocumentRef.Path` already survives independently of the tree.
+  - **The fix depends on a decision that is not this entry's to make** — whether a character stops being a container and becomes semantics attached to a folder, or whether the two lists stay and every reader learns to walk both. Raised as a question rather than guessed. The cheap interim, if the answer is slow: file character animations in the folder tree as well, so `FolderId` is set and they appear in `manifest.Documents`. Cost: M either way.
+
 - [ ] **B81** `P3` `project` Two questions are called Q20 and two are called Q21, so a cross-reference can land on the wrong one `evidence: manual`
   - Repro: `python3 scripts/bugs.py check` already reports it — `DUPLICATE Q Q20 used 2 times`. `QUESTIONS.md` has **Q20** at both *"What frame bounds does an Asset project export from an unbounded canvas?"* and *"When a textured line is re-shaped, may its texture change?"*, and **Q21** at both *"Is the infinite canvas a document property or a project-type default?"* and *"How big does a reference the model has to read need to be?"*.
   - It is already wrong in the docs rather than merely risky: `docs/DESIGN-ai-payload.md` cites **Q21** meaning reference-image size while `docs/DESIGN-infinite-canvas.md` and `ROADMAP.md` cite **Q21** meaning the canvas property. Same token, two referents, no way for a reader to tell which without opening the file and guessing from context.

@@ -10,6 +10,206 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q35 · Do Character and Scene survive as records, or dissolve into folder attributes? — **answered: dissolve**
+
+**Answered 2026-08-07: dissolve entirely.** `Character` and `ProjectScene` go.
+A folder carries `Taxonomy`, `Pivot`, `Variants`, `Order` and `Notes`, each
+nullable and absent until used. A character *is* a folder with a taxonomy; a
+scene *is* a folder with an order. Both derived, neither declared.
+
+**With a condition the owner added, and it closes a hazard the recommendation
+missed:** *"but want the user [to know] they're about to do so."* Because
+character-ness is now derived, it can be **lost by an action that does not look
+like losing it** — clearing a taxonomy, or deleting a folder, silently takes the
+pivot, the variants and a hand-corrected reading with it. Under the old model
+"delete character" was explicitly destructive; under this one it is a side
+effect.
+
+So any action that would end a folder's character-ness or scene-ness **names
+what goes before doing it** — *"This folder is Knight. Clearing its reading also
+discards the pivot and 2 variants."* The specific list, not a generic "are you
+sure", the way the export confirmation already counts what it would write.
+
+**One thing to check before the first line is written:** does anything reference
+a character *by id*? The cross-project character library (P1d) is the likely
+holder, and if it does, that reference becomes a folder id and a second format
+is touched by a change that looks like one.
+
+**Blocks:** nothing. It is the fix for **B114**.
+
+## Q36 · When does an existing project get migrated? — **answered: it does not**
+
+**Answered 2026-08-07: no migration.** *"The application is in alpha, only used
+by me, a single user. So no migration is needed. I am currently only testing and
+no production whatsoever has been run."*
+
+Writing a migration for zero real projects is cost with no beneficiary, and it
+would be the second code path that `DESIGN-project-scoping.md` exists to remove.
+
+**The consequence, recorded so it cannot be a surprise: project files written
+before the change will not open.** Acceptable now, not acceptable in a month, so
+the change carries its own tombstone — `ProjectManifest.Version` goes to **2**,
+and a version-1 manifest is **refused with a sentence** rather than crashed on,
+saying that the drawings are intact because documents are their own files in
+their own format. Only the index is lost.
+
+**Write the migration the day a second person has a project.** This entry is the
+record that the decision was deliberate rather than overlooked.
+
+**Blocks:** nothing.
+
+## Q37 · Are brush presets the ninth scoped kind now, or later? — **answered: now**
+
+**Answered 2026-08-07: now, scoping the preset id only.** `BrushPreset.Id` is
+already a stable `Ids.NewId("preset")`, and a `ScopedResource` is a kind plus an
+id — so `Lightbox.Core` needs no knowledge of `BrushPreset`, which lives in
+`Lightbox.App`. It is the palette pattern with a different string.
+
+Scoping the whole `BrushSettings` record was rejected: large, it would bloat
+every manifest using it, and it would put two sources of truth behind one brush
+plus a new question about which wins when the preset is edited.
+
+**What it delivers:** *"a project could dictate which brush settings need to be
+used"* — and it needs no enforcement concept, because the machinery already
+separates the verbs. `Resolve` **offers** a set; `Nearest` **selects** one. A
+project-level declaration coming back from `Nearest` *is* the dictate.
+
+**Known cost, inherited rather than new:** a document can reference a preset
+that was deleted or never shared. The palette path has the same shape and wants
+the same answer, not a bespoke one.
+
+**Blocks:** nothing.
+
+## Q31 · Does a frame remember that a model made it? — **answered (a)**
+
+**Answered 2026-08-07: (a), stored on the frame, absent unless AI touched it.**
+A hand-drawn frame writes no key, so a document that never used the AI is
+byte-identical to one from before the feature existed — the camera's rule.
+
+**Blocks:** nothing. Phase 0 can proceed.
+
+`docs/DESIGN-ai-correctness.md` puts a verifier and a deterministic fallback
+behind every AI inbetween, which means three frames can look alike and have very
+different histories: one the model got right, one it got wrong and was repaired,
+one that fell back to the deterministic engine entirely.
+
+**(a) Stored on the frame, absent unless AI touched it.** An artist returning
+after a month knows which frames to trust and which to look at again. It is a
+new key in the document, so hand-drawn frames write nothing — the camera's rule.
+
+**(b) Session-only.** The timeline marks AI frames while the app is open and
+forgets on reload. No format change; the information vanishes exactly when it is
+most wanted.
+
+**(c) Not tracked.** An inbetween is an inbetween.
+
+**Recommend (a).** The whole feature is a claim about trust, and a claim you
+cannot audit a month later is not one. Note the cost honestly: it is a document
+format change, and *derived* data in the record is the mistake Q16 avoided for
+placement readings — the defence here is that provenance is not derived from
+anything, it is a fact about how the frame came to exist.
+
+**Blocks:** phase 0 of the correctness pipeline.
+
+## Q32 · What happens to a frame that fails verification and cannot be repaired? — **answered (c)**
+
+**Answered 2026-08-07: (c), insert nothing and say why.** Against the
+recommendation, and **the owner's reasoning defeats the recommendation rather
+than merely overriding it**, so it is recorded in their words:
+
+> *"For complex subjects — a human, a dog or something else complex and organic
+> — I believe the deterministic inbetweener is prone to make mistakes. I'd
+> rather have nothing than a frustration."*
+
+The recommendation assumed the deterministic engine is a **floor**. On a box it
+is. On a dog it is not — it is a confident wrong answer, and **B113 is the proof
+rather than a worry**: four straight lines making a box, and the matcher crossed
+the top and bottom edges over and collapsed the shape mid-motion. Whatever that
+does to a quadruped's legs, it does silently.
+
+So substituting it under a failed AI request is not a safe default, it is
+swapping one unreliable answer for another and labelling the swap as safety. A
+frame that is absent costs the artist a minute; a frame that is subtly wrong on
+a dog costs them the time to notice, plus their trust in every other frame.
+
+**What it costs, stated so nobody rediscovers it as a bug.** The artist asked
+for four inbetweens and may get three. The status has to name which `t` was
+refused and why, or the gap is a puzzle rather than a decision — "frame 3 of 4
+was refused: the near arm did not stay between the keys" is the bar.
+
+**Read per frame, not per batch:** the frames that passed are inserted and the
+ones that failed are not. All-or-nothing would throw away good work because one
+frame was bad. Say so if that reading is wrong — it is the one part of this
+answer that was inferred rather than given.
+
+**Blocks:** nothing.
+
+**(a) Insert the deterministic answer, flagged.** Four inbetweens asked for, four
+delivered, the fallen-back ones marked. Nothing silently missing, nothing
+silently wrong.
+
+**(b) Insert it silently.** No visual noise; the artist is never told the AI
+failed, which makes the feature look better than it is.
+
+**(c) Insert nothing and say why.** Strictest reading of "reliable", but a gap
+in the timeline is work to find and fill, and the deterministic answer was
+available the whole time.
+
+**Recommend (a)**, and it depends on Q31: "flagged" needs somewhere to record
+the flag. If Q31 lands on (c), this collapses into (b) whether we like it or not.
+
+**Blocks:** phase 0.
+
+## Q33 · An AI answer nearly identical to the deterministic one — reject or report? — **answered (a)**
+
+**Answered 2026-08-07: (a), report only, never reject.** Distance from the
+deterministic answer is a cost signal and a diagnostic, never a veto.
+
+**Blocks:** nothing.
+
+The deterministic engine is both the fallback and the reference, so distance
+from it is free. Too far is suspicious. Too close means the model added nothing.
+
+**(a) Report only, never reject.** Agreeing with the cheap engine is not
+incorrect. Surface it as a cost signal — *"this model added nothing on 9 of 12
+frames"* — and let the artist decide.
+
+**(b) Reject and fall back.** Cleaner cost story, at the risk of throwing away
+answers that were right.
+
+**Recommend (a).** Rejecting a correct answer for being unimaginative is
+indefensible on correctness grounds, and the cost argument is fully served by
+saying so out loud. The threshold for "nearly identical" is also exactly the
+sort of number that gets tuned until it passes.
+
+**Blocks:** nothing — this can be added after phase 0.
+
+## Q34 · Does the golden set ship with the app? — **answered (a)**
+
+**Answered 2026-08-07: (a), it ships.** Grading an artist's own model is the
+bring-your-own-model story rather than a development convenience, and it is what
+separates *connectable* from *usable*. The obligation that comes with it: the
+set has to stay honest, so it is committed, reviewed, and changes to it are
+changes to a published claim.
+
+**Blocks:** nothing. Phase 2 can proceed.
+
+A committed set of keyframe pairs with known-good answers, scored by the
+verifier, is what turns "reliable" into a number per model.
+
+**(a) Ships.** Point Lightbox at any local or hosted model and it reports what
+that model can and cannot do. This is the bring-your-own-model onboarding story,
+and the difference between *connectable* and *usable*.
+
+**(b) Development artifact only.** Stops regressions in the built-in providers;
+an artist with an unusual local model is back to trial and error.
+
+**Recommend (a).** Constraint 2 is that artists bring their own model; shipping
+the grader is what makes that a feature rather than a shrug. Cost is install
+size and the obligation to keep the set honest.
+
+**Blocks:** phase 2.
+
 ## Q25 · Is a character sheet a document, or part of one? — **answered (a)**
 
 **Answered 2026-08-04: (a), it stays part of a document.** No format change, no
@@ -488,7 +688,21 @@ from the start. Recorded because it is a real limitation and an artist erasing
 into a wash will find this hard-edged: **if that turns out to matter, the fix is
 a new brush, not a change to the eraser.**
 
-## Q15 · Is a mirrored stroke one stroke or two?
+## Q15 · Is a mirrored stroke one stroke or two? — **answered (c)**
+
+**Answered 2026-08-07: (c), one stroke while drawing with an explicit "break
+symmetry" that expands to two.** So `Mirror` lives **on the stroke**, not on the
+scene — that is the part this answer actually settles, and the reason it could
+not be deferred.
+
+Turning symmetry off is meaningful while the stroke is whole: it removes the
+reflection rather than leaving an orphan. Breaking symmetry is a deliberate,
+undoable act that writes two ordinary strokes and forgets the pairing, which is
+correct — after the break they are two marks and pretending otherwise would owe
+the artist a promise nothing keeps.
+
+**Blocks:** nothing. Symmetry can be built.
+
 
 Symmetry does not exist yet and it should — for character design, which is what
 this application is for, a vertical mirror is not a nicety. What has to be
@@ -583,7 +797,20 @@ Leaning (c) for placement and stored-on-the-character for taxonomy, because it
 puts the durable half where an artist can edit it and the disposable half where
 losing it is free.
 
-## Q17 · Does an inking pass replace the pencils or land on its own layer?
+## Q17 · Does an inking pass replace the pencils or land on its own layer? — **answered (c)**
+
+**Answered 2026-08-07: (c), one Ink layer for the whole sequence**, its cels
+lined up with the pencils'. Non-destructive without the two-hundred-layer
+problem, and it uses the layer model as it already stands.
+
+**It carries a UI commitment, and that is the half worth writing down:** an
+inking pass runs over a **range**, not a frame. A per-frame gesture would make
+one layer per frame by accident, which is the option this answer rejected. So
+the surface that starts an inking pass takes a range the way the exposure-sheet
+operations already do.
+
+**Blocks:** nothing. Inking is unblocked — it was the last thing waiting on this.
+
 
 **(a) Its own layer, pencils untouched and hidden.** What an inker does on
 paper, non-destructive, and the artist can re-run with a different style
@@ -605,7 +832,22 @@ The reason it cannot be deferred: (a) and (b) produce different documents from
 the same gesture, and a file written under one cannot be reinterpreted as the
 other. Pick before the first pass ships, not after.
 
-## Q18 · Do flat point arrays cost schema adherence?
+## Q18 · Do flat point arrays cost schema adherence? — **answered (c)**
+
+**Answered 2026-08-07: (c), flat arrays for points only, objects for everything
+else.** Points are 99% of the volume and the only part that repeats; `tool`,
+`color` and `label` keep their names, so the field whose loss actually costs an
+inbetween keeps its key.
+
+**Adopt it with the measurement rather than instead of it.** The adherence
+claim in `StrokePayload.cs` was undated and unmeasured, and this answer does not
+make it true — it makes the risk small enough to take. The golden set (Q34) is
+the natural place to watch it: **label retention** belongs in the scores, so a
+regression shows up as a number rather than as a bad inbetween somebody notices
+weeks later.
+
+**Blocks:** nothing.
+
 
 The measurement is settled and the trade is not. `docs/DESIGN-ai-payload.md`
 has the numbers: writing a point as `[123.4,567.8,0.55]` instead of
@@ -647,7 +889,27 @@ it is still a guess until somebody runs it.
 This is the standing disagreement between **ai-engineer** and **art-director**,
 and it is written here rather than settled by whichever of them ran last.
 
-## Q26 · When a textured line is re-shaped, may its texture change?
+## Q26 · When a textured line is re-shaped, may its texture change? — **answered (a)**
+
+**Answered 2026-08-07: (a), accept it. The grain belongs to the canvas.** A mark
+is a function of where it is, the way a real pencil's grain is a function of the
+paper's tooth under it.
+
+**This closes the question rather than deferring it, and that is worth the
+sentence:** (b), (c) and (d) are now *rejected*, not "later". Nothing needs a
+seed origin on the stroke, nothing needs arc-length seeding, and — the one that
+matters most — **no tunable radius enters the render path**. Invariant 4's
+suspicion of hidden knobs is upheld for free, and invariant 2 stays exactly as
+written, with no second costume to check for.
+
+**What it obliges.** Pillar 0's re-shaping item ships with a manual line saying
+that moving a textured line changes its grain, and saying *why* — not as an
+apology but as the same fact as the paper's tooth. An artist who wants the mark
+preserved exactly moves the layer rather than the line, which is a real answer
+and should be the one the manual gives.
+
+**Blocks:** nothing. Re-shaping is unblocked.
+
 
 Invariant 2 seeds every dab dynamic — scatter, size, roundness, rotation, all
 three colour jitters — from the dab's position via `Hash01`. That is what makes
@@ -695,7 +957,30 @@ re-shaped stroke has to land where the record says. (c) is the one I would open
 the argument with, on the grounds that grain belonging to the stroke is what it
 belongs to on paper, but the start-of-stroke cascade may sink it.
 
-## Q27 · How big does a reference the model has to read need to be?
+## Q27 · How big does a reference the model has to read need to be? — **answered (d)**
+
+**Answered 2026-08-07: (d), choose per view from what is in it.** Measure thin-
+line density and pick the cap, rather than sending a face turnaround and a
+walk-cycle sheet at the same size.
+
+**The objection recorded against (d) still stands and has to be answered in the
+build, not argued away:** a heuristic that decides what leaves the machine is
+unpredictable in the way invariant 4 distrusts, one level up from pixels. It is
+answerable, and cheaply — **make the choice visible and overridable**:
+
+- The request shows what cap each view got, so the artist can see that the face
+  sheet went at 1024 and the silhouette at 512.
+- A view can be pinned to a size, which is (c) surviving inside (d) as the
+  escape hatch rather than as the mechanism.
+- The heuristic is a pure function of the view, tested on the same fixtures
+  `RenderReferenceViewPng` already has, so it is inspectable rather than felt.
+
+**That guard is inferred rather than given** — say so if the intent was the bare
+heuristic. Without it this is a number nobody can predict changing what the
+model sees, which is the one failure mode the objection named.
+
+**Blocks:** nothing.
+
 
 B31 capped reference views at **768 px on the long edge** on the way into a
 request, and the number is doing real work: providers bill by area regardless of
