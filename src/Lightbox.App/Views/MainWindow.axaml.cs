@@ -293,8 +293,10 @@ public partial class MainWindow : Window
         foreach (var panel in PanelPool.Children.OfType<Docker>().ToList())
         {
             _panels[panel.PanelId] = panel;
-            panel.SwitchTargets ??= WorkspaceViewModel.SwitchTargetsFor(panel.PanelId);
-            panel.SwitchRequested += (from, to) => _vm.Workspace.Swap(from.PanelId, to);
+            // Picking a tab shows it and hides its siblings. Through the view
+            // model rather than the layout, so it marks the workspace dirty like
+            // any other rearrangement.
+            panel.TabPicked += (_, id) => _vm.Workspace.Activate(id);
             panel.PanelDragStarted += BeginPanelDrag;
         }
         foreach (var strip in Strips())
@@ -343,7 +345,24 @@ public partial class MainWindow : Window
 
         foreach (var (side, strip) in Strips())
         {
-            var panels = layout.PanelsIn(side).Where(IsPanelUsable).Select(id => _panels[id]).ToList();
+            // One control per slot — the one showing. The others in the slot are
+            // its tabs and stay parked, so a hidden tab costs nothing but a word
+            // in a header, which is the whole point of tabbing.
+            var panels = new List<Docker>();
+            foreach (var slot in layout.SlotsIn(side))
+            {
+                var usable = slot.Where(IsPanelUsable).ToList();
+                if (usable.Count == 0) continue;
+
+                // The active member may be one the document cannot use — a
+                // project panel with no project. Fall back rather than leave
+                // the slot blank.
+                var active = usable.Contains(layout.ActiveOf(slot)) ? layout.ActiveOf(slot) : usable[0];
+                var panel = _panels[active];
+                panel.Tabs = usable.Count > 1 ? usable.Select(DockPanels.Of).ToList() : null;
+                panel.ActiveTab = active;
+                panels.Add(panel);
+            }
             foreach (var panel in panels) Detach(panel);
             strip.Rebuild(panels, layout);
             // The cap comes from the panels actually shown, not from the ones

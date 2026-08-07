@@ -134,40 +134,54 @@ public sealed class WorkspaceTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
-    public void TheHeaderSwitcherTradesTwoPanelsPlaces()
+    public void TabbedPanelsShareOneSlotAndOneShows()
     {
-        // Blender's rule: no panel is ever open twice, so choosing the palette
-        // from the colour header sends the colour panel where the palette was.
+        // Replaces the two switcher tests that were here. The switcher traded
+        // two panels' places; tabs put several in one slot and show one, so
+        // there is nothing left for a trade to mean.
         var (w, vm) = Open();
-        Assert.DoesNotContain(DockPanelId.Palette, Shown(w, DockSide.Right));
 
-        vm.Workspace.Swap(DockPanelId.Color, DockPanelId.Palette);
+        vm.Workspace.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        Assert.Contains(DockPanelId.Palette, Shown(w, DockSide.Right));
-        Assert.DoesNotContain(DockPanelId.Color, Shown(w, DockSide.Right));
+        // One control in the strip for the pair, carrying both as tabs.
+        var shown = Strip(w, DockSide.Right).Children.OfType<Docker>().ToList();
+        var docker = Assert.Single(shown, d => d.PanelId == DockPanelId.Palette);
+        Assert.NotNull(docker.Tabs);
+        Assert.Contains(docker.Tabs!, t => t.Id == DockPanelId.Color);
+        Assert.DoesNotContain(shown, d => d.PanelId == DockPanelId.Color);
+
+        // And the hidden tab is parked, not destroyed — the same rule closing a
+        // panel has always followed, so it keeps its scroll and its bindings.
         Assert.Single(Pool(w).Children.OfType<Docker>(), d => d.PanelId == DockPanelId.Color);
     }
 
     [AvaloniaFact]
-    public void EveryPanelExceptTheTimelineOffersASwitcher()
+    public void AnUntabbedDockerLooksExactlyAsItDid()
     {
+        // Most dockers hold one panel, and they must not have grown a tab strip
+        // for a group of one.
         var (w, _) = Open();
-        var pool = Pool(w).Children.OfType<Docker>()
-            .Concat(Strip(w, DockSide.Right).Children.OfType<Docker>())
-            .Concat(Strip(w, DockSide.Bottom).Children.OfType<Docker>())
-            .ToList();
 
-        foreach (var panel in pool)
+        foreach (var docker in Strip(w, DockSide.Right).Children.OfType<Docker>())
         {
-            if (panel.PanelId == DockPanelId.Timeline)
-            {
-                Assert.False(panel.ShowSwitcher);
-                continue;
-            }
-            Assert.NotNull(panel.SwitchTargets);
-            Assert.DoesNotContain(panel.SwitchTargets!, t => t.Id == panel.PanelId);
+            Assert.Null(docker.Tabs);
         }
+    }
+
+    [AvaloniaFact]
+    public void GroupingAPanelMarksTheWorkspaceUnsaved()
+    {
+        // The session contract: rearranging is live but not persisted, and the
+        // star is what says so. It also proves the change went through Mutate
+        // rather than writing to the layout behind its back.
+        var (_, vm) = Open();
+        Assert.False(vm.Workspace.IsDirty);
+
+        vm.Workspace.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
+
+        Assert.True(vm.Workspace.IsDirty);
+        Assert.EndsWith("*", vm.Workspace.CurrentLabel);
     }
 
     [AvaloniaFact]

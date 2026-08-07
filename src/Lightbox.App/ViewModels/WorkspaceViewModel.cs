@@ -282,8 +282,18 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     public void Float(DockPanelId id, double x, double y, double w, double h) =>
         Mutate(l => l.Float(id, x, y, w, h));
 
-    /// <summary>The header switcher: two panels trade places.</summary>
-    public void Swap(DockPanelId a, DockPanelId b) => Mutate(l => l.Swap(a, b));
+    /// <summary>Tab a panel together with another.</summary>
+    public void JoinGroup(DockPanelId id, DockPanelId target) => Mutate(l => l.JoinGroup(id, target));
+
+    /// <summary>Show a tab, and stop showing its siblings.</summary>
+    /// <remarks>
+    /// Through <see cref="Mutate"/> like every other layout change, which is
+    /// what makes it mark the workspace dirty and stay session-only until it is
+    /// saved. Writing to the layout directly would skip both, and the symptom —
+    /// an arrangement that quietly survives a restart, or one that quietly does
+    /// not — is the kind nobody traces back to a missing wrapper.
+    /// </remarks>
+    public void Activate(DockPanelId id) => Mutate(l => l.Activate(id));
 
     // ---- named workspaces ----------------------------------------------------
 
@@ -376,27 +386,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         Replace(workspace.Layout.Clone());
     }
 
-    /// <summary>What a panel's header offers: everything except itself.</summary>
-    public static IReadOnlyList<DockPanelInfo> SwitchTargetsFor(DockPanelId id) =>
-        DockPanels.All.Where(p => p.Id != id && p.Movable).ToList();
-
-    // One property per header so the XAML can bind without a converter. They
-    // never change — the catalogue is fixed — so they are computed once.
-    public IReadOnlyList<DockPanelInfo> ProjectSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Project);
-
-    public IReadOnlyList<DockPanelInfo> SymbolsSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Symbols);
-
-    public IReadOnlyList<DockPanelInfo> LayersSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Layers);
-
-    public IReadOnlyList<DockPanelInfo> ColorSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Color);
-
-    public IReadOnlyList<DockPanelInfo> SheetsSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Sheets);
-
-    public IReadOnlyList<DockPanelInfo> PaletteSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Palette);
-
-    public IReadOnlyList<DockPanelInfo> GradientSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Gradient);
-
-    public IReadOnlyList<DockPanelInfo> ReferenceSwitchTargets { get; } = SwitchTargetsFor(DockPanelId.Reference);
 }
 
 /// <summary>

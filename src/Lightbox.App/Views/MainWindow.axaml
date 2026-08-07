@@ -1904,7 +1904,6 @@
              its slot; ApplyDockLayout leaves it out until there is a project. -->
         <controls:Docker x:Name="ProjectPanel" PanelId="Project"
                          Title="{Binding ProjectDocker.ProjectName}"
-                         SwitchTargets="{Binding Workspace.ProjectSwitchTargets}"
                          CloseCommand="{Binding ToggleProjectPanelCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -2416,7 +2415,6 @@
             </controls:Docker>
 
         <controls:Docker x:Name="LayersDocker" PanelId="Layers" Title="Layers"
-                         SwitchTargets="{Binding Workspace.LayersSwitchTargets}"
                          CloseCommand="{Binding ToggleLayersPanelCommand}">
               <controls:Docker.TitleBarExtra>
                 <Button Content="⇄" FontSize="11" Padding="6,2"
@@ -2606,7 +2604,6 @@
           prop, FX) are the Kind filter below, not six panels.
         -->
         <controls:Docker x:Name="SymbolsPanel" PanelId="Symbols" Title="Symbols"
-                         SwitchTargets="{Binding Workspace.SymbolsSwitchTargets}"
                          CloseCommand="{Binding ToggleSymbolsPanelCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -2714,7 +2711,6 @@
             </controls:Docker>
 
         <controls:Docker x:Name="ColorPanel" PanelId="Color" Title="Color"
-                         SwitchTargets="{Binding Workspace.ColorSwitchTargets}"
                          CloseCommand="{Binding ToggleColorDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -2883,7 +2879,6 @@
             </controls:Docker>
 
         <controls:Docker x:Name="SheetsPanel" PanelId="Sheets" Title="Reference sheets"
-                         SwitchTargets="{Binding Workspace.SheetsSwitchTargets}"
                          CloseCommand="{Binding ToggleSheetsDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -2935,7 +2930,6 @@
             </controls:Docker>
 
         <controls:Docker x:Name="PalettePanel" PanelId="Palette" Title="Palette"
-                         SwitchTargets="{Binding Workspace.PaletteSwitchTargets}"
                          CloseCommand="{Binding TogglePaletteDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -3086,7 +3080,6 @@
             </controls:Docker>
 
         <controls:Docker x:Name="GradientPanel" PanelId="Gradient" Title="Gradient"
-                         SwitchTargets="{Binding Workspace.GradientSwitchTargets}"
                          CloseCommand="{Binding ToggleGradientDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
@@ -3176,7 +3169,6 @@
              sheet. Never artwork — it is the photograph taped to the lightbox,
              and it never reaches an exported pixel. -->
         <controls:Docker x:Name="ReferencePanel" PanelId="Reference" Title="Reference"
-                         SwitchTargets="{Binding Workspace.ReferenceSwitchTargets}"
                          CloseCommand="{Binding ToggleReferenceDockerCommand}">
           <controls:Docker.TopBar>
             <Border Classes="dockerBar">
@@ -3274,7 +3266,6 @@
              so a 300px sidebar is a placement that cannot work. No switcher
              either, for the same reason. -->
         <controls:Docker x:Name="TimelineDocker" PanelId="Timeline" Title="Timeline"
-                         ShowSwitcher="False"
                          CloseCommand="{Binding ToggleTimelineCommand}">
         <controls:Docker.TopBar>
           <Border Classes="dockerBar">

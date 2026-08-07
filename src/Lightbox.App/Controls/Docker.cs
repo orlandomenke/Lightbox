@@ -30,14 +30,19 @@ public class Docker : ContentControl
     public static readonly StyledProperty<object?> TitleBarExtraProperty =
         AvaloniaProperty.Register<Docker, object?>(nameof(TitleBarExtra));
 
+    /// <summary>
+    /// The panels tabbed into this slot, this one included. One member means an
+    /// ordinary docker, which is what most of them are.
+    /// </summary>
+    public static readonly StyledProperty<IEnumerable<DockPanelInfo>?> TabsProperty =
+        AvaloniaProperty.Register<Docker, IEnumerable<DockPanelInfo>?>(nameof(Tabs));
+
+    /// <summary>Which of <see cref="Tabs"/> is showing.</summary>
+    public static readonly StyledProperty<DockPanelId> ActiveTabProperty =
+        AvaloniaProperty.Register<Docker, DockPanelId>(nameof(ActiveTab));
+
     public static readonly StyledProperty<DockPanelId> PanelIdProperty =
         AvaloniaProperty.Register<Docker, DockPanelId>(nameof(PanelId));
-
-    public static readonly StyledProperty<IEnumerable<DockPanelInfo>?> SwitchTargetsProperty =
-        AvaloniaProperty.Register<Docker, IEnumerable<DockPanelInfo>?>(nameof(SwitchTargets));
-
-    public static readonly StyledProperty<bool> ShowSwitcherProperty =
-        AvaloniaProperty.Register<Docker, bool>(nameof(ShowSwitcher), defaultValue: true);
 
     public string? Title
     {
@@ -55,21 +60,18 @@ public class Docker : ContentControl
         set => SetValue(PanelIdProperty, value);
     }
 
-    /// <summary>
-    /// What the header's switcher offers. Set by the host from the catalogue,
-    /// minus this panel.
-    /// </summary>
-    public IEnumerable<DockPanelInfo>? SwitchTargets
+    /// <summary>The panels tabbed into this slot, this one included.</summary>
+    public IEnumerable<DockPanelInfo>? Tabs
     {
-        get => GetValue(SwitchTargetsProperty);
-        set => SetValue(SwitchTargetsProperty, value);
+        get => GetValue(TabsProperty);
+        set => SetValue(TabsProperty, value);
     }
 
-    /// <summary>False for the timeline, which has nowhere else to be.</summary>
-    public bool ShowSwitcher
+    /// <summary>Which of <see cref="Tabs"/> is showing.</summary>
+    public DockPanelId ActiveTab
     {
-        get => GetValue(ShowSwitcherProperty);
-        set => SetValue(ShowSwitcherProperty, value);
+        get => GetValue(ActiveTabProperty);
+        set => SetValue(ActiveTabProperty, value);
     }
 
     /// <summary>
@@ -110,10 +112,11 @@ public class Docker : ContentControl
     /// </summary>
     public event Action<Docker, PointerEventArgs>? PanelDragStarted;
 
-    /// <summary>The header's switcher chose another panel: trade places with it.</summary>
-    public event Action<Docker, DockPanelId>? SwitchRequested;
+    /// <summary>A tab in this slot's header was picked: show it instead.</summary>
+    public event Action<Docker, DockPanelId>? TabPicked;
 
-    private ComboBox? _switcher;
+
+    private ListBox? _tabs;
 
     protected override void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
     {
@@ -126,19 +129,21 @@ public class Docker : ContentControl
             header.PointerReleased += (_, _) => HeaderReleased();
         }
 
-        if (_switcher is not null) _switcher.SelectionChanged -= OnSwitcherChanged;
-        _switcher = e.NameScope.Find<ComboBox>("PART_Switcher");
-        if (_switcher is not null) _switcher.SelectionChanged += OnSwitcherChanged;
+        if (_tabs is not null) _tabs.SelectionChanged -= OnTabPicked;
+        _tabs = e.NameScope.Find<ListBox>("PART_Tabs");
+        if (_tabs is not null) _tabs.SelectionChanged += OnTabPicked;
     }
 
-    private void OnSwitcherChanged(object? sender, SelectionChangedEventArgs e)
+    /// <summary>
+    /// A tab was clicked. The host decides what that means; a docker does not
+    /// know which of its siblings are showing.
+    /// </summary>
+    private void OnTabPicked(object? sender, SelectionChangedEventArgs e)
     {
-        if (_switcher?.SelectedItem is not DockPanelInfo target) return;
-        // Back to the placeholder, which is the title: this dropdown is a verb,
-        // not a setting, and leaving the chosen name in it would claim the
-        // header now shows a panel that has in fact gone somewhere else.
-        _switcher.SelectedItem = null;
-        SwitchRequested?.Invoke(this, target.Id);
+        if (_tabs?.SelectedItem is not DockPanelInfo picked) return;
+        // Only when it is a change. Re-selecting the tab already showing would
+        // otherwise mark the workspace dirty for a click that did nothing.
+        if (picked.Id != ActiveTab) TabPicked?.Invoke(this, picked.Id);
     }
 
     private Point? _pressed;
@@ -174,7 +179,14 @@ public class Docker : ContentControl
     {
         for (var node = source; node is not null && !ReferenceEquals(node, this); node = node.GetVisualParent())
         {
-            if (node is Button or ComboBox or ToggleButton or TextBox or Slider or CheckBox) return true;
+            // ListBox is the tab strip. Without it here, clicking a tab walks up
+            // to the header, looks exactly like a press on the grip, and tears
+            // the panel out instead of switching tabs — the same trap the
+            // ComboBox above was added for.
+            if (node is Button or ComboBox or ToggleButton or TextBox or Slider or CheckBox or ListBox)
+            {
+                return true;
+            }
         }
         return false;
     }
