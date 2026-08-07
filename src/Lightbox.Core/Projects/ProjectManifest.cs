@@ -208,6 +208,19 @@ public sealed class Character
 
     public CharacterVariant? FindVariant(string? id) =>
         id is null ? null : Variants.FirstOrDefault(v => v.Id == id);
+
+    /// <summary>
+    /// What the AI has read about this character — a biped with these parts,
+    /// this one normally in front of that one. Absent until somebody asks for
+    /// it, so a project that never reads a subject writes no key.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in a cache because it is durable and hand-correctable,
+    /// and a correction that a cache wipe could destroy is not a correction.
+    /// The disposable half of a reading — where each part is in frame 12 —
+    /// deliberately does not live here. See <see cref="SubjectTaxonomy"/>.
+    /// </remarks>
+    public SubjectTaxonomy? Taxonomy { get; set; }
 }
 
 /// <summary>
@@ -386,4 +399,22 @@ public sealed class ProjectManifest
     /// is a library to choose from, not what a drawing renders out of.
     /// </remarks>
     public List<Documents.BrushTip>? Tips { get; set; }
+
+    /// <summary>
+    /// The character an animation belongs to, or null for a document that
+    /// belongs to the project rather than to anybody.
+    /// </summary>
+    /// <remarks>
+    /// Variant overrides count: an animation reached only through a variant
+    /// still belongs to that variant's character, and it is the character that
+    /// carries the taxonomy. Getting this wrong would read the wrong subject —
+    /// which is worse than reading none, because it would look like it worked.
+    /// </remarks>
+    public Character? CharacterOwning(string? documentId)
+    {
+        if (string.IsNullOrEmpty(documentId)) return null;
+        return Characters.FirstOrDefault(c =>
+            c.Animations.Any(a => a.Id == documentId)
+            || c.Variants.Any(v => v.AnimationOverrides.Values.Any(a => a.Id == documentId)));
+    }
 }

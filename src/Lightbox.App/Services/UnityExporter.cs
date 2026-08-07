@@ -144,40 +144,12 @@ public static class UnityExporter
     /// adds a block to the sidecar it wrote rather than rendering anything itself,
     /// so the two exports cannot disagree about where a sprite is.
     /// </remarks>
-    public static UnityExportResult Export(Doc doc, string sheetPath, UnityExportOptions? options = null) =>
-        Export([doc], sheetPath, options);
-
-    /// <summary>
-    /// One Unity artifact from several documents — one atlas, one clip each.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Unity was the only one of the four engine exports that read clips from
-    /// the <see cref="Scene"/> rather than from the sidecar the sheet writer
-    /// produced, and that is what made several documents impossible: the tags
-    /// it read were the first document's, numbered in that document's own
-    /// frames. Reading the sidecar instead means the merge and the shift the
-    /// sheet writer already does are the merge and shift Unity gets, and there
-    /// is one place that clamps a tag rather than two that must agree.
-    /// </para>
-    /// <para>
-    /// Per-frame geometry — pivot, anchors, colliders — comes from the document
-    /// that frame came from. Indexing the first document with a sheet-wide frame
-    /// number would attach a weapon to the wrong hand and put a hurtbox on the
-    /// wrong drawing, neither of which shows up until it is wrong in an engine.
-    /// </para>
-    /// </remarks>
-    public static UnityExportResult Export(
-        IReadOnlyList<Doc> docs, string sheetPath, UnityExportOptions? options = null)
+    public static UnityExportResult Export(Doc doc, string sheetPath, UnityExportOptions? options = null)
     {
-        if (docs.Count == 0) throw new ArgumentException("An export needs a document.", nameof(docs));
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
         var opts = options ?? new UnityExportOptions();
-        var sheet = SpriteSheetExporter.Export(docs, sheetPath, opts.Sheet);
-        var owners = sheet.FrameOwners;
-        // Pixels-per-unit and the header's seconds-per-frame are one number each
-        // for the whole atlas, so they take the leading document — matching the
-        // sidecar's own header. Per-frame timing lives in the clips.
-        var scene = docs[0].Scene;
+        var sheet = SpriteSheetExporter.Export(doc, sheetPath, opts.Sheet);
+        var scene = doc.Scene;
 
         // Read back what the exporter wrote rather than recomputing it. Two
         // computations of the same rect are two chances to disagree, and the
@@ -195,9 +167,7 @@ public static class UnityExporter
         for (var i = 0; i < frames.Count; i++)
         {
             var frame = frames[i];
-            var (ownerIndex, localFrame) =
-                i < owners.Count ? (owners[i].Document, owners[i].Frame) : (0, i);
-            var owner = docs[ownerIndex].Scene;
+            var owner = scene;
             var rect = frame.GetProperty("frame");
             var source = frame.GetProperty("spriteSourceSize");
             var cellLeft = source.GetProperty("x").GetInt32();
@@ -223,7 +193,7 @@ public static class UnityExporter
                 sprite.Pivot = [px, py];
             }
 
-            var resolved = Anchors.ResolvedAt(owner, localFrame);
+            var resolved = Anchors.ResolvedAt(owner, i);
             if (owner.Anchors is { Count: > 0 } declared && resolved.Count > 0)
             {
                 var anchors = new Dictionary<string, double[]>(StringComparer.Ordinal);
@@ -244,7 +214,7 @@ public static class UnityExporter
             var originX = owner.Pivot?.X ?? cellLeft + w / 2.0;
             var originY = owner.Pivot?.Y ?? cellTop + h / 2.0;
 
-            var boxes = CollisionShapes.ResolvedAt(owner, localFrame);
+            var boxes = CollisionShapes.ResolvedAt(owner, i);
             if (owner.Shapes is { Count: > 0 } shapes && boxes.Count > 0)
             {
                 var colliders = new List<UnityCollider>();

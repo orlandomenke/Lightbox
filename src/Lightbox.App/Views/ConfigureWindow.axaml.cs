@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Lightbox.App.Services;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.App.Views;
 
@@ -84,6 +85,70 @@ public sealed partial class GridRow(
             OnPropertyChanged();
         }
     }
+}
+
+/// <summary>
+/// One feature toggle in the Features page, editable.
+/// </summary>
+/// <remarks>
+/// Each feature has a key, label, and description. The toggle binds to the
+/// document's feature overrides; changes update the document and mark it dirty.
+/// </remarks>
+public sealed partial class FeatureToggleRow : ObservableObject
+{
+    private readonly FeatureKey _feature;
+    private readonly ViewModels.MainViewModel _vm;
+    private readonly bool _projectDefault;
+
+    public FeatureToggleRow(FeatureKey feature, ViewModels.MainViewModel vm, bool projectDefault)
+    {
+        _feature = feature;
+        _vm = vm;
+        _projectDefault = projectDefault;
+        _isEnabled = ResolveEnabled();
+    }
+
+    public string Label => _feature switch
+    {
+        FeatureKey.UnboundedCanvas => "Unbounded canvas",
+        FeatureKey.FixedFrameBoundsExport => "Fixed frame bounds export",
+        FeatureKey.Camera => "Camera",
+        FeatureKey.Layers => "Layers",
+        FeatureKey.ExposureSheet => "Exposure sheet",
+        _ => _feature.ToString(),
+    };
+
+    public string Description => _feature switch
+    {
+        FeatureKey.UnboundedCanvas =>
+            "Allow the canvas to grow without bounds. Cannot be used with sprite export.",
+        FeatureKey.FixedFrameBoundsExport =>
+            "Constrain export to fixed frame bounds. Incompatible with unbounded canvas.",
+        FeatureKey.Camera =>
+            "Add camera and multiplane support for shots and film sequences.",
+        FeatureKey.Layers =>
+            "Organize the document with layers. Enabled by default in all project types.",
+        FeatureKey.ExposureSheet =>
+            "Display timing and hold information for frame-by-frame animation.",
+        _ => "",
+    };
+
+    [ObservableProperty]
+    private bool _isEnabled;
+
+    partial void OnIsEnabledChanged(bool value)
+    {
+        if (_vm.ActiveTab?.Doc is not { } doc) return;
+        _vm.SetDocumentFeature(_feature, value, _projectDefault);
+    }
+
+    private bool ResolveEnabled()
+    {
+        if (_vm.ActiveTab?.Doc is not { } doc) return _projectDefault;
+        return doc.GetFeature(_feature, _projectDefault);
+    }
+
+    public void Refresh() => IsEnabled = ResolveEnabled();
 }
 
 /// <summary>
@@ -169,6 +234,7 @@ public partial class ConfigureWindow : Window
         RebuildGroups();
         AddHandler(KeyDownEvent, OnCaptureKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         LoadPerformancePage();
+        LoadFeaturesPage();
         LoadGuidesPage();
         LoadTimelinePage();
         LoadDrawingPage();
@@ -494,6 +560,33 @@ public partial class ConfigureWindow : Window
         _vm.TimelineFrameWidth = (double)value;
     }
 
+    // ---- features page -------------------------------------------------------
+
+    /// <summary>Test seam: the feature rows the page is currently showing.</summary>
+    internal IReadOnlyList<FeatureToggleRow> FeatureRows { get; private set; } = [];
+
+    private void LoadFeaturesPage()
+    {
+        if (_vm?.ActiveTab?.Doc is null) return;
+        RefreshFeatures();
+    }
+
+    private void RefreshFeatures()
+    {
+        if (_vm?.ActiveTab?.Doc is not { } || FeaturesHost is null) return;
+
+        var defaults = new FeatureDefaults();
+        var projectType = _vm.ProjectDocker?.Project?.Manifest.Type ?? ProjectType.Animation;
+        var features = Enum.GetValues<FeatureKey>();
+
+        var rows = features
+            .Select(f => new FeatureToggleRow(f, _vm, defaults.GetDefault(projectType, f)))
+            .ToList();
+
+        FeatureRows = rows;
+        FeaturesHost.ItemsSource = rows;
+    }
+
     // ---- guides and grid page --------------------------------------------------
 
     private bool _loadingGuides;
@@ -653,28 +746,31 @@ public partial class ConfigureWindow : Window
 
     private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (ShortcutsPage is null || PerformancePage is null || GuidesPage is null
-            || TimelinePage is null || DrawingPage is null || ExportPage is null || AiPage is null)
+        if (ShortcutsPage is null || PerformancePage is null || FeaturesPage is null
+            || GuidesPage is null || TimelinePage is null || DrawingPage is null
+            || ExportPage is null || AiPage is null)
         {
             return;
         }
         var page = CategoryList.SelectedIndex;
         ShortcutsPage.IsVisible = page == 0;
         PerformancePage.IsVisible = page == 1;
-        GuidesPage.IsVisible = page == 2;
-        TimelinePage.IsVisible = page == 3;
-        DrawingPage.IsVisible = page == 4;
-        ExportPage.IsVisible = page == 5;
-        AiPage.IsVisible = page == 6;
+        FeaturesPage.IsVisible = page == 2;
+        GuidesPage.IsVisible = page == 3;
+        TimelinePage.IsVisible = page == 4;
+        DrawingPage.IsVisible = page == 5;
+        ExportPage.IsVisible = page == 6;
+        AiPage.IsVisible = page == 7;
         if (page == 1) RefreshMeasured();
+        if (page == 2) RefreshFeatures();
         // Rebuilt on the way in: a grid may have been placed since the window
         // opened, and the window outlives the drawing that made it.
-        if (page == 2) RefreshGrids();
-        if (page == 3) LoadTimelinePage();
-        if (page == 4) LoadDrawingPage();
+        if (page == 3) RefreshGrids();
+        if (page == 4) LoadTimelinePage();
+        if (page == 5) LoadDrawingPage();
         // Rebuilt on the way in for the same reason: a preset may have been saved from
         // the export window since this one opened.
-        if (page == 5) LoadExportPage();
+        if (page == 6) LoadExportPage();
     }
 
     private void OnQualityChanged(object? sender, SelectionChangedEventArgs e)

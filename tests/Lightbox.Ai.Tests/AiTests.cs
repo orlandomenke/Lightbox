@@ -7,15 +7,10 @@ namespace Lightbox.Ai.Tests;
 
 public class SchemaTests
 {
-    [Theory]
-    [InlineData(nameof(StrokeSchemas.InbetweenResult))]
-    [InlineData(nameof(StrokeSchemas.DrawResult))]
-    public void Schemas_AreValidJson(string which)
+    [Fact]
+    public void Schemas_AreValidJson()
     {
-        var json = which == nameof(StrokeSchemas.InbetweenResult)
-            ? StrokeSchemas.InbetweenResult
-            : StrokeSchemas.DrawResult;
-        using var doc = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(StrokeSchemas.InbetweenResult);
         Assert.Equal("object", doc.RootElement.GetProperty("type").GetString());
     }
 
@@ -41,11 +36,8 @@ public class SchemaTests
             }
         }
 
-        foreach (var schema in new[] { StrokeSchemas.InbetweenResult, StrokeSchemas.DrawResult })
-        {
-            using var doc = JsonDocument.Parse(schema);
-            Walk(doc.RootElement);
-        }
+        using var doc = JsonDocument.Parse(StrokeSchemas.InbetweenResult);
+        Walk(doc.RootElement);
     }
 
     [Fact]
@@ -55,7 +47,6 @@ public class SchemaTests
         // client-side instead.
         Assert.DoesNotContain("minimum", StrokeSchemas.InbetweenResult);
         Assert.DoesNotContain("maximum", StrokeSchemas.InbetweenResult);
-        Assert.DoesNotContain("minimum", StrokeSchemas.DrawResult);
     }
 }
 
@@ -180,22 +171,10 @@ public class PromptTests
     }
 
     [Fact]
-    public void DrawUser_ContainsPromptAndContext()
-    {
-        var prompt = Prompts.DrawUser(new DrawRequest(
-            new SceneInfo(320, 200, 24), "a running fox", []));
-        Assert.Contains("a running fox", prompt);
-        Assert.Contains("\"width\":320", prompt);
-        Assert.Contains("existingStrokes", prompt);
-    }
-
-    [Fact]
     public void SystemPrompts_MentionCorePrinciples()
     {
         Assert.Contains("arcs", Prompts.InbetweenSystem);
         Assert.Contains("label", Prompts.InbetweenSystem);
-        Assert.Contains("label", Prompts.DrawSystem);
-        Assert.Contains("pressure", Prompts.DrawSystem, StringComparison.OrdinalIgnoreCase);
     }
 }
 

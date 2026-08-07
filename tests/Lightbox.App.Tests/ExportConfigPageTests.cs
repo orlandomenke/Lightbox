@@ -53,8 +53,8 @@ public class ExportConfigPageTests : IDisposable
     {
         var vm = new MainViewModel(artist: null);
         var window = new ConfigureWindow(new ShortcutMap(), vm);
-        // Index 5 — Shortcuts, Performance, Guides, Timeline, Drawing, Export, AI.
-        window.FindControl<ListBox>("CategoryList")!.SelectedIndex = 5;
+        // Index 6 — Shortcuts, Performance, Features, Guides, Timeline, Drawing, Export, AI.
+        window.FindControl<ListBox>("CategoryList")!.SelectedIndex = 6;
         return (window, vm);
     }
 
@@ -82,7 +82,7 @@ public class ExportConfigPageTests : IDisposable
         vm.Settings.AutoExport.OutputFolder = "../Game/Sprites";
 
         var window = new ConfigureWindow(new ShortcutMap(), vm);
-        window.FindControl<ListBox>("CategoryList")!.SelectedIndex = 5;
+        window.FindControl<ListBox>("CategoryList")!.SelectedIndex = 6;
 
         Assert.True(Control<CheckBox>(window, "AutoExportBox").IsChecked);
         Assert.Equal("../Game/Sprites", Control<TextBox>(window, "AutoExportFolderBox").Text);
@@ -146,7 +146,7 @@ public class ExportConfigPageTests : IDisposable
 
         ExportPresetStore.Save([new ExportPreset { Name = "Saved later" }]);
         list.SelectedIndex = 0;
-        list.SelectedIndex = 5;
+        list.SelectedIndex = 6;
 
         var names = ((IEnumerable<string>)Control<ComboBox>(window, "AutoExportPresetBox")
             .ItemsSource!).ToList();

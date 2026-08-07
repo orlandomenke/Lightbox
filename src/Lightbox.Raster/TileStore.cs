@@ -166,6 +166,50 @@ public sealed class TileStore : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Convert a full-document bitmap to a TileStore, splitting into tile-sized chunks.
+    /// Used when transitioning from full-canvas rendering to tiled rendering for unbounded canvas.
+    /// This is a functional but not yet optimized conversion — ideally strokes would render
+    /// directly to tiles to avoid allocating the full document bitmap in the first place.
+    /// </summary>
+    public static TileStore FromBitmap(SKBitmap bitmap, TileGrid? grid = null)
+    {
+        var store = new TileStore(grid);
+        var tileSize = store.Grid.TileSize;
+
+        // Determine which tiles this bitmap covers
+        var tilesAcross = (bitmap.Width + tileSize - 1) / tileSize;
+        var tilesDown = (bitmap.Height + tileSize - 1) / tileSize;
+
+        for (int ty = 0; ty < tilesDown; ty++)
+        {
+            for (int tx = 0; tx < tilesAcross; tx++)
+            {
+                var coord = new TileCoord(tx, ty);
+                var srcX = tx * tileSize;
+                var srcY = ty * tileSize;
+                var copyWidth = Math.Min(tileSize, bitmap.Width - srcX);
+                var copyHeight = Math.Min(tileSize, bitmap.Height - srcY);
+
+                if (copyWidth > 0 && copyHeight > 0)
+                {
+                    var tile = store.Rent(coord);
+
+                    // Copy region using canvas to avoid per-pixel overhead
+                    // Extract the source region and draw into the tile
+                    using var canvas = new SKCanvas(tile);
+                    var srcRect = new SKRect(srcX, srcY, srcX + copyWidth, srcY + copyHeight);
+                    var destRect = new SKRect(0, 0, copyWidth, copyHeight);
+
+                    canvas.DrawBitmap(bitmap, srcRect, destRect);
+                    canvas.Flush();
+                }
+            }
+        }
+
+        return store;
+    }
+
     public void Dispose()
     {
         foreach (var bitmap in _tiles.Values) bitmap.Dispose();
