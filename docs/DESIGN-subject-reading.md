@@ -235,3 +235,208 @@ And the acceptance bar, stated in advance: judged against the same sprite lit th
 same way from all three paths, side by side. **If a person cannot tell the
 refinement from tier one, the request was not worth making** — the
 medium-simulation rule from `CLAUDE.md` applied to a model.
+
+---
+
+# The reading, designed against inbetweening
+
+*Added 2026-08-07, after Q16 was answered (c) and after the prompt-drawing
+feature was removed. Everything above stays true; this section decides the
+parts that were open and reorders the work for one destination.*
+
+The doc above designs the reading as a shared prerequisite for three features
+and orders the work for the normal-map track. **This section takes the other
+destination — a less blind inbetweener — and works out what that specifically
+needs**, because the answers differ and the difference was costing an argument
+every time it came up.
+
+## The ordering, corrected for this destination
+
+The order above is: built-in normal map and light, then inking styles, then the
+reading, then the parts that need to know a cheek from a sleeve. That is right
+*if* the target is normal maps and inking, because steps 1 and 2 make the light
+and the export panel real.
+
+**It is wrong if the target is inbetweening.** The inbetweener is described
+above as "built, and currently blind", and neither the light record nor the
+normal-map panel is a prerequisite for un-blinding it. On this track the
+reading is step one, and the light is not needed at all — a light decides which
+contours are heavy, which is an inking question. So:
+
+1. **Taxonomy.** Per character, from the character sheet. One call, stored,
+   editable.
+2. **Measure whether it is enough.** Feed the taxonomy to the existing
+   inbetweener and compare against today's output on the same keys. This is a
+   gate, not a step — see *The measurement that decides the rest* below.
+3. **Placement**, only if step 2 says the taxonomy alone did not close the gap.
+
+Two of those three steps are cheap, and the expensive one is behind a gate. That
+is the whole reason for splitting it this way.
+
+## Two calls, not one
+
+`IAiArtist` now has exactly one method, and adding to it is a decision rather
+than a detail — the interface is what a reader consults to learn what the
+application asks a model for. The reading wants **two** more, not one:
+
+```csharp
+Task<AiResult<SubjectTaxonomy>> ReadSubjectAsync(
+    SubjectRequest request, CancellationToken ct);
+
+Task<AiResult<IReadOnlyList<PartPlacement>>> ReadPlacementAsync(
+    PlacementRequest request, CancellationToken ct);
+```
+
+They are not two flavours of one call, and folding them together would hide the
+one fact the design turns on:
+
+| | `ReadSubjectAsync` | `ReadPlacementAsync` |
+| --- | --- | --- |
+| Input | Reference images from the character sheet | One frame's effective strokes, plus the taxonomy |
+| Cadence | Once per character | Once per frame, cache permitting |
+| Output lifetime | Durable, hand-editable | Disposable |
+| Where it lands | `Character.Taxonomy` in the manifest | A cache outside the document |
+| Failure cost | An artist fixes it by hand | One wasted call |
+
+Both satisfy rule 0 of the roadmap's AI section — neither starts from nothing.
+The taxonomy starts from a character sheet the artist drew; the placement starts
+from the frame they drew.
+
+## The records
+
+Core, beside the rest of the project model. Nullable everywhere it can be
+absent, per *"optional means absent"*: a project with no reading writes no keys,
+and `Assert.DoesNotContain("\"taxonomy\"", json)` belongs in the same commit.
+
+```csharp
+/// What this character IS. True in every frame of every animation of it.
+public sealed class SubjectTaxonomy
+{
+    public string Kind { get; set; } = "";          // "biped", "quadruped", "prop"
+    public List<SubjectPart> Parts { get; set; } = [];
+
+    /// Set when a person edited it. A later re-read must not silently
+    /// overwrite an artist's correction — the rig rule, applied to itself.
+    public bool Reviewed { get; set; }
+}
+
+public sealed class SubjectPart
+{
+    public string Name { get; set; } = "";          // "near-arm", "torso"
+    public string? Parent { get; set; }             // "near-arm" hangs off "torso"
+
+    /// Normal depth order against siblings. The near arm is usually in front.
+    public int Depth { get; set; }
+}
+
+/// Where a part IS, in one drawing. Derived, cached, never in the document.
+public readonly record struct PartPlacement(
+    string Part,
+    IReadOnlyList<StrokePoint> Region,
+    IReadOnlyList<string> Occludes);
+```
+
+`SubjectPart` deliberately carries no geometry. Geometry is placement, and a
+taxonomy that held a polygon would be stale the first time the character turned
+round — the exact confusion the two-halves split exists to prevent.
+
+## Where each half lives, now that Q16 is answered
+
+**Taxonomy — `Character.Taxonomy`, nullable.** It sits beside `Pivot`, which
+already establishes the pattern: absent unless set, serialized only when
+present. It survives a cache wipe, a clone and a reinstall, because the moment
+an artist corrects it, it is authored data and authored data belongs in the
+record.
+
+**Placement — a cache beside the autosave, keyed by content hash.**
+`%AppData%/Lightbox/readings/`, alongside `AutosaveService.AutosavePath`, keyed
+by the hash of the frame's *effective* strokes — `StrokeRecordCleaner.
+EffectiveStrokes`, the same view the inbetweener sends, so an erased stroke
+cannot change a key without changing the drawing. Staleness then needs no
+mechanism at all: a hash that does not match is a miss, and a miss costs one
+call.
+
+The reason this is not merely tidier: a placement reading is **derived from the
+stroke record**, and invariant 1 says the stroke record is the document. Putting
+derived data in the document is the mistake the codemap merge driver exists to
+undo elsewhere in this repository. Taxonomy escapes the test because it is not
+derived from any one document — it is a statement about a character, and once
+edited it is the artist's.
+
+## The measurement that decides the rest
+
+Stated before anything is built, because it is the gate and a gate written
+afterwards is a rationalisation:
+
+> **Does the taxonomy alone measurably improve an inbetween?**
+
+The comparison is the same two keys, the same provider, the same seed of a
+prompt, run with and without the taxonomy block, judged on the failures the
+inbetweener actually has — a limb that swings through the torso, a part that
+vanishes because it was hidden in one key, a stroke that loses its label.
+
+Three outcomes and each says what to do next:
+
+- **Taxonomy alone closes most of the gap.** Then placement is a refinement, not
+  a requirement, and it waits behind cheaper work. Cost per cycle stays at one
+  call for the character plus what the inbetweener already spends.
+- **Taxonomy helps only where placement is also present.** Then the two ship
+  together, and the cache is load-bearing rather than an optimisation.
+- **Neither moves the needle.** Then the blindness was not the problem, the
+  finding is worth as much as a feature, and it is written here rather than
+  discovered twice.
+
+`art-director` judges "improves", `ai-engineer` judges the cost — the pair that
+gate G12 requires, and this is precisely the disagreement they exist to have.
+
+## What it costs, and the one number that matters
+
+From `docs/DESIGN-ai-payload.md`, not re-derived: **images are ~87% of a
+request's bytes and ~5% of its tokens; strokes are the reverse.**
+
+The taxonomy request is nearly all image — a few reference views, a short
+instruction, a small JSON reply. So it is **cheap in tokens and slow in
+bytes**, and it happens once per character. That is the good half.
+
+The placement request is nearly all strokes, which is the expensive half, and it
+is the one the cache exists for. The arithmetic the whole design turns on:
+
+| | Without a stored taxonomy | With one |
+| --- | --- | --- |
+| 24-frame cycle | 24 readings of *what this is* | 1 |
+| Second animation, same character | 24 more | 0 |
+
+**Prompt caching compounds it.** A stored taxonomy is a stable prefix, so it
+belongs at the *front* of the request where `cache_control` can cover it — about
+90% off the tokens it spans. A taxonomy appended after the frame data saves
+nothing, and that is a real mistake to make once.
+
+## Tests, in the order they should be written
+
+1. **`DeletingEveryReadingChangesNoPixel`** — first, before any provider work.
+   Take a finished document, delete the taxonomy and empty the cache, re-render,
+   and assert byte-identical. The day it fails is the day something reads the
+   analysis at render time and invariant 2 is gone.
+2. **`AHandNamedPartBeatsAGuessedOne`** — a rig's hand-drawn `parts` win where
+   they exist. A guess is a default, never an override of something a person
+   stated.
+3. **`AReviewedTaxonomyIsNotOverwrittenByAReRead`** — the same rule pointed at
+   the reading's own history.
+4. **`AProjectWithNoReadingWritesNoKeys`** — the absence test the camera
+   established, applied here.
+5. **`ARedrawnFrameMissesTheCache`** — change one stroke, assert a new key.
+6. **`AReadingSurvivesLosingTheCache`** — clear the cache directory mid-session
+   and assert the next request simply pays for a call, no error surfaced.
+
+## Still open after this
+
+- **Q17** — does an inking pass replace the pencils or land on its own layer.
+  Blocks inking only; nothing on this track waits for it.
+- **What a taxonomy editor looks like.** The reading is hand-correctable by
+  design, and "hand-correctable" without a UI means "hand-correctable by editing
+  JSON". Not designed here, and it is not a prerequisite for the measurement —
+  but it is a prerequisite for calling the feature finished.
+- **Whether the MCP surface exposes the reading.** An agent that could ask
+  *what am I looking at* would use it, and the tools are already guarded and
+  undoable. Deferred with the rest of the MCP scope question rather than
+  answered in passing here.

@@ -7,7 +7,10 @@ namespace Lightbox.Ai;
 /// <summary>How hard to lean on the provider before believing it.</summary>
 public enum AiTestDepth
 {
-    /// <summary>One short line on a small canvas. Seconds, a few hundred tokens.</summary>
+    /// <summary>
+    /// One inbetween of a two-point stroke on a small canvas, checked only for
+    /// being well-formed. Seconds, a few hundred tokens.
+    /// </summary>
     Quick,
 
     /// <summary>
@@ -33,11 +36,16 @@ public sealed record AiConnectionCheck(bool Ok, string Message, bool Connected =
 /// artist depends on it.
 /// </summary>
 /// <remarks>
-/// It draws rather than pings, because the ways this fails are mostly not
-/// reachability: a key with no credit, a model name off by a version, an
-/// endpoint that answers but cannot honour a JSON schema, an MCP server whose
-/// tool is called something else, a small local model that returns valid JSON
-/// full of nonsense. A HEAD request would say "connected" to every one.
+/// It asks for real work rather than pinging, because the ways this fails are
+/// mostly not reachability: a key with no credit, a model name off by a
+/// version, an endpoint that answers but cannot honour a JSON schema, an MCP
+/// server whose tool is called something else, a small local model that
+/// returns valid JSON full of nonsense. A HEAD request would say "connected"
+/// to every one.
+///
+/// Both depths ask for an inbetween, because inbetweening is the only thing
+/// the application asks a model for. A test that exercised some other capability
+/// could pass on a provider that cannot do the job.
 ///
 /// The output checks are deliberately about *usability*, not quality. Points
 /// off the canvas, an empty stroke list, an inbetween that does not lie
@@ -47,11 +55,17 @@ public sealed record AiConnectionCheck(bool Ok, string Message, bool Connected =
 /// </remarks>
 public static class AiConnectionTester
 {
-    /// <summary>Deliberately trivial: one line on a small canvas.</summary>
-    private static DrawRequest Probe() => new(
+    /// <summary>
+    /// Deliberately trivial: one two-point line nudged sideways. Any model
+    /// that can answer the schema at all gets it, which is the point — this
+    /// depth is asking "does anything usable come back", not "is it any good".
+    /// </summary>
+    private static InbetweenRequest Probe() => new(
         new SceneInfo(Canvas, Canvas, 12),
-        "A single short horizontal line across the middle. One stroke, two points.",
-        []);
+        [new Stroke { Label = "line", Points = [new(20, 64, 0.6), new(60, 64, 0.6)] }],
+        [new Stroke { Label = "line", Points = [new(68, 64, 0.6), new(108, 64, 0.6)] }],
+        [0.5],
+        Easing.Linear);
 
     private const int Canvas = 128;
 
@@ -109,18 +123,24 @@ public static class AiConnectionTester
         {
             if (await CheckToolNameAsync(artist, connection, ct) is { } toolProblem) return toolProblem;
 
-            progress?.Report("Asking for one short line…");
-            var drawn = await artist.DrawAsync(Probe(), ct);
-            if (Interpret(drawn.Outcome, drawn.Message, connection) is { } failure) return failure;
+            progress?.Report("Asking for one inbetween of a short line…");
+            var probed = await artist.GenerateInbetweensAsync(Probe(), ct);
+            if (Interpret(probed.Outcome, probed.Message, connection) is { } failure) return failure;
 
-            if (BadStrokes(drawn.Value!) is { } strokeProblem)
+            // Well-formedness only at this depth: the strokes would mark.
+            // Whether the drawing lands between the keys is the thorough
+            // test's question. A success always carries at least one frame —
+            // the parser reports an empty list as an error rather than a
+            // value — so indexing here needs no guard of its own.
+            var first = probed.Value![0];
+            if (BadStrokes(first.Strokes) is { } strokeProblem)
             {
                 return new AiConnectionCheck(false,
                     $"Connected, but the strokes are not usable: {strokeProblem}", Connected: true);
             }
 
             var name = connection.Provider.Name;
-            var drewLine = $"{name} drew {Count(drawn.Value!.Count, "stroke")}";
+            var drewLine = $"{name} drew {Count(first.Strokes.Count, "stroke")}";
             if (depth == AiTestDepth.Quick)
                 return new AiConnectionCheck(true, $"Connected. {drewLine}.", Connected: true);
 

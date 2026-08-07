@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Lightbox.Core.Inbetween;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.Ai;
 
@@ -42,24 +43,55 @@ public static class Prompts
         "with them, and use them to draw parts of the subject that motion " +
         "reveals (e.g. a limb swinging away exposing the body behind it).";
 
-    public const string DrawSystem =
-        "You are a skilled artist drawing inside a paint application. You " +
-        "receive a text request, scene metadata, and optionally the strokes " +
-        "already on the canvas. Produce brush strokes in the given JSON schema " +
-        "that draw what was requested.\n" +
+    public const string SubjectSystem =
+        "You are reading a character design so an animation tool can reason " +
+        "about it later. You receive the character's name and one or more " +
+        "reference sheets drawn by the artist. Describe what the subject IS, " +
+        "in the given JSON schema.\n" +
         "\n" +
-        "- Coordinates are in scene pixels, origin top-left. Keep the drawing " +
-        "inside the scene bounds and compose it sensibly with anything already " +
-        "on the canvas.\n" +
-        "- Build forms from confident, economical strokes (think pencil " +
-        "drawing): outlines first, interior details after.\n" +
-        "- Use pressure (0..1) expressively: taper stroke ends with lower " +
-        "pressure.\n" +
-        "- Give each stroke a short semantic `label` (e.g. \"head-outline\", " +
-        "\"left-ear\") so the strokes can be inbetweened later.\n" +
-        "- If character-sheet reference images are attached, they are the " +
-        "authoritative design of the subject: keep your drawing on-model with " +
-        "them.";
+        "- `kind` is what sort of thing this is: biped, quadruped, bird, " +
+        "vehicle, prop. One lowercase word.\n" +
+        "- `parts` names the pieces that move independently, the way an " +
+        "animator would name them: head, torso, near-arm, far-arm, near-leg, " +
+        "far-leg, tail. Short, lowercase, hyphenated.\n" +
+        "- `parent` is the part a piece hangs off — a hand's parent is an arm, " +
+        "an arm's parent is the torso. Leave it null for the root.\n" +
+        "- `depth` is which part is normally in front when they overlap, " +
+        "higher being nearer. A near arm is in front of the torso; a far arm " +
+        "is behind it.\n" +
+        "\n" +
+        "Describe only what is true in EVERY drawing of this character. Do not " +
+        "describe a pose, a position, or anything about one particular " +
+        "picture — that changes frame to frame and is read separately. If the " +
+        "sheets do not show enough to be sure of a part, leave it out: a short " +
+        "correct answer is worth more here than a complete guess, because an " +
+        "artist will be reading and correcting this.";
+
+    public static string SubjectUser(SubjectRequest request) =>
+        $"Read the character \"{request.CharacterName}\" from the attached " +
+        "reference sheet(s). What is it, and what parts does it have?";
+
+    /// <summary>
+    /// The taxonomy block, rendered for the front of an inbetween request.
+    /// </summary>
+    /// <remarks>
+    /// <b>At the front, and that is not a stylistic choice.</b> Prompt caching
+    /// covers a <em>prefix</em>, and the taxonomy is the one part of an
+    /// inbetween request that is identical across every frame of every
+    /// animation of a character. Placed ahead of the frame data it is
+    /// cacheable; placed after it, it saves nothing at all and the storage
+    /// this feature exists for buys only the calls it avoids.
+    /// </remarks>
+    internal static string TaxonomyBlock(SubjectTaxonomy taxonomy) =>
+        "The subject, true in every frame of this character:\n" +
+        JsonSerializer.Serialize(new
+        {
+            kind = taxonomy.Kind,
+            parts = taxonomy.Parts.Select(p => new { name = p.Name, parent = p.Parent, depth = p.Depth }),
+        }, Compact) +
+        "\nUse it to keep the inbetween on-model: keep the parts that exist, " +
+        "respect which one is in front when they overlap, and draw what the " +
+        "motion reveals rather than leaving a hole.\n\n";
 
     public static string InbetweenUser(InbetweenRequest request)
     {
@@ -71,19 +103,9 @@ public static class Prompts
             keyframeA = new { strokes = request.KeyframeA.Select(StrokeWire.ToWire) },
             keyframeB = new { strokes = request.KeyframeB.Select(StrokeWire.ToWire) },
         };
-        return "Produce one inbetween frame for every t in `requestedTs` (t is the " +
+        return (request.Taxonomy is { } taxonomy ? TaxonomyBlock(taxonomy) : "") +
+               "Produce one inbetween frame for every t in `requestedTs` (t is the " +
                "position between keyframe A at t=0 and keyframe B at t=1):\n" +
-               JsonSerializer.Serialize(payload, Compact);
-    }
-
-    public static string DrawUser(DrawRequest request)
-    {
-        var payload = new
-        {
-            scene = new { width = request.Scene.Width, height = request.Scene.Height, fps = request.Scene.Fps },
-            existingStrokes = request.ExistingStrokes.Select(StrokeWire.ToWire),
-        };
-        return $"Draw the following: {request.Prompt}\n\nContext:\n" +
                JsonSerializer.Serialize(payload, Compact);
     }
 }

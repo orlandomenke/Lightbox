@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Lightbox.Ai;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Projects;
 
 namespace Lightbox.App.Tests;
 
@@ -9,9 +10,9 @@ namespace Lightbox.App.Tests;
 internal sealed class FakeArtist : IAiArtist
 {
     public AiResult<List<InbetweenFrameResult>>? InbetweenResult { get; set; }
-    public AiResult<List<Stroke>>? DrawResult { get; set; }
+    public AiResult<SubjectTaxonomy>? SubjectResult { get; set; }
     public InbetweenRequest? LastInbetweenRequest { get; private set; }
-    public DrawRequest? LastDrawRequest { get; private set; }
+    public SubjectRequest? LastSubjectRequest { get; private set; }
 
     public Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(
         InbetweenRequest request, CancellationToken ct)
@@ -21,10 +22,11 @@ internal sealed class FakeArtist : IAiArtist
             ?? AiResult<List<InbetweenFrameResult>>.Error("unscripted", false));
     }
 
-    public Task<AiResult<List<Stroke>>> DrawAsync(DrawRequest request, CancellationToken ct)
+    public Task<AiResult<SubjectTaxonomy>> ReadSubjectAsync(
+        SubjectRequest request, CancellationToken ct)
     {
-        LastDrawRequest = request;
-        return Task.FromResult(DrawResult ?? AiResult<List<Stroke>>.Error("unscripted", false));
+        LastSubjectRequest = request;
+        return Task.FromResult(SubjectResult ?? AiResult<SubjectTaxonomy>.Error("unscripted", false));
     }
 }
 
@@ -117,34 +119,49 @@ public class AiIntegrationTests
     }
 
     [AvaloniaFact]
-    public async Task AiDraw_AppendsStrokes_Undoable()
+    public async Task AiInbetween_RefusesALockedLayer()
     {
         var artist = new FakeArtist
         {
-            DrawResult = AiResult<List<Stroke>>.Success([Dot(50, 50), Dot(60, 60)]),
+            InbetweenResult = AiResult<List<InbetweenFrameResult>>.Success(
+                [new InbetweenFrameResult(0.5, [Dot(20, 35)])]),
         };
-        var vm = new MainViewModel(artist)
-        {
-            AiPrompt = "a bouncing ball",
-        };
+        var vm = VmWithTwoKeys(artist);
+        vm.LayerRows[0].Locked = true;
 
-        await vm.AiDrawCommand.ExecuteAsync(null);
+        await vm.AiInbetweenCommand.ExecuteAsync(null);
 
-        Assert.Equal("a bouncing ball", artist.LastDrawRequest!.Prompt);
-        var frame = vm.PaintedCel();
-        Assert.Equal(2, frame.Strokes.Count);
-
-        vm.UndoCommand.Execute(null);
-        frame = vm.PaintedCel();
-        Assert.Empty(frame.Strokes);
+        Assert.Null(artist.LastInbetweenRequest); // never reached the artist
+        Assert.Equal(2, vm.Doc.Scene.FrameCount);
+        Assert.Contains("locked", vm.AiStatus);
     }
 
-    [AvaloniaFact]
-    public async Task AiDraw_EmptyPrompt_DoesNothing()
+    /// <summary>
+    /// The AI assists an artist; it does not draw instead of one. Every method
+    /// on the artist interface must start from something the artist authored —
+    /// two keyframes for an inbetween, a character sheet for a reading — and
+    /// this list is the place that says so.
+    /// </summary>
+    /// <remarks>
+    /// Written as reflection over the interface rather than as a missing
+    /// button, because the button was the symptom. <c>IAiArtist</c> carried a
+    /// <c>DrawAsync</c> from M2 and the prompt box followed from it; a test
+    /// that only checked the view would pass on a build where the capability
+    /// was one binding away from returning.
+    ///
+    /// Adding a name here is therefore a decision, not a formality: it is the
+    /// moment to ask what the new call starts from. If the answer is "whatever
+    /// somebody types", it does not belong in this application.
+    /// </remarks>
+    [Fact]
+    public void EveryArtistMethodStartsFromSomethingTheArtistDrew()
     {
-        var artist = new FakeArtist();
-        var vm = new MainViewModel(artist) { AiPrompt = "   " };
-        await vm.AiDrawCommand.ExecuteAsync(null);
-        Assert.Null(artist.LastDrawRequest);
+        var methods = typeof(IAiArtist).GetMethods().Select(m => m.Name).Order().ToList();
+
+        Assert.Equal(
+            [nameof(IAiArtist.GenerateInbetweensAsync), nameof(IAiArtist.ReadSubjectAsync)],
+            methods);
+        Assert.Null(typeof(MainViewModel).GetProperty("AiDrawCommand"));
+        Assert.Null(typeof(MainViewModel).GetProperty("AiPrompt"));
     }
 }

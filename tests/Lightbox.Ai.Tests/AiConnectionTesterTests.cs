@@ -50,9 +50,6 @@ public class AiConnectionTesterTests
         points = points.Select(p => new { x = p.X, y = p.Y, pressure = 0.6 }).ToArray(),
     };
 
-    private static string Drawing(params (double X, double Y)[] points) =>
-        JsonSerializer.Serialize(new { strokes = new[] { WireStroke("line", points) } });
-
     private static string Tween(double t, params (double X, double Y)[] points) =>
         JsonSerializer.Serialize(new
         {
@@ -60,7 +57,7 @@ public class AiConnectionTesterTests
         });
 
     /// <summary>A good quick-test reply, so a thorough test can get past stage one.</summary>
-    private static string GoodLine() => Drawing((10, 64), (110, 64));
+    private static string GoodLine() => Tween(0.5, (10, 64), (110, 64));
 
     private static Task<AiConnectionCheck> Run(AiTestDepth depth, params string[] replies) =>
         AiConnectionTester.TestAsync(Complete(), depth, Scripted(replies));
@@ -78,24 +75,25 @@ public class AiConnectionTesterTests
     }
 
     [Fact]
-    public async Task AQuickTestDoesNotAskForAnInbetween()
+    public async Task AQuickTestMakesOneCall()
     {
         // The whole point of having two depths: quick has to stay cheap.
+        // Both depths ask for an inbetween now — inbetweening is the only
+        // thing the application asks a model for — so what separates them is
+        // the number of calls and how hard the second one looks.
         var artist = new CountingArtist();
         await AiConnectionTester.TestAsync(Complete(), AiTestDepth.Quick, artist);
 
-        Assert.Equal(1, artist.Draws);
-        Assert.Equal(0, artist.Inbetweens);
+        Assert.Equal(1, artist.Inbetweens);
     }
 
     [Fact]
-    public async Task AThoroughTestAsksForBoth()
+    public async Task AThoroughTestMakesTwo()
     {
         var artist = new CountingArtist();
         await AiConnectionTester.TestAsync(Complete(), AiTestDepth.Thorough, artist);
 
-        Assert.Equal(1, artist.Draws);
-        Assert.Equal(1, artist.Inbetweens);
+        Assert.Equal(2, artist.Inbetweens);
     }
 
     // ---- output that parses and is still no good ------------------------------
@@ -104,7 +102,7 @@ public class AiConnectionTesterTests
     public async Task AStrokeWithOnePointIsUnusableRatherThanAPass()
     {
         // It parses, it is a stroke, and it would mark nothing.
-        var check = await Run(AiTestDepth.Quick, Drawing((64, 64)));
+        var check = await Run(AiTestDepth.Quick, Tween(0.5, (64, 64)));
 
         Assert.False(check.Ok);
         Assert.True(check.Connected);   // the connection is fine; the output is not
@@ -116,7 +114,7 @@ public class AiConnectionTesterTests
     {
         // Two points in the same place: a dot where a line was asked for.
         // Survives both the schema and the clamp, so only a real check sees it.
-        var check = await Run(AiTestDepth.Quick, Drawing((64, 64), (64, 64)));
+        var check = await Run(AiTestDepth.Quick, Tween(0.5, (64, 64), (64, 64)));
 
         Assert.False(check.Ok);
         Assert.True(check.Connected);
@@ -134,19 +132,19 @@ public class AiConnectionTesterTests
         // A model that ignored the canvas entirely is still caught, and by the
         // right complaint: both points clamp onto the same corner, so what
         // arrives is a dot.
-        var check = await Run(AiTestDepth.Quick, Drawing((9000, 9000), (9100, 9000)));
+        var check = await Run(AiTestDepth.Quick, Tween(0.5, (9000, 9000), (9100, 9000)));
 
         Assert.False(check.Ok);
         Assert.Contains("dot, not a line", check.Message);
     }
 
     [Fact]
-    public async Task AnEmptyDrawingFails()
+    public async Task AnEmptyReplyFails()
     {
-        var check = await Run(AiTestDepth.Quick, """{"strokes":[]}""");
+        var check = await Run(AiTestDepth.Quick, """{"inbetweens":[]}""");
 
         Assert.False(check.Ok);
-        Assert.Contains("no usable strokes", check.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no usable inbetween", check.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     // ---- the competence check -------------------------------------------------
@@ -236,10 +234,9 @@ public class AiConnectionTesterTests
                 [Frame(0.5, (20, 60), (100, 60))]));
         }
 
-        public Task<AiResult<List<Stroke>>> DrawAsync(DrawRequest request, CancellationToken ct)
-        {
-            Draws++;
-            return Task.FromResult(AiResult<List<Stroke>>.Success([Line((10, 64), (110, 64))]));
-        }
+        public Task<AiResult<Lightbox.Core.Projects.SubjectTaxonomy>> ReadSubjectAsync(
+            SubjectRequest request, CancellationToken ct) =>
+            throw new NotSupportedException("The connection test never reads a subject.");
+
     }
 }

@@ -35,7 +35,7 @@ From the top:
 | --- | --- |
 | Menu | File, Edit, View |
 | Tool options | Controls for the tool you have selected. Changes with the tool; never changes height, and never scrolls — anything that does not fit goes into the **▾** at the end. On the right, the workspace picker. |
-| AI bar | Inbetween, a prompt box, and AI Draw |
+| AI bar | AI Inbetween, and what the model is doing |
 | Tabs | One per open document |
 | Work area | Tool column, canvas, and whatever panels you have docked |
 | Info strip | Document size, layer and drawing counts, and how much headroom the machine has |

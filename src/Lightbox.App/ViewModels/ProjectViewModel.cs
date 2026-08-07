@@ -1148,6 +1148,19 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public void MarkDirty(DocumentRef reference) => _dirty.Add(reference.Id);
 
     /// <summary>
+    /// Note that the manifest itself changed, from somewhere other than this
+    /// docker — the project is unsaved and everything derived from the manifest
+    /// has to be re-resolved.
+    /// </summary>
+    /// <remarks>
+    /// The docker's own edits go through <c>AfterScopeChange</c>, which also
+    /// raises the declaration properties. This is the plain half for a caller
+    /// that changed something no list on this panel is showing — a character's
+    /// subject reading, for one.
+    /// </remarks>
+    public void MarkManifestChanged() => _changed();
+
+    /// <summary>
     /// Everything is written. Clears the dirty set — and arms the directory
     /// watch, which is the first moment it can be armed.
     /// </summary>
