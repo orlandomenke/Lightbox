@@ -39,6 +39,22 @@ Splitting them means the expensive, reviewable, worth-storing half is stored
 once per character rather than once per frame, and the half that goes stale is
 the half nobody is keeping.
 
+## Depth turned out to be load-bearing twice
+
+`SubjectPart.Depth` was added so an inbetween keeps the near arm in front of the
+torso. It has a second job nobody designed it for, and it is the more important
+one: **it is what makes a reveal checkable.**
+
+A higher-depth part moving off a lower-depth one *vacates a region*. New ink
+inside that region is expected — the body behind the swinging arm, the window
+behind the drawn curtain — and new ink outside it is not. Without depth, "the
+model invented a stroke" and "the model drew what the motion revealed" are the
+same observation, and a verifier has to either forbid both or allow both.
+
+`docs/DESIGN-ai-correctness.md` builds on this. It is recorded here because it
+changes what the taxonomy is *for*, and a later reader deciding whether depth
+earns its place should know it pays twice.
+
 ## Where it must not go
 
 **Not into the render path.** Invariant 2 forbids randomness in rendering, and

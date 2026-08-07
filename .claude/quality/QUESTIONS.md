@@ -10,6 +10,86 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q31 · Does a frame remember that a model made it?
+
+`docs/DESIGN-ai-correctness.md` puts a verifier and a deterministic fallback
+behind every AI inbetween, which means three frames can look alike and have very
+different histories: one the model got right, one it got wrong and was repaired,
+one that fell back to the deterministic engine entirely.
+
+**(a) Stored on the frame, absent unless AI touched it.** An artist returning
+after a month knows which frames to trust and which to look at again. It is a
+new key in the document, so hand-drawn frames write nothing — the camera's rule.
+
+**(b) Session-only.** The timeline marks AI frames while the app is open and
+forgets on reload. No format change; the information vanishes exactly when it is
+most wanted.
+
+**(c) Not tracked.** An inbetween is an inbetween.
+
+**Recommend (a).** The whole feature is a claim about trust, and a claim you
+cannot audit a month later is not one. Note the cost honestly: it is a document
+format change, and *derived* data in the record is the mistake Q16 avoided for
+placement readings — the defence here is that provenance is not derived from
+anything, it is a fact about how the frame came to exist.
+
+**Blocks:** phase 0 of the correctness pipeline.
+
+## Q32 · What happens to a frame that fails verification and cannot be repaired?
+
+**(a) Insert the deterministic answer, flagged.** Four inbetweens asked for, four
+delivered, the fallen-back ones marked. Nothing silently missing, nothing
+silently wrong.
+
+**(b) Insert it silently.** No visual noise; the artist is never told the AI
+failed, which makes the feature look better than it is.
+
+**(c) Insert nothing and say why.** Strictest reading of "reliable", but a gap
+in the timeline is work to find and fill, and the deterministic answer was
+available the whole time.
+
+**Recommend (a)**, and it depends on Q31: "flagged" needs somewhere to record
+the flag. If Q31 lands on (c), this collapses into (b) whether we like it or not.
+
+**Blocks:** phase 0.
+
+## Q33 · An AI answer nearly identical to the deterministic one — reject or report?
+
+The deterministic engine is both the fallback and the reference, so distance
+from it is free. Too far is suspicious. Too close means the model added nothing.
+
+**(a) Report only, never reject.** Agreeing with the cheap engine is not
+incorrect. Surface it as a cost signal — *"this model added nothing on 9 of 12
+frames"* — and let the artist decide.
+
+**(b) Reject and fall back.** Cleaner cost story, at the risk of throwing away
+answers that were right.
+
+**Recommend (a).** Rejecting a correct answer for being unimaginative is
+indefensible on correctness grounds, and the cost argument is fully served by
+saying so out loud. The threshold for "nearly identical" is also exactly the
+sort of number that gets tuned until it passes.
+
+**Blocks:** nothing — this can be added after phase 0.
+
+## Q34 · Does the golden set ship with the app?
+
+A committed set of keyframe pairs with known-good answers, scored by the
+verifier, is what turns "reliable" into a number per model.
+
+**(a) Ships.** Point Lightbox at any local or hosted model and it reports what
+that model can and cannot do. This is the bring-your-own-model onboarding story,
+and the difference between *connectable* and *usable*.
+
+**(b) Development artifact only.** Stops regressions in the built-in providers;
+an artist with an unusual local model is back to trial and error.
+
+**Recommend (a).** Constraint 2 is that artists bring their own model; shipping
+the grader is what makes that a feature rather than a shrug. Cost is install
+size and the obligation to keep the set honest.
+
+**Blocks:** phase 2.
+
 ## Q25 · Is a character sheet a document, or part of one? — **answered (a)**
 
 **Answered 2026-08-04: (a), it stays part of a document.** No format change, no
