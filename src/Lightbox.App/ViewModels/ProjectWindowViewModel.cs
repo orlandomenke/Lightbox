@@ -52,24 +52,43 @@ public sealed record StatusColumn(
     public bool IsEmpty => Rows.Count == 0;
 }
 
+/// <summary>One declaration, with the scope it sits on so a chip can take it back.</summary>
+/// <remarks>
+/// The scope travels with the entry because "undeclare this" is one gesture and
+/// the chip is what an artist clicks. Exactly one of the three is set.
+/// </remarks>
+public sealed record Declaration(
+    ScopedResource Resource, string Name, ProjectFolder? Folder, DocumentRef? Document, bool OnProject);
+
 /// <summary>One cell of the Assets table: what a scope declares of one kind.</summary>
-public sealed record AssetCell(string Kind, IReadOnlyList<ScopedResource> Declared)
+public sealed record AssetCell(string Kind, IReadOnlyList<Declaration> Declared)
 {
     public int Count => Declared.Count;
 
     public bool Any => Declared.Count > 0;
 
-    /// <summary>The ids, so the cell says what rather than how many.</summary>
-    public string Text => string.Join(", ", Declared.Select(d => d.Id));
+    /// <summary>The names, so the cell reads rather than counting.</summary>
+    public string Text => string.Join(", ", Declared.Select(d => d.Name));
 }
 
 /// <summary>One row of the Assets table: a scope, and what it declares.</summary>
 /// <param name="Depth">Zero for the project, then folder depth, then documents.</param>
-public sealed record AssetScope(string Name, int Depth, IReadOnlyList<AssetCell> Cells)
+public sealed record AssetScope(
+    string Name, int Depth, IReadOnlyList<AssetCell> Cells,
+    ProjectFolder? Folder, DocumentRef? Document, bool IsProject)
 {
     public double Indent => Depth * 16;
 
     public bool DeclaresNothing => Cells.All(c => !c.Any);
+
+    /// <summary>Every declaration on this scope, flattened, for the row to list.</summary>
+    public IReadOnlyList<Declaration> All => [.. Cells.SelectMany(c => c.Declared)];
+}
+
+/// <summary>One entry of the "give this scope something" menu.</summary>
+public sealed record OfferChoice(AssetScope Scope, string Kind, string Id, string Label)
+{
+    public override string ToString() => Label;
 }
 
 /// <summary>
@@ -236,6 +255,21 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         foreach (var row in rows) Selected.Add(row);
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(SelectionLabel));
+        RefreshFacetEditor();
+    }
+
+    /// <summary>Everything the facet editor shows, after the selection moved.</summary>
+    private void RefreshFacetEditor()
+    {
+        OnPropertyChanged(nameof(EditingFolder));
+        OnPropertyChanged(nameof(IsEditingFolder));
+        OnPropertyChanged(nameof(EditingFolderName));
+        OnPropertyChanged(nameof(FolderNotes));
+        OnPropertyChanged(nameof(FolderHasPivot));
+        OnPropertyChanged(nameof(FolderHasReading));
+        OnPropertyChanged(nameof(FolderReadingLabel));
+        OnPropertyChanged(nameof(WhatClearingCosts));
+        OnPropertyChanged(nameof(FolderVariants));
     }
 
     /// <summary>Only the documents in the selection — a folder has no status.</summary>
@@ -277,11 +311,15 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
 
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(SelectionLabel));
+        RefreshFacetEditor();
         OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(TagsInUse));
         OnPropertyChanged(nameof(People));
         OnPropertyChanged(nameof(Assets));
+        OnPropertyChanged(nameof(OfferChoices));
         OnPropertyChanged(nameof(Columns));
+        OnPropertyChanged(nameof(ExportRows));
+        OnPropertyChanged(nameof(ExportSummary));
     }
 
     private static string Key(BoardRow row) => row.Document?.Id ?? row.Folder?.Id ?? "";
@@ -492,6 +530,179 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
 
     private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 
+    // ---- editing a folder's facets (closes Q39's cost) --------------------------------
+
+    /// <summary>
+    /// The folder the facet editor is about, or null when the selection is not
+    /// one folder.
+    /// </summary>
+    /// <remarks>
+    /// <b>Exactly one.</b> Notes, a pivot and a reading are per-folder things
+    /// with per-folder values, and applying one across a multi-selection would
+    /// mean deciding what "the notes" of nine folders are. Tags and status are
+    /// the bulk operations; these are not.
+    /// </remarks>
+    public ProjectFolder? EditingFolder =>
+        Selected.Count == 1 && Selected[0] is { IsFolder: true, Folder: { } folder } ? folder : null;
+
+    public bool IsEditingFolder => EditingFolder is not null;
+
+    public string EditingFolderName => EditingFolder?.Name ?? "";
+
+    /// <summary>
+    /// What this folder is, in the artist's words. Written straight through.
+    /// </summary>
+    /// <remarks>
+    /// Q44's rule holds here too — notes are metadata, nothing is destructive,
+    /// and typing is its own undo. Empties back to null so a folder whose notes
+    /// were typed and then cleared writes no key.
+    /// </remarks>
+    public string FolderNotes
+    {
+        get => EditingFolder?.Notes ?? "";
+        set
+        {
+            if (EditingFolder is not { } folder) return;
+            var wanted = value.Trim();
+            var next = wanted.Length == 0 ? null : wanted;
+            if (folder.Notes == next) return;
+            folder.Notes = next;
+            OnPropertyChanged();
+            Touched($"Notes on “{folder.Name}”.");
+        }
+    }
+
+    public bool FolderHasPivot => EditingFolder?.Pivot is not null;
+
+    /// <summary>
+    /// Give the folder a pivot, or take it away.
+    /// </summary>
+    /// <remarks>
+    /// A default pivot rather than a picker: the pivot's own placement is a
+    /// canvas gesture, and what this decides is only whether the folder
+    /// <em>has</em> one — which is the thing asset export asks and the thing an
+    /// artist could not previously see or change from here.
+    /// </remarks>
+    [RelayCommand]
+    public void TogglePivot()
+    {
+        if (EditingFolder is not { } folder) return;
+        folder.Pivot = folder.Pivot is null ? new Lightbox.Core.Documents.Pivot() : null;
+        OnPropertyChanged(nameof(FolderHasPivot));
+        Touched(folder.Pivot is null
+            ? $"“{folder.Name}” has no pivot. Its frames register on the canvas."
+            : $"“{folder.Name}” has a pivot. Asset export registers its frames on it.");
+    }
+
+    /// <summary>Whether this folder has been read, for the editor to offer clearing it.</summary>
+    public bool FolderHasReading => EditingFolder?.HasReading ?? false;
+
+    public string FolderReadingLabel =>
+        EditingFolder?.Taxonomy is not { } reading
+            ? ""
+            : reading.Reviewed
+                ? $"{reading.Kind}, {Count(reading.Parts.Count, "part")} — corrected by you"
+                : $"{reading.Kind}, {Count(reading.Parts.Count, "part")}";
+
+    /// <summary>
+    /// What clearing this folder's reading would discard, as a sentence.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q35's condition, and Q39 leans on it.</b> Under the old model "delete
+    /// character" was explicitly destructive; under the derived one, clearing a
+    /// reading quietly takes the pivot, the variants and a hand-corrected
+    /// taxonomy with it. The facet list lives behind a click (Q39), so this
+    /// sentence is where an artist is told — at the moment of the act rather
+    /// than in passing.
+    /// </remarks>
+    public string WhatClearingCosts =>
+        EditingFolder?.WhatClearingTheReadingDiscards() is not { Count: > 0 } lost
+            ? ""
+            : $"Clearing this discards {string.Join(", ", lost)}.";
+
+    /// <summary>
+    /// Clear the reading. Guarded by <see cref="WhatClearingCosts"/> in the view.
+    /// </summary>
+    /// <remarks>
+    /// It clears the reading and nothing else — the pivot and the variants stay
+    /// where they are. The warning says what <em>stops meaning anything</em>
+    /// rather than what gets deleted, which is the honest version: a pivot on a
+    /// folder nothing has read is still a pivot, it just no longer describes a
+    /// subject.
+    /// </remarks>
+    [RelayCommand]
+    public void ClearReading()
+    {
+        if (EditingFolder is not { } folder || folder.Taxonomy is null) return;
+        folder.Taxonomy = null;
+        Touched($"“{folder.Name}” has no reading. Read it again from the Project panel.");
+    }
+
+    /// <summary>Mark the reading as yours, so a re-read will not overwrite it.</summary>
+    /// <remarks>
+    /// <b>The flag shipped in PR #48 with nothing that could set it</b>, and the
+    /// refusal message said "clear it first" about a control that did not exist.
+    /// This is that control.
+    /// </remarks>
+    [RelayCommand]
+    public void MarkReadingReviewed()
+    {
+        if (EditingFolder?.Taxonomy is not { } reading) return;
+        reading.Reviewed = !reading.Reviewed;
+        OnPropertyChanged(nameof(FolderReadingLabel));
+        OnPropertyChanged(nameof(WhatClearingCosts));
+        Touched(reading.Reviewed
+            ? $"The reading of “{EditingFolder!.Name}” is yours. A re-read will refuse rather than overwrite it."
+            : $"The reading of “{EditingFolder!.Name}” is the model's again.");
+    }
+
+    /// <summary>The folder's variants, for the editor to list.</summary>
+    public IReadOnlyList<SubjectVariant> FolderVariants => EditingFolder?.Variants ?? [];
+
+    [ObservableProperty]
+    private string _newVariantName = "";
+
+    [RelayCommand]
+    public void AddVariant()
+    {
+        if (EditingFolder is not { } folder) return;
+        var name = NewVariantName.Trim();
+        if (name.Length == 0) return;
+        var variant = ProjectIo.AddVariant(_project, folder, name);
+        NewVariantName = "";
+        Touched(variant.PaletteId is null
+            ? $"“{name}” added. It has no palette of its own — this folder shares none yet."
+            : $"“{name}” added, with its own copy of the palette.");
+    }
+
+    /// <summary>Remove a variant, and the documents it replaced go back to shared.</summary>
+    /// <remarks>
+    /// The override documents are left in the project rather than deleted: a
+    /// variant is an arrangement, and removing one must not be the fastest way
+    /// to delete the art made for it. They become ordinary documents in the
+    /// folder, which is what the docker will then show.
+    /// </remarks>
+    [RelayCommand]
+    public void RemoveVariant(SubjectVariant? variant)
+    {
+        if (EditingFolder is not { } folder || variant is null) return;
+        if (folder.Variants is not { } variants) return;
+        var kept = variant.Overrides.Count;
+        variants.Remove(variant);
+        if (variants.Count == 0) folder.Variants = null;
+        _project.ActiveVariant.Remove(folder.Id);
+        Touched(kept == 0
+            ? $"“{variant.Name}” removed."
+            : $"“{variant.Name}” removed. {Count(kept, "drawing")} it replaced stay in the folder.");
+    }
+
+    private void Touched(string said)
+    {
+        Status = said;
+        Rebuild();
+        _changed();
+    }
+
     // ---- people --------------------------------------------------------------------
 
     public IReadOnlyList<PersonChoice> People =>
@@ -630,21 +841,72 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         _changed();
     }
 
-    // ---- the assets tab ----------------------------------------------------------------
+    // ---- the export tab ------------------------------------------------------------------
+
+    /// <summary>One artifact an export would write.</summary>
+    /// <param name="Scope">The folder whose subtree becomes this file, or the project.</param>
+    public sealed record ExportRow(
+        string Scope, string Preset, IReadOnlyList<string> Documents,
+        int ExcludedCount, bool IsEmpty)
+    {
+        public string Contents => string.Join(", ", Documents);
+
+        public int Count => Documents.Count;
+
+        public bool HasExcluded => ExcludedCount > 0;
+
+        public string Excluded => $"{ExcludedCount} held back by status";
+    }
 
     /// <summary>
-    /// The kinds a scope can declare, in the order the Assets tab lists them.
+    /// What exporting the whole project would produce, standing still.
     /// </summary>
     /// <remarks>
-    /// Named here rather than discovered, because a column that appears only
-    /// once something is declared is a column an artist cannot use to declare
-    /// the first one. The strings are the kinds `ResourceScopes` resolves.
+    /// <b>`ExportPlan` already produced this and only a confirmation dialog read
+    /// it.</b> A plan you can only see in the half-second before it runs is a
+    /// plan nobody checks, and the count is exactly the thing worth checking —
+    /// it is how you find out that most of a scope is held back by status before
+    /// wondering why the sheet is half empty.
+    /// <para>
+    /// Read-only, deliberately. Running an export is the export window's job and
+    /// duplicating the button would be two places that can disagree about what
+    /// "export" means.
+    /// </para>
     /// </remarks>
-    public static readonly IReadOnlyList<string> AssetKinds =
-    [
-        PaletteScopes.Kind, GradientScopes.Kind, ReferenceScopes.Kind, GuideScopes.Kind,
-        TemplateScopes.Kind, ExportScopes.Kind, SymbolScopes.Kind, TipScopes.Kind,
-    ];
+    public IReadOnlyList<ExportRow> ExportRows
+    {
+        get
+        {
+            var artifacts = ExportPlan.For(Manifest, selection: null, PresetById);
+            return
+            [
+                .. artifacts.Select(a => new ExportRow(
+                    a.Scope?.Name ?? _project.Name,
+                    PresetById(a.PresetId)?.Name ?? a.PresetId,
+                    [.. a.Documents.Select(d => d.Name)],
+                    a.Excluded.Count,
+                    a.IsEmpty)),
+            ];
+        }
+    }
+
+    /// <summary>The sentence the export confirmation reads, shown here instead.</summary>
+    public string ExportSummary =>
+        ExportPlan.Describe(ExportPlan.For(Manifest, selection: null, PresetById));
+
+    private ExportPreset? PresetById(string id) =>
+        (Manifest.ExportPresets ?? []).FirstOrDefault(p => p.Id == id)
+        ?? ExportPreset.BuiltIns.FirstOrDefault(p => p.Id == id);
+
+    // ---- the assets tab ----------------------------------------------------------------
+
+    /// <summary>The kinds a scope can declare, in the order the Assets tab lists them.</summary>
+    /// <remarks>
+    /// <c>ProjectBoard.Kinds</c> rather than a second list here — the docker has
+    /// seven `ShareableX` properties and this tab needs the same seven, and a
+    /// copy is a second thing to update when a ninth kind arrives.
+    /// </remarks>
+    public static IReadOnlyList<string> AssetKinds => ProjectBoard.Kinds;
 
     /// <summary>
     /// Every scope in the project, with what it declares — the three levels at once.
@@ -662,19 +924,170 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         {
             var scopes = new List<AssetScope>
             {
-                new(_project.Name, 0, Cells(Manifest.Resources)),
+                new(_project.Name, 0, Cells(Manifest.Resources, null, null, true),
+                    null, null, IsProject: true),
             };
             foreach (var row in Rows)
             {
                 scopes.Add(row.Document is { } document
-                    ? new AssetScope(document.Name, row.Depth + 1, Cells(document.Resources))
-                    : new AssetScope(row.Folder!.Name, row.Depth + 1, Cells(row.Folder!.Resources)));
+                    ? new AssetScope(
+                        document.Name, row.Depth + 1,
+                        Cells(document.Resources, null, document, false),
+                        null, document, IsProject: false)
+                    : new AssetScope(
+                        row.Folder!.Name, row.Depth + 1,
+                        Cells(row.Folder!.Resources, row.Folder, null, false),
+                        row.Folder, null, IsProject: false));
             }
             return scopes;
         }
     }
 
-    private static IReadOnlyList<AssetCell> Cells(List<ScopedResource>? declared) =>
+    private IReadOnlyList<AssetCell> Cells(
+        List<ScopedResource>? declared, ProjectFolder? folder, DocumentRef? document, bool onProject) =>
         [.. AssetKinds.Select(k => new AssetCell(
-            k, [.. (declared ?? []).Where(r => r.Kind == k)]))];
+            k,
+            [.. (declared ?? []).Where(r => r.Kind == k).Select(
+                r => new Declaration(
+                    r, ProjectBoard.NameOf(_project, k, r.Id), folder, document, onProject))]))];
+
+    /// <summary>
+    /// The scope the Assets tab is about to give something to.
+    /// </summary>
+    /// <remarks>
+    /// Its own selection rather than the Structure tab's, because the two tabs
+    /// list different things — the Assets table has a row for the project, which
+    /// the tree does not.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAssetScope))]
+    [NotifyPropertyChangedFor(nameof(AssetScopeLabel))]
+    [NotifyPropertyChangedFor(nameof(OfferChoices))]
+    private AssetScope? _selectedScope;
+
+    public bool HasAssetScope => SelectedScope is not null;
+
+    public string AssetScopeLabel => SelectedScope?.Name ?? "";
+
+    /// <summary>
+    /// Everything the selected scope could be given, across every kind.
+    /// </summary>
+    /// <remarks>
+    /// One flat list rather than a menu per kind, because the artist knows what
+    /// they want to share and not which of eight words the application files it
+    /// under. The kind is on the label so the answer is still legible.
+    /// <para>
+    /// <c>reference</c> is absent, and that is `ProjectBoard.Offers` refusing
+    /// rather than this forgetting: a reference binds to a target as well as an
+    /// id, so a flat entry would declare a sheet without saying what to do with
+    /// it.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<OfferChoice> OfferChoices
+    {
+        get
+        {
+            if (SelectedScope is not { } scope) return [];
+            var already = scope.All.Select(d => d.Resource).ToHashSet();
+            var choices = new List<OfferChoice>();
+            foreach (var kind in AssetKinds)
+            {
+                foreach (var offer in ProjectBoard.Offers(_project, kind))
+                {
+                    if (already.Any(r => r.Kind == kind && r.Id == offer.Id)) continue;
+                    choices.Add(new OfferChoice(scope, kind, offer.Id, $"{kind} · {offer.Name}"));
+                }
+            }
+            return choices;
+        }
+    }
+
+    /// <summary>
+    /// Picking one shares it, rather than needing a second Apply click.
+    /// </summary>
+    /// <remarks>
+    /// The same reasoning as the bulk status picker: undoing is by doing the
+    /// opposite, and that only stays cheap if doing it is one gesture.
+    /// </remarks>
+    [ObservableProperty]
+    private OfferChoice? _offerToDeclare;
+
+    partial void OnOfferToDeclareChanged(OfferChoice? value)
+    {
+        if (value is null) return;
+        DeclareOnScope(value);
+        OfferToDeclare = null;
+    }
+
+    /// <summary>Give the selected scope one of the things it could have.</summary>
+    /// <remarks>
+    /// <b>Declaring the first of a kind changes what everything else sees.</b>
+    /// The narrowing kinds read "everything applies" until something is declared
+    /// — `AnyDeclared` is the switch — so this is the click that turns every
+    /// palette everywhere into only what is declared. Said out loud, because a
+    /// picker that quietly shrinks is a bad way to learn it.
+    /// </remarks>
+    [RelayCommand]
+    public void DeclareOnScope(OfferChoice? choice)
+    {
+        if (choice is null) return;
+        var first = !AnyDeclaredOf(choice.Kind);
+
+        if (choice.Scope.Document is { } document)
+        {
+            ResourceScopes.DeclareOn(document, choice.Kind, choice.Id);
+        }
+        else
+        {
+            ResourceScopes.Declare(Manifest, choice.Scope.Folder, choice.Kind, choice.Id);
+        }
+
+        var name = ProjectBoard.NameOf(_project, choice.Kind, choice.Id);
+        Status = first
+            ? $"{name} shared with {choice.Scope.Name}. {choice.Kind} is now scoped — "
+              + "elsewhere only what is declared there is offered."
+            : $"{name} shared with {choice.Scope.Name}.";
+        AfterAssetChange(choice.Scope);
+    }
+
+    /// <summary>Take one declaration back.</summary>
+    [RelayCommand]
+    public void UndeclareOnScope(Declaration? declaration)
+    {
+        if (declaration is null) return;
+        var removed = declaration.Document is { } document
+            ? ResourceScopes.Undeclare(document, declaration.Resource)
+            : ResourceScopes.Undeclare(Manifest, declaration.Folder, declaration.Resource);
+        if (!removed) return;
+
+        // The other half of the sentence above: taking back the last declaration
+        // of a kind puts the project back to "everything applies".
+        Status = AnyDeclaredOf(declaration.Resource.Kind)
+            ? $"{declaration.Name} is no longer shared here."
+            : $"{declaration.Name} is no longer shared here. Nothing scopes "
+              + $"{declaration.Resource.Kind} now, so everything applies again.";
+        AfterAssetChange(null);
+    }
+
+    /// <summary>
+    /// Whether anything anywhere declares this kind — the narrowing switch.
+    /// </summary>
+    /// <remarks>
+    /// Walks all three tiers rather than calling one kind's <c>AnyDeclared</c>,
+    /// because each kind has its own and this has to answer for eight. Document
+    /// declarations count, which the per-kind helpers predate.
+    /// </remarks>
+    private bool AnyDeclaredOf(string kind) =>
+        (Manifest.Resources?.Any(r => r.Kind == kind) ?? false)
+        || ProjectFolders.All(Manifest).Any(f => f.Resources?.Any(r => r.Kind == kind) ?? false)
+        || Manifest.Documents.Any(d => d.Resources?.Any(r => r.Kind == kind) ?? false);
+
+    /// <summary>Rebuild and keep the Assets tab pointing where it was.</summary>
+    private void AfterAssetChange(AssetScope? keep)
+    {
+        var name = keep?.Name ?? SelectedScope?.Name;
+        Rebuild();
+        SelectedScope = name is null ? null : Assets.FirstOrDefault(s => s.Name == name);
+        _changed();
+    }
 }

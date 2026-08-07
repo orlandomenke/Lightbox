@@ -1,4 +1,6 @@
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Lightbox.App.ViewModels;
@@ -62,5 +64,54 @@ public partial class ProjectWindow : Window
     {
         if (sender is not ListBox list) return;
         _vm.SetSelection(list.SelectedItems?.OfType<BoardRow>() ?? []);
+    }
+
+    // ---- dragging a card between status columns --------------------------------
+
+    /// <summary>What is being dragged, so the drop knows which row to move.</summary>
+    /// <remarks>
+    /// A field rather than a payload on the <c>DataObject</c>, matching what the
+    /// project docker already does for row drags — one pattern for both, and the
+    /// object is never leaving this window.
+    /// </remarks>
+    private BoardRow? _draggedCard;
+
+    private static readonly DataFormat<string> CardFormat =
+        DataFormat.CreateStringApplicationFormat("lightbox/status-card");
+
+    private async void OnStatusCardPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control { DataContext: BoardRow row }) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+
+        _draggedCard = row;
+        try
+        {
+            // The same call the project docker's row drag uses, and the payload
+            // is the document id for the same reason: an id survives the rebuild
+            // a drop causes, where an object reference would not.
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(CardFormat, row.Document?.Id ?? ""));
+            await DragDrop.DoDragDropAsync(e, transfer, DragDropEffects.Move);
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("status-card-drag", ex);
+        }
+        finally
+        {
+            _draggedCard = null;
+        }
+    }
+
+    private void OnStatusDragOver(object? sender, DragEventArgs e) =>
+        e.DragEffects = _draggedCard is null ? DragDropEffects.None : DragDropEffects.Move;
+
+    private void OnStatusDrop(object? sender, DragEventArgs e)
+    {
+        if (_draggedCard is not { } row) return;
+        if (sender is not Control { DataContext: StatusColumn column }) return;
+        e.Handled = true;
+        _vm.MoveToStatus((row, column.Status));
     }
 }

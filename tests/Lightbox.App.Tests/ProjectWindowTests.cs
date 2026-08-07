@@ -348,6 +348,273 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
         Assert.All(vm.Assets, s => Assert.True(s.DeclaresNothing));
     }
 
+    // ---- the Assets tab writes (gap 1) ------------------------------------------------------
+
+    [Fact]
+    public void SharingSomethingWithAScopeDeclaresItThere()
+    {
+        var (vm, project, knight, _, _, _) = Open();
+        project.Palettes.Add(new Palette { Name = "Studio warms" });
+        vm.Rebuild();
+        vm.SelectedScope = vm.Assets.Single(s => s.Name == "Knight");
+
+        var offer = vm.OfferChoices.Single(o => o.Label.Contains("Studio warms"));
+        vm.DeclareOnScope(offer);
+
+        var declared = Assert.Single(knight.Resources!);
+        Assert.Equal(PaletteScopes.Kind, declared.Kind);
+        Assert.Equal(project.Palettes[0].Id, declared.Id);
+    }
+
+    [Fact]
+    public void TheFirstDeclarationOfAKindSaysThatScopingIsNowOn()
+    {
+        // A picker that quietly shrinks is a bad way to learn that everything
+        // stopped applying everywhere.
+        var (vm, project, knight, _, _, _) = Open();
+        project.Palettes.Add(new Palette { Name = "Studio warms" });
+        vm.Rebuild();
+        vm.SelectedScope = vm.Assets.Single(s => s.Name == "Knight");
+
+        vm.DeclareOnScope(vm.OfferChoices.First());
+        output.WriteLine(vm.Status);
+
+        Assert.Contains("now scoped", vm.Status);
+    }
+
+    [Fact]
+    public void ADocumentCanDeclareSomethingOfItsOwn()
+    {
+        // The narrowest tier, which had no target at all before this branch.
+        var (vm, project, _, walk, _, _) = Open();
+        project.Palettes.Add(new Palette { Name = "Just this one" });
+        vm.Rebuild();
+        vm.SelectedScope = vm.Assets.Single(s => s.Name == "walk");
+
+        vm.DeclareOnScope(vm.OfferChoices.First());
+
+        Assert.Single(walk.Resources!);
+        Assert.Equal(project.Palettes[0].Id, ResourceScopes.Nearest(
+            project.Manifest, walk, PaletteScopes.Kind)!.Id);
+    }
+
+    [Fact]
+    public void TakingBackTheLastDeclarationSaysEverythingAppliesAgain()
+    {
+        // The other half of the sentence: `AnyDeclared` is the switch, so
+        // undeclaring the last one is also a change of behaviour from one click.
+        var (vm, project, _, _, _, _) = Open();
+        project.Palettes.Add(new Palette { Name = "Studio warms" });
+        vm.Rebuild();
+        vm.SelectedScope = vm.Assets.Single(s => s.Name == "Knight");
+        vm.DeclareOnScope(vm.OfferChoices.First());
+
+        var declaration = vm.Assets.Single(s => s.Name == "Knight").All[0];
+        vm.UndeclareOnScope(declaration);
+        output.WriteLine(vm.Status);
+
+        Assert.Contains("everything applies again", vm.Status);
+        Assert.Empty(vm.Assets.Single(s => s.Name == "Knight").All);
+    }
+
+    [Fact]
+    public void UndeclaringEmptiesBackToNothing()
+    {
+        // Absent unless used, in both directions.
+        var (vm, project, knight, _, _, _) = Open();
+        project.Palettes.Add(new Palette { Name = "Studio warms" });
+        vm.Rebuild();
+        vm.SelectedScope = vm.Assets.Single(s => s.Name == "Knight");
+        vm.DeclareOnScope(vm.OfferChoices.First());
+
+        vm.UndeclareOnScope(vm.Assets.Single(s => s.Name == "Knight").All[0]);
+
+        Assert.Null(knight.Resources);
+    }
+
+    [Fact]
+    public void SomethingAlreadySharedHereIsNotOfferedTwice()
+    {
+        var (vm, project, _, _, _, _) = Open();
+        project.Palettes.Add(new Palette { Name = "Studio warms" });
+        vm.Rebuild();
+        vm.SelectedScope = vm.Assets.Single(s => s.Name == "Knight");
+        var before = vm.OfferChoices.Count;
+
+        vm.DeclareOnScope(vm.OfferChoices.First());
+
+        Assert.Equal(before - 1, vm.OfferChoices.Count);
+    }
+
+    [Fact]
+    public void AChipReadsAsANameRatherThanAnId()
+    {
+        var (vm, project, _, _, _, _) = Open();
+        project.Palettes.Add(new Palette { Name = "Studio warms" });
+        vm.Rebuild();
+        vm.SelectedScope = vm.Assets.Single(s => s.Name == "Knight");
+        vm.DeclareOnScope(vm.OfferChoices.First());
+
+        Assert.Equal("Studio warms", vm.Assets.Single(s => s.Name == "Knight").All[0].Name);
+    }
+
+    // ---- the facet editor (gap 2, and Q39's cost) --------------------------------------------
+
+    [Fact]
+    public void TheFacetEditorAppearsForExactlyOneFolder()
+    {
+        // Notes, a pivot and a reading are per-folder values, and applying one
+        // across nine folders would mean deciding what "the notes" of nine are.
+        var (vm, _, knight, _, _, _) = Open();
+
+        vm.SetSelection(vm.Rows.Where(r => r.IsFolder));
+        Assert.True(vm.IsEditingFolder);
+        Assert.Same(knight, vm.EditingFolder);
+
+        vm.SetSelection(vm.Rows);
+        Assert.False(vm.IsEditingFolder);
+
+        vm.SetSelection(vm.Rows.Where(r => r.Document is not null).Take(1));
+        Assert.False(vm.IsEditingFolder);
+    }
+
+    [Fact]
+    public void NotesAreWrittenThroughAndEmptyBackToNothing()
+    {
+        var (vm, _, knight, _, _, _) = Open();
+        vm.SetSelection(vm.Rows.Where(r => r.IsFolder));
+
+        vm.FolderNotes = "Rain on the window.";
+        Assert.Equal("Rain on the window.", knight.Notes);
+
+        vm.FolderNotes = "   ";
+        Assert.Null(knight.Notes);
+    }
+
+    [Fact]
+    public void APivotIsGivenAndTakenAway()
+    {
+        var (vm, _, knight, _, _, _) = Open();
+        vm.SetSelection(vm.Rows.Where(r => r.IsFolder));
+
+        vm.TogglePivotCommand.Execute(null);
+        Assert.NotNull(knight.Pivot);
+        Assert.Contains("registers its frames on it", vm.Status);
+
+        vm.TogglePivotCommand.Execute(null);
+        Assert.Null(knight.Pivot);
+    }
+
+    [Fact]
+    public void ClearingAReadingNamesWhatItCostsFirst()
+    {
+        // Q35's condition, and with Q39 keeping the facets behind a click this
+        // sentence is the only place an artist is told.
+        var (vm, _, knight, _, _, _) = Open();
+        knight.Taxonomy = new SubjectTaxonomy
+        {
+            Kind = "biped",
+            Parts = [new SubjectPart { Name = "torso" }],
+            Reviewed = true,
+        };
+        knight.Pivot = new Pivot();
+        vm.Rebuild();
+        vm.SetSelection(vm.Rows.Where(r => r.IsFolder));
+
+        output.WriteLine(vm.WhatClearingCosts);
+        Assert.Contains("corrected by hand", vm.WhatClearingCosts);
+        Assert.Contains("pivot", vm.WhatClearingCosts);
+
+        vm.ClearReadingCommand.Execute(null);
+
+        Assert.Null(knight.Taxonomy);
+        // Only the reading. A pivot on a folder nothing has read is still a
+        // pivot — the warning says what stops meaning anything, not what is
+        // deleted.
+        Assert.NotNull(knight.Pivot);
+    }
+
+    [Fact]
+    public void TheReviewedFlagCanFinallyBeSet()
+    {
+        // It shipped in PR #48 with nothing that could set it, and the refusal
+        // message said "clear it first" about a control that did not exist.
+        var (vm, _, knight, _, _, _) = Open();
+        knight.Taxonomy = new SubjectTaxonomy { Kind = "biped" };
+        vm.Rebuild();
+        vm.SetSelection(vm.Rows.Where(r => r.IsFolder));
+
+        vm.MarkReadingReviewedCommand.Execute(null);
+
+        Assert.True(knight.Taxonomy!.Reviewed);
+        Assert.Contains("A re-read will refuse", vm.Status);
+    }
+
+    [Fact]
+    public void RemovingAVariantKeepsTheArtItReplaced()
+    {
+        // Removing a variant must not be the fastest way to delete the drawings
+        // made for it.
+        var (vm, project, knight, walk, _, _) = Open();
+        var variant = ProjectIo.AddVariant(project, knight, "Winter");
+        var over = ProjectIo.OverrideDocument(
+            project, knight, variant, walk, DocumentFactory.CreateDoc(64, 64, 12));
+        vm.Rebuild();
+        vm.SetSelection(vm.Rows.Where(r => r.IsFolder));
+
+        vm.RemoveVariantCommand.Execute(variant);
+
+        Assert.Null(knight.Variants);
+        Assert.Contains(over, project.Manifest.Documents);
+        Assert.Contains("stay in the folder", vm.Status);
+    }
+
+    // ---- the Export tab (gap 4) -------------------------------------------------------------
+
+    [Fact]
+    public void TheExportTabShowsWhatWouldBeWritten()
+    {
+        // ExportPlan produced this already and only a confirmation dialog read
+        // it — a plan visible for half a second is a plan nobody checks.
+        var (vm, project, knight, _, _, _) = Open();
+        ExportScopes.SetPreset(
+            project.Manifest, knight,
+            (project.Manifest.ExportPresets ??= [new ExportPreset
+            {
+                Name = "Sheet", Grouping = ExportGrouping.OneArtifact,
+            }])[0].Id);
+        vm.Rebuild();
+
+        var sheet = Assert.Single(vm.ExportRows, r => r.Scope == "Knight");
+        Assert.Equal("Sheet", sheet.Preset);
+        Assert.Equal(2, sheet.Count);
+        output.WriteLine(vm.ExportSummary);
+        Assert.Contains("document", vm.ExportSummary);
+    }
+
+    [Fact]
+    public void TheExportTabSaysWhatIsHeldBackByStatus()
+    {
+        // The number worth checking: it is how you learn most of a scope is
+        // excluded before wondering why the sheet came out half empty.
+        var (vm, project, knight, walk, _, _) = Open();
+        var preset = new ExportPreset
+        {
+            Name = "Ready only",
+            Grouping = ExportGrouping.OneArtifact,
+            IncludeStatuses = [AssetStatus.Ready],
+        };
+        project.Manifest.ExportPresets = [preset];
+        ExportScopes.SetPreset(project.Manifest, knight, preset.Id);
+        walk.Status = AssetStatus.Ready;
+        vm.Rebuild();
+
+        var sheet = Assert.Single(vm.ExportRows, r => r.Scope == "Knight");
+        Assert.True(sheet.HasExcluded);
+        Assert.Equal(1, sheet.Count);
+        Assert.Contains("held back by status", vm.ExportSummary);
+    }
+
     // ---- the footer ------------------------------------------------------------------------
 
     [Fact]

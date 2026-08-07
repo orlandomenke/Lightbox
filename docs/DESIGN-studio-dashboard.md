@@ -195,6 +195,22 @@ a registry with no way to add to it is a registry nobody can use, and **filters*
 above the tabs rather than inside one — narrowing the tree and then finding the
 status board showing something else would be two projects on one screen.
 
+## What shipped after the first cut
+
+The four things the first cut named as absent, all landed:
+
+| | |
+| --- | --- |
+| **Assets writes** | Select a scope, pick from one flat list of everything it could be given, ✕ a chip to take it back. Both switch-flipping moments — the first declaration of a kind and the last — say so, because each is one click that changes what every other drawing sees |
+| **Facet editing** | A panel for exactly one selected folder: notes, pivot, reading, variants. This is what closes Q39's cost, and it is also where `Reviewed` can finally be set — the flag shipped in PR #48 with nothing that could write it, and the refusal message said "clear it first" about a control that did not exist |
+| **Drag between status columns** | A card is a drag source, a column is a drop target, and `MoveToStatus` behind both stays drivable without a pointer — synthetic input through Xvfb is unreliable here, so a gesture that exists only in a handler is one nothing can check |
+| **Export tab** | `ExportPlan.For`/`Describe`, standing still. Read-only: running an export is the export window's job, and a second button is two places that can disagree about what export means |
+
+One thing the Assets tab deliberately cannot offer: **references**. A reference
+binds to a *target* as well as an id (`ReferenceTargets`), so a flat entry would
+declare a sheet without saying what to do with it. `ProjectBoard.Offers` refuses
+that kind rather than the tab forgetting it.
+
 ## What this must not become
 
 - **Not a second tree implementation.** Q29's whole point. If a traversal is

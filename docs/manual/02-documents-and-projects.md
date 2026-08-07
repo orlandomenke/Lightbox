@@ -370,6 +370,15 @@ at once, tag a folder and everything under it, assign a sequence to somebody.
 The docker has no multi-select on purpose; a bulk edit is exactly the thing you
 do between drawings rather than during one.
 
+**Select exactly one folder and a panel opens on the right** — its notes, its
+pivot, its reading and its variants, all editable. One folder rather than
+several, because "the notes of nine folders" is not a thing. This is where a
+reading is marked as **yours**, so a re-read refuses instead of overwriting your
+corrections, and where clearing one tells you first what stops meaning anything:
+*"Clearing this discards the reading you corrected by hand, its pivot, 2
+variants."* Clearing takes the reading and nothing else — a pivot on a folder
+nothing has read is still a pivot.
+
 **There is no undo here, and nothing here is destructive.** Status, tags and who
 is on something are notes *about* a drawing rather than part of it — none of
 them touches a stroke or needs the drawing open — so setting one back is the
@@ -379,7 +388,7 @@ it did nothing.
 **Status** is the same documents as columns: the six statuses in order, and
 *No status* last on its own. "Nobody has said" is not the same as *Design*, and
 folding them together would invent a pipeline stage for every file you imported.
-Drag a card between columns to change one.
+**Drag a card between columns** to change one.
 
 **Assets** is the one thing a right-click menu cannot be. A menu declares on one
 scope at a time and shows nothing about the others, so *why is this drawing
@@ -387,6 +396,24 @@ painting from the studio palette* is answerable only by working it out. Here the
 project, every folder and every document are rows of one table, and what each
 declares is visible at once. Nearest wins: a document beats its folder, a folder
 beats the project, and the project beats your own defaults.
+
+Select a row and the bar underneath offers everything that row could be given —
+palettes, gradients, guide sets, symbols, tips, templates, export presets — with
+the kind in front of the name, so you pick the thing rather than first picking
+which of eight words it files under. The **✕** on any chip stops sharing it
+there.
+
+Two moments the panel says something you would otherwise have to notice: sharing
+the **first** thing of a kind is what switches that kind from *everything
+applies everywhere* to *only what is declared*, and taking back the **last** one
+switches it back. Both are one click, and both change what every other drawing
+in the project sees.
+
+**Export** is what exporting the whole project would write, standing still: one
+row per file, what is in it, which preset it uses, and how many drawings are
+held back by their status. That last number is how you find out most of a scope
+is excluded *before* wondering why the sheet came out half empty. It shows the
+plan and does not run it — exporting is the Export window's job.
 
 **People** is names. Add somebody and they can be assigned; rename them and
 every row they are on changes at once, which is why it is a list rather than a

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2745 tests, derived from the suite itself. Each line is a
+2766 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -603,6 +603,15 @@ regression even when every test still compiles.
 - ASurvivable Failure Is Recorded Once Per Context — `:98`
 - An Unwritable Folder Is Survived Rather Than Thrown — `:112`
 - The Log Sits Beside The Other App Data — `:126`
+
+## DiagnosticsMenuTests
+`tests/Lightbox.App.Tests/DiagnosticsMenuTests.cs`
+
+- The Console Switch Is Off Until Somebody Asks — `:24`
+- The Switch Is Listed In The Settings File Like Every Other Preference — `:30`
+- The Switch Survives The Restart It Exists For — `:43`
+- Help Offers The Folder The Console And The Build — `:53`
+- The Build Label Names The Commit Rather Than Just AVersion — `:72`
 
 ## DirtyRevisionTests
 `tests/Lightbox.App.Tests/DirtyRevisionTests.cs`
@@ -1482,7 +1491,22 @@ regression even when every test still compiles.
 - Removing The Filtered Person Clears The Filter — `:304`
 - The Assets Tab Shows All Three Levels At Once — `:322`
 - AScope That Declares Nothing Says So — `:344`
-- The Footer Counts What Is True — `:354`
+- Sharing Something With AScope Declares It There — `:354`
+- The First Declaration Of AKind Says That Scoping Is Now On — `:370`
+- ADocument Can Declare Something Of Its Own — `:386`
+- Taking Back The Last Declaration Says Everything Applies Again — `:402`
+- Undeclaring Empties Back To Nothing — `:421`
+- Something Already Shared Here Is Not Offered Twice — `:436`
+- AChip Reads As AName Rather Than An Id — `:450`
+- The Facet Editor Appears For Exactly One Folder — `:464`
+- Notes Are Written Through And Empty Back To Nothing — `:482`
+- APivot Is Given And Taken Away — `:495`
+- Clearing AReading Names What It Costs First — `:509`
+- The Reviewed Flag Can Finally Be Set — `:538`
+- Removing AVariant Keeps The Art It Replaced — `:554`
+- The Export Tab Shows What Would Be Written — `:575`
+- The Export Tab Says What Is Held Back By Status — `:596`
+- The Footer Counts What Is True — `:621`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
@@ -3399,6 +3423,7 @@ regression even when every test still compiles.
 - The App Ships As AGui Program So No Console Window Opens Beside It — `:63`
 - The Stdio Programs Stay Console Programs — `:71`
 - The Opt In Traces Still Have Somewhere To Print — `:84`
+- Asking For AConsole Works Even When There Is No Terminal To Attach To — `:98`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`
