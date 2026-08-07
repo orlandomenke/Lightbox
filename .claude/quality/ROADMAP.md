@@ -102,6 +102,7 @@ not to rebuild. What is missing is everything that *makes* a tip.
 
 - [x] Tips are cached as rasters and sampled properly, never rebuilt per dab `evidence: BrushTipRegistry, BrushTipSamplingTests, AnEnlargedTipIsSmoothedRatherThanBlocky, AMinifiedTipIsAveraged_NotPointSampled`
 - [x] A tip library, scoped like palettes: project, user, and inlined on export `evidence: BrushTip, TipStore, TipLibraryTests, AProjectTipComesBeforeAUserTip, DeletingFromTheLibraryCannotChangeADrawing, AProjectThatNeverMadeATipWritesNoTipsKey`
+  - **"Scoped like palettes" finally means it (Q30) `evidence: TipScopes, WithNothingDeclaredEveryTipIsStillOffered, ATipDeclaredOnAFolderIsOfferedThereAndNotElsewhere, DeclaringABrushTipNarrowsTheProjectsOwnAndNotTheUserLibrary`** — *Share a brush tip here* on a folder. The line above said scoped-like-palettes before the scoping mechanism existed; it meant project-versus-user, and the folder axis is what makes the phrase true. Like symbols and unlike palettes it **narrows**, so a project declaring none keeps offering everything. The user library and the built-in catalogue are never narrowed — they follow the artist rather than the project, and painting with either copies the raster into the document anyway.
   - The record adds `Pivot` — where the pen touches, which is not the centre of an angled mark. It is what stops multi-capture blending from ghosting, and making it a field rather than a cropping discipline is the point.
 - [x] Procedural tip generator — circle, soft circle, ring, chisel, hatch `evidence: TipGenerator, TipRecipe, TipGeneratorTests, AGeneratedEdgeIsCoverageNotAStaircase, HatchRulesAreDrawnAsWidthNotAsSinglePixels, TheSameRecipeBakesTheSameTipEveryTime`
   - Every threshold is anti-aliased as pixel coverage. A binary `d <= Radius` stair-steps, and a stair that shifts phase between frames boils at 12 fps.
@@ -760,8 +761,23 @@ when the word "assistant" is in the name — arcs, spacing, timing charts and
 contact-frame detection are arithmetic, and filing them here would make this
 section look like the whole roadmap.
 
-Three rules govern everything below, and they are not negotiable per feature:
+Four rules govern everything below, and they are not negotiable per feature:
 
+0. **The AI never starts from nothing.** Every feature here takes something the
+   artist authored and does the tedious part of it — two keys and it fills the
+   gap, pencils and it inks them, a pose and it fleshes it out. There is no
+   entry point that turns an idea into a drawing, and that is a statement about
+   what this application is rather than a feature nobody has built yet.
+   - **This rule was written after breaking it.** `IAiArtist` carried a
+     `DrawAsync` from M2 — a text prompt in, a drawing out — with a prompt box
+     in the AI bar to match. It worked, it was tested, it was documented, and no
+     roadmap item ever claimed it, which is how a capability nobody decided on
+     survived for eleven milestones. It was removed rather than left unused,
+     because a control that is present makes a promise whether or not anybody
+     presses it, and the promise a prompt box makes is the wrong one.
+   - The test that keeps it out is reflection over `IAiArtist`, not a missing
+     button: the button was the symptom, and the interface is where it comes
+     back from.
 1. **A model never renders.** Every AI feature produces an *authored artifact* —
    strokes, a reading, a normal map — which is then stored and replayed by the
    ordinary deterministic path. Invariant 2 is not a constraint AI works around;
@@ -787,9 +803,9 @@ Three rules govern everything below, and they are not negotiable per feature:
   - Six providers behind one `IAiArtist`, chosen in Edit ▸ Configure ▸ AI: Claude, GPT, OpenRouter, Ollama, any OpenAI-compatible endpoint, and an MCP server the user supplies. The page is **generated from the catalogue**, so adding a service is a catalogue entry and a factory case — a page that hard-coded Claude's fields would pass a test that only checked Claude and then show an API key box for a local server.
 - [x] AI assistance can be switched off entirely `evidence: TurningItOffPersistsAndTakesTheArtistWithIt, TheProviderFieldsStayUsableWhileAssistanceIsOff, AiEnabled`
   - On by default, and off removes the AI bar rather than greying it — the camera's rule, for a studio that wants AI nowhere near a shot. The switch beats a complete connection, and the provider fields stay usable while it is off so a provider can be configured and proven before it is turned on.
-- [x] A connection test that checks the output, not just the reply `evidence: AiConnectionTester, AiTestDepth, AiConnectionTesterTests, AThoroughTestFailsWhenTheModelCopiedAKeyInstead, AQuickTestDoesNotAskForAnInbetween`
-  - **It draws rather than pings.** The ways this fails are mostly not reachability: a key with no credit, a model name off by a version, an endpoint that answers but cannot honour a JSON schema, an MCP server whose tool is spelled differently, a small model that returns valid JSON full of nonsense. A ping says "connected" to every one.
-  - Two depths. Quick asks for one line; thorough adds a real inbetween and checks it lands **between** the two keys — the one assertion that separates a working connection from a working inbetweener, and the one a parse check can never make. Three verdicts rather than two, because "unreachable" and "reachable but drawing nonsense" need different fixes.
+- [~] A connection test that checks the output, not just the reply `evidence: AiConnectionTester, AiTestDepth, AiConnectionTesterTests, AThoroughTestFailsWhenTheModelCopiedAKeyInstead, AQuickTestMakesOneCall, TheArtistInterfaceOffersInbetweeningAndNothingElse`
+  - **It asks for real work rather than pinging.** The ways this fails are mostly not reachability: a key with no credit, a model name off by a version, an endpoint that answers but cannot honour a JSON schema, an MCP server whose tool is spelled differently, a small model that returns valid JSON full of nonsense. A ping says "connected" to every one.
+  - Two depths, and **both ask for an inbetween** — it is the only thing the application asks a model for, so a test that exercised anything else could pass on a provider that cannot do the job. Quick takes a two-point line and checks only that what comes back would mark; thorough adds a real inbetween and checks it lands **between** the two keys — the one assertion that separates a working connection from a working inbetweener, and the one a parse check can never make. Three verdicts rather than two, because "unreachable" and "reachable but drawing nonsense" need different fixes.
 - [x] A budget on what a request costs `evidence: AiPayloadBudgetTests, AnInbetweenRequestStaysWithinItsBudget, CostScalesWithStrokeCount_WhichIsWhySendingFewerIsTheRealLever, ResamplingIsWhatKeepsALongStrokeAffordable`
   - The one cost in this app that is invisible locally: a change that doubles a payload shows up on somebody's bill a month later and nothing in the suite says a word. Measured in `docs/DESIGN-ai-payload.md` — a 40-stroke frame pair is 102 KB and at least 26k tokens; `MaxWirePoints` is the constant carrying it, and deleting it would fail no other test.
   - The finding worth keeping: **images are ~87% of a request's bytes and ~5% of its tokens, and strokes are the reverse.** So "make the payload smaller" is two goals recommending opposite changes, and any optimisation has to say which it means. Compression is off the table for the same reason — it takes 82% off the bytes, touches no tokens, and 0.3 s of upload is invisible beside 30–120 s of generation.
@@ -807,9 +823,19 @@ Three rules govern everything below, and they are not negotiable per feature:
 The prerequisite half. Both of these exist to be *inputs to authoring* and neither
 may reach a pixel at render time.
 
-- [ ] The AI reads the subject before it draws `evidence: SubjectReading, SubjectTaxonomy, PartPlacement, SubjectReadingTests, AHandNamedPartBeatsAGuessedOne, DeletingEveryReadingChangesNoPixel`
+- [?] The AI reads the subject before it draws — **split in two, because one half is built and one is gated**
+- [x] …the taxonomy half: what a character IS `evidence: SubjectTaxonomy, SubjectPart, SubjectRequest, ReadSubjectAsync, SubjectReadingTests, SubjectReadingWiringTests, DeletingEveryReadingChangesNoPixel, AReadingSomebodyEditedIsNotOverwrittenByAReRead, ACharacterThatWasNeverReadWritesNoKey, TheTaxonomyGoesAtTheFrontWhereACachePrefixCanCoverIt`
+  - Once per character, from the sheets the artist drew, kept on `Character.Taxonomy` — nullable and absent until read, so a project that never asks writes no key. Reached from the Project panel, because a reading belongs to a character and a character lives there.
+  - **434 B, and 0.6% of a realistic 40-stroke request.** Printed against a two-stroke pair as well, where the same block reads as 43% and means nothing — the denominator is two two-point strokes. Both numbers are in the test output on purpose.
+  - At the **front** of the request, where prompt caching covers a prefix. After the frame data it would save nothing, and that is a mistake worth only making once.
+- [ ] …the placement half: where each part is in one frame `evidence: PartPlacement, PlacementCache, PlacementCacheTests, ARedrawnFrameMissesTheCache`
+  - **Deliberately unbuilt, and gated rather than scheduled.** `TaxonomyMeasurementTests` is the gate: does the taxonomy alone measurably improve an inbetween, same keys, same provider, with against without. The harness exists and the two arms are proven to differ in exactly the taxonomy prefix; the live run needs `LIGHTBOX_MEASURE_KEY` and **has not been run**. Until it is, whether this half is needed at all is unknown.
+  - Q16 already decided where it would live if it is built: a content-hashed cache beside the autosave, never in the document, because a placement is *derived from* the stroke record and invariant 1 says the record is the document.
   - Inbetweening, inking and normal maps each asked for this separately, which is the signal to design it once — see `docs/DESIGN-subject-reading.md`. Split in two because the halves have different lifetimes: **taxonomy** (this is a biped with these parts) is per character and worth reviewing by hand; **placement** (where each part is in frame 12, what occludes what) is per frame and disposable. The rig's hand-drawn `parts` win wherever they exist — a guess is a default, never an override of something a person stated.
   - The line it must stay on: the reading is an input to *authoring*, never to rendering. Its first test deletes every reading from a finished document and asserts the render is byte-identical, because the day that fails is the day invariant 2 is gone.
+  - **Unblocked.** Q16 is answered (c): taxonomy on `Character` in the manifest, placement in a content-hashed cache beside the autosave and never in the document. A placement reading is *derived from* the stroke record, and invariant 1 says the record is the document — so it does not belong in it. Taxonomy escapes that test because it describes a character rather than a drawing, and once an artist corrects it, it is theirs.
+  - **Two methods on `IAiArtist`, not one** — different inputs, cadence, lifetime and storage, and the interface is what a reader consults to learn what the app asks a model for. Both satisfy rule 0: the taxonomy starts from a character sheet, the placement from a frame.
+  - **Behind a measurement, not a plan.** *Does the taxonomy alone measurably improve an inbetween?* Same keys, same provider, with and against without. If it does, placement is a refinement rather than a requirement; if neither moves the needle, the blindness was not the problem and that finding is worth as much as the feature. `art-director` judges "improves", `ai-engineer` judges the cost — the disagreement G12's pair exists to have. The design pass is the second half of `docs/DESIGN-subject-reading.md`.
 - [ ] A light source, for the tools that need to know where the shadows are `evidence: SceneLight, SceneLightTests, ALightNeverReachesStampStroke, ADocumentWithNoLightExportsExactlyAsItDid`
   - On the scene, nullable, absent until placed — the camera's rule. Two uses that must not be conflated: for inking it is a **generation input** (which contours are heavy, which side is in shadow) consumed before there are strokes; for a normal map it is a **preview rig** and must never be baked into the output, because a normal map that carried a light would defeat the reason for having one.
 
@@ -996,7 +1022,7 @@ These items are requested by studios, missing from competitors, and unblock othe
 | **Studio Dashboard** | ShotGrid replacement for small studios; eliminates spreadsheet maintenance | Medium | Dynamic folders (B83-87) |
 | **Animatic Preview Export** | One-click timing render saves manual video editing cycle | Low-Medium | None |
 | **Version Snapshots** | Hand-offs between artists; manual checkpoints of document state | Medium | Undo browser |
-| **Subject Reading** | Prerequisite for inking, normal maps, consistency checking; unlocks 3 features | Medium | Q16, Q17 answers |
+| **Subject Reading** | Prerequisite for inking, normal maps, consistency checking; unlocks 3 features | Medium | None — Q16 answered (c); Q17 blocks inking only |
 
 ### **Tier 3: Competitive Differentiation** (Polish phase)
 
@@ -1241,7 +1267,7 @@ Already built ✅:
 | **Lightweight character versioning** | Indie alternative to $10k enterprise tools (Toon Boom Server, Perforce) | Medium (600 LOC) | Tier 1 version tagging |
 | **Deterministic reference-aware brushes** | Lightbox-only: brush responds to reference geometry, reproducibly (invariant 2) | High (600 LOC) | Reference geometry API |
 | **Character semantic database** | Store character as queryable data; export as FSM for game engines and AI agents | High (800 LOC) | Metadata structure |
-| **AI consistency checking** | Real-time "is this frame on-model?" verification | High (800 LOC) | Subject reading (Q16/Q17) |
+| **AI consistency checking** | Real-time "is this frame on-model?" verification | High (800 LOC) | Subject reading |
 
 ### **Tier 3: Emerging (2026+)**
 - AI pose estimation overlay (sketch → skeleton detection → pose transfer)
@@ -1330,7 +1356,7 @@ Already built ✅:
    - Highlights problem regions for artist correction
    - Effort: 800–1200 LOC
    - Evidence: ConsistencyCheckTests, FrameComparisonTests, ScoreCalibrationTests
-   - Blocker: Subject reading (Q16, Q17)
+   - Blocker: Subject reading
 
 8. **New Item**: "Character as semantic database (queryable, exportable)" [ ]
    - Store character metadata as structured data (poses, expressions, proportions, versions)

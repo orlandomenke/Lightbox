@@ -3249,6 +3249,13 @@ public partial class MainWindow : Window
     /// naming the fourth, not four files and an exception.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Ask the model what the selected character is. The command holds every
+    /// precondition and says which one is missing, so this is only the gesture.
+    /// </summary>
+    private void OnProjectReadSubject(object? sender, RoutedEventArgs e) =>
+        _vm.AiReadSubjectCommand.Execute(null);
+
     private async void OnProjectExportFolder(object? sender, RoutedEventArgs e)
     {
         var docker = _vm.ProjectDocker;

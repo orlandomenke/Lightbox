@@ -256,8 +256,13 @@ public sealed class WorkspaceTests : BrushStateIsolated
                  // Q30's last mile: the plan was countable and describable and
                  // no view called either, so these two are what make it real.
                  "Export this folder…", "Test export",
+                 // A subject reading belongs to a character, and a character
+                 // lives in this panel — so the gesture is here rather than in
+                 // the AI bar, which acts on the open drawing.
+                 "Read this character…",
                  "Share a palette here",
-                 "Share a gradient here", "Share a symbol here", "Share guides here",
+                 "Share a gradient here", "Share a symbol here", "Share a brush tip here",
+                 "Share guides here",
                  "New documents start from",
                  "Use this as reference", "Stop sharing", "Reach",
                  "Remove from project", "Delete permanently…", "Status"],

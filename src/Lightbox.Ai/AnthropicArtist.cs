@@ -44,16 +44,16 @@ public sealed class AnthropicArtist : IAiArtist
         return StrokeParsing.Inbetweens(call, request.Scene, "The model");
     }
 
-    public async Task<AiResult<List<Core.Documents.Stroke>>> DrawAsync(
-        DrawRequest request, CancellationToken ct)
+    public async Task<AiResult<Core.Projects.SubjectTaxonomy>> ReadSubjectAsync(
+        SubjectRequest request, CancellationToken ct)
     {
         var call = await CallAsync(
-            Prompts.DrawSystem,
-            Prompts.DrawUser(request),
-            StrokeSchemas.DrawResult,
+            Prompts.SubjectSystem,
+            Prompts.SubjectUser(request),
+            StrokeSchemas.SubjectResult,
             request.ReferenceImages,
             ct);
-        return StrokeParsing.Strokes(call, request.Scene, "The model");
+        return StrokeParsing.Subject(call, "The model");
     }
 
     // ---- shared call path ----------------------------------------------------

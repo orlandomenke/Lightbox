@@ -126,14 +126,4 @@ public class AiPayloadBudgetTests(ITestOutputHelper output)
         Assert.InRange(ratio, 1.8, 2.2);
     }
 
-    [Fact]
-    public void ADrawRequestWithAnEmptyCanvasIsTiny()
-    {
-        // The common case, and it must not carry the inbetweener's baggage.
-        var user = Prompts.DrawUser(new DrawRequest(new SceneInfo(1920, 1080, 24), "a house", []));
-
-        output.WriteLine($"empty-canvas draw request: {user.Length} B");
-
-        Assert.True(user.Length < 512, $"grew to {user.Length} B");
-    }
 }

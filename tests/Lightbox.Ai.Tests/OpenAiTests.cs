@@ -69,9 +69,9 @@ public class OpenAiTests
         // "…/v1" and "…/v1/" must be normalised to the same thing.
         foreach (var url in new[] { "https://api.example.test/v1", "https://api.example.test/v1/" })
         {
-            var handler = new FakeHandler((_, _) => Ok(Completion("""{"strokes":[]}""")));
+            var handler = new FakeHandler((_, _) => Ok(Completion("""{"inbetweens":[]}""")));
             var artist = new OpenAiArtist(url, "k", "m", handler: handler);
-            await artist.DrawAsync(new DrawRequest(new SceneInfo(64, 64, 12), "x", []), CancellationToken.None);
+            await artist.GenerateInbetweensAsync(Request(), CancellationToken.None);
             Assert.Equal("/v1/chat/completions", handler.LastUri!.AbsolutePath);
         }
     }
@@ -81,10 +81,10 @@ public class OpenAiTests
     {
         // A local endpoint usually authenticates nothing, and sending
         // "Bearer " would be rejected by some of them.
-        var handler = new FakeHandler((_, _) => Ok(Completion("""{"strokes":[]}""")));
+        var handler = new FakeHandler((_, _) => Ok(Completion("""{"inbetweens":[]}""")));
         var artist = new OpenAiArtist("http://localhost:1234/v1", apiKey: null, model: "local", handler: handler);
 
-        await artist.DrawAsync(new DrawRequest(new SceneInfo(64, 64, 12), "x", []), CancellationToken.None);
+        await artist.GenerateInbetweensAsync(Request(), CancellationToken.None);
 
         Assert.Null(handler.LastAuthorization);
     }
@@ -135,8 +135,7 @@ public class OpenAiTests
         });
         var artist = new OpenAiArtist("https://x.test/v1", "k", "gpt-nine", "OpenAI", handler);
 
-        var result = await artist.DrawAsync(
-            new DrawRequest(new SceneInfo(64, 64, 12), "x", []), CancellationToken.None);
+        var result = await artist.GenerateInbetweensAsync(Request(), CancellationToken.None);
 
         Assert.Equal(AiOutcome.Error, result.Outcome);
         Assert.Contains(expected, result.Message);
@@ -157,8 +156,7 @@ public class OpenAiTests
         var handler = new FakeHandler((_, _) => Ok(body));
         var artist = new OpenAiArtist("https://x.test/v1", "k", "m", handler: handler);
 
-        var result = await artist.DrawAsync(
-            new DrawRequest(new SceneInfo(64, 64, 12), "x", []), CancellationToken.None);
+        var result = await artist.GenerateInbetweensAsync(Request(), CancellationToken.None);
 
         Assert.Equal(AiOutcome.Refused, result.Outcome);
     }
@@ -166,11 +164,10 @@ public class OpenAiTests
     [Fact]
     public async Task HittingTheOutputLimitIsTruncationRatherThanAParseFailure()
     {
-        var handler = new FakeHandler((_, _) => Ok(Completion("""{"strokes":[""", "length")));
+        var handler = new FakeHandler((_, _) => Ok(Completion("""{"inbetweens":[""", "length")));
         var artist = new OpenAiArtist("https://x.test/v1", "k", "m", handler: handler);
 
-        var result = await artist.DrawAsync(
-            new DrawRequest(new SceneInfo(64, 64, 12), "x", []), CancellationToken.None);
+        var result = await artist.GenerateInbetweensAsync(Request(), CancellationToken.None);
 
         Assert.Equal(AiOutcome.Truncated, result.Outcome);
     }
@@ -183,8 +180,7 @@ public class OpenAiTests
         var handler = new FakeHandler((_, _) => Ok("<html>hello</html>"));
         var artist = new OpenAiArtist("https://x.test/v1", "k", "m", "OpenAI", handler);
 
-        var result = await artist.DrawAsync(
-            new DrawRequest(new SceneInfo(64, 64, 12), "x", []), CancellationToken.None);
+        var result = await artist.GenerateInbetweensAsync(Request(), CancellationToken.None);
 
         Assert.Equal(AiOutcome.Error, result.Outcome);
         Assert.Contains("not a chat completion", result.Message);

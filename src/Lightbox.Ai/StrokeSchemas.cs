@@ -60,13 +60,32 @@ public static class StrokeSchemas
         }
         """;
 
-    public static readonly string DrawResult = $$"""
+    /// <summary>
+    /// A subject taxonomy. Note what is <em>not</em> here: no coordinates, no
+    /// regions, no per-frame anything. A taxonomy that could carry geometry
+    /// would be asked to, and it would be stale the first time the character
+    /// turned round.
+    /// </summary>
+    public static readonly string SubjectResult = """
         {
           "type": "object",
           "properties": {
-            "strokes": { "type": "array", "items": {{StrokeSchema}} }
+            "kind": { "type": "string" },
+            "parts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "parent": { "type": ["string", "null"] },
+                  "depth": { "type": "integer" }
+                },
+                "required": ["name", "parent", "depth"],
+                "additionalProperties": false
+              }
+            }
           },
-          "required": ["strokes"],
+          "required": ["kind", "parts"],
           "additionalProperties": false
         }
         """;

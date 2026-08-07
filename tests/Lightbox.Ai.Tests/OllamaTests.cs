@@ -125,19 +125,4 @@ public class OllamaTests
         Assert.True(result.Retryable);
     }
 
-    [Fact]
-    public async Task Draw_ParsesStrokes()
-    {
-        var inner =
-            """{"strokes":[{"tool":"brush","color":"#112233","size":4,"hardness":1,"opacity":1,"label":"roof","points":[{"x":10,"y":10,"pressure":0.6}]}]}""";
-        var handler = new FakeHandler((_, _) => Json(ChatReply(inner)));
-        var artist = new OllamaArtist(handler: handler);
-
-        var result = await artist.DrawAsync(
-            new DrawRequest(new SceneInfo(100, 100, 12), "a house", []),
-            CancellationToken.None);
-
-        Assert.Equal(AiOutcome.Success, result.Outcome);
-        Assert.Equal("roof", Assert.Single(result.Value!).Label);
-    }
 }

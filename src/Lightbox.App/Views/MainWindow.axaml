@@ -1474,12 +1474,6 @@
                 Command="{Binding AiInbetweenCommand}"
                 IsEnabled="{Binding CanUseAi}"
                 ToolTip.Tip="Ask the model to draw the inbetweens between this key and the next" />
-        <TextBox Text="{Binding AiPrompt}" Width="320" PlaceholderText="Describe what to draw…"
-                 IsEnabled="{Binding CanUseAi}" />
-        <Button Content="✦ AI Draw"
-                Command="{Binding AiDrawCommand}"
-                IsEnabled="{Binding CanUseAi}"
-                ToolTip.Tip="The model paints strokes onto the current frame" />
         <Button Content="✕" Command="{Binding CancelAiCommand}" IsVisible="{Binding AiBusy}"
                 ToolTip.Tip="Cancel the AI request" />
         <ProgressBar IsIndeterminate="True" Width="90" IsVisible="{Binding AiBusy}" VerticalAlignment="Center" />
@@ -2039,6 +2033,14 @@
                                       ToolTip.Tip="Everything under it, grouped the way its preset says. Counts what it would write before writing anything." />
                             <MenuItem Header="Test export" Click="OnProjectTestExport"
                                       ToolTip.Tip="This one drawing, into test-exports/ beside the project. Never over a deliverable." />
+                            <Separator />
+                            <!--
+                              Here rather than in the AI bar because a reading
+                              belongs to a character, and a character lives in
+                              this panel. The AI bar acts on the open drawing.
+                            -->
+                            <MenuItem Header="Read this character…" Click="OnProjectReadSubject"
+                                      ToolTip.Tip="Ask the model what this character is, from its sheets. Once per character — the answer is kept and you can edit it." />
                             <!--
                               Q30's declaration surface. Four kinds resolved
                               correctly and could not be declared from anywhere
@@ -2081,6 +2083,21 @@
                             <MenuItem Header="Share a symbol here"
                                       ItemsSource="{Binding Owner.SymbolMenu}"
                                       ToolTip.Tip="Narrows which symbols are offered under this folder. Symbols are project-wide until the first one is declared.">
+                              <MenuItem.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
+                                  <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                              </MenuItem.ItemTemplate>
+                              <MenuItem.Styles>
+                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
+                                  <Setter Property="Command" Value="{Binding Command}" />
+                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
+                                </Style>
+                              </MenuItem.Styles>
+                            </MenuItem>
+                            <MenuItem Header="Share a brush tip here"
+                                      ItemsSource="{Binding Owner.TipMenu}"
+                                      ToolTip.Tip="Narrows which of the project's tips are offered under this folder. Your own library and the built-ins are never narrowed.">
                               <MenuItem.ItemTemplate>
                                 <DataTemplate x:DataType="vm:ScopeMenuEntry">
                                   <TextBlock Text="{Binding Label}" />
