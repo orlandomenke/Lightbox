@@ -253,4 +253,7 @@ headless can open a window and click Delete.
 ## Windows bundle (no admin)
 
 - [ ] The Actions artifact unzips and `Lightbox.App.exe` starts on a machine with no .NET installed and no admin rights.
+- [ ] **B115** — double-clicking `Lightbox.App.exe` opens the Lightbox window and **no console or PowerShell window at all**, and there is no second taskbar entry. Nothing on screen can be closed that takes the app down except the app's own window.
+- [ ] **B115** — `Lightbox.Mcp.exe` still runs as a stdio server and Claude Desktop still lists the Lightbox tools. This is the check that catches `WinExe` applied to the wrong project: a stdio server with no stdin fails silently, and the tools simply do not appear.
+- [ ] **B115** — with `LIGHTBOX_TRACE=1` set, running `Lightbox.App.exe` from a terminal still prints trace lines to that terminal.
 - [ ] `Lightbox.Mcp.exe` works as the Claude Desktop MCP command from the same bundle, at the bundle root beside `Lightbox.App.exe` (it moved out of `mcp\` — B32).

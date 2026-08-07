@@ -20,7 +20,15 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <!--
+      WinExe, not Exe: on Windows this is the difference between a
+      GUI-subsystem apphost and a console-subsystem one. A console-subsystem
+      executable with no console gets one allocated and attached, which is the
+      terminal window that used to open beside the app and take the app down
+      with it when closed. Lightbox.Mcp and Lightbox.Bench stay Exe — a stdio
+      server and a CLI harness want the console they are given.
+    -->
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
