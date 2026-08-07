@@ -226,6 +226,21 @@ public sealed class WorkspaceTests : BrushStateIsolated
         // along by one.
         Assert.IsNotType<LinearGradientBrush>(Tab(resting).Background);
         Assert.NotNull(Tab(resting).BorderBrush);
+
+        // **The rule runs along the strip and breaks at the active tab.** Each
+        // tab draws its own bottom edge, which is what lets the line stop: a
+        // single rule under the strip would have to be *covered*, and the
+        // active tab cannot cover anything — its gradient ends transparent so
+        // it merges into whatever ground it lands on. Anything opaque enough to
+        // hide a line would be a seam.
+        Assert.Equal(0, Tab(active).BorderThickness.Bottom);
+        Assert.True(Tab(resting).BorderThickness.Bottom > 0,
+            "a resting tab must close at the bottom, or the rule has nothing to run along");
+
+        // The other three sides are the same on both, so the gap reads as the
+        // line breaking rather than as the active tab having lost its box.
+        Assert.Equal(Tab(resting).BorderThickness.Top, Tab(active).BorderThickness.Top);
+        Assert.Equal(Tab(resting).BorderThickness.Left, Tab(active).BorderThickness.Left);
     }
 
     [AvaloniaFact]

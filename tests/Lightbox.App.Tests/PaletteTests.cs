@@ -112,6 +112,88 @@ public class PaletteTests
         Assert.Equal(((SolidColorBrush)role!).Color, violet);
     }
 
+    [AvaloniaFact]
+    public void AFieldIsLighterThanWhateverItSitsOn()
+    {
+        // The direction, not the colour. Fluent's `TextControlBackground` is
+        // `#66000000` — 40% *black* — so every text box, numeric field and combo
+        // in the application was a hole in its panel, and hovering deepened the
+        // hole. Measured against the design reference, a field interior reads
+        // 39–52 against a 19–22 ground: a lift, in the tool bar, the dockers
+        // and the dialogs alike.
+        //
+        // Checked against **all four surfaces**, because that is the whole
+        // reason it is a tint and not a colour. An opaque `SurfaceElevated`
+        // field would be a lift on a panel and invisible on a dialog, and the
+        // dialog is the case somebody would only find by opening one.
+        string[] grounds =
+        [
+            "BackgroundPrimaryBrush", "BackgroundSecondaryBrush",
+            "SurfacePanelBrush", "SurfaceElevatedBrush",
+        ];
+
+        foreach (var key in new[] { "TextControlBackground", "ComboBoxBackground" })
+        {
+            Assert.True(Application.Current!.TryFindResource(
+                key, Avalonia.Styling.ThemeVariant.Dark, out var found), $"{key} does not resolve");
+            var field = Assert.IsType<SolidColorBrush>(found);
+
+            foreach (var groundKey in grounds)
+            {
+                Application.Current!.TryFindResource(groundKey, out var g);
+                var ground = ((SolidColorBrush)g!).Color;
+                var over = Composite(field, ground);
+
+                Assert.True(Luma(over) > Luma(ground),
+                    $"{key} over {groundKey}: {over} is not lighter than {ground}");
+            }
+        }
+
+        // Hover goes further in the same direction. A control that dims under
+        // the pointer reads as disabled, and Fluent's did exactly that —
+        // #66000000 resting, #99000000 hovered.
+        Application.Current!.TryFindResource("TextControlBackground", out var rest);
+        Application.Current!.TryFindResource("TextControlBackgroundPointerOver", out var hover);
+        Assert.True(((SolidColorBrush)hover!).Opacity > ((SolidColorBrush)rest!).Opacity,
+            "hovering a field must lift it further, not less");
+
+        static Color Composite(SolidColorBrush over, Color under)
+        {
+            // Opacity on the brush, not alpha in the colour — which is how the
+            // palette writes every other tint, so the arithmetic has to match.
+            var a = over.Opacity * (over.Color.A / 255.0);
+            return Color.FromRgb(
+                (byte)(under.R + a * (over.Color.R - under.R)),
+                (byte)(under.G + a * (over.Color.G - under.G)),
+                (byte)(under.B + a * (over.Color.B - under.B)));
+        }
+
+        static double Luma(Color c) => 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B;
+    }
+
+    [AvaloniaFact]
+    public void NothingThatFloatsKeepsFluentsGrey()
+    {
+        // Context menus, combo drop-downs and flyouts all sat on #2b2b2b — a
+        // flat neutral with no blue in it, which is why a right-click looked
+        // like it belonged to a different application. It did: that value is
+        // Fluent's and nothing in the palette had ever reached it.
+        Application.Current!.TryFindResource("SurfaceElevatedBrush", out var elevated);
+        var expected = ((SolidColorBrush)elevated!).Color;
+
+        foreach (var key in new[]
+                 {
+                     "ComboBoxDropDownBackground",
+                     "FlyoutPresenterBackground",
+                     "MenuFlyoutPresenterBackground",
+                 })
+        {
+            Assert.True(Application.Current!.TryFindResource(
+                key, Avalonia.Styling.ThemeVariant.Dark, out var found), $"{key} does not resolve");
+            Assert.Equal(expected, Assert.IsType<SolidColorBrush>(found).Color);
+        }
+    }
+
     [Fact]
     public void TheThemePaletteIsWrittenInHexOnPurpose()
     {

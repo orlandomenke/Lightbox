@@ -119,7 +119,22 @@ them is what they divide:
 A panel tab is a **sheet edge**: the active tab and its content are one surface,
 and the others are sheets behind it. That is why its bottom corners are square
 and it has no bottom border — it runs *into* the panel, which is the whole
-difference between a tab and a button that happens to sit in a row. A section
+difference between a tab and a button that happens to sit in a row.
+
+**The strip's rule is the front edge of the sheets behind.** It runs along the
+bottom of the strip, past every resting tab and on past the last one to the end
+of the header, and it **breaks at the active tab**. That break is the same
+statement as the missing bottom border, seen from the other side: the line is
+where the panel stops and the sheets behind it start, so it cannot cross the one
+tab that *is* the panel.
+
+Each tab draws its own bottom edge rather than one line being drawn under the
+strip, and that is load-bearing rather than an implementation detail. A single
+rule would have to be **covered** by the active tab, and the active tab cannot
+cover anything — its gradient ends transparent so it merges into whatever ground
+it lands on. Anything opaque enough to hide a line would be a seam. The stretch
+past the last tab is the only piece the tabs cannot draw, so the docker header
+draws that one. A section
 tab divides a mode rather than a stack, so there is nothing behind it to be
 behind, and it takes the accent because switching one changes what the whole
 window is for.
@@ -156,12 +171,37 @@ ours or the application wears two colour systems at once. It did for a week: the
 opacity slider had our coral track and Fluent's `#0078D7` thumb, and no test
 could see it because both halves were internally consistent.
 
-Two properties on `FluentTheme.Palettes` carry the whole second half:
+Two properties on `FluentTheme.Palettes` carry most of the second half:
 
 | Property | Governs | Ours |
 | --- | --- | --- |
 | `Accent` | every "this is on" state | `AccentViolet` |
 | `RegionColor` | the window ground, so dialogs | `SurfaceElevated` |
+
+**What those two do not reach lives in `Styles/Theme.axaml`**, and the split is
+worth knowing before hunting for a colour. A `ColorPaletteResources` entry is a
+*seed* — the theme derives a family from it, so `Accent` fixes fifty controls at
+once. A key like `TextControlBackground` is a *leaf*: nothing is computed from
+it, so nothing else moves when it does, and the only way to correct it is to
+name it. That file is therefore a list, and a list is the right shape for it.
+
+**A field is lighter than what it sits on.** Text boxes, numeric fields and
+combos: Fluent's ground for all of them is `#66000000` — 40% *black* — so every
+field was a hole in its panel, and hovering deepened the hole. The reference has
+them lifted everywhere, 39–52 against a 19–22 ground. This is a direction rather
+than a colour: a sunken field says "a gap in the panel", a raised one says "a
+surface you can put something on", and this application asks an artist to type
+into them all day.
+
+It is a **tint**, for the reason `SelectionBrush` is: a field on a panel and a
+field in a dialog sit on different grounds, and one flat value cannot lift both.
+An opaque `SurfaceElevated` field would be right on a panel and *invisible* on a
+dialog — the case somebody would only find by opening one.
+
+**Anything that floats takes the elevated surface** — context menus, combo
+drop-downs, flyouts, dialogs. They were all on Fluent's `#2b2b2b`, a flat
+neutral with no blue in it, which is why a right-click looked like it belonged
+to a different application.
 
 **One colour means "on".** Violet is the accent because it was already the
 selection colour in the layers list and the cel vocabulary — a selected row and

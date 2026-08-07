@@ -129,6 +129,40 @@
     <GradientStop Offset="0.62" Color="#00222634" />
   </LinearGradientBrush>
 
+  <!-- ===== Fields ==================================================== -->
+  <!--
+    The ground under anything you type into or pick from — text boxes, numeric
+    fields, combo boxes, search boxes.
+
+    **A field is LIGHTER than what it sits on, and the theme had it backwards.**
+    Fluent's `TextControlBackground` is `#66000000`: 40% *black*, so a field
+    darkens its container wherever it lands. Measured against the design
+    reference, a field interior reads 39–52 against a 19–22 ground — a lift,
+    every time, in the tool bar, the dockers and the dialogs alike.
+
+    That is not a colour preference, it is which way the light goes. A sunken
+    field says "a hole in the panel"; a raised one says "a surface you can put
+    something on", and this application asks you to type into these all day.
+
+    **A tint rather than a colour**, for the reason `SelectionBrush` above gives:
+    a field on a panel and a field in a dialog sit on different grounds, and one
+    flat value cannot be a lift on both. It also cannot vanish — an opaque
+    `SurfaceElevated` field on an elevated dialog would be invisible, which is
+    exactly the dialog case.
+
+    White rather than grey: grey at these opacities pulls the blue out of the
+    surface underneath and the field reads faintly warm against a cool panel,
+    which nobody can name and everybody can see.
+  -->
+  <SolidColorBrush x:Key="FieldGroundBrush" Color="#FFFFFF" Opacity="0.09" />
+  <SolidColorBrush x:Key="FieldGroundHoverBrush" Color="#FFFFFF" Opacity="0.14" />
+  <!--
+    Weaker than the resting ground, not stronger. Fluent's disabled field is
+    `#33ffffff` — brighter than its enabled one, so switching a field off makes
+    it stand out more.
+  -->
+  <SolidColorBrush x:Key="FieldGroundDisabledBrush" Color="#FFFFFF" Opacity="0.04" />
+
   <!-- ===== The exposure sheet's vocabulary ============================ -->
   <!--
     A cel is read at a glance, in a grid, while scrubbing — so its colour is

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2826 tests, derived from the suite itself. Each line is a
+2828 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1409,8 +1409,10 @@ regression even when every test still compiles.
 - Every Token The Design Names Resolves — `:45`
 - The Core Surfaces Are The Colours The Design Gave — `:71`
 - The Theme Agrees With The Palette — `:94`
-- The Theme Palette Is Written In Hex On Purpose — `:116`
-- No View Invents Its Own Chrome Colour — `:143`
+- AField Is Lighter Than Whatever It Sits On — `:116`
+- Nothing That Floats Keeps Fluents Grey — `:175`
+- The Theme Palette Is Written In Hex On Purpose — `:198`
+- No View Invents Its Own Chrome Colour — `:225`
 
 ## PresentedFrameTests
 `tests/Lightbox.App.Tests/PresentedFrameTests.cs`
@@ -2513,14 +2515,14 @@ regression even when every test still compiles.
 - Closing APanel Parks It Rather Than Destroying It — `:119`
 - Tabbed Panels Share One Slot And One Shows — `:138`
 - The Tab Showing Is The One That Looks Like It Is Showing — `:161`
-- An Untabbed Docker Looks Exactly As It Did — `:232`
-- Grouping APanel Marks The Workspace Unsaved — `:245`
-- The Project Panel Appears As Soon As There Is AProject — `:260`
-- The Canvas Gets The Room Left Over By The Strips — `:283`
-- The Project Row Menu Actually Does Something When Clicked — `:307`
-- The New Menu Actually Makes Things — `:444`
-- The Reference Panel Is Absent Until It Is Asked For — `:516`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:532`
+- An Untabbed Docker Looks Exactly As It Did — `:247`
+- Grouping APanel Marks The Workspace Unsaved — `:260`
+- The Project Panel Appears As Soon As There Is AProject — `:275`
+- The Canvas Gets The Room Left Over By The Strips — `:298`
+- The Project Row Menu Actually Does Something When Clicked — `:322`
+- The New Menu Actually Makes Things — `:459`
+- The Reference Panel Is Absent Until It Is Asked For — `:531`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:547`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
