@@ -1,6 +1,6 @@
 # Code index
 
-509 files · 132764 lines · 2660 tests.
+510 files · 132907 lines · 2663 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -174,7 +174,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Switcher
 - `src/Lightbox.App/Controls/ValueDrag.cs` (126 ln) · 4 indirect only
   - ValueDrag:27, Session:43
-- `src/Lightbox.App/Services/FileReveal.cs` (125 ln) · 1 test files
+- `src/Lightbox.App/Services/FileReveal.cs` (125 ln) · 2 test files
   - Desktop:7, FileReveal:35
 - `src/Lightbox.App/Docking/CanvasOverlays.cs` (123 ln) · 2 test files
   - OverlayId:12, CanvasEdge:21, OverlayPlacement:30, CanvasOverlayLayout:54
@@ -224,6 +224,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FloatingPanelWindow:16
 - `src/Lightbox.App/Services/NormalMapWriter.cs` (71 ln) · 1 test files
   - NormalMapWriter:22
+- `src/Lightbox.App/Program.cs` (63 ln) · 1 test files
+  - Program:6
 - `src/Lightbox.App/Services/SequenceExporter.cs` (62 ln) · 2 test files
   - SequenceExporter:20
 - `src/Lightbox.App/Docking/OverlayConverters.cs` (61 ln) · 1 test files
@@ -264,8 +266,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Fields
 - `src/Lightbox.App/Views/NewProjectDialog.axaml` (17 ln) · **no tests**
   - Fields
-- `src/Lightbox.App/Program.cs` (16 ln) · **no tests**
-  - Program:5
 
 ## Lightbox.Bench
 

@@ -1,0 +1,39 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.SplashWindow"
+        Title="Lightbox"
+        Width="420" Height="260"
+        CanResize="False"
+        WindowDecorations="None"
+        ShowInTaskbar="False"
+        Topmost="False"
+        WindowStartupLocation="CenterScreen">
+
+  <!--
+    What is on screen while the main window is being built.
+
+    Three of the properties above are decisions rather than defaults:
+
+    * WindowDecorations="None" — Avalonia 12's name for this. It was
+      SystemDecorations in 11 and does not compile here.
+    * ShowInTaskbar="False" — otherwise the handoff is two taskbar buttons for
+      half a second, which reads as the app having opened twice.
+    * Topmost="False", written out rather than left to the default, because
+      "splashes are topmost" is the obvious future edit and it is wrong here:
+      the start screen is a modal centred on the main window, so a topmost
+      splash would sit over a dialog nobody can dismiss. That failure looks
+      exactly like a hang on first launch.
+
+    The backdrop border is redundant with the window's own background and
+    exists anyway — it is the seam the designed splash drops into, and it is
+    what a test can name without asserting against the Fluent window template.
+  -->
+  <Border x:Name="Backdrop" Background="{StaticResource SplashBackgroundBrush}">
+    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6">
+      <TextBlock Text="Lightbox" FontSize="34" FontWeight="Light"
+                 Foreground="#1b1b1b" HorizontalAlignment="Center" />
+      <TextBlock x:Name="Status" Text="Loading…" FontSize="13" Opacity="0.75"
+                 Foreground="#1b1b1b" HorizontalAlignment="Center" />
+    </StackPanel>
+  </Border>
+</Window>

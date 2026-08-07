@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2660 tests, derived from the suite itself. Each line is a
+2663 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -3282,6 +3282,13 @@ regression even when every test still compiles.
 - Get Milestones Filters Versions By Status — `:183`
 - Version Entry Get All Descendants Recurses Tree — `:202`
 - Clear Version History Removes All Versions For Resource — `:218`
+
+## WindowsSubsystemTests
+`tests/Lightbox.Core.Tests/WindowsSubsystemTests.cs`
+
+- The App Ships As AGui Program So No Console Window Opens Beside It — `:63`
+- The Stdio Programs Stay Console Programs — `:71`
+- The Opt In Traces Still Have Somewhere To Print — `:84`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`

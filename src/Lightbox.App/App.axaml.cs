@@ -1,6 +1,9 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
+using Lightbox.App.Services;
 using Lightbox.App.Views;
 
 namespace Lightbox.App;
@@ -13,18 +16,57 @@ public sealed class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Eight fixed shapes with no input, ~160 ms to bake. Started here so
-            // the first artist to open the tip library is not the one who waits
-            // for them.
+            // Eight fixed shapes with no input, ~160 ms to bake on a background
+            // thread of its own. Started here so the first artist to open the
+            // tip library is not the one who waits for them.
             Lightbox.Raster.Tips.TipCatalogue.Warm();
 
+            var splash = new SplashWindow();
+            splash.Show();
+            // Deliberately not desktop.MainWindow — see Startup.HandOffAsync.
+
+            // Nothing paints until the dispatcher loop is running, and it is not
+            // running until this method returns. So the rest is posted rather
+            // than run: done inline, the splash would be constructed, shown and
+            // closed again without a single frame reaching the screen.
+            Dispatcher.UIThread.Post(
+                () => _ = StartAsync(desktop, splash), DispatcherPriority.Background);
+        }
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>Build the window behind the splash, then trade the two over.</summary>
+    private static async Task StartAsync(
+        IClassicDesktopStyleApplicationLifetime desktop, SplashWindow splash)
+    {
+        try
+        {
+            await Startup.WhenPaintedAsync(splash);
+            var visible = Stopwatch.StartNew();
+
+            // The one synchronous cost at startup: MainViewModel, the shortcut
+            // map and every panel in the docking pool. It blocks the UI thread
+            // and cannot not — window construction is UI-thread-only — which is
+            // why the splash is a still panel rather than anything animated.
             var window = new MainWindow();
-            desktop.MainWindow = window;
+
+            var wait = Startup.Remaining(visible.Elapsed);
+            if (wait > TimeSpan.Zero) await Task.Delay(wait);
+
             // The start screen is offered from here rather than from the window
             // itself, so that a window built directly — every headless test —
             // never has a modal dialog appear over it.
-            window.Opened += (_, _) => _ = window.OfferStartScreenAsync();
+            await Startup.HandOffAsync(
+                splash, window, w => desktop.MainWindow = w, window.OfferStartScreenAsync);
         }
-        base.OnFrameworkInitializationCompleted();
+        catch
+        {
+            // A splash left up over a dead application looks like a hang rather
+            // than a crash. Take it down, then let the failure be a failure:
+            // the app is a GUI program with no console for a stack trace to
+            // land in, so swallowing this would erase it entirely.
+            splash.Close();
+            throw;
+        }
     }
 }

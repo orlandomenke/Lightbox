@@ -34,6 +34,11 @@ reported 100% coverage on an empty image.
 ## Launch
 
 - [ ] `dotnet run --project src/Lightbox.App` opens a dark-themed window titled "Lightbox".
+- [ ] A plain orange panel with no title bar appears first, and does not appear in the taskbar.
+- [ ] It stays up for a moment even on a fast machine — it never blinks in and out. (The minimum is asserted in `StartupTimingTests`; whether it *reads* as a flash is this line.)
+- [ ] The main window replaces it with no flash of an empty or white window in between, and the panel does not linger over the main window.
+- [ ] The start screen appears **over the main window**, centred on it, with the orange panel already gone.
+- [ ] After the handoff, typing goes to the main window without clicking it first. (Focus is the one part of the sequence no test here can reach.)
 - [ ] The canvas shows a white 960×540 "paper" centered on a dark background, scaled to fit the window; resizing the window rescales it without distortion.
 
 ## Painting
