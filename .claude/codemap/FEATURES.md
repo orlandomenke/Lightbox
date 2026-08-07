@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2702 tests, derived from the suite itself. Each line is a
+2760 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -132,9 +132,10 @@ regression even when every test still compiles.
 - The Taxonomy Goes At The Front Where ACache Prefix Can Cover It — `:169`
 - ATaxonomy Is Cheap Against The Frame Data It Rides On — `:205`
 - ATaxonomy Round Trips Through The Project File — `:233`
-- ACharacter That Was Never Read Writes No Key — `:250`
-- An Animation Finds The Character That Owns It — `:264`
-- An Animation Reached Through AVariant Still Belongs To Its Character — `:281`
+- AFolder That Was Never Read Writes No Key — `:250`
+- ADocument Finds The Subject It Belongs To — `:264`
+- ADocument In ASubfolder Still Belongs To The Subject Above It — `:286`
+- ANearer Reading Wins Over The One Above It — `:303`
 
 ## TaxonomyMeasurementTests
 `tests/Lightbox.Ai.Tests/TaxonomyMeasurementTests.cs`
@@ -1408,49 +1409,49 @@ regression even when every test still compiles.
 ## ProjectDockerTests
 `tests/Lightbox.App.Tests/ProjectDockerTests.cs`
 
-- The App Opens With No Project — `:86`
-- With No Project ADocument Saves And Loads Exactly As Before — `:99`
-- New Project Adopts The Document Already Open — `:115`
-- The Docker Lists Characters With Their Animations Under Them — `:142`
-- Adding An Animation Opens It As ATab Bound To Its Slot — `:159`
-- Opening An Animation Twice Focuses The Tab Rather Than Duplicating It — `:174`
-- File New Makes AProject Document And Never ACharacters Animation — `:214`
-- Two Animations Under One Character Paint From One Palette — `:243`
-- Save Writes The Project Without APicker — `:281`
-- Without AProject Or APath There Is Nothing To Save In Place — `:298`
-- AProject Reopens With Its Characters And Animations — `:306`
-- Removing An Animation Leaves Its File On Disk — `:328`
-- The New Menu Offers One Entry Per Place Work Can Land — `:351`
-- ADocument Created From The Docker Belongs To The Project Not ACharacter — `:372`
-- ALoose Document Gets Its Own Row With No Character Above It — `:390`
-- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:405`
-- Moving ADocument To Another Character Moves Its File Rather Than Copying It — `:441`
-- Moving ADocument To The Project Takes It Out Of Every Character — `:470`
-- Moving ADocument Where It Already Is Does Nothing — `:485`
-- AMoved Document Survives ASave And Reopen — `:495`
-- Renaming ARow Writes Through — `:516`
-- Every Row Knows Where It Is On Disk — `:532`
-- With No Project There Is No Path To Show — `:552`
-- Copy Path Gives The Selected Rows File — `:562`
-- Opening Externally Says So When The File Is Not Written Yet — `:575`
-- Duplicating An Animation Copies Its Art Into The Same Character — `:593`
-- Duplicating Writes The Copy On The Next Save — `:627`
-- Deleting AFolder On Disk Removes It From The Docker — `:655`
-- The Docker Refreshes Without Being Reopened — `:684`
-- An Unsaved Project Does Not Report Every Row As Missing — `:710`
-- The Watch Follows The Project And Not The Application — `:749`
-- ABurst Of Disk Events Costs One Refresh — `:784`
-- ADeletion On Disk Reaches The Row Without ARefresh Call — `:839`
-- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:900`
-- AManual Re Read Is Reachable And Reports What It Found — `:953`
-- Creating An Item Asks For Its Name First — `:1014`
-- The Suggested Name Matches The Numbered Fallback — `:1034`
-- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:1051`
-- The Unnamed Command Still Creates The Numbered Default — `:1068`
-- The Project Root Is Visible In The Docker — `:1092`
-- The Project Row Cannot Be Removed Renamed Or Deleted — `:1144`
-- Show In File Manager Opens The Selected Item — `:1189`
-- Selecting AFolder Survives ARebuild — `:1242`
+- The App Opens With No Project — `:92`
+- With No Project ADocument Saves And Loads Exactly As Before — `:105`
+- New Project Adopts The Document Already Open — `:121`
+- The Docker Lists AFolders Documents Under It — `:148`
+- Adding An Animation Opens It As ATab Bound To Its Slot — `:169`
+- Opening An Animation Twice Focuses The Tab Rather Than Duplicating It — `:184`
+- File New Makes AProject Document In One List — `:224`
+- Two Animations Under One Character Paint From One Palette — `:252`
+- Save Writes The Project Without APicker — `:290`
+- Without AProject Or APath There Is Nothing To Save In Place — `:307`
+- AProject Reopens With Its Characters And Animations — `:315`
+- Removing An Animation Leaves Its File On Disk — `:339`
+- The New Menu Offers One Entry Per Kind Of Thing — `:362`
+- ADocument Created With Nothing Selected Belongs To The Project — `:383`
+- ALoose Document Gets Its Own Row With No Character Above It — `:400`
+- Moving ADocument To Another Character Repaths It And Keeps Its Id — `:415`
+- Moving ADocument To Another Character Moves Its File Rather Than Copying It — `:453`
+- Moving ADocument To The Project Takes It Out Of Every Folder — `:482`
+- Moving ADocument Where It Already Is Does Nothing — `:498`
+- AMoved Document Survives ASave And Reopen — `:508`
+- Renaming ARow Writes Through — `:529`
+- Every Row Knows Where It Is On Disk — `:545`
+- With No Project There Is No Path To Show — `:566`
+- Copy Path Gives The Selected Rows File — `:576`
+- Opening Externally Says So When The File Is Not Written Yet — `:589`
+- Duplicating An Animation Copies Its Art Into The Same Character — `:607`
+- Duplicating Writes The Copy On The Next Save — `:642`
+- Deleting AFolder On Disk Removes It From The Docker — `:672`
+- The Docker Refreshes Without Being Reopened — `:704`
+- An Unsaved Project Does Not Report Every Row As Missing — `:730`
+- The Watch Follows The Project And Not The Application — `:769`
+- ABurst Of Disk Events Costs One Refresh — `:804`
+- ADeletion On Disk Reaches The Row Without ARefresh Call — `:859`
+- ARefresh Keeps The Rows That Still Stand For The Same Thing — `:920`
+- AManual Re Read Is Reachable And Reports What It Found — `:976`
+- Creating An Item Asks For Its Name First — `:1037`
+- The Suggested Name Matches The Numbered Fallback — `:1059`
+- ABlank Name Falls Back Rather Than Creating An Unnamed Item — `:1076`
+- The Unnamed Command Still Creates The Numbered Default — `:1093`
+- The Project Root Is Visible In The Docker — `:1117`
+- The Project Row Cannot Be Removed Renamed Or Deleted — `:1169`
+- Show In File Manager Opens The Selected Item — `:1214`
+- Selecting AFolder Survives ARebuild — `:1267`
 
 ## ProjectHierarchyTests
 `tests/Lightbox.App.Tests/ProjectHierarchyTests.cs`
@@ -1478,6 +1479,31 @@ regression even when every test still compiles.
 - Selecting On Toggle Does Not Stop The Toggle — `:632`
 - APress Selects Any Kind Of Row — `:662`
 - The Reveal Button Runs The Same Command As The Menu — `:695`
+
+## ProjectWindowTests
+`tests/Lightbox.App.Tests/ProjectWindowTests.cs`
+
+- The Window And The Docker List The Same Documents — `:39`
+- AFolder Is Followed By What Is In It — `:56`
+- Setting AStatus On ASelection Changes Every Document In It — `:71`
+- AFolder In The Selection Is Skipped By AStatus Edit — `:85`
+- Tagging ASelection Takes Folders And Documents Alike — `:100`
+- ABulk Edit That Changed Nothing Says So — `:116`
+- An Edit Tells The Owner The Project Moved — `:130`
+- The Selection Survives The Rebuild An Edit Causes — `:144`
+- ATag Filter Keeps AFolder Only For What Is Under It — `:161`
+- AFolder Tag Reaches The Documents Under It In The Filter Too — `:176`
+- Clearing AFilter Brings Everything Back — `:191`
+- The Status Board Narrows With The Filter — `:204`
+- No Status Is Its Own Column And Comes Last — `:223`
+- Dragging Between Columns Moves One Document — `:236`
+- Renaming Somebody Fixes Every Row At Once — `:251`
+- Removing Somebody Says What It Costs Before It Happens — `:269`
+- Unassigning Is In The Same List As Assigning — `:286`
+- Removing The Filtered Person Clears The Filter — `:304`
+- The Assets Tab Shows All Three Levels At Once — `:322`
+- AScope That Declares Nothing Says So — `:344`
+- The Footer Counts What Is True — `:354`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
@@ -1705,7 +1731,7 @@ regression even when every test still compiles.
 - Neither Save Item Carries AHard Coded Gesture Any More — `:114`
 - An Unsaved Document Is What The Gate Sees For The Document In Front — `:135`
 - AStatus Change Asks About Its Own Row Rather Than The Active Tab — `:150`
-- ARow With No Document At All Is Not Treated As Saved — `:170`
+- ARow With No Document At All Is Not Treated As Saved — `:169`
 
 ## SaveRequirementTests
 `tests/Lightbox.App.Tests/SaveRequirementTests.cs`
@@ -1736,22 +1762,30 @@ regression even when every test still compiles.
 ## SceneDockerTests
 `tests/Lightbox.App.Tests/SceneDockerTests.cs`
 
-- AProject With No Scenes Shows No Scene Machinery — `:42`
-- The First Scene Brings The Machinery With It — `:56`
-- Shots Are Indented Under Their Scene — `:71`
-- Characters And Scenes Are Both Headings And Both Appear — `:85`
-- Adding AShot With No Scene Makes The First One — `:101`
-- AShot Opens As ATab — `:113`
-- AScene Row Shows How Long It Runs — `:126`
-- An Empty Scene Says Nothing Rather Than Zero — `:141`
-- Scenes Move Up And Down And The Selection Follows — `:154`
-- Shots Move Within Their Scene — `:171`
-- Reordering ACharacter Row Does Nothing — `:186`
-- Deleting AScene Keeps Its Shots As Loose Documents — `:205`
-- Converting Changes The Type And Recreates No Artwork — `:223`
-- Converting Does Not Rearrange The Screen By Itself — `:241`
-- Converting Tells The Artist What Changed — `:259`
-- Converting With No Project Open Does Nothing — `:272`
+- AProject That Ordered Nothing Shows No Running Order — `:58`
+- The First Folder Brings The Reorder Buttons With It — `:71`
+- AFolder Can Carry AReading And An Order At Once — `:85`
+- AFolder Nobody Labelled Uses The Plain Glyph And Writes No Key — `:110`
+- The Glyph Is Whatever The Artist Picked — `:121`
+- AGlyph Outside The Grid Is Accepted — `:136`
+- Clearing The Glyph Takes The Key Back Out Of The File — `:151`
+- ADocument Row Never Wears Its Folders Glyph — `:168`
+- An Ordinary Folder Says Nothing About What It Carries — `:185`
+- The Details Panel Lists Facets And Names No Kind — `:197`
+- AHand Corrected Reading Says So In The Details — `:220`
+- Documents Are Indented Under Their Folder — `:236`
+- ADocument With No Folder Selected Belongs To The Project — `:250`
+- ADocument Opens As ATab — `:264`
+- AFolder Row Shows How Long It Runs — `:277`
+- An Empty Folder Says Nothing Rather Than Zero — `:292`
+- Folders Move Up And Down And The Selection Follows — `:305`
+- Documents Move Within Their Folder — `:328`
+- Reordering ALoose Document Does Nothing — `:347`
+- Deleting AFolder Keeps Its Documents As Loose Ones — `:364`
+- Converting Changes The Type And Recreates No Artwork — `:384`
+- Converting Does Not Rearrange The Screen By Itself — `:402`
+- Converting Tells The Artist What Changed — `:420`
+- Converting With No Project Open Does Nothing — `:433`
 
 ## ScopeDeclarationTests
 `tests/Lightbox.App.Tests/ScopeDeclarationTests.cs`
@@ -1947,12 +1981,12 @@ regression even when every test still compiles.
 ## SubjectReadingWiringTests
 `tests/Lightbox.App.Tests/SubjectReadingWiringTests.cs`
 
-- Reading ACharacter Keeps The Answer On It — `:66`
-- AReading Somebody Edited Is Not Overwritten By ARe Read — `:83`
-- Without AProject It Says So Rather Than Failing Quietly — `:104`
-- With No Sheet To Read It Says What Is Missing — `:116`
-- An Inbetween On ACharacters Animation Carries Its Taxonomy — `:136`
-- ADocument With No Character Sends No Taxonomy At All — `:171`
+- Reading ACharacter Keeps The Answer On It — `:72`
+- AReading Somebody Edited Is Not Overwritten By ARe Read — `:89`
+- Without AProject It Says So Rather Than Failing Quietly — `:110`
+- With No Sheet To Read It Says What Is Missing — `:122`
+- An Inbetween On ACharacters Animation Carries Its Taxonomy — `:142`
+- ADocument With No Character Sends No Taxonomy At All — `:177`
 
 ## SymbolBrowserTests
 `tests/Lightbox.App.Tests/SymbolBrowserTests.cs`
@@ -2385,18 +2419,18 @@ regression even when every test still compiles.
 ## WorkspaceTests
 `tests/Lightbox.App.Tests/WorkspaceTests.cs`
 
-- Panels Land In The Strip The Layout Names — `:70`
-- Moving APanel Moves The Control — `:82`
-- An Empty Edge Collapses And AFilled One Opens — `:94`
-- Closing APanel Parks It Rather Than Destroying It — `:116`
-- The Header Switcher Trades Two Panels Places — `:135`
-- Every Panel Except The Timeline Offers ASwitcher — `:151`
-- The Project Panel Appears As Soon As There Is AProject — `:172`
-- The Canvas Gets The Room Left Over By The Strips — `:195`
-- The Project Row Menu Actually Does Something When Clicked — `:219`
-- The New Menu Actually Makes Things — `:353`
-- The Reference Panel Is Absent Until It Is Asked For — `:420`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:436`
+- Panels Land In The Strip The Layout Names — `:72`
+- Moving APanel Moves The Control — `:84`
+- An Empty Edge Collapses And AFilled One Opens — `:96`
+- Closing APanel Parks It Rather Than Destroying It — `:118`
+- The Header Switcher Trades Two Panels Places — `:137`
+- Every Panel Except The Timeline Offers ASwitcher — `:153`
+- The Project Panel Appears As Soon As There Is AProject — `:174`
+- The Canvas Gets The Room Left Over By The Strips — `:197`
+- The Project Row Menu Actually Does Something When Clicked — `:221`
+- The New Menu Actually Makes Things — `:358`
+- The Reference Panel Is Absent Until It Is Asked For — `:430`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:446`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
@@ -2497,21 +2531,29 @@ regression even when every test still compiles.
 ## CharacterVariantTests
 `tests/Lightbox.Core.Tests/CharacterVariantTests.cs`
 
-- ACharacter Nobody Varied Carries No Variant Keys — `:57`
-- AVariant Copies The Palette Keeping Every Swatch Id — `:71`
-- Recolouring AVariant Leaves The Base Character Alone — `:85`
-- Selecting AVariant Switches Which Palette The Character Paints With — `:97`
-- AVariant Inherits Every Animation It Does Not Override — `:110`
-- An Overridden Animation Replaces Only Itself — `:124`
-- AVariants Own Art Is Saved And Reloaded — `:139`
-- Variants Round Trip With Their Palettes — `:157`
-- Only Asset Library Projects Offer Their Characters — `:176`
-- Scanning Ignores Folders That Are Not Projects — `:192`
-- Importing ACharacter Brings Its Animations And Palette — `:201`
-- An Imported Character Still Paints From Its Palette — `:218`
-- Importing Copies Rather Than Links — `:236`
-- Importing Carries Variants And Rebases Their Overrides — `:253`
-- Importing Twice Gives Two Characters With Distinct Folders — `:277`
+- Character Documents Are In The Project — `:70`
+- AFolder Palette Reaches ACharacters Animation — `:83`
+- AFolder Nobody Varied Carries No Variant Keys — `:99`
+- AVariant Copies The Palette Keeping Every Swatch Id — `:113`
+- Recolouring AVariant Leaves The Base Subject Alone — `:127`
+- Selecting AVariant Switches Which Palette The Subject Paints With — `:139`
+- AVariant Inherits Every Document It Does Not Override — `:152`
+- An Overridden Document Replaces Only Itself — `:168`
+- AVariants Own Art Is An Ordinary Document In The Project — `:188`
+- Variants Round Trip With Their Palettes — `:210`
+- Order Is Partial And The Rest Sort By Name — `:229`
+- An Order Id Whose Document Is Gone Is Skipped — `:244`
+- Only Asset Library Projects Offer Their Subjects — `:256`
+- AFolder With No Reading Is Offered Too — `:272`
+- Scanning Ignores Folders That Are Not Projects — `:287`
+- Importing ASubject Brings Its Documents And Palette — `:296`
+- An Imported Subject Still Paints From Its Palette — `:315`
+- Importing Copies Rather Than Links — `:334`
+- Importing Carries Variants And Rebases Their Overrides — `:351`
+- Importing Twice Gives Two Distinct Folders — `:376`
+- Clearing AReading Names Everything It Would Discard — `:396`
+- AHand Corrected Reading Is Named As Such — `:411`
+- An Ordinary Folder Loses Nothing — `:424`
 
 ## CiRuntimeTests
 `tests/Lightbox.Core.Tests/CiRuntimeTests.cs`
@@ -2558,16 +2600,18 @@ regression even when every test still compiles.
 ## ExportPlanTests
 `tests/Lightbox.Core.Tests/ExportPlanTests.cs`
 
-- One Artifact Packs The Whole Subtree Into One File — `:47`
-- Per Child Folder Shares Settings And Splits The Output — `:68`
-- ANearer Declaration Makes Its Own Artifact — `:85`
-- The Status Filter Holds Work Back And Says So — `:106`
-- An Empty Artifact Is Reported Rather Than Skipped — `:124`
-- An Unscoped Project Exports Per Document — `:138`
-- Staleness Catches Edits Additions And Removals — `:155`
-- Reopening An Animation Makes The Sheet Stale Not Empty — `:187`
-- Reaching Ready Rebuilds The Artifact Holding It — `:211`
-- APreset With No Trigger Never Fires — `:232`
+- AWhole Project Export Includes Character Animations — `:64`
+- AWhole Project Export Includes AVariants Own Art — `:94`
+- One Artifact Packs The Whole Subtree Into One File — `:114`
+- Per Child Folder Shares Settings And Splits The Output — `:135`
+- ANearer Declaration Makes Its Own Artifact — `:152`
+- The Status Filter Holds Work Back And Says So — `:173`
+- An Empty Artifact Is Reported Rather Than Skipped — `:191`
+- An Unscoped Project Exports Per Document — `:205`
+- Staleness Catches Edits Additions And Removals — `:222`
+- Reopening An Animation Makes The Sheet Stale Not Empty — `:254`
+- Reaching Ready Rebuilds The Artifact Holding It — `:278`
+- APreset With No Trigger Never Fires — `:299`
 
 ## ExportScopeTests
 `tests/Lightbox.Core.Tests/ExportScopeTests.cs`
@@ -2887,6 +2931,27 @@ regression even when every test still compiles.
 - ADocument With No Folders Writes No Folder Keys — `:201`
 - The Hierarchy Survives ASave And AReload — `:214`
 
+## ProjectBoardTests
+`tests/Lightbox.Core.Tests/ProjectBoardTests.cs`
+
+- ADocument Nobody Tagged Or Assigned Writes Neither Key — `:33`
+- Tagging And Untagging Leaves Nothing Behind — `:49`
+- The Vocabulary Is Every Tag In Use — `:65`
+- The Same Tag In Two Cases Is One Tag — `:79`
+- ATag On AFolder Reaches Every Document Under It — `:93`
+- ALoose Document Sees Only Its Own Tags — `:114`
+- Adding The Same Person Twice Is One Person — `:127`
+- Renaming APerson Fixes Every Row At Once — `:140`
+- Removing Somebody Says How Many Documents Named Them — `:157`
+- APerson Carries No Role And No Rights — `:179`
+- The Summary Counts What Is True Rather Than The Whole Enum — `:192`
+- Nobody Has Said Is Its Own Column Rather Than Design — `:214`
+- The Chain Is Four Deep And Nearest Wins — `:229`
+- AProject Overrides The Artists Own Default — `:247`
+- With No User Library The Chain Is Exactly What It Always Was — `:259`
+- ADocument Declaration Writes No Reach Key — `:271`
+- Nothing Here Needs The Document Open — `:287`
+
 ## ProjectFolderTests
 `tests/Lightbox.Core.Tests/ProjectFolderTests.cs`
 
@@ -2913,30 +2978,30 @@ regression even when every test still compiles.
 `tests/Lightbox.Core.Tests/ProjectTests.cs`
 
 - AProject Round Trips Through The Folder — `:49`
-- AStatus Round Trips And An Unset One Writes No Key — `:63`
-- Marking Something Ready Does Not Touch The Artwork — `:87`
-- The Layout Is The One Documented — `:103`
-- An Animation On Disk Is An Ordinary Document — `:115`
-- AProject With No Type Writes No Type Key — `:127`
-- ADeclared Type Survives — `:141`
-- Loading AProject Does Not Read Its Documents — `:149`
-- Saving Rewrites Only The Dirty Document — `:165`
-- Saving With No Dirty Set Writes Every Loaded Document — `:184`
-- An Interrupted Write Leaves The Previous File Intact — `:198`
-- Shared Palettes Live On The Project And Round Trip — `:215`
-- ASaved Project Keeps Its Swatch Ids — `:231`
-- Character Folders Are Unique Even When Names Collide — `:258`
-- Slugs Are Always Usable As AFolder Name — `:276`
-- Migrating ALoose Document Gives AOne Character Project — `:280`
-- Flatten Inlines The Swatches The Document Actually Uses — `:305`
-- Flatten Inlines Referenced Gradients — `:327`
-- Flatten Does Not Mutate The Open Document — `:349`
-- An Empty Project Saves And Loads Without Characters — `:366`
-- Loading Something That Is Not AProject Fails — `:375`
-- The Palette Hierarchy Survives AProject Save And Reload — `:384`
-- AProject With No Folders Writes No Folder File — `:403`
-- Deleting The Last Folder Reaches The Disk — `:415`
-- APalette Filed Under AMissing Folder Still Shows Up On Load — `:432`
+- AStatus Round Trips And An Unset One Writes No Key — `:64`
+- Marking Something Ready Does Not Touch The Artwork — `:86`
+- The Layout Is The One Documented — `:102`
+- An Animation On Disk Is An Ordinary Document — `:116`
+- AProject With No Type Writes No Type Key — `:128`
+- ADeclared Type Survives — `:142`
+- Loading AProject Does Not Read Its Documents — `:150`
+- Saving Rewrites Only The Dirty Document — `:166`
+- Saving With No Dirty Set Writes Every Loaded Document — `:185`
+- An Interrupted Write Leaves The Previous File Intact — `:199`
+- Shared Palettes Live On The Project And Round Trip — `:216`
+- ASaved Project Keeps Its Swatch Ids — `:232`
+- Folders Are Unique Even When Names Collide — `:259`
+- Slugs Are Always Usable As AFolder Name — `:277`
+- Migrating ALoose Document Gives AOne Document Project — `:281`
+- Flatten Inlines The Swatches The Document Actually Uses — `:308`
+- Flatten Inlines Referenced Gradients — `:330`
+- Flatten Does Not Mutate The Open Document — `:352`
+- An Empty Project Saves And Loads With Nothing In It — `:369`
+- Loading Something That Is Not AProject Fails — `:378`
+- The Palette Hierarchy Survives AProject Save And Reload — `:387`
+- AProject With No Folders Writes No Folder File — `:406`
+- Deleting The Last Folder Reaches The Disk — `:418`
+- APalette Filed Under AMissing Folder Still Shows Up On Load — `:435`
 
 ## PublishLayoutTests
 `tests/Lightbox.Core.Tests/PublishLayoutTests.cs`
@@ -3024,25 +3089,26 @@ regression even when every test still compiles.
 ## SceneAndConversionTests
 `tests/Lightbox.Core.Tests/SceneAndConversionTests.cs`
 
-- AProject With No Scenes Writes No Scene Key — `:36`
-- Deleting The Last Scene Takes The Scene List With It — `:51`
+- AProject With No Folders Writes No Folder Key — `:38`
+- AFolder Nobody Arranged Writes No Order Key — `:53`
 - AShot Is ADocument Like Any Other — `:66`
-- AFilm Survives ASave And Reload — `:83`
-- Two Scenes With The Same Name Get Different Folders — `:101`
-- Two Shots With The Same Name In One Scene Do Not Overwrite Each Other — `:116`
-- Scenes And Shots Can Be Reordered — `:129`
-- An Impossible Move Changes Nothing — `:146`
-- AShot Can Move To Another Scene — `:158`
-- AScene Knows How Long It Runs — `:178`
-- AShot Of Unknown Length Makes The Running Time Unknown Rather Than Short — `:192`
-- The Length Hint Is Refreshed When The Document Is Written — `:207`
-- Deleting AScene Keeps Its Shots — `:227`
-- Converting Recreates No Artwork — `:246`
-- Converting Away From Animation Keeps The Camera And The Scenes — `:267`
-- Converting To No Type Takes The Key Out Of The File — `:286`
-- Converting Reports What The Artist Should Know — `:301`
-- Converting To The Type It Already Is Says So And Does Nothing — `:318`
-- Conversion Survives ASave And Reload — `:331`
+- AFilm Survives ASave And Reload — `:85`
+- Two Scenes With The Same Name Are Distinguished — `:107`
+- Two Shots With The Same Name In One Scene Do Not Overwrite Each Other — `:123`
+- Scenes And Shots Can Be Reordered — `:136`
+- One Order Arranges Both The Shots And The Sub Scenes — `:159`
+- An Impossible Move Changes Nothing — `:182`
+- AShot Can Move To Another Scene — `:197`
+- AFolder Knows How Long It Runs — `:218`
+- AShot Of Unknown Length Makes The Running Time Unknown Rather Than Short — `:232`
+- The Length Hint Is Refreshed When The Document Is Written — `:252`
+- Deleting AScene Keeps Its Shots — `:272`
+- Converting Recreates No Artwork — `:291`
+- Converting Away From Animation Keeps The Camera And The Scenes — `:312`
+- Converting To No Type Takes The Key Out Of The File — `:331`
+- Converting Reports What The Artist Should Know — `:346`
+- Converting To The Type It Already Is Says So And Does Nothing — `:366`
+- Conversion Survives ASave And Reload — `:379`
 
 ## CultureInvarianceTests
 `tests/Lightbox.Core.Tests/Serialization/CultureInvarianceTests.cs`
@@ -3815,7 +3881,7 @@ regression even when every test still compiles.
 `tests/Lightbox.Raster.Tests/SubjectReadingIsNotRenderedTests.cs`
 
 - Deleting Every Reading Changes No Pixel — `:59`
-- Renaming APart Changes No Pixel — `:99`
+- Renaming APart Changes No Pixel — `:91`
 
 ## SymbolFlattenTests
 `tests/Lightbox.Raster.Tests/SymbolFlattenTests.cs`
