@@ -1,6 +1,6 @@
 # Code index
 
-501 files · 131019 lines · 2628 tests.
+501 files · 131030 lines · 2628 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,7 +47,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10362 ln) · 4 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10376 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4476, TransformParts:7144
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4303 ln) · 16 test files
   - MainWindow:19, UnsavedChoice:2763
@@ -478,7 +478,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipImageSettings:15, TipImageResult:43, TipFromImage:68
 - `src/Lightbox.Raster/BrushPreviewRenderer.cs` (248 ln) · 2 test files
   - BrushPreviewRenderer:34
-- `src/Lightbox.Raster/TileStore.cs` (222 ln) · 3 test files
+- `src/Lightbox.Raster/TileStore.cs` (219 ln) · 3 test files
   - TileStore:37
 - `src/Lightbox.Raster/TiledRasterizer.cs` (216 ln) · 2 test files
   - TiledRasterizer:37

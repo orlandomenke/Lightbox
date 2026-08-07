@@ -169,6 +169,8 @@ public sealed class TileStore : IDisposable
     /// <summary>
     /// Convert a full-document bitmap to a TileStore, splitting into tile-sized chunks.
     /// Used when transitioning from full-canvas rendering to tiled rendering for unbounded canvas.
+    /// This is a functional but not yet optimized conversion — ideally strokes would render
+    /// directly to tiles to avoid allocating the full document bitmap in the first place.
     /// </summary>
     public static TileStore FromBitmap(SKBitmap bitmap, TileGrid? grid = null)
     {
@@ -184,9 +186,6 @@ public sealed class TileStore : IDisposable
             for (int tx = 0; tx < tilesAcross; tx++)
             {
                 var coord = new TileCoord(tx, ty);
-                var tile = store.Rent(coord);
-
-                // Copy the corresponding region from the source bitmap to this tile
                 var srcX = tx * tileSize;
                 var srcY = ty * tileSize;
                 var copyWidth = Math.Min(tileSize, bitmap.Width - srcX);
@@ -194,18 +193,16 @@ public sealed class TileStore : IDisposable
 
                 if (copyWidth > 0 && copyHeight > 0)
                 {
-                    // Use pixelmap to copy pixels directly
-                    using var pixelsFrom = bitmap.PeekPixels();
-                    using var pixelsTo = tile.PeekPixels();
+                    var tile = store.Rent(coord);
 
-                    for (int y = 0; y < copyHeight; y++)
-                    {
-                        for (int x = 0; x < copyWidth; x++)
-                        {
-                            var srcColor = bitmap.GetPixel(srcX + x, srcY + y);
-                            tile.SetPixel(x, y, srcColor);
-                        }
-                    }
+                    // Copy region using canvas to avoid per-pixel overhead
+                    // Extract the source region and draw into the tile
+                    using var canvas = new SKCanvas(tile);
+                    var srcRect = new SKRect(srcX, srcY, srcX + copyWidth, srcY + copyHeight);
+                    var destRect = new SKRect(0, 0, copyWidth, copyHeight);
+
+                    canvas.DrawBitmap(bitmap, srcRect, destRect);
+                    canvas.Flush();
                 }
             }
         }
