@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2893 tests, derived from the suite itself. Each line is a
+2911 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -890,29 +890,29 @@ regression even when every test still compiles.
 
 - Same Key Means Different Things Per Context — `:12`
 - Global Bindings Fire In Every Context Unless Shadowed — `:23`
-- Conflicts Only Count When Contexts Overlap — `:36`
+- Conflicts Only Count When Contexts Overlap — `:42`
 
 ## LayerFolderTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Create Folder Groups The Active Layer And Shows AHeader Row — `:132`
-- Folder Visibility Gates Its Members In Compositing And Painting — `:147`
-- Collapse Hides Member Rows From The Docker Panel Only — `:166`
-- Add And Remove Keep The Folder Contiguous — `:179`
-- Folder Color Is Undoable And Serializes — `:196`
-- Dissolve Ungroups Everything And Folders Serialize — `:214`
+- Create Folder Groups The Active Layer And Shows AHeader Row — `:138`
+- Folder Visibility Gates Its Members In Compositing And Painting — `:153`
+- Collapse Hides Member Rows From The Docker Panel Only — `:172`
+- Add And Remove Keep The Folder Contiguous — `:185`
+- Folder Color Is Undoable And Serializes — `:202`
+- Dissolve Ungroups Everything And Folders Serialize — `:220`
 
 ## NudgeSelectionTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Nudge Shifts Every Contour Point By Whole Pixels — `:96`
-- Nudge Without ASelection Is ANo Op — `:109`
+- Nudge Shifts Every Contour Point By Whole Pixels — `:102`
+- Nudge Without ASelection Is ANo Op — `:115`
 
 ## PickerToolTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Pick Color At Reads The Composited Color And Paper When Empty — `:55`
-- Insert Keyframe At Playhead Keys The Active Cel — `:80`
+- Pick Color At Reads The Composited Color And Paper When Empty — `:61`
+- Insert Keyframe At Playhead Keys The Active Cel — `:86`
 
 ## FrameBitmapCacheTests
 `tests/Lightbox.App.Tests/FrameBitmapCacheTests.cs`
@@ -2072,6 +2072,28 @@ regression even when every test still compiles.
 - APart Loaded Splash Waits Out The Remainder — `:27`
 - ASlow Load Is Not Padded Further — `:35`
 - The Minimum Is Long Enough To Be Seen And Short Enough Not To Be Waited On — `:44`
+
+## StrokeActionTests
+`tests/Lightbox.App.Tests/StrokeActionTests.cs`
+
+- Deleting The Selection Takes The Line And Lets Go Of It — `:59`
+- Deleting Nothing Is Not An Edit — `:75`
+- Undoing ADelete Puts The Line Back In Its Old Place In The Order — `:87`
+- Deleting Several Is One Undo Step — `:105`
+- Moving The Selection Shifts Every Point — `:120`
+- Moving Nowhere Is Not An Edit — `:136`
+- Only The Selected Line Moves — `:145`
+- Undoing AMove Restores The Exact Coordinates — `:166`
+- Moving AFill Takes Its Holes With It — `:191`
+- ANudge Is One Pixel And Shift Makes It Ten — `:225`
+- Recolouring The Selection Changes Its Colour — `:240`
+- Recolouring ALine From APalette Cuts It Loose From The Swatch — `:258`
+- Recolouring To The Colour It Already Is Does Nothing — `:283`
+- The Canvas Nudge Moves Lines When The Arrow Is Holding Some — `:298`
+- The Nudge Is Ignored Unless The Arrow Is The Tool In Hand — `:311`
+- The Actions Are Registered Where The Configuration Window Can See Them — `:329`
+- The Commands The Options Bar Binds To Exist — `:346`
+- ALocked Layer Refuses Every Action — `:364`
 
 ## StrokeLatencyTests
 `tests/Lightbox.App.Tests/StrokeLatencyTests.cs`

@@ -1441,6 +1441,17 @@
           <TextBlock Text="Click a line, a guide or a symbol to select it."
                      VerticalAlignment="Center" Opacity="0.6"
                      IsVisible="{Binding !HasStrokeSelection}" />
+          <!-- The actions appear with a selection rather than sitting greyed
+               out. A bar that is mostly disabled controls reads as a tool that
+               is mostly broken; this one says nothing until it can do something. -->
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                      IsVisible="{Binding HasStrokeSelection}">
+            <Button Content="Recolour" Command="{Binding RecolourSelectedLinesCommand}"
+                    ToolTip.Tip="Repaint the selected lines in the foreground colour. A line that came from a palette stops following its swatch." />
+            <Button Content="Delete" Command="{Binding DeleteSelectedLinesCommand}"
+                    ToolTip.Tip="Delete the selected lines (Delete). Undo puts them back in the order they were in." />
+            <TextBlock Text="arrow keys nudge, Shift ×10" VerticalAlignment="Center" Opacity="0.6" />
+          </StackPanel>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsFillTool}">

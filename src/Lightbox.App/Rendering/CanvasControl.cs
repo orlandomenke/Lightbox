@@ -1745,7 +1745,7 @@ public sealed class CanvasControl : Control
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
-            _selectedLines, LineMarqueeRect()));
+            _selectedLines, LineMarqueeRect(), LineDragOffset()));
     }
 
     /// <summary>
@@ -2403,7 +2403,17 @@ public sealed class CanvasControl : Control
                         // guide crossing a line has to win, or the guide becomes
                         // unclickable wherever an artist has drawn — and the
                         // drawing is the thing that is everywhere.
-                        if (_pickLine?.Invoke(x, y, DocTolerance(GrabPixels), shift, alt) != true)
+                        if (_pickLine?.Invoke(x, y, DocTolerance(GrabPixels), shift, alt) == true)
+                        {
+                            // Something is selected and the pointer is down on
+                            // it, so this press may become a move. Capture now:
+                            // deciding later would mean missing the moves that
+                            // happened while we were making up our mind.
+                            e.Pointer.Capture(this);
+                            _lineDragFrom = (x, y);
+                            _lineDragTo = (x, y);
+                        }
+                        else
                         {
                             // Nothing under the cursor, so the press is the
                             // start of a marquee rather than a click that
@@ -2675,6 +2685,15 @@ public sealed class CanvasControl : Control
                 e.Handled = true;
                 return;
             }
+            if (_lineDragFrom is not null)
+            {
+                _lineDragTo = ViewToDoc(e.GetPosition(this));
+                // Only chrome moves here, so this is a repaint of the overlay
+                // rather than a re-render of the frame. See DrawSelectedLines.
+                InvalidateVisual();
+                e.Handled = true;
+                return;
+            }
             if (_lineMarqueeFrom is not null)
             {
                 _lineMarqueeTo = ViewToDoc(e.GetPosition(this));
@@ -2852,6 +2871,25 @@ public sealed class CanvasControl : Control
             e.Handled = true;
             return;
         }
+        if (_lineDragFrom is { } dragFrom)
+        {
+            _lineDragFrom = null;
+            e.Pointer.Capture(null);
+            var landed = ViewToDoc(e.GetPosition(this));
+            var dragScale = Math.Max(0.01, FitScale() * _zoom);
+            var travelled = Math.Max(
+                Math.Abs(landed.X - dragFrom.X), Math.Abs(landed.Y - dragFrom.Y)) * dragScale;
+            // A press that went nowhere is the click that selected the line, and
+            // committing it would put an identity move in the history for every
+            // selection an artist makes.
+            if (travelled >= LineDragMinimumPixels)
+            {
+                SelectedLinesDragged?.Invoke(landed.X - dragFrom.X, landed.Y - dragFrom.Y);
+            }
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
         if (_lineMarqueeFrom is { } from)
         {
             _lineMarqueeFrom = null;
@@ -2957,6 +2995,14 @@ public sealed class CanvasControl : Control
             // Reference box move cancellation
             return;
         }
+        if (_lineDragFrom is not null)
+        {
+            // Abandon, and the selection stays. Nothing was written, so there is
+            // nothing to roll back — the outline simply snaps home.
+            _lineDragFrom = null;
+            InvalidateVisual();
+            return;
+        }
         if (_lineMarqueeFrom is not null)
         {
             // Abandon. Losing capture is not a decision the artist made, and a
@@ -3051,6 +3097,38 @@ public sealed class CanvasControl : Control
     /// </para>
     /// </remarks>
     private readonly record struct SelectedLine(SKPoint[] Points, bool Closed);
+
+    /// <summary>Where a drag of the selected lines began, in document space.</summary>
+    /// <remarks>
+    /// <b>Any successful pick arms a drag.</b> That is Illustrator's black arrow:
+    /// press selects, and carrying on without lifting moves what you just
+    /// selected — one gesture, no modifier to remember. A press that does not
+    /// move is a click and commits nothing, so the arming costs an artist who is
+    /// only selecting exactly nothing.
+    /// </remarks>
+    private (double X, double Y)? _lineDragFrom;
+
+    private (double X, double Y) _lineDragTo;
+
+    /// <summary>
+    /// How far a press has to travel before it is a move rather than a click.
+    /// </summary>
+    /// <remarks>
+    /// In screen pixels, so it does not get harder to click cleanly as you zoom
+    /// in. Without it, a two-pixel wobble on a click would put a one-pixel move
+    /// in the undo history for every selection an artist makes.
+    /// </remarks>
+    private const double LineDragMinimumPixels = 3.0;
+
+    /// <summary>
+    /// A drag of the selected lines finished — the offset, in document units.
+    /// </summary>
+    public event Action<double, double>? SelectedLinesDragged;
+
+    /// <summary>The live drag offset, for the outline to follow while dragging.</summary>
+    private SKPoint LineDragOffset() => _lineDragFrom is { } from
+        ? new SKPoint((float)(_lineDragTo.X - from.X), (float)(_lineDragTo.Y - from.Y))
+        : default;
 
     private IReadOnlyList<SelectedLine>? _selectedLines;
 
@@ -3155,7 +3233,8 @@ public sealed class CanvasControl : Control
         PresentedFrame? presented = null,
         Action<GRContext?>? gpuWork = null,
         IReadOnlyList<SelectedLine>? selectedLines = null,
-        SKRect? lineMarquee = null) : ICustomDrawOperation
+        SKRect? lineMarquee = null,
+        SKPoint lineDrag = default) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -3432,6 +3511,19 @@ public sealed class CanvasControl : Control
             if (selectedLines is null || selectedLines.Count == 0) return;
 
             var scale = Math.Max(0.01f, view.Scale);
+            // While a drag is in flight the outline is the only thing that moves.
+            // Re-rendering the artwork every pointer move would repaint the whole
+            // frame from its strokes — invariant 6's exact prohibition — so the
+            // chrome shows where the lines are going and the pixels arrive on
+            // release. Translating the canvas rather than the points keeps this
+            // free of per-point work, and keeps stroke coordinates untouched
+            // until the edit is actually committed.
+            var dragging = lineDrag != default;
+            if (dragging)
+            {
+                canvas.Save();
+                canvas.Translate(lineDrag.X, lineDrag.Y);
+            }
             using var halo = new SKPaint
             {
                 Color = SKColors.Cyan.WithAlpha(70),
@@ -3461,6 +3553,8 @@ public sealed class CanvasControl : Control
                 canvas.DrawPath(path, halo);
                 canvas.DrawPath(path, core);
             }
+
+            if (dragging) canvas.Restore();
         }
 
         private void DrawObjectSelections(SKCanvas canvas)
