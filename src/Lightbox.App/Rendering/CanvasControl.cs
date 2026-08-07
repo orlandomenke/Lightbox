@@ -296,10 +296,9 @@ public sealed class CanvasControl : Control
 
     // ---- diagnostics ----------------------------------------------------------
     // Drawing must survive anything; failures are logged once per context to
-    // %TEMP%/lightbox-canvas.log instead of killing the input or render loop.
-
-    private static readonly object DiagLock = new();
-    private static readonly HashSet<string> DiagLogged = [];
+    // the diagnostics folder instead of killing the input or render loop.
+    // The de-duplication and the file both live in DiagnosticLog now, so this
+    // breadcrumb lands where a crash report does rather than in %TEMP%.
 
     /// <summary>
     /// Whether Avalonia handed the canvas a GPU-backed Skia context, and so
@@ -352,28 +351,18 @@ public sealed class CanvasControl : Control
         if (software is not null) BackendDetected?.Invoke();
     }
 
-    internal static void LogDiag(string context, Exception ex)
-    {
-        try
-        {
-            lock (DiagLock)
-            {
-                if (!DiagLogged.Add(context)) return;
-                File.AppendAllText(
-                    Path.Combine(Path.GetTempPath(), "lightbox-canvas.log"),
-                    $"{DateTime.Now:O} [{context}] {ex}{Environment.NewLine}");
-            }
-        }
-        catch
-        {
-            // diagnostics must never break drawing
-        }
-    }
+    /// <summary>
+    /// Record a survivable canvas failure. Kept here so the nine call sites
+    /// read the same as they always did; the writing itself moved.
+    /// </summary>
+    internal static void LogDiag(string context, Exception ex) =>
+        Lightbox.App.Services.DiagnosticLog.WriteOnce(context, ex);
 
     private void ReportInputError(string context, Exception ex)
     {
         LogDiag(context, ex);
-        CanvasError?.Invoke($"Canvas {context} error: {ex.Message} — details in %TEMP%\\lightbox-canvas.log");
+        CanvasError?.Invoke(
+            $"Canvas {context} error: {ex.Message} — details in {Lightbox.App.Services.DiagnosticLog.Directory}");
     }
 
     /// <summary>

@@ -84,8 +84,10 @@ Rank candidates by **risk removed ÷ cost**. Prefer, in order:
 
 Take a batch that fits one verification cycle — roughly what you can build
 and fully verify before reporting. Two solid improvements beat six unverified
-ones. Anything blocked on a decision goes to `QUESTIONS.md` and is skipped,
-not guessed.
+ones. Anything blocked on a decision is **asked with `AskUserQuestion`, then
+written to `QUESTIONS.md` with the answer** — and skipped this round rather than
+guessed. Filing it without asking is the failure `CLAUDE.md` records for
+2026-08-07: it looks like deliberation and leaves the owner to find it.
 
 ### 3 · Improve
 

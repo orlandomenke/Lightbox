@@ -844,7 +844,7 @@ may reach a pixel at render time.
 - [x] AI inbetweening `evidence: Inbetweener, InbetweenerTests, IAiArtist`
 - [ ] AI-assisted inking, with styles `evidence: InkingStyle, InkingPass, InkingStyleTests, AnInkedPassIsOrdinaryStrokes, WeightFollowsTheLightRatherThanTheStrokeOrder`
   - A style is **a brush preset plus a policy** — weight, taper, depth cue, interior detail, fills — rather than a hard-coded "flat" and "comic". Two modes would be two modes; the axes are what makes the third style somebody asks for reachable. The preset half already exists, so an inking style is an ordinary brush an artist can open and edit.
-  - Output is ordinary strokes through `BrushEngine.StampStroke`, so an inked frame replays, undoes and inbetweens like anything else. Whether it replaces the pencils or lands on its own layer is Q17.
+  - Output is ordinary strokes through `BrushEngine.StampStroke`, so an inked frame replays, undoes and inbetweens like anything else. **Q17 is answered (c):** one **Ink layer for the whole sequence**, its cels lined up with the pencils'. Non-destructive without a layer per frame. It commits the UI too — an inking pass runs over a **range**, not a frame, or the rejected per-frame option arrives by accident.
 
 - [ ] AI dialogue breakdown assistant — auto-generate exposure sheet from audio `evidence: DialogueAnalyzer, PhonemeDetection, DialogueBreakdownTests, AudioFileProducesExposureSheet, PhonemeTimingsAreAccurate, BreakdownIncludesEmotionalBeats`
   - **MARKET-VALIDATED.** Studios cite dialogue sync as consistent bottleneck; timing is currently hand-roughed by animators. Input: voice recording. Output: exposure sheet with phoneme timings (A, E, M, O, U), mouth shape keys, and optional emotional beat markers.
@@ -1022,7 +1022,7 @@ These items are requested by studios, missing from competitors, and unblock othe
 | **Studio Dashboard** | ShotGrid replacement for small studios; eliminates spreadsheet maintenance | Medium | Dynamic folders (B83-87) |
 | **Animatic Preview Export** | One-click timing render saves manual video editing cycle | Low-Medium | None |
 | **Version Snapshots** | Hand-offs between artists; manual checkpoints of document state | Medium | Undo browser |
-| **Subject Reading** | Prerequisite for inking, normal maps, consistency checking; unlocks 3 features | Medium | None — Q16 answered (c); Q17 blocks inking only |
+| **Subject Reading** | Prerequisite for inking, normal maps, consistency checking; unlocks 3 features | Medium | None — Q16 and Q17 both answered |
 
 ### **Tier 3: Competitive Differentiation** (Polish phase)
 

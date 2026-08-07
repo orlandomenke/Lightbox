@@ -110,6 +110,28 @@ looking for, and the file then records deliberation nobody took part in.
 Asking first makes the file record an *answer*; asking after makes it record a
 guess waiting to be corrected.
 
+**Ask with the question prompt, not with prose.** This paragraph was here and
+still failed, on 2026-08-07: four questions were put in the body of a long
+message, went unanswered twice while the conversation moved on, and were written
+to the file anyway. The owner's correction is the rule now — *"prompt me the
+questions then record them to the file, instead of letting me navigate to the
+questions file."* A paragraph inside a wall of findings is skippable and gets
+skipped; a prompt is answered in one click. So:
+
+- **Use `AskUserQuestion`.** Batch up to four, each with a recommendation marked
+  and the cost of the alternatives stated. Prose alongside it is fine; prose
+  *instead* of it is the failure above.
+- **Write the file after the answer arrives**, recording the decision — and
+  record it faithfully when it goes against the recommendation, with what that
+  choice costs. Q32 is the worked example.
+- **A question in the file that was never prompted is a defect**, the same way a
+  bug with no evidence line is. It looks like deliberation and is a guess.
+
+**The session-start hook prints every unanswered question**, because a rule that
+depends on remembering is the rule that just failed. Its first run listed five
+that had been sitting unasked for weeks. If that list is non-empty at the start
+of a session, ask them before doing work they block.
+
 Two things that make the asking worth the interruption:
 
 - **Lead with a recommendation and the reason for it.** "Here are three

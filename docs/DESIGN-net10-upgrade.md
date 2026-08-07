@@ -302,6 +302,15 @@ change land together, a red suite has two suspects.
 **Trimming or AOT.** `PublishTrimmed=false` is set deliberately and .NET 10's
 interop search-path changes only bite single-file publishes. Untouched.
 
+> **Single-file landed later, under B114, and this warning is why it landed the
+> shape it did.** The bite was avoided rather than survived: the three native
+> libraries stay loose beside the executable instead of being bundled for
+> self-extraction, so neither .NET's native search path nor Avalonia's raw
+> `LoadLibrary` for ANGLE has to find anything in `%TEMP%`. Trimming and
+> ReadyToRun remain out of scope and remain off — R2R is the one that would
+> genuinely help startup, and it belongs to its own objective rather than
+> riding along with a packaging change.
+
 **A Linux publish target.** CI cross-publishes `win-x64` from Ubuntu and there
 is no `linux-x64` job. That is a real gap in what CI exercises, it is
 independent of this upgrade, and bundling it here would mean debugging two new
