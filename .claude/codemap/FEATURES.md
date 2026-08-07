@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2785 tests, derived from the suite itself. Each line is a
+2809 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -604,6 +604,15 @@ regression even when every test still compiles.
 - The Dispatcher Handler Records Without Changing What The App Does — `:142`
 - The Triggers Are Absent Until Diagnostics Are Turned On — `:155`
 - Every Menu Entry Names AScenario That Exists — `:168`
+
+## CursorAlignmentTests
+`tests/Lightbox.App.Tests/CursorAlignmentTests.cs`
+
+- Culling Never Moves The Document Point Under The Pointer — `:111`
+- AViewport Culled Canvas Round Trips ADocument Point — `:168`
+- Ink Lands Under The Pointer With Culling Live — `:200`
+- ACulled Compose Puts The Art Where AFull Compose Does — `:289`
+- Repeated Zooming Does Not Drift The Anchor — `:379`
 
 ## DiagnosticLogTests
 `tests/Lightbox.App.Tests/DiagnosticLogTests.cs`
@@ -1532,7 +1541,22 @@ regression even when every test still compiles.
 - Removing The Filtered Person Clears The Filter — `:304`
 - The Assets Tab Shows All Three Levels At Once — `:322`
 - AScope That Declares Nothing Says So — `:344`
-- The Footer Counts What Is True — `:354`
+- Sharing Something With AScope Declares It There — `:354`
+- The First Declaration Of AKind Says That Scoping Is Now On — `:370`
+- ADocument Can Declare Something Of Its Own — `:386`
+- Taking Back The Last Declaration Says Everything Applies Again — `:402`
+- Undeclaring Empties Back To Nothing — `:421`
+- Something Already Shared Here Is Not Offered Twice — `:436`
+- AChip Reads As AName Rather Than An Id — `:450`
+- The Facet Editor Appears For Exactly One Folder — `:464`
+- Notes Are Written Through And Empty Back To Nothing — `:482`
+- APivot Is Given And Taken Away — `:495`
+- Clearing AReading Names What It Costs First — `:509`
+- The Reviewed Flag Can Finally Be Set — `:538`
+- Removing AVariant Keeps The Art It Replaced — `:554`
+- The Export Tab Shows What Would Be Written — `:575`
+- The Export Tab Says What Is Held Back By Status — `:596`
+- The Footer Counts What Is True — `:621`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
@@ -2418,6 +2442,14 @@ regression even when every test still compiles.
 - ANew Document With No Project Open Changes Nothing — `:361`
 - Saving ADocument Outside The Project Takes It Out Of The Project — `:409`
 - Saving ADocument Into The Project Repaths Its Row — `:450`
+
+## ViewportCullingPerformanceTests
+`tests/Lightbox.App.Tests/ViewportCullingPerformanceTests.cs`
+
+- APointer Event In ACulled Viewport Repaints The Dab Not The Viewport — `:50`
+- Culling Does Not Enlarge The Clip AStroke Implies — `:99`
+- AWhole Canvas Publish Still Composes Only The Viewport — `:139`
+- An Incremental Publish After ACulled One Does Not Show The Previous Frame — `:191`
 
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
