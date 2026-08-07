@@ -24,6 +24,15 @@ public sealed class App : Application
             // itself, so that a window built directly — every headless test —
             // never has a modal dialog appear over it.
             window.Opened += (_, _) => _ = window.OfferStartScreenAsync();
+
+            // If the last run ended badly, say so once. The dialog at crash time
+            // is the first attempt and the better one; this is the fallback for
+            // when the UI was too far gone to show it, and it consumes the
+            // marker so the same crash is not reported every launch from now on.
+            if (Lightbox.App.Services.DiagnosticLog.TakePendingCrash() is { } crash)
+            {
+                window.Opened += (_, _) => window.NotePreviousCrash(crash);
+            }
         }
         base.OnFrameworkInitializationCompleted();
     }

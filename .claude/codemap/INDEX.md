@@ -1,6 +1,6 @@
 # Code index
 
-508 files · 132664 lines · 2660 tests.
+511 files · 133059 lines · 2667 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,12 +49,12 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (10421 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4479, TransformParts:7147
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4310 ln) · 16 test files
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4321 ln) · 16 test files
   - MainWindow:19, UnsavedChoice:2763
-- `src/Lightbox.App/Rendering/CanvasControl.cs` (3499 ln) · 10 test files
-  - CanvasControl:28, CanvasToolMode:855, GridGesture:912, TxDrag:1059, DrawOp:2818
 - `src/Lightbox.App/Views/MainWindow.axaml` (3492 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
+- `src/Lightbox.App/Rendering/CanvasControl.cs` (3488 ln) · 10 test files
+  - CanvasControl:28, CanvasToolMode:844, GridGesture:901, TxDrag:1048, DrawOp:2807
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2664 ln) · 11 test files
   - ProjectRow:20, ScopeMenuEntry:359, DeclarationRow:370, ProjectViewModel:397, PlannedArtifact:637, NewItemKind:1680
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
@@ -158,6 +158,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TemplatePullRow:31, UpdateFromTemplateWindow:47
 - `src/Lightbox.App/Views/BrushChoice.cs` (149 ln) · 2 test files
   - BrushChoice:26
+- `src/Lightbox.App/Services/DiagnosticLog.cs` (145 ln) · 1 test files
+  - DiagnosticLog:22
 - `src/Lightbox.App/Services/BrushImportJob.cs` (144 ln) · 1 test files
   - BrushImportProgress:11, BrushImportOutcome:23, BrushImportJob:52
 - `src/Lightbox.App/Services/TipStore.cs` (139 ln) · 2 test files
@@ -208,6 +210,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CameraTransform:16
 - `src/Lightbox.App/Views/BrushLibraryWindow.axaml` (92 ln) · **no tests**
   - BrushList, CancelButton, CountLabel, ImportButton, ImportProgress, ProgressLabel, ProgressRow, RemoveButton …
+- `src/Lightbox.App/Services/CrashReporter.cs` (88 ln) · 1 indirect only
+  - CrashReporter:23
 - `src/Lightbox.App/Services/AutosaveService.cs` (85 ln) · 5 indirect only
   - AutosaveService:22
 - `src/Lightbox.App/Views/StartScreen.axaml` (84 ln) · **no tests**
@@ -224,8 +228,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FloatingPanelWindow:16
 - `src/Lightbox.App/Services/NormalMapWriter.cs` (71 ln) · 1 test files
   - NormalMapWriter:22
-- `src/Lightbox.App/Program.cs` (63 ln) · 1 test files
-  - Program:6
+- `src/Lightbox.App/Program.cs` (66 ln) · 1 test files
+  - Program:7
 - `src/Lightbox.App/Services/SequenceExporter.cs` (62 ln) · 2 test files
   - SequenceExporter:20
 - `src/Lightbox.App/Docking/OverlayConverters.cs` (61 ln) · 1 test files
@@ -244,6 +248,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushFilter:12
 - `src/Lightbox.App/Services/IpcProtocol.cs` (43 ln) · 8 test files
   - IpcProtocol:12, Request:23, Response:29
+- `src/Lightbox.App/App.axaml.cs` (39 ln) · 7 test files
+  - App:8
 - `src/Lightbox.App/Rendering/RenderSnapshot.cs` (39 ln) · 18 test files
   - RenderSnapshot:24
 - `src/Lightbox.App/Services/PlaybackClock.cs` (35 ln) · 1 test files
@@ -254,8 +260,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlacementChoiceDialog:11, PlacementChoice:30
 - `src/Lightbox.App/Views/PlacementChoiceDialog.axaml` (32 ln) · **no tests**
   - DontAskAgain, ImportOption, ReferenceOption
-- `src/Lightbox.App/App.axaml.cs` (30 ln) · 7 test files
-  - App:8
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml` (26 ln) · **no tests**
   - Message, RevertButton, SaveButton
 - `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 16 indirect only

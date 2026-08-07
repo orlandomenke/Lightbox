@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Avalonia;
+using Lightbox.App.Services;
 
 namespace Lightbox.App;
 
@@ -8,6 +9,8 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // First, so a failure anywhere after this point leaves a file behind.
+        CrashReporter.Install();
         AttachConsoleForTracing();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
