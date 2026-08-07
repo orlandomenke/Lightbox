@@ -825,6 +825,9 @@ may reach a pixel at render time.
 - [ ] The AI reads the subject before it draws `evidence: SubjectReading, SubjectTaxonomy, PartPlacement, SubjectReadingTests, AHandNamedPartBeatsAGuessedOne, DeletingEveryReadingChangesNoPixel`
   - Inbetweening, inking and normal maps each asked for this separately, which is the signal to design it once — see `docs/DESIGN-subject-reading.md`. Split in two because the halves have different lifetimes: **taxonomy** (this is a biped with these parts) is per character and worth reviewing by hand; **placement** (where each part is in frame 12, what occludes what) is per frame and disposable. The rig's hand-drawn `parts` win wherever they exist — a guess is a default, never an override of something a person stated.
   - The line it must stay on: the reading is an input to *authoring*, never to rendering. Its first test deletes every reading from a finished document and asserts the render is byte-identical, because the day that fails is the day invariant 2 is gone.
+  - **Unblocked.** Q16 is answered (c): taxonomy on `Character` in the manifest, placement in a content-hashed cache beside the autosave and never in the document. A placement reading is *derived from* the stroke record, and invariant 1 says the record is the document — so it does not belong in it. Taxonomy escapes that test because it describes a character rather than a drawing, and once an artist corrects it, it is theirs.
+  - **Two methods on `IAiArtist`, not one** — different inputs, cadence, lifetime and storage, and the interface is what a reader consults to learn what the app asks a model for. Both satisfy rule 0: the taxonomy starts from a character sheet, the placement from a frame.
+  - **Behind a measurement, not a plan.** *Does the taxonomy alone measurably improve an inbetween?* Same keys, same provider, with and against without. If it does, placement is a refinement rather than a requirement; if neither moves the needle, the blindness was not the problem and that finding is worth as much as the feature. `art-director` judges "improves", `ai-engineer` judges the cost — the disagreement G12's pair exists to have. The design pass is the second half of `docs/DESIGN-subject-reading.md`.
 - [ ] A light source, for the tools that need to know where the shadows are `evidence: SceneLight, SceneLightTests, ALightNeverReachesStampStroke, ADocumentWithNoLightExportsExactlyAsItDid`
   - On the scene, nullable, absent until placed — the camera's rule. Two uses that must not be conflated: for inking it is a **generation input** (which contours are heavy, which side is in shadow) consumed before there are strokes; for a normal map it is a **preview rig** and must never be baked into the output, because a normal map that carried a light would defeat the reason for having one.
 
@@ -1011,7 +1014,7 @@ These items are requested by studios, missing from competitors, and unblock othe
 | **Studio Dashboard** | ShotGrid replacement for small studios; eliminates spreadsheet maintenance | Medium | Dynamic folders (B83-87) |
 | **Animatic Preview Export** | One-click timing render saves manual video editing cycle | Low-Medium | None |
 | **Version Snapshots** | Hand-offs between artists; manual checkpoints of document state | Medium | Undo browser |
-| **Subject Reading** | Prerequisite for inking, normal maps, consistency checking; unlocks 3 features | Medium | Q16, Q17 answers |
+| **Subject Reading** | Prerequisite for inking, normal maps, consistency checking; unlocks 3 features | Medium | None — Q16 answered (c); Q17 blocks inking only |
 
 ### **Tier 3: Competitive Differentiation** (Polish phase)
 
@@ -1256,7 +1259,7 @@ Already built ✅:
 | **Lightweight character versioning** | Indie alternative to $10k enterprise tools (Toon Boom Server, Perforce) | Medium (600 LOC) | Tier 1 version tagging |
 | **Deterministic reference-aware brushes** | Lightbox-only: brush responds to reference geometry, reproducibly (invariant 2) | High (600 LOC) | Reference geometry API |
 | **Character semantic database** | Store character as queryable data; export as FSM for game engines and AI agents | High (800 LOC) | Metadata structure |
-| **AI consistency checking** | Real-time "is this frame on-model?" verification | High (800 LOC) | Subject reading (Q16/Q17) |
+| **AI consistency checking** | Real-time "is this frame on-model?" verification | High (800 LOC) | Subject reading |
 
 ### **Tier 3: Emerging (2026+)**
 - AI pose estimation overlay (sketch → skeleton detection → pose transfer)
@@ -1345,7 +1348,7 @@ Already built ✅:
    - Highlights problem regions for artist correction
    - Effort: 800–1200 LOC
    - Evidence: ConsistencyCheckTests, FrameComparisonTests, ScoreCalibrationTests
-   - Blocker: Subject reading (Q16, Q17)
+   - Blocker: Subject reading
 
 8. **New Item**: "Character as semantic database (queryable, exportable)" [ ]
    - Store character metadata as structured data (poses, expressions, proportions, versions)
