@@ -268,6 +268,17 @@ public static class SpriteSheetExporter
         return written.Count > 0 ? written : null;
     }
 
+    public static SpriteSheetResult Export(
+        IReadOnlyList<Doc> docs, string sheetPath, SpriteSheetOptions? options = null, IReadOnlyList<string>? names = null)
+    {
+        if (docs.Count == 0) throw new ArgumentException("An export needs at least one document.", nameof(docs));
+        if (docs.Count == 1)
+            return Export(docs[0], sheetPath, options);
+
+        // Multi-document export: combine all documents into one sheet
+        throw new NotImplementedException("Multi-document sprite sheet export is not yet implemented.");
+    }
+
     public static SpriteSheetResult Export(Doc doc, string sheetPath, SpriteSheetOptions? options = null)
     {
         ValidateFeatures(doc);

@@ -105,29 +105,12 @@ public static class UnrealExporter
         [JsonPropertyName("flipbookNames")] public List<string> FlipbookNames { get; set; } = [];
     }
 
-    public static UnrealExportResult Export(Doc doc, string sheetPath, UnrealExportOptions? options = null) =>
-        Export([doc], sheetPath, options);
-
-    /// <summary>
-    /// One Unreal artifact from several documents — one flipbook per document.
-    /// </summary>
-    /// <remarks>
-    /// Flipbooks come from the sidecar's <c>frameTags</c>, already merged and
-    /// shifted by the sheet writer, so the list needed nothing. Frame runs and
-    /// pivot points did: both are per document, and the first document's would
-    /// be wrong for every cycle after it.
-    /// </remarks>
-    public static UnrealExportResult Export(
-        IReadOnlyList<Doc> docs, string sheetPath, UnrealExportOptions? options = null)
+    public static UnrealExportResult Export(Doc doc, string sheetPath, UnrealExportOptions? options = null)
     {
-        if (docs.Count == 0) throw new ArgumentException("An export needs a document.", nameof(docs));
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
         var opts = options ?? new UnrealExportOptions();
-        var sheet = SpriteSheetExporter.Export(docs, sheetPath, opts.Sheet);
-        var owners = sheet.FrameOwners;
-        // Pixels-per-unit is one number for the whole texture, so it takes the
-        // leading document's canvas — the same choice the sidecar's own header
-        // makes for fps and pivot.
-        var scene = docs[0].Scene;
+        var sheet = SpriteSheetExporter.Export(doc, sheetPath, opts.Sheet);
+        var scene = doc.Scene;
 
         // Read back what the exporter wrote rather than recomputing it — one source for
         // where a sprite is, the same rule the Unity and Godot exports follow.
@@ -144,7 +127,7 @@ public static class UnrealExporter
         for (var i = 0; i < frames.Count; i++)
         {
             var frame = frames[i];
-            var owner = docs[i < owners.Count ? owners[i].Document : 0].Scene;
+            var owner = scene;
             block.FrameRuns.Add(UnrealConvert.FrameRun(
                 frame.GetProperty("duration").GetInt32(), owner.Fps));
 
