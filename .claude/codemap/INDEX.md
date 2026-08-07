@@ -1,6 +1,6 @@
 # Code index
 
-534 files · 138750 lines · 2782 tests.
+534 files · 138842 lines · 2785 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -97,6 +97,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GameMakerExportOptions:10, GameMakerExportResult:28, GameMakerExporter:78, StripRecord:86, GameMakerBlock:99
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 19 indirect only
   - RampTrack:10, GradientRamp:41
+- `src/Lightbox.App/Docking/WorkspaceStore.cs` (295 ln) · 4 test files
+  - Workspace:13, WorkspaceStore:51
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 108 test files
@@ -107,8 +109,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - CurveEditor:29
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 2 test files
   - ComposeRing:31, Buffer:33
-- `src/Lightbox.App/Docking/WorkspaceStore.cs` (256 ln) · 4 test files
-  - Workspace:13, WorkspaceStore:51
 - `src/Lightbox.App/Services/ExportRunner.cs` (256 ln) · 5 test files
   - ExportRun:17, ExportRunner:42
 - `src/Lightbox.App/ViewModels/DocumentTab.cs` (253 ln) · 28 test files
@@ -336,7 +336,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TransformOps:12
 - `src/Lightbox.Core/Geometry/Snapper.cs` (229 ln) · 1 test files
   - Snapper:33
-- `src/Lightbox.Core/Documents/Gradient.cs` (224 ln) · 6 test files
+- `src/Lightbox.Core/Documents/Gradient.cs` (224 ln) · 7 test files
   - GradientKind:3, GradientSpread:10, GradientStop:32, GradientAlphaStop:57, Gradient:71, GradientOps:107
 - `src/Lightbox.Core/Documents/ReferenceStrip.cs` (222 ln) · 5 test files
   - ReferenceCell:23, ReferenceStrip:91

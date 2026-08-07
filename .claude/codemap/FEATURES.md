@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2782 tests, derived from the suite itself. Each line is a
+2785 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2422,28 +2422,31 @@ regression even when every test still compiles.
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
 
-- The Default Is Every Minute To The Recovery Copy Only — `:214`
-- Zero Turns Autosave Off — `:225`
-- An Absurd Interval Is Clamped Rather Than Honoured — `:233`
-- Settings Round Trip And Survive Corruption — `:242`
+- The Default Is Every Minute To The Recovery Copy Only — `:267`
+- Zero Turns Autosave Off — `:278`
+- An Absurd Interval Is Clamped Rather Than Honoured — `:286`
+- Settings Round Trip And Survive Corruption — `:295`
 
 ## WorkspaceStoreTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
 
-- Every Project Type Has ABuilt In Workspace — `:15`
-- The Built Ins Differ From Each Other — `:30`
-- Saving Under ANew Name Adds AWorkspace And Selects It — `:43`
-- Saving Over Your Own Workspace Replaces It — `:56`
-- Saving Over ABuilt In Forks It Instead — `:71`
-- Only Your Own Workspaces Can Be Deleted — `:87`
-- Deleting The Selected Workspace Selects Another — `:98`
-- AStore Round Trips And Gains Built Ins It Predates — `:110`
-- ACorrupt Store Falls Back Rather Than Throwing — `:128`
-- Applying AWorkspace Replaces The Layout And Clears The Star — `:138`
-- Reset Goes Back To What The Workspace Says — `:153`
-- Taking AProject Types Defaults Switches Workspace — `:167`
-- Only Saved Workspaces Offer ABin — `:180`
-- The Label Marks AWorkspace The User Has Since Rearranged — `:191`
+- The Shipped Arrangements Tab The Colour Tools — `:15`
+- Tabbing Offers More Panels Without Spending More Height — `:30`
+- No Arrangement Tabs Two Panels An Artist Needs At Once — `:44`
+- Every Project Type Has ABuilt In Workspace — `:65`
+- The Built Ins Differ From Each Other — `:80`
+- Saving Under ANew Name Adds AWorkspace And Selects It — `:93`
+- Saving Over Your Own Workspace Replaces It — `:106`
+- Saving Over ABuilt In Forks It Instead — `:121`
+- Only Your Own Workspaces Can Be Deleted — `:137`
+- Deleting The Selected Workspace Selects Another — `:148`
+- AStore Round Trips And Gains Built Ins It Predates — `:160`
+- ACorrupt Store Falls Back Rather Than Throwing — `:178`
+- Applying AWorkspace Replaces The Layout And Clears The Star — `:188`
+- Reset Goes Back To What The Workspace Says — `:203`
+- Taking AProject Types Defaults Switches Workspace — `:220`
+- Only Saved Workspaces Offer ABin — `:233`
+- The Label Marks AWorkspace The User Has Since Rearranged — `:244`
 
 ## WorkspaceTests
 `tests/Lightbox.App.Tests/WorkspaceTests.cs`
