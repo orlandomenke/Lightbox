@@ -50,6 +50,15 @@ public partial class MainWindow : Window
         Canvas.DisplayScaleChanged += scale => _vm.SetDisplayScale(scale);
         Canvas.ViewportChanged += viewport => _vm.SetViewport(viewport);
         Canvas.FrameRendered += ms => _vm.RecordFrameTime(ms);
+        // The backend is only knowable once a frame has been drawn, so the
+        // startup report waits for that rather than for construction. One frame
+        // later than "startup", and the only point at which it has an answer.
+        //
+        // BackendDetected is static and this handler is an instance method, so
+        // the subscription would outlive the window and keep it alive. Detached
+        // in OnClosed — a diagnostic has no business being the reason a window
+        // cannot be collected.
+        Rendering.CanvasControl.BackendDetected += WriteStartupRenderReport;
         Canvas.CursorPressureChanged += (pressure, penDown) => _vm.SetCursorPressure(pressure, penDown);
 
         // Transform session: the VM owns the frames, the canvas owns the gizmo.
@@ -716,6 +725,91 @@ public partial class MainWindow : Window
         {
             _vm.AiStatus = $"Could not open the folder — it is at {folder}";
         }
+    }
+
+    /// <summary>Let go of the static subscription this window took out.</summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        Rendering.CanvasControl.BackendDetected -= WriteStartupRenderReport;
+        base.OnClosed(e);
+    }
+
+    /// <summary>
+    /// Gather what the render report needs from the places that own each fact.
+    /// </summary>
+    /// <remarks>
+    /// Assembled here rather than inside <c>RenderReport</c> so that class reaches
+    /// into nothing: the backend is a static on the canvas, the frame's state is
+    /// the canvas's, and the document and quality belong to the view model. A
+    /// diagnostic that reaches across the app to collect itself is a diagnostic
+    /// that breaks when any of them move.
+    /// </remarks>
+    private Services.RenderReport.Facts RenderFacts()
+    {
+        var totals = Canvas.PresentedFrameTotals;
+        return new Services.RenderReport.Facts(
+            Rendering.CanvasControl.GraphicsBackend,
+            Rendering.CanvasControl.SoftwareRendering,
+            totals.OnGpu,
+            totals.GpuFailed,
+            Rendering.CanvasControl.MaxTextureSize,
+            _vm.ReportDocWidth,
+            _vm.ReportDocHeight,
+            _vm.ReportDisplayScale,
+            _vm.CanvasQuality.ToString(),
+            _vm.ReportComposeScale);
+    }
+
+    /// <summary>
+    /// Write the startup report once the backend is knowable — which is the first
+    /// frame, not construction: before anything is drawn there is no lease and so
+    /// no answer to the only question this report exists to settle.
+    /// </summary>
+    private void WriteStartupRenderReport()
+    {
+        try
+        {
+            Services.RenderReport.WriteStartup(RenderFacts());
+        }
+        catch (Exception ex)
+        {
+            Rendering.CanvasControl.LogDiag("render-report-startup", ex);
+        }
+    }
+
+    /// <summary>
+    /// Write a full report, running the upload probe inside a lease first.
+    /// </summary>
+    /// <remarks>
+    /// The probe needs the compositor's context, which only exists inside a draw
+    /// operation, so this queues it and writes when it comes back. If no frame
+    /// arrives — a hidden window — the report is still written, without a probe,
+    /// because the facts and the session totals are most of its value.
+    /// </remarks>
+    private void OnWriteRenderReport(object? sender, RoutedEventArgs e)
+    {
+        var t = Canvas.PresentedFrameTotals;
+        var totals = new Services.RenderReport.Totals(
+            t.Presents, t.Full, t.Free, t.Patched, t.IfAlwaysFull,
+            _vm.Performance.PublishMs, _vm.Performance.FrameMs);
+
+        // The probe runs at the size the app is actually compositing at, so its
+        // answer is about this document rather than a fixed benchmark canvas.
+        var width = (int)Math.Ceiling(_vm.ReportDocWidth * _vm.ReportComposeScale);
+        var height = (int)Math.Ceiling(_vm.ReportDocHeight * _vm.ReportComposeScale);
+
+        Canvas.RunWithGpuContext(gpu =>
+        {
+            var probe = Services.RenderReport.RunUploadProbe(gpu, width, height);
+            // Back to the UI thread to write and to report where it went.
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                var path = Services.RenderReport.WriteOnDemand(RenderFacts(), totals, probe);
+                _vm.AiStatus = path is null
+                    ? "Could not write the render report"
+                    : $"Render report written to {path}";
+            });
+        });
     }
 
     /// <summary>Run a deliberate failure, after asking if there is anything to lose.</summary>

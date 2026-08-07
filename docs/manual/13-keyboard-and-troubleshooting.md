@@ -105,6 +105,34 @@ Nothing here is sent anywhere. It is written to your own disk and stays there.
 **Help → Open the diagnostics folder** takes you straight there, so you never
 have to know the path.
 
+**Help → Write a render report** measures how drawing is actually working *on
+your machine* and writes it beside the other files. This is the one to reach for
+when Lightbox feels slow, because the answer is usually a fact nobody can guess
+from the outside.
+
+It names which parts of the drawing are done by your graphics card and which by
+the processor — and those are not the same question. The status strip says
+**GPU** when your card is putting finished frames on screen, which it usually is;
+combining the layers is done by the processor either way. The report says both,
+so "it says GPU but feels slow" stops being a contradiction.
+
+It also catches a failure that is otherwise invisible: Lightbox asks your card
+for a working surface, and if it cannot have one it quietly falls back to the
+processor rather than refusing to draw. That is the right thing to do and it
+looks like nothing at all — the report says so in as many words, and it is the
+most useful line in the file. Large canvases at a high display scale are where
+it happens.
+
+Alongside those it records what your session actually cost: how much of each
+frame had to be redrawn, how many repaints cost nothing because only the cursor
+moved, and how long a frame takes against the 16.7 ms that makes 60 a second. A
+short version is written every time Lightbox starts, so the basic facts are
+there even for a session that ended badly.
+
+Nothing is sent anywhere, here as everywhere else in this folder. Take two
+reports either side of changing **Canvas quality** and the difference between
+them is the measurement.
+
 **Help → Show a console while drawing** opens a console window alongside
 Lightbox carrying the same information as it happens, rather than after the
 fact. It is off, it stays off until you turn it on, and it takes effect the

@@ -43,6 +43,37 @@ Still true, and the reason this is a supplement rather than a replacement:
 looks exactly like a bug. Use this to *see*, and land a pixel test to *guard* —
 `CursorAlignmentTests` is the pair to this recipe.
 
+## The render report — for the numbers no container can take
+
+Neither the suite nor the recipe above can answer whether the drawing path is
+using the graphics card, because this environment has no GPU context at all.
+**Help ▸ Write a render report** moves that measurement to a machine that has
+one. Check these by hand on real hardware:
+
+- [ ] A short `render-startup.txt` appears in the diagnostics folder on **every**
+      start, before anything is drawn on purpose — it waits for the first frame,
+      because the backend is not knowable until a lease has been granted.
+- [ ] **Help ▸ Write a render report** writes a timestamped file and the status
+      strip names it. Taking two in a row gives two files, not one overwritten —
+      the comparison is the point.
+- [ ] `durable frame on GPU` reads **yes** on a machine whose strip says GPU. If
+      it reads **no** while the strip says GPU, the report should also carry the
+      `ABSENT` warning — that is `PresentedFrame.GpuSurfaceRequestFailed`, and it
+      means B122's saving is not happening on that machine. **This is the line
+      worth looking at first when painting feels slow.**
+- [ ] `max texture size` is a real number. Compare it against `compose surface`:
+      a 4K canvas at a high display scale can approach it, which is how the
+      fallback above gets triggered.
+- [ ] The upload probe prints two medians and a speedup. A speedup near 1× on a
+      GPU-backed surface means the transfer is *not* the remaining cost, and B125
+      (compositing on the CPU) is.
+- [ ] `repaints that copied none` grows fastest of the counters while you hover
+      without painting. If it does not, the cursor is dragging the artwork
+      through a patch on every pointer move.
+- [ ] Take one report at **Canvas quality: Full** and one at **Half**, and the
+      `compose surface` line differs by 4× in area. That is the setting doing
+      what it claims.
+
 ## Before that: look at the sheets
 
 ```sh

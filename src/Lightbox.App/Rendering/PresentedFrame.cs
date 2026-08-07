@@ -74,6 +74,39 @@ public sealed class PresentedFrame : IDisposable
     public bool IsGpuBacked => _gpuBacked;
 
     /// <summary>
+    /// True when a GPU surface was asked for and could not be had, so this frame
+    /// is on the CPU despite the canvas being GPU-backed.
+    /// </summary>
+    /// <remarks>
+    /// <b>The one number that explains a disappointing result.</b>
+    /// <see cref="SKSurface.Create(GRContext, bool, SKImageInfo)"/> can fail —
+    /// a texture limit, or memory — and <see cref="Reset"/> deliberately falls
+    /// back to a raster surface rather than crashing the canvas. That fallback is
+    /// correct and it is silent, so B122's whole saving can be absent on a
+    /// machine whose status strip still says "GPU". Reported rather than merely
+    /// handled, because "it barely improved" and "it fell back" look identical
+    /// from the outside.
+    /// </remarks>
+    public bool GpuSurfaceRequestFailed { get; private set; }
+
+    // ---- running totals, for the render report ------------------------------
+
+    /// <summary>Presents that did any copying at all.</summary>
+    public long Presents { get; private set; }
+
+    /// <summary>Presents that had to repaint the whole frame.</summary>
+    public long FullPresents { get; private set; }
+
+    /// <summary>Repaints that carried no new publish and so copied nothing.</summary>
+    public long FreePresents { get; private set; }
+
+    /// <summary>Every pixel copied since the frame was created.</summary>
+    public long TotalPatchedPixels { get; private set; }
+
+    /// <summary>What those pixels would have been had every present copied the frame.</summary>
+    public long TotalPixelsIfAlwaysFull { get; private set; }
+
+    /// <summary>
     /// A published frame that will not be presented — its change must still be
     /// owed, or the next patch leaves those pixels stale.
     /// </summary>
@@ -135,10 +168,20 @@ public sealed class PresentedFrame : IDisposable
             {
                 LastPatchedPixels = 0;
                 LastWasFull = false;
+                FreePresents++;
                 return _image;
             }
             var image = PresentCore(gpu, source, changed);
             _presentedSeq = seq;
+
+            // Totals for the render report. Counted here rather than inside
+            // PresentCore so the free path above is not mistaken for a present
+            // that copied nothing — the two mean different things, and the ratio
+            // between them is the whole point of the report.
+            Presents++;
+            if (LastWasFull) FullPresents++;
+            TotalPatchedPixels += LastPatchedPixels;
+            TotalPixelsIfAlwaysFull += (long)source.Width * source.Height;
             return image;
         }
     }
@@ -210,15 +253,19 @@ public sealed class PresentedFrame : IDisposable
             ? SKSurface.Create(gpu, false, info)
             : SKSurface.Create(info);
         // A GPU surface can fail to allocate — fall back rather than crash the
-        // canvas, because a slow frame beats no frame.
+        // canvas, because a slow frame beats no frame. But say so: this is the
+        // difference between "B122 did not help much" and "B122 never ran", and
+        // they are indistinguishable without the flag.
         if (_surface is null)
         {
             _surface = SKSurface.Create(info);
             _gpuBacked = false;
+            if (gpu is not null) GpuSurfaceRequestFailed = true;
         }
         else
         {
             _gpuBacked = gpu is not null;
+            GpuSurfaceRequestFailed = false;
         }
         if (_surface is null) throw new InvalidOperationException("Could not create a presentation surface.");
         _info = info;

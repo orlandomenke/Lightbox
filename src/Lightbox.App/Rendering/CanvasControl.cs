@@ -208,6 +208,37 @@ public sealed class CanvasControl : Control
 
     /// <summary>Pixels the last present had to copy. Tests and telemetry.</summary>
     internal long LastPresentedPatchPixels => _presented.LastPatchedPixels;
+
+    /// <summary>
+    /// What the durable frame has done this session, for the render report.
+    /// </summary>
+    internal (long Presents, long Full, long Free, long Patched, long IfAlwaysFull, bool OnGpu, bool GpuFailed)
+        PresentedFrameTotals => (
+            _presented.Presents,
+            _presented.FullPresents,
+            _presented.FreePresents,
+            _presented.TotalPatchedPixels,
+            _presented.TotalPixelsIfAlwaysFull,
+            _presented.IsGpuBacked,
+            _presented.GpuSurfaceRequestFailed);
+
+    /// <summary>
+    /// Run something that needs the compositor's Skia context, on the render
+    /// thread, at the next frame.
+    /// </summary>
+    /// <remarks>
+    /// The context only exists inside a lease, and a lease is only granted inside
+    /// a draw operation — so an upload probe cannot simply be called from a menu
+    /// handler. This queues the work and forces a frame; the callback runs once
+    /// and is cleared, and it receives null when the canvas is on software.
+    /// </remarks>
+    public void RunWithGpuContext(Action<GRContext?> work)
+    {
+        _pendingGpuWork = work;
+        InvalidateVisual();
+    }
+
+    private Action<GRContext?>? _pendingGpuWork;
     private readonly Queue<RenderSnapshot> _retired = new();
 
     /// <summary>Snapshots kept past the current one, even after they've been rendered.</summary>
@@ -342,12 +373,21 @@ public sealed class CanvasControl : Control
     /// <summary>Raised the first time the backend is known.</summary>
     public static event Action? BackendDetected;
 
+    /// <summary>
+    /// The context's texture limit, or null when there is no context. Reported
+    /// rather than merely used: at 4K with display scaling the presentation
+    /// surface approaches this, and exceeding it is what makes a GPU surface fail
+    /// to allocate and fall back to CPU without saying so.
+    /// </summary>
+    public static int? MaxTextureSize { get; private set; }
+
     private static void RecordBackend(ISkiaSharpApiLease lease)
     {
         if (GraphicsBackend != "unknown") return;
         var software = lease.GrContext is null;
         GraphicsBackend = software ? "CPU (software)" : "GPU";
         SoftwareRendering = software;
+        MaxTextureSize = lease.GrContext?.MaxTextureSize;
         BackendDetected?.Invoke();
     }
 
@@ -1619,11 +1659,15 @@ public sealed class CanvasControl : Control
                 _txPerspective);
         }
 
+        // Take the queued context work, if any, and hand it over exactly once.
+        var gpuWork = _pendingGpuWork;
+        _pendingGpuWork = null;
+
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
-            _selectionManager, _getPlacementsForSelection, _presented));
+            _selectionManager, _getPlacementsForSelection, _presented, gpuWork));
     }
 
     /// <summary>
@@ -2879,7 +2923,8 @@ public sealed class CanvasControl : Control
         IReadOnlyList<RigMark>? rigMarks = null,
         ViewModels.SelectionManager? selectionManager = null,
         Func<IReadOnlyList<Core.Documents.SymbolPlacement>?>? getPlacementsForSelection = null,
-        PresentedFrame? presented = null) : ICustomDrawOperation
+        PresentedFrame? presented = null,
+        Action<GRContext?>? gpuWork = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -2944,6 +2989,15 @@ public sealed class CanvasControl : Control
             var artwork = presented is null
                 ? snapshot.Image
                 : presented.Present(lease.GrContext, snapshot.Image, snapshot.ChangedInImage, snapshot.Seq);
+
+            // Queued work that needs the context (the render report's upload
+            // probe). After the frame's own drawing, and wrapped, because a
+            // diagnostic must never be able to take the compositor down — the
+            // catch in Render would survive it, but this frame would be lost.
+            if (gpuWork is not null)
+            {
+                try { gpuWork(lease.GrContext); } catch { /* a report is not worth a frame */ }
+            }
 
             // Checkerboard, artwork, guides — one call, because splitting them
             // apart is how B17 happened. See GuidePainter.PaintDocument.
