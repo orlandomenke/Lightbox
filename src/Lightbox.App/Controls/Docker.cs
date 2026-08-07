@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Lightbox.App.Docking;
 
@@ -140,12 +141,82 @@ public class Docker : ContentControl
     /// A tab was clicked. The host decides what that means; a docker does not
     /// know which of its siblings are showing.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B132: posted, not raised.</b> Answering this event means the strip is
+    /// rebuilt — the docker showing leaves it and another takes its place — and
+    /// the docker showing is <em>this one</em>, whose ListBox is still
+    /// dispatching the selection it just changed. Detaching a control from
+    /// inside its own descendant's event is a native crash rather than an
+    /// exception, so nothing catches it and no crash report names a cause.
+    /// </para>
+    /// <para>
+    /// A turn of the dispatcher is all it needs: the selection finishes
+    /// unwinding, the ListBox is done touching its containers, and the rebuild
+    /// then reparents a control nobody is standing on. It costs one frame,
+    /// which is not a thing an artist can see, and it is the fix at the place
+    /// that knows about the hazard rather than at every handler that might
+    /// later subscribe.
+    /// </para>
+    /// </remarks>
     private void OnTabPicked(object? sender, SelectionChangedEventArgs e)
     {
+        // The host is writing the answer in, not the artist choosing one.
+        if (_applying) return;
+
         if (_tabs?.SelectedItem is not DockPanelInfo picked) return;
         // Only when it is a change. Re-selecting the tab already showing would
         // otherwise mark the workspace dirty for a click that did nothing.
-        if (picked.Id != ActiveTab) TabPicked?.Invoke(this, picked.Id);
+        if (picked.Id == ActiveTab) return;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            // Re-checked inside the post: between the click and this turn the
+            // group may have been taken apart by a drag, a workspace switch or
+            // the panel being closed, and activating a tab that is no longer
+            // in this slot would move a panel the artist never touched.
+            if (Tabs?.Any(t => t.Id == picked.Id) is true && picked.Id != ActiveTab)
+            {
+                TabPicked?.Invoke(this, picked.Id);
+            }
+        });
+    }
+
+    private bool _applying;
+
+    /// <summary>
+    /// Set the slot's tabs and which one is showing, as the layout says.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not two property assignments, and B132 is why.</b> Writing
+    /// <see cref="Tabs"/> re-binds the strip and writing <see cref="ActiveTab"/>
+    /// moves its selection; each raises <c>SelectionChanged</c>, and in between
+    /// the two the control is in a state no artist ever produced — the new tab
+    /// list against the old active id. The handler read that as a click on a
+    /// tab, asked the host to activate it, and the host answered by applying
+    /// the layout again. <b>An infinite loop, not a crash</b>, which presents as
+    /// the application locking up rather than as anything with a stack trace.
+    /// </para>
+    /// <para>
+    /// The obvious repair is to assign in the other order, and it works for
+    /// exactly as long as nobody swaps two lines. This says what is meant
+    /// instead: while the host is writing the answer in, a selection change is
+    /// not a choice.
+    /// </para>
+    /// </remarks>
+    public void ShowTabs(IReadOnlyList<DockPanelInfo>? tabs, DockPanelId active)
+    {
+        _applying = true;
+        try
+        {
+            Tabs = tabs;
+            ActiveTab = active;
+        }
+        finally
+        {
+            _applying = false;
+        }
     }
 
     /// <summary>

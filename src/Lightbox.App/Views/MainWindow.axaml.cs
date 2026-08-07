@@ -368,8 +368,10 @@ public partial class MainWindow : Window
                 // the slot blank.
                 var active = usable.Contains(layout.ActiveOf(slot)) ? layout.ActiveOf(slot) : usable[0];
                 var panel = _panels[active];
-                panel.Tabs = usable.Count > 1 ? usable.Select(DockPanels.Of).ToList() : null;
-                panel.ActiveTab = active;
+                // One call, not two assignments: between them the strip holds a
+                // new tab list against an old active id, and the docker used to
+                // read that as a click. See Docker.ShowTabs and B132.
+                panel.ShowTabs(usable.Count > 1 ? usable.Select(DockPanels.Of).ToList() : null, active);
                 panels.Add(panel);
             }
             foreach (var panel in panels) Detach(panel);

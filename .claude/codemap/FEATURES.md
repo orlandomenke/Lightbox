@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2848 tests, derived from the suite itself. Each line is a
+2851 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2204,6 +2204,13 @@ regression even when every test still compiles.
 - AProjects Symbols Resolve Once The Project Is Open — `:46`
 - Closing AProject Stops Its Symbols Resolving — `:60`
 - Deleting ASymbol Stops It Resolving — `:78`
+
+## TabSwitchCrashTests
+`tests/Lightbox.App.Tests/TabSwitchCrashTests.cs`
+
+- Switching Back And Forth Between Tabs Does Not Crash — `:62`
+- The Other Pair In The Report Behaves The Same Way — `:87`
+- The Docker Showing After ASwitch Is The One In The Strip — `:103`
 
 ## TemplateUiTests
 `tests/Lightbox.App.Tests/TemplateUiTests.cs`
