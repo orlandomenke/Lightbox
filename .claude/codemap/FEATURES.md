@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2763 tests, derived from the suite itself. Each line is a
+2765 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -650,6 +650,8 @@ regression even when every test still compiles.
 - The Timeline Is Not Draggable — `:133`
 - ALayout Round Trips Through Json — `:142`
 - ACorrupt Layout Falls Back Rather Than Throwing — `:158`
+- Cloning ALayout Keeps The Rulers And Guide Flags — `:168`
+- AClone Shares Nothing With The Original — `:188`
 
 ## DockZoneTests
 `tests/Lightbox.App.Tests/DockZoneTests.cs`

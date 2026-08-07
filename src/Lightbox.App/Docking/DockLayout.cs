@@ -238,11 +238,27 @@ public sealed class DockLayout
         for (var i = 0; i < order.Count; i++) Place(order[i]).Order = i;
     }
 
+    /// <summary>A copy that shares nothing with the original.</summary>
+    /// <remarks>
+    /// <b>Every field, and the three at the bottom are why this has a comment.</b>
+    /// <c>Rulers</c>, <c>GuidesVisible</c> and <c>GuidesLocked</c> were missing,
+    /// and both <c>WorkspaceViewModel.Apply</c> and <c>WorkspaceStore.Save</c>
+    /// go through here — so switching workspace or saving one silently reset
+    /// all three to their defaults. Nothing failed; the settings just went back
+    /// to how they started, which reads as the application forgetting rather
+    /// than as a bug with a place to look.
+    ///
+    /// A field added to this type and not added here has that same failure
+    /// waiting for it, and the compiler will not say a word.
+    /// </remarks>
     public DockLayout Clone() => new()
     {
         Placements = Placements.ToDictionary(p => p.Key, p => p.Value.Clone()),
         AreaExtents = new Dictionary<DockSide, double>(AreaExtents),
         Overlays = Overlays.Clone(),
+        Rulers = Rulers,
+        GuidesVisible = GuidesVisible,
+        GuidesLocked = GuidesLocked,
     };
 
     // ---- persistence ---------------------------------------------------------

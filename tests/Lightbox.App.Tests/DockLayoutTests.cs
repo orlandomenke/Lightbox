@@ -163,4 +163,40 @@ public class DockLayoutTests
             DockLayout.Default().PanelsIn(DockSide.Right),
             DockLayout.Deserialize("{ not json at all").PanelsIn(DockSide.Right));
     }
+
+    [Fact]
+    public void CloningALayoutKeepsTheRulersAndGuideFlags()
+    {
+        // Clone is on the path of both applying a workspace and saving one, so
+        // a field it forgets is a setting that silently resets every time you
+        // switch workspace. Nothing throws — the flags just go back to their
+        // defaults, which reads as the application forgetting rather than as a
+        // bug with a place to look.
+        var layout = DockLayout.Default();
+        layout.Rulers = true;
+        layout.GuidesVisible = false;
+        layout.GuidesLocked = true;
+
+        var copy = layout.Clone();
+
+        Assert.True(copy.Rulers);
+        Assert.False(copy.GuidesVisible);
+        Assert.True(copy.GuidesLocked);
+    }
+
+    [Fact]
+    public void ACloneSharesNothingWithTheOriginal()
+    {
+        // The other half of what Clone is for. Applying a workspace hands out a
+        // copy precisely so that rearranging panels does not edit the saved
+        // layout under it.
+        var layout = DockLayout.Default();
+        var copy = layout.Clone();
+
+        copy.Dock(DockPanelId.Color, DockSide.Left, 0);
+        copy.Rulers = !layout.Rulers;
+
+        Assert.NotEqual(copy.Place(DockPanelId.Color).Side, layout.Place(DockPanelId.Color).Side);
+        Assert.NotEqual(copy.Rulers, layout.Rulers);
+    }
 }
