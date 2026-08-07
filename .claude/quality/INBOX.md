@@ -38,6 +38,34 @@ archive. The archive is `BUGS.md` itself.
 
 <!-- Append new reports below this line, oldest first. -->
 
+### Unbounded Canvas Issues (2026-08-07)
+
+1. **Background layer does not grow with infinite canvas**
+   - When creating a new file with unbounded canvas enabled and a background layer, the background color should extend across the entire infinite canvas, not remain bounded.
+   - Currently: background only fills the initial viewport/bounds
+   - Expected: background color expands with the infinite canvas
+
+2. **Cursor and active stroke misalignment**
+   - While drawing (LMB held down), the cursor position and the painted stroke are visibly offset from each other
+   - The stroke does not follow the cursor in real-time
+   - Screenshot shows significant spatial separation between where the user is pointing and where paint appears
+
+3. **Committed strokes land at different position than during drawing**
+   - A stroke appears in one location while drawing (before release)
+   - Upon release and commit, the same stroke appears at a different position
+   - This indicates either viewport transform issue during stroke finalization or tile positioning problem
+
+4. **Painting limited to viewport bounds, not entire infinite canvas**
+   - Strokes can only be drawn in the visible black rectangle area
+   - Attempting to paint outside this bounds area does nothing
+   - Fill tool exhibits the same limitation - only fills within the rectangle
+   - Expected: should be able to paint anywhere on the infinite canvas
+
+5. **Zooming out does not reveal full infinite canvas**
+   - Zooming out shows no expansion of the paintable area
+   - Canvas appears size-limited rather than infinite
+   - Expected: zooming out should reveal more of the infinite canvas (tiles beyond current view)
+
 ## Needs a decision
 
 <!-- Reports that could not be turned into a BUGS.md entry without a human call. -->
