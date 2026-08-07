@@ -58,7 +58,40 @@ internal static class RenderReport
         int DocHeight,
         double DisplayScale,
         string CanvasQuality,
-        double ComposeScale);
+        double ComposeScale,
+        bool DurableFrameEnabled = false,
+        bool DurableFrameHasPresented = false);
+
+    /// <summary>
+    /// Why the durable frame is or is not on the GPU, in words rather than a
+    /// boolean.
+    /// </summary>
+    /// <remarks>
+    /// <b>The first report from a real machine was misread because of this line,
+    /// and the misreading was the report's fault.</b> It printed
+    /// <c>durable frame on GPU: no</c> on a build where B130 had switched the
+    /// durable frame off entirely — so "no" was true and meant nothing like what
+    /// it appeared to mean. Four states share that one boolean: switched off, on
+    /// but not yet used, working, and fell back. Only the last is a problem, and a
+    /// diagnostic that cannot separate "not in use" from "failed" is worse than
+    /// silence, because it invites exactly the wrong conclusion.
+    /// </remarks>
+    private static string DurableFrameState(Facts f)
+    {
+        if (!f.DurableFrameEnabled)
+        {
+            return "off — B130 disabled it by default; set LIGHTBOX_DURABLE_FRAME=1 to measure it";
+        }
+        if (f.GpuSurfaceRequestFailed)
+        {
+            return "NO — a GPU surface was asked for and refused, so it fell back to CPU";
+        }
+        if (!f.DurableFrameHasPresented)
+        {
+            return "on, but nothing has been presented yet — take an on-demand report after drawing";
+        }
+        return f.PresentedFrameOnGpu ? "yes" : "no — running on a CPU surface";
+    }
 
     /// <summary>
     /// Write the startup report, once. Returns the file, or null if nothing was
@@ -180,7 +213,8 @@ internal static class RenderReport
 
         sb.AppendLine("-- where the work happens ------------------------------------");
         sb.AppendLine($"presentation backend      {facts.Backend}");
-        sb.AppendLine($"durable frame on GPU      {Yes(facts.PresentedFrameOnGpu)}");
+        sb.AppendLine($"  (this is the FINAL BLIT only — compositing is on the CPU either way)");
+        sb.AppendLine($"durable frame (B122)      {DurableFrameState(facts)}");
         if (facts.GpuSurfaceRequestFailed)
         {
             sb.AppendLine("  !! a GPU surface was asked for and could not be created, so the");
@@ -189,6 +223,20 @@ internal static class RenderReport
             sb.AppendLine("     the line to report — see B122 and B125.");
         }
         sb.AppendLine($"max texture size          {facts.MaxTextureSize?.ToString() ?? "unknown"}");
+        // The comparison rather than the two numbers, because the number alone
+        // invites the guess. The first real report showed 16384 against a 960-wide
+        // surface, which settles the question it was raised about — a texture limit
+        // cannot be why a 4K canvas feels slow — and saying so here means nobody
+        // has to work it out twice.
+        if (facts.MaxTextureSize is { } limit && limit > 0)
+        {
+            var widest = Math.Max(
+                (int)Math.Ceiling(facts.DocWidth * facts.ComposeScale),
+                (int)Math.Ceiling(facts.DocHeight * facts.ComposeScale));
+            sb.AppendLine(widest > limit
+                ? $"  !! the compose surface's {widest} px exceeds it — a GPU surface cannot be made"
+                : $"  the compose surface's widest side is {widest} px, so the limit is not a factor");
+        }
         sb.AppendLine("compositing               CPU raster (always — see B125)");
         sb.AppendLine();
 
@@ -202,6 +250,19 @@ internal static class RenderReport
         sb.AppendLine($"compose surface           {surfaceW} x {surfaceH}"
                       + $"  ({surfaceW * (long)surfaceH * 4 / 1024.0 / 1024.0:0.0} MB per full frame)");
         sb.AppendLine();
+
+        // Say when there is nothing to say. A startup report has no measurements
+        // by construction — it is written on the first frame — and a section that
+        // is simply missing reads as "nothing was wrong" rather than "nothing was
+        // looked at".
+        if (kind == "Startup")
+        {
+            sb.AppendLine("-- measured ---------------------------------------------------");
+            sb.AppendLine("Nothing yet: this is the startup report, written on the first frame");
+            sb.AppendLine("before anything has been drawn. For timings, counters and the upload");
+            sb.AppendLine("probe, draw for a while and then use Help > Write a render report.");
+            sb.AppendLine();
+        }
 
         if (totals is { } t && t.Presents > 0)
         {
@@ -236,6 +297,15 @@ internal static class RenderReport
             sb.AppendLine("  A speedup near 1x on a GPU-backed surface means the patch is not");
             sb.AppendLine("  the thing costing time, and the remaining cost is the CPU");
             sb.AppendLine("  composite (B125) rather than the transfer.");
+            sb.AppendLine();
+            // Said here because it is the obvious and wrong assumption: that a
+            // disabled feature cannot be measured. The probe builds its own frame
+            // against the real context, so this number is about the hardware
+            // whether or not the paint path is using it.
+            sb.AppendLine("  This probe runs against the real graphics context regardless of");
+            sb.AppendLine("  whether the durable frame is switched on above — it builds its own.");
+            sb.AppendLine("  So these two numbers are the GPU measurement, and they are valid");
+            sb.AppendLine("  even when the line above says \"off\".");
             sb.AppendLine();
         }
 

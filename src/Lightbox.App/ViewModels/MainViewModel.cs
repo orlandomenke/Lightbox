@@ -4642,11 +4642,27 @@ public sealed partial class MainViewModel : ObservableObject
     /// How tall a timeline row is.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Matched to the layer rows beside it. They were 44 against the Layers
     /// docker's shorter rows, which made the two lists of the same layers read
     /// as two unrelated things.
+    /// </para>
+    /// <para>
+    /// <b>26, matching the Layers docker again after the density retune.</b> The
+    /// two lists show the same layers and have to be read across, so the number
+    /// that matters is not this one on its own — it is that this one and a
+    /// docker row agree. They had drifted to 28 against 33; both are 26 now,
+    /// which is the icon tile with no padding either side.
+    /// </para>
+    /// <para>
+    /// The floor is the thumbnail, not the row: <see cref="TimelineThumbHeight"/>
+    /// is 16 and the cel needs a couple of pixels around it. <c>DESIGN.md</c>
+    /// protects timeline cells from being shrunk — "a 12 px cell is a misdrop
+    /// waiting to happen" — and 26 is nowhere near that. It is a scale entry
+    /// rather than a free number, so it moves when the scale does.
+    /// </para>
     /// </remarks>
-    public double TimelineRowHeight => 28;
+    public double TimelineRowHeight => 26;
 
     public double TimelineThumbWidth => Math.Max(12, TimelineFrameWidth - 8);
 

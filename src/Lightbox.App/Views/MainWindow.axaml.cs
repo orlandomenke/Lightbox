@@ -757,7 +757,9 @@ public partial class MainWindow : Window
             _vm.ReportDocHeight,
             _vm.ReportDisplayScale,
             _vm.CanvasQuality.ToString(),
-            _vm.ReportComposeScale);
+            _vm.ReportComposeScale,
+            Rendering.CanvasControl.DurableFrameEnabled,
+            totals.Presents > 0);
     }
 
     /// <summary>

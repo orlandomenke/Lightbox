@@ -141,7 +141,7 @@
 
     <!-- Menu bar -->
     <Menu DockPanel.Dock="Top">
-      <MenuItem Header="_File">
+      <MenuItem Header="_File" Classes="top">
         <MenuItem Header="_New…" Click="OnNewClicked" />
         <MenuItem Header="_Open…" Click="OnOpenClicked" />
         <!--
@@ -200,7 +200,7 @@
         <MenuItem Header="Export for a _game engine…" Click="OnExportSheetClicked"
                   ToolTip.Tip="Sprite sheet, sidecar and optional Unity importer. Trim, layout and background handling live here." />
       </MenuItem>
-      <MenuItem Header="_Edit">
+      <MenuItem Header="_Edit" Classes="top">
         <MenuItem Header="_Configure…" Click="OnConfigureClicked" />
         <MenuItem Header="Brush _library…" Click="OnBrushLibraryClicked" />
         <MenuItem Header="Brush _tips…" Click="OnBrushTipsClicked" />
@@ -240,7 +240,7 @@
                   IsChecked="{Binding ShowStartScreen, Mode=TwoWay}"
                   ToolTip.Tip="The start screen. Escape on it always drops through to a blank document." />
       </MenuItem>
-      <MenuItem Header="_View">
+      <MenuItem Header="_View" Classes="top">
         <!--
           Guides are document data, like the camera, so they live under View
           next to the other things you turn on rather than in a panel that
@@ -335,7 +335,7 @@
         half of the same question, and it is remembered across restarts because
         the way it gets used is "turn it on, restart, reproduce".
       -->
-      <MenuItem Header="_Help">
+      <MenuItem Header="_Help" Classes="top">
         <MenuItem Header="Open the diagnostics folder" Click="OnOpenDiagnosticsFolder"
                   ToolTip.Tip="Crash reports and the log of problems Lightbox survived" />
         <MenuItem Header="Show a console while drawing" ToggleType="CheckBox"
@@ -387,7 +387,7 @@
     </Menu>
 
     <!-- Dynamic tool options bar: contents depend on the selected tool -->
-    <Border DockPanel.Dock="Top" Padding="8,6" Background="{StaticResource BackgroundSecondaryBrush}">
+    <Border DockPanel.Dock="Top" Padding="8,2" Background="{StaticResource BackgroundSecondaryBrush}">
       <DockPanel>
 
         <!--
@@ -1520,7 +1520,7 @@
 
     <!-- AI bar. Absent, not greyed, when assistance is switched off: a row
          that can never do anything is worse than no row. -->
-    <Border DockPanel.Dock="Top" Padding="8,4" Background="{StaticResource SurfacePanelBrush}"
+    <Border DockPanel.Dock="Top" Padding="8,2" Background="{StaticResource SurfacePanelBrush}"
             IsVisible="{Binding AiEnabled}"
             ToolTip.Tip="{Binding AiUnavailableHint}">
       <StackPanel Orientation="Horizontal" Spacing="10">
@@ -1542,7 +1542,7 @@
 
     <!-- Info strip: what the document is, and how much room the machine has left -->
     <Border DockPanel.Dock="Bottom" Background="{StaticResource BackgroundSecondaryBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
-            Padding="10,4">
+            Padding="10,2">
       <DockPanel LastChildFill="False">
         <TextBlock DockPanel.Dock="Left" Text="{Binding DocumentSizeLabel}" FontSize="11" Opacity="0.85"
                    VerticalAlignment="Center" ToolTip.Tip="Canvas size and resolution of the open document" />
@@ -1570,7 +1570,7 @@
     </Border>
 
     <!-- Open documents: click to switch, ✕ to close, • marks unsaved changes -->
-    <Border DockPanel.Dock="Top" Background="{StaticResource BackgroundSecondaryBrush}" Padding="4,3,4,0">
+    <Border DockPanel.Dock="Top" Background="{StaticResource BackgroundSecondaryBrush}" Padding="4,2,4,0">
       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
         <ItemsControl ItemsSource="{Binding Tabs}">
           <ItemsControl.ItemsPanel>
@@ -1580,9 +1580,9 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:DocumentTab">
-              <Border Classes="docTab" Classes.active="{Binding IsActive}" Padding="2,2,2,2">
+              <Border Classes="docTab" Classes.active="{Binding IsActive}" Padding="2,0">
                 <StackPanel Orientation="Horizontal" Spacing="0">
-                  <Button Content="{Binding DisplayTitle}" Background="Transparent" Padding="8,3"
+                  <Button Content="{Binding DisplayTitle}" Background="Transparent" Padding="8,1"
                           Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateTabCommand}"
                           CommandParameter="{Binding}" />
                   <Button Classes="icon" Content="✕" FontSize="10" Background="Transparent"
