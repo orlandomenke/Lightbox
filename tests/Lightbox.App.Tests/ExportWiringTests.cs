@@ -42,7 +42,7 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
     {
         var vm = Vm();
         var docker = vm.ProjectDocker;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
         var reference = Assert.Single(docker.Project!.Manifest.Documents, d => d.Name == "Walk");
         var before = reference.Version;
 
@@ -64,8 +64,8 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Run");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Run");
 
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
         var described = docker.DescribeExportPlan();
@@ -81,7 +81,7 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
     {
         var vm = Vm();
         var docker = vm.ProjectDocker;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
         vm.SaveProject();
 
         var artifact = Assert.Single(
@@ -117,8 +117,8 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Run");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Run");
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
 
         // Unscoped: two documents, two files.
@@ -155,7 +155,7 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
 
         var knight = Assert.Single(docker.Rows, r => r.Name == "Knight");
         docker.Selected = knight;
@@ -199,7 +199,7 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
     public void NothingExportedMeansNothingStale()
     {
         var vm = Vm();
-        vm.ProjectDocker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        vm.ProjectDocker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
         vm.SaveProject();
         Assert.Empty(vm.ProjectDocker.StaleExports());
     }
@@ -218,8 +218,8 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Run");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Run");
         vm.SaveProject(everything: true);
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
 
@@ -250,8 +250,8 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
         var docker = vm.ProjectDocker;
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Run");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Run");
         vm.SaveProject(everything: true);
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
 
@@ -316,7 +316,7 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
     {
         var vm = Vm();
         var docker = vm.ProjectDocker;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
         vm.SaveProject(everything: true);
 
         // Delete one from under the project, which is B61's ordinary case.
@@ -353,7 +353,7 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
     {
         var vm = Vm();
         var docker = vm.ProjectDocker;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
         vm.SaveProject(everything: true);
 
         // NewProject adopts the untitled document, so the plan holds two — record

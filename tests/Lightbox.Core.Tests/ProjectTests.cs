@@ -39,9 +39,9 @@ public sealed class ProjectTests : IDisposable
     private Project TwoAnimations(out DocumentRef walk, out DocumentRef idle)
     {
         var project = ProjectIo.Create("Knight", _root);
-        var knight = ProjectIo.AddCharacter(project, "Knight");
-        walk = ProjectIo.AddAnimation(project, knight, "Walk", Drawing());
-        idle = ProjectIo.AddAnimation(project, knight, "Idle", Drawing("#b03040"));
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");
+        walk = ProjectIo.AddDocument(project, "Walk", Drawing(), knight);
+        idle = ProjectIo.AddDocument(project, "Idle", Drawing("#b03040"), knight);
         return project;
     }
 
@@ -53,10 +53,11 @@ public sealed class ProjectTests : IDisposable
 
         var reloaded = ProjectIo.Load(_root);
         Assert.Equal("Knight", reloaded.Name);
-        var character = Assert.Single(reloaded.Characters);
-        Assert.Equal("Knight", character.Name);
-        Assert.Equal(2, character.Animations.Count);
-        Assert.Contains(character.Animations, a => a.Id == walk.Id);
+        var knight = Assert.Single(ProjectFolders.All(reloaded.Manifest));
+        Assert.Equal("Knight", knight.Name);
+        var animations = ProjectFolders.DocumentsIn(reloaded.Manifest, knight);
+        Assert.Equal(2, animations.Count);
+        Assert.Contains(animations, a => a.Id == walk.Id);
     }
 
     [Fact]
@@ -69,15 +70,13 @@ public sealed class ProjectTests : IDisposable
         ProjectIo.Save(project);
 
         var manifest = File.ReadAllText(Path.Combine(_root, "project.json"));
-        var character = File.ReadAllText(
-            Path.Combine(_root, "characters", "knight", "character.json"));
         // As a name rather than a number, so a hand-edit and a diff both read. Camel
         // case, because that is what DocJson.Options applies to every enum in the
         // project — consistency with the rest of the file beats matching the C# spelling.
-        Assert.Contains("\"status\": \"ready\"", character + manifest);
+        Assert.Contains("\"status\": \"ready\"", manifest);
 
         var reloaded = ProjectIo.Load(_root);
-        var animations = reloaded.Characters.Single().Animations;
+        var animations = reloaded.Manifest.Documents;
         Assert.Equal(AssetStatus.Ready, animations.Single(a => a.Id == walk.Id).Status);
         // And the one nobody set stays unset — "nobody has said" is not "Design".
         Assert.Null(animations.Single(a => a.Id == idle.Id).Status);
@@ -90,7 +89,7 @@ public sealed class ProjectTests : IDisposable
         // and must not need it open.
         var project = TwoAnimations(out var walk, out _);
         ProjectIo.Save(project);
-        var file = Path.Combine(_root, "characters", "knight", "animations", "walk.lightbox.json");
+        var file = Path.Combine(_root, "knight", "walk.lightbox.json");
         var before = File.ReadAllBytes(file);
 
         walk.Status = AssetStatus.Ready;
@@ -105,10 +104,12 @@ public sealed class ProjectTests : IDisposable
         var project = TwoAnimations(out _, out _);
         ProjectIo.Save(project);
 
+        // One index file and one directory per folder, since B114. There is no
+        // `characters/` and no second `character.json` — a character is a folder
+        // like any other, so its work is filed the way every folder's is.
         Assert.True(File.Exists(Path.Combine(_root, "project.json")));
-        Assert.True(File.Exists(Path.Combine(_root, "characters", "knight", "character.json")));
-        Assert.True(File.Exists(Path.Combine(
-            _root, "characters", "knight", "animations", "walk.lightbox.json")));
+        Assert.False(Directory.Exists(Path.Combine(_root, "characters")));
+        Assert.True(File.Exists(Path.Combine(_root, "knight", "walk.lightbox.json")));
     }
 
     [Fact]
@@ -156,7 +157,7 @@ public sealed class ProjectTests : IDisposable
         var reloaded = ProjectIo.Load(_root);
         Assert.Empty(reloaded.Loaded);
 
-        var first = reloaded.Characters.First().Animations[0];
+        var first = reloaded.Manifest.Documents[0];
         Assert.NotNull(ProjectIo.LoadDocument(reloaded, first));
         Assert.Single(reloaded.Loaded);
     }
@@ -237,12 +238,12 @@ public sealed class ProjectTests : IDisposable
         var palette = new Palette { Name = "Knight", Swatches = [swatch] };
         var project = ProjectIo.Create("Knight", _root);
         project.Palettes.Add(palette);
-        var knight = ProjectIo.AddCharacter(project, "Knight");
-        knight.PaletteId = palette.Id;
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");
+        ResourceScopes.Declare(project.Manifest, knight, PaletteScopes.Kind, palette.Id);
 
         var doc = Drawing();
         ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0].SwatchId = swatch.Id;
-        ProjectIo.AddAnimation(project, knight, "Walk", doc);
+        ProjectIo.AddDocument(project, "Walk", doc, knight);
         ProjectIo.Save(project);
 
         var reloaded = ProjectIo.Load(_root);
@@ -250,21 +251,21 @@ public sealed class ProjectTests : IDisposable
         Assert.Equal(palette.Id, back.Id);
         Assert.Equal(swatch.Id, Assert.Single(back.Swatches).Id);
         // And the links still resolve, which is the thing that actually broke.
-        Assert.Equal(back.Id, reloaded.Characters.First().PaletteId);
-        Assert.NotNull(reloaded.PaletteFor(reloaded.Characters.First()));
+        var folder = Assert.Single(ProjectFolders.All(reloaded.Manifest));
+        Assert.Equal(back.Id, reloaded.PaletteFor(folder)!.Id);
     }
 
     [Fact]
-    public void CharacterFoldersAreUniqueEvenWhenNamesCollide()
+    public void FoldersAreUniqueEvenWhenNamesCollide()
     {
         var project = ProjectIo.Create("P", _root);
-        var a = ProjectIo.AddCharacter(project, "Knight");
-        var b = ProjectIo.AddCharacter(project, "Knight");
-        Assert.NotEqual(a.Slug, b.Slug);
+        var a = ProjectFolders.Add(project.Manifest, "Knight");
+        var b = ProjectFolders.Add(project.Manifest, "Knight");
 
-        ProjectIo.Save(project);
-        Assert.True(Directory.Exists(Path.Combine(_root, "characters", a.Slug)));
-        Assert.True(Directory.Exists(Path.Combine(_root, "characters", b.Slug)));
+        Assert.NotEqual(a.Id, b.Id);
+        // Numbered rather than refused: two folders called "Knight" in one place
+        // is a slip, and the artist wants the second one more than an error.
+        Assert.NotEqual(a.Name, b.Name);
     }
 
     [Theory]
@@ -277,7 +278,7 @@ public sealed class ProjectTests : IDisposable
         Assert.Equal(expected, ProjectIo.Slug(name));
 
     [Fact]
-    public void MigratingALooseDocumentGivesAOneCharacterProject()
+    public void MigratingALooseDocumentGivesAOneDocumentProject()
     {
         var path = Path.Combine(Path.GetTempPath(), $"walk-{Guid.NewGuid():N}.lightbox.json");
         var doc = Drawing();
@@ -287,8 +288,10 @@ public sealed class ProjectTests : IDisposable
         {
             var project = ProjectIo.Migrate(DocJson.Load(path), path);
 
-            var character = Assert.Single(project.Characters);
-            Assert.Single(character.Animations);
+            // No folder is invented — B83/B84. One document at the root is what
+            // was opened, so it is what the project holds.
+            Assert.Single(project.Manifest.Documents);
+            Assert.Empty(ProjectFolders.All(project.Manifest));
             // The document's palettes become the project's — the point of
             // migrating is that they are now shared.
             Assert.Equal("#123456", Assert.Single(Assert.Single(project.Palettes).Swatches).Color);
@@ -308,11 +311,11 @@ public sealed class ProjectTests : IDisposable
         var unused = new Swatch { Color = "#c02040" };
         var project = ProjectIo.Create("Knight", _root);
         project.Palettes.Add(new Palette { Swatches = [used, unused] });
-        var knight = ProjectIo.AddCharacter(project, "Knight");
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");
 
         var doc = Drawing();
         ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0].SwatchId = used.Id;
-        ProjectIo.AddAnimation(project, knight, "Walk", doc);
+        ProjectIo.AddDocument(project, "Walk", doc, knight);
 
         var flat = ProjectIo.Flatten(doc, project);
 
@@ -329,7 +332,7 @@ public sealed class ProjectTests : IDisposable
         var gradient = new Gradient { Name = "Sky" };
         var project = ProjectIo.Create("P", _root);
         project.Gradients[gradient.Id] = gradient;
-        var character = ProjectIo.AddCharacter(project, "C");
+        var character = ProjectFolders.Add(project.Manifest, "C");
 
         var doc = Drawing();
         ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
@@ -339,7 +342,7 @@ public sealed class ProjectTests : IDisposable
             Points = [new StrokePoint(0, 0, 1), new StrokePoint(100, 0, 1)],
             Brush = new BrushSettings { Opacity = 1 },
         });
-        ProjectIo.AddAnimation(project, character, "A", doc);
+        ProjectIo.AddDocument(project, "A", doc, character);
 
         var flat = ProjectIo.Flatten(doc, project);
         Assert.Equal("Sky", Assert.Single(flat.Gradients).Value.Name);
@@ -363,11 +366,11 @@ public sealed class ProjectTests : IDisposable
     }
 
     [Fact]
-    public void AnEmptyProjectSavesAndLoadsWithoutCharacters()
+    public void AnEmptyProjectSavesAndLoadsWithNothingInIt()
     {
         ProjectIo.Save(ProjectIo.Create("Empty", _root));
         var reloaded = ProjectIo.Load(_root);
-        Assert.Empty(reloaded.Characters);
+        Assert.Empty(ProjectFolders.All(reloaded.Manifest));
         Assert.Empty(reloaded.Manifest.Documents);
     }
 

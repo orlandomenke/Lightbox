@@ -115,7 +115,13 @@ public static class SymbolGraph
         if (!counts.TryGetValue(symbolId, out var perDoc)) return new SymbolUsage(symbolId, []);
         var uses = perDoc
             .Where(kv => refs.ContainsKey(kv.Key))
-            .Select(kv => new SymbolUse(refs[kv.Key], project.OwnerOf(refs[kv.Key])?.Name, kv.Value))
+            // The folder is the owner now (B114). It used to be the character,
+            // which meant a symbol placed in a loose document reported no owner
+            // at all — the same blind spot that made the bug worth filing.
+            .Select(kv => new SymbolUse(
+                refs[kv.Key],
+                ProjectFolders.ById(project.Manifest, refs[kv.Key].FolderId)?.Name,
+                kv.Value))
             .OrderByDescending(u => u.Placements)
             .ThenBy(u => u.Document.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();

@@ -127,6 +127,13 @@ public sealed class ShortcutMap
             // purpose so a project still opens, and a swallowed failure with no
             // manual path is just the bug again with better manners.
             new("project.refresh", "Re-read the project from disk", "Dockers", G(Key.F5)),
+
+            // Q29's other surface. Registered here rather than written onto the
+            // menu item, which is the trap Ctrl+S fell into: a gesture on a
+            // MenuItem cannot be seen, searched or rebound, and nobody noticed
+            // Save as had none at all. `Ctrl+P` is free — nothing prints.
+            new("project.window", "Project window (structure, status, assets)", "File",
+                G(Key.P, KeyModifiers.Control)),
         ];
     }
 

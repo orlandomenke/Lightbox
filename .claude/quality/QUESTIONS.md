@@ -10,6 +10,171 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q45 · How far does the people model go, with no server? — **answered: a name and an id, forever**
+
+**Answered 2026-08-07: `Person` is a label with a stable id, and it never gains
+a role or a rights field.** Recorded as a decision rather than left as a comment
+on the type, because the pressure to add one arrives with the first dashboard
+filter.
+
+**The reason is that rights inside this application would be theatre.** The
+manifest is plain JSON on disk — a stated design commitment, so an agent can
+read and write any part of it and so a project diffs in git. A permission a text
+editor defeats is not a permission; it is a UI that lies about what it enforces,
+which is the same class of defect as a menu entry bound to nothing and worse,
+because people plan around it.
+
+An advisory role field was rejected for that exact reason: a role that grants
+nothing will be read as granting something, and the first time somebody asks why
+a junior could still edit a locked shot, the honest answer is that the field
+never meant that — by which point the studio has organised around it.
+
+Designing the client/server split now was rejected as architecture for a product
+that does not exist, paid for by the one user who does.
+
+**The two positions this leaves, in order:**
+
+1. **The project file is the shared state and the network is somebody else's** —
+   git, a shared drive. The `.lbproj` folder-of-JSON layout was designed for
+   this, and assignment and status are fields people edit and merge.
+2. **Feed an existing tracker** — ShotGrid, Kitsu, Flow — through an adapter, if
+   a studio ever needs one. It needs no new model, because documents already
+   have stable ids to match a shot against. Kitsu being open-source is the same
+   instinct as bring-your-own-model.
+
+**The accepted cost:** two people editing one manifest can conflict, and nothing
+in Lightbox mediates it. The merge is the studio's, the same as for any other
+file in their repository.
+
+## Q41 · Where does the project window live? — **answered: its own window**
+
+**Answered 2026-08-07: a top-level window with tabs inside it**, opened like
+Configure and Export. Q29's split made literal — it is what you do *between*
+drawings, so it can sit on a second monitor while the canvas keeps the first,
+and it never competes with drawing space.
+
+A docker was rejected because the whole point is columns — tags, status,
+assignee, length — and a docker strip is 200 pixels. It would be the project
+docker again with more squeezing, which is the surface that already exists. A
+main-window tab was rejected because it makes the tab strip mean two things and
+gives up the second monitor.
+
+The accepted cost: another top-level window to keep in step with a project that
+changes underneath it, and on one small screen it covers the canvas.
+
+## Q42 · What is in the first cut? — **answered: Structure, Status and Assets**
+
+**Answered 2026-08-07: all three, in one branch,** plus the model gaps they
+need — document tags, document-level resources, the user tier. Export follows,
+because `ExportPlan.For` and `Describe` already exist and the row menu already
+reaches that view.
+
+*"Manage assets on project, folder and file level"* was the explicit ask, so
+deferring the Assets tab would have deferred the half that was named. The
+accepted cost is a branch wider than "one branch, one objective" likes; it is
+taken knowingly because the three tabs share the traversal, the selection model
+and the window, and splitting them means building the window twice.
+
+## Q43 · How is "who is working on this" modelled? — **answered: a people list**
+
+**Answered 2026-08-07: named people on the project, assigned by picking.**
+Against the recommendation, which was a free-text name per document.
+
+The case for free text was that a name is a label like the folder glyph, and a
+registry is a table nobody maintains in a single-user alpha. The case that won
+is the feature's own purpose: this is the surface that replaces a spreadsheet,
+and **two spellings of one person is exactly the spreadsheet problem.** Grouping
+and filtering by assignee have to be exact to be worth having, and a rename has
+to fix every row rather than none.
+
+**The costs, recorded because they are real:**
+
+- It is a registry somebody maintains, and in a one-person project it is
+  overhead with no payoff until the second person arrives.
+- It is the first half of an accounts system with no second half — no auth, no
+  sync, no identity. A `Person` here is a name and an id, and must not start
+  looking like a login.
+- A document can name a person who was deleted. The palette path already has
+  this shape and wants the same answer rather than a bespoke one — and deleting
+  a person says how many documents name them first, the way Q35's warning does.
+
+## Q44 · Is a bulk edit undoable? — **answered: no, and nothing is destructive**
+
+**Answered 2026-08-07: no undo.** Status, tags and assignee are manifest
+metadata rather than artwork — changing one touches no pixel, needs no document
+open, and setting it back is the same gesture as setting it. The window says
+what it did.
+
+A second undo stack was rejected: `DocumentEditor`'s is per-document and holds
+document state, so this would be a whole new system, and it would pre-empt *the
+undo record becomes data* — unbuilt roadmap work that would want to own it.
+A confirmation on every bulk edit was rejected as the friction that stops people
+using bulk edits at all.
+
+The accepted cost: a mis-drag on the status board is corrected by hand, and
+Ctrl+Z will feel like it ought to work there.
+
+## Q38 · How does an artist set a folder's glyph? — **answered: a grid plus free entry**
+
+**Answered 2026-08-07: a small grid of common production glyphs with a text box
+beside it.** The owner's point, and it is the sharper version of Q35: deriving
+the glyph from what a folder carries is a designation smuggled back in. It
+forces the code to pick a winner when a folder has several facets, and it will
+pick wrong the first time somebody makes a prop folder with a pivot.
+
+> *"I would rather have the glyphs to be selectable so that an artist/director or
+> whoever could set the glyphs to a folder. So they can define the folder and
+> what content belongs to it."*
+
+**The line that keeps this from becoming a second designation: the glyph is a
+label, the facets are the data.** Nothing in the code reads it — it is
+`Notes` with one character, absent unless set, falling back to `🗀`. The AI path
+asks for *the nearest folder above this with a reading*; export asks for a
+pivot; neither asks what the icon is. So the artist names what a folder means
+without anything downstream depending on their vocabulary, which is the part
+that has to survive a production full of designations nobody wrote down.
+
+Free entry was rejected alone (an empty box gives no hint the feature exists,
+and typing an emoji is a coin toss on Linux) and a closed set was rejected
+outright — it is a designation list wearing a different hat, and the first need
+outside it is a dead end. The grid's cost is accepted: it is curated, so it
+reads as opinionated, and somebody maintains it.
+
+## Q39 · Does a folder row show what it carries? — **answered: only in a details panel**
+
+**Answered 2026-08-07: the row stays name, glyph and duration; the facets show
+when the folder is selected.** Against the recommendation, which was a dim
+summary on the row.
+
+The reason to prefer the row was discovery — otherwise a reading is invisible
+until something goes wrong. The reason it lost is that the docker is already
+dense and a tree of forty rows has to stay scannable, which is the thing the
+panel is *for*.
+
+**The cost, recorded because it is real:** nothing tells you a folder has a
+hand-corrected reading until you click it. What keeps that from being a defect
+is Q35's warning — it fires at the moment of the destructive act, naming what
+goes, which is where the information actually has to be. The row summary would
+only have improved discovery, not safety. If an artist ever loses a reading
+anyway, this is the entry to revisit.
+
+## Q40 · Do "subject" and "scene" survive as words? — **answered: gone from both**
+
+**Answered 2026-08-07: gone from the code and from the UI.** `IsSubject`,
+`IsScene` and `Subjects()` become facet questions — *the nearest folder with a
+reading*, *folders with an order* — and the menu says **Read this folder…**.
+
+Q35 dissolved the two records and then immediately collapsed the facets back
+into two nouns, a glyph switch and a named collection. That is the same
+rigidity one level down: a production has props, environments, effects,
+vehicles, layouts and crowds, and under two privileged nouns every one of them
+is "just a folder".
+
+The cost is a rename across the call sites and the manual, and that *subject*
+is a genuinely useful word which now lives only in
+`docs/DESIGN-subject-reading.md` — where it describes the reading rather than a
+kind of folder, which is what it always meant.
+
 ## Q35 · Do Character and Scene survive as records, or dissolve into folder attributes? — **answered: dissolve**
 
 **Answered 2026-08-07: dissolve entirely.** `Character` and `ProjectScene` go.

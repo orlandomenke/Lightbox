@@ -250,13 +250,13 @@ palette can live* and *one of the places a palette can live*.
 - [x] Project types at creation (Illustration / Animation / Game Art / Storyboard / Comic / Asset Library / Empty) `evidence: NewProjectDialog, NewProjectSettings, NewDocumentSettings`
 - [x] Project as a container above the document `evidence: ProjectManifest, ProjectIo, Project, ProjectTests, AProjectRoundTripsThroughTheFolder`
 - [x] Character workspace — animations, assets, references, palette in one place `evidence: ReferenceSheet, ReferenceSheetModelTests, ReferenceTabTests`
-- [x] Character library `evidence: CharacterLibrary, LibraryEntry, ImportingACharacterBringsItsAnimationsAndPalette, AnImportedCharacterStillPaintsFromItsPalette`
-- [x] Character variants that inherit animations (Default / Winter Armor / Damaged) `evidence: CharacterVariant, AnimationsFor, AVariantInheritsEveryAnimationItDoesNotOverride, AnOverriddenAnimationReplacesOnlyItself`
-- [x] Scene management `evidence: ProjectScene, AddScene, AddShot, SceneDuration, AFilmSurvivesASaveAndReload, AShotIsADocumentLikeAnyOther, ShotsAreIndentedUnderTheirScene`
+- [~] Character library `evidence: CharacterLibrary, LibraryEntry, ImportingACharacterBringsItsAnimationsAndPalette, AnImportedCharacterStillPaintsFromItsPalette`
+- [ ] Character variants that inherit animations (Default / Winter Armor / Damaged) `evidence: CharacterVariant, AnimationsFor, AVariantInheritsEveryAnimationItDoesNotOverride, AnOverriddenAnimationReplacesOnlyItself`
+- [~] Scene management `evidence: ProjectScene, AddScene, AddShot, SceneDuration, AFilmSurvivesASaveAndReload, AShotIsADocumentLikeAnyOther, ShotsAreIndentedUnderTheirScene`
 - [x] Project conversion (Illustration → Animation → Game) with no artwork recreated `evidence: Convert, ConversionReport, ConvertingRecreatesNoArtwork, ConvertingAwayFromAnimationKeepsTheCameraAndTheScenes, ConvertingDoesNotRearrangeTheScreenByItself`
 - [x] Workspace layouts, decoupled from project type `evidence: WorkspaceStore, WorkspaceViewModel, EveryProjectTypeHasABuiltInWorkspace, TakingAProjectTypesDefaultsSwitchesWorkspace`
 - [x] Dockable panels `evidence: DockLayout, DockStrip, DockZones, PanelsLandInTheStripTheLayoutNames, AnEmptyEdgeCollapsesAndAFilledOneOpens`
-- [x] Project browser — characters and their animations `evidence: ProjectViewModel, ProjectRow, TheDockerListsCharactersWithTheirAnimationsUnderThem`
+- [~] Project browser — characters and their animations `evidence: ProjectViewModel, ProjectRow, TheDockerListsCharactersWithTheirAnimationsUnderThem`
 - [x] Reach the files from the browser — reveal, open externally, duplicate `evidence: FileReveal, FileRevealTests, EveryRowKnowsWhereItIsOnDisk, DuplicatingAnAnimationCopiesItsArtIntoTheSameCharacter`
 - [x] Movable canvas overlay bars — view controls and view shortcuts, on any edge `evidence: CanvasOverlayLayout, CanvasOverlayBar, CanvasOverlayGeometryTests, CanvasOverlayTests`
 - [x] Shared palette across a character's animations `evidence: TwoAnimationsUnderOneCharacterPaintFromOnePalette, RefreshProjectResources`
@@ -706,13 +706,13 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
   - Non-negotiable while doing it: the stroke path must not start snapshotting. `TheHotPathStillDoesNotSnapshot` is the guard, and the performance budgets are the backstop.
 - [ ] Version snapshots — lightweight bookmarks of document state, distinct from full undo history `evidence: VersionSnapshot, VersionSnapshots, VersionSnapshotStore, VersionSnapshotTests, ASnapshotIsAnAuthoredMarkerNotAnUndoState, SnapshotsRoundTripThroughTheFile, DeletingASnapshotDoesNotAffectTheDocument`
   - **Lighter than undo history browser, complementary not competing.** Undo is automatic per keystroke and navigation is "go back to what I did three minutes ago"; snapshots are *authored* ("this is where the background was locked") and span projects or sessions. Acts as a checkpoint system for long projects where re-doing work is expensive. `VersionSnapshot` record holds document bytes, user notes, and metadata; stored in `assets/versions/` folder. The history browser navigates undo; snapshots are manual milestones an artist places. Requested in Request 1 feature analysis for version control workflows.
-- [ ] Studio dashboard — shot-level overview of project status and workload `evidence: StudioDashboard, ShotStatusView, DashboardTests, AllShotsVisibleWithStatusAtAGlance, BlockedShotsAreHighlighted, ArtistWorkloadIsBalanced`
+- [x] The project window — structure, status, tags, assets and people across a production `evidence: ProjectWindow, ProjectWindowViewModel, ProjectBoard, ProjectWindowTests, ProjectBoardTests, TheWindowAndTheDockerListTheSameDocuments, TheFooterCountsWhatIsTrue, TheAssetsTabShowsAllThreeLevelsAtOnce, TheChainIsFourDeepAndNearestWins`
   - **HIGH-VALUE, MARKET-VALIDATED.** Studios manage projects in ShotGrid/Airtable because Lightbox has no dashboard. Current workaround: maintain separate spreadsheets tracking shot status, artist assignments, blocked items.
-  - **Effort:** Medium (~400 LOC)
-  - **What it shows:** All shots/assets in project, status per item (Design/InDevelopment/Ready/Reopened), assigned artist, dependencies/blockers
-  - **Blocker: cleared 2026-08-06.** B83–B87 are closed and B62 with them, so the folder tree is UI-complete: arbitrary names at any depth, create-into-selection, rename that reaches disk, remove versus delete, collapse that survives a save, and the project itself as a selectable row. The dashboard's "all shots/assets in project" now has a tree to read.
-  - **Note:** This is read-only dashboard; does not replace ShotGrid, just gives visibility
-  - **Read it against Q30 before building.** Status already lives on `DocumentRef`, not on a character, so the shot-level view is a walk of the folder tree plus the two remaining fixed axes — and Q30 removes those axes. A dashboard written against `Project.Characters` and `Project.Scenes` would be rewritten by the same change it is waiting on.
+  - **Q29's second surface, in its own window by Q41.** The docker does what you do while drawing — find it, open it, move it, rename it. This does what you do between drawings: bulk edits, tagging, assignment and status across a production, none of which fits in 200 pixels beside a canvas. Four tabs: Structure, Status, Assets, People. `docs/DESIGN-studio-dashboard.md`.
+  - **Not read-only, which the old entry assumed.** "Manage assets on project, folder and file level" was the explicit ask (Q42), and read-only was written when there was no reason to open a second surface. Q44 answers the undo question: status, tags and assignment are manifest metadata rather than artwork, so nothing here is destructive and there is no undo stack — each bulk edit says what it did instead.
+  - **Blocker: cleared 2026-08-07.** B114's one tree is what made it cheap. A dashboard written against `Project.Characters` and `Project.Scenes` would have been rewritten by the change it was waiting on; against one list and one traversal it is a second reading of a tree that already exists.
+  - **Two anchors came out and it is worth saying why.** `BlockedShotsAreHighlighted` needs a dependency model — what blocks what — which nothing in Lightbox has and this design does not propose. `ArtistWorkloadIsBalanced` is a claim about balance, needing estimates and capacity, which is the project-manager line this deliberately does not cross. Shipping green against tests that assert something else is the one thing the derived checkbox cannot represent.
+  - **Q45 draws the boundary this feature would otherwise drift across.** `Person` is a name and an id and never gains a role or rights: the manifest is plain JSON on disk, so a permission here is one a text editor defeats. Sharing is the project file over git; a tracker adapter (ShotGrid, Kitsu, Flow) is the seam if a studio needs one, and it needs no new model because documents already have stable ids.
 
 - [ ] Animatic preview export — one-click movie render with timing and placeholder SFX `evidence: AnimaticExporter, AudioTimelineSync, AnimaticTests, ExportedMovieHasCorrectFrameTiming, PlaceholderBeepsMarkKeyFrames`
   - **HIGH-VALUE, MARKET-VALIDATED.** Every studio manually exports to video for director review; no animation tool offers one-click animatic with timing beeps.
@@ -824,7 +824,7 @@ The prerequisite half. Both of these exist to be *inputs to authoring* and neith
 may reach a pixel at render time.
 
 - [?] The AI reads the subject before it draws — **split in two, because one half is built and one is gated**
-- [x] …the taxonomy half: what a character IS `evidence: SubjectTaxonomy, SubjectPart, SubjectRequest, ReadSubjectAsync, SubjectReadingTests, SubjectReadingWiringTests, DeletingEveryReadingChangesNoPixel, AReadingSomebodyEditedIsNotOverwrittenByAReRead, ACharacterThatWasNeverReadWritesNoKey, TheTaxonomyGoesAtTheFrontWhereACachePrefixCanCoverIt`
+- [~] …the taxonomy half: what a character IS `evidence: SubjectTaxonomy, SubjectPart, SubjectRequest, ReadSubjectAsync, SubjectReadingTests, SubjectReadingWiringTests, DeletingEveryReadingChangesNoPixel, AReadingSomebodyEditedIsNotOverwrittenByAReRead, ACharacterThatWasNeverReadWritesNoKey, TheTaxonomyGoesAtTheFrontWhereACachePrefixCanCoverIt`
   - Once per character, from the sheets the artist drew, kept on `Character.Taxonomy` — nullable and absent until read, so a project that never asks writes no key. Reached from the Project panel, because a reading belongs to a character and a character lives there.
   - **434 B, and 0.6% of a realistic 40-stroke request.** Printed against a two-stroke pair as well, where the same block reads as 43% and means nothing — the denominator is two two-point strokes. Both numbers are in the test output on purpose.
   - At the **front** of the request, where prompt caching covers a prefix. After the frame data it would save nothing, and that is a mistake worth only making once.
@@ -968,14 +968,14 @@ need it in a short.
 
 ### The container and the types
 
-- [x] `Project` container above `Doc` (scenes, characters, assets) `evidence: ProjectManifest, Character, DocumentRef, ProjectTests`
+- [~] `Project` container above `Doc` (scenes, characters, assets) `evidence: ProjectManifest, Character, DocumentRef, ProjectTests`
 - [x] Project type recorded on the document, absent by default `evidence: ProjectType, AProjectWithNoTypeWritesNoTypeKey`
 - [?] Named workspaces, persisted
 - [?] Storyboard organization (scenes → shots)
 - [?] Comic organization (pages → panels)
 - [?] Panel tools and speech balloons
 - [?] Print workflow (CMYK, bleed, DPI targets)
-- [x] Asset Library project type `evidence: CharacterLibrary, OnlyAssetLibraryProjectsOfferTheirCharacters`
+- [~] Asset Library project type `evidence: CharacterLibrary, OnlyAssetLibraryProjectsOfferTheirCharacters`
 
 ### Making reach unconditional
 
@@ -1019,7 +1019,7 @@ These items are requested by studios, missing from competitors, and unblock othe
 
 | Item | Why Market Needs It | Effort | Dependency |
 |------|-------------------|--------|-----------|
-| **Studio Dashboard** | ShotGrid replacement for small studios; eliminates spreadsheet maintenance | Medium | Dynamic folders (B83-87) |
+| **The project window** | ShotGrid replacement for small studios; eliminates spreadsheet maintenance | Medium | B114 one tree (landed) |
 | **Animatic Preview Export** | One-click timing render saves manual video editing cycle | Low-Medium | None |
 | **Version Snapshots** | Hand-offs between artists; manual checkpoints of document state | Medium | Undo browser |
 | **Subject Reading** | Prerequisite for inking, normal maps, consistency checking; unlocks 3 features | Medium | None — Q16 and Q17 both answered |

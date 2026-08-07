@@ -62,57 +62,53 @@ public sealed class Project
 
     public string Name => Manifest.Name;
 
-    public IEnumerable<Character> Characters => Manifest.Characters;
+    /// <summary>The folders something has read.</summary>
+    /// <remarks>
+    /// <b>Q40.</b> Was <c>Subjects</c>. A folder with a reading is a folder with
+    /// a reading; whether it is a character, a creature or a crowd is the
+    /// artist's to say with <see cref="ProjectFolder.Icon"/>, and nothing here
+    /// needs to know.
+    /// </remarks>
+    public IEnumerable<ProjectFolder> WithReading => ProjectFolders.WithReading(Manifest);
+
+    /// <summary>Every document in the project.</summary>
+    /// <remarks>
+    /// <b>This used to concatenate four lists</b> — character animations,
+    /// variant overrides, scene shots and loose documents — which is B114 in one
+    /// property. There is one list now, so anything reading
+    /// <see cref="ProjectManifest.Documents"/> sees the whole project rather than
+    /// the leftovers, and this property is kept only because a great deal of
+    /// code says what it means by asking for all of them.
+    /// </remarks>
+    public IEnumerable<DocumentRef> AllDocuments => Manifest.Documents;
 
     /// <summary>
-    /// Every animation in the project, whether loaded or not — including the
-    /// documents that variants override with. Save and load walk this, so a
-    /// variant's own art has to be in it or it never reaches disk.
-    /// </summary>
-    public IEnumerable<DocumentRef> AllDocuments =>
-        Manifest.Characters.SelectMany(c => c.Animations)
-            .Concat(Manifest.Characters
-                .SelectMany(c => c.Variants)
-                .SelectMany(v => v.AnimationOverrides.Values))
-            // Shots are documents like any other. Leaving them out here is how
-            // a save would quietly skip every drawing in the film.
-            .Concat(Scenes.SelectMany(s => s.Shots))
-            .Concat(Manifest.Documents);
-
-    /// <summary>The scenes, or an empty list. Null on the manifest means none.</summary>
-    public IReadOnlyList<ProjectScene> Scenes => Manifest.Scenes ?? [];
-
-    /// <summary>Whether any scene UI should exist at all.</summary>
-    public bool HasScenes => Manifest.Scenes is { Count: > 0 };
-
-    /// <summary>The scene a shot belongs to, or null for a document that is not one.</summary>
-    public ProjectScene? SceneOf(DocumentRef reference) =>
-        Scenes.FirstOrDefault(s => s.Shots.Any(shot => shot.Id == reference.Id));
-
-    /// <summary>
-    /// The variant being viewed, per character id.
+    /// The variant being viewed, per folder id.
     ///
-    /// Runtime, not serialized. Which version of a character you are looking at
+    /// Runtime, not serialized. Which version of a subject you are looking at
     /// is the same kind of thing as where the playhead is: it changes what
     /// renders and never touches the record. Saving it would also mean a file
     /// that opens differently depending on who closed it last.
     /// </summary>
     public Dictionary<string, string> ActiveVariant { get; } = [];
 
-    public CharacterVariant? VariantOf(Character character) =>
-        character.FindVariant(ActiveVariant.GetValueOrDefault(character.Id));
+    public SubjectVariant? VariantOf(ProjectFolder folder) =>
+        (folder.Variants ?? []).FirstOrDefault(
+            v => v.Id == ActiveVariant.GetValueOrDefault(folder.Id));
 
-    /// <summary>The palette a character paints with right now, variant included.</summary>
-    public Palette? PaletteFor(Character character)
+    /// <summary>The palette a folder's work paints with right now, variant included.</summary>
+    public Palette? PaletteFor(ProjectFolder folder)
     {
-        var id = VariantOf(character)?.PaletteId ?? character.PaletteId;
+        var id = VariantOf(folder)?.PaletteId
+                 ?? ResourceScopes.NearestAt(Manifest, folder, PaletteScopes.Kind)?.Id;
         return id is null ? null : Palettes.FirstOrDefault(p => p.Id == id);
     }
 
-    public DocumentRef? FindRef(string id) => AllDocuments.FirstOrDefault(d => d.Id == id);
+    /// <summary>The nearest folder above a document that has been read.</summary>
+    public ProjectFolder? ReadingFor(DocumentRef reference) =>
+        ProjectFolders.ReadingFor(Manifest, reference);
 
-    public Character? OwnerOf(DocumentRef reference) =>
-        Manifest.Characters.FirstOrDefault(c => c.Animations.Any(a => a.Id == reference.Id));
+    public DocumentRef? FindRef(string id) => AllDocuments.FirstOrDefault(d => d.Id == id);
 
     /// <summary>Absolute path of a document, from its project-relative one.</summary>
     public string PathOf(DocumentRef reference) =>

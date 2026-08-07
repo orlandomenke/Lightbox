@@ -1,0 +1,319 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Lightbox.App.ViewModels"
+        x:Class="Lightbox.App.Views.ProjectWindow"
+        x:DataType="vm:ProjectWindowViewModel"
+        Width="1080" Height="700" MinWidth="720" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Title="{Binding Title}">
+
+  <!--
+    Q41. Its own window rather than a docker: the whole point is columns —
+    tags, status, assignee, length — and a docker strip is 200 pixels. It can
+    also sit on a second monitor while the canvas keeps the first, which is
+    what "between drawings" means in practice.
+  -->
+
+  <Window.Styles>
+    <Style Selector="TextBlock.dim">
+      <Setter Property="Opacity" Value="0.55" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="TextBlock.head">
+      <Setter Property="Opacity" Value="0.6" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.chip">
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="Margin" Value="0,0,3,0" />
+      <Setter Property="Background" Value="#22808080" />
+    </Style>
+    <Style Selector="Border.bar">
+      <Setter Property="Padding" Value="8,5" />
+      <Setter Property="Background" Value="#11808080" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel>
+
+    <!--
+      The one thing on every tab: what the project holds and what is wrong
+      with it, which is the sentence somebody opens this window to read. One
+      place counting, because three would drift.
+    -->
+    <Border DockPanel.Dock="Bottom" Classes="bar">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Right" Classes="dim" Text="{Binding Status}"
+                   TextTrimming="CharacterEllipsis" MaxWidth="420" />
+        <TextBlock Classes="dim" Text="{Binding Summary}" />
+      </DockPanel>
+    </Border>
+
+    <!--
+      Filters sit above the tabs rather than inside one, because narrowing to
+      a tag is a question about the project and every tab should answer the
+      same question the same way. Filtering the tree and then finding the
+      board showing something else would be two projects on screen.
+    -->
+    <Border DockPanel.Dock="Top" Classes="bar">
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <TextBlock Classes="head" VerticalAlignment="Center" Text="TAG" />
+        <ComboBox MinWidth="140" ItemsSource="{Binding TagsInUse}"
+                  SelectedItem="{Binding TagFilter}"
+                  PlaceholderText="every tag" />
+        <Button Content="✕" Command="{Binding ClearTagFilterCommand}"
+                ToolTip.Tip="Show every row again" />
+        <TextBlock Classes="head" VerticalAlignment="Center" Margin="10,0,0,0" Text="WHO" />
+        <ComboBox MinWidth="140" ItemsSource="{Binding People}"
+                  SelectedItem="{Binding AssigneeFilter}"
+                  PlaceholderText="everybody">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:PersonChoice">
+              <TextBlock Text="{Binding Name}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button Content="✕" Command="{Binding ClearAssigneeFilterCommand}"
+                ToolTip.Tip="Show everybody's rows again" />
+      </StackPanel>
+    </Border>
+
+    <TabControl>
+
+      <!-- ============================ STRUCTURE ============================ -->
+      <TabItem Header="Structure">
+        <DockPanel>
+
+          <!--
+            Bulk edits. The docker deliberately has no multi-select — a bulk
+            operation is what you do between drawings rather than during one —
+            so this bar is the difference between the two surfaces made
+            visible. Q44: no undo, so every one of these says what it did.
+          -->
+          <Border DockPanel.Dock="Bottom" Classes="bar"
+                  IsVisible="{Binding HasSelection}">
+            <WrapPanel>
+              <TextBlock Classes="head" VerticalAlignment="Center" Margin="0,0,6,0"
+                         Text="{Binding SelectionLabel}" />
+              <ComboBox MinWidth="120" Margin="0,0,6,0"
+                        ItemsSource="{Binding StatusChoices}"
+                        SelectedItem="{Binding StatusToApply}"
+                        PlaceholderText="set status…">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:StatusChoice">
+                    <TextBlock Text="{Binding Label}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <ComboBox MinWidth="120" Margin="0,0,6,0"
+                        ItemsSource="{Binding AssignChoices}"
+                        SelectedItem="{Binding PersonToApply}"
+                        PlaceholderText="assign to…">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:PersonChoice">
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBox Width="130" Margin="0,0,4,0" Text="{Binding TagToApply}"
+                       Watermark="tag…" />
+              <Button Content="Tag" Margin="0,0,4,0"
+                      Command="{Binding TagSelectionCommand}"
+                      CommandParameter="{Binding TagToApply}" />
+              <Button Content="Untag"
+                      Command="{Binding UntagSelectionCommand}"
+                      CommandParameter="{Binding TagToApply}" />
+            </WrapPanel>
+          </Border>
+
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,190,110,120,90,200" Margin="8,6,8,2">
+            <TextBlock Grid.Column="0" Classes="head" Text="NAME" />
+            <TextBlock Grid.Column="1" Classes="head" Text="TAGS" />
+            <TextBlock Grid.Column="2" Classes="head" Text="STATUS" />
+            <TextBlock Grid.Column="3" Classes="head" Text="WHO" />
+            <TextBlock Grid.Column="4" Classes="head" Text="LENGTH" />
+            <TextBlock Grid.Column="5" Classes="head" Text="CARRIES" />
+          </Grid>
+
+          <ListBox x:Name="StructureRows" ItemsSource="{Binding Rows}"
+                   SelectionMode="Multiple"
+                   Background="Transparent" BorderThickness="0" Margin="4">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="Padding" Value="4,1" />
+                <Setter Property="MinHeight" Value="22" />
+              </Style>
+            </ListBox.Styles>
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:BoardRow">
+                <Grid ColumnDefinitions="*,190,110,120,90,200">
+
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5">
+                    <Border Width="{Binding Indent}" />
+                    <TextBlock Text="{Binding Glyph}" />
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+
+                  <ItemsControl Grid.Column="1" ItemsSource="{Binding Tags}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="x:String">
+                        <Border Classes="chip">
+                          <TextBlock Text="{Binding}" FontSize="10" />
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+
+                  <Border Grid.Column="2" Classes="chip" HorizontalAlignment="Left"
+                          IsVisible="{Binding HasStatus}"
+                          Background="{Binding StatusColor}">
+                    <TextBlock Text="{Binding StatusLabel}" FontSize="10" />
+                  </Border>
+
+                  <TextBlock Grid.Column="3" Classes="dim" Text="{Binding AssigneeName}"
+                             TextTrimming="CharacterEllipsis" />
+                  <TextBlock Grid.Column="4" Classes="dim" Text="{Binding Length}" />
+                  <TextBlock Grid.Column="5" Classes="dim" Text="{Binding Carries}"
+                             TextTrimming="CharacterEllipsis" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </TabItem>
+
+      <!-- ============================== STATUS ============================== -->
+      <TabItem Header="Status">
+        <ScrollViewer HorizontalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Columns}" Margin="6">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:StatusColumn">
+                <Border Width="190" Margin="3" Padding="6"
+                        Background="#0C808080" CornerRadius="4">
+                  <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                      <TextBlock DockPanel.Dock="Right" Classes="dim"
+                                 Text="{Binding Count}" />
+                      <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Border Width="8" Height="8" CornerRadius="4"
+                                VerticalAlignment="Center"
+                                Background="{Binding Color}" />
+                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="11" />
+                      </StackPanel>
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:BoardRow">
+                          <Border Padding="5,3" Margin="0,0,0,3" CornerRadius="3"
+                                  Background="#14808080">
+                            <StackPanel>
+                              <TextBlock Text="{Binding Name}" FontSize="11"
+                                         TextTrimming="CharacterEllipsis" />
+                              <TextBlock Classes="dim" Text="{Binding AssigneeName}"
+                                         IsVisible="{Binding HasAssignee}" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </DockPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </TabItem>
+
+      <!-- ============================== ASSETS ============================== -->
+      <TabItem Header="Assets">
+        <DockPanel>
+          <!--
+            The tab a context menu cannot be: a menu declares on one scope at a
+            time and shows nothing about the others, so "why is this drawing
+            painting from the studio palette" is answerable only by reasoning.
+            Project, folders and documents are rows of one table here.
+          -->
+          <Border DockPanel.Dock="Top" Classes="bar">
+            <TextBlock Classes="dim"
+                       Text="Every scope in the project, and what it declares. Nearest wins: a document beats its folder, a folder beats the project, the project beats your own defaults." />
+          </Border>
+          <ScrollViewer HorizontalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Assets}" Margin="6">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:AssetScope">
+                  <Grid ColumnDefinitions="260,*" MinHeight="22">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                      <Border Width="{Binding Indent}" />
+                      <TextBlock Text="{Binding Name}" FontSize="11"
+                                 TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <ItemsControl Grid.Column="1" ItemsSource="{Binding Cells}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AssetCell">
+                          <Border Classes="chip" IsVisible="{Binding Any}">
+                            <TextBlock FontSize="10">
+                              <Run Text="{Binding Kind}" FontWeight="SemiBold" />
+                              <Run Text="{Binding Text}" />
+                            </TextBlock>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </TabItem>
+
+      <!-- ============================== PEOPLE ============================== -->
+      <TabItem Header="People">
+        <DockPanel>
+          <!--
+            Q45: a name and an id. No role, no rights, ever — the manifest is
+            plain JSON on disk, so a permission here is one a text editor
+            defeats, and a permission that cannot be enforced is a UI that lies
+            about what it enforces.
+          -->
+          <Border DockPanel.Dock="Top" Classes="bar">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBox Width="200" Text="{Binding NewPersonName}" Watermark="name…" />
+              <Button Content="Add" Command="{Binding AddPersonCommand}" />
+              <TextBlock Classes="dim" VerticalAlignment="Center"
+                         Text="Names only. Lightbox has no accounts, and a role here would grant nothing." />
+            </StackPanel>
+          </Border>
+          <ListBox ItemsSource="{Binding People}" Background="Transparent"
+                   BorderThickness="0" Margin="6">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:PersonChoice">
+                <Grid ColumnDefinitions="*,auto,auto" MinHeight="26">
+                  <TextBox Grid.Column="0" Text="{Binding Name}" BorderThickness="0"
+                           Background="Transparent" />
+                  <TextBlock Grid.Column="1" Classes="dim" VerticalAlignment="Center"
+                             Margin="0,0,8,0" Text="{Binding Cost}" />
+                  <Button Grid.Column="2" Content="Remove"
+                          Command="{Binding $parent[ListBox].((vm:ProjectWindowViewModel)DataContext).RemovePersonCommand}"
+                          CommandParameter="{Binding}" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </TabItem>
+
+    </TabControl>
+  </DockPanel>
+</Window>

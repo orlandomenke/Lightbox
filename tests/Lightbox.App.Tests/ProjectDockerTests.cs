@@ -65,13 +65,19 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     private void WithKnight(MainViewModel vm)
     {
         var project = vm.ProjectDocker.Project!;
-        var knight = ProjectIo.AddCharacter(project, "Knight");
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");
+        vm.ProjectDocker.Refresh();
         // And the adopted document goes under it. That is the arrangement these
         // tests were written around; the only change is that they now ask for it
         // instead of NewProject inventing it.
-        foreach (var adopted in project.Manifest.Documents.ToList())
+        //
+        // Through the docker rather than the manifest, because filing moves the
+        // file too — setting `FolderId` by hand leaves the old file where it was
+        // and the next save writes a second copy, which then blocks any move
+        // back.
+        foreach (var row in vm.ProjectDocker.Rows.Where(r => r.Animation is not null).ToList())
         {
-            ProjectIo.MoveDocument(project, adopted, knight);
+            vm.ProjectDocker.MoveInto(row, knight);
         }
         // Written, not merely recorded: NewProject saves on the way out, so
         // anything added afterwards exists in the manifest and not on disk — and
@@ -128,7 +134,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         // character invented from the project's own name — that invention is
         // what put the first drawing at `characters/knight/animations/` and
         // created two folders nobody asked for.
-        Assert.Empty(vm.ProjectDocker.Project!.Characters);
+        Assert.Empty(ProjectFolders.All(vm.ProjectDocker.Project!.Manifest));
         var adopted = Assert.Single(vm.ProjectDocker.Project!.Manifest.Documents);
         Assert.Equal(adopted.Id, vm.ActiveTab!.Source?.Id);
 
@@ -139,20 +145,24 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     }
 
     [AvaloniaFact]
-    public void TheDockerListsCharactersWithTheirAnimationsUnderThem()
+    public void TheDockerListsAFoldersDocumentsUnderIt()
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
-        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        WithKnight(vm);
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.IsFolder);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
 
-        // B62 put the project itself at the top, so the shape is now
-        // project, character, adopted animation, new one.
+        // B62 put the project itself at the top, so the shape is
+        // project, folder, adopted document, new one.
         var rows = vm.ProjectDocker.Rows;
         Assert.Equal(4, rows.Count);
         Assert.True(rows[0].IsRoot);
-        Assert.True(rows[1].IsCharacter);
-        Assert.False(rows[2].IsCharacter);
-        Assert.False(rows[3].IsCharacter);
+        Assert.True(rows[1].IsFolder);
+        Assert.False(rows[2].IsFolder);
+        Assert.False(rows[3].IsFolder);
+        // Both documents are in the folder, indented under it.
+        Assert.All(rows.Skip(2), r => Assert.Equal(rows[1].Folder!.Id, r.Folder!.Id));
     }
 
     [AvaloniaFact]
@@ -163,7 +173,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         WithKnight(vm);
         var before = vm.Tabs.Count;
 
-        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
 
         Assert.Equal(before + 1, vm.Tabs.Count);
         var reference = vm.ProjectDocker.Rows[^1].Animation!;
@@ -175,7 +185,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
-        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
         var count = vm.Tabs.Count;
 
         vm.ProjectDocker.Selected = vm.ProjectDocker.Rows[1]; // the adopted one
@@ -211,7 +221,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     /// </para>
     /// </remarks>
     [AvaloniaFact]
-    public void FileNewMakesAProjectDocumentAndNeverACharactersAnimation()
+    public void FileNewMakesAProjectDocumentInOneList()
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
@@ -219,22 +229,21 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         var docker = vm.ProjectDocker;
         // Pointed straight at the character, which is the arrangement that would
         // make an "animation under the selection" mistake look correct.
-        docker.Selected = Assert.Single(docker.Rows, r => r.IsCharacter);
-        var animations = docker.Project!.Characters.SelectMany(c => c.Animations).Count();
+        docker.Selected = Assert.Single(docker.Rows, r => r.IsFolder);
+        var before = docker.Project!.Manifest.Documents.Count;
 
         vm.NewDocument(new NewDocumentSettings("Loose", 128, 128, 12, 72, "#ffffff", false));
 
-        // In the project (B99) and a document rather than an animation.
+        // In the project (B99), as one more entry in the one list. What this
+        // test was written to catch — a drawing that became "an animation under
+        // the selected character", in a second list nothing else read — cannot
+        // happen now, because there is no second list to land in.
         var made = Assert.Single(docker.Project!.Manifest.Documents, d => d.Name == "Loose");
         Assert.Equal(made.Id, vm.ActiveTab!.Source?.Id);
-        Assert.Equal(
-            animations,
-            docker.Project!.Characters.SelectMany(c => c.Animations).Count());
-        Assert.DoesNotContain(
-            docker.Project!.Characters.SelectMany(c => c.Animations), a => a.Id == made.Id);
-        // A character is not a folder yet (Q30), so a document made while one is
-        // selected has no folder to go in and belongs to the project.
-        Assert.Null(made.FolderId);
+        Assert.Equal(before + 1, docker.Project!.Manifest.Documents.Count);
+        // Filed in the folder that was selected — B85, and it now applies to
+        // every container rather than to the ones that happened to be folders.
+        Assert.Equal(docker.Selected!.Folder!.Id, made.FolderId);
     }
 
     // ---- sharing ------------------------------------------------------------
@@ -250,7 +259,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         vm.RefreshProjectResources();
 
         var first = StrokeUsing(vm, swatch.Id);
-        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
         var second = StrokeUsing(vm, swatch.Id);
 
         Assert.Equal(new SKColor(0x20, 0xc0, 0x40), BrushEngine.StrokeColor(first));
@@ -308,7 +317,8 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         var vm = Vm();
         vm.NewProject(_root, "Knight");
         WithKnight(vm);
-        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.IsFolder);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
         vm.BeginStroke(20, 20, 1);
         vm.MoveStroke(80, 80, 1);
         vm.EndStroke();
@@ -318,8 +328,9 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         reopened.OpenProject(_root);
 
         Assert.True(reopened.HasProject);
-        var character = Assert.Single(reopened.ProjectDocker.Project!.Characters);
-        Assert.Equal(2, character.Animations.Count);
+        var manifest = reopened.ProjectDocker.Project!.Manifest;
+        var character = Assert.Single(ProjectFolders.All(manifest));
+        Assert.Equal(2, ProjectFolders.DocumentsIn(manifest, character).Count);
         // And it opened one, so the project is not an empty shell.
         Assert.Contains(reopened.Tabs, t => t.Source is not null);
     }
@@ -348,7 +359,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     // ---- making things inside the project -----------------------------------
 
     [AvaloniaFact]
-    public void TheNewMenuOffersOneEntryPerPlaceWorkCanLand()
+    public void TheNewMenuOffersOneEntryPerKindOfThing()
     {
         // Each lands somewhere specific. Creating work inside a project should
         // not be "make it, then file it".
@@ -359,30 +370,29 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         var vm = Vm();
         vm.NewProject(_root, "Knight");
 
-        // B86 put Folder first: it is the artist's own structure, and a
-        // production is organised by it rather than by the two fixed axes.
-        // B63 then grouped them — containers, then the drawings that go in
-        // them — because six words in a row read as an undifferentiated pile.
+        // B114 took it from six to two. Character, Scene, Animation and Shot
+        // were four names for the two things below, filed into three lists of
+        // which only one was wired up. B63's grouping survives: the container
+        // first, then the drawing that goes in it.
         Assert.Equal(
-            ["Folder", "Character", "Scene", "Animation", "Shot", "Document"],
+            ["Folder", "Document"],
             vm.ProjectDocker.NewItemKinds.Select(k => k.Label));
     }
 
     [AvaloniaFact]
-    public void ADocumentCreatedFromTheDockerBelongsToTheProjectNotACharacter()
+    public void ADocumentCreatedWithNothingSelectedBelongsToTheProject()
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
         WithKnight(vm);
+        vm.ProjectDocker.Selected = null;
 
-        vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewLooseDocument);
+        vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewDocumentItem);
 
-        var loose = Assert.Single(vm.ProjectDocker.Project!.Manifest.Documents);
-        Assert.DoesNotContain(
-            vm.ProjectDocker.Project!.Characters.SelectMany(c => c.Animations),
-            a => a.Id == loose.Id);
+        var loose = Assert.Single(
+            vm.ProjectDocker.Project!.Manifest.Documents, d => d.FolderId is null);
         Assert.StartsWith("unassigned-documents/", loose.Path);
-        // And it opened, bound to its slot — the same as adding an animation.
+        // And it opened, bound to its slot — the same as adding it in a folder.
         Assert.Equal(loose.Id, vm.ActiveTab!.Source?.Id);
     }
 
@@ -391,11 +401,11 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
-        vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewLooseDocument);
+        vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewDocumentItem);
 
         var row = vm.ProjectDocker.Rows[^1];
         Assert.True(row.IsLoose);
-        Assert.Null(row.Character);
+        Assert.Null(row.Folder);
         Assert.Equal(0, row.Indent);
     }
 
@@ -410,21 +420,23 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         var vm = Vm();
         vm.NewProject(_root, "Knight");
         WithKnight(vm);
-        vm.ProjectDocker.AddCharacterCommand.Execute(null);
+        vm.ProjectDocker.AddFolderCommand.Execute(null);
         var project = vm.ProjectDocker.Project!;
-        var from = project.Characters.First();
-        var to = project.Characters.Last();
+        var from = ProjectFolders.All(project.Manifest).First();
+        var to = ProjectFolders.All(project.Manifest).Last();
         Assert.NotSame(from, to);
 
-        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null && r.Character == from);
+        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null && r.Folder == from);
         var id = row.Animation!.Id;
 
         Assert.True(vm.ProjectDocker.Move(row, to));
 
-        Assert.Empty(from.Animations);
-        var moved = Assert.Single(to.Animations);
+        Assert.Empty(ProjectFolders.DocumentsIn(project.Manifest, from));
+        var moved = Assert.Single(ProjectFolders.DocumentsIn(project.Manifest, to));
         Assert.Equal(id, moved.Id);
-        Assert.Contains(to.Slug, moved.Path);
+        // The file follows the document into the folder — B106, and B114 made
+        // that one rule rather than two that disagreed about whether it should.
+        Assert.Contains(ProjectFolders.PathOf(project.Manifest, to), moved.Path);
     }
 
     /// <summary>
@@ -443,12 +455,12 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         var vm = Vm();
         vm.NewProject(_root, "Knight");
         WithKnight(vm);
-        vm.ProjectDocker.AddCharacterCommand.Execute(null);
+        vm.ProjectDocker.AddFolderCommand.Execute(null);
         var project = vm.ProjectDocker.Project!;
-        var from = project.Characters.First();
-        var to = project.Characters.Last();
+        var from = ProjectFolders.All(project.Manifest).First();
+        var to = ProjectFolders.All(project.Manifest).Last();
 
-        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null && r.Character == from);
+        var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null && r.Folder == from);
         var was = Path.Combine(
             _root, row.Animation!.Path.Replace('/', Path.DirectorySeparatorChar));
         Assert.True(File.Exists(was), $"not written: {was}");
@@ -467,7 +479,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     }
 
     [AvaloniaFact]
-    public void MovingADocumentToTheProjectTakesItOutOfEveryCharacter()
+    public void MovingADocumentToTheProjectTakesItOutOfEveryFolder()
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
@@ -477,8 +489,9 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
 
         Assert.True(vm.ProjectDocker.Move(row, null));
 
-        Assert.Empty(project.Characters.SelectMany(c => c.Animations));
-        Assert.Single(project.Manifest.Documents);
+        Assert.Empty(ProjectFolders.All(project.Manifest)
+            .SelectMany(f => ProjectFolders.DocumentsIn(project.Manifest, f)));
+        Assert.Null(Assert.Single(project.Manifest.Documents).FolderId);
     }
 
     [AvaloniaFact]
@@ -488,7 +501,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         vm.NewProject(_root, "Knight");
         var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
 
-        Assert.False(vm.ProjectDocker.Move(row, row.Character));
+        Assert.False(vm.ProjectDocker.Move(row, row.Folder));
     }
 
     [AvaloniaFact]
@@ -498,8 +511,8 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         var vm = Vm();
         vm.NewProject(_root, "Knight");
         WithKnight(vm);
-        vm.ProjectDocker.AddCharacterCommand.Execute(null);
-        var to = vm.ProjectDocker.Project!.Characters.Last();
+        vm.ProjectDocker.AddFolderCommand.Execute(null);
+        var to = ProjectFolders.All(vm.ProjectDocker.Project!.Manifest).Last();
         var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
         vm.ProjectDocker.Move(row, to);
         vm.Save();
@@ -507,9 +520,9 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         var reopened = Vm();
         reopened.OpenProject(_root);
 
-        var characters = reopened.ProjectDocker.Project!.Characters.ToList();
-        Assert.Empty(characters[0].Animations);
-        Assert.Single(characters[1].Animations);
+        var characters = ProjectFolders.All(reopened.ProjectDocker.Project!.Manifest).ToList();
+        Assert.Empty(ProjectFolders.DocumentsIn(reopened.ProjectDocker.Project!.Manifest, characters[0]));
+        Assert.Single(ProjectFolders.DocumentsIn(reopened.ProjectDocker.Project!.Manifest, characters[1]));
     }
 
     [AvaloniaFact]
@@ -518,11 +531,11 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         var vm = Vm();
         vm.NewProject(_root, "Knight");
         WithKnight(vm);
-        var row = Assert.Single(vm.ProjectDocker.Rows, r => r.IsCharacter);
+        var row = Assert.Single(vm.ProjectDocker.Rows, r => r.IsFolder);
 
         Assert.True(vm.ProjectDocker.Rename(row, "Sir Reginald"));
 
-        Assert.Equal("Sir Reginald", vm.ProjectDocker.Project!.Characters.First().Name);
+        Assert.Equal("Sir Reginald", ProjectFolders.All(vm.ProjectDocker.Project!.Manifest).First().Name);
         Assert.Equal("Sir Reginald", row.Name);
     }
 
@@ -535,13 +548,14 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         vm.NewProject(_root, "Knight");
         WithKnight(vm);
         var docker = vm.ProjectDocker;
-        var character = docker.Rows.First(r => r.IsCharacter);
+        var character = docker.Rows.First(r => r.IsFolder);
         var animation = docker.Rows.First(r => r.Animation is not null);
 
         Assert.Equal(_root, docker.RootPath);
-        // A character is a folder; an animation is a file inside it.
-        Assert.Equal(Path.Combine(_root, "characters", "knight"), docker.PathOf(character));
-        Assert.StartsWith(Path.Combine(_root, "characters", "knight"), docker.PathOf(animation));
+        // A character is an ordinary folder now (B114) — `characters/` is gone,
+        // and a drawing is a file inside the folder it was filed in.
+        Assert.Equal(Path.Combine(_root, "knight"), docker.PathOf(character));
+        Assert.StartsWith(Path.Combine(_root, "knight"), docker.PathOf(animation));
         Assert.EndsWith(".lightbox.json", docker.PathOf(animation));
         // Nothing selected is the project itself, which is what the folder
         // button in the header opens.
@@ -606,9 +620,10 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
 
         vm.ProjectDocker.DuplicateSelectedCommand.Execute(null);
 
-        var character = vm.ProjectDocker.Project!.Characters.First();
-        Assert.Equal(2, character.Animations.Count);
-        var copy = character.Animations[1];
+        var manifest = vm.ProjectDocker.Project!.Manifest;
+        var character = ProjectFolders.All(manifest).First();
+        Assert.Equal(2, ProjectFolders.DocumentsIn(manifest, character).Count);
+        var copy = ProjectFolders.DocumentsIn(manifest, character)[1];
         Assert.Equal($"{source.Animation!.Name} copy", copy.Name);
         Assert.NotEqual(source.Animation.Path, copy.Path);
         // The art came with it, and it is a copy rather than the same object.
@@ -635,7 +650,9 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
 
         vm.Save();
 
-        var copy = vm.ProjectDocker.Project!.Characters.First().Animations[1];
+        var copy = ProjectFolders.DocumentsIn(
+            vm.ProjectDocker.Project!.Manifest,
+            ProjectFolders.All(vm.ProjectDocker.Project!.Manifest).First())[1];
         Assert.True(File.Exists(Path.Combine(
             _root, copy.Path.Replace('/', Path.DirectorySeparatorChar))));
     }
@@ -656,7 +673,10 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
-        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        // Filed in a folder, so the move below is a real move — a loose document
+        // moved to the project is a no-op, and the check after it would pass on
+        // nothing.
+        WithKnight(vm);
         vm.SaveProject();
 
         var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
@@ -685,7 +705,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
-        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
         vm.SaveProject();
 
         var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
@@ -712,7 +732,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         var vm = Vm();
         vm.NewProject(_root, "Knight");
         WithKnight(vm);
-        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
 
         // No SaveProject: nothing has been written anywhere yet.
         vm.ProjectDocker.Refresh();
@@ -840,7 +860,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
-        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
         vm.SaveProject();
 
         var watcher = vm.ProjectDocker.Watcher;
@@ -890,7 +910,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     /// </para>
     /// <para>
     /// The second half is the one a naive fix gets wrong: keyed reuse alone would
-    /// keep the row when a document is re-filed under another character, because
+    /// keep the row when a document is re-filed under another folder, because
     /// <c>Move</c> deliberately keeps the document's id. That row is a different
     /// row — differently indented, no longer loose — so identity has to be the
     /// underlying objects rather than the key.
@@ -901,7 +921,10 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
     {
         var vm = Vm();
         vm.NewProject(_root, "Knight");
-        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        // In a folder, so the move at the end is a real move — a document that
+        // is already loose cannot be moved to the project, and the check after
+        // it would pass on nothing.
+        WithKnight(vm);
         vm.SaveProject();
 
         var row = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
@@ -920,7 +943,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
 
         // And the negative: re-filed under nothing, the id is unchanged and the row
         // is not the same row. Found by id rather than by position — project-level
-        // documents are listed after the characters, so the row order changes too.
+        // documents are listed after the folder tree, so the row order changes too.
         var id = row.Animation!.Id;
         var moved = vm.ProjectDocker.Move(row, null);
         Assert.True(moved, "the document was not re-filed, so the check below proves nothing");
@@ -965,7 +988,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.Equal(string.Empty, vm.ProjectDocker.Status);
 
         vm.NewProject(_root, "Knight");
-        vm.ProjectDocker.AddAnimationCommand.Execute(null);
+        vm.ProjectDocker.AddDocumentCommand.Execute(null);
         vm.SaveProject();
 
         vm.ProjectDocker.RefreshFromDiskCommand.Execute(null);
@@ -1017,13 +1040,15 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         vm.NewProject(_root, "Knight");
         var docker = vm.ProjectDocker;
 
-        docker.AddItemNamed(ProjectViewModel.NewCharacterItem, "Rusty knight");
-        docker.AddItemNamed(ProjectViewModel.NewSceneItem, "The duel");
+        docker.Selected = null;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Rusty knight");
+        docker.Selected = null;
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "The duel");
 
-        Assert.Contains(docker.Rows, r => r.IsCharacter && r.Name == "Rusty knight");
-        Assert.Contains(docker.Rows, r => r.IsScene && r.Name == "The duel");
+        Assert.Contains(docker.Rows, r => r.IsFolder && r.Name == "Rusty knight");
+        Assert.Contains(docker.Rows, r => r.IsFolder && r.Name == "The duel");
         // ...and nothing arrived numbered, which is the symptom that was reported.
-        Assert.DoesNotContain(docker.Rows, r => r.Name == "Character 2");
+        Assert.DoesNotContain(docker.Rows, r => r.Name == "Folder 2");
     }
 
     /// <summary>
@@ -1037,10 +1062,10 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         vm.NewProject(_root, "Knight");
         var docker = vm.ProjectDocker;
 
-        var suggested = docker.SuggestedNameFor(ProjectViewModel.NewSceneItem);
-        docker.AddItemNamed(ProjectViewModel.NewSceneItem, null);   // take the default
+        var suggested = docker.SuggestedNameFor(ProjectViewModel.NewFolderItem);
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, null);   // take the default
 
-        Assert.Contains(docker.Rows, r => r.IsScene && r.Name == suggested);
+        Assert.Contains(docker.Rows, r => r.IsFolder && r.Name == suggested);
     }
 
     /// <summary>
@@ -1054,10 +1079,10 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         vm.NewProject(_root, "Knight");
         var docker = vm.ProjectDocker;
 
-        docker.AddItemNamed(ProjectViewModel.NewCharacterItem, "   ");
+        docker.AddItemNamed(ProjectViewModel.NewFolderItem, "   ");
 
         Assert.DoesNotContain(docker.Rows, r => string.IsNullOrWhiteSpace(r.Name));
-        Assert.Contains(docker.Rows, r => r.IsCharacter && r.Name.StartsWith("Character "));
+        Assert.Contains(docker.Rows, r => r.IsFolder && r.Name.StartsWith("Folder"));
     }
 
     /// <summary>
@@ -1071,9 +1096,9 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         vm.NewProject(_root, "Knight");
         var docker = vm.ProjectDocker;
 
-        docker.AddItemCommand.Execute(ProjectViewModel.NewSceneItem);
+        docker.AddItemCommand.Execute(ProjectViewModel.NewFolderItem);
 
-        Assert.Contains(docker.Rows, r => r.IsScene && r.Name.StartsWith("Scene "));
+        Assert.Contains(docker.Rows, r => r.IsFolder && r.Name.StartsWith("Folder"));
     }
 
     // ---- B62: where the project is, and what the reveal button acts on -------
@@ -1110,10 +1135,10 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.Equal(_root, docker.PathOf(root));
 
         // It is a place, not a thing in the project. Every one of these would
-        // put it in a code path written for characters or documents.
-        Assert.False(root.IsCharacter);
+        // put it in a code path written for folders or documents.
         Assert.False(root.IsFolder);
-        Assert.False(root.IsScene);
+        Assert.False(root.HasReading);
+        Assert.False(root.HasOrder);
         Assert.False(root.IsLoose);
         Assert.Null(root.Animation);
         Assert.Equal(0, root.Indent);

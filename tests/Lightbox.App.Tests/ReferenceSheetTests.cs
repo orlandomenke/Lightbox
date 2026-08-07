@@ -262,7 +262,7 @@ public class CharacterSheetFileTests
         {
             var vm = new MainViewModel(null);
             vm.NewProject(root, "Knight");
-            vm.ProjectDocker.AddAnimationCommand.Execute(null);
+            vm.ProjectDocker.AddDocumentCommand.Execute(null);
 
             var asked = 0;
             vm.ReferenceSheetNeedsAFile += () => asked++;

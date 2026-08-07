@@ -35,25 +35,14 @@ public static class Templates
     public static List<DocumentRef> InProject(Project project)
     {
         var found = new List<DocumentRef>();
-        foreach (var reference in AllRefs(project))
+        // One list now (B114) — this used to walk characters, scenes and loose
+        // documents separately, and a template filed under a character was
+        // findable only because of that third loop.
+        foreach (var reference in project.AllDocuments)
         {
             if (ProjectIo.LoadDocument(project, reference) is { IsTemplateDocument: true }) found.Add(reference);
         }
         return found;
-    }
-
-    private static IEnumerable<DocumentRef> AllRefs(Project project)
-    {
-        foreach (var character in project.Manifest.Characters)
-        {
-            foreach (var animation in character.Animations) yield return animation;
-        }
-        foreach (var document in project.Manifest.Documents) yield return document;
-        // Null until the project has a shot, per the manifest's own rule.
-        foreach (var scene in project.Manifest.Scenes ?? [])
-        {
-            foreach (var shot in scene.Shots) yield return shot;
-        }
     }
 
     /// <summary>

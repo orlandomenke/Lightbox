@@ -406,7 +406,7 @@ public sealed class ScopeDeclarationTests(ITestOutputHelper output) : BrushState
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Knight");
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Knight");
         var knight = docker.Selected!.Folder!;
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Walk");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Walk");
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Goblin");
 
         // Unscoped: the grid offers both, which is every project today.
@@ -485,7 +485,7 @@ public sealed class ScopeDeclarationTests(ITestOutputHelper output) : BrushState
 
         docker.AddItemNamed(ProjectViewModel.NewFolderItem, "Inking");
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Inking");
-        docker.AddItemNamed(ProjectViewModel.NewLooseDocument, "Clean-up");
+        docker.AddItemNamed(ProjectViewModel.NewDocumentItem, "Clean-up");
         docker.Selected = Assert.Single(docker.Rows, r => r.Name == "Inking");
 
         // Unscoped: both project tips offered, plus the user's.

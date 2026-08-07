@@ -35,6 +35,30 @@ public sealed class ProjectFolder
     public string? ParentId { get; set; }
 
     /// <summary>
+    /// The glyph the artist chose for this folder, or null for the default.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q38, and it is the answer to the rigidity Q35 left behind.</b> A
+    /// production has props, environments, effects, vehicles, layouts and
+    /// crowds; two privileged nouns cannot name them and deriving an icon from
+    /// what a folder carries only moves the decision into code that has to pick
+    /// a winner. The artist picks.
+    /// </para>
+    /// <para>
+    /// <b>A label, not data.</b> Nothing reads this — it is <see cref="Notes"/>
+    /// with one character. The AI path asks for <em>the nearest folder above
+    /// this with a reading</em>, export asks for a pivot; neither asks what the
+    /// icon is. That is what lets an artist's vocabulary be theirs without
+    /// anything downstream depending on it.
+    /// </para>
+    /// <para>
+    /// Nullable, so a folder nobody labelled writes no key.
+    /// </para>
+    /// </remarks>
+    public string? Icon { get; set; }
+
+    /// <summary>
     /// Tags, absent until one is applied.
     /// </summary>
     /// <remarks>
@@ -54,6 +78,95 @@ public sealed class ProjectFolder
     /// by <see cref="ResourceScopes.Resolve"/>, which walks up from a document.
     /// </remarks>
     public List<ScopedResource>? Resources { get; set; }
+
+    // ---- the facets a folder may carry ----------------------------------------
+    //
+    // B114 and `docs/DESIGN-project-scoping.md`. There were two containers —
+    // folders, and Character/ProjectScene — and only folders were wired into
+    // scoped resources and export planning, so a character's animations
+    // resolved nothing and exported nowhere.
+    //
+    // The containment half of those types dissolves into the tree; what is left
+    // is the handful of things below, which are *about the subject* rather than
+    // about holding documents. Each is nullable and absent until used, so an
+    // ordinary folder serializes exactly as it did.
+    //
+    // Q40: there is no noun for a folder that has one. A folder with a reading
+    // is not "a character" in the code any more than a folder with a pivot is "a
+    // prop" — it is a folder with a reading, and the questions the application
+    // actually asks are about the facet, never about a kind.
+
+    /// <summary>What the AI read about the subject this folder holds.</summary>
+    public SubjectTaxonomy? Taxonomy { get; set; }
+
+    /// <summary>Where an engine positions this subject from, for export.</summary>
+    public Pivot? Pivot { get; set; }
+
+    /// <summary>Versions of this subject that reuse its documents.</summary>
+    public List<SubjectVariant>? Variants { get; set; }
+
+    /// <summary>
+    /// Document ids in the order the artist arranged them — a scene's shots
+    /// play in this order, and a character's animations list in it.
+    /// </summary>
+    /// <remarks>
+    /// <b>The one thing a folder could not previously express</b>, and the only
+    /// reason `ProjectScene.Shots` had to be a separate list: the manifest says
+    /// outright that folder membership order "is not the display order and
+    /// nothing should read it as one".
+    ///
+    /// <b>Partial on purpose.</b> It need not name every document; anything
+    /// absent sorts after what is listed, by name. A scene with three pinned
+    /// opening shots and forty unsorted ones should not require sorting forty.
+    /// </remarks>
+    public List<string>? Order { get; set; }
+
+    /// <summary>What this folder is, in the artist's or director's words.</summary>
+    public string? Notes { get; set; }
+
+    /// <summary>
+    /// Whether anything has read this folder.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q40.</b> This was <c>IsSubject</c>, which read as a kind. It is a
+    /// question about one facet and nothing else: a folder with a reading is a
+    /// folder with a reading, and whether an artist calls it a character, a
+    /// creature or a crowd is theirs to say with <see cref="Icon"/>.
+    /// </remarks>
+    public bool HasReading => Taxonomy is not null;
+
+    /// <summary>
+    /// What an artist loses if this folder's reading is cleared or the folder is
+    /// deleted, phrased for a confirmation. Empty when there is nothing to lose.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q35's condition, and Q39 leans on it.</b> Under the old model "delete
+    /// character" was explicitly destructive. Under this one, clearing a reading
+    /// or deleting a folder quietly takes the pivot, the variants and a
+    /// hand-corrected taxonomy with it. So the gesture names what goes,
+    /// specifically, the way the export confirmation counts what it would write
+    /// — never a bare "are you sure".
+    /// <para>
+    /// Q39 put the facet list in a details panel rather than on every row, which
+    /// means this is the <em>only</em> place an artist is told, and it is told at
+    /// the moment it matters rather than in passing.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> WhatClearingTheReadingDiscards()
+    {
+        var lost = new List<string>();
+        if (Taxonomy is { } taxonomy)
+        {
+            lost.Add(taxonomy.Reviewed
+                ? "the reading you corrected by hand"
+                : $"its reading ({taxonomy.Kind}, {Plural(taxonomy.Parts.Count, "part")})");
+        }
+        if (Pivot is not null) lost.Add("its pivot");
+        if (Variants is { Count: > 0 } variants) lost.Add(Plural(variants.Count, "variant"));
+        return lost;
+    }
+
+    private static string Plural(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 }
 
 /// <summary>
@@ -81,6 +194,55 @@ public static class ProjectFolders
 
     public static ProjectFolder? ById(ProjectManifest manifest, string? id) =>
         id is null ? null : All(manifest).FirstOrDefault(f => f.Id == id);
+
+    /// <summary>
+    /// The nearest folder at or above <paramref name="document"/> that has been
+    /// read, or null when nothing above it has.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Replaces <c>ProjectManifest.CharacterOwning</c>, which searched a
+    /// separate list of characters. Walking the tree instead is not merely a
+    /// like-for-like swap — it is strictly more capable, because a subfolder
+    /// under a character folder now inherits that character's reading. The old
+    /// model could not express that at all: an animation was in a character's
+    /// list or it was not.
+    /// </para>
+    /// <para>
+    /// Nearest wins, the same rule <see cref="ResourceScopes.Resolve"/> uses, so
+    /// a variant folder inside a character folder can carry its own reading and
+    /// override the one above it.
+    /// </para>
+    /// </remarks>
+    public static ProjectFolder? ReadingFor(ProjectManifest manifest, DocumentRef? document) =>
+        NearestAbove(manifest, document, f => f.HasReading);
+
+    /// <summary>
+    /// The nearest folder at or above a document satisfying
+    /// <paramref name="carries"/>, or null when nothing above it does.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q40.</b> A facet question rather than a kind question, and the reason
+    /// it is written once: the pivot wants the same walk, and so will whatever
+    /// facet arrives next. Nearest wins, the same rule
+    /// <see cref="ResourceScopes.Resolve"/> uses.
+    /// </remarks>
+    public static ProjectFolder? NearestAbove(
+        ProjectManifest manifest, DocumentRef? document, Func<ProjectFolder, bool> carries)
+    {
+        var folder = ById(manifest, document?.FolderId);
+        if (folder is null) return null;
+
+        // AncestryOf runs root-first, so walk it backwards for nearest-first.
+        var chain = AncestryOf(manifest, folder);
+        for (var i = chain.Count - 1; i >= 0; i--)
+            if (carries(chain[i])) return chain[i];
+        return null;
+    }
+
+    /// <summary>Every folder that has been read.</summary>
+    public static IEnumerable<ProjectFolder> WithReading(ProjectManifest manifest) =>
+        All(manifest).Where(f => f.HasReading);
 
     /// <summary>The folders directly inside <paramref name="parent"/>, or at the root when null.</summary>
     public static IReadOnlyList<ProjectFolder> ChildrenOf(ProjectManifest manifest, ProjectFolder? parent) =>
@@ -140,8 +302,144 @@ public static class ProjectFolders
         string.Join('/', AncestryOf(manifest, folder).Select(f => ProjectIo.Slug(f.Name)));
 
     /// <summary>The documents filed directly in this folder, or at the root when null.</summary>
-    public static IReadOnlyList<DocumentRef> DocumentsIn(ProjectManifest manifest, ProjectFolder? folder) =>
-        manifest.Documents.Where(d => d.FolderId == folder?.Id).ToList();
+    /// <remarks>
+    /// A variant's own art is filed here like anything else — it has to be, or
+    /// it resolves no palette and exports nowhere — but it is not one of the
+    /// folder's documents. It <em>stands in for</em> one, so it is excluded here
+    /// and substituted by <see cref="DocumentsFor"/>. Listing both would show a
+    /// character with two walk cycles.
+    /// </remarks>
+    public static IReadOnlyList<DocumentRef> DocumentsIn(ProjectManifest manifest, ProjectFolder? folder)
+    {
+        var replacements = Replacements(folder);
+        return manifest.Documents
+            .Where(d => d.FolderId == folder?.Id && !replacements.Contains(d.Id))
+            .ToList();
+    }
+
+    /// <summary>Every document id that stands in for another one in this folder.</summary>
+    private static HashSet<string> Replacements(ProjectFolder? folder) =>
+        folder?.Variants is not { Count: > 0 } variants
+            ? []
+            : [.. variants.SelectMany(v => v.Overrides.Values)];
+
+    /// <summary>
+    /// What a variant of this subject actually plays: the folder's documents in
+    /// order, with the ones it overrides swapped for its own.
+    /// </summary>
+    /// <remarks>
+    /// <b>"Inherits documents" is this method.</b> A walk cycle drawn once is
+    /// the walk cycle of every variant; a variant that replaced it shows its
+    /// own, in the same place in the running order. Passing null gives the base
+    /// subject, which is what an artist looking at no variant sees.
+    /// </remarks>
+    public static IReadOnlyList<DocumentRef> DocumentsFor(
+        ProjectManifest manifest, ProjectFolder folder, SubjectVariant? variant)
+    {
+        var documents = InOrder(manifest, folder);
+        if (variant is null || variant.Overrides.Count == 0) return documents;
+
+        var byId = manifest.Documents.ToDictionary(d => d.Id);
+        return [.. documents.Select(d =>
+            variant.Overrides.TryGetValue(d.Id, out var replacement)
+            && byId.TryGetValue(replacement, out var over) ? over : d)];
+    }
+
+    /// <summary>
+    /// The documents in a folder, arranged by its <see cref="ProjectFolder.Order"/>.
+    /// </summary>
+    /// <remarks>
+    /// The order is <b>partial</b>: anything it names comes first, in that
+    /// sequence, and everything else follows by name. A scene with three pinned
+    /// opening shots and forty unsorted ones should not require sorting forty,
+    /// and an id left in the order after its document was deleted is skipped
+    /// rather than being an error — an ordering is a preference, not a claim
+    /// about what exists.
+    /// </remarks>
+    public static IReadOnlyList<DocumentRef> InOrder(ProjectManifest manifest, ProjectFolder? folder) =>
+        Arrange(DocumentsIn(manifest, folder), folder?.Order, d => d.Id, d => d.Name);
+
+    /// <summary>
+    /// The child folders of <paramref name="parent"/>, arranged by its
+    /// <see cref="ProjectFolder.Order"/> — a film's scenes in running order.
+    /// </summary>
+    /// <remarks>
+    /// <b>The same <c>Order</c> list, read by a second reader.</b> A folder's
+    /// order names ids, and an id is a document's or a child folder's; each
+    /// reader takes the ones it owns and skips the rest, which is the behaviour
+    /// the partial ordering already has for an id whose document was deleted.
+    /// Two lists would be two things to keep in step for no gain — a scene that
+    /// contains both shots and sub-scenes has one running order, not two.
+    /// </remarks>
+    public static IReadOnlyList<ProjectFolder> ChildrenInOrder(
+        ProjectManifest manifest, ProjectFolder? parent) =>
+        Arrange(ChildrenOf(manifest, parent), parent?.Order, f => f.Id, f => f.Name);
+
+    private static IReadOnlyList<T> Arrange<T>(
+        IReadOnlyList<T> items, List<string>? order, Func<T, string> id, Func<T, string> name)
+    {
+        if (order is not { Count: > 0 }) return [.. items.OrderBy(name)];
+
+        var byId = items.ToDictionary(id);
+        var arranged = new List<T>();
+        foreach (var wanted in order)
+            if (byId.Remove(wanted, out var item)) arranged.Add(item);
+        arranged.AddRange(byId.Values.OrderBy(name));
+        return arranged;
+    }
+
+    /// <summary>
+    /// Move something within a folder's running order, by its current and wanted
+    /// positions among the folder's <em>documents</em>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Materialises the order on first use</b>, which is what keeps "absent
+    /// until used" honest: a folder nobody has arranged carries no <c>order</c>
+    /// key, and the first drag writes the list it implied. Returns false and
+    /// changes nothing for a move that cannot happen, so a caller can bind it to
+    /// a gesture without guarding first.
+    /// </remarks>
+    public static bool MoveDocument(
+        ProjectManifest manifest, ProjectFolder folder, int from, int to)
+    {
+        var documents = InOrder(manifest, folder);
+        if (from < 0 || from >= documents.Count || to < 0 || to >= documents.Count || from == to)
+        {
+            return false;
+        }
+
+        var ids = documents.Select(d => d.Id).ToList();
+        var moved = ids[from];
+        ids.RemoveAt(from);
+        ids.Insert(to, moved);
+
+        // Keep any ids the order names that are not documents here — the child
+        // folders it also arranges, and anything a deleted document left behind.
+        var kept = (folder.Order ?? []).Where(i => !documents.Any(d => d.Id == i));
+        folder.Order = [.. ids, .. kept];
+        return true;
+    }
+
+    /// <summary>Move a child folder within its parent's running order.</summary>
+    public static bool MoveFolder(
+        ProjectManifest manifest, ProjectFolder? parent, int from, int to)
+    {
+        var children = ChildrenInOrder(manifest, parent);
+        if (parent is null) return false;   // the root has no record to arrange
+        if (from < 0 || from >= children.Count || to < 0 || to >= children.Count || from == to)
+        {
+            return false;
+        }
+
+        var ids = children.Select(f => f.Id).ToList();
+        var moved = ids[from];
+        ids.RemoveAt(from);
+        ids.Insert(to, moved);
+
+        var kept = (parent.Order ?? []).Where(i => !children.Any(f => f.Id == i));
+        parent.Order = [.. ids, .. kept];
+        return true;
+    }
 
     /// <summary>
     /// Make a folder inside <paramref name="parent"/>, or at the root.

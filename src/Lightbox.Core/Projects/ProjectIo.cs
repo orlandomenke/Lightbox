@@ -33,8 +33,7 @@ public static class ProjectIo
     public const string Extension = ".lbproj";
 
     private const string ManifestName = "project.json";
-    private const string CharactersDir = "characters";
-    private const string AnimationsDir = "animations";
+
     /// <summary>
     /// Where a document that belongs to the project and to no folder is filed.
     /// </summary>
@@ -91,99 +90,81 @@ public static class ProjectIo
     public static Project Create(string name, string root, ProjectType? type = null) =>
         new(new ProjectManifest { Name = name, Type = type }, root);
 
-    /// <summary>
-    /// Add a character, with a folder slug derived from its name. The slug is
-    /// what appears on disk and never changes again — renaming a character
-    /// must not move its files out from under a half-written save.
-    /// </summary>
-    public static Character AddCharacter(Project project, string name)
-    {
-        var character = new Character { Name = name, Slug = UniqueSlug(project, Slug(name)) };
-        project.Manifest.Characters.Add(character);
-        return character;
-    }
-
-    // ---- scenes ---------------------------------------------------------------
-
-    private const string ScenesDir = "scenes";
-
-    private const string ShotsDir = "shots";
+    // ---- subjects and running order -------------------------------------------
+    //
+    // There is no AddCharacter and no AddScene. B114 and
+    // `docs/DESIGN-project-scoping.md`: a character is a folder that holds a
+    // character's work, and a scene is a folder with a running order. Both are
+    // made with `ProjectFolders.Add`, because a second creation verb is a
+    // second container, and a second container is the bug.
+    //
+    // A folder becomes a subject when it gets a reading — which is also the
+    // honest answer to "how do you make a character before you have read one":
+    // you do not. You make a folder, put the work in it, and read it when there
+    // is something to read.
 
     /// <summary>
-    /// Add a scene. The first one brings the scene list into being.
+    /// How long everything in a folder runs: total frames, and seconds when
+    /// every document's length is known.
     /// </summary>
     /// <remarks>
-    /// The list is null until now, so a project that never plans a film writes
-    /// no scene key — the camera's rule, applied to the second axis.
+    /// Was <c>SceneDuration</c>. Null seconds rather than a low number when a
+    /// document has no hint yet — a running time that silently omits what it
+    /// could not measure is worse than none, because it is the number somebody
+    /// schedules against.
     /// </remarks>
-    public static ProjectScene AddScene(Project project, string name)
+    public static (int Frames, double? Seconds) FolderDuration(
+        ProjectManifest manifest, ProjectFolder folder)
     {
-        var manifest = project.Manifest;
-        manifest.Scenes ??= [];
-        var taken = manifest.Scenes.Select(s => s.Slug).ToHashSet();
-        var wanted = Slug(name);
-        var slug = wanted;
-        for (var n = 2; taken.Contains(slug); n++) slug = $"{wanted}-{n}";
+        var documents = ProjectFolders.InOrder(manifest, folder);
+        if (documents.Count == 0) return (0, 0);
 
-        var scene = new ProjectScene { Name = name, Slug = slug };
-        manifest.Scenes.Add(scene);
-        return scene;
-    }
-
-    /// <summary>Register a shot in a scene and cache its document.</summary>
-    public static DocumentRef AddShot(Project project, ProjectScene scene, string name, Doc doc)
-    {
-        var taken = scene.Shots
-            .Select(s => System.IO.Path.GetFileName(s.Path))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var wanted = Slug(name);
-        var slug = wanted;
-        for (var n = 2; taken.Contains($"{slug}.lightbox.json"); n++) slug = $"{wanted}-{n}";
-
-        var reference = new DocumentRef
+        var frames = 0;
+        double seconds = 0;
+        var known = true;
+        foreach (var document in documents)
         {
-            Name = name,
-            Path = $"{ScenesDir}/{scene.Slug}/{ShotsDir}/{slug}.lightbox.json",
-            Frames = doc.Scene.FrameCount,
-            Fps = doc.Scene.Fps,
-        };
-        scene.Shots.Add(reference);
-        project.Loaded[reference.Id] = doc;
-        return reference;
+            frames += document.Frames;
+            if (document.Seconds is { } s) seconds += s;
+            else known = false;
+        }
+        return (frames, known ? seconds : null);
     }
 
     /// <summary>
-    /// Delete a scene, keeping its shots.
+    /// Add a variant of the subject a folder describes, with its own copy of
+    /// the palette.
     /// </summary>
     /// <remarks>
-    /// The shots become loose documents rather than going with it, for the same
-    /// reason deleting a palette folder keeps the palettes: reorganising a film
-    /// must not be the fastest way to delete it. The files are never touched
-    /// either way — only the index changes.
+    /// The copy <b>keeps every swatch id</b>. That is the entire trick: the art
+    /// references swatches by id, so a palette carrying the same ids with
+    /// different colours repaints the same drawings without a second copy of
+    /// them existing. Fresh ids would make the variant paint nothing.
     /// </remarks>
-    public static void RemoveScene(Project project, ProjectScene scene)
+    public static SubjectVariant AddVariant(
+        Project project, ProjectFolder folder, string name, string? basePaletteId = null)
     {
-        if (project.Manifest.Scenes is not { } scenes) return;
-        if (!scenes.Remove(scene)) return;
-        project.Manifest.Documents.AddRange(scene.Shots);
-        // Back to absent once the last one goes.
-        if (scenes.Count == 0) project.Manifest.Scenes = null;
-    }
-
-    /// <summary>Move a scene in the running order. Out-of-range indices do nothing.</summary>
-    public static bool MoveScene(Project project, int from, int to) =>
-        Reorder(project.Manifest.Scenes, from, to);
-
-    /// <summary>Move a shot within its scene.</summary>
-    public static bool MoveShot(ProjectScene scene, int from, int to) =>
-        Reorder(scene.Shots, from, to);
-
-    /// <summary>Move a shot from one scene to another, at the end.</summary>
-    public static bool MoveShotToScene(ProjectScene from, ProjectScene to, DocumentRef shot)
-    {
-        if (ReferenceEquals(from, to) || !from.Shots.Remove(shot)) return false;
-        to.Shots.Add(shot);
-        return true;
+        var variant = new SubjectVariant { Name = name };
+        // Null means "whatever this subject paints with", which is the ordinary
+        // gesture — an artist adding Winter Armour is varying the palette the
+        // knight already has, and naming it again would be a second way to say
+        // the same thing.
+        basePaletteId ??= ResourceScopes.NearestAt(project.Manifest, folder, PaletteScopes.Kind)?.Id;
+        if (project.Palettes.FirstOrDefault(p => p.Id == basePaletteId) is { } basePalette)
+        {
+            var copy = new Palette
+            {
+                Name = $"{basePalette.Name} — {name}",
+                Columns = basePalette.Columns,
+                Swatches = basePalette.Swatches
+                    .Select(w => new Swatch { Id = w.Id, Color = w.Color, Name = w.Name })
+                    .ToList(),
+            };
+            project.Palettes.Add(copy);
+            variant.PaletteId = copy.Id;
+        }
+        (folder.Variants ??= []).Add(variant);
+        return variant;
     }
 
     private static bool Reorder<T>(List<T>? items, int from, int to)
@@ -197,174 +178,60 @@ public static class ProjectIo
     }
 
     /// <summary>
-    /// How long a scene runs: total frames, and seconds when every shot's
-    /// length is known.
+    /// Register a document in the project, optionally filed in a folder, and
+    /// put it in the loaded cache so the caller can open it without a round
+    /// trip through the disk.
     /// </summary>
     /// <remarks>
-    /// Null seconds rather than a low number when a shot has no hint yet.
-    /// A running time that silently omits the shots it could not measure is
-    /// worse than no running time, because it is the number somebody schedules
-    /// against.
+    /// <b>The only way to add a document</b>, since B114. There used to be
+    /// three — this, <c>AddAnimation</c> and <c>AddShot</c> — each appending to
+    /// a different list, and only this one's list was read by export planning
+    /// and scoped resources.
+    ///
+    /// <b>The path comes from <see cref="ProjectFolders.PathFor"/></b>, which is
+    /// the same function <see cref="ProjectFolders.FileDocument"/> uses when a
+    /// document is moved. One rule for where bytes go, rather than a creation
+    /// path and a move path that agree until somebody changes one.
+    ///
+    /// After that, <c>Path</c> and <c>FolderId</c> stay separate: renaming a
+    /// folder moves nothing on disk, because deriving the path on every read
+    /// would rename files underneath an artist who only renamed a row.
     /// </remarks>
-    public static (int Frames, double? Seconds) SceneDuration(ProjectScene scene)
+    public static DocumentRef AddDocument(
+        Project project, string name, Doc doc, ProjectFolder? folder = null)
     {
-        if (scene.Shots.Count == 0) return (0, 0);
-        var frames = 0;
-        double seconds = 0;
-        var known = true;
-        foreach (var shot in scene.Shots)
-        {
-            frames += shot.Frames;
-            if (shot.Seconds is { } s) seconds += s;
-            else known = false;
-        }
-        return (frames, known ? seconds : null);
-    }
-
-    /// <summary>
-    /// Register a new animation under a character and put its document in the
-    /// loaded cache, so the caller can open it immediately without a round trip
-    /// through the disk.
-    /// </summary>
-    public static DocumentRef AddAnimation(Project project, Character character, string name, Doc doc)
-    {
-        var slug = UniqueFileSlug(character, Slug(name));
         var reference = new DocumentRef
         {
             Name = name,
-            Path = $"{CharactersDir}/{character.Slug}/{AnimationsDir}/{slug}.lightbox.json",
+            FolderId = folder?.Id,
+            Frames = doc.Scene.FrameCount,
+            Fps = doc.Scene.Fps,
         };
-        character.Animations.Add(reference);
-        project.Loaded[reference.Id] = doc;
-        return reference;
-    }
-
-    /// <summary>
-    /// Register a document that belongs to the project but to no character —
-    /// a background, a colour test, a one-off illustration.
-    /// </summary>
-    public static DocumentRef AddDocument(Project project, string name, Doc doc)
-    {
-        var taken = project.Manifest.Documents.Select(d => d.Path).ToHashSet();
-        var slug = Slug(name);
-        var candidate = slug;
-        for (var n = 2; taken.Contains($"{DocumentsDir}/{candidate}.lightbox.json"); n++)
-        {
-            candidate = $"{slug}-{n}";
-        }
-        var reference = new DocumentRef
-        {
-            Name = name,
-            Path = $"{DocumentsDir}/{candidate}.lightbox.json",
-        };
+        reference.Path = ProjectFolders.PathFor(project.Manifest, reference, folder);
         project.Manifest.Documents.Add(reference);
         project.Loaded[reference.Id] = doc;
         return reference;
     }
 
-    /// <summary>
-    /// Move a document to another character, or to the project itself when
-    /// <paramref name="destination"/> is null.
-    /// </summary>
-    /// <remarks>
-    /// The <b>id is kept</b> and the path is recomputed. Keeping the id is what
-    /// lets an open tab stay bound to the document it is showing, so moving a
-    /// row in the tree does not orphan the window you are drawing in.
-    ///
-    /// <b>B106. The file moves with it.</b> This used to change the manifest and
-    /// stop, on the reasoning that a move which deleted an artist's file would
-    /// be a poor trade for tidiness — and the reasoning was sound about deleting
-    /// and wrong about the outcome. The next save wrote the document at its new
-    /// path and left the old file where it was, so one drawing became two: the
-    /// artist saw the copy they had moved and the original still sitting in the
-    /// folder they moved it out of, with no way to tell which one the app would
-    /// open. A move is a rename on disk, which is what
-    /// <see cref="MoveInProject"/> does and what renaming a folder has always
-    /// done — nothing is deleted and nothing is left behind.
-    ///
-    /// <b>The disk goes first, and the manifest only if it succeeded.</b> A
-    /// manifest pointing at a path the file never reached is the one outcome
-    /// worse than either half, because it is invisible: the panel would show the
-    /// document in its new home and the drawing would not be there.
-    /// </remarks>
-    public static bool MoveDocument(Project project, DocumentRef reference, Character? destination)
-    {
-        var from = project.Manifest.Characters.FirstOrDefault(c => c.Animations.Any(a => a.Id == reference.Id));
-        var atProjectLevel = project.Manifest.Documents.Any(d => d.Id == reference.Id);
-        if (from is null && !atProjectLevel) return false;
-        if (ReferenceEquals(from, destination)) return false;
 
-        // Worked out before anything is touched, so the move can be attempted
-        // and refused without leaving the manifest half-changed. Both branches
-        // read only state this method has not modified yet.
-        var to = destination is null
-            ? $"{DocumentsDir}/{Slug(reference.Name)}.lightbox.json"
-            : $"{CharactersDir}/{destination.Slug}/{AnimationsDir}/"
-              + $"{UniqueFileSlug(destination, Slug(reference.Name))}.lightbox.json";
-
-        if (!MoveInProject(project, reference.Path, to)) return false;
-
-        from?.Animations.RemoveAll(a => a.Id == reference.Id);
-        if (atProjectLevel) project.Manifest.Documents.RemoveAll(d => d.Id == reference.Id);
-
-        reference.Path = to;
-        if (destination is null) project.Manifest.Documents.Add(reference);
-        else destination.Animations.Add(reference);
-        return true;
-    }
-
-    /// <summary>
-    /// Add a variant of a character, with its own copy of the palette.
-    /// </summary>
-    /// <remarks>
-    /// The copy <b>keeps every swatch id</b>. That is the entire trick: the
-    /// art references swatches by id, so a palette carrying the same ids with
-    /// different colours repaints the same drawings without a second copy of
-    /// them existing. Fresh ids would make the variant paint nothing.
-    /// </remarks>
-    public static CharacterVariant AddVariant(Project project, Character character, string name)
-    {
-        var variant = new CharacterVariant { Name = name };
-        if (project.Palettes.FirstOrDefault(p => p.Id == character.PaletteId) is { } basePalette)
-        {
-            var copy = new Palette
-            {
-                Name = $"{basePalette.Name} — {name}",
-                Columns = basePalette.Columns,
-                Swatches = basePalette.Swatches
-                    .Select(s => new Swatch { Id = s.Id, Color = s.Color, Name = s.Name })
-                    .ToList(),
-            };
-            project.Palettes.Add(copy);
-            variant.PaletteId = copy.Id;
-        }
-        character.Variants.Add(variant);
-        return variant;
-    }
 
     /// <summary>
     /// Give a variant its own version of one animation — the escape hatch for
     /// a difference colour cannot express. Everything else stays inherited.
     /// </summary>
-    public static DocumentRef OverrideAnimation(
-        Project project, Character character, CharacterVariant variant, DocumentRef inherited, Doc doc)
+    public static DocumentRef OverrideDocument(
+        Project project, ProjectFolder folder, SubjectVariant variant, DocumentRef inherited, Doc doc)
     {
-        var slug = UniqueFileSlug(character, Slug($"{inherited.Name}-{variant.Name}"));
-        var reference = new DocumentRef
-        {
-            Name = $"{inherited.Name} ({variant.Name})",
-            Path = $"{CharactersDir}/{character.Slug}/{AnimationsDir}/{slug}.lightbox.json",
-        };
-        variant.AnimationOverrides[inherited.Id] = reference;
-        project.Loaded[reference.Id] = doc;
+        var reference = AddDocument(project, $"{inherited.Name} ({variant.Name})", doc, folder);
+        variant.Overrides[inherited.Id] = reference.Id;
         return reference;
     }
 
     // ---- load ---------------------------------------------------------------
 
     /// <summary>
-    /// Read the manifest, the character files and the shared palettes —
-    /// <b>not</b> the documents. Those come through
+    /// Read the manifest and the shared palettes — <b>not</b> the documents.
+    /// Those come through
     /// <see cref="LoadDocument"/> when something actually needs them.
     /// </summary>
     public static Project Load(string root)
@@ -376,17 +243,16 @@ public static class ProjectIo
             File.ReadAllText(manifestPath), DocJson.Options)
             ?? throw new JsonException("project.json deserialized to null.");
 
-        // The manifest indexes characters by slug; each character's own file is
-        // the authority on its animations, so a save that touched one character
-        // never has to rewrite the others.
-        for (var i = 0; i < manifest.Characters.Count; i++)
+        // A version-1 manifest is refused with a sentence rather than crashed
+        // on. Q36 decided against a migration — alpha, one user, nothing
+        // produced — and the honest cost of that is a project that will not
+        // open, so it has to be said rather than discovered.
+        if (manifest.Version < ProjectManifest.CurrentVersion)
         {
-            var path = CharacterPath(root, manifest.Characters[i].Slug);
-            if (!File.Exists(path)) continue;
-            if (JsonSerializer.Deserialize<Character>(File.ReadAllText(path), DocJson.Options) is { } loaded)
-            {
-                manifest.Characters[i] = loaded;
-            }
+            throw new NotSupportedException(
+                "This project was made with an earlier alpha and cannot be opened. "
+                + "Its drawings are intact — the .lightbox.json files inside it can be "
+                + "opened individually.");
         }
 
         var project = new Project(manifest, root);
@@ -553,12 +419,10 @@ public static class ProjectIo
             Path.Combine(project.Root, ManifestName),
             JsonSerializer.Serialize(project.Manifest, DocJson.Options));
 
-        foreach (var character in project.Manifest.Characters)
-        {
-            DocJson.WriteAtomic(
-                CharacterPath(project.Root, character.Slug),
-                JsonSerializer.Serialize(character, DocJson.Options));
-        }
+        // There is no second index file any more. `character.json` existed so a
+        // save that touched one character need not rewrite the others; with one
+        // folder tree in one manifest there is nothing to split, and the
+        // side-file was the mechanism B114's two containers were built on.
 
         foreach (var reference in DocumentsToWrite(project, dirty))
         {
@@ -708,17 +572,23 @@ public static class ProjectIo
             case ProjectType.GameArt:
                 // The pivot is what asset export registers frames on, so its
                 // absence is the one thing genuinely worth mentioning.
-                var without = project.Manifest.Characters.Count(c => c.Pivot is null);
-                notes.Add(without == 0
-                    ? "Export packs sprite sheets, registered on each character's pivot."
-                    : $"Export packs sprite sheets. {without} character(s) have no pivot yet, "
+                // Q40: folders that hold work, not "subjects" — a sprite sheet
+                // is packed from whatever a folder contains, and calling that a
+                // character is a designation the project does not have.
+                var holding = ProjectFolders.All(project.Manifest)
+                    .Where(f => ProjectFolders.DocumentsIn(project.Manifest, f).Count > 0)
+                    .ToList();
+                var without = holding.Count(f => f.Pivot is null);
+                notes.Add(holding.Count == 0 || without == 0
+                    ? "Export packs sprite sheets, registered on each folder's pivot."
+                    : $"Export packs sprite sheets. {without} folder(s) have no pivot yet, "
                         + "so their frames register on the canvas instead.");
                 break;
             case ProjectType.Illustration or ProjectType.Comic:
                 notes.Add("Playback and camera tooling stop being offered. Nothing already authored is removed.");
                 break;
             case ProjectType.AssetLibrary:
-                notes.Add("Other projects can import these characters, bringing their animations and palette.");
+                notes.Add("Other projects can import these folders, bringing their documents and palette.");
                 break;
             case null:
                 notes.Add("No declared type. Every panel stays available and the type key leaves the file.");
@@ -737,19 +607,24 @@ public static class ProjectIo
     // ---- migration ----------------------------------------------------------
 
     /// <summary>
-    /// Wrap a loose <c>.lightbox.json</c> in a one-character project,
+    /// Wrap a loose <c>.lightbox.json</c> in a one-document project,
     /// <b>in memory</b>. Nothing is written until the artist chooses
     /// "Save as project…", so opening an old file keeps working exactly as it
     /// did and the container is offered rather than imposed.
     /// </summary>
+    /// <remarks>
+    /// <b>No folder is invented.</b> It used to make a character named after the
+    /// file and file the drawing under it, which is B83/B84 — a layout the artist
+    /// never asked for, leaking out of a special-cased container. One document at
+    /// the root is what was opened, so it is what the project holds.
+    /// </remarks>
     public static Project Migrate(Doc doc, string documentPath)
     {
         var name = Path.GetFileNameWithoutExtension(documentPath);
         if (name.EndsWith(".lightbox", StringComparison.OrdinalIgnoreCase)) name = name[..^9];
 
         var project = Create(name, Path.ChangeExtension(documentPath, null) + Extension);
-        var character = AddCharacter(project, name);
-        AddAnimation(project, character, name, doc);
+        AddDocument(project, name, doc);
 
         // The document's own palettes and gradients become the project's: the
         // point of migrating is that they are now shared, not that a copy sits
@@ -881,9 +756,6 @@ public static class ProjectIo
 
     // ---- naming -------------------------------------------------------------
 
-    private static string CharacterPath(string root, string slug) =>
-        Path.Combine(root, CharactersDir, slug, "character.json");
-
     /// <summary>
     /// A filesystem-safe folder name. Never empty, so a path is never
     /// malformed — a character called "///" would otherwise write itself into
@@ -900,21 +772,6 @@ public static class ProjectIo
         var slug = new string(chars).Trim('-');
         while (slug.Contains("--")) slug = slug.Replace("--", "-");
         return slug.Length == 0 ? "untitled" : slug;
-    }
-
-    private static string UniqueSlug(Project project, string wanted)
-    {
-        var taken = project.Manifest.Characters.Select(c => c.Slug).ToHashSet();
-        return Unique(wanted, taken);
-    }
-
-    private static string UniqueFileSlug(Character character, string wanted)
-    {
-        var taken = character.Animations
-            .Concat(character.Variants.SelectMany(v => v.AnimationOverrides.Values))
-            .Select(a => Path.GetFileName(a.Path).Replace(".lightbox.json", ""))
-            .ToHashSet();
-        return Unique(wanted, taken);
     }
 
     private static string Unique(string wanted, HashSet<string> taken)
@@ -1088,6 +945,12 @@ public static class ProjectIo
     /// <c>scenes/</c> arriving unasked.
     /// </para>
     /// <para>
+    /// <b>Those two names left this set with B114.</b> Nothing creates them any
+    /// more — a character is a folder the artist made — so a <c>characters/</c>
+    /// directory at the top of a project is now exactly the unexplained thing
+    /// this list exists to report, rather than something Lightbox owns.
+    /// </para>
+    /// <para>
     /// Declared here rather than listed in <c>Folders</c>, which was the other
     /// reading. Putting them in the artist's tree would make <c>palettes</c> a
     /// row that can be renamed, dragged and deleted like any other, and every
@@ -1102,7 +965,7 @@ public static class ProjectIo
     /// </remarks>
     public static readonly IReadOnlySet<string> SystemFolders = new HashSet<string>(
         [
-            CharactersDir, DocumentsDir, LegacyDocumentsDir, ScenesDir,
+            DocumentsDir, LegacyDocumentsDir,
             "palettes", "gradients", "assets", ".autosave",
         ],
         StringComparer.OrdinalIgnoreCase);

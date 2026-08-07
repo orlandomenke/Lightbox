@@ -61,11 +61,11 @@ public sealed class SymbolGraphTests : IDisposable
     private Project Knight(out Doc walk, out Doc idle, out Symbol sword)
     {
         var project = ProjectIo.Create("Knight", _root);
-        var knight = ProjectIo.AddCharacter(project, "Knight");
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");
         walk = Drawing();
         idle = Drawing();
-        ProjectIo.AddAnimation(project, knight, "Walk", walk);
-        ProjectIo.AddAnimation(project, knight, "Idle", idle);
+        ProjectIo.AddDocument(project, "Walk", walk, knight);
+        ProjectIo.AddDocument(project, "Idle", idle, knight);
         sword = Sword();
         project.Symbols[sword.Id] = sword;
         return project;
@@ -187,12 +187,12 @@ public sealed class SymbolGraphTests : IDisposable
         // twice across two documents, and a report that folded them together
         // would undercount exactly the case variants exist for.
         var project = ProjectIo.Create("Knight", _root);
-        var knight = ProjectIo.AddCharacter(project, "Knight");
+        var knight = ProjectFolders.Add(project.Manifest, "Knight");
         var walk = Drawing();
-        var baseRef = ProjectIo.AddAnimation(project, knight, "Walk", walk);
+        var baseRef = ProjectIo.AddDocument(project, "Walk", walk, knight);
         var winter = ProjectIo.AddVariant(project, knight, "Winter");
         var winterWalk = Drawing();
-        ProjectIo.OverrideAnimation(project, knight, winter, baseRef, winterWalk);
+        ProjectIo.OverrideDocument(project, knight, winter, baseRef, winterWalk);
         var sword = Sword();
         project.Symbols[sword.Id] = sword;
         Place(walk, sword);

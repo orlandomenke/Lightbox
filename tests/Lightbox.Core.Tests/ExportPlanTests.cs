@@ -42,6 +42,73 @@ public class ExportPlanTests(ITestOutputHelper output)
         return d;
     }
 
+    // ---- B114: the whole project means the whole project ----------------------
+
+    /// <summary>
+    /// A whole-project export includes a character's animations.
+    /// </summary>
+    /// <remarks>
+    /// <b>B114's third named test.</b> `ExportPlan.DocumentsUnder` reads
+    /// `manifest.Documents`, and `ProjectIo.AddAnimation` filed a character's
+    /// work under `Character.Animations` instead — so exporting an animation
+    /// project produced the loose documents and nothing else. Silently: the plan
+    /// was well-formed, the count was just wrong, and the count is the thing an
+    /// artist reads before pressing go.
+    /// <para>
+    /// It fails against the old model rather than merely passing against the new
+    /// one, which is what makes it a regression test: under two containers the
+    /// walk cycle could not be in <c>manifest.Documents</c> at all.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AWholeProjectExportIncludesCharacterAnimations()
+    {
+        var (m, _, knight, goblin) = World();
+        var walk = Doc(m, knight, "walk");
+        var idle = Doc(m, knight, "idle");
+        var lurk = Doc(m, goblin, "lurk");
+        // And a document filed nowhere, which is the only kind the old plan saw.
+        var background = new DocumentRef { Name = "background", Path = "d/background.json" };
+        m.Documents.Add(background);
+
+        var plan = ExportPlan.For(m, selection: null, Find);
+        output.WriteLine(ExportPlan.Describe(plan));
+
+        var exported = plan.SelectMany(a => a.Documents).Select(d => d.Id).ToHashSet();
+        Assert.Contains(walk.Id, exported);
+        Assert.Contains(idle.Id, exported);
+        Assert.Contains(lurk.Id, exported);
+        Assert.Contains(background.Id, exported);
+        Assert.Equal(4, exported.Count);
+    }
+
+    /// <summary>
+    /// And a variant's own art is in it too — the third container B114 found.
+    /// </summary>
+    /// <remarks>
+    /// An override used to be a <c>DocumentRef</c> living inside the variant and
+    /// nowhere else, so a knight's armoured walk was in no export plan for the
+    /// same reason the plain walk was not.
+    /// </remarks>
+    [Fact]
+    public void AWholeProjectExportIncludesAVariantsOwnArt()
+    {
+        var (m, _, knight, _) = World();
+        var walk = Doc(m, knight, "walk");
+        var armoured = Doc(m, knight, "walk-armoured");
+        (knight.Variants ??= []).Add(new SubjectVariant
+        {
+            Name = "Armoured",
+            Overrides = { [walk.Id] = armoured.Id },
+        });
+
+        var plan = ExportPlan.For(m, selection: null, Find);
+        var exported = plan.SelectMany(a => a.Documents).Select(d => d.Id).ToHashSet();
+
+        Assert.Contains(walk.Id, exported);
+        Assert.Contains(armoured.Id, exported);
+    }
+
     /// <summary>A knight declared as one sheet is one file, however deep the tree.</summary>
     [Fact]
     public void OneArtifactPacksTheWholeSubtreeIntoOneFile()
