@@ -9739,12 +9739,13 @@ public sealed partial class MainViewModel : ObservableObject
         var viewWidth = cameraView is null ? scene.Width : scene.Camera!.OutputWidth;
         var viewHeight = cameraView is null ? scene.Height : scene.Camera!.OutputHeight;
 
-        // Check if unbounded canvas is enabled and we have a viewport for culling
-        var projectType = ProjectDocker.Project?.Manifest.Type ?? Lightbox.Core.Projects.ProjectType.Animation;
-        var hasUnboundedCanvas = Doc?.GetFeature(
-            Lightbox.Core.Projects.FeatureKey.UnboundedCanvas,
-            _featureDefaults.GetDefault(projectType, Lightbox.Core.Projects.FeatureKey.UnboundedCanvas)) ?? false;
-        var useUnboundedPath = hasUnboundedCanvas && _pendingViewport is { Width: > 0, Height: > 0 };
+        // Check if unbounded canvas is EXPLICITLY enabled (not just by default).
+        // The tiled rendering path is not yet optimized for performance, so we only use it
+        // when an artist has explicitly opted in via the document features override.
+        // TODO: Optimize TileStore.FromBitmap or render directly to tiles to make this faster.
+        var hasExplicitUnboundedCanvas = Doc?.Features?.TryGetValue(
+            nameof(Lightbox.Core.Projects.FeatureKey.UnboundedCanvas), out var enabled) == true && enabled;
+        var useUnboundedPath = hasExplicitUnboundedCanvas && _pendingViewport is { Width: > 0, Height: > 0 };
 
         var info = new SKImageInfo(
             Math.Max(1, (int)Math.Ceiling(viewWidth * renderScale)),

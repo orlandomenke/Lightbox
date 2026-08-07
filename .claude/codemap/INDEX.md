@@ -1,6 +1,6 @@
 # Code index
 
-501 files · 131030 lines · 2628 tests.
+501 files · 131031 lines · 2628 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,7 +47,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10376 ln) · 4 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10377 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4476, TransformParts:7144
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4303 ln) · 16 test files
   - MainWindow:19, UnsavedChoice:2763
