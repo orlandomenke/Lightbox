@@ -137,7 +137,7 @@
                            SelectedValue="{TemplateBinding ActiveTab}"
                            SelectedValueBinding="{Binding Id, DataType=docking:DockPanelInfo}"
                            Background="Transparent" BorderThickness="0"
-                           MinHeight="20" Padding="0" Margin="-6,0,0,0"
+                           Padding="0" Margin="-6,0,0,0"
                            VerticalAlignment="Center">
                     <ListBox.ItemsPanel>
                       <ItemsPanelTemplate>
@@ -213,7 +213,7 @@
               <ContentPresenter Content="{TemplateBinding Content}"
                                 HorizontalAlignment="Center" VerticalAlignment="Center"
                                 IsVisible="{Binding !Collapsed, RelativeSource={RelativeSource TemplatedParent}}" />
-              <Button x:Name="PART_Collapse" Classes="icon" FontSize="9" Padding="4,2"
+              <Button x:Name="PART_Collapse" Classes="icon" FontSize="9"
                       Content="{Binding Collapsed, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static docking:OverlayConverters.CollapseGlyph}}"
                       ToolTip.Tip="Roll the bar up to its grip" />
               <Button x:Name="PART_Close" Classes="icon" Content="✕" FontSize="9" Padding="4,2"

@@ -88,6 +88,31 @@ retuning against components that are about to be restyled means measuring twice.
 `.claude/quality/DESIGN.md` holds the scale and is the thing edited — per-view tweaks
 are what the scale exists to prevent.
 
+**Measured, not estimated.** Text renders at the same size in the reference and in
+the app (10 px vs 11 px cap height), so the two are directly comparable — and the
+rows are not: the reference runs a **20–22 px pitch** in the layers list, the timeline
+tracks and the brush settings alike, where the app renders **33–34**. Roughly 1.5× the
+vertical space for the same content.
+
+> **The reference's density is partly gated on deferred work, and that is worth
+> knowing before anyone measures the mockup again.** Our row height is set by the icon
+> tile, the tile is 26 because the icons are **emoji**, and `Density.axaml` already
+> records that a 16 px emoji with an ascender *clips* in a 24 px tile. The reference's
+> 21 px rows use vector icons. So the last few pixels are blocked on the icon set,
+> which is deferred below on the vector tooling — and when it lands, the tile can go
+> to 20 and the rows with it.
+
+The stage therefore runs in three branches, tightest-honest rather than
+tightest-possible:
+
+1. **One scale.** Four sources disagreed — this document's table, `Density.axaml`,
+   per-view overrides in `MainWindow.axaml` that beat both, and two C# constants. The
+   overrides won, so the scale described sizes no control had. No visual change; a new
+   `DensityScaleTests` fails when they diverge again.
+2. **Docker density.** The rows an artist reads, 33 → ~28.
+3. **Bar density.** The strips above and below the canvas, where the 35–38 px pitch
+   is and where the canvas gets the most back.
+
 ### 4 · Workspace tabs
 
 The picker moves from a dropdown at the right of the tool options bar to a tab strip,
