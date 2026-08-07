@@ -86,16 +86,40 @@
     <Setter Property="Height" Value="24" />
   </Style>
 
-  <!-- Icon buttons: square, tight, and all the same. Opt in with Classes="icon". -->
+  <!--
+    Icon buttons: square, tight, and all the same. Opt in with Classes="icon".
+
+    **26, and it is the glyph that decides it rather than the scale.** The row
+    height an artist sees is this number, so 24 would be the tidier answer and
+    it does not survive contact with the content: the icons are emoji — 👁 🔒 ＋
+    ✕ — and a 16px emoji with an ascender does not fit a 24px tile once the
+    border and the line box are paid for. It clips rather than crowds, which is
+    the version nobody notices until it is shipped. The overlay bars found this
+    first (see the tile below) and this is the same argument in the second place
+    it applies.
+
+    So this is the one number on the scale that is waiting on something else:
+    when the icon set lands and these stop being emoji, 26 can go to 20 and the
+    rows with it. `docs/DESIGN-ui-system.md` records that dependency, because
+    the design reference's 21px rows are otherwise unreachable and the next
+    person to measure the mockup will re-derive the blocker.
+
+    **Both variants declare the same square.** They did not: Button.icon pinned
+    Width/MaxWidth/Height and ToggleButton.icon set only MinWidth and Height, so
+    a toggle beside a button in the same row could come out wider. A row of
+    tiles with different proportions stops reading as a row, which is the defect
+    the overlay bar's fixed square already exists to prevent.
+  -->
   <Style Selector="Button.icon">
-    <Setter Property="MinWidth" Value="24" />
-    <Setter Property="MaxWidth" Value="24" />
-    <Setter Property="Width" Value="24" />
-    <Setter Property="Height" Value="24" />
-    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="MinWidth" Value="26" />
+    <Setter Property="MaxWidth" Value="26" />
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="26" />
+    <Setter Property="MinHeight" Value="26" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
   </Style>
 
   <Style Selector="ToggleButton">
@@ -105,10 +129,15 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="ToggleButton.icon">
-    <Setter Property="MinWidth" Value="24" />
-    <Setter Property="Height" Value="24" />
+    <Setter Property="MinWidth" Value="26" />
+    <Setter Property="MaxWidth" Value="26" />
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="26" />
+    <Setter Property="MinHeight" Value="26" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
   </Style>
 
   <!--
@@ -224,10 +253,39 @@
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
-  <!-- Tool buttons are hit while drawing; they keep the larger target. -->
+  <!--
+    Tool buttons are hit while drawing; they keep the larger target.
+
+    **34, which is what shipped rather than the 30 this used to claim.** The
+    tool palette declared its own size in `MainWindow.axaml` and that override
+    won, so the 30 here was never applied to a single control — a scale entry
+    that describes nothing. Merged the other way round on purpose: the palette
+    is the clearest case of "generous where a mistake costs a stroke", so the
+    number an artist has been hitting is the one that is right, and it is the
+    scale that had drifted away from it.
+
+    The `labels` class on the toolbar (set from code-behind at a width
+    threshold) reveals the names beside the icons; only the alignment changes
+    there, never the height, so the column keeps one rhythm at both widths.
+  -->
   <Style Selector="ToggleButton.tool">
-    <Setter Property="MinHeight" Value="30" />
-    <Setter Property="Padding" Value="6,4" />
+    <Setter Property="Height" Value="34" />
+    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="Margin" Value="1" />
+    <Setter Property="Padding" Value="4,0" />
     <Setter Property="FontSize" Value="12" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!--
+    The tool options bar is one fixed row, and this is the number every group in
+    it is measured against by `NothingInTheBarAsksForMoreHeightThanTheBarHas`.
+    It was declared inline on the control in `MainWindow.axaml`, which made it
+    the one height in the application that no reader of the scale could find.
+  -->
+  <Style Selector="controls|OverflowBar">
+    <Setter Property="Height" Value="30" />
   </Style>
 </Styles>

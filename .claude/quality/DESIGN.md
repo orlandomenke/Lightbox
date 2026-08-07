@@ -34,12 +34,17 @@ job*".
 
 ## Sizes
 
-One scale. Anything not on it needs a reason in a comment.
+One scale, implemented once in `src/Lightbox.App/Styles/Density.axaml`.
+Anything not on it needs a reason in a comment **at the site in that file** —
+not in a view, because a view that re-declares a size wins silently and the
+scale is then describing controls that do not exist.
 
 | Token | px | Used for |
 | --- | --- | --- |
-| `--row` | 24 | Field, combo, small button, layer row, list row |
-| `--row-lg` | 30 | Primary buttons, tool buttons, anything hit while drawing |
+| `--row` | 24 | Field, combo, small button, list row |
+| `--tile` | 26 | Icon button, overlay-bar tile — a square, and see below |
+| `--bar` | 30 | The tool options bar's fixed row |
+| `--tool` | 34 | Tool palette buttons — hit while drawing, so the largest |
 | `--gap` | 4 | Between related controls in a group |
 | `--gap-lg` | 8 | Between groups, and docker content padding |
 | `--label` | 52 | Label column in a labelled-row layout, so rows align |
@@ -48,6 +53,28 @@ One scale. Anything not on it needs a reason in a comment.
 Font sizes: **12** in docker content, **11** in dense rows and option bars,
 **10** for status and hints. Nothing smaller — below 10 the app stops being
 readable on a laptop panel.
+
+**`--tile` is 26 because of the glyph, not because of the scale.** 24 is the
+tidier number and it does not survive contact with the content: the icons are
+emoji, and a 16px emoji with an ascender does not fit a 24px tile once the
+border and the line box are paid for. It *clips* rather than crowds, which is
+the version nobody notices until it ships.
+
+That makes it **the one entry on this scale waiting on something else.** A
+docker row is `--tile` plus its padding, so the icons set the row height, and
+the design reference's 21px rows are unreachable until the icon set replaces
+the emoji with vector paths. `docs/DESIGN-ui-system.md` carries that dependency
+so the next person measuring the mockup does not re-derive the blocker.
+
+**Where these numbers were before, and why that mattered.** Four sources
+disagreed: this table, `Density.axaml`, per-view overrides in `MainWindow.axaml`
+that beat both, and two constants in C#. The overrides won, so the scale
+described sizes no control had — `--tool` was written 30 here and rendered 34,
+and the icon tile was written 24 and rendered 26. Both are now recorded at the
+value that actually shipped, because in each case the view was right and the
+scale had drifted away from it. `DensityScaleTests` parses this table and
+`Density.axaml` and fails when they disagree, which is the check whose absence
+let it happen.
 
 ## Controls
 
@@ -67,9 +94,14 @@ gets buttons or a combo, never a slider.
 
 | Role | Size | Examples |
 | --- | --- | --- |
-| Icon | 24×24, padding `4,2` | ✕ close, ▲▼ reorder, ＋ add |
-| Text | height 24, padding `8,3`, `MinWidth 64` | "Import…", "＋ Swatch" |
-| Tool | 30 min, padding `6,4` | Toolbar tools, transport buttons |
+| Icon | `--tile` square, padding `0` | ✕ close, ▲▼ reorder, ＋ add |
+| Text | `--row` high, padding `8,0`, `MinWidth 70` | "Import…", "＋ Swatch" |
+| Tool | `--tool` high, padding `4,0` | Toolbar tools, transport buttons |
+
+Named from the scale rather than restated as numbers, because this table
+restating them is how it came to disagree with the scale on every row at once:
+it said icon padding `4,2` where the code had `0`, text `MinWidth 64` where the
+code had `70`, and tool `30` where the code had `34`.
 
 Two buttons that do comparable things must be the same size. A row of
 `＋ Swatch` / `－` / `Import…` / `Export…` reads as a group only if the icon
