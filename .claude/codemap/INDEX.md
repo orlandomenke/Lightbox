@@ -1,6 +1,6 @@
 # Code index
 
-502 files · 131269 lines · 2633 tests.
+502 files · 131231 lines · 2633 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -65,7 +65,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SwatchRow:15, PaletteDockerViewModel:93
 - `src/Lightbox.App/Services/SpriteSheetExporter.cs` (805 ln) · 99 test files
   - SpriteSheetOptions:14, SpriteSheetResult:54, SpriteSheetExporter:103, SheetDocument:677, SheetFrame:683, SheetMeta:716, SheetTag:747, SheetEvent:761 …
-- `src/Lightbox.App/Services/UnityExporter.cs` (696 ln) · 14 test files
+- `src/Lightbox.App/Services/UnityExporter.cs` (666 ln) · 14 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml.cs` (496 ln) · 1 test files
   - TipScope:16, TipRow:29, BrushTipsWindow:62
@@ -73,7 +73,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushPreset:8, BrushComparison:86, BuiltInPresets:130, PresetStore:412, State:417
 - `src/Lightbox.App/ViewModels/GradientDockerViewModel.cs` (467 ln) · 1 test files
   - GradientStopRow:16, GradientDockerViewModel:89, HexColor:452
-- `src/Lightbox.App/Services/UnrealExporter.cs` (445 ln) · 2 test files
+- `src/Lightbox.App/Services/UnrealExporter.cs` (442 ln) · 2 test files
   - UnrealExportOptions:9, UnrealExportResult:24, UnrealExporter:61, UnrealBlock:70
 - `src/Lightbox.App/ViewModels/WorkspaceViewModel.cs` (414 ln) · 1 test files
   - WorkspaceViewModel:20, WorkspaceRow:409
@@ -91,12 +91,12 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GameMakerExportOptions:10, GameMakerExportResult:28, GameMakerExporter:78, StripRecord:86, GameMakerBlock:99
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 16 indirect only
   - RampTrack:10, GradientRamp:41
-- `src/Lightbox.App/Services/GodotExporter.cs` (300 ln) · 2 test files
-  - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 106 test files
   - MainViewModel:32
+- `src/Lightbox.App/Services/GodotExporter.cs` (283 ln) · 2 test files
+  - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
 - `src/Lightbox.App/Docking/DockLayout.cs` (276 ln) · 3 test files
   - DockPlacement:7, DockLayout:51
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
@@ -105,14 +105,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ComposeRing:31, Buffer:33
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (256 ln) · 3 test files
   - Workspace:13, WorkspaceStore:51
+- `src/Lightbox.App/Services/ExportRunner.cs` (256 ln) · 5 test files
+  - ExportRun:17, ExportRunner:42
 - `src/Lightbox.App/ViewModels/DocumentTab.cs` (253 ln) · 28 test files
   - NewDocumentSettings:20, WorkspaceChoice:32, DocumentTabKind:41, DocumentTab:60
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
 - `src/Lightbox.App/ViewModels/SelectionManager.cs` (250 ln) · 4 indirect only
   - SelectionManager:7
-- `src/Lightbox.App/Services/ExportRunner.cs` (244 ln) · 5 test files
-  - ExportRun:17, ExportRunner:42
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
 - `src/Lightbox.App/Styles/Density.axaml` (233 ln) · **no tests**
