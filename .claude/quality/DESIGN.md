@@ -65,6 +65,37 @@ Two buttons that do comparable things must be the same size. A row of
 buttons share one width and the text buttons share another. Mixed sizes inside
 one bar is the most common way this app has looked unfinished.
 
+## Colour
+
+**Every colour in the chrome names a role. None of them is a hex value.** The
+tokens live in `src/Lightbox.App/Styles/Palette.axaml`; this section is the rule
+they implement, the same way `Density.axaml` implements *Sizes* above.
+
+Four surfaces, back to front — `BackgroundPrimary`, `BackgroundSecondary`,
+`SurfacePanel`, `SurfaceElevated`. The order is the meaning: anything raised
+above its neighbour goes one step up, and that is the whole system. Two text
+weights, `TextPrimary` and `TextSecondary`. Six accents, which are a vocabulary
+rather than decoration — timeline tracks and layer groups are coloured from
+them, so they have to stay distinguishable at the size of a keyframe dot.
+
+Three rules, each learned from what went wrong before the tokens existed:
+
+- **Name the role, never the colour.** `SurfacePanelBrush` survives the panel
+  becoming blue; `DarkGreyBrush` does not. A codebase that has been through one
+  re-skin is full of tokens whose names are lies.
+- **A literal in a view is a defect**, not a shortcut. Before this there were
+  120 of them across 60 distinct values, which is how two panels come to be
+  *nearly* the same colour — a difference nobody can see deliberately and
+  everybody can see accidentally.
+- **Two things are not colours and stay literal**: the drag grip's near-invisible
+  fill, which is a hit target, and the paper the artist draws on, which is white
+  because paper is white. Both are commented at the site, because the next
+  person's instinct will be to tokenise them.
+
+The exception is anything that reaches **pixels in the document**. Paper, ink,
+swatches and every colour an artist picks are part of the record, governed by
+the invariants in `CLAUDE.md`, and have nothing to do with this section.
+
 ## Dockers
 
 **A docker must never be too small to use.** With five dockers open, a fixed

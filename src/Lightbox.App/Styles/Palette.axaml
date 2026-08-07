@@ -1,0 +1,96 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    The colour system, in one file, from docs/DESIGN-ui-system.md.
+
+    Before this there were 120 colour literals across 60 distinct values and six
+    resource references, which made "change the application's colour" a hundred
+    edits with no way to check they agreed. The point of a token is not tidiness:
+    it is that a surface and the surface beside it are the *same* colour because
+    they name the same thing, rather than because two people typed the same hex.
+
+    Named for the ROLE, never the colour. `SurfacePanelBrush` survives the panel
+    becoming blue; `DarkGreyBrush` does not, and a codebase that has been through
+    one re-skin is full of tokens whose names are lies.
+  -->
+
+  <!-- ===== Core ===================================================== -->
+  <!-- Four surfaces, from furthest back to nearest front. The order is the
+       whole meaning: anything raised above its neighbour goes one step up. -->
+  <Color x:Key="BackgroundPrimary">#0B0D12</Color>
+  <Color x:Key="BackgroundSecondary">#13161D</Color>
+  <Color x:Key="SurfacePanel">#1A1E27</Color>
+  <Color x:Key="SurfaceElevated">#222634</Color>
+
+  <Color x:Key="TextPrimary">#E6E8F0</Color>
+  <Color x:Key="TextSecondary">#9AA1B2</Color>
+
+  <SolidColorBrush x:Key="BackgroundPrimaryBrush" Color="{StaticResource BackgroundPrimary}" />
+  <SolidColorBrush x:Key="BackgroundSecondaryBrush" Color="{StaticResource BackgroundSecondary}" />
+  <SolidColorBrush x:Key="SurfacePanelBrush" Color="{StaticResource SurfacePanel}" />
+  <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="{StaticResource SurfaceElevated}" />
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}" />
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondary}" />
+
+  <!-- ===== Borders — derived, and that is worth stating ============== -->
+  <!--
+    The design gives six core colours and no border. The application leans on
+    borders heavily (every docker, every overlay bar), so one has to exist, and
+    inventing it silently would leave the next person unable to tell which
+    values came from the design and which came from us.
+
+    Derived rather than picked: a border is the next surface up, which is what
+    makes a raised edge read as raised rather than as a drawn line. The strong
+    variant is for a focused or dragged edge that has to win against content.
+  -->
+  <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource SurfaceElevated}" />
+  <SolidColorBrush x:Key="BorderStrongBrush" Color="#2E3444" />
+
+  <!-- ===== Accents =================================================== -->
+  <!--
+    Six, and they are a vocabulary rather than decoration: the mockup colours
+    timeline tracks and layer groups with them, so they have to be
+    distinguishable side by side at the size of a keyframe dot.
+  -->
+  <Color x:Key="AccentCoral">#FF6A3D</Color>
+  <Color x:Key="AccentMagenta">#D946FF</Color>
+  <Color x:Key="AccentViolet">#7B61FF</Color>
+  <Color x:Key="AccentCyan">#00D1BC</Color>
+  <Color x:Key="AccentLime">#A7E72E</Color>
+  <Color x:Key="AccentAmber">#FFB020</Color>
+
+  <SolidColorBrush x:Key="AccentCoralBrush" Color="{StaticResource AccentCoral}" />
+  <SolidColorBrush x:Key="AccentMagentaBrush" Color="{StaticResource AccentMagenta}" />
+  <SolidColorBrush x:Key="AccentVioletBrush" Color="{StaticResource AccentViolet}" />
+  <SolidColorBrush x:Key="AccentCyanBrush" Color="{StaticResource AccentCyan}" />
+  <SolidColorBrush x:Key="AccentLimeBrush" Color="{StaticResource AccentLime}" />
+  <SolidColorBrush x:Key="AccentAmberBrush" Color="{StaticResource AccentAmber}" />
+
+  <!--
+    The primary action gradient, coral into magenta. One definition: the mockup
+    uses it on the primary button and the loading bar, and two hand-built copies
+    would drift the moment either is touched.
+  -->
+  <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0%,0%" EndPoint="100%,0%">
+    <GradientStop Offset="0" Color="{StaticResource AccentCoral}" />
+    <GradientStop Offset="1" Color="{StaticResource AccentMagenta}" />
+  </LinearGradientBrush>
+
+  <!-- ===== Meaning ==================================================== -->
+  <!--
+    Status colours point at accents rather than restating them, so the palette
+    stays one list. Named for what they mean: an error is an error whichever
+    colour the design later decides that is.
+  -->
+  <SolidColorBrush x:Key="StatusInfoBrush" Color="{StaticResource AccentViolet}" />
+  <SolidColorBrush x:Key="StatusWarningBrush" Color="{StaticResource AccentAmber}" />
+  <SolidColorBrush x:Key="StatusErrorBrush" Color="#FF5A5A" />
+  <SolidColorBrush x:Key="StatusSuccessBrush" Color="{StaticResource AccentCyan}" />
+
+  <!--
+    The paper. Not a surface and not a token to be re-skinned: it is what the
+    artist is drawing on, and it is white because paper is white. It lives here
+    so nobody mistakes it for chrome and "fixes" it to a dark value.
+  -->
+  <SolidColorBrush x:Key="CanvasPaperBrush" Color="#F2F0EC" />
+</ResourceDictionary>

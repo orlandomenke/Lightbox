@@ -1,6 +1,6 @@
 # Code index
 
-530 files · 137775 lines · 2760 tests.
+532 files · 137992 lines · 2763 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -158,6 +158,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockZones:44
 - `src/Lightbox.App/Rendering/RigOverlayPainter.cs` (152 ln) · 1 test files
   - RigOverlayPainter:36
+- `src/Lightbox.App/App.axaml` (151 ln) · **no tests**
+  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Switcher
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml.cs` (150 ln) · 1 test files
   - TemplatePullRow:31, UpdateFromTemplateWindow:47
 - `src/Lightbox.App/Views/BrushChoice.cs` (149 ln) · 2 test files
@@ -166,8 +168,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DiagnosticLog:22
 - `src/Lightbox.App/Services/BrushImportJob.cs` (144 ln) · 1 test files
   - BrushImportProgress:11, BrushImportOutcome:23, BrushImportJob:52
-- `src/Lightbox.App/App.axaml` (141 ln) · **no tests**
-  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Switcher
 - `src/Lightbox.App/Services/TipStore.cs` (139 ln) · 2 test files
   - TipStore:32, State:45
 - `src/Lightbox.App/Services/CrashScenarios.cs` (138 ln) · 1 test files
@@ -218,6 +218,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DiagnosticsConsole:32
 - `src/Lightbox.App/Services/SaveRequirement.cs` (97 ln) · 2 test files
   - SaveGate:4, SaveRequirement:43
+- `src/Lightbox.App/Styles/Palette.axaml` (96 ln) · **no tests**
 - `src/Lightbox.App/Rendering/CameraTransform.cs` (95 ln) · 1 test files
   - CameraTransform:16
 - `src/Lightbox.App/Views/BrushLibraryWindow.axaml` (92 ln) · **no tests**
@@ -226,7 +227,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - AutosaveService:22
 - `src/Lightbox.App/Views/StartScreen.axaml` (84 ln) · **no tests**
   - DocumentFields, DontShowBox, NoRecents, ProjectFields, RecentList, Tabs
-- `src/Lightbox.App/App.axaml.cs` (82 ln) · 7 test files
+- `src/Lightbox.App/App.axaml.cs` (82 ln) · 8 test files
   - App:11
 - `src/Lightbox.App/Services/SymbolLibrary.cs` (78 ln) · 1 test files
   - SymbolLibrary:32
