@@ -261,4 +261,6 @@ headless can open a window and click Delete.
 - [ ] **B115** — double-clicking `Lightbox.App.exe` opens the Lightbox window and **no console or PowerShell window at all**, and there is no second taskbar entry. Nothing on screen can be closed that takes the app down except the app's own window.
 - [ ] **B115** — `Lightbox.Mcp.exe` still runs as a stdio server and Claude Desktop still lists the Lightbox tools. This is the check that catches `WinExe` applied to the wrong project: a stdio server with no stdin fails silently, and the tools simply do not appear.
 - [ ] **B115** — with `LIGHTBOX_TRACE=1` set, running `Lightbox.App.exe` from a terminal still prints trace lines to that terminal.
+- [ ] **B117** — force a crash (easiest: rename `libSkiaSharp.dll` so the canvas cannot start). A dialog names a file under `…\Lightbox\logs\`, and answering **Yes** opens that folder. The file names the build sha, not just "1.0.0".
+- [ ] **B117** — dismiss that dialog, put the DLL back, and start again. The status strip says the previous run ended unexpectedly and names the file. Start a third time: it does **not** say so again.
 - [ ] `Lightbox.Mcp.exe` works as the Claude Desktop MCP command from the same bundle, at the bundle root beside `Lightbox.App.exe` (it moved out of `mcp\` — B32).

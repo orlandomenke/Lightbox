@@ -50,6 +50,16 @@ public sealed class App : Application
             // why the splash is a still panel rather than anything animated.
             var window = new MainWindow();
 
+            // If the last run ended badly, say so once. The crash-time dialog is
+            // the first attempt and the better one; this is the fallback for when
+            // the UI was too far gone to show it. Consumed here, so the same
+            // crash is not re-reported at every launch from now on. Wired before
+            // the handoff shows the window, so the note arrives with it.
+            if (Services.DiagnosticLog.TakePendingCrash() is { } crash)
+            {
+                window.Opened += (_, _) => window.NotePreviousCrash(crash);
+            }
+
             var wait = Startup.Remaining(visible.Elapsed);
             if (wait > TimeSpan.Zero) await Task.Delay(wait);
 

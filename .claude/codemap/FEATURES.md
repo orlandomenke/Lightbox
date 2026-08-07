@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2663 tests, derived from the suite itself. Each line is a
+2674 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1811,6 +1811,13 @@ regression even when every test still compiles.
 - Publishes That Outrun The Renderer Never Free An Image Still In Flight — `:37`
 - Once Rendered The Old Frames Are Still Released — `:77`
 
+## SplashScreenTests
+`tests/Lightbox.App.Tests/SplashScreenTests.cs`
+
+- The Splash Is Orange — `:23`
+- The Splash Takes Its Colour From One Place — `:33`
+- The Splash Looks Like ASplash Rather Than AWindow — `:49`
+
 ## SpriteSheetExportTests
 `tests/Lightbox.App.Tests/SpriteSheetExportTests.cs`
 
@@ -1880,6 +1887,22 @@ regression even when every test still compiles.
 - Saving Somewhere New Records It Too — `:161`
 - Clearing The List Empties It On Disk As Well — `:184`
 - Only What Is Still On Disk Is Offered — `:207`
+
+## StartupHandoffTests
+`tests/Lightbox.App.Tests/StartupHandoffTests.cs`
+
+- The Main Window Is Up Before The Splash Goes Down — `:72`
+- The Splash Is Never The Window The Application Adopts — `:90`
+- The Application Adopts The Main Window Before It Is Shown — `:103`
+- The Start Screen Is Offered Only After The Splash Has Gone — `:114`
+
+## StartupTimingTests
+`tests/Lightbox.App.Tests/StartupTimingTests.cs`
+
+- An Instant Load Still Shows The Splash For The Minimum — `:19`
+- APart Loaded Splash Waits Out The Remainder — `:27`
+- ASlow Load Is Not Padded Further — `:35`
+- The Minimum Is Long Enough To Be Seen And Short Enough Not To Be Waited On — `:44`
 
 ## StrokeLatencyTests
 `tests/Lightbox.App.Tests/StrokeLatencyTests.cs`

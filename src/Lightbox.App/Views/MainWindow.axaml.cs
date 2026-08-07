@@ -4156,6 +4156,17 @@ public partial class MainWindow : Window
     /// a real Loaded.
     /// </para>
     /// </remarks>
+    /// <summary>Say that the previous run ended unexpectedly, and where to look.</summary>
+    /// <remarks>
+    /// The status strip rather than a dialog: by now the artist has started
+    /// working again, and a modal about something that happened before they
+    /// opened the app interrupts the wrong moment. The crash-time dialog is
+    /// where the interrupting is meant to happen; this is the record for when
+    /// that could not be shown.
+    /// </remarks>
+    public void NotePreviousCrash(string logPath) =>
+        _vm.AiStatus = $"Lightbox closed unexpectedly last time — details in {logPath}";
+
     public async Task OfferStartScreenAsync()
     {
         if (!_vm.Settings.ShowStartScreen) return;
