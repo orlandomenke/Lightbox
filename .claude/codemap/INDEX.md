@@ -1,6 +1,6 @@
 # Code index
 
-526 files · 136900 lines · 2745 tests.
+530 files · 137775 lines · 2760 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,14 +47,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10426 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4475, TransformParts:7143
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4349 ln) · 17 test files
-  - MainWindow:19, UnsavedChoice:2791
-- `src/Lightbox.App/Views/MainWindow.axaml` (3545 ln) · **no tests**
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10575 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4508, TransformParts:7177
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4426 ln) · 19 test files
+  - MainWindow:19, UnsavedChoice:2868
+- `src/Lightbox.App/Views/MainWindow.axaml` (3595 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
-- `src/Lightbox.App/Rendering/CanvasControl.cs` (3488 ln) · 10 test files
-  - CanvasControl:28, CanvasToolMode:844, GridGesture:901, TxDrag:1048, DrawOp:2807
+- `src/Lightbox.App/Rendering/CanvasControl.cs` (3496 ln) · 11 test files
+  - CanvasControl:28, CanvasToolMode:844, GridGesture:901, TxDrag:1048, DrawOp:2815
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
 - `src/Lightbox.App/ViewModels/MainViewModel.Symbols.cs` (1101 ln) · **no tests**
@@ -93,7 +93,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StructureRows
 - `src/Lightbox.App/Services/GameMakerExporter.cs` (313 ln) · 2 test files
   - GameMakerExportOptions:10, GameMakerExportResult:28, GameMakerExporter:78, StripRecord:86, GameMakerBlock:99
-- `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 17 indirect only
+- `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 19 indirect only
   - RampTrack:10, GradientRamp:41
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
@@ -132,10 +132,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ProjectWatcher:61
 - `src/Lightbox.App/Views/BrushLibraryWindow.axaml.cs` (217 ln) · 1 test files
   - BrushLibraryWindow:34
+- `src/Lightbox.App/Services/AppSettings.cs` (208 ln) · 5 test files
+  - AppSettings:16
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml` (205 ln) · **no tests**
   - AngleSlider, BlackSlider, CategoryList, CentreBox, CountLabel, CountRow, CountSlider, CrossedBox …
-- `src/Lightbox.App/Services/AppSettings.cs` (196 ln) · 4 test files
-  - AppSettings:16
 - `src/Lightbox.App/ViewModels/LayerRow.cs` (194 ln) · 1 test files
   - GroupRow:11, LayerRow:90
 - `src/Lightbox.App/Services/IpcDocumentApi.cs` (193 ln) · 1 test files
@@ -162,7 +162,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TemplatePullRow:31, UpdateFromTemplateWindow:47
 - `src/Lightbox.App/Views/BrushChoice.cs` (149 ln) · 2 test files
   - BrushChoice:26
-- `src/Lightbox.App/Services/DiagnosticLog.cs` (145 ln) · 1 test files
+- `src/Lightbox.App/Services/DiagnosticLog.cs` (145 ln) · 3 test files
   - DiagnosticLog:22
 - `src/Lightbox.App/Services/BrushImportJob.cs` (144 ln) · 1 test files
   - BrushImportProgress:11, BrushImportOutcome:23, BrushImportJob:52
@@ -170,6 +170,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Switcher
 - `src/Lightbox.App/Services/TipStore.cs` (139 ln) · 2 test files
   - TipStore:32, State:45
+- `src/Lightbox.App/Services/CrashScenarios.cs` (138 ln) · 1 test files
+  - CrashWarning:4, CrashScenario:17, CrashScenarios:47
 - `src/Lightbox.App/ViewModels/Tools.cs` (137 ln) · 22 test files
   - ToolId:4, CanvasQuality:46, TransformScope:59, TransformSampling:85, SelectVariant:98, HoldDrawing:117
 - `src/Lightbox.App/Controls/DockStrip.cs` (132 ln) · 1 test files
@@ -198,6 +200,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BackgroundBox, BackgroundHint, BackgroundLabel, BevelBox, DeletePresetButton, EnginePanel, GreenBox, NormalMapBox …
 - `src/Lightbox.App/Docking/DockPanels.cs` (105 ln) · 7 test files
   - DockPanelId:11, DockSide:25, DockPanelInfo:53, DockPanels:62
+- `src/Lightbox.App/Services/CrashReporter.cs` (105 ln) · 1 test files
+  - CrashReporter:23
 - `src/Lightbox.App/Services/StrokeStabilizer.cs` (105 ln) · 1 test files
   - StrokeStabilizer:13
 - `src/Lightbox.App/Services/ExportPresetStore.cs` (103 ln) · 4 test files
@@ -210,14 +214,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockDropIndicator:23
 - `src/Lightbox.App/Input/CelDragGesture.cs` (101 ln) · 1 test files
   - CelDragGesture:27
+- `src/Lightbox.App/Services/DiagnosticsConsole.cs` (97 ln) · 1 test files
+  - DiagnosticsConsole:32
 - `src/Lightbox.App/Services/SaveRequirement.cs` (97 ln) · 2 test files
   - SaveGate:4, SaveRequirement:43
 - `src/Lightbox.App/Rendering/CameraTransform.cs` (95 ln) · 1 test files
   - CameraTransform:16
 - `src/Lightbox.App/Views/BrushLibraryWindow.axaml` (92 ln) · **no tests**
   - BrushList, CancelButton, CountLabel, ImportButton, ImportProgress, ProgressLabel, ProgressRow, RemoveButton …
-- `src/Lightbox.App/Services/CrashReporter.cs` (88 ln) · 1 indirect only
-  - CrashReporter:23
 - `src/Lightbox.App/Services/AutosaveService.cs` (85 ln) · 5 indirect only
   - AutosaveService:22
 - `src/Lightbox.App/Views/StartScreen.axaml` (84 ln) · **no tests**
@@ -236,21 +240,21 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FloatingPanelWindow:16
 - `src/Lightbox.App/Services/NormalMapWriter.cs` (71 ln) · 1 test files
   - NormalMapWriter:22
-- `src/Lightbox.App/Program.cs` (66 ln) · 1 test files
-  - Program:7
 - `src/Lightbox.App/Views/ProjectWindow.axaml.cs` (66 ln) · **no tests**
   - ProjectWindow:26
 - `src/Lightbox.App/Services/SequenceExporter.cs` (62 ln) · 2 test files
   - SequenceExporter:20
 - `src/Lightbox.App/Docking/OverlayConverters.cs` (61 ln) · 1 test files
   - OverlayConverters:7
-- `src/Lightbox.App/Views/NewProjectPanel.axaml.cs` (61 ln) · 17 indirect only
+- `src/Lightbox.App/Program.cs` (61 ln) · 1 test files
+  - Program:7
+- `src/Lightbox.App/Views/NewProjectPanel.axaml.cs` (61 ln) · 19 indirect only
   - NewProjectSettings:8, NewProjectPanel:16, TypeChoice:18, PanelChoice:34
 - `src/Lightbox.App/Rendering/ThumbnailRenderer.cs` (60 ln) · 4 indirect only
   - ThumbnailRenderer:7
 - `src/Lightbox.App/Input/StrokeBuilder.cs` (58 ln) · 4 indirect only
   - StrokeBuilder:10
-- `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 17 indirect only
+- `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 19 indirect only
   - SaveFirstChoice:7, SaveFirstDialog:32
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml` (50 ln) · **no tests**
   - ApplyButton, CameraBox, ChangesPanel, DrawnOnList, DrawnOnPanel, FpsBox, GuidesBox, LayerPropertiesBox …
@@ -268,15 +272,15 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
-- `src/Lightbox.App/Views/PlacementChoiceDialog.axaml.cs` (34 ln) · 17 indirect only
+- `src/Lightbox.App/Views/PlacementChoiceDialog.axaml.cs` (34 ln) · 19 indirect only
   - PlacementChoiceDialog:11, PlacementChoice:30
 - `src/Lightbox.App/Views/PlacementChoiceDialog.axaml` (32 ln) · **no tests**
   - DontAskAgain, ImportOption, ReferenceOption
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml` (26 ln) · **no tests**
   - Message, RevertButton, SaveButton
-- `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 17 indirect only
+- `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 19 indirect only
   - NewProjectDialog:10
-- `src/Lightbox.App/Views/NewDocumentDialog.axaml.cs` (22 ln) · 17 indirect only
+- `src/Lightbox.App/Views/NewDocumentDialog.axaml.cs` (22 ln) · 19 indirect only
   - NewDocumentDialog:15
 - `src/Lightbox.App/Views/NewDocumentDialog.axaml` (17 ln) · **no tests**
   - Fields

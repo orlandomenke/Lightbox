@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2745 tests, derived from the suite itself. Each line is a
+2760 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -593,6 +593,18 @@ regression even when every test still compiles.
 - Every Publish Is ACorrect Full Composite — `:172`
 - Invalidate All Forces AFull Repaint Even With ASmall Dirty Rect — `:215`
 
+## CrashScenarioTests
+`tests/Lightbox.App.Tests/CrashScenarioTests.cs`
+
+- Every Scenario Says What It Proves And What It Costs — `:40`
+- The Destructive Ones Ask First And The Harmless Ones Do Not — `:57`
+- The Survivable Failure Is Survivable And Lands In The Log — `:86`
+- Writing To The Console Does Not Fail When There Is No Console — `:101`
+- The Reporter Listens On All Three Channels AFailure Can Arrive By — `:125`
+- The Dispatcher Handler Records Without Changing What The App Does — `:142`
+- The Triggers Are Absent Until Diagnostics Are Turned On — `:155`
+- Every Menu Entry Names AScenario That Exists — `:168`
+
 ## DiagnosticLogTests
 `tests/Lightbox.App.Tests/DiagnosticLogTests.cs`
 
@@ -603,6 +615,15 @@ regression even when every test still compiles.
 - ASurvivable Failure Is Recorded Once Per Context — `:98`
 - An Unwritable Folder Is Survived Rather Than Thrown — `:112`
 - The Log Sits Beside The Other App Data — `:126`
+
+## DiagnosticsMenuTests
+`tests/Lightbox.App.Tests/DiagnosticsMenuTests.cs`
+
+- The Console Switch Is Off Until Somebody Asks — `:24`
+- The Switch Is Listed In The Settings File Like Every Other Preference — `:30`
+- The Switch Survives The Restart It Exists For — `:43`
+- Help Offers The Folder The Console And The Build — `:53`
+- The Build Label Names The Commit Rather Than Just AVersion — `:72`
 
 ## DirtyRevisionTests
 `tests/Lightbox.App.Tests/DirtyRevisionTests.cs`
@@ -2988,9 +3009,10 @@ regression even when every test still compiles.
 - The Windows Bundle Is Published As ASingle File — `:73`
 - Native Libraries Are Not Self Extracted — `:87`
 - Native Debug Symbols Are Not Shipped — `:105`
-- The Server Publishes Into Its Own Folder And The App Does Not — `:116`
-- The Documented Server Path Matches Where It Is Published — `:127`
-- The Manual Testing Checklist Names The Folder The Server Is In — `:140`
+- Crash Reports Can Name The Line They Came From — `:116`
+- The Server Publishes Into Its Own Folder And The App Does Not — `:135`
+- The Documented Server Path Matches Where It Is Published — `:146`
+- The Manual Testing Checklist Names The Folder The Server Is In — `:159`
 
 ## ReferenceScopeTests
 `tests/Lightbox.Core.Tests/ReferenceScopeTests.cs`
@@ -3399,6 +3421,7 @@ regression even when every test still compiles.
 - The App Ships As AGui Program So No Console Window Opens Beside It — `:63`
 - The Stdio Programs Stay Console Programs — `:71`
 - The Opt In Traces Still Have Somewhere To Print — `:84`
+- Asking For AConsole Works Even When There Is No Terminal To Attach To — `:98`
 
 ## AlphaLockTests
 `tests/Lightbox.Raster.Tests/AlphaLockTests.cs`

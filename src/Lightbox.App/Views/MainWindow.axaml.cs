@@ -699,6 +699,40 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Run a deliberate failure, after asking if there is anything to lose.</summary>
+    /// <remarks>
+    /// The warning is the scenario's own, not this method's: a survivable failure
+    /// interrupts nobody, a crash asks when the drawing has edits worth keeping,
+    /// and the hard kill always asks because it takes the process without any of
+    /// the usual courtesies. One handler, three policies, decided by the list.
+    /// </remarks>
+    private async void OnRunCrashScenario(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string key }) return;
+        if (Services.CrashScenarios.ByKey(key) is not { } scenario) return;
+
+        var ask = scenario.Warning switch
+        {
+            Services.CrashWarning.Always => true,
+            Services.CrashWarning.WhenUnsaved => _vm.SaveTargetTab?.IsDirty ?? false,
+            _ => false,
+        };
+
+        if (ask && !await ConfirmAsync(
+                "Trigger a test failure",
+                $"{scenario.Label} — this ends Lightbox, and unsaved edits in the open drawing "
+                    + "will be lost. The autosave recovery copy is not affected.",
+                "Crash on purpose"))
+        {
+            return;
+        }
+
+        // Deliberately outside any try/catch. The whole point is that the
+        // application's own handlers see this exactly as they would see a real
+        // failure; catching it here would test this method instead.
+        scenario.Run();
+    }
+
     /// <summary>Put the build on the clipboard, because a bug report needs it.</summary>
     /// <remarks>
     /// "The newest build" is several different programs in a week. The label is
