@@ -13,14 +13,27 @@ public sealed class SelectionManager
     private readonly HashSet<string> _selectedAnchorIds = [];
     private readonly HashSet<string> _selectedShapeIds = [];
 
+    /// <summary>
+    /// Strokes picked with the Select tool, by <c>Stroke.Id</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Ids rather than record positions, and the difference matters.</b>
+    /// <c>StrokePicker</c> answers in positions because it queries an index built
+    /// over one list, and a position is what the renderer replays. A
+    /// <i>selection</i> outlives that list: delete one stroke and every position
+    /// after it shifts, so a selection held by position would silently come to
+    /// mean different strokes. The caller converts once, at the point of picking.
+    /// </remarks>
+    private readonly HashSet<string> _selectedStrokeIds = [];
+
     /// <summary>Raised when selection changes.</summary>
     public event Action? SelectionChanged;
 
     /// <summary>True if there are any selected objects.</summary>
-    public bool HasSelection => _selectedPlacementIds.Count > 0 || _selectedGuideIndices.Count > 0 || _selectedRefBoxIndices.Count > 0 || _selectedAnchorIds.Count > 0 || _selectedShapeIds.Count > 0;
+    public bool HasSelection => _selectedPlacementIds.Count > 0 || _selectedGuideIndices.Count > 0 || _selectedRefBoxIndices.Count > 0 || _selectedAnchorIds.Count > 0 || _selectedShapeIds.Count > 0 || _selectedStrokeIds.Count > 0;
 
     /// <summary>Number of selected objects across all types.</summary>
-    public int SelectionCount => _selectedPlacementIds.Count + _selectedGuideIndices.Count + _selectedRefBoxIndices.Count + _selectedAnchorIds.Count + _selectedShapeIds.Count;
+    public int SelectionCount => _selectedPlacementIds.Count + _selectedGuideIndices.Count + _selectedRefBoxIndices.Count + _selectedAnchorIds.Count + _selectedShapeIds.Count + _selectedStrokeIds.Count;
 
     /// <summary>Get all selected placement IDs.</summary>
     public IReadOnlySet<string> SelectedPlacementIds => _selectedPlacementIds;
@@ -36,6 +49,12 @@ public sealed class SelectionManager
 
     /// <summary>Get all selected collision shape IDs.</summary>
     public IReadOnlySet<string> SelectedShapeIds => _selectedShapeIds;
+
+    /// <summary>Get all selected stroke IDs.</summary>
+    public IReadOnlySet<string> SelectedStrokeIds => _selectedStrokeIds;
+
+    /// <summary>Check if a stroke is selected.</summary>
+    public bool IsStrokeSelected(string strokeId) => _selectedStrokeIds.Contains(strokeId);
 
     /// <summary>Check if a placement is selected.</summary>
     public bool IsPlacementSelected(string placementId) => _selectedPlacementIds.Contains(placementId);
@@ -121,10 +140,87 @@ public sealed class SelectionManager
             SelectionChanged?.Invoke();
     }
 
+    /// <summary>Select a single stroke (clears other selections).</summary>
+    public void SelectStroke(string strokeId)
+    {
+        if (_selectedStrokeIds.Count == 1 && _selectedStrokeIds.Contains(strokeId))
+            return;
+
+        ClearAllSelections();
+        _selectedStrokeIds.Add(strokeId);
+        SelectionChanged?.Invoke();
+    }
+
+    /// <summary>Add a stroke to selection (multi-select).</summary>
+    public void AddStrokeToSelection(string strokeId)
+    {
+        if (_selectedStrokeIds.Add(strokeId))
+            SelectionChanged?.Invoke();
+    }
+
+    /// <summary>Remove a stroke from selection.</summary>
+    public void RemoveStrokeFromSelection(string strokeId)
+    {
+        if (_selectedStrokeIds.Remove(strokeId))
+            SelectionChanged?.Invoke();
+    }
+
+    /// <summary>Toggle stroke selection.</summary>
+    public void ToggleStrokeSelection(string strokeId)
+    {
+        if (!_selectedStrokeIds.Remove(strokeId))
+            _selectedStrokeIds.Add(strokeId);
+        SelectionChanged?.Invoke();
+    }
+
+    /// <summary>Handle stroke selection with modifiers.</summary>
+    public void SelectStrokeWithModifiers(string strokeId, bool shift, bool alt)
+    {
+        if (alt)
+            RemoveStrokeFromSelection(strokeId);
+        else if (shift)
+            ToggleStrokeSelection(strokeId);
+        else
+            SelectStroke(strokeId);
+    }
+
+    /// <summary>
+    /// Replace the stroke selection with a whole set — what a marquee produces.
+    /// </summary>
+    /// <remarks>
+    /// One notification for the set rather than one per stroke. A marquee over a
+    /// busy frame can catch a hundred strokes, and a repaint per stroke is a
+    /// hundred repaints of the same rectangle.
+    /// </remarks>
+    public void SelectStrokes(IEnumerable<string> strokeIds, bool add = false)
+    {
+        if (!add) ClearAllSelections();
+        var changed = false;
+        foreach (var id in strokeIds) changed |= _selectedStrokeIds.Add(id);
+        if (changed || !add) SelectionChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Drop any selected stroke that is no longer in the record.
+    /// </summary>
+    /// <remarks>
+    /// Called after an edit that can remove strokes — a delete, an undo, moving
+    /// to another frame. Ids are stable but not eternal, and a selection holding
+    /// an id nothing resolves would draw no handles while still reporting a
+    /// selection, which reads as the tool having stopped working.
+    /// </remarks>
+    public void RetainStrokes(IReadOnlySet<string> stillPresent)
+    {
+        if (_selectedStrokeIds.Count == 0) return;
+        if (_selectedStrokeIds.RemoveWhere(id => !stillPresent.Contains(id)) > 0)
+            SelectionChanged?.Invoke();
+    }
+
     /// <summary>Clear all selections.</summary>
     public void ClearAllSelections()
     {
         bool hadSelection = HasSelection;
+        _selectedStrokeIds.Clear();
         _selectedPlacementIds.Clear();
         _selectedGuideIndices.Clear();
         _selectedRefBoxIndices.Clear();

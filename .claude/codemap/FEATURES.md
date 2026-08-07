@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2796 tests, derived from the suite itself. Each line is a
+2809 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2001,6 +2001,23 @@ regression even when every test still compiles.
 - APen Burst Is One Frame Not One Per Event — `:180`
 - When The Burst Has Drained The Mark Reaches The Pen — `:212`
 - Smoothings Own Lag Is Measured Separately — `:246`
+
+## StrokeSelectionTests
+`tests/Lightbox.App.Tests/StrokeSelectionTests.cs`
+
+- Clicking ALine Picks It — `:46`
+- Clicking Empty Canvas Picks Nothing — `:61`
+- Clicking Away Lets Go — `:72`
+- AShift Click That Misses Keeps The Selection — `:87`
+- Shift Click Adds And Shift Click Again Takes Away — `:97`
+- Clicking ASecond Line Without Shift Replaces The Selection — `:113`
+- AMarquee Picks Every Line It Touches — `:128`
+- AMarquee Over Nothing Lets Go — `:144`
+- Deleting An Earlier Line Does Not Repoint The Selection — `:161`
+- ALine That Is Gone Is Dropped From The Selection — `:183`
+- ALocked Layer Refuses And Says Why — `:203`
+- ALocked Layer Is Quiet When You Click Nothing — `:218`
+- Picking On An Empty Layer Creates Nothing — `:233`
 
 ## SubjectReadingWiringTests
 `tests/Lightbox.App.Tests/SubjectReadingWiringTests.cs`
