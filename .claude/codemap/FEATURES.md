@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2760 tests, derived from the suite itself. Each line is a
+2775 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1503,7 +1503,22 @@ regression even when every test still compiles.
 - Removing The Filtered Person Clears The Filter — `:304`
 - The Assets Tab Shows All Three Levels At Once — `:322`
 - AScope That Declares Nothing Says So — `:344`
-- The Footer Counts What Is True — `:354`
+- Sharing Something With AScope Declares It There — `:354`
+- The First Declaration Of AKind Says That Scoping Is Now On — `:370`
+- ADocument Can Declare Something Of Its Own — `:386`
+- Taking Back The Last Declaration Says Everything Applies Again — `:402`
+- Undeclaring Empties Back To Nothing — `:421`
+- Something Already Shared Here Is Not Offered Twice — `:436`
+- AChip Reads As AName Rather Than An Id — `:450`
+- The Facet Editor Appears For Exactly One Folder — `:464`
+- Notes Are Written Through And Empty Back To Nothing — `:482`
+- APivot Is Given And Taken Away — `:495`
+- Clearing AReading Names What It Costs First — `:509`
+- The Reviewed Flag Can Finally Be Set — `:538`
+- Removing AVariant Keeps The Art It Replaced — `:554`
+- The Export Tab Shows What Would Be Written — `:575`
+- The Export Tab Says What Is Held Back By Status — `:596`
+- The Footer Counts What Is True — `:621`
 
 ## RecentItemsTests
 `tests/Lightbox.App.Tests/RecentItemsTests.cs`
