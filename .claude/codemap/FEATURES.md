@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2841 tests, derived from the suite itself. Each line is a
+2844 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1696,14 +1696,17 @@ regression even when every test still compiles.
 ## RenderReportTests
 `tests/Lightbox.App.Tests/RenderReportTests.cs`
 
-- The Startup Report Lands In The Diagnostics Folder And Names The Build — `:51`
-- The Startup Report Is Written Only Once — `:69`
-- ASilent Fallback To Cpu Is Reported Loudly — `:83`
-- The On Demand Report Carries The Session Totals And The Saving — `:101`
-- The Upload Probe Compares Two Presents Without AGpu — `:125`
-- The Probe Refuses ADegenerate Surface Instead Of Throwing — `:147`
-- An Unwritable Folder Is Survived Rather Than Thrown — `:158`
-- The Presented Frame Counts Full Against Patched And Free Repaints — `:176`
+- The Report Says Why The Durable Frame Is Not On The Gpu — `:66`
+- The Texture Limit Is Compared Against The Surface That Must Fit — `:105`
+- AStartup Report Says It Has No Measurements Yet — `:125`
+- The Startup Report Lands In The Diagnostics Folder And Names The Build — `:135`
+- The Startup Report Is Written Only Once — `:153`
+- ASilent Fallback To Cpu Is Reported Loudly — `:167`
+- The On Demand Report Carries The Session Totals And The Saving — `:185`
+- The Upload Probe Compares Two Presents Without AGpu — `:209`
+- The Probe Refuses ADegenerate Surface Instead Of Throwing — `:231`
+- An Unwritable Folder Is Survived Rather Than Thrown — `:242`
+- The Presented Frame Counts Full Against Patched And Free Repaints — `:260`
 
 ## RigEditingTests
 `tests/Lightbox.App.Tests/RigEditingTests.cs`

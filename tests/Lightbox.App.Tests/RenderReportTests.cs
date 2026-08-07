@@ -44,8 +44,92 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
     }
 
     private static RenderReport.Facts Facts(
-        bool onGpu = false, bool gpuFailed = false, string backend = "CPU (software)") =>
-        new(backend, backend != "GPU", onGpu, gpuFailed, 8192, 1920, 1080, 1.0, "Full", 1.0);
+        bool onGpu = false,
+        bool gpuFailed = false,
+        string backend = "CPU (software)",
+        bool durableEnabled = true,
+        bool hasPresented = true,
+        int? maxTexture = 8192,
+        int docWidth = 1920,
+        int docHeight = 1080) =>
+        new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
+            docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented);
+
+    /// <summary>
+    /// The four states behind one boolean, and the reason this test exists: the
+    /// first report from a real machine printed "durable frame on GPU: no" on a
+    /// build where B130 had switched the frame off entirely. True, and nothing
+    /// like what it appeared to mean. A diagnostic that cannot separate "not in
+    /// use" from "failed" invites exactly the wrong conclusion.
+    /// </summary>
+    [Fact]
+    public void TheReportSaysWhyTheDurableFrameIsNotOnTheGpu()
+    {
+        Setup();
+
+        string Line(RenderReport.Facts f)
+        {
+            RenderReport.ResetForTests();
+            var path = RenderReport.WriteStartup(f);
+            var line = File.ReadAllLines(path!).First(l => l.Contains("durable frame"));
+            File.Delete(path!);
+            output.WriteLine(line);
+            return line;
+        }
+
+        var off = Line(Facts(durableEnabled: false, backend: "GPU"));
+        var unused = Line(Facts(durableEnabled: true, hasPresented: false, backend: "GPU"));
+        var failed = Line(Facts(durableEnabled: true, gpuFailed: true, backend: "GPU"));
+        var working = Line(Facts(durableEnabled: true, onGpu: true, backend: "GPU"));
+
+        // Each must be distinguishable from the others, and only one may alarm.
+        Assert.Contains("off", off);
+        Assert.Contains("LIGHTBOX_DURABLE_FRAME", off);
+        Assert.Contains("nothing has been presented yet", unused);
+        Assert.Contains("refused", failed);
+        Assert.Contains("yes", working);
+
+        // The alarming one must not read like the other three.
+        Assert.DoesNotContain("refused", off);
+        Assert.DoesNotContain("refused", unused);
+        Assert.DoesNotContain("refused", working);
+    }
+
+    /// <summary>
+    /// The texture limit is only meaningful next to the surface it has to hold, so
+    /// the report states the comparison rather than leaving it to be worked out.
+    /// </summary>
+    [Theory]
+    [InlineData(16384, 3840, 2160, false)]   // a 4K canvas is nowhere near a real limit
+    [InlineData(2048, 3840, 2160, true)]     // a limit a 4K canvas would actually exceed
+    public void TheTextureLimitIsComparedAgainstTheSurfaceThatMustFit(
+        int limit, int w, int h, bool shouldWarn)
+    {
+        Setup();
+        var path = RenderReport.WriteStartup(
+            Facts(backend: "GPU", maxTexture: limit, docWidth: w, docHeight: h));
+        var text = File.ReadAllText(path!);
+        var line = text.Split('\n').First(l => l.Contains("compose surface's"));
+        output.WriteLine(line.Trim());
+
+        if (shouldWarn) Assert.Contains("exceeds it", line);
+        else Assert.Contains("not a factor", line);
+    }
+
+    /// <summary>
+    /// A startup report has no measurements by construction. Saying so beats an
+    /// absent section, which reads as "nothing was wrong" instead of "nothing was
+    /// looked at".
+    /// </summary>
+    [Fact]
+    public void AStartupReportSaysItHasNoMeasurementsYet()
+    {
+        Setup();
+        var text = File.ReadAllText(RenderReport.WriteStartup(Facts())!);
+        output.WriteLine(text);
+        Assert.Contains("Nothing yet", text);
+        Assert.Contains("Write a render report", text);
+    }
 
     [Fact]
     public void TheStartupReportLandsInTheDiagnosticsFolderAndNamesTheBuild()
