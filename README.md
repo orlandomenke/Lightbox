@@ -24,7 +24,9 @@ Built with **C# / .NET 10**, **Avalonia** (Windows · macOS · Linux), and **Ski
 
 ## Run on Windows — no admin rights needed
 
-Every pull request and every push to `main` builds a self-contained Windows bundle in CI (a branch with no PR open does not — use **Actions ▸ build ▸ Run workflow**, which always builds):
+Every **ready** pull request and every push to `main` builds a self-contained Windows bundle in CI. Two cases build nothing, and both have the same escape hatch — **Actions ▸ build ▸ Run workflow**, which always builds: a branch with **no PR open**, and a PR still marked **draft**.
+
+Drafts are deliberately quiet, because `pull_request` fires on *every* push to an open PR — merging main in twice and rebuilding the index costs a full suite each time. So open the PR as a draft while that is going on, and mark it ready when it is worth checking; marking it ready is itself a trigger.
 
 1. Repo → **Actions** tab → newest green `build` run → **Artifacts** → download `Lightbox-win-x64-…` (you must be signed in to GitHub).
 2. Unzip anywhere in your user profile, e.g. `%LOCALAPPDATA%\Lightbox`.

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2836 tests, derived from the suite itself. Each line is a
+2839 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2658,6 +2658,13 @@ regression even when every test still compiles.
 - Clearing AReading Names Everything It Would Discard — `:396`
 - AHand Corrected Reading Is Named As Such — `:411`
 - An Ordinary Folder Loses Nothing — `:424`
+
+## CiDraftGateTests
+`tests/Lightbox.Core.Tests/CiDraftGateTests.cs`
+
+- Every Job Is Switched Off For ADraft Pull Request — `:74`
+- Marking ADraft Ready Triggers ABuild — `:102`
+- AMerge To Main Still Builds — `:123`
 
 ## CiRuntimeTests
 `tests/Lightbox.Core.Tests/CiRuntimeTests.cs`
