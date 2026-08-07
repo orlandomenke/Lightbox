@@ -2360,9 +2360,27 @@ public sealed class CanvasControl : Control
         }
     }
 
+    // B126. How many times the pointer has crossed this control's boundary.
+    //
+    // A diagnostic rather than state: the reported pen flicker is the OS pointer
+    // appearing over our ring during hover and never while drawing, and drawing
+    // is exactly where Pointer.Capture pins pointer-over. If these counters climb
+    // while a pen hovers *without moving*, then Avalonia is churning enter/exit
+    // and the flicker is ours to fix; if they stay flat, nothing is churning and
+    // Windows is simply painting over us, which is an upstream problem. The
+    // question has been argued three times and measured none, so it is measured
+    // here — on the only hardware that can answer it.
+    private int _enterCount;
+    private int _exitCount;
+
+    /// <summary>Boundary crossings so far. Tests and the pen diagnostic.</summary>
+    internal (int Entered, int Exited) HoverCrossings => (_enterCount, _exitCount);
+
     protected override void OnPointerEntered(PointerEventArgs e)
     {
         base.OnPointerEntered(e);
+        _enterCount++;
+        ReportHoverChurn(e);
         _hoverPoint = e.GetPosition(this);
         InvalidateVisual();
     }
@@ -2370,8 +2388,30 @@ public sealed class CanvasControl : Control
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
+        _exitCount++;
+        ReportHoverChurn(e);
         _hoverPoint = null;
         InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Put the crossing counts on the status strip, beside the pressure reading.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not gated behind the diagnostics toggle: somebody chasing a
+    /// flicker will not know to turn anything on first, and this costs a string
+    /// only when a boundary is actually crossed — which, if the flicker is what I
+    /// think it is, is the very thing being counted.
+    /// </remarks>
+    private void ReportHoverChurn(PointerEventArgs e)
+    {
+        if (InputDiagnostic is null) return;
+        var device = e.Pointer.Type;
+        InputDiagnostic.Invoke(
+            $"{device} hover — entered {_enterCount}, exited {_exitCount}"
+            + (_exitCount > 0 && _enterCount > 1
+                ? "  (climbing while still = the cursor is being re-evaluated, B126)"
+                : string.Empty));
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
