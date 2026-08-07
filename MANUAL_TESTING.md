@@ -266,7 +266,7 @@ headless can open a window and click Delete.
 - [ ] **B119** — *crash on a background thread* and *crash with a cause underneath* each produce a report; the second one has the inner exception in it.
 - [ ] **B119** — *kill the process outright* asks first, then leaves **no** report at all. That is correct and is the honest limit of the reporter; check the autosave copy is still there afterwards.
 - [ ] **B119** — turn the console switch off. The whole *Trigger a test failure* submenu disappears immediately, without a restart.
-- [ ] **B119** — stack traces in these reports carry **no file names or line numbers**: the bundle publishes with `DebugType=none`, so no PDBs ship. Expected, not a fault.
+- [ ] **B119** — stack traces in these reports name the **file and line**, not just the method. (The bundle publishes with `DebugType=embedded`; it was `none`, which shipped no debug information at all — the reports would have named methods and nothing else.)
 - [ ] **B117** — dismiss that dialog, put the DLL back, and start again. The status strip says the previous run ended unexpectedly and names the file. Start a third time: it does **not** say so again.
 - [ ] **B118** — **Help ▸ Open the diagnostics folder** opens `…\Lightbox\logs\` in Explorer, including on a clean install where nothing has been logged yet (the folder is made rather than missing).
 - [ ] **B118** — tick **Help ▸ Show a console while drawing**, restart. A console window appears alongside Lightbox. With `LIGHTBOX_TRACE=1` also set, trace lines arrive in it while drawing. This is the check that matters: the app was **double-clicked**, so there was no terminal to attach to and the console had to be created.
