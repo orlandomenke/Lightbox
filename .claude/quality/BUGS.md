@@ -946,7 +946,7 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
-- [x] **B120** `P2` `ui` Switching or saving a workspace silently resets rulers and guide visibility `evidence: DockLayoutTests, CloningALayoutKeepsTheRulersAndGuideFlags, ACloneSharesNothingWithTheOriginal`
+- [x] **B125** `P2` `ui` Switching or saving a workspace silently resets rulers and guide visibility `evidence: DockLayoutTests, CloningALayoutKeepsTheRulersAndGuideFlags, ACloneSharesNothingWithTheOriginal`
   - Repro: turn rulers on, or hide guides, or lock them. Switch workspace, or save the one you are in. All three go back to their defaults.
   - Cause: `DockLayout.Clone()` copied `Placements`, `AreaExtents` and `Overlays` and stopped there. `Rulers`, `GuidesVisible` and `GuidesLocked` are fields on the same type and were never copied, so the clone got their initializer values instead.
   - **Both paths that matter run through it.** `WorkspaceViewModel.Apply` clones the stored layout on the way in and `WorkspaceStore.Save` clones the live one on the way out, so the flags are lost applying *and* saving — there was no route that preserved them.
@@ -1097,7 +1097,7 @@ test reopens the bug.
   - Fix: relay `ProjectViewModel.PropertyChanged` for `HasProject` directly.
   - Reported from a build. Cost: S
 
-- [x] **B121** `P3` `ui` A docker takes a whole slot, so five panels means five heights and a scroll `evidence: DockLayoutTests, PanelsSharingASlotAreOneGroup, APanelIsStillInExactlyOnePlace, AGroupThatLosesItsLastMemberStopsExisting, SizingASlotSizesEveryTabInIt, AStripIsSizedByTheTabsShowingNotTheOnesHidden, ALayoutSavedBeforeTabsExistedStillLoads, DockZoneTests, DroppingOnAHeaderTabsIntoThatSlot, DroppingOnTheBodyStillMakesASlotOfItsOwn, DockDragGhostTests, ItNeverTakesThePointer, TabbedPanelsShareOneSlotAndOneShows, GroupingAPanelMarksTheWorkspaceUnsaved`
+- [x] **B126** `P3` `ui` A docker takes a whole slot, so five panels means five heights and a scroll `evidence: DockLayoutTests, PanelsSharingASlotAreOneGroup, APanelIsStillInExactlyOnePlace, AGroupThatLosesItsLastMemberStopsExisting, SizingASlotSizesEveryTabInIt, AStripIsSizedByTheTabsShowingNotTheOnesHidden, ALayoutSavedBeforeTabsExistedStillLoads, DockZoneTests, DroppingOnAHeaderTabsIntoThatSlot, DroppingOnTheBodyStillMakesASlotOfItsOwn, DockDragGhostTests, ItNeverTakesThePointer, TabbedPanelsShareOneSlotAndOneShows, GroupingAPanelMarksTheWorkspaceUnsaved`
   - Repro: open five panels. The sidebar is five stacked heights and the stack scrolls, because a slot holds exactly one panel and the header's switcher only *traded* two rather than stacking them.
   - Not a departure from the design system but a better answer to a rule already in it. `DESIGN.md` says **a docker must never be too small to use**, and the sidebar is pixel heights with a scroll precisely because proportional splitting turned five panels into five slivers. Tabs let N panels share one slot's height instead of needing N.
   - **The model was already nearly right.** `Order` meant "position of this panel"; it now means "which slot in this strip", so panels sharing an `Order` are tabbed. One new field, `TabActive`. The invariant everything rests on is untouched: `Placements` is keyed by panel id, so a panel still has exactly one home, and grouping cannot give it two.
