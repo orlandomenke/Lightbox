@@ -117,156 +117,29 @@ public sealed class DocumentRef
     /// rather than regenerating with a hole in it.
     /// </para>
     /// </remarks>
-    public int Version { get; set; } = 1;
+    /// <summary>
+    /// The manifest format. <b>2</b> since <c>DESIGN-project-scoping.md</c>
+    /// dissolved characters and scenes into the folder tree.
+    /// </summary>
+    /// <remarks>
+    /// There is deliberately no migration from 1 — Q36: the application is
+    /// alpha, single-user, and nothing has been produced in it, so writing one
+    /// for zero real projects is cost with no beneficiary. `ProjectIo.Load`
+    /// refuses an older manifest with a sentence rather than crashing on it, and
+    /// says the drawings survive: documents are their own files in their own
+    /// unchanged format, so only the index is lost.
+    ///
+    /// Write the migration the day a second person has a project.
+    /// </remarks>
+    public const int CurrentVersion = 2;
+
+    public int Version { get; set; } = CurrentVersion;
 
     /// <summary>Whether anybody has set a status on this document.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasStatus => Status is not null;
 }
 
-/// <summary>
-/// A version of a character that reuses its animations — Winter Armour,
-/// Damaged, Player Two.
-/// </summary>
-/// <remarks>
-/// A variant owns <b>overrides, not copies</b>. It names a palette, and it may
-/// point specific animations at different documents; everything it does not
-/// override comes from the character. That is what "inherits animations"
-/// means: a walk cycle drawn once is the walk cycle of every variant, and
-/// fixing it fixes all of them.
-///
-/// The mechanism is the live palette already in the engine. A variant is
-/// mostly a different set of swatch values behind the same swatch ids, so
-/// switching variant re-scopes the registry and the same drawings paint in
-/// different colours — no second copy of the art, and nothing to keep in sync.
-///
-/// Shape differences that colour cannot express (a helmet the base character
-/// does not have) are what <see cref="AnimationOverrides"/> is for: one
-/// animation replaced wholesale, the rest still shared.
-/// </remarks>
-public sealed class CharacterVariant
-{
-    public string Id { get; set; } = Ids.NewId("var");
-
-    public string Name { get; set; } = "Variant";
-
-    /// <summary>The palette this variant paints with. Null falls back to the character's.</summary>
-    public string? PaletteId { get; set; }
-
-    /// <summary>
-    /// Animations this variant replaces, base <see cref="DocumentRef.Id"/> →
-    /// the variant's own ref. Everything absent from here is inherited.
-    /// </summary>
-    public Dictionary<string, DocumentRef> AnimationOverrides { get; set; } = [];
-}
-
-/// <summary>
-/// A character: the unit of work Pillar 1 is named after. Its animations share
-/// one palette, one set of references and one pivot, which is exactly what a
-/// folder of loose files cannot express.
-/// </summary>
-public sealed class Character
-{
-    public string Id { get; set; } = Ids.NewId("char");
-
-    public string Name { get; set; } = "Character";
-
-    /// <summary>Folder name under <c>characters/</c>. Derived from the name, kept stable across renames.</summary>
-    public string Slug { get; set; } = "character";
-
-    /// <summary>
-    /// The project palette this character's art paints with. Null means the
-    /// character has no palette of its own and strokes carry literal colours.
-    /// </summary>
-    public string? PaletteId { get; set; }
-
-    /// <summary>Where the engine positions this character from. Absent unless set.</summary>
-    public Pivot? Pivot { get; set; }
-
-    public List<DocumentRef> Animations { get; set; } = [];
-
-    /// <summary>Reference art files, relative to the project root.</summary>
-    public List<string> References { get; set; } = [];
-
-    /// <summary>
-    /// Versions of this character that reuse its animations. Empty is the
-    /// ordinary state — the base character is not a variant and does not need
-    /// to be listed as one, so a character nobody varied carries no variant
-    /// keys at all.
-    /// </summary>
-    public List<CharacterVariant> Variants { get; set; } = [];
-
-    /// <summary>
-    /// The animations a variant actually plays: its own overrides where it has
-    /// them, the character's everywhere else. Null asks for the base
-    /// character, which is what "no variant selected" means.
-    /// </summary>
-    public IEnumerable<DocumentRef> AnimationsFor(CharacterVariant? variant) =>
-        variant is null
-            ? Animations
-            : Animations.Select(a => variant.AnimationOverrides.GetValueOrDefault(a.Id, a));
-
-    public CharacterVariant? FindVariant(string? id) =>
-        id is null ? null : Variants.FirstOrDefault(v => v.Id == id);
-
-    /// <summary>
-    /// What the AI has read about this character — a biped with these parts,
-    /// this one normally in front of that one. Absent until somebody asks for
-    /// it, so a project that never reads a subject writes no key.
-    /// </summary>
-    /// <remarks>
-    /// Here rather than in a cache because it is durable and hand-correctable,
-    /// and a correction that a cache wipe could destroy is not a correction.
-    /// The disposable half of a reading — where each part is in frame 12 —
-    /// deliberately does not live here. See <see cref="SubjectTaxonomy"/>.
-    /// </remarks>
-    public SubjectTaxonomy? Taxonomy { get; set; }
-}
-
-/// <summary>
-/// A scene: a run of shots that belong together in a film or a show.
-/// </summary>
-/// <remarks>
-/// <para>
-/// The second axis of a project, and deliberately not the first. A
-/// <see cref="Character"/> groups drawings by <i>who</i>; a scene groups them
-/// by <i>when</i>. They cross: one scene holds several characters, and one
-/// character appears in several scenes, which is exactly why neither can be a
-/// folder inside the other.
-/// </para>
-/// <para>
-/// Named for the shots output target in the charter — a sequence for a film,
-/// where the canvas is a world and a camera frames part of it. A project
-/// making sprite sheets has no use for scenes and, following the camera's
-/// rule, gets none: <see cref="ProjectManifest.Scenes"/> is null until one is
-/// made.
-/// </para>
-/// <para>
-/// Called <c>ProjectScene</c> rather than <c>Scene</c> because
-/// <see cref="Lightbox.Core.Documents.Scene"/> already means the canvas world
-/// inside one document. Two types called Scene in one solution is a bug
-/// waiting for someone to write the wrong <c>using</c>.
-/// </para>
-/// </remarks>
-public sealed class ProjectScene
-{
-    public string Id { get; set; } = Ids.NewId("scn");
-
-    public string Name { get; set; } = "Scene";
-
-    /// <summary>Folder name under <c>scenes/</c>. Kept stable across renames.</summary>
-    public string Slug { get; set; } = "scene";
-
-    /// <summary>The shots, in the order they play.</summary>
-    public List<DocumentRef> Shots { get; set; } = [];
-
-    /// <summary>
-    /// What the scene is, in the director's words. Absent unless written —
-    /// a scene list with an empty note on every row is a scene list with a
-    /// column of nothing in it.
-    /// </summary>
-    public string? Notes { get; set; }
-}
 
 /// <summary>
 /// The serialized root of a project — <c>project.json</c>. Everything here is
@@ -283,12 +156,18 @@ public sealed class ProjectManifest
     /// <summary>Nullable on purpose: a project with no declared type writes no type key.</summary>
     public ProjectType? Type { get; set; }
 
-    public List<Character> Characters { get; set; } = [];
-
     /// <summary>
-    /// Documents that belong to the project but not to any character —
-    /// backgrounds, tests, a one-off illustration.
+    /// <b>Every document in the project</b>, each filed by
+    /// <see cref="DocumentRef.FolderId"/>.
     /// </summary>
+    /// <remarks>
+    /// One list, and that is the point of <b>B114</b>. There used to be three —
+    /// this one for loose documents, <c>Character.Animations</c>, and
+    /// <c>Scene.Shots</c> — and only this one was wired into scoped resources
+    /// and export planning. A character's animations therefore resolved no
+    /// palette from any folder and appeared in no export plan, silently, which
+    /// is most of the content of an animation project.
+    /// </remarks>
     public List<DocumentRef> Documents { get; set; } = [];
 
     /// <summary>
@@ -313,12 +192,6 @@ public sealed class ProjectManifest
     /// </para>
     /// </remarks>
     public List<ProjectFolder>? Folders { get; set; }
-
-    /// <summary>
-    /// The scenes, in running order. Null until one is made, so a project that
-    /// is a bag of sprites writes no scene key at all.
-    /// </summary>
-    public List<ProjectScene>? Scenes { get; set; }
 
     /// <summary>
     /// Palettes shared by everything in the project, as paths to <c>.gpl</c>
@@ -400,21 +273,4 @@ public sealed class ProjectManifest
     /// </remarks>
     public List<Documents.BrushTip>? Tips { get; set; }
 
-    /// <summary>
-    /// The character an animation belongs to, or null for a document that
-    /// belongs to the project rather than to anybody.
-    /// </summary>
-    /// <remarks>
-    /// Variant overrides count: an animation reached only through a variant
-    /// still belongs to that variant's character, and it is the character that
-    /// carries the taxonomy. Getting this wrong would read the wrong subject —
-    /// which is worse than reading none, because it would look like it worked.
-    /// </remarks>
-    public Character? CharacterOwning(string? documentId)
-    {
-        if (string.IsNullOrEmpty(documentId)) return null;
-        return Characters.FirstOrDefault(c =>
-            c.Animations.Any(a => a.Id == documentId)
-            || c.Variants.Any(v => v.AnimationOverrides.Values.Any(a => a.Id == documentId)));
-    }
 }

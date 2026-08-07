@@ -1,6 +1,6 @@
 # Code index
 
-509 files · 132764 lines · 2660 tests.
+509 files · 132719 lines · 2660 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -279,16 +279,16 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Core
 
-- `src/Lightbox.Core/Projects/ProjectIo.cs` (1134 ln) · 28 test files
-  - ProjectIo:31, ConversionReport:655
+- `src/Lightbox.Core/Projects/ProjectIo.cs` (1084 ln) · 28 test files
+  - ProjectIo:31, ConversionReport:605
 - `src/Lightbox.Core/Timeline/DocumentEditor.cs` (669 ln) · 9 test files
   - DocumentEditor:14, IEditStep:141, SnapshotStep:154, DeltaStep:173
 - `src/Lightbox.Core/Projects/ResourceScopes.cs` (615 ln) · 9 test files
   - ResourceReach:12, ScopedResource:47, ResourceScopes:110, PaletteScopes:283, ReferenceTargets:326, ReferenceScopes:363, GradientScopes:431, TemplateScopes:466 …
+- `src/Lightbox.Core/Projects/ProjectFolders.cs` (425 ln) · 15 test files
+  - ProjectFolder:25, ProjectFolders:160
 - `src/Lightbox.Core/Documents/BrushSettings.cs` (421 ln) · 85 test files
   - SmudgeMode:8, SampleSource:43, BrushKind:77, BrushSettings:96
-- `src/Lightbox.Core/Projects/ProjectManifest.cs` (420 ln) · 33 test files
-  - ProjectType:11, DocumentRef:29, CharacterVariant:147, Character:168, ProjectScene:251, ProjectManifest:275
 - `src/Lightbox.Core/Timeline/StripSlicer.cs` (405 ln) · 2 test files
   - StripSlicer:49
 - `src/Lightbox.Core/Projects/ExportPreset.cs` (352 ln) · 12 test files
@@ -297,12 +297,12 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Templates:25, NewLayer:96, LayerChange:107, PullPreview:118, PullOptions:136
 - `src/Lightbox.Core/Documents/Scene.cs` (316 ln) · 16 test files
   - FrameMarker:4, TagDirection:66, AnimationTag:99, Scene:136
-- `src/Lightbox.Core/Projects/ProjectFolders.cs` (306 ln) · 15 test files
-  - ProjectFolder:25, ProjectFolders:76
 - `src/Lightbox.Core/Geometry/GeometryOps.cs` (296 ln) · 6 test files
   - GeometryOps:5
 - `src/Lightbox.Core/Documents/ResponseCurve.cs` (294 ln) · 5 test files
   - BrushDynamic:22, ResponseCurve:70, PressureResponse:230
+- `src/Lightbox.Core/Projects/ProjectManifest.cs` (276 ln) · 26 test files
+  - ProjectType:11, DocumentRef:29, ProjectManifest:148
 - `src/Lightbox.Core/Export/NormalMapGenerator.cs` (244 ln) · 2 test files
   - NormalGreen:18, NormalMapOptions:40, NormalMapGenerator:75
 - `src/Lightbox.Core/Documents/MediumSettings.cs` (242 ln) · 18 test files
@@ -401,6 +401,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - OnionSkin:27
 - `src/Lightbox.Core/Inbetween/StrokeRecordCleaner.cs` (87 ln) · 1 test files
   - StrokeRecordCleaner:20
+- `src/Lightbox.Core/Projects/SubjectTaxonomy.cs` (85 ln) · 5 test files
+  - SubjectTaxonomy:20, SubjectVariant:49, SubjectPart:71
 - `src/Lightbox.Core/Geometry/StrokeFilters.cs` (80 ln) · 1 test files
   - StrokeFilters:10
 - `src/Lightbox.Core/Documents/BrushScope.cs` (78 ln) · 3 test files
@@ -419,8 +421,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - IVersionHistoryStore:10
 - `src/Lightbox.Core/Projects/GuideSet.cs` (65 ln) · 2 test files
   - GuideSet:30, GuideScopes:46
-- `src/Lightbox.Core/Projects/SubjectTaxonomy.cs` (55 ln) · 5 test files
-  - SubjectTaxonomy:20, SubjectPart:41
 - `src/Lightbox.Core/Documents/ReferenceSheet.cs` (50 ln) · 3 test files
   - ReferenceSheet:11, ReferenceView:21
 - `src/Lightbox.Core/Inbetween/StrokeInterpolator.cs` (43 ln) · 1 test files

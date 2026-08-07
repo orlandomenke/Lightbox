@@ -91,99 +91,75 @@ public static class ProjectIo
     public static Project Create(string name, string root, ProjectType? type = null) =>
         new(new ProjectManifest { Name = name, Type = type }, root);
 
-    /// <summary>
-    /// Add a character, with a folder slug derived from its name. The slug is
-    /// what appears on disk and never changes again — renaming a character
-    /// must not move its files out from under a half-written save.
-    /// </summary>
-    public static Character AddCharacter(Project project, string name)
-    {
-        var character = new Character { Name = name, Slug = UniqueSlug(project, Slug(name)) };
-        project.Manifest.Characters.Add(character);
-        return character;
-    }
-
-    // ---- scenes ---------------------------------------------------------------
-
-    private const string ScenesDir = "scenes";
-
-    private const string ShotsDir = "shots";
+    // ---- subjects and running order -------------------------------------------
+    //
+    // There is no AddCharacter and no AddScene. B114 and
+    // `docs/DESIGN-project-scoping.md`: a character is a folder that holds a
+    // character's work, and a scene is a folder with a running order. Both are
+    // made with `ProjectFolders.Add`, because a second creation verb is a
+    // second container, and a second container is the bug.
+    //
+    // A folder becomes a subject when it gets a reading — which is also the
+    // honest answer to "how do you make a character before you have read one":
+    // you do not. You make a folder, put the work in it, and read it when there
+    // is something to read.
 
     /// <summary>
-    /// Add a scene. The first one brings the scene list into being.
+    /// How long everything in a folder runs: total frames, and seconds when
+    /// every document's length is known.
     /// </summary>
     /// <remarks>
-    /// The list is null until now, so a project that never plans a film writes
-    /// no scene key — the camera's rule, applied to the second axis.
+    /// Was <c>SceneDuration</c>. Null seconds rather than a low number when a
+    /// document has no hint yet — a running time that silently omits what it
+    /// could not measure is worse than none, because it is the number somebody
+    /// schedules against.
     /// </remarks>
-    public static ProjectScene AddScene(Project project, string name)
+    public static (int Frames, double? Seconds) FolderDuration(
+        ProjectManifest manifest, ProjectFolder folder)
     {
-        var manifest = project.Manifest;
-        manifest.Scenes ??= [];
-        var taken = manifest.Scenes.Select(s => s.Slug).ToHashSet();
-        var wanted = Slug(name);
-        var slug = wanted;
-        for (var n = 2; taken.Contains(slug); n++) slug = $"{wanted}-{n}";
+        var documents = ProjectFolders.InOrder(manifest, folder);
+        if (documents.Count == 0) return (0, 0);
 
-        var scene = new ProjectScene { Name = name, Slug = slug };
-        manifest.Scenes.Add(scene);
-        return scene;
-    }
-
-    /// <summary>Register a shot in a scene and cache its document.</summary>
-    public static DocumentRef AddShot(Project project, ProjectScene scene, string name, Doc doc)
-    {
-        var taken = scene.Shots
-            .Select(s => System.IO.Path.GetFileName(s.Path))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var wanted = Slug(name);
-        var slug = wanted;
-        for (var n = 2; taken.Contains($"{slug}.lightbox.json"); n++) slug = $"{wanted}-{n}";
-
-        var reference = new DocumentRef
+        var frames = 0;
+        double seconds = 0;
+        var known = true;
+        foreach (var document in documents)
         {
-            Name = name,
-            Path = $"{ScenesDir}/{scene.Slug}/{ShotsDir}/{slug}.lightbox.json",
-            Frames = doc.Scene.FrameCount,
-            Fps = doc.Scene.Fps,
-        };
-        scene.Shots.Add(reference);
-        project.Loaded[reference.Id] = doc;
-        return reference;
+            frames += document.Frames;
+            if (document.Seconds is { } s) seconds += s;
+            else known = false;
+        }
+        return (frames, known ? seconds : null);
     }
 
     /// <summary>
-    /// Delete a scene, keeping its shots.
+    /// Add a variant of the subject a folder describes, with its own copy of
+    /// the palette.
     /// </summary>
     /// <remarks>
-    /// The shots become loose documents rather than going with it, for the same
-    /// reason deleting a palette folder keeps the palettes: reorganising a film
-    /// must not be the fastest way to delete it. The files are never touched
-    /// either way — only the index changes.
+    /// The copy <b>keeps every swatch id</b>. That is the entire trick: the art
+    /// references swatches by id, so a palette carrying the same ids with
+    /// different colours repaints the same drawings without a second copy of
+    /// them existing. Fresh ids would make the variant paint nothing.
     /// </remarks>
-    public static void RemoveScene(Project project, ProjectScene scene)
+    public static SubjectVariant AddVariant(Project project, ProjectFolder folder, string name)
     {
-        if (project.Manifest.Scenes is not { } scenes) return;
-        if (!scenes.Remove(scene)) return;
-        project.Manifest.Documents.AddRange(scene.Shots);
-        // Back to absent once the last one goes.
-        if (scenes.Count == 0) project.Manifest.Scenes = null;
-    }
+        var variant = new SubjectVariant { Name = name };
+        var basePalette = PaletteScopes.Nearest(project.Manifest, folder);
+        if (basePalette is { } source && project.Palettes.TryGetValue(source, out var palette))
+        {
+            var copy = new Palette
+            {
+                Name = $"{palette.Name} ({name})",
+                Swatches = [.. palette.Swatches.Select(w =>
+                    new Swatch { Id = w.Id, Color = w.Color, Name = w.Name })],
+            };
+            project.Palettes[copy.Id] = copy;
+            variant.PaletteId = copy.Id;
+        }
 
-    /// <summary>Move a scene in the running order. Out-of-range indices do nothing.</summary>
-    public static bool MoveScene(Project project, int from, int to) =>
-        Reorder(project.Manifest.Scenes, from, to);
-
-    /// <summary>Move a shot within its scene.</summary>
-    public static bool MoveShot(ProjectScene scene, int from, int to) =>
-        Reorder(scene.Shots, from, to);
-
-    /// <summary>Move a shot from one scene to another, at the end.</summary>
-    public static bool MoveShotToScene(ProjectScene from, ProjectScene to, DocumentRef shot)
-    {
-        if (ReferenceEquals(from, to) || !from.Shots.Remove(shot)) return false;
-        to.Shots.Add(shot);
-        return true;
+        (folder.Variants ??= []).Add(variant);
+        return variant;
     }
 
     private static bool Reorder<T>(List<T>? items, int from, int to)
@@ -197,53 +173,24 @@ public static class ProjectIo
     }
 
     /// <summary>
-    /// How long a scene runs: total frames, and seconds when every shot's
-    /// length is known.
+    /// Register a document in the project, optionally filed in a folder, and
+    /// put it in the loaded cache so the caller can open it without a round
+    /// trip through the disk.
     /// </summary>
     /// <remarks>
-    /// Null seconds rather than a low number when a shot has no hint yet.
-    /// A running time that silently omits the shots it could not measure is
-    /// worse than no running time, because it is the number somebody schedules
-    /// against.
+    /// <b>The only way to add a document</b>, since B114. There used to be
+    /// three — this, <c>AddAnimation</c> and <c>AddShot</c> — each appending to
+    /// a different list, and only this one's list was read by export planning
+    /// and scoped resources.
+    ///
+    /// <b>The path stays flat and the folder is metadata.</b> `FolderId` says
+    /// where the artist put it; `Path` says where the bytes are, and the two are
+    /// deliberately not derived from each other — deriving would rename files
+    /// underneath somebody who renamed a folder, which
+    /// <see cref="DocumentRef.FolderId"/> already rules out.
     /// </remarks>
-    public static (int Frames, double? Seconds) SceneDuration(ProjectScene scene)
-    {
-        if (scene.Shots.Count == 0) return (0, 0);
-        var frames = 0;
-        double seconds = 0;
-        var known = true;
-        foreach (var shot in scene.Shots)
-        {
-            frames += shot.Frames;
-            if (shot.Seconds is { } s) seconds += s;
-            else known = false;
-        }
-        return (frames, known ? seconds : null);
-    }
-
-    /// <summary>
-    /// Register a new animation under a character and put its document in the
-    /// loaded cache, so the caller can open it immediately without a round trip
-    /// through the disk.
-    /// </summary>
-    public static DocumentRef AddAnimation(Project project, Character character, string name, Doc doc)
-    {
-        var slug = UniqueFileSlug(character, Slug(name));
-        var reference = new DocumentRef
-        {
-            Name = name,
-            Path = $"{CharactersDir}/{character.Slug}/{AnimationsDir}/{slug}.lightbox.json",
-        };
-        character.Animations.Add(reference);
-        project.Loaded[reference.Id] = doc;
-        return reference;
-    }
-
-    /// <summary>
-    /// Register a document that belongs to the project but to no character —
-    /// a background, a colour test, a one-off illustration.
-    /// </summary>
-    public static DocumentRef AddDocument(Project project, string name, Doc doc)
+    public static DocumentRef AddDocument(
+        Project project, string name, Doc doc, ProjectFolder? folder = null)
     {
         var taken = project.Manifest.Documents.Select(d => d.Path).ToHashSet();
         var slug = Slug(name);
@@ -256,6 +203,9 @@ public static class ProjectIo
         {
             Name = name,
             Path = $"{DocumentsDir}/{candidate}.lightbox.json",
+            FolderId = folder?.Id,
+            Frames = doc.Scene.FrameCount,
+            Fps = doc.Scene.Fps,
         };
         project.Manifest.Documents.Add(reference);
         project.Loaded[reference.Id] = doc;

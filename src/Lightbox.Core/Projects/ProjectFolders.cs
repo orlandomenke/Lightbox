@@ -54,6 +54,90 @@ public sealed class ProjectFolder
     /// by <see cref="ResourceScopes.Resolve"/>, which walks up from a document.
     /// </remarks>
     public List<ScopedResource>? Resources { get; set; }
+
+    // ---- what used to be a Character or a Scene -------------------------------
+    //
+    // B114 and `docs/DESIGN-project-scoping.md`. There were two containers —
+    // folders, and Character/ProjectScene — and only folders were wired into
+    // scoped resources and export planning, so a character's animations
+    // resolved nothing and exported nowhere.
+    //
+    // The containment half of those types dissolves into the tree; what is left
+    // is the handful of things below, which are *about the subject* rather than
+    // about holding documents. Each is nullable and absent until used, so an
+    // ordinary folder serializes exactly as it did.
+    //
+    // A character is now a folder with a Taxonomy. A scene is a folder with an
+    // Order. Both derived, neither declared — nothing is locked behind a kind.
+
+    /// <summary>What the AI read about the subject this folder holds.</summary>
+    public SubjectTaxonomy? Taxonomy { get; set; }
+
+    /// <summary>Where an engine positions this subject from, for export.</summary>
+    public Pivot? Pivot { get; set; }
+
+    /// <summary>Versions of this subject that reuse its documents.</summary>
+    public List<SubjectVariant>? Variants { get; set; }
+
+    /// <summary>
+    /// Document ids in the order the artist arranged them — a scene's shots
+    /// play in this order, and a character's animations list in it.
+    /// </summary>
+    /// <remarks>
+    /// <b>The one thing a folder could not previously express</b>, and the only
+    /// reason `ProjectScene.Shots` had to be a separate list: the manifest says
+    /// outright that folder membership order "is not the display order and
+    /// nothing should read it as one".
+    ///
+    /// <b>Partial on purpose.</b> It need not name every document; anything
+    /// absent sorts after what is listed, by name. A scene with three pinned
+    /// opening shots and forty unsorted ones should not require sorting forty.
+    /// </remarks>
+    public List<string>? Order { get; set; }
+
+    /// <summary>What this folder is, in the artist's or director's words.</summary>
+    public string? Notes { get; set; }
+
+    /// <summary>
+    /// Whether this folder describes a subject — which is what "is a character"
+    /// now means.
+    /// </summary>
+    /// <remarks>
+    /// Derived rather than declared, deliberately: adding a reading to any
+    /// folder makes it a subject and removing one stops it, with no kind to
+    /// change and nothing locked behind a project type. The cost is that
+    /// character-ness can be lost by an action that does not look destructive,
+    /// which is why <see cref="WhatEndingSubjecthoodDiscards"/> exists.
+    /// </remarks>
+    public bool IsSubject => Taxonomy is not null;
+
+    /// <summary>
+    /// What an artist loses if this folder stops describing a subject, phrased
+    /// for a confirmation. Empty when there is nothing to lose.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q35's condition.</b> Under the old model "delete character" was
+    /// explicitly destructive. Under this one, clearing a reading or deleting a
+    /// folder quietly takes the pivot, the variants and a hand-corrected
+    /// taxonomy with it. So the gesture names what goes, specifically, the way
+    /// the export confirmation counts what it would write — never a bare "are
+    /// you sure".
+    /// </remarks>
+    public IReadOnlyList<string> WhatEndingSubjecthoodDiscards()
+    {
+        var lost = new List<string>();
+        if (Taxonomy is { } taxonomy)
+        {
+            lost.Add(taxonomy.Reviewed
+                ? "the reading you corrected by hand"
+                : $"its reading ({taxonomy.Kind}, {Plural(taxonomy.Parts.Count, "part")})");
+        }
+        if (Pivot is not null) lost.Add("its pivot");
+        if (Variants is { Count: > 0 } variants) lost.Add(Plural(variants.Count, "variant"));
+        return lost;
+    }
+
+    private static string Plural(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 }
 
 /// <summary>
@@ -81,6 +165,41 @@ public static class ProjectFolders
 
     public static ProjectFolder? ById(ProjectManifest manifest, string? id) =>
         id is null ? null : All(manifest).FirstOrDefault(f => f.Id == id);
+
+    /// <summary>
+    /// The nearest folder at or above <paramref name="document"/> that
+    /// describes a subject, or null when nothing above it does.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Replaces <c>ProjectManifest.CharacterOwning</c>, which searched a
+    /// separate list of characters. Walking the tree instead is not merely a
+    /// like-for-like swap — it is strictly more capable, because a subfolder
+    /// under a character folder now inherits that character's reading. The old
+    /// model could not express that at all: an animation was in a character's
+    /// list or it was not.
+    /// </para>
+    /// <para>
+    /// Nearest wins, the same rule <see cref="ResourceScopes.Resolve"/> uses, so
+    /// a variant folder inside a character folder can carry its own reading and
+    /// override the one above it.
+    /// </para>
+    /// </remarks>
+    public static ProjectFolder? SubjectFor(ProjectManifest manifest, DocumentRef? document)
+    {
+        var folder = ById(manifest, document?.FolderId);
+        if (folder is null) return null;
+
+        // AncestryOf runs root-first, so walk it backwards for nearest-first.
+        var chain = AncestryOf(manifest, folder);
+        for (var i = chain.Count - 1; i >= 0; i--)
+            if (chain[i].IsSubject) return chain[i];
+        return null;
+    }
+
+    /// <summary>Every folder that describes a subject — what "the characters" now means.</summary>
+    public static IEnumerable<ProjectFolder> Subjects(ProjectManifest manifest) =>
+        All(manifest).Where(f => f.IsSubject);
 
     /// <summary>The folders directly inside <paramref name="parent"/>, or at the root when null.</summary>
     public static IReadOnlyList<ProjectFolder> ChildrenOf(ProjectManifest manifest, ProjectFolder? parent) =>

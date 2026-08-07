@@ -32,6 +32,36 @@ public sealed class SubjectTaxonomy
     public bool Reviewed { get; set; }
 }
 
+/// <summary>
+/// A version of a subject that reuses its work — an armoured knight, a
+/// recoloured enemy — overriding only the documents that actually differ.
+/// </summary>
+/// <remarks>
+/// Named for the <em>subject</em> rather than the character, because after
+/// <c>DESIGN-project-scoping.md</c> there is no `Character` type: a folder with
+/// a <see cref="SubjectTaxonomy"/> is a subject, and this is a variant of that.
+///
+/// The palette copy keeps every swatch id, which is the whole trick — art
+/// references swatches by id, so a palette carrying the same ids with different
+/// colours repaints the same drawings without a second copy of them existing.
+/// Fresh ids would make the variant paint nothing.
+/// </remarks>
+public sealed class SubjectVariant
+{
+    public string Id { get; set; } = Ids.NewId("var");
+
+    public string Name { get; set; } = "Variant";
+
+    /// <summary>The palette this variant paints with. Null falls back to the folder's.</summary>
+    public string? PaletteId { get; set; }
+
+    /// <summary>
+    /// Documents this variant replaces, base document id → the variant's own
+    /// reference. Everything absent from here is inherited.
+    /// </summary>
+    public Dictionary<string, DocumentRef> Overrides { get; set; } = [];
+}
+
 /// <summary>One named part of a subject, and where it sits relative to the others.</summary>
 /// <remarks>
 /// Deliberately carries no geometry. Geometry is <em>placement</em>, and a
