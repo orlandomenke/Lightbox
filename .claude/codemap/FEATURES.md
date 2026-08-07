@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2614 tests, derived from the suite itself. Each line is a
+2618 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1738,6 +1738,8 @@ regression even when every test still compiles.
 - ADeclaration Pointing At Nothing Still Shows And Still Clears — `:367`
 - Declaring ASymbol Narrows The Grid For Other Folders — `:395`
 - ASymbol Declaration Says What It Is And Undoes To Unscoped — `:436`
+- Declaring ABrush Tip Narrows The Projects Own And Not The User Library — `:472`
+- ATip Declaration Says What It Is And Undoes To Unscoped — `:515`
 
 ## SelectionAdjustTests
 `tests/Lightbox.App.Tests/SelectionAdjustTests.cs`
@@ -2328,9 +2330,9 @@ regression even when every test still compiles.
 - The Project Panel Appears As Soon As There Is AProject — `:172`
 - The Canvas Gets The Room Left Over By The Strips — `:195`
 - The Project Row Menu Actually Does Something When Clicked — `:219`
-- The New Menu Actually Makes Things — `:352`
-- The Reference Panel Is Absent Until It Is Asked For — `:419`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:435`
+- The New Menu Actually Makes Things — `:353`
+- The Reference Panel Is Absent Until It Is Asked For — `:420`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:436`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
@@ -2862,6 +2864,8 @@ regression even when every test still compiles.
 - ADocument At The Project Root Still Resolves — `:161`
 - AProject That Declares Nothing Writes No Resource Keys — `:178`
 - Only APromoted Resource Writes Its Reach — `:190`
+- With Nothing Declared Every Tip Is Still Offered — `:216`
+- ATip Declared On AFolder Is Offered There And Not Elsewhere — `:230`
 
 ## PressureResponseTests
 `tests/Lightbox.Core.Tests/ResponseCurveTests.cs`
