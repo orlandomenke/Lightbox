@@ -80,7 +80,7 @@ reported 100% coverage on an empty image.
 - [ ] After the handoff, typing goes to the main window without clicking it first. (Focus is the one part of the sequence no test here can reach.)
 - [ ] The canvas shows a white 960×540 "paper" centered on a dark background, scaled to fit the window; resizing the window rescales it without distortion.
 
-## Tabbed dockers (B121)
+## Tabbed dockers (B124)
 
 - [ ] Drag a panel's header onto another panel's **header**. They become tabs in one
       slot, and the one you dropped is the one showing.

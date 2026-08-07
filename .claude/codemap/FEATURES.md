@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2809 tests, derived from the suite itself. Each line is a
+2817 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1399,6 +1399,18 @@ regression even when every test still compiles.
 - Every Token The Design Names Resolves — `:45`
 - The Core Surfaces Are The Colours The Design Gave — `:71`
 - No View Invents Its Own Chrome Colour — `:94`
+
+## PresentedFrameTests
+`tests/Lightbox.App.Tests/PresentedFrameTests.cs`
+
+- ASmall Change Copies ASmall Patch — `:65`
+- Patching Lands The Same Image AFull Repaint Would — `:95`
+- ADropped Frames Change Is Still Owed And Arrives With The Next Patch — `:126`
+- Not Being Told About ADropped Frame Is What Would Lose It — `:156`
+- ARepaint With No New Publish Costs Nothing — `:181`
+- The Seq Shortcut Still Honours An Owed Region — `:209`
+- AResize Repaints In Full — `:231`
+- Force Full Repaints Everything Even When ASmall Region Is Offered — `:258`
 
 ## ProjectCreateMenuTests
 `tests/Lightbox.App.Tests/ProjectCreateAndRenameTests.cs`
