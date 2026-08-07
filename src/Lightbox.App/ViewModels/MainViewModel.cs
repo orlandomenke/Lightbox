@@ -9829,7 +9829,12 @@ public sealed partial class MainViewModel : ObservableObject
         LastPublishClip = usedClip;
         if (SnapshotChanged is { } handler)
         {
-            handler(new RenderSnapshot(image, viewWidth, viewHeight, seq, _pendingViewport));
+            // For unbounded canvas, the image is viewport-sized, so report viewport dimensions
+            // as DocWidth/DocHeight. For normal canvas, image is scene-sized.
+            var (docWidth, docHeight) = useUnboundedPath && _pendingViewport is { } vp
+                ? (vp.Width, vp.Height)
+                : (viewWidth, viewHeight);
+            handler(new RenderSnapshot(image, docWidth, docHeight, seq, _pendingViewport));
         }
         else
         {
