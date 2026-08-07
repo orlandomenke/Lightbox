@@ -77,6 +77,9 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly ComposeRing _composeRing = new();
     private long _publishSeq;
 
+    /// <summary>Cache of TileStores by bitmap identity to avoid reconverting unchanged frames.</summary>
+    private readonly Dictionary<int, (SKBitmap Bitmap, TileStore Store)> _tileStoreCache = new();
+
     /// <summary>Document region changed since the last publish (null = everything).</summary>
     private SKRectI? _pendingDirty;
     private bool _dirtyIsWholeCanvas = true;
@@ -4648,6 +4651,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentFrameIndexChanged(int value)
     {
         _lastStrokeEnd = null;   // and it stops being true on another drawing
+        _tileStoreCache.Clear();  // Clear cached tiles when frame changes
         RefreshCellHighlights();
         RefreshLayerThumbs();
         RefreshCamera();
@@ -9859,7 +9863,12 @@ public sealed partial class MainViewModel : ObservableObject
         LastPublishClip = usedClip;
         if (SnapshotChanged is { } handler)
         {
-            handler(new RenderSnapshot(image, viewWidth, viewHeight, seq, _pendingViewport));
+            // For unbounded canvas, the image is viewport-sized, so report viewport dimensions
+            // as DocWidth/DocHeight. For normal canvas, image is scene-sized.
+            var (docWidth, docHeight) = useUnboundedPath && _pendingViewport is { } vp
+                ? (vp.Width, vp.Height)
+                : (viewWidth, viewHeight);
+            handler(new RenderSnapshot(image, docWidth, docHeight, seq, _pendingViewport));
         }
         else
         {
@@ -9906,10 +9915,31 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (pass.Bitmap is null) continue;
 
-            // Convert the pass bitmap to a TileStore. This is currently done per-frame
-            // for simplicity, but ideally frames would be cached or rendered directly
-            // to tiles to avoid the full-bitmap allocation.
-            var tileStore = Lightbox.Raster.TileStore.FromBitmap(pass.Bitmap);
+            // Convert the pass bitmap to a TileStore, with caching to avoid reconverting
+            // unchanged bitmaps on subsequent viewport changes (e.g., during zoom).
+            var bitmapHash = pass.Bitmap.GetHashCode();
+            TileStore tileStore;
+
+            if (_tileStoreCache.TryGetValue(bitmapHash, out var cached) && ReferenceEquals(cached.Bitmap, pass.Bitmap))
+            {
+                // Bitmap is unchanged, reuse cached TileStore
+                tileStore = cached.Store;
+            }
+            else
+            {
+                // Bitmap is new or changed, create fresh TileStore and cache it
+                tileStore = Lightbox.Raster.TileStore.FromBitmap(pass.Bitmap);
+
+                // Cap cache size to prevent unbounded growth (e.g., during rapid undo/redo)
+                if (_tileStoreCache.Count >= 10)
+                {
+                    // Evict oldest entry (simple FIFO approximation via enumeration)
+                    var oldestKey = _tileStoreCache.Keys.First();
+                    _tileStoreCache.Remove(oldestKey);
+                }
+
+                _tileStoreCache[bitmapHash] = (pass.Bitmap, tileStore);
+            }
 
             try
             {
