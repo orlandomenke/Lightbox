@@ -254,14 +254,17 @@ public sealed class WorkspaceTests : BrushStateIsolated
                 // resolved six and the menu could declare two, and this list is
                 // what keeps the two counts equal.
                 ["Open", "Open with default app…", "Show in file manager", "Copy path",
-                 "Duplicate", "Rename…", "Export this as",
+                 "Duplicate", "Rename…",
+                 // Q38. The artist says what a folder is; nothing derives it.
+                 "Glyph", "Glyph — something else…",
+                 "Export this as",
                  // Q30's last mile: the plan was countable and describable and
                  // no view called either, so these two are what make it real.
                  "Export this folder…", "Test export",
-                 // A subject reading belongs to a character, and a character
-                 // lives in this panel — so the gesture is here rather than in
-                 // the AI bar, which acts on the open drawing.
-                 "Read this character…",
+                 // A reading belongs to a folder, and folders live in this
+                 // panel — so the gesture is here rather than in the AI bar,
+                 // which acts on the open drawing.
+                 "Read this folder…",
                  "Share a palette here",
                  "Share a gradient here", "Share a symbol here", "Share a brush tip here",
                  "Share guides here",

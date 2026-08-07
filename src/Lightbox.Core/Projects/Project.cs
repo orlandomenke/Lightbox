@@ -62,8 +62,14 @@ public sealed class Project
 
     public string Name => Manifest.Name;
 
-    /// <summary>The folders that describe a subject — what "the characters" means now.</summary>
-    public IEnumerable<ProjectFolder> Subjects => ProjectFolders.Subjects(Manifest);
+    /// <summary>The folders something has read.</summary>
+    /// <remarks>
+    /// <b>Q40.</b> Was <c>Subjects</c>. A folder with a reading is a folder with
+    /// a reading; whether it is a character, a creature or a crowd is the
+    /// artist's to say with <see cref="ProjectFolder.Icon"/>, and nothing here
+    /// needs to know.
+    /// </remarks>
+    public IEnumerable<ProjectFolder> WithReading => ProjectFolders.WithReading(Manifest);
 
     /// <summary>Every document in the project.</summary>
     /// <remarks>
@@ -90,7 +96,7 @@ public sealed class Project
         (folder.Variants ?? []).FirstOrDefault(
             v => v.Id == ActiveVariant.GetValueOrDefault(folder.Id));
 
-    /// <summary>The palette a subject paints with right now, variant included.</summary>
+    /// <summary>The palette a folder's work paints with right now, variant included.</summary>
     public Palette? PaletteFor(ProjectFolder folder)
     {
         var id = VariantOf(folder)?.PaletteId
@@ -98,9 +104,9 @@ public sealed class Project
         return id is null ? null : Palettes.FirstOrDefault(p => p.Id == id);
     }
 
-    /// <summary>The nearest folder above a document that describes a subject.</summary>
-    public ProjectFolder? SubjectOf(DocumentRef reference) =>
-        ProjectFolders.SubjectFor(Manifest, reference);
+    /// <summary>The nearest folder above a document that has been read.</summary>
+    public ProjectFolder? ReadingFor(DocumentRef reference) =>
+        ProjectFolders.ReadingFor(Manifest, reference);
 
     public DocumentRef? FindRef(string id) => AllDocuments.FirstOrDefault(d => d.Id == id);
 

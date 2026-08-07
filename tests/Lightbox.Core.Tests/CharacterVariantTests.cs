@@ -106,7 +106,7 @@ public sealed class CharacterVariantTests : IDisposable
 
         var json = File.ReadAllText(Path.Combine(_root, "project.json"));
         Assert.DoesNotContain("\"variants\"", json);
-        Assert.All(ProjectIo.Load(_root).Subjects, f => Assert.Null(f.Variants));
+        Assert.All(ProjectIo.Load(_root).WithReading, f => Assert.Null(f.Variants));
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public sealed class CharacterVariantTests : IDisposable
         Assert.True(File.Exists(project.PathOf(replaced)));
 
         var reloaded = ProjectIo.Load(_root);
-        var variant = Assert.Single(reloaded.Subjects.Single().Variants!);
+        var variant = Assert.Single(reloaded.WithReading.Single().Variants!);
         var over = Assert.Single(variant.Overrides);
         var reference = reloaded.FindRef(over.Value);
         Assert.NotNull(reference);
@@ -215,7 +215,7 @@ public sealed class CharacterVariantTests : IDisposable
         ProjectIo.Save(project);
 
         var reloaded = ProjectIo.Load(_root);
-        var subject = reloaded.Subjects.Single();
+        var subject = reloaded.WithReading.Single();
         var restored = Assert.Single(subject.Variants!);
         Assert.Equal("Winter", restored.Name);
 
@@ -269,15 +269,18 @@ public sealed class CharacterVariantTests : IDisposable
     }
 
     [Fact]
-    public void AFolderWithNoReadingIsNotOffered()
+    public void AFolderWithNoReadingIsOfferedToo()
     {
-        // A subject is a folder with a taxonomy. A plain folder in a library
-        // project is somewhere the artist keeps things, not a character.
+        // Q40. Offering only folders something had read would make "character" a
+        // designation again, this time one deciding what can be shared — and a
+        // prop set or a shared environment is exactly what a library is for.
         var project = ProjectIo.Create("Bits", _library, ProjectType.AssetLibrary);
         ProjectFolders.Add(project.Manifest, "Scratch");
         ProjectIo.Save(project);
 
-        Assert.Empty(CharacterLibrary.Scan([_library]));
+        var entry = Assert.Single(CharacterLibrary.Scan([_library]));
+        Assert.Equal("Scratch", entry.Name);
+        Assert.False(entry.Folder.HasReading);
     }
 
     [Fact]
@@ -384,7 +387,7 @@ public sealed class CharacterVariantTests : IDisposable
         Assert.NotEqual(a.Id, b.Id);
         // Numbered rather than refused — the same rule ProjectFolders.Add uses.
         Assert.NotEqual(a.Name, b.Name);
-        Assert.Equal(2, target.Subjects.Count());
+        Assert.Equal(2, target.WithReading.Count());
     }
 
     // ---- ending subjecthood says what it costs (Q35) -------------------------
@@ -397,7 +400,7 @@ public sealed class CharacterVariantTests : IDisposable
         ProjectIo.AddVariant(project, knight, "Winter");
         ProjectIo.AddVariant(project, knight, "Damaged");
 
-        var lost = knight.WhatEndingSubjecthoodDiscards();
+        var lost = knight.WhatClearingTheReadingDiscards();
         Assert.Equal(3, lost.Count);
         Assert.Contains("1 part", lost[0]);
         Assert.Equal("its pivot", lost[1]);
@@ -414,7 +417,7 @@ public sealed class CharacterVariantTests : IDisposable
 
         Assert.Equal(
             "the reading you corrected by hand",
-            Assert.Single(knight.WhatEndingSubjecthoodDiscards()));
+            Assert.Single(knight.WhatClearingTheReadingDiscards()));
     }
 
     [Fact]
@@ -422,7 +425,7 @@ public sealed class CharacterVariantTests : IDisposable
     {
         var project = ProjectIo.Create("Game", _root);
         var folder = ProjectFolders.Add(project.Manifest, "Backgrounds");
-        Assert.Empty(folder.WhatEndingSubjecthoodDiscards());
-        Assert.False(folder.IsSubject);
+        Assert.Empty(folder.WhatClearingTheReadingDiscards());
+        Assert.False(folder.HasReading);
     }
 }

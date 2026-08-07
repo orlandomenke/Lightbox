@@ -142,24 +142,17 @@ public sealed partial class ProjectRow : ObservableObject
     public bool IsFolder => Folder is not null && Animation is null;
 
     /// <summary>
-    /// A folder that describes a subject — what "is a character" now means.
+    /// Whether the folder this row is has been read.
     /// </summary>
     /// <remarks>
-    /// Derived from what the folder carries rather than from a kind, which is
-    /// the whole of B114: adding a reading to any folder makes it a character
-    /// and clearing one stops it, and nothing in the docker has to be told.
+    /// <b>Q40.</b> A facet question, not a kind. There was an <c>IsScene</c>
+    /// beside this and it is gone: the docker does not decide what a folder is,
+    /// because the artist already said so with its glyph.
     /// </remarks>
-    public bool IsSubject => IsFolder && Folder!.IsSubject;
+    public bool HasReading => IsFolder && Folder!.HasReading;
 
-    /// <summary>
-    /// A folder with a running order, and not a subject — what reads as a scene.
-    /// </summary>
-    /// <remarks>
-    /// Subject wins the tie because a character with an ordered set of
-    /// animations is still a character; a scene is the folder that has an order
-    /// and nothing else to say about itself.
-    /// </remarks>
-    public bool IsScene => IsFolder && !Folder!.IsSubject && Folder.Order is not null;
+    /// <summary>Whether the folder this row is carries an authored order.</summary>
+    public bool HasOrder => IsFolder && Folder!.Order is not null;
 
     /// <summary>A heading row — any folder.</summary>
     public bool IsHeading => Animation is null;
@@ -200,10 +193,24 @@ public sealed partial class ProjectRow : ObservableObject
     public double Indent =>
         Folder is null ? 0 : (Depth + (Animation is null ? 0 : 1)) * 14;
 
-    // 🗁 is the open folder, and it matches the toolbar button that used to be
-    // the only way to reach the project folder — the row inherited the icon
-    // along with the job (B62).
-    public string Glyph => IsRoot ? "🗁" : IsScene ? "🎬" : IsFolder ? "🗀" : "▣";
+    /// <summary>What the row shows in front of its name.</summary>
+    /// <remarks>
+    /// <b>Q38.</b> A folder's glyph is the artist's, and the fallback is the
+    /// plain folder. Nothing derives it from what the folder carries: that would
+    /// put the code back in the business of deciding which facet makes a folder
+    /// "a character", and it would pick wrong the first time somebody makes a
+    /// prop folder with a pivot.
+    /// <para>
+    /// 🗁 for the project itself matches the toolbar button that used to be the
+    /// only way to reach the project folder — the row inherited the icon along
+    /// with the job (B62).
+    /// </para>
+    /// </remarks>
+    public string Glyph =>
+        IsRoot ? "🗁"
+        : Animation is null && Folder is { Icon: { Length: > 0 } chosen } ? chosen
+        : IsFolder ? "🗀"
+        : "▣";
 
     /// <summary>The chevron on a folder row, or nothing on everything else.</summary>
     public string Twisty => IsFolder ? (IsCollapsed ? "▸" : "▾") : "";
@@ -415,11 +422,15 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// </remarks>
     public bool CanReorder => Project is { } p && ProjectFolders.All(p.Manifest).Count > 0;
 
-    /// <summary>Folders that read as scenes: they carry an authored order.</summary>
-    public IEnumerable<ProjectFolder> Scenes =>
-        Project is { } p
-            ? ProjectFolders.All(p.Manifest).Where(f => !f.IsSubject && f.Order is not null)
-            : [];
+    /// <summary>Folders carrying an authored order.</summary>
+    /// <remarks>
+    /// <b>Q40.</b> Was <c>Scenes</c>, and it excluded folders that had been read
+    /// so that a character could not accidentally be one — which is the tie-break
+    /// a designation forces you to invent. There is no tie now: a folder with an
+    /// order has an order, whatever else it also has.
+    /// </remarks>
+    public IEnumerable<ProjectFolder> Ordered =>
+        Project is { } p ? ProjectFolders.All(p.Manifest).Where(f => f.Order is not null) : [];
 
     public string ProjectName => Project?.Name ?? "";
 
@@ -427,7 +438,10 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
-    [NotifyPropertyChangedFor(nameof(SelectedSubject))]
+    [NotifyPropertyChangedFor(nameof(NearestReading))]
+    [NotifyPropertyChangedFor(nameof(SelectedFacets))]
+    [NotifyPropertyChangedFor(nameof(HasFacets))]
+    [NotifyPropertyChangedFor(nameof(SelectedIcon))]
     private ProjectRow? _selected;
 
     public bool HasSelection => Selected is not null;
@@ -440,7 +454,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// subfolder under a character inherit that character — the old
     /// <c>Character</c> field could not express it at all.
     /// </remarks>
-    public ProjectFolder? SelectedSubject
+    public ProjectFolder? NearestReading
     {
         get
         {
@@ -449,9 +463,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             {
                 var chain = ProjectFolders.AncestryOf(project.Manifest, folder);
                 for (var i = chain.Count - 1; i >= 0; i--)
-                    if (chain[i].IsSubject) return chain[i];
+                    if (chain[i].HasReading) return chain[i];
             }
-            return project.Subjects.FirstOrDefault();
+            return project.WithReading.FirstOrDefault();
         }
     }
 
@@ -768,6 +782,113 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// palette meant *around here*, and the nearest scope that can hold one is
     /// the answer — the alternative is a disabled menu item that says nothing.
     /// </remarks>
+    // ---- what a folder is, in the artist's words (Q38, Q39, Q40) --------------
+
+    /// <summary>
+    /// The glyphs the picker offers, before the artist types their own.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q38.</b> A starting point, not a vocabulary. The closed-set option was
+    /// rejected outright — it is a designation list wearing a different hat, and
+    /// the first production need outside it is a dead end — so this exists only
+    /// so the common case is one click and the feature is discoverable at all.
+    /// An empty text box gives no hint that a folder can be labelled, and typing
+    /// an emoji is a coin toss depending on the platform.
+    /// <para>
+    /// Curated, therefore opinionated, and that cost was accepted. Nothing reads
+    /// these: an artist who types something else gets exactly the same treatment.
+    /// </para>
+    /// </remarks>
+    public static readonly IReadOnlyList<string> GlyphChoices =
+    [
+        "🗀", "🎬", "🧍", "🐾", "🗡", "🏠", "🌳", "🚗",
+        "✨", "💥", "🎨", "📐", "🖼", "📝", "🎞", "🔊",
+        "🌊", "🔥", "☁", "🌙", "⭐", "🧩", "📦", "🔧",
+    ];
+
+    /// <summary>The selected folder's glyph, or the default when it has none.</summary>
+    public string SelectedIcon =>
+        Selected is { IsFolder: true, Folder: { Icon: { Length: > 0 } chosen } } ? chosen : "🗀";
+
+    /// <summary>Give the selected folder a glyph, or clear it back to the default.</summary>
+    /// <remarks>
+    /// Clearing writes null rather than "🗀", so a folder the artist labelled and
+    /// then unlabelled is byte-identical to one they never touched — the same
+    /// rule the camera and the project type follow.
+    /// </remarks>
+    [RelayCommand]
+    public void SetIcon(string? glyph)
+    {
+        if (Selected is not { IsFolder: true, Folder: { } folder }) return;
+        var wanted = (glyph ?? "").Trim();
+        var next = wanted.Length == 0 || wanted == "🗀" ? null : wanted;
+        if (folder.Icon == next) return;
+
+        folder.Icon = next;
+        var keep = Selected.Key;
+        Rebuild();
+        Selected = Rows.FirstOrDefault(r => r.Key == keep);
+        OnPropertyChanged(nameof(SelectedIcon));
+        Status = next is null
+            ? $"“{folder.Name}” uses the plain folder glyph."
+            : $"“{folder.Name}” is {next}.";
+        _changed();
+    }
+
+    /// <summary>
+    /// What the selected folder carries, in words, for the details panel.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q39.</b> Here rather than on every row: a tree of forty rows has to
+    /// stay scannable, which is what the panel is for. The cost is recorded in
+    /// the question — nothing tells you a folder holds a hand-corrected reading
+    /// until you select it, and what keeps that from being a defect is
+    /// <see cref="ProjectFolder.WhatClearingTheReadingDiscards"/>, which fires
+    /// at the moment of the destructive act rather than in passing.
+    /// <para>
+    /// <b>Facets, not a kind.</b> The panel lists what is there and draws no
+    /// conclusion from the combination — a folder with a reading and a pivot is
+    /// a folder with a reading and a pivot, and whether that makes it a
+    /// character is the artist's to say with its glyph.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> SelectedFacets
+    {
+        get
+        {
+            if (Project is not { } project) return [];
+            if (Selected is not { IsFolder: true, Folder: { } folder }) return [];
+
+            var carried = new List<string>();
+            if (folder.Taxonomy is { } reading)
+            {
+                carried.Add(reading.Reviewed
+                    ? $"reading — {reading.Kind}, {Count(reading.Parts.Count, "part")}, yours"
+                    : $"reading — {reading.Kind}, {Count(reading.Parts.Count, "part")}");
+            }
+            if (folder.Pivot is not null) carried.Add("pivot");
+            if (folder.Variants is { Count: > 0 } variants)
+            {
+                carried.Add(Count(variants.Count, "variant"));
+            }
+            if (folder.Order is { Count: > 0 } order)
+            {
+                carried.Add($"{Count(order.Count, "item")} arranged");
+            }
+            if (folder.Resources is { Count: > 0 } declared)
+            {
+                carried.Add($"{Count(declared.Count, "shared resource")}");
+            }
+            if (folder.Tags is { Count: > 0 } tags) carried.Add(Count(tags.Count, "tag"));
+
+            var documents = ProjectFolders.DocumentsIn(project.Manifest, folder).Count;
+            if (documents > 0) carried.Add(Count(documents, "document"));
+            return carried;
+        }
+    }
+
+    public bool HasFacets => SelectedFacets.Count > 0;
+
     private ProjectFolder? ScopeOfSelected() =>
         Selected is { IsFolder: true, Folder: { } folder } ? folder : null;
 
@@ -1065,6 +1186,16 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<ScopeMenuEntry> ExportPresetMenu =>
         Entries(ShareableExportPresets, p => p.Name, SetExportPresetEntryCommand);
+
+    /// <summary>The glyph picker, as menu entries. Q38.</summary>
+    /// <remarks>
+    /// The plain folder is first and clears the choice rather than setting one,
+    /// so "put it back" is in the same place as "change it". The free-entry half
+    /// is a separate menu item, because a text box inside a flyout item is a
+    /// control nobody finds.
+    /// </remarks>
+    public IReadOnlyList<ScopeMenuEntry> GlyphMenu =>
+        [.. GlyphChoices.Select(g => new ScopeMenuEntry(g, SetIconCommand, g))];
 
     public IReadOnlyList<ScopeMenuEntry> UnshareMenu =>
         Entries(Declarations, d => d.Label, UnshareEntryCommand);
@@ -1756,6 +1887,27 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// </remarks>
     public Func<NewItemKind, string, Task<string?>>? AskName { get; set; }
 
+    /// <summary>
+    /// Ask the artist to type a glyph. Null means they cancelled.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q38's free-entry half.</b> Supplied by the window for the same reason
+    /// <see cref="AskName"/> is: a view model that opens its own dialogs is one
+    /// no test can drive, and the cancel path is the half that goes untested
+    /// when the sequence lives in the window.
+    /// </remarks>
+    public Func<string, Task<string?>>? AskGlyph { get; set; }
+
+    /// <summary>Ask for a glyph, then set it — or set nothing if cancelled.</summary>
+    [RelayCommand]
+    public async Task ChooseIconAsync()
+    {
+        if (Selected is not { IsFolder: true }) return;
+        if (AskGlyph is null) return;
+        if (await AskGlyph(SelectedIcon) is not { } typed) return;   // cancelled
+        SetIcon(typed);
+    }
+
     /// <summary>Ask for a name, then create — or create nothing if cancelled.</summary>
     /// <remarks>
     /// The ordering is the whole of B65: a name asked for <em>after</em> the
@@ -1925,16 +2077,17 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     /// The running time of everything arranged, or null when nothing is.
     /// </summary>
     /// <remarks>
-    /// Over the folders that read as scenes — the ones carrying an authored
-    /// order. A character's animations add up to a number too, but it is not a
-    /// running time and adding it here would make the film longer than it is.
+    /// Over the folders carrying an authored order. A folder nobody arranged
+    /// adds up to a number too, but it is not a running time — an artist who
+    /// wants one says so by arranging it, which is the same gesture that makes
+    /// the order mean anything.
     /// </remarks>
     public string? TotalRunningTime
     {
         get
         {
             if (Project is not { } project) return null;
-            var scenes = Scenes.ToList();
+            var scenes = Ordered.ToList();
             if (scenes.Count == 0) return null;
 
             var frames = 0;

@@ -8399,7 +8399,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// </remarks>
     private SubjectTaxonomy? TaxonomyForActiveDocument() =>
         ProjectDocker.Project is { } project && SaveTargetTab?.Source is { } source
-            ? project.SubjectOf(source)?.Taxonomy
+            ? project.ReadingFor(source)?.Taxonomy
             : null;
 
     /// <summary>

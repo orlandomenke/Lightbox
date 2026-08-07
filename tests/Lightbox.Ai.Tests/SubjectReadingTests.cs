@@ -238,7 +238,7 @@ public class SubjectReadingTests(ITestOutputHelper output)
         var json = JsonSerializer.Serialize(manifest, DocJson.Options);
         var back = JsonSerializer.Deserialize<ProjectManifest>(json, DocJson.Options)!;
 
-        var subject = Assert.Single(ProjectFolders.Subjects(back));
+        var subject = Assert.Single(ProjectFolders.WithReading(back));
         var parts = subject.Taxonomy!.Parts;
         Assert.Equal("biped", subject.Taxonomy!.Kind);
         Assert.Equal(4, parts.Count);
@@ -276,10 +276,10 @@ public class SubjectReadingTests(ITestOutputHelper output)
         var loose = new DocumentRef { Name = "background" };
         manifest.Documents.AddRange([walk, run, loose]);
 
-        Assert.Same(knight, ProjectFolders.SubjectFor(manifest, walk));
-        Assert.Same(goblin, ProjectFolders.SubjectFor(manifest, run));
-        Assert.Null(ProjectFolders.SubjectFor(manifest, loose));
-        Assert.Null(ProjectFolders.SubjectFor(manifest, null));
+        Assert.Same(knight, ProjectFolders.ReadingFor(manifest, walk));
+        Assert.Same(goblin, ProjectFolders.ReadingFor(manifest, run));
+        Assert.Null(ProjectFolders.ReadingFor(manifest, loose));
+        Assert.Null(ProjectFolders.ReadingFor(manifest, null));
     }
 
     [Fact]
@@ -296,7 +296,7 @@ public class SubjectReadingTests(ITestOutputHelper output)
         var walk = new DocumentRef { Name = "walk", FolderId = locomotion.Id };
         manifest.Documents.Add(walk);
 
-        Assert.Same(knight, ProjectFolders.SubjectFor(manifest, walk));
+        Assert.Same(knight, ProjectFolders.ReadingFor(manifest, walk));
     }
 
     [Fact]
@@ -313,6 +313,6 @@ public class SubjectReadingTests(ITestOutputHelper output)
         var canter = new DocumentRef { Name = "canter", FolderId = horse.Id };
         manifest.Documents.Add(canter);
 
-        Assert.Same(horse, ProjectFolders.SubjectFor(manifest, canter));
+        Assert.Same(horse, ProjectFolders.ReadingFor(manifest, canter));
     }
 }

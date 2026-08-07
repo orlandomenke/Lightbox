@@ -3246,6 +3246,19 @@ public partial class MainWindow : Window
     private void OnProjectReadSubject(object? sender, RoutedEventArgs e) =>
         _vm.AiReadSubjectCommand.Execute(null);
 
+    /// <summary>Q38's free-entry half: type any character.</summary>
+    /// <remarks>
+    /// The prompt is supplied here and the decision lives on the view model, the
+    /// same split B65 uses for the name box — a cancel path inside a window
+    /// handler is a path no test can reach.
+    /// </remarks>
+    private async void OnProjectChooseGlyph(object? sender, RoutedEventArgs e)
+    {
+        _vm.ProjectDocker.AskGlyph ??= current =>
+            PromptForText("Folder glyph", "Glyph", current);
+        await _vm.ProjectDocker.ChooseIconAsync();
+    }
+
     private async void OnProjectExportFolder(object? sender, RoutedEventArgs e)
     {
         var docker = _vm.ProjectDocker;

@@ -10,6 +10,67 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q38 · How does an artist set a folder's glyph? — **answered: a grid plus free entry**
+
+**Answered 2026-08-07: a small grid of common production glyphs with a text box
+beside it.** The owner's point, and it is the sharper version of Q35: deriving
+the glyph from what a folder carries is a designation smuggled back in. It
+forces the code to pick a winner when a folder has several facets, and it will
+pick wrong the first time somebody makes a prop folder with a pivot.
+
+> *"I would rather have the glyphs to be selectable so that an artist/director or
+> whoever could set the glyphs to a folder. So they can define the folder and
+> what content belongs to it."*
+
+**The line that keeps this from becoming a second designation: the glyph is a
+label, the facets are the data.** Nothing in the code reads it — it is
+`Notes` with one character, absent unless set, falling back to `🗀`. The AI path
+asks for *the nearest folder above this with a reading*; export asks for a
+pivot; neither asks what the icon is. So the artist names what a folder means
+without anything downstream depending on their vocabulary, which is the part
+that has to survive a production full of designations nobody wrote down.
+
+Free entry was rejected alone (an empty box gives no hint the feature exists,
+and typing an emoji is a coin toss on Linux) and a closed set was rejected
+outright — it is a designation list wearing a different hat, and the first need
+outside it is a dead end. The grid's cost is accepted: it is curated, so it
+reads as opinionated, and somebody maintains it.
+
+## Q39 · Does a folder row show what it carries? — **answered: only in a details panel**
+
+**Answered 2026-08-07: the row stays name, glyph and duration; the facets show
+when the folder is selected.** Against the recommendation, which was a dim
+summary on the row.
+
+The reason to prefer the row was discovery — otherwise a reading is invisible
+until something goes wrong. The reason it lost is that the docker is already
+dense and a tree of forty rows has to stay scannable, which is the thing the
+panel is *for*.
+
+**The cost, recorded because it is real:** nothing tells you a folder has a
+hand-corrected reading until you click it. What keeps that from being a defect
+is Q35's warning — it fires at the moment of the destructive act, naming what
+goes, which is where the information actually has to be. The row summary would
+only have improved discovery, not safety. If an artist ever loses a reading
+anyway, this is the entry to revisit.
+
+## Q40 · Do "subject" and "scene" survive as words? — **answered: gone from both**
+
+**Answered 2026-08-07: gone from the code and from the UI.** `IsSubject`,
+`IsScene` and `Subjects()` become facet questions — *the nearest folder with a
+reading*, *folders with an order* — and the menu says **Read this folder…**.
+
+Q35 dissolved the two records and then immediately collapsed the facets back
+into two nouns, a glyph switch and a named collection. That is the same
+rigidity one level down: a production has props, environments, effects,
+vehicles, layouts and crowds, and under two privileged nouns every one of them
+is "just a folder".
+
+The cost is a rename across the call sites and the manual, and that *subject*
+is a genuinely useful word which now lives only in
+`docs/DESIGN-subject-reading.md` — where it describes the reading rather than a
+kind of folder, which is what it always meant.
+
 ## Q35 · Do Character and Scene survive as records, or dissolve into folder attributes? — **answered: dissolve**
 
 **Answered 2026-08-07: dissolve entirely.** `Character` and `ProjectScene` go.

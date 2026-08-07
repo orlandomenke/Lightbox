@@ -348,7 +348,9 @@ public sealed class SceneAndConversionTests : IDisposable
         var project = ProjectIo.Create("Knight", _root);
         project.Manifest.Type = ProjectType.Illustration;
         var knight = ProjectFolders.Add(project.Manifest, "Knight");   // no pivot
-        knight.Taxonomy = new SubjectTaxonomy { Kind = "biped" };
+        // Holding work is what makes the pivot worth mentioning — an empty
+        // folder packs nothing, so reporting it would be noise.
+        ProjectIo.AddDocument(project, "Walk", Shot(), knight);
 
         var report = ProjectIo.Convert(project, ProjectType.GameArt);
 

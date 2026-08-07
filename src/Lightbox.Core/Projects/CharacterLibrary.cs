@@ -67,7 +67,13 @@ public static class CharacterLibrary
                     continue;
                 }
                 if (project.Manifest.Type != ProjectType.AssetLibrary) continue;
-                entries.AddRange(project.Subjects.Select(f => new LibraryEntry(project, f)));
+                // Q40: every folder, not only the ones something has read. A
+                // shared environment or a prop set is exactly the thing a library
+                // is for, and offering only folders with a reading would make
+                // "character" a designation again — this time one that decides
+                // what can be shared.
+                entries.AddRange(
+                    ProjectFolders.All(project.Manifest).Select(f => new LibraryEntry(project, f)));
             }
         }
         return entries;

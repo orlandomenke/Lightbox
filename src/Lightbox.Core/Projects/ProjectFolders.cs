@@ -35,6 +35,30 @@ public sealed class ProjectFolder
     public string? ParentId { get; set; }
 
     /// <summary>
+    /// The glyph the artist chose for this folder, or null for the default.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q38, and it is the answer to the rigidity Q35 left behind.</b> A
+    /// production has props, environments, effects, vehicles, layouts and
+    /// crowds; two privileged nouns cannot name them and deriving an icon from
+    /// what a folder carries only moves the decision into code that has to pick
+    /// a winner. The artist picks.
+    /// </para>
+    /// <para>
+    /// <b>A label, not data.</b> Nothing reads this — it is <see cref="Notes"/>
+    /// with one character. The AI path asks for <em>the nearest folder above
+    /// this with a reading</em>, export asks for a pivot; neither asks what the
+    /// icon is. That is what lets an artist's vocabulary be theirs without
+    /// anything downstream depending on it.
+    /// </para>
+    /// <para>
+    /// Nullable, so a folder nobody labelled writes no key.
+    /// </para>
+    /// </remarks>
+    public string? Icon { get; set; }
+
+    /// <summary>
     /// Tags, absent until one is applied.
     /// </summary>
     /// <remarks>
@@ -55,7 +79,7 @@ public sealed class ProjectFolder
     /// </remarks>
     public List<ScopedResource>? Resources { get; set; }
 
-    // ---- what used to be a Character or a Scene -------------------------------
+    // ---- the facets a folder may carry ----------------------------------------
     //
     // B114 and `docs/DESIGN-project-scoping.md`. There were two containers —
     // folders, and Character/ProjectScene — and only folders were wired into
@@ -67,8 +91,10 @@ public sealed class ProjectFolder
     // about holding documents. Each is nullable and absent until used, so an
     // ordinary folder serializes exactly as it did.
     //
-    // A character is now a folder with a Taxonomy. A scene is a folder with an
-    // Order. Both derived, neither declared — nothing is locked behind a kind.
+    // Q40: there is no noun for a folder that has one. A folder with a reading
+    // is not "a character" in the code any more than a folder with a pivot is "a
+    // prop" — it is a folder with a reading, and the questions the application
+    // actually asks are about the facet, never about a kind.
 
     /// <summary>What the AI read about the subject this folder holds.</summary>
     public SubjectTaxonomy? Taxonomy { get; set; }
@@ -99,31 +125,34 @@ public sealed class ProjectFolder
     public string? Notes { get; set; }
 
     /// <summary>
-    /// Whether this folder describes a subject — which is what "is a character"
-    /// now means.
+    /// Whether anything has read this folder.
     /// </summary>
     /// <remarks>
-    /// Derived rather than declared, deliberately: adding a reading to any
-    /// folder makes it a subject and removing one stops it, with no kind to
-    /// change and nothing locked behind a project type. The cost is that
-    /// character-ness can be lost by an action that does not look destructive,
-    /// which is why <see cref="WhatEndingSubjecthoodDiscards"/> exists.
+    /// <b>Q40.</b> This was <c>IsSubject</c>, which read as a kind. It is a
+    /// question about one facet and nothing else: a folder with a reading is a
+    /// folder with a reading, and whether an artist calls it a character, a
+    /// creature or a crowd is theirs to say with <see cref="Icon"/>.
     /// </remarks>
-    public bool IsSubject => Taxonomy is not null;
+    public bool HasReading => Taxonomy is not null;
 
     /// <summary>
-    /// What an artist loses if this folder stops describing a subject, phrased
-    /// for a confirmation. Empty when there is nothing to lose.
+    /// What an artist loses if this folder's reading is cleared or the folder is
+    /// deleted, phrased for a confirmation. Empty when there is nothing to lose.
     /// </summary>
     /// <remarks>
-    /// <b>Q35's condition.</b> Under the old model "delete character" was
-    /// explicitly destructive. Under this one, clearing a reading or deleting a
-    /// folder quietly takes the pivot, the variants and a hand-corrected
-    /// taxonomy with it. So the gesture names what goes, specifically, the way
-    /// the export confirmation counts what it would write — never a bare "are
-    /// you sure".
+    /// <b>Q35's condition, and Q39 leans on it.</b> Under the old model "delete
+    /// character" was explicitly destructive. Under this one, clearing a reading
+    /// or deleting a folder quietly takes the pivot, the variants and a
+    /// hand-corrected taxonomy with it. So the gesture names what goes,
+    /// specifically, the way the export confirmation counts what it would write
+    /// — never a bare "are you sure".
+    /// <para>
+    /// Q39 put the facet list in a details panel rather than on every row, which
+    /// means this is the <em>only</em> place an artist is told, and it is told at
+    /// the moment it matters rather than in passing.
+    /// </para>
     /// </remarks>
-    public IReadOnlyList<string> WhatEndingSubjecthoodDiscards()
+    public IReadOnlyList<string> WhatClearingTheReadingDiscards()
     {
         var lost = new List<string>();
         if (Taxonomy is { } taxonomy)
@@ -167,8 +196,8 @@ public static class ProjectFolders
         id is null ? null : All(manifest).FirstOrDefault(f => f.Id == id);
 
     /// <summary>
-    /// The nearest folder at or above <paramref name="document"/> that
-    /// describes a subject, or null when nothing above it does.
+    /// The nearest folder at or above <paramref name="document"/> that has been
+    /// read, or null when nothing above it has.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -185,7 +214,21 @@ public static class ProjectFolders
     /// override the one above it.
     /// </para>
     /// </remarks>
-    public static ProjectFolder? SubjectFor(ProjectManifest manifest, DocumentRef? document)
+    public static ProjectFolder? ReadingFor(ProjectManifest manifest, DocumentRef? document) =>
+        NearestAbove(manifest, document, f => f.HasReading);
+
+    /// <summary>
+    /// The nearest folder at or above a document satisfying
+    /// <paramref name="carries"/>, or null when nothing above it does.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q40.</b> A facet question rather than a kind question, and the reason
+    /// it is written once: the pivot wants the same walk, and so will whatever
+    /// facet arrives next. Nearest wins, the same rule
+    /// <see cref="ResourceScopes.Resolve"/> uses.
+    /// </remarks>
+    public static ProjectFolder? NearestAbove(
+        ProjectManifest manifest, DocumentRef? document, Func<ProjectFolder, bool> carries)
     {
         var folder = ById(manifest, document?.FolderId);
         if (folder is null) return null;
@@ -193,13 +236,13 @@ public static class ProjectFolders
         // AncestryOf runs root-first, so walk it backwards for nearest-first.
         var chain = AncestryOf(manifest, folder);
         for (var i = chain.Count - 1; i >= 0; i--)
-            if (chain[i].IsSubject) return chain[i];
+            if (carries(chain[i])) return chain[i];
         return null;
     }
 
-    /// <summary>Every folder that describes a subject — what "the characters" now means.</summary>
-    public static IEnumerable<ProjectFolder> Subjects(ProjectManifest manifest) =>
-        All(manifest).Where(f => f.IsSubject);
+    /// <summary>Every folder that has been read.</summary>
+    public static IEnumerable<ProjectFolder> WithReading(ProjectManifest manifest) =>
+        All(manifest).Where(f => f.HasReading);
 
     /// <summary>The folders directly inside <paramref name="parent"/>, or at the root when null.</summary>
     public static IReadOnlyList<ProjectFolder> ChildrenOf(ProjectManifest manifest, ProjectFolder? parent) =>

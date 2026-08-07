@@ -1135,10 +1135,10 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.Equal(_root, docker.PathOf(root));
 
         // It is a place, not a thing in the project. Every one of these would
-        // put it in a code path written for characters or documents.
+        // put it in a code path written for folders or documents.
         Assert.False(root.IsFolder);
-        Assert.False(root.IsFolder);
-        Assert.False(root.IsScene);
+        Assert.False(root.HasReading);
+        Assert.False(root.HasOrder);
         Assert.False(root.IsLoose);
         Assert.Null(root.Animation);
         Assert.Equal(0, root.Indent);

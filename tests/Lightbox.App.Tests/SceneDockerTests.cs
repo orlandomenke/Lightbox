@@ -1,5 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Lightbox.App.ViewModels;
+using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
 
 namespace Lightbox.App.Tests;
@@ -62,7 +63,7 @@ public sealed class SceneDockerTests : BrushStateIsolated, IDisposable
         ProjectFolders.Add(vm.ProjectDocker.Project!.Manifest, "Knight");
         vm.ProjectDocker.Refresh();
 
-        Assert.DoesNotContain(vm.ProjectDocker.Rows, r => r.IsScene);
+        Assert.DoesNotContain(vm.ProjectDocker.Rows, r => r.HasOrder);
         Assert.Null(vm.ProjectDocker.TotalRunningTime);
     }
 
@@ -81,21 +82,152 @@ public sealed class SceneDockerTests : BrushStateIsolated, IDisposable
     }
 
     [AvaloniaFact]
-    public void AnOrderedFolderReadsAsASceneAndACharacterDoesNot()
+    public void AFolderCanCarryAReadingAndAnOrderAtOnce()
     {
+        // Q40. The old model had to break the tie — a folder with both was "a
+        // character, not a scene" — and inventing that rule is the rigidity a
+        // designation forces. There is no tie: it carries both, and what it *is*
+        // is whatever its glyph says.
         var vm = WithProject();
         var scene = Scene(vm, "Opening");
         var knight = ProjectFolders.Add(vm.ProjectDocker.Project!.Manifest, "Knight");
         knight.Taxonomy = new SubjectTaxonomy { Kind = "biped" };
-        knight.Order = [];        // a character may be arranged and stays a character
+        knight.Order = [];
         vm.ProjectDocker.Refresh();
 
-        Assert.True(Row(vm, scene.Name).IsScene);
-        Assert.False(Row(vm, "Knight").IsScene);
-        Assert.True(Row(vm, "Knight").IsSubject);
+        Assert.True(Row(vm, scene.Name).HasOrder);
+        Assert.False(Row(vm, scene.Name).HasReading);
+        Assert.True(Row(vm, "Knight").HasOrder);
+        Assert.True(Row(vm, "Knight").HasReading);
         Assert.All(
             vm.ProjectDocker.Rows.Where(r => r.IsFolder),
             r => Assert.True(r.IsHeading));
+    }
+
+    // ---- the glyph is the artist's (Q38) --------------------------------------
+
+    [AvaloniaFact]
+    public void AFolderNobodyLabelledUsesThePlainGlyphAndWritesNoKey()
+    {
+        var vm = WithProject();
+        var scene = Scene(vm, "Opening");
+        vm.SaveProject(everything: true);
+
+        Assert.Equal("🗀", Row(vm, scene.Name).Glyph);
+        Assert.DoesNotContain("\"icon\"", File.ReadAllText(Path.Combine(_root, "project.json")));
+    }
+
+    [AvaloniaFact]
+    public void TheGlyphIsWhateverTheArtistPicked()
+    {
+        // Whatever it is. Nothing reads it, so a folder with a reading can wear
+        // a clapperboard and a folder with an order can wear a tree.
+        var vm = WithProject();
+        var scene = Scene(vm, "Opening");
+        vm.ProjectDocker.Selected = Row(vm, scene.Name);
+
+        vm.ProjectDocker.SetIconCommand.Execute("🎬");
+
+        Assert.Equal("🎬", Row(vm, scene.Name).Glyph);
+        Assert.Equal("🎬", scene.Icon);
+    }
+
+    [AvaloniaFact]
+    public void AGlyphOutsideTheGridIsAccepted()
+    {
+        // The grid is a starting point, not a vocabulary — a production has
+        // designations nobody wrote down.
+        var vm = WithProject();
+        var scene = Scene(vm, "Opening");
+        vm.ProjectDocker.Selected = Row(vm, scene.Name);
+
+        vm.ProjectDocker.SetIconCommand.Execute("🦑");
+
+        Assert.DoesNotContain("🦑", ProjectViewModel.GlyphChoices);
+        Assert.Equal("🦑", Row(vm, scene.Name).Glyph);
+    }
+
+    [AvaloniaFact]
+    public void ClearingTheGlyphTakesTheKeyBackOutOfTheFile()
+    {
+        // Absent unless used, in both directions: a folder labelled and then
+        // unlabelled is byte-identical to one nobody touched.
+        var vm = WithProject();
+        var scene = Scene(vm, "Opening");
+        vm.ProjectDocker.Selected = Row(vm, scene.Name);
+        vm.ProjectDocker.SetIconCommand.Execute("🎬");
+
+        vm.ProjectDocker.SetIconCommand.Execute("🗀");
+
+        Assert.Null(scene.Icon);
+        vm.SaveProject(everything: true);
+        Assert.DoesNotContain("\"icon\"", File.ReadAllText(Path.Combine(_root, "project.json")));
+    }
+
+    [AvaloniaFact]
+    public void ADocumentRowNeverWearsItsFoldersGlyph()
+    {
+        // The glyph says what the folder is. A drawing inside it is a drawing.
+        var vm = WithProject();
+        var scene = Scene(vm, "Opening");
+        vm.ProjectDocker.Selected = Row(vm, scene.Name);
+        vm.ProjectDocker.SetIconCommand.Execute("🎬");
+        vm.ProjectDocker.Selected = Row(vm, scene.Name);
+        vm.ProjectDocker.AddItemCommand.Execute(ProjectViewModel.NewDocumentItem);
+
+        var document = vm.ProjectDocker.Rows.First(r => r.Animation is not null);
+        Assert.Equal("▣", document.Glyph);
+    }
+
+    // ---- what a folder carries, in the details panel (Q39) ---------------------
+
+    [AvaloniaFact]
+    public void AnOrdinaryFolderSaysNothingAboutWhatItCarries()
+    {
+        var vm = WithProject();
+        var folder = ProjectFolders.Add(vm.ProjectDocker.Project!.Manifest, "Scratch");
+        vm.ProjectDocker.Refresh();
+        vm.ProjectDocker.Selected = Row(vm, folder.Name);
+
+        Assert.False(vm.ProjectDocker.HasFacets);
+        Assert.Empty(vm.ProjectDocker.SelectedFacets);
+    }
+
+    [AvaloniaFact]
+    public void TheDetailsPanelListsFacetsAndNamesNoKind()
+    {
+        var vm = WithProject();
+        var knight = ProjectFolders.Add(vm.ProjectDocker.Project!.Manifest, "Knight");
+        knight.Taxonomy = new SubjectTaxonomy
+        {
+            Kind = "biped",
+            Parts = [new SubjectPart { Name = "torso" }, new SubjectPart { Name = "near-arm" }],
+        };
+        knight.Pivot = new Pivot();
+        vm.ProjectDocker.Refresh();
+        vm.ProjectDocker.Selected = Row(vm, "Knight");
+
+        var facets = vm.ProjectDocker.SelectedFacets;
+        Assert.True(vm.ProjectDocker.HasFacets);
+        Assert.Contains(facets, f => f.Contains("biped") && f.Contains("2 parts"));
+        Assert.Contains("pivot", facets);
+        // It lists what is there and draws no conclusion from the combination.
+        Assert.DoesNotContain(facets, f => f.Contains("character", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(facets, f => f.Contains("scene", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [AvaloniaFact]
+    public void AHandCorrectedReadingSaysSoInTheDetails()
+    {
+        // Q39 put the facets behind a click, which means this line and Q35's
+        // warning are the only two places an artist is told a reading is theirs.
+        var vm = WithProject();
+        var knight = ProjectFolders.Add(vm.ProjectDocker.Project!.Manifest, "Knight");
+        knight.Taxonomy = new SubjectTaxonomy { Kind = "biped", Reviewed = true };
+        vm.ProjectDocker.Refresh();
+        vm.ProjectDocker.Selected = Row(vm, "Knight");
+
+        Assert.Contains(vm.ProjectDocker.SelectedFacets, f => f.EndsWith("yours"));
     }
 
     // ---- the tree ------------------------------------------------------------------

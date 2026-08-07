@@ -1925,10 +1925,37 @@
                 </Border>
               </controls:Docker.TopBar>
               <controls:Docker.BottomBar>
-                <Border Classes="dockerBar"
-                        IsVisible="{Binding ProjectDocker.Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                  <TextBlock Text="{Binding ProjectDocker.Status}" FontSize="10" Opacity="0.6" TextWrapping="Wrap" />
-                </Border>
+                <StackPanel>
+                  <!--
+                    Q39. What the selected folder carries, here rather than on
+                    every row: a tree of forty rows has to stay scannable, which
+                    is what the panel is for. Absent when it carries nothing, so
+                    an ordinary folder costs no line.
+
+                    It lists facets and draws no conclusion from the combination
+                    — a folder with a reading and a pivot is a folder with a
+                    reading and a pivot, and whether that makes it a character is
+                    the artist's to say with its glyph.
+                  -->
+                  <Border Classes="dockerBar" IsVisible="{Binding ProjectDocker.HasFacets}">
+                    <ItemsControl ItemsSource="{Binding ProjectDocker.SelectedFacets}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <TextBlock Text="{Binding}" FontSize="10" Opacity="0.6" Margin="0,0,8,0" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </Border>
+                  <Border Classes="dockerBar"
+                          IsVisible="{Binding ProjectDocker.Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{Binding ProjectDocker.Status}" FontSize="10" Opacity="0.6" TextWrapping="Wrap" />
+                  </Border>
+                </StackPanel>
               </controls:Docker.BottomBar>
               <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ListBox x:Name="ProjectRows" ItemsSource="{Binding ProjectDocker.Rows}"
@@ -1989,6 +2016,31 @@
                                       ToolTip.Tip="Copy this animation, art and all — a walk into a limp" />
                             <MenuItem Header="Rename…" Click="OnProjectRowRename" />
                             <!--
+                              Q38. The artist says what a folder is; nothing
+                              derives it. Deriving a glyph from what a folder
+                              carries puts the code back in the business of
+                              picking which facet makes it "a character", and a
+                              production has props, environments, effects and
+                              crowds that no two nouns can name.
+                            -->
+                            <MenuItem Header="Glyph"
+                                      ItemsSource="{Binding Owner.GlyphMenu}"
+                                      ToolTip.Tip="What this folder is, in your words. Nothing reads it.">
+                              <MenuItem.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ScopeMenuEntry">
+                                  <TextBlock Text="{Binding Label}" FontSize="15" />
+                                </DataTemplate>
+                              </MenuItem.ItemTemplate>
+                              <MenuItem.Styles>
+                                <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
+                                  <Setter Property="Command" Value="{Binding Command}" />
+                                  <Setter Property="CommandParameter" Value="{Binding Parameter}" />
+                                </Style>
+                              </MenuItem.Styles>
+                            </MenuItem>
+                            <MenuItem Header="Glyph — something else…" Click="OnProjectChooseGlyph"
+                                      ToolTip.Tip="Type any character. The grid is a starting point, not a vocabulary." />
+                            <!--
                               Q30. Where an artist says a palette belongs to this
                               part of the project. On the row rather than in the
                               Colour panel, because the question is "what is this
@@ -2028,11 +2080,11 @@
                             <Separator />
                             <!--
                               Here rather than in the AI bar because a reading
-                              belongs to a character, and a character lives in
-                              this panel. The AI bar acts on the open drawing.
+                              belongs to a folder, and folders live in this
+                              panel. The AI bar acts on the open drawing.
                             -->
-                            <MenuItem Header="Read this character…" Click="OnProjectReadSubject"
-                                      ToolTip.Tip="Ask the model what this character is, from its sheets. Once per character — the answer is kept and you can edit it." />
+                            <MenuItem Header="Read this folder…" Click="OnProjectReadSubject"
+                                      ToolTip.Tip="Ask the model what this folder holds, from its sheets. Once per folder — the answer is kept and you can edit it." />
                             <!--
                               Q30's declaration surface. Four kinds resolved
                               correctly and could not be declared from anywhere

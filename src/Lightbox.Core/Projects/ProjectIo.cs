@@ -572,18 +572,23 @@ public static class ProjectIo
             case ProjectType.GameArt:
                 // The pivot is what asset export registers frames on, so its
                 // absence is the one thing genuinely worth mentioning.
-                var subjects = project.Subjects.ToList();
-                var without = subjects.Count(f => f.Pivot is null);
-                notes.Add(subjects.Count == 0 || without == 0
-                    ? "Export packs sprite sheets, registered on each subject's pivot."
-                    : $"Export packs sprite sheets. {without} subject(s) have no pivot yet, "
+                // Q40: folders that hold work, not "subjects" — a sprite sheet
+                // is packed from whatever a folder contains, and calling that a
+                // character is a designation the project does not have.
+                var holding = ProjectFolders.All(project.Manifest)
+                    .Where(f => ProjectFolders.DocumentsIn(project.Manifest, f).Count > 0)
+                    .ToList();
+                var without = holding.Count(f => f.Pivot is null);
+                notes.Add(holding.Count == 0 || without == 0
+                    ? "Export packs sprite sheets, registered on each folder's pivot."
+                    : $"Export packs sprite sheets. {without} folder(s) have no pivot yet, "
                         + "so their frames register on the canvas instead.");
                 break;
             case ProjectType.Illustration or ProjectType.Comic:
                 notes.Add("Playback and camera tooling stop being offered. Nothing already authored is removed.");
                 break;
             case ProjectType.AssetLibrary:
-                notes.Add("Other projects can import these subjects, bringing their documents and palette.");
+                notes.Add("Other projects can import these folders, bringing their documents and palette.");
                 break;
             case null:
                 notes.Add("No declared type. Every panel stays available and the type key leaves the file.");
