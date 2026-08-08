@@ -51,6 +51,10 @@ public static class FrameRasterizer
         using var canvas = new SKCanvas(layer);
         BrushEngine.StampStroke(canvas, stroke, info, layer);
         canvas.Flush();
+        // The mutator announces itself: this bitmap is (deliberately) the one
+        // the frame cache holds, and any cache keyed on its identity — a tile
+        // split, a baked layer stack — must see the content move.
+        BitmapVersion.Bump(layer);
     }
 
     /// <summary>

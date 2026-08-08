@@ -15,27 +15,34 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public class UnboundedCanvasPixelTests : BrushStateIsolated
 {
+    /// <remarks>
+    /// Two arrangement bugs hid in the previous version of this helper, and
+    /// both let every test here pass against the NORMAL compositor while the
+    /// tiled one was broken. <c>Doc.Features</c> is null until something
+    /// writes a feature (absent-unless-used), and the old
+    /// <c>if (Features != null)</c> guard therefore never enabled the
+    /// feature; and nothing set a viewport, without which the unbounded path
+    /// refuses to run at all. The tiled compositor's first real caller was
+    /// the running application, where its use-after-dispose showed up as
+    /// "the infinite canvas does not work at all".
+    /// </remarks>
     private MainViewModel CreateVmWithUnboundedCanvas()
     {
-        var vm = new MainViewModel(null)
-        {
-            SmoothStrokes = false,
-            ColorHex = "#000000",
-            BrushSize = 12,
-            BrushHardness = 1,
-            BrushOpacity = 1,
-            BrushFlow = 1,
-            BrushWetEdge = 0,
-            BrushGranulation = 0,
-            BrushScatter = 0,
-        };
+        var vm = VmLayers.PaperVm();
+        vm.SmoothStrokes = false;
+        vm.ColorHex = "#000000";
+        vm.BrushSize = 12;
+        vm.BrushHardness = 1;
+        vm.BrushOpacity = 1;
+        vm.BrushFlow = 1;
+        vm.BrushWetEdge = 0;
+        vm.BrushGranulation = 0;
+        vm.BrushScatter = 0;
 
-        // Enable unbounded canvas in the document
-        if (vm.Doc?.Features != null)
-        {
-            vm.Doc.Features[nameof(FeatureKey.UnboundedCanvas)] = true;
-        }
-
+        vm.Doc.Features ??= [];
+        vm.Doc.Features[nameof(FeatureKey.UnboundedCanvas)] = true;
+        // What the canvas control would report: the visible document rectangle.
+        vm.SetViewport(SKRectI.Create(0, 0, 960, 540));
         return vm;
     }
 
@@ -237,5 +244,121 @@ public class UnboundedCanvasPixelTests : BrushStateIsolated
         }
 
         Assert.True(darkPixels > 100, "Should have rendered strokes across multiple tiles");
+    }
+
+    /// <summary>
+    /// The repaint after the repaint. The tiled compositor cached each
+    /// layer's tile store and then disposed it in the same loop, so the first
+    /// publish drew and every later one drew from freed tiles — reported as
+    /// "the infinite canvas does not work at all". Nothing in this class
+    /// caught it, because nothing here published twice.
+    /// </summary>
+    [AvaloniaFact]
+    public void ASecondPublishShowsTheSamePictureAsTheFirst()
+    {
+        var vm = CreateVmWithUnboundedCanvas();
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(200, 100, 1);
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(latest);
+        using var first = GetLatestPixels(latest!);
+
+        vm.PublishSnapshot();
+        using var second = GetLatestPixels(latest!);
+
+        Assert.True(first.GetPixel(150, 100).Red < 100, "the stroke is missing from the first publish");
+        Assert.True(second.GetPixel(150, 100).Red < 100,
+            "the stroke vanished on the second publish — a cache is serving freed or stale content");
+    }
+
+    /// <summary>
+    /// A committed stroke reaches the screen even though the commit mutates
+    /// the cached layer bitmap in place rather than replacing it — the
+    /// identity-versus-content trap BitmapVersion exists for.
+    /// </summary>
+    [AvaloniaFact]
+    public void ACommittedStrokeSurvivesManyPublishes()
+    {
+        var vm = CreateVmWithUnboundedCanvas();
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+
+        // Publish before drawing, so any per-bitmap cache is warm with the
+        // empty layer.
+        vm.PublishSnapshot();
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(200, 100, 1);
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        vm.PublishSnapshot();
+        vm.PublishSnapshot();
+
+        Assert.NotNull(latest);
+        using var bmp = GetLatestPixels(latest!);
+        Assert.True(bmp.GetPixel(150, 100).Red < 100,
+            "the committed stroke is not on screen — a cache keyed on bitmap identity missed the in-place commit");
+    }
+
+    /// <summary>
+    /// Zoomed out (a fractional compose scale), the stroke is where it
+    /// should be, at the size it should be — the transform maths of the
+    /// direct-draw path.
+    /// </summary>
+    [AvaloniaFact]
+    public void AZoomedOutPublishKeepsTheStrokeInPlace()
+    {
+        var vm = CreateVmWithUnboundedCanvas();
+        vm.SetDisplayScale(0.5); // Display quality: compose at half size
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(200, 100, 1);
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(latest);
+        using var bmp = GetLatestPixels(latest!);
+        Assert.Equal(480, bmp.Width); // 960-wide viewport at 0.5
+        Assert.True(bmp.GetPixel(75, 50).Red < 128,
+            $"the stroke is not at half-scale coordinates (px(75,50)={bmp.GetPixel(75, 50)})");
+        Assert.True(bmp.GetPixel(75, 150).Red > 200, "ink where there should be paper");
+    }
+
+    /// <summary>
+    /// A viewport hanging off the canvas — the whole point of an unbounded
+    /// document — renders background there rather than garbage, and keeps the
+    /// on-canvas ink aligned.
+    /// </summary>
+    [AvaloniaFact]
+    public void AViewportPastTheCanvasEdgeRendersCalmly()
+    {
+        var vm = CreateVmWithUnboundedCanvas();
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+
+        vm.BeginStroke(50, 50, 1);
+        vm.MoveStroke(120, 50, 1);
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // Pan up-left: half the view is off the paper.
+        vm.SetViewport(SKRectI.Create(-480, -270, 960, 540));
+        vm.PublishSnapshot();
+
+        Assert.NotNull(latest);
+        using var bmp = GetLatestPixels(latest!);
+        // Document (50,50) now sits at image (530, 320); (85,50) mid-stroke.
+        Assert.True(bmp.GetPixel(565, 320).Red < 100,
+            $"the stroke did not follow the pan (px(565,320)={bmp.GetPixel(565, 320)})");
+        // Off-canvas space is empty, not noise: alpha 0 (transparent clear)
+        // or the scene background — never leftover pixels.
+        var off = bmp.GetPixel(100, 100);
+        Assert.True(off.Alpha == 0 || (off.Red > 200 && off.Green > 200),
+            $"off-canvas space shows garbage ({off})");
     }
 }
