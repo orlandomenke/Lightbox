@@ -60,7 +60,72 @@ internal static class RenderReport
         string CanvasQuality,
         double ComposeScale,
         bool DurableFrameEnabled = false,
-        bool DurableFrameHasPresented = false);
+        bool DurableFrameHasPresented = false,
+        Rendering.TileFallbackTally? TileFallbacks = null);
+
+    /// <summary>
+    /// Whether playback got the tile path, and what stopped it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The most actionable section in the file, and the one a slow-playback
+    /// report is usually about.</b> B144's tile path measured 145 → 14 ms a
+    /// frame at 1080p and 334 → 39 ms at 4K. A frame the tiles cannot say pays
+    /// the old cost instead — and until this section existed it did so in
+    /// silence, so "my animation stutters" pointed at the machine when the
+    /// answer was a property of the document.
+    /// </para>
+    /// <para>
+    /// The reasons are named in the artist's terms rather than the code's,
+    /// because every one of them is something they can act on: remove the
+    /// camera, flatten fewer frames, keep smudge off the animated layers.
+    /// </para>
+    /// </remarks>
+    private static void AppendTilePath(StringBuilder sb, Rendering.TileFallbackTally? tally)
+    {
+        sb.AppendLine("-- the tile path (B144) --------------------------------------");
+        if (tally is null || tally.Considered == 0)
+        {
+            sb.AppendLine("frames offered            none yet — play the scene, then write this again");
+            sb.AppendLine("  Tiles are used while the sequence is PLAYING (and on an unbounded");
+            sb.AppendLine("  canvas). A report written without playing says nothing about them.");
+            sb.AppendLine();
+            return;
+        }
+
+        // Passes, not frames: the gate is asked once per layer per publish, so a
+        // three-layer document reports three for every frame an artist saw. The
+        // label carries that or the percentage below is read as a share of the
+        // sequence.
+        var tiledShare = 100.0 * tally.Tiled / tally.Considered;
+        sb.AppendLine($"layer passes offered      {tally.Considered}");
+        sb.AppendLine($"drawn from tiles          {tally.Tiled} ({tiledShare:0.#}%)");
+
+        foreach (var (reason, count) in tally.NonZero())
+        {
+            sb.AppendLine(
+                $"  fell back {count,8}    {Rendering.TileFallback.Explain(reason)}");
+        }
+
+        var dominant = tally.Dominant;
+        if (dominant == Rendering.TileFallbackReason.None)
+        {
+            sb.AppendLine("  every pass tiled — playback is not falling back, so slowness here is");
+            sb.AppendLine("  compositing or cache size rather than the tile path (B125, B144).");
+            sb.AppendLine();
+            return;
+        }
+
+        var fellShare = 100.0 * tally.FallbackShare;
+        sb.AppendLine();
+        sb.AppendLine($"  >> {fellShare:0.#}% of passes fell back, most because "
+            + $"{Rendering.TileFallback.Explain(dominant)}.");
+        sb.AppendLine("     A pass that falls back pays a full-frame bitmap — roughly 137 ms at");
+        sb.AppendLine("     1080p against an 83 ms budget, where a tiled one costs about 14 ms.");
+        sb.AppendLine("     This is a property of the DOCUMENT, not of the graphics card.");
+
+        sb.AppendLine();
+    }
 
     /// <summary>
     /// Why the durable frame is or is not on the GPU, in words rather than a
@@ -239,6 +304,8 @@ internal static class RenderReport
         }
         sb.AppendLine("compositing               CPU raster (always — see B125)");
         sb.AppendLine();
+
+        AppendTilePath(sb, facts.TileFallbacks);
 
         sb.AppendLine("-- what is being drawn ---------------------------------------");
         sb.AppendLine($"document                  {facts.DocWidth} x {facts.DocHeight}");
