@@ -50,6 +50,12 @@ Moving to another layer lets go of what you had picked, because it is not there
 any more. Stepping along a **hold** does not — the same drawing is still on
 screen.
 
+**Picking up another tool lets go too.** Selected lines are the Arrow's — no
+other tool moves, recolours or deletes them — so the highlight goes when the
+Arrow does, rather than sitting on the canvas pointing at something you can no
+longer do. Clicking empty canvas, or picking a guide or a symbol instead, lets
+go for the same reason.
+
 If the layer is locked it says so rather than doing nothing — but only when you
 actually click a line on it, not every time you click past one.
 
