@@ -80,16 +80,27 @@ drawn-over-live-footage workflow. The clip's frames are extracted at the
 scene's own fps and laid against the timeline like any reference: frame 1
 under frame 1, the timeline growing to fit, your drawing layers on top.
 
-Two things are different about footage, both deliberate:
+On import you choose **what the clip is for**, and each purpose has its own
+storage:
 
-- **The document keeps the path, not the pixels.** Video is megabytes per
-  second, and embedding it would turn every document that draws over a shot
-  into a copy of the shot. The frames are rebuilt from the file when the
-  document opens; if the file has gone, you are drawing against nothing until
-  it is back — the drawing itself is never touched.
-- **There is a budget.** Frames come in at reference quality (up to 480 px
-  wide) and at most 240 of them — twenty seconds at 12 fps. A reference is
-  for registration and timing, not for grading.
+- **Reference — keep by path** (the default): the document stays light and
+  the frames rebuild from the file when the document opens. If the file has
+  gone, you are drawing against nothing until it is back — the drawing
+  itself is never touched.
+- **Reference — embed the frames**: the extracted frames travel inside the
+  document at reference quality, so it reopens self-contained, with no
+  FFmpeg and no file beside it. The original footage is not recoverable from
+  the document — it is a reference, not an asset.
+- **Production — embed the clip**: for the small production whose whole
+  pipeline is Lightbox. The original footage travels in the document at full
+  fidelity, shows at full strength, and — unlike every reference —
+  **composites into video and PNG exports**, over the paper and under your
+  drawings, exactly as the canvas shows it.
+
+**There is a budget** on the extracted frames either way: reference quality
+(up to 480 px wide) and at most 240 of them — twenty seconds at 12 fps. A
+reference is for registration and timing, not for grading; production
+footage keeps its full-fidelity original alongside for the render.
 
 Extraction runs through the same bundled FFmpeg the video export uses; on a
 machine without it, the import says so instead of failing quietly.

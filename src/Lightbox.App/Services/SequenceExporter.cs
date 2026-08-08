@@ -32,15 +32,25 @@ public static class SequenceExporter
         var (outWidth, outHeight) = OutputSize(scene);
 
         var passes = new List<RenderPass>();
+        var footageQueued = false;
         foreach (var layer in scene.Layers)
         {
             if (!scene.IsLayerVisible(layer)) continue;
+            // Production footage goes over the paper and under every drawing
+            // (Q57) — the same slot the canvas gives it, so the export shows
+            // exactly what the artist was looking at.
+            if (!footageQueued && !layer.IsBackground)
+            {
+                passes.AddRange(ProductionPasses(scene, frameIndex));
+                footageQueued = true;
+            }
             var frame = ExposureSheet.ExposedFrame(layer, frameIndex);
             if (frame is null) continue;
             passes.Add(new RenderPass(
                 cache.Get(frame, scene.Width, scene.Height, celIndex: frameIndex),
                 null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode)));
         }
+        if (!footageQueued) passes.AddRange(ProductionPasses(scene, frameIndex));
 
         SKMatrix? transform = camera is null
             ? null
@@ -49,6 +59,36 @@ public static class SequenceExporter
 
         return SceneRenderer.Compose(
             outWidth, outHeight, passes, SceneRenderer.BackgroundOf(scene), transform);
+    }
+
+    /// <summary>
+    /// Small-production footage, beneath every drawing layer (Q57). A
+    /// reference never reaches an exported pixel — that promise stands — but
+    /// a strip the artist imported as production material composites into
+    /// the deliverable exactly as it shows on the canvas, same matrix, same
+    /// window, same opacity.
+    /// </summary>
+    private static List<RenderPass> ProductionPasses(Scene scene, int frameIndex)
+    {
+        var passes = new List<RenderPass>();
+        if (scene.References is not { Count: > 0 } strips) return passes;
+
+        foreach (var strip in strips)
+        {
+            if (!strip.RendersInExport || !strip.Visible || strip.Opacity <= 0) continue;
+            if (strip.CellAt(frameIndex) is not { } cell) continue;
+            if (ReferenceStripRegistry.Resolve(strip.Id) is not { } sheet) continue;
+
+            var scale = (float)Math.Max(0.01, strip.Scale);
+            var matrix = SKMatrix.CreateScaleTranslation(
+                scale, scale,
+                (float)(strip.OffsetX + cell.Dx),
+                (float)(strip.OffsetY + cell.Dy));
+            passes.Add(new RenderPass(
+                sheet, null, strip.Opacity, SKBlendMode.SrcOver, null, matrix,
+                SKRectI.Create(cell.X, cell.Y, cell.Width, cell.Height)));
+        }
+        return passes;
     }
 
     public static List<string> ExportPngSequence(Doc doc, string directory)

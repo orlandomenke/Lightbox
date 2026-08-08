@@ -1941,9 +1941,89 @@ public partial class MainWindow : Window
         });
 
         if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path) return;
-        _vm.AiStatus = _vm.ImportAudio(path) is { } error
+
+        // Reference or embed (Q57): the artist chooses where the sound lives.
+        var mb = new FileInfo(path).Length / (1024.0 * 1024.0);
+        var embed = await AskImportChoice(
+            "Where should the sound live?",
+            $"“{Path.GetFileName(path)}” — {mb:0.#} MB.",
+            ("Reference the file",
+             "The document stays light and the file stays editable in your audio tool. Keep them together when sharing.",
+             false),
+            ("Embed a copy in the document",
+             mb > 10
+                 ? $"Self-contained — survives being shared alone — but carries {mb:0.#} MB through every save."
+                 : "Self-contained: the document survives being shared without the file beside it.",
+             true));
+        if (embed is not { } chosen) return;
+
+        _vm.AiStatus = _vm.ImportAudio(path, chosen) is { } error
             ? $"Audio import failed: {error}"
             : $"Timing against “{Path.GetFileName(path)}”.";
+    }
+
+    /// <summary>
+    /// A small modal: a sentence of context, one button per choice with its
+    /// cost written under it, and Cancel. Returns null when dismissed.
+    /// </summary>
+    private async Task<T?> AskImportChoice<T>(
+        string title, string subtitle, params (string Label, string Detail, T Value)[] options)
+        where T : struct
+    {
+        T? picked = null;
+        var dialog = new Window
+        {
+            Title = title,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+        };
+        var stack = new StackPanel { Margin = new Thickness(16), Spacing = 8, MaxWidth = 440 };
+        stack.Children.Add(new TextBlock
+        {
+            Text = subtitle,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            Opacity = 0.85,
+        });
+        foreach (var (label, detail, value) in options)
+        {
+            var button = new Button
+            {
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                Content = new StackPanel
+                {
+                    Spacing = 2,
+                    Children =
+                    {
+                        new TextBlock { Text = label, FontWeight = Avalonia.Media.FontWeight.SemiBold },
+                        new TextBlock
+                        {
+                            Text = detail,
+                            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                            FontSize = 11,
+                            Opacity = 0.75,
+                        },
+                    },
+                },
+            };
+            button.Click += (_, _) =>
+            {
+                picked = value;
+                dialog.Close();
+            };
+            stack.Children.Add(button);
+        }
+        var cancel = new Button
+        {
+            Content = "Cancel",
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+        };
+        cancel.Click += (_, _) => dialog.Close();
+        stack.Children.Add(cancel);
+        dialog.Content = stack;
+        await dialog.ShowDialog(this);
+        return picked;
     }
 
     private async void OnImportTextureClicked(object? sender, RoutedEventArgs e)
@@ -2015,13 +2095,28 @@ public partial class MainWindow : Window
         });
         if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path) return;
 
-        // Footage goes its own way (Q56): frames extracted at the scene's
-        // fps, referenced by path rather than embedded.
+        // Footage goes its own way (Q56/Q57): frames extracted at the
+        // scene's fps, and the artist chooses what the document keeps.
         var ext = Path.GetExtension(path).ToLowerInvariant();
         if (ext is ".mp4" or ".mov" or ".avi" or ".mkv" or ".webm")
         {
+            var clipMb = new FileInfo(path).Length / (1024.0 * 1024.0);
+            var storage = await AskImportChoice(
+                "What is this clip for?",
+                $"“{Path.GetFileName(path)}” — {clipMb:0.#} MB.",
+                ("Reference — keep by path",
+                 "To draw against. The document stays light; keep the clip beside it when sharing. Never exports.",
+                 Services.ClipStorage.ReferenceByPath),
+                ("Reference — embed the frames",
+                 "To draw against, self-contained: the extracted frames travel in the document at reference quality. Never exports.",
+                 Services.ClipStorage.ReferenceEmbedded),
+                ("Production — embed the clip",
+                 $"Part of the shot: the footage travels in the document at full fidelity ({clipMb:0.#} MB) and composites into video and PNG exports.",
+                 Services.ClipStorage.Production));
+            if (storage is not { } mode) return;
+
             _vm.AiStatus = "Reading the clip…";
-            var error = await _vm.ImportVideoReference(path);
+            var error = await _vm.ImportVideoReference(path, mode);
             _vm.AiStatus = error ?? $"Drawing against “{Path.GetFileName(path)}”.";
             if (error is null) _vm.ReferenceDockerVisible = true;
             return;

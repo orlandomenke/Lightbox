@@ -6,7 +6,7 @@
 | **Save as…** — Ctrl+Shift+S | Picks a new path. |
 | **Export document…** | Writes a standalone `.lightbox.json` with every referenced swatch, gradient, brush tip and clip region **inlined**. |
 | **Export PNGs…** | Every frame as a numbered PNG, into a folder you pick — with the scratch track beside them as `audio.wav` when there is one. |
-| **Export video…** | The whole timeline as a video file: **MP4** (H.264) for review and sharing, or **ProRes 422** in MOV for editorial handoff — pick by the file type in the save dialog. The scratch track is muxed in, with its offset and volume honoured. With a camera, the video is what the camera saw. |
+| **Export video…** | The whole timeline as a video file: **MP4** (H.264) for review and sharing, or **ProRes 422** in MOV for editorial handoff — pick by the file type in the save dialog. The scratch track is muxed in, with its offset and volume honoured; production footage composites beneath the drawings. With a camera, the video is what the camera saw. |
 | **Export for a game engine…** | Sprite sheet, sidecar, and optionally the Unity importer. |
 
 Both keys can be rebound like any other — they are in **Edit ▸ Configure ▸
