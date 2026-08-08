@@ -333,19 +333,26 @@ the invariants in `CLAUDE.md`, and have nothing to do with this section.
 
 ## Dockers
 
-**A docker must never be too small to use.** With five dockers open, a fixed
-grid of starred rows divides the sidebar until each is a sliver and none is
-usable — the failure the sidebar had. The sidebar is therefore a **vertical
-scroll of stacked dockers with explicit pixel heights**, not a proportional
-split:
+**A sidebar never scrolls** — the owner's call, and a **reversal** of the
+first answer, which was pixel heights plus a strip that scrolls (kept below
+for the record). The sidebar is a **proportional split that always fits**:
 
-- Each docker owns a default height and a floor (`MinHeight`) below which it is
-  genuinely unusable rather than merely tight.
-- A splitter sits between every adjacent pair, and dragging one changes only
-  the two it touches.
-- The stack may be taller than the sidebar. That is the point: scrolling past a
-  docker is fine, being unable to use one is not.
-- Hidden dockers cost nothing — `Auto` height, no splitter, no floor.
+- Dockers share the height as weighted stars — the saved extent is the
+  weight — so another panel arriving shrinks everyone proportionally and a
+  splitter drag's proportions survive the next rebuild.
+- The floor per docker is its **chrome**: title strip and option bars stay
+  visible however hard the side is squeezed. The squeeze lands on the
+  content, which scrolls *inside* the docker (the bars never leave).
+- Scalable content — the colour wheel — scales with its docker.
+- Hidden dockers cost nothing — no row, no splitter, no floor.
+
+The first answer, reversed above and kept because its failure mode is real:
+five dockers in starred rows once divided the sidebar until each was a
+sliver, which is why the strip used pixel heights and scrolled. What changed
+is the floor — chrome rather than content, with the content scrolling inside
+its docker — so "too small to use" now degrades to "scroll inside the
+panel", not to five useless slivers. Tabbing (below) remains the real
+answer to a crowded side.
 
 **Panels may share a slot as tabs**, and that is the other half of the rule
 above. Five stacked dockers means five heights and a scroll; five in two slots

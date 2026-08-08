@@ -99,7 +99,7 @@ public sealed class WorkspaceTests : BrushStateIsolated
         // "Optional means absent, not disabled": an area with nothing in it
         // takes no width and shows no splitter.
         var (w, vm) = Open();
-        var host = w.FindControl<ScrollViewer>("LeftHost")!;
+        var host = w.FindControl<Border>("LeftHost")!;
         var splitter = w.FindControl<GridSplitter>("LeftSplitter")!;
         Assert.False(host.IsVisible);
         Assert.False(splitter.IsVisible);
@@ -319,8 +319,8 @@ public sealed class WorkspaceTests : BrushStateIsolated
         // renderer.
         var (w, _) = Open();
         var canvas = w.FindControl<Panel>("CanvasHost")!;
-        var left = w.FindControl<ScrollViewer>("LeftHost")!;
-        var right = w.FindControl<ScrollViewer>("RightHost")!;
+        var left = w.FindControl<Border>("LeftHost")!;
+        var right = w.FindControl<Border>("RightHost")!;
 
         Assert.NotEqual(Grid.GetColumn(left), Grid.GetColumn(canvas));
         Assert.NotEqual(Grid.GetColumn(right), Grid.GetColumn(canvas));

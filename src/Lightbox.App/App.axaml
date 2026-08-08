@@ -193,8 +193,14 @@
               </Border>
               <ContentPresenter DockPanel.Dock="Top" Content="{TemplateBinding TopBar}" />
               <ContentPresenter DockPanel.Dock="Bottom" Content="{TemplateBinding BottomBar}" />
-              <ContentPresenter Content="{TemplateBinding Content}"
-                                ContentTemplate="{TemplateBinding ContentTemplate}" />
+              <!-- The bars above and below are always visible; when the docker
+                   is squeezed it is the CONTENT that gives, scrolling inside
+                   its own panel. This is what lets a sidebar hold its dockers
+                   without ever scrolling as a whole. -->
+              <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ContentPresenter Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}" />
+              </ScrollViewer>
             </DockPanel>
           </Border>
         </ControlTemplate>

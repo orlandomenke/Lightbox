@@ -1,6 +1,6 @@
 # Code index
 
-560 files · 147880 lines · 2926 tests.
+560 files · 147912 lines · 2926 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -125,13 +125,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
 - `src/Lightbox.App/Services/ExportRunner.cs` (256 ln) · 5 test files
   - ExportRun:17, ExportRunner:42
+- `src/Lightbox.App/App.axaml` (254 ln) · **no tests**
+  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/ViewModels/DocumentTab.cs` (253 ln) · 28 test files
   - NewDocumentSettings:20, WorkspaceChoice:32, DocumentTabKind:41, DocumentTab:60
 - `src/Lightbox.App/Styles/Palette.axaml` (251 ln) · **no tests**
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
-- `src/Lightbox.App/App.axaml` (248 ln) · **no tests**
-  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (231 ln) · 2 test files
@@ -172,6 +172,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ColorField:29
 - `src/Lightbox.App/ViewModels/Tools.cs` (166 ln) · 24 test files
   - ToolId:4, CanvasQuality:75, TransformScope:88, TransformSampling:114, SelectVariant:127, HoldDrawing:146
+- `src/Lightbox.App/Controls/DockStrip.cs` (161 ln) · 2 test files
+  - DockStrip:33
 - `src/Lightbox.App/Rendering/RigOverlayPainter.cs` (152 ln) · 1 test files
   - RigOverlayPainter:36
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml.cs` (150 ln) · 1 test files
@@ -187,8 +189,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TipStore:32, State:45
 - `src/Lightbox.App/Services/CrashScenarios.cs` (138 ln) · 1 test files
   - CrashWarning:4, CrashScenario:17, CrashScenarios:47
-- `src/Lightbox.App/Controls/DockStrip.cs` (135 ln) · 2 test files
-  - DockStrip:24
 - `src/Lightbox.App/Services/RecentItems.cs` (132 ln) · 2 test files
   - RecentKind:3, RecentItem:10, RecentItems:43
 - `src/Lightbox.App/Views/StartScreen.axaml.cs` (131 ln) · 1 test files

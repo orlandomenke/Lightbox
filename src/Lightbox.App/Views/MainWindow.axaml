@@ -1818,10 +1818,11 @@
 
         <GridSplitter Grid.Column="1" Width="5" ResizeDirection="Columns" />
 
-        <ScrollViewer x:Name="LeftHost" Grid.Column="2" Margin="4,0,0,0"
-                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <!-- No ScrollViewer: a sidebar never scrolls. Its dockers share the
+             height proportionally and their content scrolls inside them. -->
+        <Border x:Name="LeftHost" Grid.Column="2" Margin="4,0,0,0">
           <controls:DockStrip x:Name="LeftStrip" />
-        </ScrollViewer>
+        </Border>
         <GridSplitter x:Name="LeftSplitter" Grid.Column="3" Width="5" ResizeDirection="Columns" />
 
         <!-- Column 4, the starred one. It was left on 2 when the docking
@@ -1971,10 +1972,9 @@
         </Grid>
 
         <GridSplitter x:Name="RightSplitter" Grid.Column="5" Width="5" ResizeDirection="Columns" />
-        <ScrollViewer x:Name="RightHost" Grid.Column="6" Margin="0,0,4,0"
-                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Border x:Name="RightHost" Grid.Column="6" Margin="0,0,4,0">
           <controls:DockStrip x:Name="RightStrip" />
-        </ScrollViewer>
+        </Border>
       </Grid>
 
       <!-- Where panels wait when they are not in a strip: closed, or in flight
