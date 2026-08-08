@@ -52,8 +52,9 @@ public class DiagnosticLogTests(ITestOutputHelper output) : IDisposable
         Assert.Contains("the canvas exploded", text);
         Assert.Contains("InvalidOperationException", text);
         Assert.Contains("unhandled", text);
-        // The build stamp is what makes a report actionable — "1.0.0" identifies
-        // nothing when every build says it, so the sha has to be in there.
+        // The build stamp is what makes a report actionable, and it is version
+        // *and* commit: the version says which build a person meant to run, the
+        // sha says which one they were actually running.
         Assert.Contains(DiagnosticLog.Build, text);
         // And a real stack, not just the message. The frame is Thrown() rather
         // than this test: a stack spans the throw site to the catch, so the

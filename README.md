@@ -57,6 +57,35 @@ does not evaporate, and it costs nothing when nobody asks for one.
 > branch.** `workflow_dispatch` is resolved from the default branch, so on a
 > feature branch there is nothing to click however correct the file is.
 
+### Version numbers
+
+The base version lives in **one place**, `<VersionPrefix>` in
+`Directory.Build.props`, and everything else is derived from it. Nothing
+increments it automatically — a number that moves on every build identifies
+nothing, and "the bug is in 0.4.7" stops being a sentence once 0.4.7 was one of
+forty builds that afternoon. It moves when you edit that line and tag.
+
+| How it was built | Version it carries | File you get |
+| --- | --- | --- |
+| tag `v0.2.0` | `0.2.0` | `Lightbox-win-x64-0.2.0.zip`, attached to a Release |
+| tag `v0.3.0-beta.1` | `0.3.0-beta.1` | ditto — semver already sorts a beta *before* `0.3.0`, so there is no separate "beta mode" to switch on |
+| **Run workflow** | `0.1.0-alpha.<run>` | `Lightbox-win-x64-0.1.0-alpha.17-my-branch-9f3c1ab.zip`, a 14-day artifact |
+
+An untagged build is deliberately a *prerelease* of whatever the props file
+currently says, so it can never be confused with the release it precedes, and
+two of them are ordered by run number.
+
+`0.x` is the alpha: in semver a leading zero already means "anything may
+change", which is why this starts at 0.1.0 rather than 0.0.1 — it leaves the
+patch digit free to mean a fix, as it does everywhere else. **1.0.0** is the
+first release that promises the document format will not move under you, and it
+lands in the same change that removes the alpha banner at the top of this file.
+
+The number is inside the executable too, not just on the zip: right-click ▸
+Properties on `Lightbox.App.exe`, and at the top of every crash report under
+**Help ▸ Open diagnostics folder**. It reads `0.1.0-alpha.17+9f3c1ab` — the
+version, then the exact commit it was built from.
+
 Older per-build artifacts, from before releases existed, can still be pruned with
 **Actions ▸ cleanup artifacts ▸ Run workflow** — the policy lives in
 `.github/scripts/prune-artifacts.sh`. Set **keep** to `0` to clear everything, or
