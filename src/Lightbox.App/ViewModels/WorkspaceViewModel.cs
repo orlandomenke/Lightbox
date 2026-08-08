@@ -100,6 +100,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         set => SetVisible(DockPanelId.Symbols, value);
     }
 
+    public bool ToolOptionsDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.ToolOptions);
+        set => SetVisible(DockPanelId.ToolOptions, value);
+    }
+
     public bool LayersPanelVisible
     {
         get => _layout.IsVisible(DockPanelId.Layers);
@@ -241,6 +247,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         DockPanelId.Gradient => nameof(GradientDockerVisible),
         DockPanelId.Reference => nameof(ReferenceDockerVisible),
         DockPanelId.Symbols => nameof(SymbolsPanelVisible),
+        DockPanelId.ToolOptions => nameof(ToolOptionsDockerVisible),
         _ => nameof(TimelineVisible),
     };
 

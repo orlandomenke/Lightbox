@@ -4,9 +4,12 @@
 
 The tool options bar carries the controls you reach for constantly — brush,
 size, hardness, opacity, stabilizer. **⚙**, immediately right of the brush
-button, opens every parameter, grouped: General, Effects, Medium, Pen pressure,
-Presets. It is there for the eraser too, which has no brush button — so with the
-eraser held it is the first thing on the bar.
+button, opens the **Tool options** panel with every parameter, grouped:
+General, Effects, Medium, Pen pressure, Presets. It is a docker, not a
+flyout — it stays open while you paint and test, docks anywhere a panel
+docks, and is also under **View → Tool options**. It is there for the eraser
+too, which has no brush button — so with the eraser held it is the first
+thing on the bar.
 
 #### Finding a brush
 

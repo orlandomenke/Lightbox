@@ -315,6 +315,9 @@
         <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Reference sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
         <MenuItem Header="Reference" ToggleType="CheckBox" IsChecked="{Binding ReferenceDockerVisible, Mode=TwoWay}" />
+        <MenuItem Header="Tool options" ToggleType="CheckBox"
+                  IsChecked="{Binding Workspace.ToolOptionsDockerVisible, Mode=TwoWay}"
+                  ToolTip.Tip="The full brush parameters as a panel — the same pages the toolbar's gear opens" />
         <MenuItem Header="Symbols" ToggleType="CheckBox"
                   IsChecked="{Binding Workspace.SymbolsPanelVisible, Mode=TwoWay}"
                   ToolTip.Tip="A drawing stored once and placed many times. Your own library is here with no project open; project symbols need a project." />
@@ -692,498 +695,13 @@
               </Flyout>
             </Button.Flyout>
           </Button>
-          <!-- Full brush parameters (brush + eraser) -->
-          <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="All brush parameters"
-                  IsVisible="{Binding IsPaintTool}">
-            <Button.Flyout>
-              <Flyout Placement="Bottom">
-                <!--
-                  Sized to the page, not to the tallest page. A fixed height gave
-                  the short pages empty space and the long ones a scrollbar; the
-                  MaxHeight is only there so a very long page cannot run off the
-                  bottom of the screen.
-                -->
-                <Grid Width="470" MinHeight="240" MaxHeight="760" ColumnDefinitions="120,8,*">
-                  <ListBox x:Name="BrushCategoryList" Grid.Column="0" SelectedIndex="0"
-                           SelectionChanged="OnBrushCategoryChanged" Background="{StaticResource BackgroundSecondaryBrush}">
-                    <ListBoxItem Content="General" />
-                    <ListBoxItem Content="Effects" />
-                    <ListBoxItem Content="Medium" />
-                    <ListBoxItem Content="Pen pressure" />
-                    <ListBoxItem Content="Presets" />
-                  </ListBox>
-                  <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
-                    <Panel>
-
-                      <StackPanel x:Name="BrushPageGeneral" Spacing="6">
-                        <TextBlock Text="General" FontWeight="SemiBold" FontSize="12" />
-                        <CheckBox Content="Anti-aliasing (global)" IsChecked="{Binding AntiAliasing}"
-                                  ToolTip.Tip="Smooth edges on everything that paints (brush, eraser, fill). Recorded per stroke, so existing art never changes." />
-                        <DockPanel>
-                          <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="12" />
-                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1"
-                                         Increment="0.05" FormatString="0.00" MinWidth="44" />
-                          <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Margin="4,0" />
-                        </DockPanel>
-                        <DockPanel>
-                          <TextBlock Text="Flow" Width="90" VerticalAlignment="Center" FontSize="12" />
-                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1"
-                                         Increment="0.05" FormatString="0.00" MinWidth="44" />
-                          <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Margin="4,0" />
-                        </DockPanel>
-                        <DockPanel>
-                          <TextBlock Text="Spacing" Width="90" VerticalAlignment="Center" FontSize="12" />
-                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2"
-                                         Increment="0.02" FormatString="0.00" MinWidth="44" />
-                          <Slider Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2" Margin="4,0" />
-                        </DockPanel>
-
-                        <DockPanel ToolTip.Tip="How the finished stroke lands on the layer. Applied once, where the stroke meets the layer — so a Multiply brush does not go black where it crosses itself.">
-                          <TextBlock Text="Blend" Width="90" VerticalAlignment="Center" FontSize="12" />
-                          <ComboBox ItemsSource="{Binding BlendModeChoices}" SelectedItem="{Binding BrushBlend}"
-                                    HorizontalAlignment="Stretch" Margin="4,0,0,0" />
-                        </DockPanel>
-
-                        <!--
-                          The tip, as a picture. A dropdown of names is unusable
-                          for shapes: nobody knows what "Cut nib" looks like until
-                          they have seen it, and having seen it they recognise the
-                          thumbnail and never read the name again.
-                        -->
-                        <DockPanel Margin="0,4,0,0">
-                          <TextBlock Text="Tip" Width="90" VerticalAlignment="Center" FontSize="12" />
-                          <Button x:Name="TipPickerButton" HorizontalAlignment="Stretch" Margin="4,0,0,0"
-                                  Padding="4" Click="OnTipPickerOpen"
-                                  ToolTip.Tip="The shape each dab stamps. Painting with one copies it into the drawing.">
-                            <DockPanel>
-                              <Border DockPanel.Dock="Left" Width="26" Height="26" Background="{StaticResource SurfacePanelBrush}"
-                                      CornerRadius="3" Margin="0,0,8,0">
-                                <Image x:Name="TipPickerThumb" Stretch="Uniform" Margin="1" />
-                              </Border>
-                              <TextBlock x:Name="TipPickerName" Text="Round" VerticalAlignment="Center" FontSize="12" />
-                            </DockPanel>
-                            <Button.Flyout>
-                              <Flyout Placement="Bottom">
-                                <DockPanel Width="300" MaxHeight="420">
-                                  <Button DockPanel.Dock="Bottom" Content="Brush tips…" Click="OnBrushTipsClicked"
-                                          HorizontalAlignment="Stretch" Margin="0,6,0,0"
-                                          ToolTip.Tip="Make a tip, or bring one in from a scan" />
-                                  <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                    <ListBox x:Name="TipPickerList" Background="Transparent"
-                                             SelectionChanged="OnTipPicked">
-                                      <ListBox.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                          <!-- Two columns, so a tip is a picture rather than a row of text -->
-                                          <WrapPanel Orientation="Horizontal" ItemWidth="134" />
-                                        </ItemsPanelTemplate>
-                                      </ListBox.ItemsPanel>
-                                      <ListBox.ItemTemplate>
-                                        <DataTemplate x:DataType="views:TipChoice">
-                                          <StackPanel Margin="0,2" Spacing="2">
-                                            <Border Height="60" Background="{StaticResource SurfacePanelBrush}" CornerRadius="3">
-                                              <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="3" />
-                                            </Border>
-                                            <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" />
-                                          </StackPanel>
-                                        </DataTemplate>
-                                      </ListBox.ItemTemplate>
-                                    </ListBox>
-                                  </ScrollViewer>
-                                </DockPanel>
-                              </Flyout>
-                            </Button.Flyout>
-                          </Button>
-                        </DockPanel>
-                      </StackPanel>
-
-                      <StackPanel x:Name="BrushPageEffects" Spacing="6" IsVisible="False">
-                        <TextBlock Text="Effects" FontWeight="SemiBold" FontSize="12" />
-                        <StackPanel Spacing="6" IsVisible="{Binding IsSmudgeBrush}" Margin="0,0,0,8">
-                          <TextBlock Text="Smudge" FontWeight="SemiBold" FontSize="11" Opacity="0.8" />
-                          <ComboBox ItemsSource="{Binding SmudgeModeChoices}" SelectedItem="{Binding BrushSmudgeMode}"
-                                    HorizontalAlignment="Stretch"
-                                    ToolTip.Tip="Smearing drags a sample along the stroke, so detail streaks. Dulling lays down the colour under the dab, so detail dissolves — that is a blender." />
-                          <DockPanel ToolTip.Tip="How far colour travels before the sample refreshes.">
-                            <TextBlock Text="Length" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="How wide an area each dab samples. Wider blends more and keeps less detail.">
-                            <TextBlock Text="Radius" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="How much of the brush's own colour it adds while smudging. Zero is a pure blender.">
-                            <TextBlock Text="Color rate" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushColorRate}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                        </StackPanel>
-                        <TextBlock Text="Shape Dynamics" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
-                          <DockPanel ToolTip.Tip="How much dab diameter varies. This is the biggest single difference between a digital mark and a natural one.">
-                            <TextBlock Text="Size jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="Floor for jittered size. Without it, jitter produces dabs that vanish and the stroke reads as broken rather than varied.">
-                            <TextBlock Text="Minimum size" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="1 is circular; lower squashes the dab into a chisel.">
-                            <TextBlock Text="Roundness" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Roundness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Angle jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                        <CheckBox Content="Angle follows stroke direction" FontSize="12"
-                                  IsChecked="{Binding BrushAngleFollowsDirection}"
-                                  ToolTip.Tip="Required for any flat or chisel tip to behave like one instead of a repeated stamp." />
-
-                        <TextBlock Text="Scattering" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
-                          <DockPanel>
-                            <TextBlock Text="Scatter" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-
-                        <TextBlock Text="Texture" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
-                        <DockPanel ToolTip.Tip="Paper surface multiplied into the stroke. Anchored to the document, so the grain stays put as you paint over it.">
-                          <TextBlock Text="Surface" Width="100" VerticalAlignment="Center" FontSize="12" />
-                          <ComboBox ItemsSource="{Binding TextureSurfaceChoices}" SelectedItem="{Binding BrushTextureSurface}"
-                                    HorizontalAlignment="Stretch" IsEnabled="{Binding !HasImportedTexture}" />
-                        </DockPanel>
-                        <!--
-                          An imported paper wins over the built-in surfaces, so
-                          the dropdown above goes quiet rather than pretending to
-                          still be in charge. The image goes into the document,
-                          not a path on disk — a file pointing at somebody's
-                          scans folder paints differently on the next machine.
-                        -->
-                        <DockPanel ToolTip.Tip="Use a scan or photograph of real paper. It goes into the drawing, so the file still paints the right grain anywhere.">
-                          <Button DockPanel.Dock="Right" x:Name="ClearTextureButton" Content="✕"
-                                  Click="OnClearTextureClicked" Margin="6,0,0,0"
-                                  ToolTip.Tip="Back to the built-in surfaces" />
-                          <Button Content="Paper image…" Click="OnImportTextureClicked"
-                                  HorizontalAlignment="Stretch" />
-                        </DockPanel>
-                        <TextBlock x:Name="TextureSourceNote" FontSize="10" Opacity="0.6"
-                                   IsVisible="False" TextWrapping="Wrap" />
-                          <DockPanel>
-                            <TextBlock Text="Grain size" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128"
-                                           Increment="1" FormatString="0" MinWidth="44" />
-                            <Slider Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Depth" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="The flat grain used when no texture surface is chosen.">
-                            <TextBlock Text="Granulation" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Wet edge" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-
-                        <TextBlock Text="Transfer" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
-                          <DockPanel ToolTip.Tip="Per-dab paint amount varies, giving wash and build-up variation that pressure alone cannot.">
-                            <TextBlock Text="Flow jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-
-                        <TextBlock Text="Color Dynamics" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
-                        <DockPanel ToolTip.Tip="Natural media drifts between two chosen colours rather than randomly around one. Leave empty to vary only hue, saturation and brightness.">
-                          <TextBlock Text="Second color" Width="100" VerticalAlignment="Center" FontSize="12" />
-                          <controls:ColorField Hex="{Binding BrushSecondaryColor, Mode=TwoWay}"
-                                               AllowsNone="True" HorizontalAlignment="Left" />
-                        </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Toward second" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Hue jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Saturation jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Brightness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-
-                        </StackPanel>
-
-                      <StackPanel x:Name="BrushPageMedium" Spacing="6" IsVisible="False">
-                        <TextBlock Text="Medium" FontWeight="SemiBold" FontSize="12" />
-                        <TextBlock FontSize="11" Opacity="0.65" TextWrapping="Wrap"
-                                   Text="Simulates how real paint moves, settles and layers. Runs when the stroke is committed, over the region the stroke touched." />
-                        <ComboBox ItemsSource="{Binding MediumKindChoices}" SelectedItem="{Binding BrushMedium}"
-                                  HorizontalAlignment="Stretch" Margin="0,2,0,6" />
-
-                        <StackPanel Spacing="6" IsVisible="{Binding MediumIsSimulated}">
-                          <TextBlock Text="Fluid" FontWeight="SemiBold" FontSize="11" Opacity="0.8" />
-                          <DockPanel>
-                            <TextBlock Text="Wetness" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumWetness}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumWetness}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Viscosity" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumViscosity}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumViscosity}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Drag" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumDrag}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumDrag}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Absorbency" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="Capillary pull toward the wet boundary — this is what darkens the rim.">
-                            <TextBlock Text="Edge pull" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="Simulation iterations. Cost is linear in this — the one control here that can make a stroke commit feel slow.">
-                            <TextBlock Text="Flow steps" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32"
-                                           Increment="1" FormatString="0" MinWidth="44" />
-                            <Slider Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32" Margin="4,0" />
-                          </DockPanel>
-
-                          <TextBlock Text="Pigment" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
-                          <DockPanel>
-                            <TextBlock Text="Density" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="How readily pigment settles into the paper's valleys.">
-                            <TextBlock Text="Granularity" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumGranularity}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumGranularity}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="0 is a transparent glaze, 1 fully hides what is underneath.">
-                            <TextBlock Text="Hiding" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumHiding}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumHiding}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <CheckBox Content="Mix pigment physically (Kubelka–Munk)" FontSize="12"
-                                    IsChecked="{Binding MediumPhysicalMixing}"
-                                    ToolTip.Tip="Layer paint the way pigment layers, not the way film layers. A yellow glaze over blue gives green." />
-
-                          <TextBlock Text="Paper" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
-                          <DockPanel>
-                            <TextBlock Text="Surface" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <ComboBox ItemsSource="{Binding PaperKindChoices}" SelectedItem="{Binding MediumPaper}"
-                                      HorizontalAlignment="Stretch" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Grain size" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128"
-                                           Increment="1" FormatString="0" MinWidth="44" />
-                            <Slider Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel>
-                            <TextBlock Text="Influence" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-
-                          <TextBlock Text="Interaction" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
-                          <DockPanel ToolTip.Tip="How much a light touch means water rather than pigment. Raise it and light strokes go paler and bloom further.">
-                            <TextBlock Text="Light = water" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="How much pressure governs mixing with the paint already there. At 1 a light touch barely disturbs it.">
-                            <TextBlock Text="Pressure mix" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-                          <DockPanel ToolTip.Tip="How much this stroke re-wets what is under it. Above zero, earlier paint lifts and travels with the new stroke — wet into wet.">
-                            <TextBlock Text="Re-wetting" Width="90" VerticalAlignment="Center" FontSize="12" />
-                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumRewetting}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
-                            <Slider Value="{Binding MediumRewetting}" Minimum="0" Maximum="1" Margin="4,0" />
-                          </DockPanel>
-
-                          <StackPanel Spacing="6" IsVisible="{Binding MediumHasBody}">
-                            <TextBlock Text="Body" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
-                            <DockPanel>
-                              <TextBlock Text="Thickness" Width="90" VerticalAlignment="Center" FontSize="12" />
-                              <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumBody}" Minimum="0" Maximum="1"
-                                             Increment="0.05" FormatString="0.00" MinWidth="44" />
-                              <Slider Value="{Binding MediumBody}" Minimum="0" Maximum="1" Margin="4,0" />
-                            </DockPanel>
-                            <DockPanel ToolTip.Tip="Shades the paint's own height, giving impasto relief.">
-                              <TextBlock Text="Relief" Width="90" VerticalAlignment="Center" FontSize="12" />
-                              <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumRelief}" Minimum="0" Maximum="1"
-                                             Increment="0.05" FormatString="0.00" MinWidth="44" />
-                              <Slider Value="{Binding MediumRelief}" Minimum="0" Maximum="1" Margin="4,0" />
-                            </DockPanel>
-                            <!--
-                              Bristle drag and Pickup are deliberately NOT here.
-
-                              Both are the directional advection loop in
-                              DESIGN-fluid-media.md piece (3), which is sequenced
-                              last and behind two open questions — so the engine
-                              reads neither, and a slider bound to one was a
-                              control that did nothing. Measured at the time as
-                              **0 of 41 600 pixels different** between all-zero
-                              and all-one. Charter O7: a setting that does nothing
-                              is worse than an absent one, because it teaches an
-                              artist that the panel lies.
-
-                              The *look* of a dragged bristle is already reachable
-                              by a different route — `TipShape.Bristle` with
-                              `AngleFollowsDirection` — which is why only Pickup
-                              really needs the loop. B23.
-                            -->
-                            <DockPanel ToolTip.Tip="Paint on the brush at the start. Below 1 the brush runs out — that is dry-brush.">
-                              <TextBlock Text="Paint load" Width="90" VerticalAlignment="Center" FontSize="12" />
-                              <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1"
-                                             Increment="0.05" FormatString="0.00" MinWidth="44" />
-                              <Slider Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1" Margin="4,0" />
-                            </DockPanel>
-                          </StackPanel>
-                        </StackPanel>
-                      </StackPanel>
-
-                      <StackPanel x:Name="BrushPagePressure" Spacing="6" IsVisible="False">
-                        <CheckBox Content="Brush ring follows pen pressure" FontSize="12"
-                                  IsChecked="{Binding CursorTracksPressure}"
-                                  ToolTip.Tip="On, the ring shows the thickness the stroke is laying down right now. Off, it stays at the brush's full size as a stable target. Hovering always shows the maximum." />
-                        <TextBlock Text="Pen pressure" FontWeight="SemiBold" FontSize="12" />
-                        <TextBlock Text="{Binding PenDiagnostic}" FontSize="11" Foreground="{StaticResource AccentCyanBrush}"
-                                   TextWrapping="Wrap"
-                                   ToolTip.Tip="Live report of what Windows delivers while you draw" />
-                        <TextBlock Text="Seeing Mouse instead of Pen? Enable “Windows Ink” in your Huion/Wacom driver settings, then restart Lightbox."
-                                   FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
-                        <CheckBox Content="Use pen pressure" IsChecked="{Binding BrushPressureEnabled}"
-                                  ToolTip.Tip="Master switch for this brush — off ignores the tablet's pressure entirely" />
-                        <!--
-                          A curve per dynamic rather than an exponent. Deciding
-                          how a brush answers the pen is a shape judgement — where
-                          it should bite, where it level off — and one number
-                          cannot say most of what an artist means. It also cannot
-                          say anything that rises and then falls, which is what an
-                          ink brush that spreads and then floods actually does.
-
-                          Rows are built in code rather than repeated seven times
-                          here: they differ only by which dynamic they drive.
-                        -->
-                        <TextBlock Text="Drag a point to shape the response. Click for a new one, middle-click to remove."
-                                   FontSize="10" Opacity="0.6" TextWrapping="Wrap" />
-                        <StackPanel x:Name="PressureCurveRows" Spacing="10"
-                                    IsEnabled="{Binding BrushPressureEnabled}" />
-                      </StackPanel>
-
-                      <StackPanel x:Name="BrushPagePresets" Spacing="6" IsVisible="False">
-                        <TextBlock Text="Presets" FontWeight="SemiBold" FontSize="12" />
-
-                        <Border x:Name="PresetModifiedNote" Background="{StaticResource StatusWarningSurfaceBrush}" CornerRadius="4"
-                                Padding="8,6" IsVisible="False">
-                          <TextBlock x:Name="PresetModifiedText" TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-
-                        <DockPanel>
-                          <Button x:Name="UpdatePresetButton" DockPanel.Dock="Right" Content="Update"
-                                  Click="OnUpdatePresetClicked" Margin="6,0,0,0"
-                                  ToolTip.Tip="Write these settings back over the brush you started from" />
-                          <Button x:Name="RevertPresetButton" DockPanel.Dock="Right" Content="Revert"
-                                  Click="OnRevertPresetClicked"
-                                  ToolTip.Tip="Throw away your changes to this shipped brush and get the original back" />
-                          <TextBlock x:Name="PresetCurrentName" VerticalAlignment="Center" FontSize="12"
-                                     TextTrimming="CharacterEllipsis" />
-                        </DockPanel>
-
-                        <DockPanel>
-                          <Button DockPanel.Dock="Right" Content="Save as new" Click="OnSavePresetClicked" />
-                          <TextBox x:Name="PresetNameBox" PlaceholderText="New preset name" Margin="0,0,6,0" />
-                        </DockPanel>
-
-                        <DockPanel ToolTip.Tip="Comma-separated. Whatever you would look for it under — inking, roughs, hair.">
-                          <Button x:Name="ApplyTagsButton" DockPanel.Dock="Right" Content="Tag"
-                                  Click="OnApplyTagsClicked" />
-                          <TextBox x:Name="PresetTagBox" PlaceholderText="Tags, comma separated" Margin="0,0,6,0" />
-                        </DockPanel>
-
-                        <Button x:Name="DeletePresetButton" Content="Delete this brush" Click="OnDeletePresetClicked"
-                                HorizontalAlignment="Left"
-                                ToolTip.Tip="Removes a brush you made. A shipped brush is reverted instead — it is not yours to delete." />
-                        <!--
-                          Import moved into the library window rather than staying
-                          here. This page edits the brush in your hand; importing
-                          forty of somebody else's is the other kind of job, it
-                          needs a progress bar and somewhere to put the result,
-                          and it used to leave you with forty brushes and no way
-                          to remove them.
-                        -->
-                        <Button Content="Brush library…" Click="OnBrushLibraryClicked"
-                                HorizontalAlignment="Stretch"
-                                ToolTip.Tip="Everything you have: import Photoshop, GIMP and Krita brushes, rename them, and remove the ones you do not want" />
-                      </StackPanel>
-
-                    </Panel>
-                  </ScrollViewer>
-                </Grid>
-              </Flyout>
-            </Button.Flyout>
-          </Button>
+          <!-- Full brush parameters (brush + eraser): now a docker, per the
+               owner — "a tool options docker instead of keeping it in the
+               rail". The gear stays as the way in, and always OPENS. -->
+          <Button Content="⚙" VerticalAlignment="Center"
+                  ToolTip.Tip="All brush parameters (opens the Tool options panel)"
+                  IsVisible="{Binding IsPaintTool}"
+                  Command="{Binding OpenToolOptionsCommand}" />
         </StackPanel>
 
         <!-- Brush options -->
@@ -1982,6 +1500,491 @@
       <!-- Where panels wait when they are not in a strip: closed, or in flight
            during a drag. Never shown. -->
       <Panel x:Name="PanelPool" IsVisible="False">
+        <!-- Tool options: the gear flyout grown into a panel, per the owner.
+             Same pages, same code-behind category switch; only the host
+             changed. -->
+        <controls:Docker x:Name="ToolOptionsDocker" PanelId="ToolOptions" Title="Tool options"
+                         CloseCommand="{Binding ToggleToolOptionsDockerCommand}">
+                <Grid ColumnDefinitions="110,6,*">
+                  <ListBox x:Name="BrushCategoryList" Grid.Column="0" SelectedIndex="0"
+                           SelectionChanged="OnBrushCategoryChanged" Background="{StaticResource BackgroundSecondaryBrush}">
+                    <ListBoxItem Content="General" />
+                    <ListBoxItem Content="Effects" />
+                    <ListBoxItem Content="Medium" />
+                    <ListBoxItem Content="Pen pressure" />
+                    <ListBoxItem Content="Presets" />
+                  </ListBox>
+                  <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                    <Panel>
+
+                      <StackPanel x:Name="BrushPageGeneral" Spacing="6">
+                        <TextBlock Text="General" FontWeight="SemiBold" FontSize="12" />
+                        <CheckBox Content="Anti-aliasing (global)" IsChecked="{Binding AntiAliasing}"
+                                  ToolTip.Tip="Smooth edges on everything that paints (brush, eraser, fill). Recorded per stroke, so existing art never changes." />
+                        <DockPanel>
+                          <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" MinWidth="44" />
+                          <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Flow" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1"
+                                         Increment="0.05" FormatString="0.00" MinWidth="44" />
+                          <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Margin="4,0" />
+                        </DockPanel>
+                        <DockPanel>
+                          <TextBlock Text="Spacing" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2"
+                                         Increment="0.02" FormatString="0.00" MinWidth="44" />
+                          <Slider Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2" Margin="4,0" />
+                        </DockPanel>
+
+                        <DockPanel ToolTip.Tip="How the finished stroke lands on the layer. Applied once, where the stroke meets the layer — so a Multiply brush does not go black where it crosses itself.">
+                          <TextBlock Text="Blend" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <ComboBox ItemsSource="{Binding BlendModeChoices}" SelectedItem="{Binding BrushBlend}"
+                                    HorizontalAlignment="Stretch" Margin="4,0,0,0" />
+                        </DockPanel>
+
+                        <!--
+                          The tip, as a picture. A dropdown of names is unusable
+                          for shapes: nobody knows what "Cut nib" looks like until
+                          they have seen it, and having seen it they recognise the
+                          thumbnail and never read the name again.
+                        -->
+                        <DockPanel Margin="0,4,0,0">
+                          <TextBlock Text="Tip" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <Button x:Name="TipPickerButton" HorizontalAlignment="Stretch" Margin="4,0,0,0"
+                                  Padding="4" Click="OnTipPickerOpen"
+                                  ToolTip.Tip="The shape each dab stamps. Painting with one copies it into the drawing.">
+                            <DockPanel>
+                              <Border DockPanel.Dock="Left" Width="26" Height="26" Background="{StaticResource SurfacePanelBrush}"
+                                      CornerRadius="3" Margin="0,0,8,0">
+                                <Image x:Name="TipPickerThumb" Stretch="Uniform" Margin="1" />
+                              </Border>
+                              <TextBlock x:Name="TipPickerName" Text="Round" VerticalAlignment="Center" FontSize="12" />
+                            </DockPanel>
+                            <Button.Flyout>
+                              <Flyout Placement="Bottom">
+                                <DockPanel Width="300" MaxHeight="420">
+                                  <Button DockPanel.Dock="Bottom" Content="Brush tips…" Click="OnBrushTipsClicked"
+                                          HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                                          ToolTip.Tip="Make a tip, or bring one in from a scan" />
+                                  <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ListBox x:Name="TipPickerList" Background="Transparent"
+                                             SelectionChanged="OnTipPicked">
+                                      <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                          <!-- Two columns, so a tip is a picture rather than a row of text -->
+                                          <WrapPanel Orientation="Horizontal" ItemWidth="134" />
+                                        </ItemsPanelTemplate>
+                                      </ListBox.ItemsPanel>
+                                      <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="views:TipChoice">
+                                          <StackPanel Margin="0,2" Spacing="2">
+                                            <Border Height="60" Background="{StaticResource SurfacePanelBrush}" CornerRadius="3">
+                                              <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="3" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                          </StackPanel>
+                                        </DataTemplate>
+                                      </ListBox.ItemTemplate>
+                                    </ListBox>
+                                  </ScrollViewer>
+                                </DockPanel>
+                              </Flyout>
+                            </Button.Flyout>
+                          </Button>
+                        </DockPanel>
+                      </StackPanel>
+
+                      <StackPanel x:Name="BrushPageEffects" Spacing="6" IsVisible="False">
+                        <TextBlock Text="Effects" FontWeight="SemiBold" FontSize="12" />
+                        <StackPanel Spacing="6" IsVisible="{Binding IsSmudgeBrush}" Margin="0,0,0,8">
+                          <TextBlock Text="Smudge" FontWeight="SemiBold" FontSize="11" Opacity="0.8" />
+                          <ComboBox ItemsSource="{Binding SmudgeModeChoices}" SelectedItem="{Binding BrushSmudgeMode}"
+                                    HorizontalAlignment="Stretch"
+                                    ToolTip.Tip="Smearing drags a sample along the stroke, so detail streaks. Dulling lays down the colour under the dab, so detail dissolves — that is a blender." />
+                          <DockPanel ToolTip.Tip="How far colour travels before the sample refreshes.">
+                            <TextBlock Text="Length" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="How wide an area each dab samples. Wider blends more and keeps less detail.">
+                            <TextBlock Text="Radius" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="How much of the brush's own colour it adds while smudging. Zero is a pure blender.">
+                            <TextBlock Text="Color rate" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushColorRate}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                        </StackPanel>
+                        <TextBlock Text="Shape Dynamics" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                          <DockPanel ToolTip.Tip="How much dab diameter varies. This is the biggest single difference between a digital mark and a natural one.">
+                            <TextBlock Text="Size jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="Floor for jittered size. Without it, jitter produces dabs that vanish and the stroke reads as broken rather than varied.">
+                            <TextBlock Text="Minimum size" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="1 is circular; lower squashes the dab into a chisel.">
+                            <TextBlock Text="Roundness" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Roundness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Angle jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                        <CheckBox Content="Angle follows stroke direction" FontSize="12"
+                                  IsChecked="{Binding BrushAngleFollowsDirection}"
+                                  ToolTip.Tip="Required for any flat or chisel tip to behave like one instead of a repeated stamp." />
+
+                        <TextBlock Text="Scattering" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                          <DockPanel>
+                            <TextBlock Text="Scatter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+
+                        <TextBlock Text="Texture" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <DockPanel ToolTip.Tip="Paper surface multiplied into the stroke. Anchored to the document, so the grain stays put as you paint over it.">
+                          <TextBlock Text="Surface" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <ComboBox ItemsSource="{Binding TextureSurfaceChoices}" SelectedItem="{Binding BrushTextureSurface}"
+                                    HorizontalAlignment="Stretch" IsEnabled="{Binding !HasImportedTexture}" />
+                        </DockPanel>
+                        <!--
+                          An imported paper wins over the built-in surfaces, so
+                          the dropdown above goes quiet rather than pretending to
+                          still be in charge. The image goes into the document,
+                          not a path on disk — a file pointing at somebody's
+                          scans folder paints differently on the next machine.
+                        -->
+                        <DockPanel ToolTip.Tip="Use a scan or photograph of real paper. It goes into the drawing, so the file still paints the right grain anywhere.">
+                          <Button DockPanel.Dock="Right" x:Name="ClearTextureButton" Content="✕"
+                                  Click="OnClearTextureClicked" Margin="6,0,0,0"
+                                  ToolTip.Tip="Back to the built-in surfaces" />
+                          <Button Content="Paper image…" Click="OnImportTextureClicked"
+                                  HorizontalAlignment="Stretch" />
+                        </DockPanel>
+                        <TextBlock x:Name="TextureSourceNote" FontSize="10" Opacity="0.6"
+                                   IsVisible="False" TextWrapping="Wrap" />
+                          <DockPanel>
+                            <TextBlock Text="Grain size" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128"
+                                           Increment="1" FormatString="0" MinWidth="44" />
+                            <Slider Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Depth" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="The flat grain used when no texture surface is chosen.">
+                            <TextBlock Text="Granulation" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Wet edge" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+
+                        <TextBlock Text="Transfer" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                          <DockPanel ToolTip.Tip="Per-dab paint amount varies, giving wash and build-up variation that pressure alone cannot.">
+                            <TextBlock Text="Flow jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+
+                        <TextBlock Text="Color Dynamics" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <DockPanel ToolTip.Tip="Natural media drifts between two chosen colours rather than randomly around one. Leave empty to vary only hue, saturation and brightness.">
+                          <TextBlock Text="Second color" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <controls:ColorField Hex="{Binding BrushSecondaryColor, Mode=TwoWay}"
+                                               AllowsNone="True" HorizontalAlignment="Left" />
+                        </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Toward second" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Hue jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Saturation jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Brightness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+
+                        </StackPanel>
+
+                      <StackPanel x:Name="BrushPageMedium" Spacing="6" IsVisible="False">
+                        <TextBlock Text="Medium" FontWeight="SemiBold" FontSize="12" />
+                        <TextBlock FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                                   Text="Simulates how real paint moves, settles and layers. Runs when the stroke is committed, over the region the stroke touched." />
+                        <ComboBox ItemsSource="{Binding MediumKindChoices}" SelectedItem="{Binding BrushMedium}"
+                                  HorizontalAlignment="Stretch" Margin="0,2,0,6" />
+
+                        <StackPanel Spacing="6" IsVisible="{Binding MediumIsSimulated}">
+                          <TextBlock Text="Fluid" FontWeight="SemiBold" FontSize="11" Opacity="0.8" />
+                          <DockPanel>
+                            <TextBlock Text="Wetness" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumWetness}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumWetness}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Viscosity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumViscosity}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumViscosity}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Drag" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumDrag}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumDrag}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Absorbency" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="Capillary pull toward the wet boundary — this is what darkens the rim.">
+                            <TextBlock Text="Edge pull" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="Simulation iterations. Cost is linear in this — the one control here that can make a stroke commit feel slow.">
+                            <TextBlock Text="Flow steps" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32"
+                                           Increment="1" FormatString="0" MinWidth="44" />
+                            <Slider Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32" Margin="4,0" />
+                          </DockPanel>
+
+                          <TextBlock Text="Pigment" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                          <DockPanel>
+                            <TextBlock Text="Density" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="How readily pigment settles into the paper's valleys.">
+                            <TextBlock Text="Granularity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumGranularity}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumGranularity}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="0 is a transparent glaze, 1 fully hides what is underneath.">
+                            <TextBlock Text="Hiding" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumHiding}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumHiding}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <CheckBox Content="Mix pigment physically (Kubelka–Munk)" FontSize="12"
+                                    IsChecked="{Binding MediumPhysicalMixing}"
+                                    ToolTip.Tip="Layer paint the way pigment layers, not the way film layers. A yellow glaze over blue gives green." />
+
+                          <TextBlock Text="Paper" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                          <DockPanel>
+                            <TextBlock Text="Surface" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <ComboBox ItemsSource="{Binding PaperKindChoices}" SelectedItem="{Binding MediumPaper}"
+                                      HorizontalAlignment="Stretch" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Grain size" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128"
+                                           Increment="1" FormatString="0" MinWidth="44" />
+                            <Slider Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel>
+                            <TextBlock Text="Influence" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+
+                          <TextBlock Text="Interaction" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                          <DockPanel ToolTip.Tip="How much a light touch means water rather than pigment. Raise it and light strokes go paler and bloom further.">
+                            <TextBlock Text="Light = water" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="How much pressure governs mixing with the paint already there. At 1 a light touch barely disturbs it.">
+                            <TextBlock Text="Pressure mix" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+                          <DockPanel ToolTip.Tip="How much this stroke re-wets what is under it. Above zero, earlier paint lifts and travels with the new stroke — wet into wet.">
+                            <TextBlock Text="Re-wetting" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumRewetting}" Minimum="0" Maximum="1"
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
+                            <Slider Value="{Binding MediumRewetting}" Minimum="0" Maximum="1" Margin="4,0" />
+                          </DockPanel>
+
+                          <StackPanel Spacing="6" IsVisible="{Binding MediumHasBody}">
+                            <TextBlock Text="Body" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                            <DockPanel>
+                              <TextBlock Text="Thickness" Width="90" VerticalAlignment="Center" FontSize="12" />
+                              <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumBody}" Minimum="0" Maximum="1"
+                                             Increment="0.05" FormatString="0.00" MinWidth="44" />
+                              <Slider Value="{Binding MediumBody}" Minimum="0" Maximum="1" Margin="4,0" />
+                            </DockPanel>
+                            <DockPanel ToolTip.Tip="Shades the paint's own height, giving impasto relief.">
+                              <TextBlock Text="Relief" Width="90" VerticalAlignment="Center" FontSize="12" />
+                              <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumRelief}" Minimum="0" Maximum="1"
+                                             Increment="0.05" FormatString="0.00" MinWidth="44" />
+                              <Slider Value="{Binding MediumRelief}" Minimum="0" Maximum="1" Margin="4,0" />
+                            </DockPanel>
+                            <!--
+                              Bristle drag and Pickup are deliberately NOT here.
+
+                              Both are the directional advection loop in
+                              DESIGN-fluid-media.md piece (3), which is sequenced
+                              last and behind two open questions — so the engine
+                              reads neither, and a slider bound to one was a
+                              control that did nothing. Measured at the time as
+                              **0 of 41 600 pixels different** between all-zero
+                              and all-one. Charter O7: a setting that does nothing
+                              is worse than an absent one, because it teaches an
+                              artist that the panel lies.
+
+                              The *look* of a dragged bristle is already reachable
+                              by a different route — `TipShape.Bristle` with
+                              `AngleFollowsDirection` — which is why only Pickup
+                              really needs the loop. B23.
+                            -->
+                            <DockPanel ToolTip.Tip="Paint on the brush at the start. Below 1 the brush runs out — that is dry-brush.">
+                              <TextBlock Text="Paint load" Width="90" VerticalAlignment="Center" FontSize="12" />
+                              <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1"
+                                             Increment="0.05" FormatString="0.00" MinWidth="44" />
+                              <Slider Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1" Margin="4,0" />
+                            </DockPanel>
+                          </StackPanel>
+                        </StackPanel>
+                      </StackPanel>
+
+                      <StackPanel x:Name="BrushPagePressure" Spacing="6" IsVisible="False">
+                        <CheckBox Content="Brush ring follows pen pressure" FontSize="12"
+                                  IsChecked="{Binding CursorTracksPressure}"
+                                  ToolTip.Tip="On, the ring shows the thickness the stroke is laying down right now. Off, it stays at the brush's full size as a stable target. Hovering always shows the maximum." />
+                        <TextBlock Text="Pen pressure" FontWeight="SemiBold" FontSize="12" />
+                        <TextBlock Text="{Binding PenDiagnostic}" FontSize="11" Foreground="{StaticResource AccentCyanBrush}"
+                                   TextWrapping="Wrap"
+                                   ToolTip.Tip="Live report of what Windows delivers while you draw" />
+                        <TextBlock Text="Seeing Mouse instead of Pen? Enable “Windows Ink” in your Huion/Wacom driver settings, then restart Lightbox."
+                                   FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
+                        <CheckBox Content="Use pen pressure" IsChecked="{Binding BrushPressureEnabled}"
+                                  ToolTip.Tip="Master switch for this brush — off ignores the tablet's pressure entirely" />
+                        <!--
+                          A curve per dynamic rather than an exponent. Deciding
+                          how a brush answers the pen is a shape judgement — where
+                          it should bite, where it level off — and one number
+                          cannot say most of what an artist means. It also cannot
+                          say anything that rises and then falls, which is what an
+                          ink brush that spreads and then floods actually does.
+
+                          Rows are built in code rather than repeated seven times
+                          here: they differ only by which dynamic they drive.
+                        -->
+                        <TextBlock Text="Drag a point to shape the response. Click for a new one, middle-click to remove."
+                                   FontSize="10" Opacity="0.6" TextWrapping="Wrap" />
+                        <StackPanel x:Name="PressureCurveRows" Spacing="10"
+                                    IsEnabled="{Binding BrushPressureEnabled}" />
+                      </StackPanel>
+
+                      <StackPanel x:Name="BrushPagePresets" Spacing="6" IsVisible="False">
+                        <TextBlock Text="Presets" FontWeight="SemiBold" FontSize="12" />
+
+                        <Border x:Name="PresetModifiedNote" Background="{StaticResource StatusWarningSurfaceBrush}" CornerRadius="4"
+                                Padding="8,6" IsVisible="False">
+                          <TextBlock x:Name="PresetModifiedText" TextWrapping="Wrap" FontSize="11" />
+                        </Border>
+
+                        <DockPanel>
+                          <Button x:Name="UpdatePresetButton" DockPanel.Dock="Right" Content="Update"
+                                  Click="OnUpdatePresetClicked" Margin="6,0,0,0"
+                                  ToolTip.Tip="Write these settings back over the brush you started from" />
+                          <Button x:Name="RevertPresetButton" DockPanel.Dock="Right" Content="Revert"
+                                  Click="OnRevertPresetClicked"
+                                  ToolTip.Tip="Throw away your changes to this shipped brush and get the original back" />
+                          <TextBlock x:Name="PresetCurrentName" VerticalAlignment="Center" FontSize="12"
+                                     TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+
+                        <DockPanel>
+                          <Button DockPanel.Dock="Right" Content="Save as new" Click="OnSavePresetClicked" />
+                          <TextBox x:Name="PresetNameBox" PlaceholderText="New preset name" Margin="0,0,6,0" />
+                        </DockPanel>
+
+                        <DockPanel ToolTip.Tip="Comma-separated. Whatever you would look for it under — inking, roughs, hair.">
+                          <Button x:Name="ApplyTagsButton" DockPanel.Dock="Right" Content="Tag"
+                                  Click="OnApplyTagsClicked" />
+                          <TextBox x:Name="PresetTagBox" PlaceholderText="Tags, comma separated" Margin="0,0,6,0" />
+                        </DockPanel>
+
+                        <Button x:Name="DeletePresetButton" Content="Delete this brush" Click="OnDeletePresetClicked"
+                                HorizontalAlignment="Left"
+                                ToolTip.Tip="Removes a brush you made. A shipped brush is reverted instead — it is not yours to delete." />
+                        <!--
+                          Import moved into the library window rather than staying
+                          here. This page edits the brush in your hand; importing
+                          forty of somebody else's is the other kind of job, it
+                          needs a progress bar and somewhere to put the result,
+                          and it used to leave you with forty brushes and no way
+                          to remove them.
+                        -->
+                        <Button Content="Brush library…" Click="OnBrushLibraryClicked"
+                                HorizontalAlignment="Stretch"
+                                ToolTip.Tip="Everything you have: import Photoshop, GIMP and Krita brushes, rename them, and remove the ones you do not want" />
+                      </StackPanel>
+
+                    </Panel>
+                  </ScrollViewer>
+                </Grid>
+        </controls:Docker>
+
         <!-- Project: characters and the animations under them. Absent unless a
              project exists — the app is document-first, and a session that
              never creates one shows no project UI at all. The workspace keeps

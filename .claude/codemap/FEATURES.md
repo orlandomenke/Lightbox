@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2939 tests, derived from the suite itself. Each line is a
+2942 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2454,10 +2454,10 @@ regression even when every test still compiles.
 - Every Group In The Bar Shares One Vertical Centre — `:83`
 - Nothing In The Bar Asks For More Height Than The Bar Has — `:104`
 - Every Tile In An Overlay Bar Is The Same Square — `:123`
-- The Brush Parameter Flyout Is Not Pinned To One Height — `:163`
-- Deleting The Paper Leaves Transparency Rather Than White — `:180`
-- Putting The Paper Back Is Undo And The Document Is Opaque Again — `:198`
-- Deleting An Ordinary Layer Does Not Touch The Paper — `:212`
+- The Gear Carries No Flyout Any More — `:163`
+- Deleting The Paper Leaves Transparency Rather Than White — `:179`
+- Putting The Paper Back Is Undo And The Document Is Opaque Again — `:197`
+- Deleting An Ordinary Layer Does Not Touch The Paper — `:211`
 
 ## ToolOptionsBarTests
 `tests/Lightbox.App.Tests/ToolOptionsBarTests.cs`
@@ -2466,6 +2466,13 @@ regression even when every test still compiles.
 - The Parameters Button Survives Switching To The Eraser — `:84`
 - The Parameters Button Is Gone For Tools That Do Not Paint — `:100`
 - The Effect Strength Control Is Bound To Flow — `:114`
+
+## ToolOptionsDockerTests
+`tests/Lightbox.App.Tests/ToolOptionsDockerTests.cs`
+
+- Absent Until Asked For — `:28`
+- The Gear Opens The Panel On The Right — `:37`
+- The Gear Never Closes — `:57`
 
 ## FillToolTests
 `tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`

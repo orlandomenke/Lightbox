@@ -302,6 +302,12 @@ decision goes to `QUESTIONS.md` and is left alone.
   - The theory names the colour tools individually rather than reading some `UsesColour` flag, for the reason the fix exists: a flag is the table that drifts, and a test that read it would agree with it when it was wrong. A second theory asserts the stronger property the reporter actually asked for — the block stays put on the eraser, select, move and picker too.
   - Two failure modes worth guarding that "is it visible" does not catch: leaving the original in place would give the brush **two** pairs, so the count is asserted; and moving a block out of a panel is how a sibling gets taken with it, so the brush picker's own presence and its absence on the fill tool are asserted too.
 
+- [ ] **B16** `P3` `ui` The brush parameter flyout scrolls when it should grow `evidence: TheBrushParameterFlyoutIsNotPinnedToOneHeight`
+  - Repro: open the ⚙ flyout and switch category. Short pages have dead space; long ones get a vertical scrollbar.
+  - Cause: the flyout's grid declared `Height="430"` for five pages of different lengths.
+  - Fix: size to the page, with a `MaxHeight` so a very long one cannot run off the screen.
+  - Reported from a build. Cost: S
+
 ---
 
 ## Fixed
@@ -1282,12 +1288,6 @@ test reopens the bug.
 - [x] **B41** `P3` `ui` Tool-options sliders and checkboxes sit above their labels `evidence: manual`
   - The bar is a fixed 30 px row and its children default to `VerticalAlignment=Stretch`; a stretched `Slider` draws its track at the top of the height it is given and a stretched `CheckBox` does the same with its box — so Size, Hardness, Opacity and "Per brush" all sat high against the text beside them.
   - Fix: styles on `OverflowBar`'s descendants rather than an alignment attribute on some forty individual controls, so a control added later is centred without anybody remembering to.
-
-- [x] **B16** `P3` `ui` The brush parameter flyout scrolls when it should grow `evidence: TheBrushParameterFlyoutIsNotPinnedToOneHeight`
-  - Repro: open the ⚙ flyout and switch category. Short pages have dead space; long ones get a vertical scrollbar.
-  - Cause: the flyout's grid declared `Height="430"` for five pages of different lengths.
-  - Fix: size to the page, with a `MaxHeight` so a very long one cannot run off the screen.
-  - Reported from a build. Cost: S
 
 - [x] **B15** `P3` `ui` The tool options bar's columns do not line up `evidence: EveryValueFieldInTheBarIsTheSameWidth, NoValueFieldInTheBarSetsAWidthOfItsOwn`
   - Repro: switch between brush, gradient and selection. The label, slider and value box start and end somewhere different each time.

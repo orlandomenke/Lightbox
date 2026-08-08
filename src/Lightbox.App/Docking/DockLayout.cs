@@ -114,6 +114,8 @@ public sealed class DockLayout
         layout.Place(DockPanelId.Palette).Side = DockSide.Hidden;
         layout.Place(DockPanelId.Gradient).Side = DockSide.Hidden;
         layout.Place(DockPanelId.Reference).Side = DockSide.Hidden;
+        // Same rule: the gear opens it the first time it is wanted.
+        layout.Place(DockPanelId.ToolOptions).Side = DockSide.Hidden;
         layout.AreaExtents[DockSide.Right] = 300;
         layout.AreaExtents[DockSide.Bottom] = 280;
         return layout;

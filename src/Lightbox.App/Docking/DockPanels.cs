@@ -19,6 +19,7 @@ public enum DockPanelId
     Reference,
     Symbols,
     Timeline,
+    ToolOptions,
 }
 
 /// <summary>Where a panel lives.</summary>
@@ -74,6 +75,10 @@ public static class DockPanels
         // project tree and the layer stack do.
         new(DockPanelId.Symbols, "Symbols", MaxExtent: null, DefaultExtent: 240, MinExtent: 130),
         new(DockPanelId.Timeline, "Timeline", MaxExtent: null, DefaultExtent: 280, MinExtent: 140, Movable: false),
+        // The gear flyout grown up: brush parameters as a panel an artist can
+        // keep open while tuning. No cap — the parameter pages use width the
+        // way the layer stack does.
+        new(DockPanelId.ToolOptions, "Tool options", MaxExtent: null, DefaultExtent: 300, MinExtent: 170),
     ];
 
     public static DockPanelInfo Of(DockPanelId id) => All.First(p => p.Id == id);

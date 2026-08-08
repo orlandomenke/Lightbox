@@ -4523,6 +4523,16 @@ public sealed partial class MainViewModel : ObservableObject
     private void ToggleLayersPanel() =>
         Workspace.SetVisible(Docking.DockPanelId.Layers, !Workspace.LayersPanelVisible);
 
+    /// <summary>The toolbar's gear: always OPENS — a gear that closed the
+    /// panel you were looking at would read as a broken button.</summary>
+    [RelayCommand]
+    private void OpenToolOptions() =>
+        Workspace.SetVisible(Docking.DockPanelId.ToolOptions, true);
+
+    [RelayCommand]
+    private void ToggleToolOptionsDocker() =>
+        Workspace.SetVisible(Docking.DockPanelId.ToolOptions, !Workspace.ToolOptionsDockerVisible);
+
     /// <summary>Which side the docker sidebar collapses to / sits on.</summary>
     [ObservableProperty]
     private bool _sidebarOnRight = true;
