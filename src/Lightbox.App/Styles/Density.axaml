@@ -21,12 +21,20 @@
     12s around them. The scale's font row starts at 12, so 12 is what
     "unstyled" means here.
 
-    `:is(Window)` rather than `Window`, because a bare type selector does not
-    match subclasses and every window in this application is one. FontSize
-    inherits down the logical tree, so this reaches popups and flyouts too.
+    `:is(TopLevel)` rather than `Window`, twice over: a bare type selector
+    does not match subclasses, and a POPUP is not a Window at all — menus,
+    flyouts and tooltips live in a PopupRoot, whose common ancestor with
+    Window is TopLevel. `:is(Window)` was here first, and every context menu
+    stayed at Fluent's 14 while the windows dropped to 12 — "the fonts in the
+    context menu are still too large", reported precisely because the two no
+    longer matched.
   -->
-  <Style Selector=":is(Window)">
+  <Style Selector=":is(TopLevel)">
     <Setter Property="FontSize" Value="12" />
+    <!-- Segoe first, so a Windows build renders it and everything else falls
+         through to the bundled Inter — the owner wants to compare the two.
+         Prefer Inter outright? Delete the two Segoe names. -->
+    <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, fonts:Inter#Inter, $Default" />
   </Style>
 
   <!-- Numeric fields: no spinner arrows anywhere.
@@ -286,13 +294,22 @@
   <Style Selector="Slider:horizontal /template/ Track">
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
+  <!-- The reference's slider: a hairline rounded track with a dot riding it.
+       Both halves of the track are named TrackBackground, so one rule rounds
+       the filled and unfilled sides together. -->
+  <Style Selector="Slider /template/ Border#TrackBackground">
+    <Setter Property="Height" Value="3" />
+    <Setter Property="CornerRadius" Value="1.5" />
+  </Style>
+  <!-- 10, from the reference's sliders: a dot riding a hairline track, not a
+       knob. The track is already 2px; the thumb was the fat part. -->
   <Style Selector="Slider:horizontal /template/ Thumb">
-    <Setter Property="Width" Value="14" />
-    <Setter Property="Height" Value="14" />
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
   </Style>
   <Style Selector="Slider:vertical /template/ Thumb">
-    <Setter Property="Width" Value="14" />
-    <Setter Property="Height" Value="14" />
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
   </Style>
 
   <!--
@@ -369,7 +386,7 @@
   <!--
     Tool buttons are hit while drawing; they keep the larger target.
 
-    **34, which is what shipped rather than the 30 this used to claim.** The
+    **28, retuned against the reference after landing at the 34 that had shipped.** The
     tool palette declared its own size in `MainWindow.axaml` and that override
     won, so the 30 here was never applied to a single control — a scale entry
     that describes nothing. Merged the other way round on purpose: the palette
@@ -382,8 +399,8 @@
     there, never the height, so the column keeps one rhythm at both widths.
   -->
   <Style Selector="ToggleButton.tool">
-    <Setter Property="Height" Value="34" />
-    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="MinHeight" Value="28" />
     <Setter Property="Margin" Value="1" />
     <Setter Property="Padding" Value="4,0" />
     <Setter Property="FontSize" Value="12" />

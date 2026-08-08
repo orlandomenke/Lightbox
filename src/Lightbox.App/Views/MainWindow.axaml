@@ -12,6 +12,7 @@
         x:DataType="vm:MainViewModel"
         Title="Lightbox"
         Width="1280" Height="800"
+        Background="{StaticResource BackgroundPrimaryBrush}"
         WindowStartupLocation="CenterScreen">
 
   <Window.Styles>
@@ -46,12 +47,15 @@
     <Style Selector="Border.layerRow.hiddenLayer">
       <Setter Property="Opacity" Value="0.35" />
     </Style>
+    <!-- Cyan, not the warning amber: locked is a STATE the artist chose, not
+         a problem the app is reporting, and amber made every locked layer read
+         as something going wrong. -->
     <Style Selector="Border.layerRow.lockedLayer">
-      <Setter Property="BorderBrush" Value="{StaticResource StatusWarningBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.groupRow.lockedLayer">
-      <Setter Property="BorderBrush" Value="{StaticResource StatusWarningBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.groupRow">
@@ -94,12 +98,23 @@
     <Style Selector="ProgressBar.strained /template/ Border#PART_Indicator">
       <Setter Property="Background" Value="#e0a030" />
     </Style>
+    <!--
+      One tab treatment everywhere: the document tabs wear exactly what the
+      docker tabs wear — outlined at rest, the lit fading ground and the
+      purple gradient top line when active. Two tab languages in one window
+      was the app telling the artist these strips are different kinds of
+      thing, when both answer "which of these is in front".
+    -->
     <Style Selector="Border.docTab">
-      <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
+      <Setter Property="Background" Value="Transparent" />
       <Setter Property="CornerRadius" Value="4,4,0,0" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
     </Style>
     <Style Selector="Border.docTab.active">
-      <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
+      <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+      <Setter Property="BorderThickness" Value="1,1,1,0" />
     </Style>
     <!-- ToggleButton.tool is sized by Density.axaml. Only the alignment
          changes here: the toolbar's "labels" class (set from code-behind at a
@@ -404,25 +419,35 @@
              directly beside this one and without a divider the pair reads as
              one group belonging to the workspace. -->
         <Border DockPanel.Dock="Right" Width="1" Margin="10,3" Background="{StaticResource BorderBrush}" />
-        <ComboBox x:Name="WorkspacePicker" DockPanel.Dock="Right"
-                  ItemsSource="{Binding Workspace.WorkspaceChoices}"
-                  PlaceholderText="{Binding Workspace.CurrentLabel}"
-                  SelectionChanged="OnWorkspacePicked"
-                  MinWidth="150" VerticalAlignment="Center"
-                  ToolTip.Tip="Switch workspace — panel arrangements, saved globally">
-          <ComboBox.ItemTemplate>
+        <!-- Flush text with a bottom highlight — the section-tab treatment,
+             because switching workspace changes what the whole window is for.
+             Deleting a saved workspace moved to the right-click menu on its
+             name; the built-ins never offered it. -->
+        <ListBox x:Name="WorkspacePicker" DockPanel.Dock="Right" Classes="sectiontabs"
+                 ItemsSource="{Binding Workspace.WorkspaceChoices}"
+                 SelectedValue="{Binding Workspace.SelectedName, Mode=OneWay}"
+                 SelectedValueBinding="{Binding Name, DataType=vm:WorkspaceRow}"
+                 SelectionChanged="OnWorkspacePicked"
+                 VerticalAlignment="Center"
+                 ToolTip.Tip="Switch workspace — panel arrangements, saved globally">
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="0" />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:WorkspaceRow">
-              <DockPanel MinWidth="150">
-                <Button DockPanel.Dock="Right" Classes="icon" Content="🗑" FontSize="11"
-                        Background="Transparent" BorderThickness="0"
-                        IsVisible="{Binding CanDelete}"
-                        Click="OnDeleteWorkspace" Tag="{Binding Name}"
-                        ToolTip.Tip="Delete this workspace" />
-                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-              </DockPanel>
+              <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
+                <TextBlock.ContextMenu>
+                  <ContextMenu>
+                    <MenuItem Header="Delete this workspace" IsVisible="{Binding CanDelete}"
+                              Click="OnDeleteWorkspace" Tag="{Binding Name}" />
+                  </ContextMenu>
+                </TextBlock.ContextMenu>
+              </TextBlock>
             </DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
+          </ListBox.ItemTemplate>
+        </ListBox>
 
       <!--
         The tool options scroll rather than push. A brush row is wide, and
@@ -1575,19 +1600,22 @@
         <ItemsControl ItemsSource="{Binding Tabs}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
-              <StackPanel Orientation="Horizontal" Spacing="2" />
+              <StackPanel Orientation="Horizontal" Spacing="0" />
             </ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:DocumentTab">
               <Border Classes="docTab" Classes.active="{Binding IsActive}" Padding="2,0">
-                <StackPanel Orientation="Horizontal" Spacing="0">
-                  <Button Content="{Binding DisplayTitle}" Background="Transparent" Padding="8,1"
-                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateTabCommand}"
-                          CommandParameter="{Binding}" />
-                  <Button Classes="icon" Content="✕" FontSize="10" Background="Transparent"
-                          Click="OnCloseTabClicked" ToolTip.Tip="Close document" />
-                </StackPanel>
+                <Panel>
+                  <StackPanel Orientation="Horizontal" Spacing="0">
+                    <Button Content="{Binding DisplayTitle}" Background="Transparent" BorderThickness="0" Padding="11,2"
+                            Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateTabCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Classes="icon" Content="✕" FontSize="10" Background="Transparent" BorderThickness="0"
+                            Click="OnCloseTabClicked" ToolTip.Tip="Close document" />
+                  </StackPanel>
+                  <Border Classes="tabline" />
+                </Panel>
               </Border>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
@@ -1638,14 +1666,16 @@
           <ColumnDefinition Width="300" MinWidth="200" />
         </Grid.ColumnDefinitions>
 
-        <Border x:Name="Toolbar" Grid.Column="0" Background="{StaticResource BackgroundSecondaryBrush}" SizeChanged="OnToolbarSizeChanged">
+        <Border x:Name="Toolbar" Grid.Column="0" Background="{StaticResource SurfacePanelBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                Margin="4,4,0,4" ClipToBounds="True" SizeChanged="OnToolbarSizeChanged">
           <ScrollViewer VerticalScrollBarVisibility="Auto">
             <WrapPanel x:Name="ToolButtons" Margin="3">
               <ToggleButton Classes="tool" IsChecked="{Binding IsBrushTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Brush}"
                             ToolTip.Tip="Brush (B)">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="🖌" FontSize="15" />
+                  <Path Data="{StaticResource IconBrush}" />
                   <TextBlock Text="Brush" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
@@ -1653,7 +1683,7 @@
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Eraser}"
                             ToolTip.Tip="Eraser (E)">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="⌫" FontSize="15" />
+                  <Path Data="{StaticResource IconEraser}" />
                   <TextBlock Text="Eraser" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
@@ -1661,7 +1691,7 @@
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Fill}"
                             ToolTip.Tip="Fill (F)">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="🪣" FontSize="15" />
+                  <Path Data="{StaticResource IconFill}" />
                   <TextBlock Text="Fill" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
@@ -1669,7 +1699,7 @@
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Picker}"
                             ToolTip.Tip="Color picker (I on the canvas) — click to pick the color under the cursor">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="💧" FontSize="15" />
+                  <Path Data="{StaticResource IconPicker}" />
                   <TextBlock Text="Picker" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
@@ -1677,17 +1707,23 @@
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Gradient}"
                             ToolTip.Tip="Gradient (G) — drag to set the ramp's direction and length">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="▤" FontSize="15" />
+                  <Path Data="{StaticResource IconGradient}" />
                   <TextBlock Text="Gradient" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
-              <ToggleButton x:Name="ShapeToolButton" Classes="tool" IsChecked="{Binding IsShapeTool, Mode=OneWay}"
+              <ToggleButton x:Name="ShapeToolButton" Classes="tool" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" IsChecked="{Binding IsShapeTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Shape}"
                             ToolTip.Tip="Shape (U — hold for the list) — drag to draw. Shift squares it or snaps a line to 45°, Alt grows it from the centre.">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="{Binding ShapeGlyph}" FontSize="15" />
-                  <TextBlock Text="Shape" Classes="toolname" VerticalAlignment="Center" />
-                </StackPanel>
+                <!-- The mark sits at the BUTTON's corner, so the panel stretches to the
+                     content area and the glyph re-centres itself inside it. -->
+                <Panel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                  <StackPanel Orientation="Horizontal" Spacing="6"
+                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ShapeGlyph}" FontSize="15" />
+                    <TextBlock Text="Shape" Classes="toolname" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <Path Classes="variantmark" />
+                </Panel>
                 <!-- The same hold-for-variants list the Select tool has. A
                      gesture that works on one tool and not its neighbour is
                      one nobody trusts. -->
@@ -1710,17 +1746,21 @@
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Move}"
                             ToolTip.Tip="Move (V) — drag the drawing. Ctrl moves every drawing on the layer, Shift holds it to one axis. Guides are picked up with this tool.">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="✥" FontSize="15" />
+                  <Path Data="{StaticResource IconMove}" />
                   <TextBlock Text="Move" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
-              <ToggleButton x:Name="SelectToolButton" Classes="tool" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
+              <ToggleButton x:Name="SelectToolButton" Classes="tool" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Select}"
                             ToolTip.Tip="Select (S — press again to switch variant; hold for the list)">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="{Binding SelectVariantGlyph}" FontSize="15" />
-                  <TextBlock Text="Select" Classes="toolname" VerticalAlignment="Center" />
-                </StackPanel>
+                <Panel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                  <StackPanel Orientation="Horizontal" Spacing="6"
+                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SelectVariantGlyph}" FontSize="15" />
+                    <TextBlock Text="Select" Classes="toolname" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <Path Classes="variantmark" />
+                </Panel>
                 <ToggleButton.ContextFlyout>
                   <Flyout Placement="RightEdgeAlignedTop">
                     <StackPanel Spacing="2">
@@ -1843,8 +1883,8 @@
           <controls:CanvasOverlayBar x:Name="ShortcutBar" OverlayId="Shortcuts" Title="Shortcuts">
             <StackPanel Spacing="2"
                         Orientation="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
-              <ToggleButton Content="◉" IsChecked="{Binding ActiveLayerOnion}"
-                            ToolTip.Tip="Onion skin on the active layer" />
+              <ToggleButton Classes="onion" IsChecked="{Binding ActiveLayerOnion}"
+                            ToolTip.Tip="Onion skin on the active layer" ><Path /></ToggleButton>
               <ToggleButton Content="🎥" IsChecked="{Binding ViewThroughCamera}"
                             IsVisible="{Binding HasCamera}"
                             ToolTip.Tip="View through the camera" />
@@ -2423,32 +2463,39 @@
               </controls:Docker.TitleBarExtra>
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
-                  <StackPanel Spacing="4">
+                  <!-- What the ACTIVE layer is doing — blend and opacity — at the
+                       top, where the reference puts it. The verbs live in the
+                       bottom bar: reading is done at the top of a panel,
+                       acting at the bottom. -->
+                  <DockPanel>
+                    <ComboBox DockPanel.Dock="Left" ItemsSource="{Binding BlendModeChoices}"
+                              SelectedItem="{Binding ActiveLayerBlendMode}" Width="104" FontSize="12"
+                              ToolTip.Tip="Blend mode of the active layer" />
+                    <NumericUpDown DockPanel.Dock="Right" Value="{Binding ActiveLayerOpacity}"
+                                   Minimum="0" Maximum="100" Increment="5" FormatString="0"
+                                   Width="64" FontSize="12"
+                                   ToolTip.Tip="Opacity of the active layer (%)" />
+                    <Slider Value="{Binding ActiveLayerOpacity}" Minimum="0" Maximum="100" Margin="6,0"
+                            VerticalAlignment="Center" ToolTip.Tip="Opacity of the active layer" />
+                  </DockPanel>
+                </Border>
+              </controls:Docker.TopBar>
+              <controls:Docker.BottomBar>
+                <Border Classes="dockerBar">
+                  <DockPanel>
+                    <ComboBox DockPanel.Dock="Right" ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
+                              Width="110" ToolTip.Tip="Kind of layer the + button creates" />
                     <StackPanel Orientation="Horizontal" Spacing="4">
                       <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
                               ToolTip.Tip="Add a new layer of the selected kind" />
-                      <Button Content="🗑" Command="{Binding DeleteActiveLayerCommand}"
-                              ToolTip.Tip="Delete the active layer (Delete inside this docker; Backspace blanks its content)" />
                       <Button Content="📁" Command="{Binding CreateLayerFolderCommand}"
                               ToolTip.Tip="New folder containing the active layer" />
-                      <ComboBox ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
-                                Width="110" ToolTip.Tip="Kind of layer the + button creates" />
+                      <Button Content="🗑" Command="{Binding DeleteActiveLayerCommand}"
+                              ToolTip.Tip="Delete the active layer (Delete inside this docker; Backspace blanks its content)" />
                     </StackPanel>
-                    <!-- Compositing controls for the ACTIVE layer (Photoshop-style panel top) -->
-                    <DockPanel>
-                      <ComboBox DockPanel.Dock="Left" ItemsSource="{Binding BlendModeChoices}"
-                                SelectedItem="{Binding ActiveLayerBlendMode}" Width="104" FontSize="12"
-                                ToolTip.Tip="Blend mode of the active layer" />
-                      <NumericUpDown DockPanel.Dock="Right" Value="{Binding ActiveLayerOpacity}"
-                                     Minimum="0" Maximum="100" Increment="5" FormatString="0"
-                                     Width="86" FontSize="12"
-                                     ToolTip.Tip="Opacity of the active layer (%)" />
-                      <Slider Value="{Binding ActiveLayerOpacity}" Minimum="0" Maximum="100" Margin="6,0"
-                              VerticalAlignment="Center" ToolTip.Tip="Opacity of the active layer" />
-                    </DockPanel>
-                  </StackPanel>
+                  </DockPanel>
                 </Border>
-              </controls:Docker.TopBar>
+              </controls:Docker.BottomBar>
 
               <!-- Topmost layer first: visibility, then the name (double-click to rename) -->
               <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -2496,10 +2543,10 @@
                           <Button Classes="icon" DockPanel.Dock="Left" Content="{Binding CollapseGlyph}" FontSize="11"
                                   Background="Transparent" Click="OnGroupCollapseClicked"
                                   ToolTip.Tip="Collapse / expand the folder" />
-                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
-                                        ToolTip.Tip="Folder visibility (gates every layer inside)" />
-                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="🔒" IsChecked="{Binding Locked}"
-                                        ToolTip.Tip="Lock the folder — every layer inside refuses edits, but still renders" />
+                          <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}"
+                                        ToolTip.Tip="Folder visibility (gates every layer inside)"><Path /></ToggleButton>
+                          <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}"
+                                        ToolTip.Tip="Lock the folder — every layer inside refuses edits, but still renders"><Path /></ToggleButton>
                           <Button Classes="icon" DockPanel.Dock="Right" Content="✕" FontSize="10" Background="Transparent"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DissolveGroupCommand}"
                                   CommandParameter="{Binding}" ToolTip.Tip="Dissolve the folder (layers stay)" />
@@ -2548,12 +2595,12 @@
                           </ContextMenu>
                         </Border.ContextMenu>
                         <DockPanel>
-                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="👁" IsChecked="{Binding Visible}"
-                                        ToolTip.Tip="Layer visibility" />
-                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="🔒" IsChecked="{Binding Locked}"
-                                        ToolTip.Tip="Lock the layer — refuses paint, fill, transform, delete and cel edits. It still renders and still exports." />
-                          <ToggleButton Classes="icon" DockPanel.Dock="Left" Content="▣" IsChecked="{Binding AlphaLocked}"
-                                        ToolTip.Tip="Lock transparency — paint only lands where the layer already has content, so the silhouette cannot change" />
+                          <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}"
+                                        ToolTip.Tip="Layer visibility"><Path /></ToggleButton>
+                          <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}"
+                                        ToolTip.Tip="Lock the layer — refuses paint, fill, transform, delete and cel edits. It still renders and still exports."><Path /></ToggleButton>
+                          <ToggleButton Classes="icon glyph alpha" DockPanel.Dock="Left" IsChecked="{Binding AlphaLocked}"
+                                        ToolTip.Tip="Lock transparency — paint only lands where the layer already has content, so the silhouette cannot change"><Path /></ToggleButton>
                           <Border DockPanel.Dock="Left" Margin="4,0,0,0" BorderBrush="#555" BorderThickness="1"
                                   CornerRadius="2" Width="38" Height="22" VerticalAlignment="Center"
                                   Background="#111" PointerPressed="OnLayerThumbPressed"
@@ -3278,13 +3325,24 @@
                          CloseCommand="{Binding ToggleTimelineCommand}">
         <controls:Docker.TopBar>
           <Border Classes="dockerBar">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-              <Button Content="＋" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
-              <Button Content="⧉" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
-              <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
-              <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
-              <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
-              <TextBlock Text="{Binding FrameLabel}" VerticalAlignment="Center" Margin="8,0" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="2">
+                <Button Content="⏮" Command="{Binding GoToStartFrameCommand}"
+                        ToolTip.Tip="To start frame (the set start frame, else the first)" />
+                <Button Content="⏪" Command="{Binding PreviousKeyframeCommand}" ToolTip.Tip="Previous keyframe" />
+                <Button Content="◀" Command="{Binding PlayBackwardsCommand}" ToolTip.Tip="Play backwards" />
+                <Button Content="⏸" Command="{Binding PauseCommand}" ToolTip.Tip="Pause" />
+                <Button Content="▶" Command="{Binding PlayCommand}" ToolTip.Tip="Play (Space toggles)" />
+                <Button Content="⏩" Command="{Binding NextKeyframeCommand}" ToolTip.Tip="Next keyframe" />
+                <Button Content="⏭" Command="{Binding GoToEndFrameCommand}"
+                        ToolTip.Tip="To end frame (the set end frame, else the last)" />
+              </StackPanel>
+              <!-- Loop and onion ride with the transport: they are playback
+                   decisions, flipped while watching, so they live where the
+                   watching is driven from. -->
+              <ToggleButton Content="🔁" IsChecked="{Binding LoopPlayback}" Padding="6,2"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="Loop playback. Off plays once and stops on the last frame." />
               <!-- Onion skin: the toggle stays on the bar because it is
                    flipped constantly; everything that is set once and left
                    alone goes behind the ⚙, so the bar does not grow a row of
@@ -3349,6 +3407,38 @@
                   </Flyout>
                 </Button.Flyout>
               </Button>
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="fps" VerticalAlignment="Center" />
+                <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
+                               FormatString="0" Width="68" VerticalAlignment="Center" />
+              </StackPanel>
+              <!-- How many frames fit on screen. Narrow to read the timing of
+                   a long scene, wide to read the thumbnails of a short one. -->
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="Frames" VerticalAlignment="Center" />
+                <Slider Value="{Binding TimelineFrameWidth}" Minimum="14" Maximum="72"
+                        Classes="param" VerticalAlignment="Center"
+                        ToolTip.Tip="How wide a frame is on the timeline" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="Speed %" VerticalAlignment="Center" />
+                <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
+                               FormatString="0" Width="72" VerticalAlignment="Center"
+                               ToolTip.Tip="Playback speed as a percentage of real time" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </controls:Docker.TopBar>
+
+        <controls:Docker.BottomBar>
+          <Border Classes="dockerBar">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <Button Content="＋" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current" />
+              <Button Content="⧉" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame" />
+              <Button Content="🗑" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame" />
+              <Button Content="↶" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
+              <Button Content="↷" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
+              <TextBlock Text="{Binding FrameLabel}" VerticalAlignment="Center" Margin="8,0" />
               <NumericUpDown Value="{Binding TweenCount}" Minimum="1" Maximum="9" Increment="1"
                              FormatString="0" Width="72" VerticalAlignment="Center"
                              ToolTip.Tip="Number of inbetween frames to generate" />
@@ -3419,46 +3509,6 @@
               </StackPanel>
             </StackPanel>
           </Border>
-        </controls:Docker.TopBar>
-
-        <controls:Docker.BottomBar>
-          <Border Classes="dockerBar">
-            <StackPanel Orientation="Horizontal" Spacing="10">
-              <StackPanel Orientation="Horizontal" Spacing="2">
-                <Button Content="⏮" Command="{Binding GoToStartFrameCommand}"
-                        ToolTip.Tip="To start frame (the set start frame, else the first)" />
-                <Button Content="⏪" Command="{Binding PreviousKeyframeCommand}" ToolTip.Tip="Previous keyframe" />
-                <Button Content="◀" Command="{Binding PlayBackwardsCommand}" ToolTip.Tip="Play backwards" />
-                <Button Content="⏸" Command="{Binding PauseCommand}" ToolTip.Tip="Pause" />
-                <Button Content="▶" Command="{Binding PlayCommand}" ToolTip.Tip="Play (Space toggles)" />
-                <Button Content="⏩" Command="{Binding NextKeyframeCommand}" ToolTip.Tip="Next keyframe" />
-                <Button Content="⏭" Command="{Binding GoToEndFrameCommand}"
-                        ToolTip.Tip="To end frame (the set end frame, else the last)" />
-              </StackPanel>
-              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                <TextBlock Text="fps" VerticalAlignment="Center" />
-                <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
-                               FormatString="0" Width="68" VerticalAlignment="Center" />
-              </StackPanel>
-              <!-- How many frames fit on screen. Narrow to read the timing of
-                   a long scene, wide to read the thumbnails of a short one. -->
-              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                <TextBlock Text="Frames" VerticalAlignment="Center" />
-                <Slider Value="{Binding TimelineFrameWidth}" Minimum="14" Maximum="72"
-                        Classes="param" VerticalAlignment="Center"
-                        ToolTip.Tip="How wide a frame is on the timeline" />
-              </StackPanel>
-              <ToggleButton Content="🔁" IsChecked="{Binding LoopPlayback}" Padding="6,2"
-                            VerticalAlignment="Center"
-                            ToolTip.Tip="Loop playback. Off plays once and stops on the last frame." />
-              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                <TextBlock Text="Speed %" VerticalAlignment="Center" />
-                <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
-                               FormatString="0" Width="72" VerticalAlignment="Center"
-                               ToolTip.Tip="Playback speed as a percentage of real time" />
-              </StackPanel>
-            </StackPanel>
-          </Border>
         </controls:Docker.BottomBar>
 
         <!-- Ruler (scrubbable numbering, range indication) above one row per layer -->
@@ -3489,13 +3539,10 @@
                            👁 do not have the same metrics: an emoji glyph and a
                            geometric one centre differently inside the same
                            tile unless told not to. -->
-                      <ToggleButton Content="👁" IsChecked="{Binding Visible}" Width="28" Padding="0"
-                                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                                    ToolTip.Tip="Layer visibility" />
-                      <ToggleButton Content="◉" IsChecked="{Binding OnionEnabled}" Width="28" Padding="0"
-                                    FontSize="13"
-                                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                                    ToolTip.Tip="Onion skinning for this layer" />
+                      <ToggleButton Classes="icon glyph eye" IsChecked="{Binding Visible}"
+                                    ToolTip.Tip="Layer visibility"><Path /></ToggleButton>
+                      <ToggleButton Classes="icon glyph onion" IsChecked="{Binding OnionEnabled}"
+                                    ToolTip.Tip="Onion skinning for this layer"><Path /></ToggleButton>
                       <Panel Width="88" Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineRowHeight}">
                         <Button Content="{Binding Name}" Width="88"
                                 Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineRowHeight}"

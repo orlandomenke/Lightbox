@@ -44,7 +44,7 @@ scale is then describing controls that do not exist.
 | `--row` | 24 | Field, combo, small button, list row |
 | `--tile` | 26 | Icon button, overlay-bar tile — a square, and see below |
 | `--bar` | 30 | The tool options bar's fixed row |
-| `--tool` | 34 | Tool palette buttons — hit while drawing, so the largest |
+| `--tool` | 28 | Tool palette buttons — hit while drawing, still the largest hit target after the tile |
 | `--gap` | 4 | Between related controls in a group |
 | `--gap-lg` | 8 | Between groups, and docker content padding |
 | `--label` | 52 | Label column in a labelled-row layout, so rows align |

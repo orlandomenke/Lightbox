@@ -136,10 +136,13 @@
     fade. What keeps it from becoming a segmented-control block is that it
     still ends at nothing and starts soft.
 
-    The 12% lean is the reference's, and it is the only part of this that is
-    decoration rather than meaning.
+    No lean. There was a 12% x-lean read off the reference, and it was a
+    trap: gradient points are RELATIVE, so on a 26px docker tab the lean was
+    invisible and on a 200px document tab it became a sideways fade-out — the
+    same brush telling two different stories at two widths. Purely vertical
+    is the version that scales.
   -->
-  <LinearGradientBrush x:Key="TabActiveGroundBrush" StartPoint="0%,0%" EndPoint="12%,100%">
+  <LinearGradientBrush x:Key="TabActiveGroundBrush" StartPoint="0%,0%" EndPoint="0%,100%">
     <GradientStop Offset="0" Color="#D8222634" />
     <GradientStop Offset="1" Color="#00222634" />
   </LinearGradientBrush>
@@ -164,9 +167,20 @@
     without a second border element anywhere. On a BorderThickness of 1 the
     cost is nothing.
   -->
-  <LinearGradientBrush x:Key="RimLightBrush" StartPoint="0%,0%" EndPoint="0%,100%">
-    <GradientStop Offset="0" Color="#38FFFFFF" />
-    <GradientStop Offset="0.45" Color="#10FFFFFF" />
+  <!--
+    The press flash on a glyph toggle. The old treatment filled a checked
+    toggle with the accent, so a row of layer buttons was a row of purple
+    boxes; the state lives in the glyph now, and what remains of the purple
+    is this — a subtle tint for the moment of the press, so the click still
+    answers the finger without shouting afterwards.
+  -->
+  <SolidColorBrush x:Key="PressTintBrush" Color="{StaticResource AccentVioletDeep}" Opacity="0.28" />
+
+  <!-- Diagonal, so the light lands on the top and LEFT edges and the right
+       and bottom get none — one light source, upper left, per the owner. -->
+  <LinearGradientBrush x:Key="RimLightBrush" StartPoint="0%,0%" EndPoint="100%,100%">
+    <GradientStop Offset="0" Color="#3CFFFFFF" />
+    <GradientStop Offset="0.5" Color="#0CFFFFFF" />
     <GradientStop Offset="1" Color="#00FFFFFF" />
   </LinearGradientBrush>
 

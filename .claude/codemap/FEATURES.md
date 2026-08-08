@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2853 tests, derived from the suite itself. Each line is a
+2856 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -629,7 +629,7 @@ regression even when every test still compiles.
 
 - The Scale The Doc Describes Is The Scale The Code Applies — `:56`
 - No View Redeclares ASize The Scale Owns — `:89`
-- The Overlay Tile Agrees With The Scale — `:135`
+- The Overlay Tile Agrees With The Scale — `:141`
 
 ## DiagnosticLogTests
 `tests/Lightbox.App.Tests/DiagnosticLogTests.cs`
@@ -963,6 +963,13 @@ regression even when every test still compiles.
 - AGame Maker Preset Still Reports What It Left Out — `:456`
 - ANormal Map Is Written For Every Strip Rather Than Only The First — `:468`
 - The Strip Layout Controls Are Hidden Rather Than Shown And Overridden — `:482`
+
+## GlyphToggleTests
+`tests/Lightbox.App.Tests/GlyphToggleTests.cs`
+
+- The Eye Opens And Closes Rather Than Changing Colour — `:43`
+- Every Stateful Glyph Resolves Both Drawings — `:64`
+- AGlyph Toggle Carries No Accent Fill — `:83`
 
 ## GodotExportTests
 `tests/Lightbox.App.Tests/GodotExportTests.cs`
@@ -2557,14 +2564,14 @@ regression even when every test still compiles.
 - Closing APanel Parks It Rather Than Destroying It — `:119`
 - Tabbed Panels Share One Slot And One Shows — `:138`
 - The Tab Showing Is The One That Looks Like It Is Showing — `:161`
-- An Untabbed Docker Looks Exactly As It Did — `:257`
-- Grouping APanel Marks The Workspace Unsaved — `:270`
-- The Project Panel Appears As Soon As There Is AProject — `:285`
-- The Canvas Gets The Room Left Over By The Strips — `:308`
-- The Project Row Menu Actually Does Something When Clicked — `:332`
-- The New Menu Actually Makes Things — `:469`
-- The Reference Panel Is Absent Until It Is Asked For — `:541`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:557`
+- An Untabbed Docker Looks Exactly As It Did — `:261`
+- Grouping APanel Marks The Workspace Unsaved — `:274`
+- The Project Panel Appears As Soon As There Is AProject — `:289`
+- The Canvas Gets The Room Left Over By The Strips — `:312`
+- The Project Row Menu Actually Does Something When Clicked — `:336`
+- The New Menu Actually Makes Things — `:473`
+- The Reference Panel Is Absent Until It Is Asked For — `:545`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:561`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

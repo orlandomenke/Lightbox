@@ -946,22 +946,19 @@ public partial class MainWindow : Window
 
     private void OnWorkspacePicked(object? sender, SelectionChangedEventArgs e)
     {
-        if (sender is not ComboBox picker || picker.SelectedItem is not WorkspaceRow row) return;
-        // Back to the placeholder — which shows the current workspace's name —
-        // because the list is a set of verbs, not a bound value. Leaving a
-        // selection in it would go stale the moment anything is rearranged.
-        picker.SelectedItem = null;
+        if (sender is not ListBox picker || picker.SelectedItem is not WorkspaceRow row) return;
+        // The tabs SHOW the current workspace now, so selection is state rather
+        // than a verb — and the guard is what stops the loop: applying raises
+        // SelectedName, which re-selects the row, which fires this again.
+        if (row.Name == _vm.Workspace.SelectedName) return;
         _vm.Workspace.Apply(row.Name);
     }
 
     private void OnDeleteWorkspace(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.Tag is not string name) return;
-        // The bin is inside the row, so the click would also pick the row.
         e.Handled = true;
         _vm.Workspace.Delete(name);
-        WorkspacePicker.SelectedItem = null;
-        WorkspacePicker.IsDropDownOpen = false;
     }
 
     // ---- dragging a panel ----------------------------------------------------

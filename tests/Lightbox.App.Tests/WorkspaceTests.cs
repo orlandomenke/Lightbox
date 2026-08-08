@@ -247,10 +247,14 @@ public sealed class WorkspaceTests : BrushStateIsolated
         Assert.True(Tab(resting).BorderThickness.Bottom > 0,
             "a resting tab must close at the bottom, or the rule has nothing to run along");
 
-        // The other three sides are the same on both, so the gap reads as the
-        // line breaking rather than as the active tab having lost its box.
-        Assert.Equal(Tab(resting).BorderThickness.Top, Tab(active).BorderThickness.Top);
-        Assert.Equal(Tab(resting).BorderThickness.Left, Tab(active).BorderThickness.Left);
+        // A resting tab has NO box — just its stretch of the rule. The active
+        // one keeps the full sheet edge. (The resting outline existed for one
+        // round and the owner had it removed: with the ground and the top line
+        // carrying the active state, a box on every resting tab was noise.)
+        Assert.Equal(0, Tab(resting).BorderThickness.Top);
+        Assert.Equal(0, Tab(resting).BorderThickness.Left);
+        Assert.True(Tab(active).BorderThickness.Top > 0,
+            "the active tab lost its sheet edge");
     }
 
     [AvaloniaFact]
