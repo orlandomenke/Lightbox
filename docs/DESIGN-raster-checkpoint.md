@@ -198,11 +198,76 @@ stop replaying. The initial recommendation here was a sidecar cache, reasoning
 from Q55's logic about derived artefacts; the industry went the other way and
 portability is why, so **in-document won**.
 
-Confidence: the architectural claims are firm. Specific figures — Photoshop's
-default history count, Krita's tile size — are from memory and would want checking
-before anything depends on them. Toon Boom Harmony is the closest commercial
-analogue (vector drawings, textured brushes, for animation) and is the one whose
-internals are least known here.
+### Harmony is the same combination, and its own manual documents the same bill
+
+Researched 2026-08-08 rather than assumed, because Toon Boom Harmony was the one
+analogue whose internals were unknown here. It turns out to be the closest thing
+to a precedent that exists, and it is not encouraging or discouraging so much as
+*clarifying*.
+
+Harmony offers textured brushes on vector layers, and describes them as
+*"bitmap textures contained within vector envelopes, which results in the editing
+capabilities of a vector line with the texture of a bitmap"* — on a vector layer,
+*"a greyscale bitmap mask applied to their colour"*. So: geometry as truth,
+textured marks, for animation. The same bet.
+
+And their documentation states the cost plainly:
+
+> *"While bitmap drawings are made of a single flat canvas, vector brush strokes
+> are kept as separate objects, which means that laying on a lot of textured brush
+> strokes on a vector drawing will require Harmony to store the texture for each
+> of these strokes, and to composite them together in real time to display your
+> drawing. This can cause texture-heavy vector drawings to be heavier on
+> application performance and in file size than bitmap drawings."*
+
+**Their mitigation is a stored bitmap per stroke** — a raster cache at stroke
+granularity rather than a document-level checkpoint, and the reason the file grows.
+It is the same instinct as this design, pushed one level down.
+
+**And the price they pay is the one thing Lightbox does not.** Harmony's textured
+strokes are *"resolution dependent, and are liable to lose quality and appear
+pixelated if they are enlarged or zoomed in"*, with a pixel-density setting the
+artist is told to pre-declare: *"if you intend to scale or zoom in on your artwork,
+make sure your pixel density is set to be at least the factor by which your artwork
+will [be] scaled or zoomed."*
+
+That is the trade named exactly. Cache pixels per stroke and materialising is
+cheap, but the mark is frozen at a resolution somebody had to guess in advance.
+Re-stamp from geometry — invariant 7, output scale as a canvas transform — and the
+mark is correct at any scale, but a bulk rebuild costs what B30 measures.
+**The replay cost is what buys resolution independence.** It is a price for
+something rather than an oversight, which is worth knowing before optimising it
+away.
+
+It also sharpens the checkpoint's shape: a checkpoint at *document* granularity
+keeps resolution independence, because the strokes are still the truth and the
+snapshot is discardable. Harmony's per-stroke texture *is* the truth, which is why
+theirs cannot be thrown away and re-derived. Same technique, opposite standing.
+
+### Three other things the research changed
+
+- **PSD's composite is opt-in, not automatic.** It is written only when *Maximize
+  (PSD and PSB) File Compatibility* is on — Adobe made the checkpoint a preference
+  precisely because of the size cost. Worth copying: the in-document decision above
+  should probably grow a setting rather than being unconditional, and that is a
+  smaller question than the one Q56 answered.
+- **Photoshop's history is bounded at 50 by default and 1 000 at maximum**, and
+  Adobe ties it directly to scratch-disk pressure — *"you can save scratch disk
+  space and improve performance by limiting or reducing the number of history
+  states"*. The byte-budget framing Q56 chose is the same reasoning.
+- **Blender Grease Pencil is not free either**, which weakens "the GPU solves it".
+  Blender's own optimisation task records GP objects being *"several orders of
+  magnitude slower than 3D meshes with the same complexity"*, because *"GP objects
+  create a shading group for each stroke"*. Per-stroke overhead scaling with stroke
+  count, on the GPU, tracked as a known problem. Nobody has this for free.
+
+**Krita's limitation is confirmed and stronger than stated above**: the brush tool
+is unavailable on a vector layer at all and *"you cannot use any brush preset on
+it"* — its vector layers are general-purpose SVG, and a Krita developer's own
+write-up (*Study of Editable Strokes for Inking*) treats editable textured strokes
+as an open problem rather than a shipped feature. So this is not a capability
+Lightbox is reimplementing late; it is one the most capable open-source painting
+application has studied and not shipped.
 
 ## The decisions
 
