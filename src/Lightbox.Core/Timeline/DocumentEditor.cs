@@ -83,13 +83,28 @@ public sealed class DocumentEditor
 
     /// <summary>Run a mutation as one undoable step (whole-document snapshot).</summary>
     /// <remarks>
-    /// The document is frozen to bytes here and only rebuilt if somebody
-    /// actually undoes to this point — see <see cref="SnapshotStep"/> for why
-    /// that is most of the fix for B142.
+    /// <b>The snapshot is a direct deep copy, not a serialize-and-parse (B142).</b>
+    /// This read <c>DocJson.Clone(Doc)</c>, which made every structural edit — add a
+    /// layer, edit a palette, apply a template, 43 call sites — build the whole
+    /// document as JSON text and parse it back. Measured on a 5 000-stroke painting:
+    /// 615 ms warm, ~1.1 s on the first one after opening, 72.5 MB allocated. Adding
+    /// a layer froze, and got worse the longer the painting went on.
+    /// <para>
+    /// <see cref="Doc.Clone"/> walks the graph instead. Same guarantee — nothing
+    /// shared with the live document — without the text. B142 was fixed twice in
+    /// parallel, and this is the survivor: the other fix froze the document to
+    /// UTF-8 bytes here and parsed them back lazily on the first undo, which cut
+    /// the edit to ~70 ms and moved the parse to Ctrl+Z. The clone is another
+    /// order of magnitude cheaper on the edit (5.8 ms at the same scale) and
+    /// leaves nothing for the undo to pay, so the laziness had nothing left to
+    /// defer. The freeze design's fidelity suite survives it —
+    /// <c>UndoSnapshotFidelityTests</c> compares whole serialized documents
+    /// across the round trip and does not care how the copy was made.
+    /// </para>
     /// </remarks>
     public void Perform(Action<Doc> mutate)
     {
-        PushStep(new SnapshotStep(DocJson.ToSnapshot(Doc)));
+        PushStep(new SnapshotStep(Doc.Clone()));
         mutate(Doc);
         Changed?.Invoke();
     }
@@ -172,41 +187,18 @@ public sealed class DocumentEditor
     /// leads away from for the one it leads back to.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <b>The other side is held frozen until it is wanted (B142).</b> Taking a
-    /// snapshot used to mean serializing the document <em>and</em> parsing the
-    /// result back into a second object graph — 615 ms and 72.5 MB on a
-    /// 5 000-stroke painting, paid on every structural edit, to build a document
-    /// that most of the time nobody ever looks at. Only the write half is
-    /// needed to make the step safe; the read half is needed only if somebody
-    /// presses Ctrl+Z, and the overwhelming majority of undo steps are never
-    /// undone.
-    /// </para>
-    /// <para>
-    /// So the cost moves: the edit pays the serialize, and the parse is paid by
-    /// the undo that asks for it — a moment that is both rare and one a person
-    /// already expects to take a beat. Measured on the same painting, the edit
-    /// goes from 493 ms to 54 ms.
-    /// </para>
-    /// <para>
-    /// <b>Held bytes, then held object, and never both.</b> Once a step has been
-    /// rolled back, the document it came <em>from</em> is in hand and nothing
-    /// else references it, so redo keeps the object rather than re-freezing it.
-    /// A step that is undone and redone repeatedly therefore parses at most
-    /// once, and a step nobody touches never parses at all. Bytes are also the
-    /// smaller of the two to hold: 4.7 MB compact against a parsed graph several
-    /// times that.
-    /// </para>
+    /// <b>The other side is a live clone, held as-is (B142).</b> A frozen-bytes
+    /// variant of this class existed briefly — serialize eagerly, parse lazily
+    /// on the first undo — built when taking the snapshot cost hundreds of
+    /// milliseconds and deferring the parse was worth a two-state object.
+    /// <see cref="Doc.Clone"/> made the snapshot cheaper than the serialize
+    /// half alone, so the step holds the document itself and undo pays
+    /// nothing. Swapping rather than copying is what makes redo exact: the
+    /// step always holds whichever document is not current.
     /// </remarks>
-    private sealed class SnapshotStep : IEditStep
+    private sealed class SnapshotStep(Doc other) : IEditStep
     {
-        /// <summary>The other side, still frozen. Null once it has been rebuilt.</summary>
-        private byte[]? _frozen;
-
-        /// <summary>The other side, in hand. Null while it is still frozen.</summary>
-        private Doc? _thawed;
-
-        public SnapshotStep(byte[] frozen) => _frozen = frozen;
+        private Doc _other = other;
 
         public string? FrameId => null; // whole-document
 
@@ -216,11 +208,8 @@ public sealed class DocumentEditor
 
         private Doc Swap(Doc doc)
         {
-            // Exactly one of the two is set; `_thawed` first so a second
-            // traversal never re-parses.
-            var restored = _thawed ?? DocJson.FromSnapshot(_frozen!);
-            _thawed = doc;
-            _frozen = null;
+            var restored = _other;
+            _other = doc;
             return restored;
         }
     }

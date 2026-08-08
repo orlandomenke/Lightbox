@@ -59,4 +59,7 @@ public sealed class AudioTrack
     public double Volume { get; set; } = 1.0;
 
     public bool Muted { get; set; }
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public AudioTrack Clone() => (AudioTrack)MemberwiseClone();
 }

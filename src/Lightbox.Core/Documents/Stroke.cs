@@ -105,34 +105,44 @@ public sealed class Stroke
     public BakedSample? Baked { get; set; }
 
     /// <summary>
-    /// A copy with a fresh id and everything else intact.
+    /// A copy with everything intact, and by default a fresh id.
     /// </summary>
+    /// <param name="newId">
+    /// False when the copy has to <em>be</em> this stroke rather than resemble it —
+    /// an undo snapshot restores the stroke that was there, so it keeps the id the
+    /// rest of the record refers to. True everywhere an artist gets a second,
+    /// separate mark: duplicating a cel, generating an inbetween.
+    /// </param>
     /// <remarks>
-    /// <b>Every property belongs here.</b> This is what duplicating a cel and
-    /// generating an inbetween both go through, and it silently omitted
-    /// <see cref="SwatchId"/> and <see cref="GradientId"/> — so a copied
-    /// drawing kept its colour but lost its link to the palette, and
-    /// recolouring the swatch afterwards changed the original and not the copy.
-    /// A field added to a stroke and not added here does not fail: it goes
-    /// quiet, which is why the list is exhaustive rather than "the ones that
-    /// matter".
+    /// <b>This used to list every property by hand, and the list was the bug.</b>
+    /// It silently omitted <see cref="SwatchId"/> and <see cref="GradientId"/>, so a
+    /// copied drawing kept its colour but lost its link to the palette — and
+    /// recolouring the swatch afterwards changed the original and not the copy. The
+    /// remark here then said the list must be exhaustive, which is true and is not
+    /// something a reader can enforce.
+    /// <para>
+    /// <see cref="MemberwiseClone"/> removes the possibility instead of warning
+    /// about it: every value field is copied because the runtime copies them, so a
+    /// property added to a stroke cannot go quiet. What is left below is only the
+    /// members that are references and would otherwise be shared — a much shorter
+    /// list, and one whose omissions <c>DocCloneTests</c> detects by walking the
+    /// graph.
+    /// </para>
+    /// <para>
+    /// <see cref="Baked"/> stays shared deliberately, as it always has: see
+    /// <see cref="BakedSample"/>, which is replaced or dropped rather than edited,
+    /// and can be a megabyte of base64.
+    /// </para>
     /// </remarks>
-    public Stroke Clone() => new()
+    public Stroke Clone(bool newId = true)
     {
-        Id = Ids.NewId("s"),
-        Tool = Tool,
-        Color = Color,
-        SwatchId = SwatchId,
-        PaletteId = PaletteId,
-        GradientId = GradientId,
-        Brush = Brush.Clone(),
-        Points = [.. Points],
-        Holes = Holes?.Select(h => new List<StrokePoint>(h)).ToList(),
-        ClipId = ClipId,
-        AlphaLocked = AlphaLocked,
-        Label = Label,
-        Baked = Baked,
-    };
+        var copy = (Stroke)MemberwiseClone();
+        if (newId) copy.Id = Ids.NewId("s");
+        copy.Brush = Brush.Clone();
+        copy.Points = [.. Points];
+        copy.Holes = Holes?.Select(h => new List<StrokePoint>(h)).ToList();
+        return copy;
+    }
 }
 
 /// <summary>

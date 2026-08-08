@@ -29,6 +29,9 @@ public sealed class CameraKey
     /// described the same way.
     /// </summary>
     public Easing Ease { get; set; } = Easing.EaseInOut;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public CameraKey Clone() => (CameraKey)MemberwiseClone();
 }
 
 /// <summary>
@@ -52,6 +55,14 @@ public sealed class Camera
 
     /// <summary>Authored framings. Order is not guaranteed; read through <see cref="CameraOps"/>.</summary>
     public List<CameraKey> Keys { get; set; } = [];
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public Camera Clone()
+    {
+        var copy = (Camera)MemberwiseClone();
+        copy.Keys = Keys.Select(k => k.Clone()).ToList();
+        return copy;
+    }
 }
 
 /// <summary>The camera's framing on one frame, after interpolation.</summary>

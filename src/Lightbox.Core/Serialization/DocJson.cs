@@ -65,28 +65,24 @@ public static class DocJson
     public static Doc Clone(Doc doc) => FromSnapshot(ToSnapshot(doc));
 
     /// <summary>
-    /// Freeze a document into the bytes an undo step holds.
+    /// Freeze a document into compact UTF-8 bytes — <see cref="Clone"/>'s write
+    /// half.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <b>B142.</b> Undo snapshots used to go through <see cref="Serialize"/>,
-    /// which is <see cref="Options"/>, which is <c>WriteIndented</c> — so every
-    /// structural edit pretty-printed the whole document. On a 5 000-stroke
-    /// painting that is 13.6 MB of UTF-16 with the indentation making up two
-    /// thirds of it, and none of it was ever read by a human.
-    /// </para>
     /// <para>
     /// Compact, and UTF-8 bytes rather than a string: the serializer writes
     /// UTF-8 natively, so asking for a <see cref="string"/> transcodes the whole
     /// document into UTF-16 on the way out and back again on the way in, for a
-    /// buffer that only ever goes to a parser.
+    /// buffer that only ever goes to a parser. Going through <see cref="Serialize"/>
+    /// instead would also mean <c>WriteIndented</c> — 13.6 MB of pretty-printed
+    /// UTF-16 on a 5 000-stroke painting, none of it ever read by a human.
     /// </para>
     /// <para>
-    /// Still the same serializer and the same converters, deliberately. A
-    /// hand-written deep clone would be faster again and would be a list of
-    /// fields somebody forgets to extend — and the failure mode there is a
-    /// document that silently does not undo, which is the worst kind this
-    /// codebase can produce.
+    /// These briefly held undo snapshots (B142's first fix froze the document
+    /// here and thawed it lazily on the first Ctrl+Z); the undo path now takes
+    /// <see cref="Doc.Clone"/>, which is cheaper than this method alone. What
+    /// remains behind this pair is <see cref="Clone"/> — the round trip for
+    /// callers where a copy must also prove it survives serialization.
     /// </para>
     /// </remarks>
     public static byte[] ToSnapshot(Doc doc) => JsonSerializer.SerializeToUtf8Bytes(doc, Compact);
@@ -94,7 +90,7 @@ public static class DocJson
     /// <summary>Rebuild a document from <see cref="ToSnapshot"/>'s bytes.</summary>
     public static Doc FromSnapshot(byte[] bytes) =>
         JsonSerializer.Deserialize<Doc>(bytes, Compact)
-        ?? throw new JsonException("Undo snapshot deserialized to null.");
+        ?? throw new JsonException("Document snapshot deserialized to null.");
 
     /// <summary>Deep clone of any part of a document, through the same converters.</summary>
     /// <remarks>

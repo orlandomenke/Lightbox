@@ -165,6 +165,49 @@ public sealed class Doc
     /// </remarks>
     public bool GetFeature(Lightbox.Core.Projects.FeatureKey feature, bool projectDefault) =>
         Features?.TryGetValue(feature.ToString(), out var value) == true ? value : projectDefault;
+
+    /// <summary>
+    /// A copy holding no reference in common with this one — the undo path's
+    /// snapshot.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this exists rather than <c>DocJson.Clone</c> (B142).</b> Every
+    /// structural edit pushes a snapshot, and routing that through
+    /// serialize-then-parse made adding a layer to a 5 000-stroke painting cost
+    /// 615 ms warm and ~1.1 s cold, allocating 72.5 MB — the slowest possible way
+    /// to copy an object graph, paid on an ordinary action. This walks the graph
+    /// directly.
+    /// </para>
+    /// <para>
+    /// <b>Built on <c>MemberwiseClone</c> at every level on purpose.</b> That copies
+    /// every value field automatically, so a new scalar property cannot be silently
+    /// dropped by a clone nobody updated; only reference members need deepening
+    /// here, and <c>DocCloneTests</c> walks both graphs to prove none was missed.
+    /// The alternative — writing out every field by hand — fails silently in the
+    /// direction that corrupts a document rather than slowing it.
+    /// </para>
+    /// <para>
+    /// <c>DocJson.Clone</c> stays: it is the reference implementation the tests
+    /// compare against, and the right tool anywhere a copy must also prove it
+    /// survives serialization.
+    /// </para>
+    /// </remarks>
+    public Doc Clone()
+    {
+        var copy = (Doc)MemberwiseClone();
+        copy.Scene = Scene.Clone();
+        copy.ReferenceSheets = ReferenceSheets.Select(s => s.Clone()).ToList();
+        copy.BrushTips = new Dictionary<string, string>(BrushTips);
+        copy.Textures = Textures is null ? null : new Dictionary<string, string>(Textures);
+        copy.ClipRegions = ClipRegions.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.Palettes = Palettes.Select(p => p.Clone()).ToList();
+        copy.PaletteFolders = PaletteFolders?.Select(f => f.Clone()).ToList();
+        copy.Gradients = Gradients.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.Symbols = Symbols?.ToDictionary(e => e.Key, e => e.Value.Clone());
+        copy.Features = Features is null ? null : new Dictionary<string, bool>(Features);
+        return copy;
+    }
 }
 
 /// <summary>A recorded selection: closed contours (even-odd) plus edge feather.</summary>
@@ -174,4 +217,12 @@ public sealed class ClipRegion
 
     /// <summary>Gaussian edge softness in pixels (0 = hard edge).</summary>
     public double Feather { get; set; }
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public ClipRegion Clone()
+    {
+        var copy = (ClipRegion)MemberwiseClone();
+        copy.Contours = Contours.Select(c => new List<StrokePoint>(c)).ToList();
+        return copy;
+    }
 }
