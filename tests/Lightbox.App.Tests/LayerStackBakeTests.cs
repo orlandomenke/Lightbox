@@ -269,4 +269,60 @@ public sealed class LayerStackBakeTests(ITestOutputHelper output) : BrushStateIs
             $"changed region after transition: {seen!.ChangedInImage?.ToString() ?? "whole image"}");
         Assert.Null(seen.ChangedInImage);
     }
+
+    /// <summary>
+    /// An unbounded document holds its frames as tiles, and those passes carry
+    /// a <c>SourceFrame</c> instead of a bitmap. The bake must decline them.
+    /// </summary>
+    /// <remarks>
+    /// This is where the layer-stack bake and tile-native frames meet, and
+    /// they were written on branches that never saw each other. Folding a tile
+    /// pass fails three ways: the key is built from bitmap identity, so two
+    /// different frames key identically and a stale bake is served for the
+    /// wrong picture; <c>ComposeInto</c> draws from bitmaps, so the bake would
+    /// quietly lose the layer; and the bake is document-resolution, which is
+    /// the exact allocation the tile path exists to avoid. Before the fold
+    /// learned to refuse them this did not merely mis-render — <c>KeyOf</c>
+    /// handed a null bitmap to <c>BitmapVersion.Of</c>, which throws.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AnUnboundedDocumentNeverFolds()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.StackBake.Enabled = true;
+        vm.SmoothStrokes = false;
+        vm.SetViewport(SKRectI.Create(0, 0, 960, 540));
+        vm.SetDocumentFeature(
+            Lightbox.Core.Projects.FeatureKey.UnboundedCanvas, true, projectDefault: false);
+
+        // The same stack the bounded tests fold: paper + three paint layers,
+        // active in the middle, so there are two segments to tempt it with.
+        vm.AddPaintedLayerCommand.Execute(null);
+        vm.AddPaintedLayerCommand.Execute(null);
+        for (var i = 1; i <= 3; i++)
+        {
+            vm.ActiveLayerIndex = i;
+            vm.BeginStroke(100 * i, 100, 1);
+            vm.MoveStroke(100 * i, 200, 1);
+            vm.EndStroke();
+        }
+        vm.ActiveLayerIndex = 2;
+
+        // Three publishes: the fold needs two consecutive matching keys, so a
+        // single one could pass while still being one publish away from baking.
+        using var first = Published(vm);
+        Published(vm).Dispose();
+        using var third = Published(vm);
+
+        output.WriteLine(
+            $"rebuilds {vm.StackBake.Rebuilds}, folded publishes {vm.StackBake.FoldedPublishes}");
+        Assert.Equal(0, vm.StackBake.Rebuilds);
+        Assert.Equal(0, vm.StackBake.FoldedPublishes);
+
+        // And the picture is still whole — a refused fold must leave the pass
+        // list alone, not drop the segments it declined to bake.
+        var diff = MaxChannelDiff(first, third);
+        output.WriteLine($"max channel diff across repeated unbounded publishes: {diff}");
+        Assert.Equal(0, diff);
+    }
 }

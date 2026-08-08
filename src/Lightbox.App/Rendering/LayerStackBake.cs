@@ -68,7 +68,7 @@ namespace Lightbox.App.Rendering;
 public sealed class LayerStackBake : IDisposable
 {
     private readonly record struct PassKey(
-        SKBitmap Bitmap, long Version, SKColor? Tint, double Opacity, SKBlendMode Blend,
+        SKBitmap? Bitmap, long Version, SKColor? Tint, double Opacity, SKBlendMode Blend,
         SKMatrix? Matrix, SKRectI? Source);
 
     private sealed class Segment : IDisposable
@@ -232,23 +232,47 @@ public sealed class LayerStackBake : IDisposable
 
     /// <summary>
     /// Whether a segment can be pre-folded without changing the picture.
+    /// </summary>
+    /// <remarks>
+    /// <para>
     /// SrcOver only, because folding rests on its associativity; no live
     /// overlays, because they change per pointer event. A pass matrix is
     /// allowed — a reference strip is positioned by one and is otherwise
     /// perfectly static — because it folds through the same ComposeInto the
     /// unbaked path uses, and it is part of the key, so a transform drag whose
     /// matrix moves every event simply never matches twice.
-    /// </summary>
+    /// </para>
+    /// <para>
+    /// A tile-native pass — one carrying a <c>SourceFrame</c> rather than a
+    /// bitmap, which is how an unbounded document holds a frame — is refused,
+    /// for three separate reasons and any one of them is enough. Its
+    /// <c>Bitmap</c> is null, so it has no identity to key on and two
+    /// different frames would key identically, which is a stale bake served
+    /// for the wrong picture. <see cref="SceneRenderer.ComposeInto"/> draws
+    /// from bitmaps, so a bake of one would silently lose the layer. And the
+    /// bake is document-resolution, which is exactly the allocation the tile
+    /// path exists to avoid — folding there would spend the property that
+    /// makes an unbounded canvas possible in order to save a blend.
+    /// </para>
+    /// </remarks>
     private static bool Eligible(List<RenderPass> passes) =>
-        passes.TrueForAll(p => p.Blend == SKBlendMode.SrcOver && p.Overlay is null);
+        passes.TrueForAll(p =>
+            p.Blend == SKBlendMode.SrcOver
+            && p.Overlay is null
+            && p.SourceFrame is null
+            && p.Bitmap is not null);
 
     private static List<PassKey> KeyOf(List<RenderPass> passes)
     {
         var key = new List<PassKey>(passes.Count);
         foreach (var p in passes)
         {
+            // Eligible has already refused a null bitmap, so this is the
+            // belt to that braces: BitmapVersion.Of would throw rather than
+            // warn, and a key that cannot be built must fail closed — version
+            // 0 against a null bitmap never matches a real pass.
             key.Add(new PassKey(
-                p.Bitmap, Lightbox.Raster.BitmapVersion.Of(p.Bitmap),
+                p.Bitmap, p.Bitmap is null ? 0 : Lightbox.Raster.BitmapVersion.Of(p.Bitmap),
                 p.Tint, p.Opacity, p.Blend, p.Matrix, p.Source));
         }
         return key;

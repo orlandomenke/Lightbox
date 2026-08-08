@@ -62,6 +62,60 @@ public sealed partial class FrameCell(int index) : ObservableObject
 public sealed partial class MainViewModel : ObservableObject
 {
     private readonly FrameBitmapCache _cache = new();
+
+    /// <summary>
+    /// The tile-native sibling of <see cref="_cache"/>, used when the canvas
+    /// is unbounded so a frame costs its ink rather than its paper. Both are
+    /// invalidated through <see cref="InvalidateFrameRender"/> and
+    /// <see cref="ClearFrameRenders"/> — one funnel, so they cannot disagree.
+    /// </summary>
+    private readonly TileFrameCache _tileFrames = new();
+
+    /// <summary>Whether this document opted into the unbounded canvas.</summary>
+    private bool UnboundedCanvasOn =>
+        Doc?.Features?.TryGetValue(
+            nameof(Lightbox.Core.Projects.FeatureKey.UnboundedCanvas), out var on) == true && on;
+
+    /// <summary>Diagnostics for tests and the render report.</summary>
+    internal TileFrameCache TileFrames => _tileFrames;
+
+    /// <inheritdoc cref="TileFrames"/>
+    internal long BitmapCacheBytes => _cache.CachedBytes;
+
+    /// <summary>Every frame mutation goes through here, whichever cache holds it.</summary>
+    private void InvalidateFrameRender(string frameId)
+    {
+        _cache.Invalidate(frameId);
+        _tileFrames.Invalidate(frameId);
+    }
+
+    /// <inheritdoc cref="InvalidateFrameRender"/>
+    private void ClearFrameRenders()
+    {
+        _cache.Clear();
+        _tileFrames.Clear();
+    }
+
+    /// <summary>
+    /// Commit one stroke's pixels incrementally — onto the cached bitmap, or
+    /// into the cached tiles when the unbounded canvas holds this frame as
+    /// tiles. Both are invariant 6's shape: work proportional to the stroke.
+    /// </summary>
+    /// <remarks>
+    /// The bitmap path is deliberately not warmed for a tileable unbounded
+    /// frame: <c>_cache.Get</c> on a miss materialises a document-sized
+    /// bitmap, which is the exact allocation the tile store exists to avoid.
+    /// </remarks>
+    private void AppendToFrameRender(Lightbox.Core.Documents.Frame target, Stroke stroke)
+    {
+        if (UnboundedCanvasOn && TileFrameCache.CanTileFrame(target))
+        {
+            _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
+            return;
+        }
+        FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
+    }
+
     private readonly StrokeBuilder _strokeBuilder = new();
     private readonly PlaybackClock _clock = new();
     private readonly SelectionManager _selectionManager = new();
@@ -683,7 +737,9 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.Changed -= OnDocumentChanged;
         _editor = editor;
         _editor.Changed += OnDocumentChanged;
-        _cache.Clear();
+        // ClearFrameRenders subsumes the _cache.Clear() this used to be: it
+        // empties the tile cache alongside it, through the one funnel.
+        ClearFrameRenders();
         // The bakes hold bitmaps folded from the old document's cache; the
         // keys would miss anyway, but a document switch should not keep two
         // document-sized bitmaps of a scene nobody is looking at.
@@ -1351,7 +1407,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (exposed is PaintedFrame painted && LiveStrokes(painted) is { Count: > 0 } live)
             {
                 Rebake(live, below, scene.Width, scene.Height);
-                _cache.Invalidate(painted.Id);
+                InvalidateFrameRender(painted.Id);
                 _dirtyThumbIds.Add(painted.Id);
             }
             if (scene.IsLayerVisible(layer)) below.Add((layer, exposed));
@@ -1841,7 +1897,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 if (cel.Frame is not { } frame) continue;
                 if (!StrokesOf(frame).Any(s => s.SwatchId == swatchId)) continue;
-                _cache.Invalidate(frame.Id);
+                InvalidateFrameRender(frame.Id);
                 _dirtyThumbIds.Add(frame.Id);
             }
         }
@@ -2162,7 +2218,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 if (cel.Frame is not { } frame) continue;
                 if (!StrokesOf(frame).Any(s => s.GradientId == gradientId)) continue;
-                _cache.Invalidate(frame.Id);
+                InvalidateFrameRender(frame.Id);
                 _dirtyThumbIds.Add(frame.Id);
             }
         }
@@ -3702,7 +3758,7 @@ public sealed partial class MainViewModel : ObservableObject
         };
         if (PrepareClipForSelection() is { } clip) stroke.ClipId = clip.Id;
 
-        FrameRasterizer.Append(_cache.Get(target, scene.Width, scene.Height), stroke);
+        AppendToFrameRender(target, stroke);
         _committingScopedEdit = true;
         try
         {
@@ -3791,11 +3847,11 @@ public sealed partial class MainViewModel : ObservableObject
             // changes stroke order, so only that path pays a frame re-render.
             if (below)
             {
-                _cache.Invalidate(target.Id);
+                InvalidateFrameRender(target.Id);
             }
             else
             {
-                FrameRasterizer.Append(_cache.Get(target, scene.Width, scene.Height), stroke);
+                AppendToFrameRender(target, stroke);
             }
 
             var frameId = target.Id;
@@ -5350,7 +5406,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         FreezeSampledBackdrop(stroke);
         RememberDocumentBrush();
-        FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
+        AppendToFrameRender(target, stroke);
 
         var frameId = target.Id;
         var addedClip = false;
@@ -5504,7 +5560,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (clip is not null) stroke.ClipId = clip.Value.Id;
         FreezeSampledBackdrop(stroke);
         RememberDocumentBrush();
-        FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
+        AppendToFrameRender(target, stroke);
 
         var frameId = target.Id;
         var addedClip = false;
@@ -6149,8 +6205,7 @@ public sealed partial class MainViewModel : ObservableObject
         // to pause on drawings with many strokes. Appending the exact stroke
         // to the previously exact bitmap is the same sequence Materialize
         // would run, so the pixels stay bit-identical.
-        var cached = _cache.Get(target, Scene.Width, Scene.Height); // pre-stroke state (record not yet updated)
-        FrameRasterizer.Append(cached, stroke);
+        AppendToFrameRender(target, stroke); // pre-stroke state (record not yet updated)
 
         // Undo without snapshotting the whole document (the other pen-lift
         // pause). The frame is resolved by id at apply/revert time: a
@@ -7486,7 +7541,7 @@ public sealed partial class MainViewModel : ObservableObject
         ClearTransformPreview();
         // Invalidate before the edit so the Changed refresh re-renders from
         // the transformed record.
-        foreach (var frame in frames) _cache.Invalidate(frame.Id);
+        foreach (var frame in frames) InvalidateFrameRender(frame.Id);
         _editor.Perform(_ =>
         {
             foreach (var frame in frames)
@@ -7779,12 +7834,12 @@ public sealed partial class MainViewModel : ObservableObject
         if (!scope.Any) return;
         if (scope.FrameId is { } frameId)
         {
-            _cache.Invalidate(frameId);
+            InvalidateFrameRender(frameId);
             _dirtyThumbIds.Add(frameId);
         }
         else
         {
-            _cache.Clear();
+            ClearFrameRenders();
             _allThumbsDirty = true;
         }
         ClampCurrentFrame(publishIfUnchanged: false);
@@ -8165,7 +8220,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (cel.Frame is { } frame)
             {
-                _cache.Invalidate(frame.Id);
+                InvalidateFrameRender(frame.Id);
                 _dirtyThumbIds.Add(frame.Id);
             }
         }
@@ -8736,7 +8791,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (keyIndex < 0) return 0;
         var frame = layer.Cels[keyIndex].Frame!;
         _editor.Perform(_ => StrokesOf(frame).AddRange(strokes));
-        _cache.Invalidate(frame.Id);
+        InvalidateFrameRender(frame.Id);
         _dirtyThumbIds.Add(frame.Id);
         PublishSnapshot();
         RefreshThumbnails();
@@ -8890,6 +8945,27 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _allThumbsDirty;
 
     /// <summary>
+    /// The bitmap a thumbnail shrinks from. Bounded documents hand back the
+    /// full-size cached render — the thumbnail rides a bitmap the canvas needs
+    /// anyway. An unbounded document has no such bitmap: materialising one
+    /// would allocate the document-sized surface the whole tile path exists to
+    /// avoid, and only to be shrunk to 32×18. So it renders small instead —
+    /// output scale is the surface transform (invariant 7), the stroke record
+    /// is untouched, and the cache keys on size+scale so the entry stays tiny.
+    /// </summary>
+    private SKBitmap ThumbSource(Frame frame, int celIndex)
+    {
+        if (!UnboundedCanvasOn)
+        {
+            return _cache.Get(frame, Scene.Width, Scene.Height, celIndex: celIndex);
+        }
+        var scale = Math.Min(1.0, Math.Min(
+            ThumbnailRenderer.Width * 4.0 / Scene.Width,
+            ThumbnailRenderer.Height * 4.0 / Scene.Height));
+        return _cache.Get(frame, Scene.Width, Scene.Height, outputScale: scale, celIndex: celIndex);
+    }
+
+    /// <summary>
     /// Update timeline thumbnails lazily: only cells whose keyed frame is new,
     /// changed, or explicitly marked dirty are re-rendered.
     /// </summary>
@@ -8911,7 +8987,7 @@ public sealed partial class MainViewModel : ObservableObject
                             || _dirtyThumbIds.Contains(frame.Id);
                 if (!stale && cell.Thumb is not null) continue;
 
-                var bmp = _cache.Get(frame, Scene.Width, Scene.Height, celIndex: cell.Index);
+                var bmp = ThumbSource(frame, cell.Index);
                 cell.Thumb = ThumbnailRenderer.Render(bmp);
                 cell.ThumbFrameId = frame.Id;
             }
@@ -8943,7 +9019,7 @@ public sealed partial class MainViewModel : ObservableObject
                         || _dirtyThumbIds.Contains(frame.Id);
             if (!stale && row.Thumb is not null) continue;
 
-            var bmp = _cache.Get(frame, Scene.Width, Scene.Height, celIndex: CurrentFrameIndex);
+            var bmp = ThumbSource(frame, CurrentFrameIndex);
             row.Thumb = ThumbnailRenderer.RenderChecker(bmp, 44, 26);
             row.ThumbFrameId = frame.Id;
         }
@@ -9831,6 +9907,13 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var scene = Scene;
         var passes = new List<RenderPass>();
+        // Tile-native passes are only legible to the unbounded compositor, so
+        // the decision to build them must equal the decision to use it — a
+        // publish with no viewport yet, or with a camera authored, takes the
+        // bounded path, and a tile pass sent there would silently vanish.
+        var unboundedDoc = UnboundedCanvasOn
+            && scene.Camera is null
+            && _pendingViewport is { Width: > 0, Height: > 0 };
 
         // Where the active layer's contribution begins and ends in the pass
         // list, so the layers that are NOT being drawn on can be folded into
@@ -9884,7 +9967,25 @@ public sealed partial class MainViewModel : ObservableObject
                 continue;
             }
 
-            var bmp = _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex);
+            // The unbounded canvas holds tileable frames as tiles, so the
+            // pass carries the FRAME and the compositor reads the tile cache —
+            // fetching the bitmap here would materialise the document-sized
+            // allocation the tile store exists to avoid. A frame the tiles
+            // cannot say (baseline pixels, placements, an effect stroke — see
+            // TileFrameCache.CanTileFrame) falls back to the bitmap path, as
+            // does the active layer while a live blur/smudge is replacing it.
+            Lightbox.Core.Documents.Frame? tileFrame = null;
+            SKBitmap? bmp = null;
+            var liveEffectHere = _liveComposite is not null
+                && _strokeBuilder.IsActive && layer.Id == ActiveLayer.Id;
+            if (unboundedDoc && !liveEffectHere && TileFrameCache.CanTileFrame(frame))
+            {
+                tileFrame = frame;
+            }
+            else
+            {
+                bmp = _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex);
+            }
 
             // Blur and smudge REPLACE the layer rather than overlaying it.
             //
@@ -9894,7 +9995,7 @@ public sealed partial class MainViewModel : ObservableObject
             // exactly this, and FlushLivePreview has been appending each drag
             // segment to it every event; it simply was never shown, so the
             // smear only appeared when the pen lifted and the commit landed.
-            if (_liveComposite is not null && _strokeBuilder.IsActive && layer.Id == ActiveLayer.Id)
+            if (liveEffectHere)
             {
                 bmp = _liveComposite;
             }
@@ -9998,7 +10099,8 @@ public sealed partial class MainViewModel : ObservableObject
                 ? layer.Opacity * Onion.Opacity
                 : layer.Opacity;
             passes.Add(new RenderPass(
-                bmp, null, opacity, SceneRenderer.ToSkia(layer.BlendMode), overlay));
+                bmp, null, opacity, SceneRenderer.ToSkia(layer.BlendMode), overlay,
+                SourceFrame: tileFrame));
 
             // Draw-over puts them above instead. Under is how a lightbox works
             // and is what you want while drawing; over is for checking, when a
@@ -10042,11 +10144,9 @@ public sealed partial class MainViewModel : ObservableObject
         // The tiled rendering path is not yet optimized for performance, so we only use it
         // when an artist has explicitly opted in via the document features override.
         // TODO: Optimize TileStore.FromBitmap or render directly to tiles to make this faster.
-        var hasExplicitUnboundedCanvas = Doc?.Features?.TryGetValue(
-            nameof(Lightbox.Core.Projects.FeatureKey.UnboundedCanvas), out var enabled) == true && enabled;
         // A camera defers to the camera path: the unbounded compositor maps the
         // viewport itself, and two things that both map the view disagree.
-        var useUnboundedPath = hasExplicitUnboundedCanvas
+        var useUnboundedPath = unboundedDoc
             && cameraView is null
             && _pendingViewport is { Width: > 0, Height: > 0 };
 
@@ -10201,12 +10301,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// bitmap in place (see <c>BitmapVersion</c>).
     /// </para>
     /// <para>
-    /// The tile machinery keeps its real job for the step after this one:
-    /// frames rasterised stroke→tile with no document-sized bitmap at all
-    /// (<c>TiledRasterizer</c>), composited through <c>TilePyramid</c> levels
-    /// so deep zoom-outs get mip quality. That is where ink beyond the
-    /// nominal canvas becomes storable, which is what "unbounded" ultimately
-    /// means.
+    /// Tileable frames arrive as <c>SourceFrame</c> passes and composite from
+    /// <see cref="TileFrameCache"/> — rasterised stroke→tile with no
+    /// document-sized bitmap anywhere, through <c>TilePyramid</c> levels so
+    /// deep zoom-outs get mip quality. Frames tiles cannot say (baseline
+    /// pixels, placements, effect strokes) and ghost passes still ride the
+    /// bitmap path below. Ink beyond the nominal canvas is the remaining
+    /// step: stroke bounds are still clamped to the document (B134), so the
+    /// record keeps off-paper strokes but no tile holds them yet.
     /// </para>
     /// <para>
     /// Pass opacity, tint and blend ride on the draw's paint — the same math
@@ -10245,7 +10347,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         foreach (var pass in passes)
         {
-            if (pass.Bitmap is null) continue;
+            if (pass.Bitmap is null && pass.SourceFrame is null) continue;
 
             var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
             using var paint = new SKPaint
@@ -10267,7 +10369,36 @@ public sealed partial class MainViewModel : ObservableObject
             if (needsIsolation) canvas.SaveLayer(paint);
             var contentPaint = needsIsolation ? null : paint;
 
-            if (pass.Matrix is { } m)
+            if (pass.SourceFrame is { } tileSrc)
+            {
+                // A tile-native pass: composite the visible tiles 1:1 at the
+                // pyramid level nearest the screen's resolution, then place
+                // that one image in document space — the outer transform does
+                // the rest. The residual resample is a single ≤2× downscale of
+                // one image, so deep zoom-outs get box-mip quality instead of
+                // skip-sampling shimmer, and the intermediate is bounded by
+                // the surface however many document pixels the viewport spans.
+                var (_, pyramid) = _tileFrames.Get(tileSrc, scene.Width, scene.Height);
+                var level = Lightbox.Raster.TilePyramid.LevelFor(renderScale);
+                var step = Lightbox.Raster.TilePyramid.StepOf(level);
+                var lvp = SKRectI.Create(
+                    FloorDiv(viewport.Left, step),
+                    FloorDiv(viewport.Top, step),
+                    Math.Max(1, viewport.Width / step + 2),
+                    Math.Max(1, viewport.Height / step + 2));
+                using var flat = Lightbox.Raster.TileCompositor.CompositeToBitmap(
+                    pyramid.Level(level), lvp);
+                using var view = SKImage.FromBitmap(flat);
+                if (view is not null)
+                {
+                    canvas.Save();
+                    canvas.Translate(lvp.Left * step, lvp.Top * step);
+                    canvas.Scale(step);
+                    canvas.DrawImage(view, 0, 0, Linear, contentPaint);
+                    canvas.Restore();
+                }
+            }
+            else if (pass.Matrix is { } m)
             {
                 // A positioned pass — a reference strip. Its matrix nests
                 // inside the viewport transform, exactly as it nests inside
@@ -10289,7 +10420,7 @@ public sealed partial class MainViewModel : ObservableObject
                 // the nominal document, and a source rect off the bitmap is
                 // undefined rather than transparent.
                 var src = SKRectI.Intersect(
-                    viewport, SKRectI.Create(0, 0, pass.Bitmap.Width, pass.Bitmap.Height));
+                    viewport, SKRectI.Create(0, 0, pass.Bitmap!.Width, pass.Bitmap.Height));
                 if (src.Width > 0 && src.Height > 0)
                 {
                     using var img = SKImage.FromBitmap(pass.Bitmap);
@@ -10352,6 +10483,8 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private static readonly SKSamplingOptions Linear = new(SKFilterMode.Linear);
+
+    private static int FloorDiv(int a, int b) => a >= 0 ? a / b : (a - b + 1) / b;
 
     /// <summary>
     /// Convert the document rectangle a publish repainted into the image's own
@@ -10937,6 +11070,12 @@ public sealed partial class MainViewModel : ObservableObject
             // Override the default
             doc.Features[feature.ToString()] = value;
         }
+
+        // A feature can change how frames are rendered — unbounded canvas
+        // swaps document-sized bitmaps for sparse tiles — so every render made
+        // under the old setting is stale the moment the toggle lands.
+        ClearFrameRenders();
+        PublishSnapshot();
 
         _autosave.MarkDirty();
     }
