@@ -1,6 +1,6 @@
 # Code index
 
-560 files · 147867 lines · 2926 tests.
+560 files · 147880 lines · 2926 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,11 +49,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (10742 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4539, TransformParts:7229
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4585 ln) · 23 test files
-  - MainWindow:19, UnsavedChoice:3027
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4587 ln) · 23 test files
+  - MainWindow:19, UnsavedChoice:3029
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4039 ln) · 14 test files
   - CanvasControl:28, CanvasToolMode:908, GridGesture:965, TxDrag:1178, DrawOp:3220
-- `src/Lightbox.App/Views/MainWindow.axaml` (3678 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3689 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830

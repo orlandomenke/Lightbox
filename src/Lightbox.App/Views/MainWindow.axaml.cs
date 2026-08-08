@@ -556,7 +556,9 @@ public partial class MainWindow : Window
                 break;
             default:
                 Collapse(BottomHost, BottomSplitter, occupied);
-                SizeRow(RootGrid.RowDefinitions[4], occupied, extent, cap);
+                // The bottom strip lives inside the centre column now, so the
+                // sidebars keep their full height beside it.
+                SizeRow(CentreColumn.RowDefinitions[2], occupied, extent, cap);
                 break;
         }
     }
