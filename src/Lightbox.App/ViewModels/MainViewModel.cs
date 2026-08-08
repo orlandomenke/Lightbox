@@ -103,9 +103,36 @@ public sealed partial class MainViewModel : ObservableObject
     /// user's quality preference. Capped at 1: compositing beyond document
     /// resolution would invent detail that is not in the record.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Every quality is display-bounded, including Full.</b> Full used to be
+    /// a constant 1.0 — composite the whole document however little of it the
+    /// screen can show — which made a frame change on an 8K document cost
+    /// ~33 megapixels against the ~2 the monitor can display. Measured by the
+    /// bench harness: n^1.04 in canvas area, ~1 s per frame change at 8K on the
+    /// dev container, which is the difference between "4K plays back" and "4K
+    /// is a slideshow" on real hardware.
+    /// </para>
+    /// <para>
+    /// What distinguishes Full now is a 2× supersampling margin over what the
+    /// display needs: strokes are composited with sub-pixel coverage and then
+    /// downscaled, which is where the "sharpest" in its description lives. At
+    /// 100% zoom and above the margin saturates the cap and Full composites at
+    /// document resolution exactly as before — working close is unchanged; only
+    /// the zoomed-out case stops paying for pixels nobody can see.
+    /// </para>
+    /// <para>
+    /// This is invariant 7's cheap side: output scale is a canvas transform
+    /// (<c>FrameRasterizer</c> scales the surface, never the geometry), so a
+    /// composite at 0.4 and a composite at 1.0 are the same marks at different
+    /// sizes — view-only, deterministic, and already exercised end-to-end by
+    /// the Display and Half paths. The frame cache keys on the scale, so a zoom
+    /// step is a cache miss rather than a wrong-sized hit.
+    /// </para>
+    /// </remarks>
     private double ComposeScale => CanvasQuality switch
     {
-        CanvasQuality.Full => 1.0,
+        CanvasQuality.Full => Math.Clamp(_displayScale * 2.0, 0.125, 1.0),
         CanvasQuality.Half => Math.Clamp(_displayScale * 0.5, 0.125, 1.0),
         _ => Math.Clamp(_displayScale, 0.125, 1.0),
     };
