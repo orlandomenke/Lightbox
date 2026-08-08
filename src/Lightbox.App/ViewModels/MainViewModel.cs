@@ -4076,7 +4076,16 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Arrow keys over the canvas: shift the selection outline by whole pixels.</summary>
     public void NudgeSelection(int dx, int dy)
     {
-        if (!HasSelection || (dx == 0 && dy == 0)) return;
+        if (dx == 0 && dy == 0) return;
+        // A line selection wins, because the two cannot both be live in a way
+        // that matters: the Arrow holds lines, the Select tools hold an area, and
+        // only one of them is what the artist is looking at. Asked first rather
+        // than given its own keys — `canvas.nudge*` is already the registered,
+        // rebindable, canvas-scoped binding for "move what is selected", and
+        // adding a second set would mean an artist rebinding one and finding the
+        // other still on the old key.
+        if (NudgeSelectionFromKeyboard(dx, dy, coarse: false)) return;
+        if (!HasSelection) return;
         foreach (var contour in _selectionContours)
         {
             for (var i = 0; i < contour.Count; i++)

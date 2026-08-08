@@ -51,7 +51,38 @@ actually click a line on it, not every time you click past one.
 A line drawn entirely outside the canvas cannot be picked yet — filed as B134,
 and it matters mainly for the infinite canvas that is still being built.
 
-*Planned:* moving, scaling, recolouring and deleting what you have picked.
+### What you can do with what you picked
+
+**Move it** by dragging one of the selected lines. The outline follows your
+pointer while the button is down and the drawing itself arrives when you let go —
+so you can see exactly where it is going without the canvas redrawing the whole
+frame on every twitch. A press that does not move is just a click.
+
+**Nudge it** with the arrow keys: one pixel, or ten with Shift. This is the way
+to place a line exactly, because a drag cannot reliably land on a single pixel.
+The cost is worth knowing: while the Arrow is in your hand *and* something is
+selected, ← and → nudge instead of stepping frames. Let go of the selection, or
+pick up another tool, and they step frames again.
+
+**Delete it** with Delete, or the button in the tool options. Undo puts the lines
+back in the order they were in, so nothing quietly ends up in front of something
+it was behind.
+
+**Recolour it** with the button in the tool options — the selected lines take the
+current foreground colour. If a line was taking its colour from a **palette
+swatch**, recolouring it this way stops it following that swatch: you asked for
+this colour rather than that swatch's colour. Undo restores the link.
+
+Everything is one undo step per action, however many lines are selected.
+
+> **A moved line's texture changes, and that is deliberate.** The grain of a
+> brush comes from *where the mark is on the canvas* — that is what stops it
+> boiling when you animate. Move a line and it is somewhere else, so it grains
+> differently. If you need a mark preserved exactly, move the **layer** rather
+> than the line.
+
+*Planned:* scaling and rotating what you picked, and a box with handles to do it
+with.
 
 ## What a stroke is
 

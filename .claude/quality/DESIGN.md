@@ -44,7 +44,7 @@ scale is then describing controls that do not exist.
 | `--row` | 24 | Field, combo, small button, list row |
 | `--tile` | 26 | Icon button, overlay-bar tile — a square, and see below |
 | `--bar` | 30 | The tool options bar's fixed row |
-| `--tool` | 34 | Tool palette buttons — hit while drawing, so the largest |
+| `--tool` | 28 | Tool palette buttons — hit while drawing, still the largest hit target after the tile |
 | `--gap` | 4 | Between related controls in a group |
 | `--gap-lg` | 8 | Between groups, and docker content padding |
 | `--label` | 52 | Label column in a labelled-row layout, so rows align |
@@ -163,7 +163,7 @@ them is what they divide:
 
 | Kind | Where | Treatment |
 | --- | --- | --- |
-| **Panel** | docker headers; the timeline's modes | Rounded top corners, outlined at rest, and the active one lit from the top and fading into the panel below. No accent. |
+| **Panel** | docker headers; the timeline's modes | Rounded top corners, outlined at rest; the active one lit from the top, fading over its whole height, with a violet-to-magenta gradient line along its TOP edge. |
 | **Section** | the workspace tabs | No ground at all, and an accent underline. |
 
 A panel tab is a **sheet edge**: the active tab and its content are one surface,
@@ -192,13 +192,15 @@ window is for.
 Getting this backwards is not a small miss: an underline on a docker header
 makes a panel group claim to divide the application.
 
-The active panel tab's gradient **ends transparent and ends early**. Transparent
-because a header, a floating panel and a docked strip are not the same ground,
-and a gradient that named its destination would be a visible seam on two of the
-three. Early — around 0.6 — because the design fades *fast*: it is the lit top
-edge that says "this one is in front", and a fade stretched to the full height
-gives a lighter block, which is the segmented-control look panel tabs are
-specifically not.
+The active panel tab's gradient **ends transparent and starts soft**.
+Transparent because a header, a floating panel and a docked strip are not the
+same ground, and a gradient that named its destination would be a visible seam
+on two of the three. It runs the tab's whole height — it ended at 0.6 first,
+read off a 26px tab in the compressed mockup, and the owner's correction is
+that the subtlety IS the length of the fade. What keeps it from being a filled
+block is the soft start and the transparent end, not an early stop. The top
+line is the second marker, off the reference's Brush Settings tab: 2px,
+violet into magenta, dying before the far edge.
 
 **Badges are named for the meaning, not the colour** — `info`, `warning`,
 `error`, `success`. A badge that says "amber" has to be renamed when the design
@@ -235,18 +237,54 @@ once. A key like `TextControlBackground` is a *leaf*: nothing is computed from
 it, so nothing else moves when it does, and the only way to correct it is to
 name it. That file is therefore a list, and a list is the right shape for it.
 
-**A field is lighter than what it sits on.** Text boxes, numeric fields and
-combos: Fluent's ground for all of them is `#66000000` — 40% *black* — so every
-field was a hole in its panel, and hovering deepened the hole. The reference has
-them lifted everywhere, 39–52 against a 19–22 ground. This is a direction rather
-than a colour: a sunken field says "a gap in the panel", a raised one says "a
-surface you can put something on", and this application asks an artist to type
-into them all day.
+**A field is a well.** Text boxes, numeric fields and combos all take
+`BackgroundPrimary`, the darkest surface, so a field reads as cut into whatever
+it sits on. That makes a field on a docker, a field on a dialog and a field in a
+flyout **the same colour**, with only the surface behind them changing — which
+is the solidity the design has and a per-surface tint cannot produce.
 
-It is a **tint**, for the reason `SelectionBrush` is: a field on a panel and a
-field in a dialog sit on different grounds, and one flat value cannot lift both.
-An opaque `SurfaceElevated` field would be right on a panel and *invisible* on a
-dialog — the case somebody would only find by opening one.
+*Hover* still lifts, and that half is not negotiable: pointing at something
+makes it lighter, never darker. Fluent's original did the opposite — `#66000000`
+resting against `#99000000` hovered — which is a control dimming under the
+pointer.
+
+**Every boxed control is the same shape**, one corner radius, no exceptions. The
+combo was rounded and the numeric field square, side by side in the same docker
+row; nothing was wrong with either on its own, which is why it survived every
+review that looked at one control at a time. `FieldShapeTests` asserts they
+agree *and* that they are actually rounded, because "they all match" is also
+satisfied by all of them being wrong the same way.
+
+**And the square corners were never painted square — they were clipped.** Every
+radius property read correct while the screen showed square, because Fluent's
+`ButtonSpinner` carries a 32px minimum inside our 22px numeric fields: the whole
+inner stack overflowed by five pixels each way and the corners and top border
+were cut off. Two lessons, both now enforced: a property probe cannot see a
+clip, only geometry can (`TheInnerTextBoxFitsInsideTheFieldThatHostsIt`), and a
+"fix" verified by reading properties back is not verified.
+
+**Buttons are the bar's own dark surface with a rim light on the top edge.**
+Fluent's default was 20% white — a pale box, and a toolbar of them a wall. The
+rim is `RimLightBrush` used as a *BorderBrush*: a vertical white-to-nothing
+gradient that a 1px border samples by position, so the top edge catches light,
+the sides taper, the bottom gets none. One brush, no second element.
+
+**The menu is the toolbar's surface**, separated by a 1px line of
+`BackgroundPrimary`. Two strips of one colour with a scored line read as one
+piece of chrome; two strips of different colours read as a stack.
+
+**The violet has two depths.** `AccentViolet` (#7B61FF) is for *marks* —
+keyframe dots, gradients, the tab line, focus. `AccentVioletDeep` (#5B48C8,
+violet composited over the deepest ground at 70%) is for anything that uses
+violet as a *fill the size of a button* — the theme accent, toggled states,
+selection — because the bright violet glows at that size. The owner's read of
+the alternate reference: the darkness is where the solidity comes from.
+
+**The application's base font size is 12.** Fluent's default is 14, and
+anything left unstyled — layer names, dialog labels, menu items — towered over
+the 11s and 12s beside it, which is most of why the UI read larger than Krita
+on the same monitor. Set once with `:is(Window)`, because a bare type selector
+does not match subclasses and every window here is one.
 
 **Anything that floats takes the elevated surface** — context menus, combo
 drop-downs, flyouts, dialogs. They were all on Fluent's `#2b2b2b`, a flat

@@ -13,6 +13,8 @@
         <!-- After the palette, because it names the palette's roles: the keys
              Fluent hard-codes rather than deriving from the accent. -->
         <ResourceInclude Source="avares://Lightbox.App/Styles/Theme.axaml" />
+        <!-- The monoline icon geometry, replacing emoji glyph by glyph. -->
+        <ResourceInclude Source="avares://Lightbox.App/Styles/Icons.axaml" />
       </ResourceDictionary.MergedDictionaries>
     <!--
       The splash colour, and the only place it is written down.
@@ -41,7 +43,9 @@
       Two properties fix the whole class of it, which is why they are worth
       more than the fifty setters they replace:
 
-      * `Accent` — every "this is on" state. Violet rather than coral, so the
+      * `Accent` — every "this is on" state. The DEEP violet, because these
+        are fills the size of a button, and full AccentViolet glows at that
+        size; the bright violet stays for marks. Violet rather than coral, so the
         layer row that is selected, the toggle that is on and the tab that is
         showing are one colour, and coral is left meaning "the primary action"
         without competition.
@@ -58,7 +62,7 @@
     -->
     <FluentTheme>
       <FluentTheme.Palettes>
-        <ColorPaletteResources x:Key="Dark" Accent="#7B61FF" RegionColor="#222634" />
+        <ColorPaletteResources x:Key="Dark" Accent="#5B48C8" RegionColor="#222634" />
       </FluentTheme.Palettes>
     </FluentTheme>
     <!-- ColorSpectrum/ColorSlider templates live in a separate theme file;
@@ -79,10 +83,14 @@
     <!-- Docker: title strip, optional top/bottom option bars, content between. -->
     <Style Selector="controls|Docker">
       <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
+      <!-- A card, per the alternate reference: rounded, hairline edge, a
+           breath of space to the next panel. The gap is what makes a strip of
+           dockers read as instruments on a desk rather than as one wall. -->
+      <Setter Property="Margin" Value="0,0,0,3" />
       <Setter Property="Template">
         <ControlTemplate>
-          <Border Background="{TemplateBinding Background}"
-                  BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+          <Border Background="{TemplateBinding Background}" ClipToBounds="True"
+                  BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <DockPanel>
               <!--
                 The header is both the panel switcher and the drag grip.
@@ -105,7 +113,13 @@
                 and pull to move the panel. The threshold lives in Docker so a
                 click to focus is not a tear-out.
               -->
-              <Border x:Name="PART_Header" DockPanel.Dock="Top" Background="{StaticResource BackgroundSecondaryBrush}" Padding="8,2">
+              <!-- Transparent, not a band: the card is one surface and the header is
+                   the top of it. Transparent (rather than no background) keeps it
+                   hit-testable — it is still the drag grip and the drop target. -->
+              <!-- No bottom padding: the active tab's ground has to run INTO the
+                   content below it — a 2px strip of header between them reads as
+                   a seam across what should be one element. -->
+              <Border x:Name="PART_Header" DockPanel.Dock="Top" Background="Transparent" Padding="8,3,8,0">
                 <DockPanel>
                   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
                     <ContentPresenter Content="{TemplateBinding TitleBarExtra}" VerticalAlignment="Center" />
@@ -138,15 +152,16 @@
                            SelectedValueBinding="{Binding Id, DataType=docking:DockPanelInfo}"
                            Background="Transparent" BorderThickness="0"
                            Padding="0" Margin="-6,0,0,0"
-                           VerticalAlignment="Center">
+                           VerticalAlignment="Bottom">
                     <ListBox.ItemsPanel>
                       <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="2" />
+                        <!-- Flush: tabs are sheets in a stack, and sheets touch. -->
+                        <StackPanel Orientation="Horizontal" Spacing="0" />
                       </ItemsPanelTemplate>
                     </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="docking:DockPanelInfo">
-                        <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
+                        <TextBlock Text="{Binding Title}" FontSize="11" FontWeight="SemiBold"
                                    VerticalAlignment="Center" />
                       </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -166,7 +181,7 @@
                     the middle of a straight line.
                   -->
                   <TextBlock DockPanel.Dock="Left"
-                             Text="{TemplateBinding Title}" FontSize="12" FontWeight="SemiBold"
+                             Text="{TemplateBinding Title}" FontSize="11" FontWeight="SemiBold"
                              Opacity="0.9" VerticalAlignment="Center"
                              IsVisible="{TemplateBinding Tabs, Converter={x:Static ObjectConverters.IsNull}}" />
                   <Border Height="{Binding #PART_Tabs.Bounds.Height}"

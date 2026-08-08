@@ -223,12 +223,22 @@ public sealed class WorkspaceTests : BrushStateIsolated
             item.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_Tab");
 
         var lit = Assert.IsType<LinearGradientBrush>(Tab(active).Background);
-        Assert.Equal(2, lit.GradientStops.Count);
         Assert.True(lit.GradientStops[^1].Color.A == 0,
             "the active tab's gradient must end transparent — a named end colour is a "
             + "visible seam on any ground that is not the one it named");
-        Assert.True(lit.GradientStops[^1].Offset < 1,
-            $"the fade ends at {lit.GradientStops[^1].Offset:F2}, so it is not fading fast");
+        // The fade runs the tab's whole height. It ended at 0.62 first; the
+        // owner's correction is that the subtlety IS the length of the fade,
+        // and what keeps it from being a filled block is the soft start and
+        // the transparent end, both asserted, not the early stop.
+        Assert.True(lit.GradientStops[0].Color.A < 0xFF,
+            "the fade must start soft, or the tab is a filled block with a soft bottom");
+
+        // And the purple gradient line along the active tab's TOP edge — the
+        // second marker the reference draws, and the one the owner named.
+        static Border TopLine(ListBoxItem item) =>
+            item.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_TopLine");
+        Assert.IsType<LinearGradientBrush>(TopLine(active).Background);
+        Assert.IsNotType<LinearGradientBrush>(TopLine(resting).Background);
 
         // The resting tab takes no lit ground — it merges with the header it
         // sits in. What it does carry is an outline, and that is not incidental:
@@ -248,10 +258,14 @@ public sealed class WorkspaceTests : BrushStateIsolated
         Assert.True(Tab(resting).BorderThickness.Bottom > 0,
             "a resting tab must close at the bottom, or the rule has nothing to run along");
 
-        // The other three sides are the same on both, so the gap reads as the
-        // line breaking rather than as the active tab having lost its box.
-        Assert.Equal(Tab(resting).BorderThickness.Top, Tab(active).BorderThickness.Top);
-        Assert.Equal(Tab(resting).BorderThickness.Left, Tab(active).BorderThickness.Left);
+        // A resting tab has NO box — just its stretch of the rule. The active
+        // one keeps the full sheet edge. (The resting outline existed for one
+        // round and the owner had it removed: with the ground and the top line
+        // carrying the active state, a box on every resting tab was noise.)
+        Assert.Equal(0, Tab(resting).BorderThickness.Top);
+        Assert.Equal(0, Tab(resting).BorderThickness.Left);
+        Assert.True(Tab(active).BorderThickness.Top > 0,
+            "the active tab lost its sheet edge");
     }
 
     [AvaloniaFact]
