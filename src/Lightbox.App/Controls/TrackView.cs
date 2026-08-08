@@ -78,6 +78,29 @@ public class TrackView : Control
     /// </summary>
     public event Action<int, int, int>? KeyDragged;
 
+    /// <summary>
+    /// The scratch track's waveform, one min/max pair per frame, or null for
+    /// no audio band at all — optional means absent (Q55). Drawn as its own
+    /// band under the tracks, where the reference strips put sound.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<Core.Audio.AudioPeaks.Peak>?> AudioPeaksProperty =
+        AvaloniaProperty.Register<TrackView, IReadOnlyList<Core.Audio.AudioPeaks.Peak>?>(nameof(AudioPeaks));
+
+    public IReadOnlyList<Core.Audio.AudioPeaks.Peak>? AudioPeaks
+    {
+        get => GetValue(AudioPeaksProperty);
+        set => SetValue(AudioPeaksProperty, value);
+    }
+
+    public static readonly StyledProperty<string> AudioLabelProperty =
+        AvaloniaProperty.Register<TrackView, string>(nameof(AudioLabel), "Audio");
+
+    public string AudioLabel
+    {
+        get => GetValue(AudioLabelProperty);
+        set => SetValue(AudioLabelProperty, value);
+    }
+
     // The reference's geometry, measured off its timeline strip.
     internal const double Gutter = 118;   // track names
     internal const double RulerHeight = 20;
@@ -86,8 +109,9 @@ public class TrackView : Control
 
     static TrackView()
     {
-        AffectsMeasure<TrackView>(TracksProperty, FrameWidthProperty, FrameCountProperty);
-        AffectsRender<TrackView>(TracksProperty, FrameWidthProperty, CurrentFrameProperty, FrameCountProperty);
+        AffectsMeasure<TrackView>(TracksProperty, FrameWidthProperty, FrameCountProperty, AudioPeaksProperty);
+        AffectsRender<TrackView>(
+            TracksProperty, FrameWidthProperty, CurrentFrameProperty, FrameCountProperty, AudioPeaksProperty);
     }
 
     // ---- geometry, static so the tests can hold it still ---------------------
@@ -130,9 +154,10 @@ public class TrackView : Control
     protected override Size MeasureOverride(Size availableSize)
     {
         var rows = Tracks?.Count ?? 0;
+        var audioBand = AudioPeaks is { Count: > 0 } ? RowPitch : 0;
         return new Size(
             Gutter + FrameCount * FrameWidth + 24,
-            RulerHeight + rows * RowPitch + 6);
+            RulerHeight + rows * RowPitch + audioBand + 6);
     }
 
     // ---- painting -------------------------------------------------------------
@@ -217,6 +242,35 @@ public class TrackView : Control
                 {
                     context.DrawEllipse(new SolidColorBrush(colour), null, at, DotRadius, DotRadius);
                 }
+            }
+        }
+
+        // The scratch track's waveform, its own band under the drawing
+        // tracks — where the reference strips put sound. One bar per frame:
+        // the band answers "what is under frame 12", not "what does the
+        // pressure wave look like", so it is addressed the way frames are.
+        if (AudioPeaks is { Count: > 0 } audio)
+        {
+            var top = RulerHeight + tracks.Count * RowPitch;
+            var mid = top + RowPitch / 2;
+            var half = RowPitch / 2 - 3;
+            var audioColour = Color.Parse("#63C7A6");
+            var wave = new SolidColorBrush(Color.FromArgb(0xB4, audioColour.R, audioColour.G, audioColour.B));
+
+            var audioName = new FormattedText(
+                AudioLabel, System.Globalization.CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight, typeface, 11, text);
+            context.DrawText(audioName, new Point(10, mid - audioName.Height / 2));
+
+            var gap = FrameWidth >= 4 ? 1.0 : 0.0;
+            for (var f = 0; f < Math.Min(audio.Count, FrameCount); f++)
+            {
+                var p = audio[f];
+                var y0 = mid - p.Max * half;
+                var y1 = mid - p.Min * half;
+                if (y1 - y0 < 1) { y0 = mid - 0.5; y1 = mid + 0.5; }
+                context.DrawRectangle(wave, null,
+                    new Rect(Gutter + f * FrameWidth, y0, Math.Max(1, FrameWidth - gap), y1 - y0));
             }
         }
 

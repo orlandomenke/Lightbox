@@ -3419,6 +3419,30 @@
               <controls:OverflowBar Spacing="10" HorizontalAlignment="Center"
                                     MoreLabel="More  &#x25BE;" MenuPlacement="TopEdgeAlignedRight">
                 <views:TransportBar />
+                <!-- The scratch track (Q55). One button until there is one,
+                     then the whole row — the same shape as the camera. -->
+                <Button Content="♪ Add audio" Click="OnImportAudio"
+                        IsVisible="{Binding !HasAudio}" VerticalAlignment="Center"
+                        ToolTip.Tip="Import a sound file to time the animation against (WAV)" />
+                <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding HasAudio}">
+                  <TextBlock Text="♪" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding AudioFileName}" VerticalAlignment="Center" FontSize="11"
+                             MaxWidth="140" TextTrimming="CharacterEllipsis"
+                             ToolTip.Tip="{Binding AudioFileName}" />
+                  <TextBlock Text="missing" IsVisible="{Binding AudioMissing}"
+                             VerticalAlignment="Center" FontSize="11"
+                             Foreground="{DynamicResource StatusWarningBrush}"
+                             ToolTip.Tip="The referenced sound file cannot be found — the track stays, silent, until it is back" />
+                  <CheckBox Content="Mute" IsChecked="{Binding AudioMuted}" VerticalAlignment="Center" />
+                  <NumericUpDown Value="{Binding AudioVolume}" Minimum="0" Maximum="1" Increment="0.05"
+                                 FormatString="0.00" Width="64" VerticalAlignment="Center"
+                                 ToolTip.Tip="Volume" />
+                  <NumericUpDown Value="{Binding AudioOffsetFrames}" Minimum="-9999" Maximum="9999" Increment="1"
+                                 FormatString="0" Width="60" VerticalAlignment="Center"
+                                 ToolTip.Tip="The frame the sound starts on — negative trims a lead-in" />
+                  <Button Content="✕" Command="{Binding RemoveAudioCommand}" VerticalAlignment="Center"
+                          ToolTip.Tip="Remove the audio track (the file itself is untouched)" />
+                </StackPanel>
               </controls:OverflowBar>
             </Border>
           </controls:Docker.TopBar>
@@ -3427,6 +3451,7 @@
           <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <controls:TrackView x:Name="TimelineTrackView"
                                 Tracks="{Binding TimelineTracks}"
+                                AudioPeaks="{Binding TimelineAudioPeaks}"
                                 FrameCount="{Binding TimelineFrameCount}"
                                 FrameWidth="{Binding TimelineFrameWidth}"
                                 CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}" />

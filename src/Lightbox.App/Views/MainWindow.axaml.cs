@@ -1925,6 +1925,24 @@ public partial class MainWindow : Window
         BrushPickerName.Text = _vm.SelectedBrushPreset?.Name ?? "Brush";
     }
 
+    private async void OnImportAudio(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Add audio",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("WAV audio") { Patterns = ["*.wav"], MimeTypes = ["audio/wav"] },
+            ],
+        });
+
+        if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path) return;
+        _vm.AiStatus = _vm.ImportAudio(path) is { } error
+            ? $"Audio import failed: {error}"
+            : $"Timing against “{Path.GetFileName(path)}”.";
+    }
+
     private async void OnImportTextureClicked(object? sender, RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions

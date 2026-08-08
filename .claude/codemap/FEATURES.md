@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2977 tests, derived from the suite itself. Each line is a
+2995 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -210,6 +210,15 @@ regression even when every test still compiles.
 - Both Test Depths Are Offered And Quick Is The Default — `:235`
 - The Depth Picker Explains What Each One Costs — `:246`
 - The Progress Bar And Clock Are Hidden Until ATest Is Running — `:261`
+
+## AudioTrackUiTests
+`tests/Lightbox.App.Tests/AudioTrackUiTests.cs`
+
+- Importing ASound Fills The Waveform — `:59`
+- Something That Is Not AWav Reports Instead Of Throwing — `:84`
+- AMissing File Is ABadge Not An Error — `:103`
+- Removing The Track Leaves No Audio Behind — `:119`
+- The Offset Slides The Waveform — `:140`
 
 ## AutoExportTests
 `tests/Lightbox.App.Tests/AutoExportTests.cs`
@@ -2745,6 +2754,31 @@ regression even when every test still compiles.
 - ATag Round Trips With Its Direction And Loop — `:258`
 - ATags Length Counts Both Ends And Survives Being Backwards — `:275`
 - AMarker Marked As An Event Round Trips — `:285`
+
+## AudioPeaksTests
+`tests/Lightbox.Core.Tests/AudioTests.cs`
+
+- Peaks Land On The Frames The Sound Plays Under — `:157`
+- The Offset Slides The Sound Down The Timeline — `:173`
+- Degenerate Inputs Produce Silence Not Crashes — `:186`
+
+## AudioTrackTests
+`tests/Lightbox.Core.Tests/AudioTests.cs`
+
+- ANew Scene Has No Audio — `:12`
+- ADocument Without Audio Serializes With No Audio Key At All — `:19`
+- Adding Then Removing Audio Returns The Document To Its Original Bytes — `:30`
+- The Track Round Trips — `:43`
+
+## WavCodecTests
+`tests/Lightbox.Core.Tests/AudioTests.cs`
+
+- Sixteen Bit Pcm Decodes To Unit Floats — `:82`
+- Eight Bit Pcm Is Unsigned And Centred On128 — `:101`
+- Float Wav Decodes Verbatim — `:111`
+- Stereo Interleaves And Mixes Down — `:124`
+- Something That Is Not AWav Says So — `:139`
+- ACompressed Wav Names The Encoding Instead Of Guessing — `:145`
 
 ## BackgroundRulesTests
 `tests/Lightbox.Core.Tests/BackgroundRulesTests.cs`

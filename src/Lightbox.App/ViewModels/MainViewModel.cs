@@ -8882,6 +8882,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(TimelineExtent));
         OnPropertyChanged(nameof(MaxScrubFrame));
         OnPropertyChanged(nameof(Fps));
+        NotifyAudioSurface();
         NotifyActiveLayerCompositing();
         MarkersView = Scene.Markers.ToList();
         RefreshCelSelectionHighlights();
