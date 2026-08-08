@@ -1046,6 +1046,13 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var title = filePath is null ? NextUntitledName() : TitleFromPath(filePath);
         var tab = new DocumentTab(new DocumentEditor(doc), title) { FilePath = filePath };
+        // B136. Land on something paintable — the same line File ▸ New has
+        // carried since B56's era, missing here. A saved document's layer 0 is
+        // its locked paper, so every document opened from disk started with
+        // the one layer that refuses strokes: the cursor showed, the status
+        // strip said "locked", and nothing appeared. Reported as "unable to
+        // draw on the last build".
+        tab.State.LayerIndex = FirstPaintableLayer(doc);
         // B99. Opened from disk means it *is* what is on disk — without this it
         // would inherit the never-saved default and badge a file nobody touched.
         if (filePath is not null) tab.MarkSaved();
@@ -8716,7 +8723,9 @@ public sealed partial class MainViewModel : ObservableObject
         var tab = ActiveTab ?? Tabs[0];
         tab.Editor = new DocumentEditor(doc);
         AttachEditor(tab.Editor);
-        ActiveLayerIndex = 0;
+        // B136's other door: index 0 is the locked paper on any document that
+        // has one, and a replace is how tests and the MCP surface open files.
+        ActiveLayerIndex = FirstPaintableLayer(doc);
         CurrentFrameIndex = 0;
         // A fresh editor sits at revision 0 and this document came from disk,
         // so that is its saved point.
