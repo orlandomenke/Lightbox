@@ -170,6 +170,7 @@ public static class AnimationSweeps
         yield return UndoSnapshot();
         yield return SceneLength();
         yield return Playback();
+        yield return PlaybackCanvasSize();
         yield return Scrubbing();
     }
 
@@ -710,6 +711,71 @@ public static class AnimationSweeps
             Work: n => Composite(rig!.Target, scene!, rig.Cache, at++ % n),
             Note: "720p. Second time round the loop — past the point where the cache stops fitting, this is where it shows.")
         {
+            Gauge = () => rig?.Cache.CachedBytes ?? 0,
+            GaugeUnit = "cache MB",
+        };
+    }
+
+    /// <summary>
+    /// The same playback tick, swept by <em>canvas size</em> rather than by scene
+    /// length — because that is the axis an artist reports and the one no scenario
+    /// measured.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b><see cref="Playback"/> runs at 720p and sweeps frame count, so it cannot
+    /// see this.</b> Both sweeps time the identical operation; they disagree only
+    /// about which axis matters, and a report that only moves along the axis you
+    /// swept is not evidence that the other one is flat. This was found when
+    /// playback was described as unusable at 1080p and 4K while every recorded
+    /// playback row sat inside its budget.
+    /// </para>
+    /// <para>
+    /// A cached frame bitmap is <c>w * h * 4</c> bytes, so the cache holds a number
+    /// of frames that falls as the <em>area</em> grows: against the 512 MB default,
+    /// ~56 frames at 720p and ~15 at 4K. Three layers of a 24-frame scene is 72
+    /// bitmaps either way — comfortable at 720p, five times over budget at 4K, and
+    /// past that edge every tick evicts a frame it is about to need again. The
+    /// gauge reports what is resident so the row shows the cliff rather than
+    /// implying it.
+    /// </para>
+    /// <para>
+    /// Measured on the second pass, which is the honest case: the first pass has to
+    /// rasterize regardless and its cost is B30's, not playback's.
+    /// </para>
+    /// </remarks>
+    private static Scenario PlaybackCanvasSize()
+    {
+        const int Frames = 24;
+        Scene? scene = null;
+        Rig? rig = null;
+        var at = 0;
+
+        return new Scenario(
+            "Show the next frame during playback, by canvas size",
+            "canvas height (16:9)",
+            [720, 1080, 1440, 2160],
+            Cadence.WhilePlaying,
+            Setup: h =>
+            {
+                var w = h * 16 / 9 / 2 * 2;
+                scene = SceneOf(3, Frames, 20, w, h);
+                rig = new Rig(w, h);
+                for (var i = 0; i < Frames; i++) Composite(rig.Target, scene, rig.Cache, i);
+                at = 0;
+                return rig;
+            },
+            Work: _ => Composite(rig!.Target, scene!, rig.Cache, at++ % Frames),
+            Note: "3 layers, 24 frames, 20 strokes a cel — second pass round the loop. "
+                + "The scene needs 72 cached bitmaps: 265 MB at 720p, 597 MB at 1080p, 2.4 GB at 4K. "
+                + "Only 720p fits the 512 MB budget, so every row above it re-rasterizes what it just evicted "
+                + "(64 of 72 resident at 1080p, 36 at 1440, 16 at 4K). Composited at 1.0 — the app composites "
+                + "at ComposeScale, so the blit is cheaper there and the misses cost exactly this.")
+        {
+            // Bytes, not a frame count: the harness's gauge channel is bytes and
+            // renders as MB, so a count of 64 formatted to "0 MB" and read as an
+            // empty cache. Every other scenario reports "cache MB"; matching them
+            // is also what makes the rows comparable.
             Gauge = () => rig?.Cache.CachedBytes ?? 0,
             GaugeUnit = "cache MB",
         };
