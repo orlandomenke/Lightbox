@@ -156,7 +156,7 @@ public class DeltaCommitTests
         vm.BeginStroke(30, 30, 1);
         vm.EndStroke();                       // delta step
 
-        PaintedFrame Frame0() => vm.PaintedCel();
+        Frame Frame0() => vm.PaintedCel();
         Assert.Equal(2, Frame0().Strokes.Count);
         Assert.Equal(2, vm.Doc.Scene.FrameCount);
 

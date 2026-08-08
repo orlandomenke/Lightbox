@@ -63,6 +63,14 @@ tabs, panning or zooming.
 anything; Discard sits at the far end so a fast hand does not find it next to
 the safe one. If Save has nowhere to write, it opens Save as… — and **cancelling
 that picker cancels the close too**, because you asked to keep the work.
+A brand-new document you have not drawn in closes without asking, for the same
+reason it is left off the closing-Lightbox list below: it shows the dot because
+it has no file, but there is nothing in it to lose.
+
+**Closing the last tab** leaves nothing open and asks what to open next — the
+same question as the start screen, at the only other moment it is the right
+one. Escape on it leaves the application empty, with New and Open waiting in
+the middle of the workspace.
 
 **Closing Lightbox** asks the same question about everything at once. One box,
 listing the documents by name rather than counting them, with **Save all** as

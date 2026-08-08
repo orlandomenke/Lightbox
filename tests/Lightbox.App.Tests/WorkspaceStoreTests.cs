@@ -46,7 +46,7 @@ public class WorkspaceStoreTests
         // The rule stated as a guard rather than a comment. Layers and the
         // project tree are read while drawing, so tabbing either with anything
         // trades a scroll for a click on every stroke. The timeline family is
-        // the deliberate exception (Q54): the track view, the X-sheet and the
+        // the deliberate exception (Q58): the track view, the X-sheet and the
         // graph editor are three views over ONE set of records, used
         // alternately by construction.
         DockPanelId[] family = [DockPanelId.Timeline, DockPanelId.Xsheet, DockPanelId.GraphEditor];

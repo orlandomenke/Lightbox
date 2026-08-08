@@ -85,8 +85,8 @@ public class AiIntegrationTests
         // Frames inserted sorted by t.
         Assert.Equal(4, vm.Doc.Scene.FrameCount);
         var layer = vm.PaintLayer();
-        var f1 = Assert.IsType<PaintedFrame>(layer.Cels[1].Frame);
-        var f2 = Assert.IsType<PaintedFrame>(layer.Cels[2].Frame);
+        var f1 = Assert.IsType<Frame>(layer.Cels[1].Frame);
+        var f2 = Assert.IsType<Frame>(layer.Cels[2].Frame);
         Assert.Equal(15, f1.Strokes[0].Points[0].X); // t=0.25 first
         Assert.Equal(20, f2.Strokes[0].Points[0].X); // t=0.5 second
         Assert.Contains("2", vm.AiStatus);

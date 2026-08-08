@@ -69,7 +69,7 @@ public class TransformPreviewTests : BrushStateIsolated
         // applied must not have touched a single point, and must leave no undo
         // step behind.
         var vm = Painted();
-        var strokes = ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes;
+        var strokes = ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes;
         var before = strokes[0].Points.Select(p => (p.X, p.Y)).ToList();
         var undos = vm.UndoDepth;
 

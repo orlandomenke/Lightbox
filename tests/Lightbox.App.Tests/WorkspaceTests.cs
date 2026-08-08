@@ -48,12 +48,23 @@ public sealed class WorkspaceTests : BrushStateIsolated
         vm.ProjectDocker.Selected = vm.ProjectDocker.Rows.First(r => r.IsFolder);
     }
 
+    /// <summary>A shown window with one document in it.</summary>
+    /// <remarks>
+    /// The document used to arrive with the window. It no longer does — the
+    /// application opens empty and the start screen asks — so the tests that are
+    /// about panels, dockers and project rows open one immediately and carry on
+    /// meaning what they meant. <c>NewProject</c> in particular forms around the
+    /// document already open, so without one it adopts nothing.
+    /// </remarks>
     private static (MainWindow Window, MainViewModel Vm) Open()
     {
         var window = new MainWindow();
         window.Show();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-        return (window, (MainViewModel)window.DataContext!);
+        var vm = (MainViewModel)window.DataContext!;
+        vm.NewDocument(new NewDocumentSettings("Untitled-1", 960, 540, 12, 72, "#ffffff", false));
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        return (window, vm);
     }
 
     private static DockStrip Strip(MainWindow w, DockSide side) => side switch

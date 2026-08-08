@@ -1,5 +1,20 @@
 # Lightbox
 
+> ### ⚠️ Alpha — not ready to rely on
+>
+> Lightbox is in **alpha** and under daily development by one person. It is
+> published so the work is readable, not because it is finished.
+>
+> - **No stability guarantee.** The document format still changes, and a file
+>   written today may not open in a later build. Do not put work you care about
+>   into it.
+> - **No support, and no release schedule.** Issues are read; nothing is
+>   promised.
+> - **Not accepting pull requests yet** — see [CONTRIBUTING.md](CONTRIBUTING.md)
+>   for why, and what to do instead.
+>
+> Licensed under **[GPL-3.0](LICENSE)**.
+
 An **AI-native, raster-first** art and animation application — in the spirit of Krita/Photoshop, built for hand-drawn frame-by-frame animation where inbetweens are near-indistinguishable from the original drawings.
 
 Built with **C# / .NET 10**, **Avalonia** (Windows · macOS · Linux), and **SkiaSharp**.
@@ -24,29 +39,58 @@ Built with **C# / .NET 10**, **Avalonia** (Windows · macOS · Linux), and **Ski
 
 ## Run on Windows — no admin rights needed
 
-Every **ready** pull request and every push to `main` builds a self-contained Windows bundle in CI. Two cases build nothing, and both have the same escape hatch — **Actions ▸ build ▸ Run workflow**, which always builds: a branch with **no PR open**, and a PR still marked **draft**.
-
-Drafts are deliberately quiet, because `pull_request` fires on *every* push to an open PR — merging main in twice and rebuilding the index costs a full suite each time. So open the PR as a draft while that is going on, and mark it ready when it is worth checking; marking it ready is itself a trigger.
-
-1. Repo → **Actions** tab → newest green `build` run → **Artifacts** → download `Lightbox-win-x64-…` (you must be signed in to GitHub).
+1. Go to **[Releases](../../releases)** and download `Lightbox-win-x64-….zip`.
 2. Unzip anywhere in your user profile, e.g. `%LOCALAPPDATA%\Lightbox`.
 3. Run `Lightbox.App.exe`. Nothing is installed, no .NET required, no admin.
 
-**How long a bundle lasts.** One is about 74 MB, so they are pruned rather than kept: a branch keeps its **3 newest**, `main`'s are kept 30 days and everyone else's 5, and any feature-branch bundle over a week old is deleted whatever branch it came from. A documentation-only push does not build one at all. If you need a bundle for a commit that has aged out, re-run the workflow from the Actions tab (**Run workflow**) — `workflow_dispatch` always builds.
+Releases are cut **on request** rather than on every push: pushing a `v*` tag
+builds one, and so does **Actions ▸ release ▸ Run workflow**, which can build a
+bundle from any branch. Ordinary pushes and pull requests run the tests and the
+document checks only.
 
-**If the storage quota fills anyway**, run **Actions ▸ cleanup artifacts ▸ Run workflow**. It prunes on its own without building anything, which matters because the build workflow's own prune cannot rescue a full quota — that prune runs beside an upload, and once the quota is full the upload fails first.
+That is a deliberate change from how this used to work. Every push once produced
+a throwaway CI artifact that expired in five days and had to be pruned to stay
+inside a storage quota; a tagged release is a versioned download with notes that
+does not evaporate, and it costs nothing when nobody asks for one.
 
-Both share one policy, in `.github/scripts/prune-artifacts.sh`, and it has three rules:
+> **The Run workflow button only appears when the workflow is on the default
+> branch.** `workflow_dispatch` is resolved from the default branch, so on a
+> feature branch there is nothing to click however correct the file is.
 
-1. **Keep the newest N per branch** (default 3), across every branch — not just the one being built.
-2. **Sweep feature-branch bundles older than N days** (default 7). Release and bugfix bundles are exempt; age alone is not a reason to take one somebody kept on purpose.
-3. **Hold total storage under a budget** (default 1500 MB), deleting oldest-first until it fits. This is the safety valve: rules 1 and 2 keep storage flat once it is sane, but only rule 3 can unblock a quota that is already full.
+### Version numbers
 
-Set **keep** to `0` to clear everything, or tick **dry run** to see the list first. Either way it writes what it found and freed to the run summary.
+The base version lives in **one place**, `<VersionPrefix>` in
+`Directory.Build.props`, and everything else is derived from it. Nothing
+increments it automatically — a number that moves on every build identifies
+nothing, and "the bug is in 0.4.7" stops being a sentence once 0.4.7 was one of
+forty builds that afternoon. It moves when you edit that line and tag.
 
-> **The button only appears when this workflow is on the repository's default branch.** `workflow_dispatch` is resolved from the default branch, so on a feature branch there is nothing to click however correct the file is.
+| How it was built | Version it carries | File you get |
+| --- | --- | --- |
+| tag `v0.2.0` | `0.2.0` | `Lightbox-win-x64-0.2.0.zip`, attached to a Release |
+| tag `v0.3.0-beta.1` | `0.3.0-beta.1` | ditto — semver already sorts a beta *before* `0.3.0`, so there is no separate "beta mode" to switch on |
+| **Run workflow** | `0.1.0-alpha.<run>` | `Lightbox-win-x64-0.1.0-alpha.17-my-branch-9f3c1ab.zip`, a 14-day artifact |
 
-GitHub recalculates usage every 6–12 hours, so a build started immediately after a cleanup may still be refused even though the space is genuinely free.
+An untagged build is deliberately a *prerelease* of whatever the props file
+currently says, so it can never be confused with the release it precedes, and
+two of them are ordered by run number.
+
+`0.x` is the alpha: in semver a leading zero already means "anything may
+change", which is why this starts at 0.1.0 rather than 0.0.1 — it leaves the
+patch digit free to mean a fix, as it does everywhere else. **1.0.0** is the
+first release that promises the document format will not move under you, and it
+lands in the same change that removes the alpha banner at the top of this file.
+
+The number is inside the executable too, not just on the zip: right-click ▸
+Properties on `Lightbox.App.exe`, and at the top of every crash report under
+**Help ▸ Open diagnostics folder**. It reads `0.1.0-alpha.17+9f3c1ab` — the
+version, then the exact commit it was built from.
+
+Older per-build artifacts, from before releases existed, can still be pruned with
+**Actions ▸ cleanup artifacts ▸ Run workflow** — the policy lives in
+`.github/scripts/prune-artifacts.sh`. Set **keep** to `0` to clear everything, or
+tick **dry run** to see the list first. GitHub recalculates usage every 6–12
+hours, so freed space can take a while to register.
 
 **If SmartScreen blocks it** (and policy hides "Run anyway"): SmartScreen only screens files carrying the Mark-of-the-Web download tag — remove the tag and it never triggers. Any of these work without admin:
 

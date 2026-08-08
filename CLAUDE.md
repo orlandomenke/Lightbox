@@ -4,6 +4,25 @@ A raster + vector desktop application for **frame-by-frame animation** and
 **digital painting**, with AI assistance throughout — most visibly filling in
 the inbetweens. C#/.NET 10, Avalonia 12, SkiaSharp.
 
+**This repository is public, and licensed GPL-3.0.** Everything written into it
+is published the moment it is pushed — including `BUGS.md`, `QUESTIONS.md` and
+`ROADMAP.md`, which are candid by design about what is broken, what was decided
+badly, and what is not built yet. That candour is the point and it should not
+change: a ledger that flatters the project is worth nothing. What *does* change
+is that it is now a choice rather than a private note. Two consequences worth
+holding on to:
+
+- **Nothing private goes in.** No keys, no customer names, no anything that
+  would be a problem in a search result. The one deliberate test fixture is
+  `sk-ant-test`, which is not a key.
+- **Write for a reader who is not here.** The ledgers already explain *why*
+  rather than *what*, which is what makes them survive being read by a stranger
+  — keep it that way, and the file stays useful to the next contributor as well
+  as to the next session.
+
+Contributions are not being accepted while Lightbox is alpha
+(`CONTRIBUTING.md`), because sole copyright is what keeps relicensing possible.
+
 ## What it is for, and how that settles arguments
 
 Two first-class purposes, not one with a hobby attached:
@@ -322,48 +341,39 @@ something already set it. When the owner *does* say merge, the escape hatch is
 `LIGHTBOX_PUSH_TO_MAIN=1`, and typing it is meant to be a decision rather than a
 way past a refusal.
 
-**The conflicts landed in `.claude/codemap/INDEX.md` and `FEATURES.md`**, which
-neither PR author had touched — every branch regenerates the index, so parallel
-branches collide there by construction. Resolving it is mechanical and the
-resolution is never a hand-merge: take either side and run
-`python3 scripts/codemap.py build`, which derives the file from the merged tree.
+**The conflicts used to land in `.claude/codemap/INDEX.md` and `FEATURES.md`**,
+which neither PR author had touched — every branch regenerates the index, so
+parallel branches collided there by construction. Two generations of machinery
+tried to make that livable: a `codemap` merge driver that rebuilt the files
+from the merged tree, and a CI `verify` that derived them and compared the
+bytes, on the principle that a committed derived file is not believed, it is
+recomputed. Both worked as designed and neither ended the pain, because
+**GitHub runs no merge driver**: every pull request merged in the web UI put
+`main`'s index ahead of every open branch, each of which then showed conflicts
+and had to have `main` hand-merged in — round after round, once per merge, for
+as long as more than one branch was open.
 
-**That sentence is now executed rather than followed.** `.gitattributes` points
-those two files at a `codemap` merge driver (`scripts/codemap-merge.sh`) that
-rebuilds from the merged tree, registered by the session-start hook because git
-refuses to run a driver a repository declares for itself. Two things it does not
-do, both worth knowing before relying on it:
+**So the files are not committed at all any more (Q55, 2026-08-08).** The
+stronger form of verify's own argument won: with nothing committed there is
+nothing to drift, nothing to merge and nothing to verify. `INDEX.md` and
+`FEATURES.md` are gitignored beside `HOTSPOTS.md`; the session-start hook
+builds them when they are stale or absent, so a fresh clone self-heals before
+the first question is asked; CI runs `codemap.py build` to prove the tree
+parses. The merge driver and `verify` are retired, and
+`LedgerGateTests.TheDerivedIndexIsNotTracked` is what turns re-committing them
+from an accident back into a decision.
 
-- **GitHub does not run merge drivers.** A pull request whose only conflict is
-  here still says it has conflicts, and still needs the base merged in locally.
-  What went away is the hand-resolution at every step of a rebase.
-- **It rebuilds only when the build succeeds.** Mid-merge, source files can
-  still carry conflict markers, and an index parsed from those would be wrong
-  rather than stale. The driver falls back to keeping one side and says so; the
-  staleness check at session start picks it up.
-
-**Neither of those is trusted any more, because `codemap.py verify` derives both
-files and compares the bytes.** It is the ledger's own trick moved one artefact
-along: a committed derived file is not believed, it is recomputed. That closes
-all three ways a wrong index reaches a commit — a merge GitHub performed, a
-driver that gave up while the build was red, and the ordinary case of adding a
-type and forgetting to rebuild, which is by far the most common and the most
-invisible, since the index merely answers "where does X live" with silence. CI
-runs it; the hook does not, because a full analysis is about ten seconds against
-milliseconds for the ledger ids, and a hook nobody can afford gets switched off.
-
-**It covers those two files and no more, and that is a rule rather than a
-backlog.** The ledgers collide on parallel branches just as reliably, so the
-obvious next step is to add them — and it would destroy work. The test is *what
-can be reconstructed*: `codemap.py build` writes `INDEX.md` and `FEATURES.md`
-from nothing, so regenerating them from the merged tree is what the files **are**
-rather than a way of resolving them. `bugs.py sync`, `roadmap.py sync` and
-`manual.py sync` instead parse a file and rewrite a checkbox, an ordering or a
-marked block; every entry around those is authored prose no script can
-reproduce. Two branches that each filed a bug have two entries that both have to
-survive, and which id each keeps is a judgement. So the driver refuses any path
-outside `.claude/codemap/`, and the ledgers are guarded by a check instead of a
-driver.
+**The ledgers do not get the same treatment, and that is a rule rather than a
+backlog.** They collide on parallel branches just as reliably, so the obvious
+next step is to gitignore or auto-merge them too — and it would destroy work.
+The test is *what can be reconstructed*: `codemap.py build` writes the index
+from nothing, so nothing is lost by not storing it. `bugs.py sync`,
+`roadmap.py sync` and `manual.py sync` instead parse a file and rewrite a
+checkbox, an ordering or a marked block; every entry around those is authored
+prose no script can reproduce. Two branches that each filed a bug have two
+entries that both have to survive, and which id each keeps is a judgement. The
+ledgers stay committed, conflict occasionally, are resolved by hand, and are
+guarded by a check instead of a driver.
 
 **That guard is `.githooks/pre-push` running `python3 scripts/bugs.py ids`, and
 where it runs is the whole point.** `bugs.py check` has failed on duplicate ids

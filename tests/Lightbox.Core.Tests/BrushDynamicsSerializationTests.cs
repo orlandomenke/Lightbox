@@ -25,7 +25,7 @@ public class BrushDynamicsSerializationTests
         return doc;
     }
 
-    private static PaintedFrame FirstFrame(Doc doc) => (PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!;
+    private static Frame FirstFrame(Doc doc) => (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
 
     private static Stroke FirstStroke(Doc doc) => FirstFrame(doc).Strokes[0];
 

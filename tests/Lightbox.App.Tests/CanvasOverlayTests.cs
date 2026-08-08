@@ -108,12 +108,23 @@ public class CanvasOverlayGeometryTests
 [Collection("BrushState")]
 public sealed class CanvasOverlayTests : BrushStateIsolated
 {
+    /// <summary>A shown window with a document in it.</summary>
+    /// <remarks>
+    /// The document is not incidental here. With nothing open the canvas is
+    /// covered by the "Nothing open" surface, which is opaque and takes the
+    /// pointer — so a drag aimed at the canvas lands on it instead and the bar
+    /// never moves. That is the surface doing its job; these tests are about
+    /// what the bars do over a canvas, so they open one.
+    /// </remarks>
     private static (MainWindow Window, MainViewModel Vm) Open()
     {
         var window = new MainWindow();
         window.Show();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-        return (window, (MainViewModel)window.DataContext!);
+        var vm = (MainViewModel)window.DataContext!;
+        vm.NewDocument(new NewDocumentSettings("Untitled-1", 960, 540, 12, 72, "#ffffff", false));
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        return (window, vm);
     }
 
     private static CanvasOverlayBar Host(MainWindow w, OverlayId id) =>

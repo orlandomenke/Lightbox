@@ -12,7 +12,7 @@ namespace Lightbox.Raster;
 /// <b>The one primitive vector tooling needs that the application has never
 /// had.</b> Every piece of it already existed and nothing composed them:
 /// <see cref="StrokeIndex.Intersecting"/> narrows the candidates,
-/// <see cref="BrushEngine.CommitBounds"/> says what a stroke can reach, and
+/// <see cref="BrushEngine.ReachBounds"/> says what a stroke can reach, and
 /// <see cref="GeometryOps.DistToSegment"/> measures the last few pixels. This
 /// class is the composition and the two rules that make the answer feel right.
 /// </para>
@@ -37,14 +37,14 @@ namespace Lightbox.Raster;
 /// eraser.
 /// </para>
 /// <para>
-/// <b>One limitation, inherited rather than chosen.</b> The index is built from
-/// <see cref="BrushEngine.CommitBounds"/>, which clamps to the surface because
-/// its job is deciding what to repaint — and nothing outside the surface needs
-/// repainting. A stroke lying <em>entirely</em> outside the document therefore
-/// reaches nothing as far as the index is concerned, and cannot be picked.
-/// Narrow while documents are fixed-size; it becomes real with the infinite
-/// canvas, and is filed as <b>B134</b> rather than worked around here, because
-/// the fix belongs where the bounds are computed.
+/// <b>The index carries reach, not repaint bounds — and it matters here.</b>
+/// It was once built from <see cref="BrushEngine.CommitBounds"/>, which clamps
+/// to the surface because its job is deciding what to repaint — so a stroke
+/// lying <em>entirely</em> outside the document reached nothing and could not
+/// be picked (B134). <see cref="StrokeIndex.Of"/> now uses the unclamped
+/// <see cref="BrushEngine.ReachBounds"/>: where a stroke <em>is</em> does not
+/// depend on where the paper ends, and on an unbounded canvas art beyond the
+/// nominal frame is the point.
 /// </para>
 /// <para>
 /// <b>What this does not know about, deliberately.</b> Layer visibility and

@@ -1,0 +1,189 @@
+name: release
+
+# Bundles are built when somebody asks for one, and not otherwise.
+#
+# This used to be a job inside `build.yml` that ran on every push with code in
+# it. That was a real cost — measured at 2 billed minutes a run, on top of 5 for
+# the suite — and it produced an artifact that expired in five days and had to
+# be pruned against a storage quota. Neither is what a download should be.
+#
+# Two ways in, and they produce different things on purpose:
+#
+#   push a `v*` tag       -> a GitHub Release with the bundle attached
+#   Run workflow (manual) -> a workflow artifact, no Release, no tag
+#
+# The split is deliberate. A Release is permanent and public and wants a version
+# behind it; "build me a bundle off this branch so I can try it" wants neither,
+# and making that mint a tag would fill the Releases page with noise.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+# Only the release job writes, and only when it is making a Release.
+permissions:
+  contents: write
+
+# A second tag push while the first is still building would race to create the
+# same Release. Unlike `build.yml` this does NOT cancel in progress: half of a
+# published Release is worse than a slow one.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  win-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # ---- what version is this? ---------------------------------------------
+      #
+      # Derived once, before anything expensive runs, and then used by both
+      # publishes and by the bundle's name — so the number in the executable's
+      # properties and the number on the file you downloaded cannot disagree.
+      #
+      #   tag v0.2.0        -> 0.2.0                 a release
+      #   tag v0.3.0-beta.1 -> 0.3.0-beta.1          a beta, ordered before 0.3.0
+      #                                              by semver itself; "beta" is
+      #                                              not a mode this workflow has
+      #                                              to know about
+      #   Run workflow      -> <VersionPrefix>-alpha.<run number>
+      #
+      # The base number lives in Directory.Build.props and is read from there
+      # rather than repeated here, because two copies of a version are one copy
+      # and one lie. Nothing writes it back: see the comment beside it for why
+      # an auto-incrementing version identifies nothing.
+      #
+      # First step on purpose. A malformed tag caught here costs a few seconds;
+      # caught by `dotnet publish` it costs the whole test run first, and caught
+      # by nobody it produces a Release named something no tool can parse.
+      - name: Work out the version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREFIX=$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' Directory.Build.props)
+          if [ -z "$PREFIX" ]; then
+            echo "::error file=Directory.Build.props::no <VersionPrefix> to build from"
+            exit 1
+          fi
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            if ! printf '%s' "$VERSION" \
+               | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+              echo "::error::tag ${GITHUB_REF_NAME} is not v<major>.<minor>.<patch>[-prerelease]"
+              exit 1
+            fi
+          else
+            VERSION="${PREFIX}-alpha.${GITHUB_RUN_NUMBER}"
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building Lightbox $VERSION"
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      # Same keying as build.yml: this repo has no lock file, so `setup-dotnet`'s
+      # own `cache: true` cannot be used. Hashing the project set moves the key
+      # exactly when a dependency or a target framework does.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # The suite runs here too, and that is not redundant with `build.yml`.
+      # A tag can point at any commit, including one that never went through a
+      # pull request — so a Release must prove for itself that what it ships
+      # passes, rather than trusting that something once did.
+      - name: Test before shipping
+        run: dotnet test Lightbox.sln -c Release
+
+      # DebugType=embedded, not none: `none` ships no debug information at all,
+      # so a crash report names methods and no line numbers, which is half of
+      # what makes one actionable. Embedded survives single-file publishing and
+      # costs +0.4 MB on the executable, nothing once zipped.
+      #
+      # `-p:Version=` is what puts the number inside the binary — right-click ▸
+      # Properties on the .exe, and `DiagnosticLog.Build` in every crash report.
+      # The SDK appends `+<commit sha>` to the informational version by itself,
+      # so the stamp names both the version and the exact commit without either
+      # being spelled out twice.
+      - name: Publish the app (self-contained — no install, no admin)
+        run: >
+          dotnet publish src/Lightbox.App/Lightbox.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishTrimmed=false -p:DebugType=embedded
+          -p:Version=${{ steps.version.outputs.version }}
+          -o publish/win-x64
+
+      # Its own folder, because a self-contained executable only ever looks for
+      # its runtime beside itself — there is nothing left for the two publishes
+      # to share, so a subfolder is the tidier place for the server to carry its
+      # own copy.
+      - name: Publish the MCP server into its own folder
+        run: >
+          dotnet publish src/Lightbox.Mcp/Lightbox.Mcp.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishTrimmed=false -p:DebugType=embedded
+          -p:Version=${{ steps.version.outputs.version }}
+          -o publish/win-x64/mcp
+
+      - name: Name the bundle
+        id: name
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Built from the version rather than beside it, so the filename and the
+          # executable's properties are the same number by construction.
+          VERSION="${{ steps.version.outputs.version }}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            LABEL="$VERSION"
+          else
+            # A manual bundle also carries where it came from: the version alone
+            # would make two builds of the same alpha off different branches
+            # indistinguishable in a downloads folder.
+            SAFE=$(printf '%s' "${GITHUB_REF_NAME}" | tr '/ _' '---' | tr -cd 'A-Za-z0-9.-')
+            LABEL="${VERSION}-${SAFE}-${GITHUB_SHA::7}"
+          fi
+          echo "label=$LABEL" >> "$GITHUB_OUTPUT"
+          echo "zip=Lightbox-win-x64-${LABEL}.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Zip it
+        shell: bash
+        run: cd publish/win-x64 && zip -qr "../../${{ steps.name.outputs.zip }}" .
+
+      # ---- a tag becomes a Release -------------------------------------------
+      #
+      # `gh` rather than a third-party action: it is already how
+      # .github/scripts/prune-artifacts.sh talks to the API, it needs no pinning
+      # or supply-chain review, and `--generate-notes` writes the commit summary
+      # for free.
+      # `--prerelease` is unconditional, and that is not laziness: Lightbox is
+      # alpha, the document format still changes, and the README says so at the
+      # top. Marking a build "latest release" would contradict it. Drop this flag
+      # in the same change that drops the alpha banner, not before.
+      - name: Publish the Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${GITHUB_REF_NAME}"
+          "${{ steps.name.outputs.zip }}"
+          --title "Lightbox ${{ steps.version.outputs.version }}"
+          --generate-notes
+          --prerelease
+
+      # ---- a manual run just hands back the zip -------------------------------
+      - name: Upload the bundle
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v5
+        with:
+          name: Lightbox-win-x64-${{ steps.name.outputs.label }}
+          path: ${{ steps.name.outputs.zip }}
+          retention-days: 14

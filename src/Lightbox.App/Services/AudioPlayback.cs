@@ -4,7 +4,7 @@ using Silk.NET.OpenAL;
 namespace Lightbox.App.Services;
 
 /// <summary>
-/// The one native surface the audio feature is allowed (Q55): OpenAL-soft,
+/// The one native surface the audio feature is allowed (Q59): OpenAL-soft,
 /// bound through Silk.NET, playing the scratch track and the scrub ticks.
 ///
 /// Everything degrades to silence rather than failure. A machine with no

@@ -142,7 +142,7 @@ public sealed class WorkspaceStore
         [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient];
 
     /// <summary>
-    /// The timeline family (Q54): the track view in front, the exposure sheet
+    /// The timeline family (Q58): the track view in front, the exposure sheet
     /// and the graph editor tabbed behind it — three views over one set of
     /// records, as the reference's strip draws them.
     /// </summary>

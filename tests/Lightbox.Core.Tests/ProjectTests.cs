@@ -26,7 +26,7 @@ public sealed class ProjectTests : IDisposable
         // starting black-and-white is noise here, and leaving it in would make
         // every "which palette did this end up with" assertion read around it.
         doc.Palettes.Clear();
-        ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
+        ((Frame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
         {
             Tool = ToolKind.Brush,
             Color = color,
@@ -121,7 +121,7 @@ public sealed class ProjectTests : IDisposable
         ProjectIo.Save(project);
 
         var loose = DocJson.Load(project.PathOf(walk));
-        Assert.Single(((PaintedFrame)loose.Scene.Layers[0].Cels[0].Frame!).Strokes);
+        Assert.Single(((Frame)loose.Scene.Layers[0].Cels[0].Frame!).Strokes);
     }
 
     [Fact]
@@ -242,7 +242,7 @@ public sealed class ProjectTests : IDisposable
         ResourceScopes.Declare(project.Manifest, knight, PaletteScopes.Kind, palette.Id);
 
         var doc = Drawing();
-        ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0].SwatchId = swatch.Id;
+        ((Frame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0].SwatchId = swatch.Id;
         ProjectIo.AddDocument(project, "Walk", doc, knight);
         ProjectIo.Save(project);
 
@@ -314,7 +314,7 @@ public sealed class ProjectTests : IDisposable
         var knight = ProjectFolders.Add(project.Manifest, "Knight");
 
         var doc = Drawing();
-        ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0].SwatchId = used.Id;
+        ((Frame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0].SwatchId = used.Id;
         ProjectIo.AddDocument(project, "Walk", doc, knight);
 
         var flat = ProjectIo.Flatten(doc, project);
@@ -335,7 +335,7 @@ public sealed class ProjectTests : IDisposable
         var character = ProjectFolders.Add(project.Manifest, "C");
 
         var doc = Drawing();
-        ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
+        ((Frame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
         {
             Tool = ToolKind.Gradient,
             GradientId = gradient.Id,
@@ -356,7 +356,7 @@ public sealed class ProjectTests : IDisposable
         project.Palettes.Add(new Palette { Swatches = [swatch] });
 
         var doc = Drawing();
-        ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0].SwatchId = swatch.Id;
+        ((Frame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0].SwatchId = swatch.Id;
 
         ProjectIo.Flatten(doc, project);
 

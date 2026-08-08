@@ -2,8 +2,16 @@
 
 ## Layers
 
-Raster and vector layers, folders, blend modes, per-layer opacity, visibility,
-lock and alpha lock. Thumbnails show what is actually on the layer.
+Folders, blend modes, per-layer opacity, visibility, lock and alpha lock.
+Thumbnails show what is actually on the layer.
+
+**There is one kind of layer, and it holds everything.** Strokes, imported
+pixels, symbol placements — a layer is not committed to one of them. Lightbox
+used to ask you to pick Raster or Vector when you added a layer, and marked each
+row **R** or **V**; the choice never changed what you could draw, because both
+kinds took the same tools and made the same marks. All it did was decide what a
+layer would later *refuse*. Documents saved before this still remember which they
+were, so nothing about your files changed — the question is simply gone.
 
 A new document opens with a locked **Background** layer holding the paper, and a
 paintable layer above it. On a transparent document there is no paper layer —

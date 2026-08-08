@@ -22,7 +22,12 @@ public sealed class TemplateUiTests : BrushStateIsolated, IDisposable
         base.Dispose();
     }
 
-    private static MainViewModel Vm() => new(null) { SmoothStrokes = false };
+    private static MainViewModel Vm()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.SmoothStrokes = false;
+        return vm;
+    }
 
     // ---- absence: no project, no template UI -----------------------------------
 

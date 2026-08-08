@@ -26,7 +26,8 @@ public sealed class ScopeDeclarationTests(ITestOutputHelper output) : BrushState
 
     private MainViewModel Vm()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = VmLayers.PaperVm();
+        vm.SmoothStrokes = false;
         _built.Add(vm);
         vm.NewProject(_root, "Production");
         return vm;
@@ -133,7 +134,7 @@ public sealed class ScopeDeclarationTests(ITestOutputHelper output) : BrushState
         var offscreen = first.Doc.Scene.Layers
             .SelectMany(l => l.Cels)
             .Select(c => c.Frame)
-            .OfType<PaintedFrame>()
+            .OfType<Frame>()
             .Single(f => f.Strokes.Any(st => st.SwatchId == swatch.Id));
 
         var row = Assert.Single(vm.PaletteDocker.Swatches, r => r.Id == swatch.Id);

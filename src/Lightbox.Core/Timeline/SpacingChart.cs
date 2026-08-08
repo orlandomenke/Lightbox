@@ -8,7 +8,7 @@ namespace Lightbox.Core.Timeline;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the differentiator the stroke record buys (Q54). Every graph
+/// This is the differentiator the stroke record buys (Q58). Every graph
 /// editor in the field plots <em>transform</em> curves — camera moves, peg
 /// positions. None of them can plot the drawings, because in a raster tool a
 /// drawing is pixels. Here a drawing is replayable geometry, so the spacing
@@ -102,17 +102,9 @@ public static class SpacingChart
     /// <summary>The mean of every stroke point in the drawing, or null when there is no ink.</summary>
     internal static (double X, double Y)? Centroid(Frame frame)
     {
-        var strokes = frame switch
-        {
-            VectorFrame v => v.Strokes,
-            PaintedFrame p => p.Strokes,
-            _ => null,
-        };
-        if (strokes is null) return null;
-
         double x = 0, y = 0;
         var n = 0;
-        foreach (var stroke in strokes)
+        foreach (var stroke in frame.Strokes)
         {
             foreach (var point in stroke.Points)
             {

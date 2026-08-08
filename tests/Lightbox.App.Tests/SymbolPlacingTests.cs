@@ -42,7 +42,7 @@ public class SymbolPlacingTests : IDisposable
         Name = "Sword",
         PivotX = 0,
         PivotY = 0,
-        Frames = [new PaintedFrame { Strokes = [Bar(0, 0, swatchId)] }],
+        Frames = [new Frame { Strokes = [Bar(0, 0, swatchId)] }],
     };
 
     private MainViewModel WithSymbol(out Symbol symbol)
@@ -56,8 +56,8 @@ public class SymbolPlacingTests : IDisposable
         return vm;
     }
 
-    private static PaintedFrame FrameOf(MainViewModel vm) =>
-        (PaintedFrame)vm.Doc.Scene.Layers[^1].Cels[0].Frame!;
+    private static Frame FrameOf(MainViewModel vm) =>
+        (Frame)vm.Doc.Scene.Layers[^1].Cels[0].Frame!;
 
     // ---- putting one down -----------------------------------------------------
 
@@ -116,6 +116,86 @@ public class SymbolPlacingTests : IDisposable
         vm.ActiveLayerForIpc.Locked = true;
 
         Assert.Null(vm.PlaceSymbol(sword.Id, 100, 60));
+    }
+
+    // ---- B132: no layer is the wrong layer ------------------------------------
+
+    /// <summary>
+    /// B132. Placing a symbol on a layer whose kind is <c>Vector</c> used to do
+    /// nothing at all — <c>MainViewModel.Symbols.cs</c> returned early on
+    /// <c>Kind != LayerKind.Painted</c>, with no status line and no refusal, so the
+    /// artist concluded the symbol was broken rather than the layer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The kind is set directly here rather than through a command, because there
+    /// is no longer any way to <em>make</em> a Vector layer in the app — that was
+    /// the picker Q52 removed. What has to keep working is the layer an artist
+    /// already has: every document saved before the merge carries this kind, and
+    /// the fix must be reachable from an old file, not only from a new one.
+    /// </para>
+    /// <para>
+    /// A silent refusal is the failure mode the ledger's own conventions rank
+    /// worse than a crash, which is why the assertion is on the placement landing
+    /// rather than merely on a message appearing.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ASymbolCanBePlacedOnAnyLayer()
+    {
+        var vm = WithSymbol(out var sword);
+        vm.Doc.Scene.Layers[^1].Kind = LayerKind.Vector;   // as an older document would load
+
+        var placement = vm.PlaceSymbol(sword.Id, 100, 60);
+
+        Assert.NotNull(placement);
+        Assert.Equal(sword.Id, Assert.Single(FrameOf(vm).Placements!).SymbolId);
+        Assert.DoesNotContain("layer", vm.AiStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>B132: and the placement is in the file, so a reload still has it.</summary>
+    /// <remarks>
+    /// Placing it was half the bug. The other half was that <c>VectorFrame</c> had
+    /// no <c>Placements</c> field to serialize, so even a placement forced into
+    /// memory would have been dropped on the next save — which is why the fix was
+    /// one frame class rather than one more guard.
+    /// </remarks>
+    [AvaloniaFact]
+    public void APlacementOnAFormerlyVectorLayerSurvivesAReload()
+    {
+        var vm = WithSymbol(out var sword);
+        vm.Doc.Scene.Layers[^1].Kind = LayerKind.Vector;
+        vm.PlaceSymbol(sword.Id, 100, 60);
+
+        var restored = Lightbox.Core.Serialization.DocJson.Deserialize(
+            Lightbox.Core.Serialization.DocJson.Serialize(vm.Doc));
+
+        var frame = restored.Scene.Layers[^1].Cels[0].Frame!;
+        Assert.True(frame.HasPlacements);
+        Assert.Equal(sword.Id, frame.Placements![0].SymbolId);
+        Assert.Equal(LayerKind.Vector, restored.Scene.Layers[^1].Kind);   // provenance kept
+    }
+
+    /// <summary>
+    /// B132's other side: gaining the field must not make every frame pay for it.
+    /// </summary>
+    /// <remarks>
+    /// <c>Placements</c> moved onto the one <see cref="Frame"/>, and a block that
+    /// is nullable in the model but written anyway is the exact trap
+    /// <c>CLAUDE.md</c> records — twenty-one medium keys on every stroke of every
+    /// document for a pass nobody switched on. Cheap to assert, invisible without
+    /// asserting.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AFrameWithNoPlacementsWritesNoPlacementsKey()
+    {
+        var vm = new MainViewModel(null);
+        vm.BeginStroke(40, 40, 1);
+        vm.EndStroke();
+
+        var json = Lightbox.Core.Serialization.DocJson.Serialize(vm.Doc);
+
+        Assert.DoesNotContain("\"placements\"", json);
     }
 
     [AvaloniaFact]
@@ -257,7 +337,7 @@ public class SymbolPlacingTests : IDisposable
         var vm = WithSymbol(out var sword);
         var first = vm.PlaceSymbol(sword.Id, 40, 40)!;
         var second = vm.PlaceSymbol(sword.Id, 200, 40)!;
-        var before = ((PaintedFrame)sword.Frames[0]).Strokes[0].Points[0].X;
+        var before = ((Frame)sword.Frames[0]).Strokes[0].Points[0].X;
 
         vm.BeginMove(50, 40, wholeLayer: false);
         vm.UpdateMove(90, 40, axisLock: false);
@@ -265,7 +345,7 @@ public class SymbolPlacingTests : IDisposable
 
         Assert.Equal(80, first.X);
         Assert.Equal(200, second.X);
-        Assert.Equal(before, ((PaintedFrame)sword.Frames[0]).Strokes[0].Points[0].X);
+        Assert.Equal(before, ((Frame)sword.Frames[0]).Strokes[0].Points[0].X);
     }
 
     [AvaloniaFact]
@@ -472,7 +552,7 @@ public class SymbolPlacingTests : IDisposable
         var second = vm.PlaceSymbol(sword.Id, 200, 60)!;
         vm.Selection.AddPlacementToSelection(first.Id);
         vm.Selection.AddPlacementToSelection(second.Id);
-        var before = ((PaintedFrame)sword.Frames[0]).Strokes[0].Points[0].X;
+        var before = ((Frame)sword.Frames[0]).Strokes[0].Points[0].X;
 
         vm.BeginMove(110, 60, wholeLayer: false);
         vm.UpdateMove(160, 60, axisLock: false);
@@ -480,7 +560,7 @@ public class SymbolPlacingTests : IDisposable
 
         Assert.Equal(150, first.X);
         Assert.Equal(250, second.X);
-        Assert.Equal(before, ((PaintedFrame)sword.Frames[0]).Strokes[0].Points[0].X);
+        Assert.Equal(before, ((Frame)sword.Frames[0]).Strokes[0].Points[0].X);
     }
 
     // ---- letting go of the link --------------------------------------------------
@@ -558,12 +638,12 @@ public class SymbolPlacingTests : IDisposable
         var placement = vm.PlaceSymbol(sword.Id, 100, 60)!;
         placement.ScaleX = 2;
         placement.ScaleY = 2;
-        var width = ((PaintedFrame)sword.Frames[0]).Strokes[0].Brush.Size;
+        var width = ((Frame)sword.Frames[0]).Strokes[0].Brush.Size;
 
         vm.BreakLink(placement);
 
         Assert.Equal(width * 2, FrameOf(vm).Strokes[0].Brush.Size);
-        Assert.Equal(width, ((PaintedFrame)sword.Frames[0]).Strokes[0].Brush.Size);
+        Assert.Equal(width, ((Frame)sword.Frames[0]).Strokes[0].Brush.Size);
     }
 
     private static int UndoDepth(MainViewModel vm)

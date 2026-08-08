@@ -10,7 +10,7 @@ namespace Lightbox.Core.Tests;
 /// </summary>
 public class SpacingChartTests
 {
-    private static VectorFrame DrawingAt(double x, double y) => new()
+    private static Frame DrawingAt(double x, double y) => new()
     {
         Strokes =
         [
@@ -18,7 +18,7 @@ public class SpacingChartTests
         ],
     };
 
-    private static Layer LayerWith(params (int Index, VectorFrame? Frame)[] cels)
+    private static Layer LayerWith(params (int Index, Frame? Frame)[] cels)
     {
         var layer = new Layer { Kind = LayerKind.Vector };
         var count = cels.Max(c => c.Index) + 1;
@@ -74,7 +74,7 @@ public class SpacingChartTests
     [Fact]
     public void AnEmptyDrawingIsSkippedRatherThanMeasuredAsZero()
     {
-        var empty = new VectorFrame();
+        var empty = new Frame();
         var layer = LayerWith((0, DrawingAt(0, 0)), (1, empty), (2, DrawingAt(10, 0)));
 
         var spans = SpacingChart.Measure(layer);
@@ -98,13 +98,13 @@ public class SpacingChartTests
 /// </summary>
 public class IntendedSpacingTests
 {
-    private static VectorFrame DrawingAt(double x, FrameRole role = FrameRole.Key) => new()
+    private static Frame DrawingAt(double x, FrameRole role = FrameRole.Key) => new()
     {
         Role = role,
         Strokes = [new Stroke { Points = [new StrokePoint(x, 0, 1), new StrokePoint(x, 2, 1)] }],
     };
 
-    private static Layer LayerWith(params VectorFrame[] frames)
+    private static Layer LayerWith(params Frame[] frames)
     {
         var layer = new Layer { Kind = LayerKind.Vector };
         foreach (var f in frames) layer.Cels.Add(new Cel { Frame = f });

@@ -172,11 +172,11 @@ public class FillStrokeTests
         var fill = Square(6, 6, 30);
         fill.Holes = [[new(12, 12, 1), new(20, 12, 1), new(20, 20, 1), new(12, 20, 1)]];
         var doc = DocumentFactory.CreateDoc(64, 64, 12);
-        var frame = (PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
         frame.Strokes.Add(fill);
 
         var reloaded = DocJson.Deserialize(DocJson.Serialize(doc));
-        var reloadedFrame = (PaintedFrame)reloaded.Scene.Layers[0].Cels[0].Frame!;
+        var reloadedFrame = (Frame)reloaded.Scene.Layers[0].Cels[0].Frame!;
         Assert.NotNull(reloadedFrame.Strokes[0].Holes);
 
         using var a = FrameRasterizer.Rasterize(frame.Strokes, 64, 64);
@@ -205,7 +205,7 @@ public class FillStrokeTests
             Points = [new(8, 32, 1), new(56, 32, 1)],
             ClipId = "clip_test",
         };
-        var frame = (PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
         frame.Strokes.Add(stroke);
         ClipRegionRegistry.Register(doc.ClipRegions);
 
@@ -215,7 +215,7 @@ public class FillStrokeTests
 
         var reloaded = DocJson.Deserialize(DocJson.Serialize(doc));
         ClipRegionRegistry.Register(reloaded.ClipRegions);
-        var reloadedFrame = (PaintedFrame)reloaded.Scene.Layers[0].Cels[0].Frame!;
+        var reloadedFrame = (Frame)reloaded.Scene.Layers[0].Cels[0].Frame!;
         using var replay = FrameRasterizer.Rasterize(reloadedFrame.Strokes, 64, 64);
         Assert.Equal(Hash(direct), Hash(replay));
     }

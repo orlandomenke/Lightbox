@@ -11,7 +11,7 @@ public class ExposureEditingTests
         var b = new Layer
         {
             Name = "Top",
-            Cels = [new Cel { Frame = new PaintedFrame() }],
+            Cels = [new Cel { Frame = new Frame() }],
         };
         doc.Scene.Layers.Add(b);
         var editor = new DocumentEditor(doc);
@@ -73,7 +73,7 @@ public class ExposureEditingTests
     public void SetFrameAt_ReplacesTheCel_AndExtendsTheTimeline()
     {
         var (editor, a, _) = TwoLayerDoc();
-        var pasted = new PaintedFrame { Strokes = [new Stroke { Points = [new(1, 1, 1)] }] };
+        var pasted = new Frame { Strokes = [new Stroke { Points = [new(1, 1, 1)] }] };
 
         editor.SetFrameAt(a.Id, 5, pasted);
 
@@ -99,12 +99,12 @@ public class ExposureEditingTests
     [Fact]
     public void CloneFrame_DeepClones_WithAFreshId()
     {
-        var src = new PaintedFrame
+        var src = new Frame
         {
             PngBase64 = "abc",
             Strokes = [new Stroke { Points = [new(3, 4, 1)] }],
         };
-        var clone = (PaintedFrame)DocumentEditor.CloneFrame(src)!;
+        var clone = (Frame)DocumentEditor.CloneFrame(src)!;
         Assert.NotEqual(src.Id, clone.Id);       // ids key the render cache
         Assert.Equal("abc", clone.PngBase64);
         Assert.NotSame(src.Strokes[0], clone.Strokes[0]);

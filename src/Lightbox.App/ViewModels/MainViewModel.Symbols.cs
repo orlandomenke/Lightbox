@@ -210,7 +210,7 @@ public sealed partial class MainViewModel
             return null;
         }
         if (!CanEdit(ActiveLayer, "make a symbol")) return null;
-        if (PaintTarget() is not PaintedFrame source || source.Strokes.Count == 0)
+        if (PaintTarget() is not Frame source || source.Strokes.Count == 0)
         {
             AiStatus = "Nothing on this drawing to make a symbol from.";
             return null;
@@ -223,7 +223,7 @@ public sealed partial class MainViewModel
             // The strokes as they stand, in the coordinates they were drawn in.
             // Pivot at the origin, so a placement at (0, 0) puts them back
             // exactly where they were.
-            Frames = [new PaintedFrame { Strokes = [.. source.Strokes.Select(s => s.Clone())] }],
+            Frames = [new Frame { Strokes = [.. source.Strokes.Select(s => s.Clone())] }],
         };
 
         var taken = source.Strokes.ToList();
@@ -364,7 +364,7 @@ public sealed partial class MainViewModel
             ActiveTab = open;
             return;
         }
-        if (symbol.Frames.Count == 0) symbol.Frames.Add(new PaintedFrame());
+        if (symbol.Frames.Count == 0) symbol.Frames.Add(new Frame());
 
         var layer = new Layer { Name = symbol.Name, Kind = LayerKind.Painted };
         foreach (var frame in symbol.Frames) layer.Cels.Add(new Cel { Frame = frame });
@@ -503,7 +503,7 @@ public sealed partial class MainViewModel
     /// </remarks>
     public int AcknowledgeOutdatedPlacements()
     {
-        if (PaintTarget() is not PaintedFrame target) return 0;
+        if (PaintTarget() is not Frame target) return 0;
         var stale = OutdatedPlacements;
         if (stale.Count == 0) return 0;
 
@@ -534,7 +534,7 @@ public sealed partial class MainViewModel
 
     /// <summary>The placements on the cel being drawn on, or an empty list.</summary>
     public IReadOnlyList<SymbolPlacement> PlacementsHere =>
-        PaintTarget() is PaintedFrame { Placements: { } list } ? list : [];
+        PaintTarget() is Frame { Placements: { } list } ? list : [];
 
     /// <summary>The placement currently picked, or null.</summary>
     /// <remarks>
@@ -577,7 +577,7 @@ public sealed partial class MainViewModel
             AiStatus = "That symbol is not in this project.";
             return null;
         }
-        if (PaintTargetOrKey() is not PaintedFrame target)
+        if (PaintTargetOrKey() is not Frame target)
         {
             AiStatus = "Symbols can only be placed on a painted layer.";
             return null;
@@ -642,7 +642,7 @@ public sealed partial class MainViewModel
     /// <summary>
     /// Place a symbol as a single animated reference (old behaviour).
     /// </summary>
-    private SymbolPlacement? PlaceSingleSymbol(string symbolId, Symbol symbol, double x, double y, PaintedFrame target)
+    private SymbolPlacement? PlaceSingleSymbol(string symbolId, Symbol symbol, double x, double y, Frame target)
     {
         var placement = new SymbolPlacement
         {
@@ -681,7 +681,7 @@ public sealed partial class MainViewModel
     /// Expand the timeline to accommodate a multi-frame symbol, then place
     /// instances across all frames with proper FrameOffset values.
     /// </summary>
-    private SymbolPlacement? PlaceSymbolAcrossFrames(Symbol symbol, double x, double y, PaintedFrame initialTarget)
+    private SymbolPlacement? PlaceSymbolAcrossFrames(Symbol symbol, double x, double y, Frame initialTarget)
     {
         var frameCount = symbol.FrameCount;
         var startFrameIndex = CurrentFrameIndex;
@@ -734,18 +734,22 @@ public sealed partial class MainViewModel
                 doc.Scene.FrameGroups.Add(frameGroup);
 
                 // Place on each frame of the active layer
+                // **B132 fixed here.** This used to return early on
+                // `activeLayer.Kind != LayerKind.Painted`, silently — no status
+                // line, no refusal, no cursor change. The guard existed because
+                // `VectorFrame` had no `Placements` field to write to, and nothing
+                // anywhere recorded a reason why a symbol should need raster pixels
+                // underneath it. One frame class removes the reason rather than
+                // documenting it: every layer can hold a placement now.
                 var activeLayer = doc.Scene.Layers.FirstOrDefault(l => l.Id == activeLayerId);
-                if (activeLayer is null || activeLayer.Kind != LayerKind.Painted) return;
+                if (activeLayer is null) return;
 
                 for (var i = 0; i < placements.Count; i++)
                 {
                     var frameIdx = startFrameIndex + i;
-                    var target = ExposureSheet.ExposedFrame(activeLayer, frameIdx);
-                    if (target is PaintedFrame painted)
-                    {
-                        painted.Placements ??= [];
-                        painted.Placements.Add(placements[i]);
-                    }
+                    if (ExposureSheet.ExposedFrame(activeLayer, frameIdx) is not { } target) continue;
+                    target.Placements ??= [];
+                    target.Placements.Add(placements[i]);
                 }
             },
             revert: doc =>
@@ -761,7 +765,7 @@ public sealed partial class MainViewModel
                 {
                     foreach (var cel in layer.Cels)
                     {
-                        if (cel.Frame is PaintedFrame painted && painted.Placements is not null)
+                        if (cel.Frame is Frame painted && painted.Placements is not null)
                         {
                             painted.Placements.RemoveAll(p => placementIds.Contains(p.Id));
                             if (painted.Placements.Count == 0) painted.Placements = null;
@@ -781,7 +785,7 @@ public sealed partial class MainViewModel
     public bool RemovePlacement(SymbolPlacement placement)
     {
         if (!CanEdit(ActiveLayer, "remove a symbol")) return false;
-        if (PaintTarget() is not PaintedFrame target || target.Placements is null) return false;
+        if (PaintTarget() is not Frame target || target.Placements is null) return false;
         var index = target.Placements.FindIndex(p => p.Id == placement.Id);
         if (index < 0) return false;
 
@@ -1007,7 +1011,7 @@ public sealed partial class MainViewModel
     public bool BreakLink(SymbolPlacement placement)
     {
         if (!CanEdit(ActiveLayer, "break a symbol link")) return false;
-        if (PaintTarget() is not PaintedFrame target || target.Placements is null) return false;
+        if (PaintTarget() is not Frame target || target.Placements is null) return false;
         var index = target.Placements.FindIndex(p => p.Id == placement.Id);
         if (index < 0) return false;
         if (SymbolRegistry.Resolve(placement.SymbolId) is not { } symbol) return false;
@@ -1045,12 +1049,7 @@ public sealed partial class MainViewModel
     /// <summary>The symbol's strokes with the placement's transform written into them.</summary>
     private static List<Stroke> BakedStrokes(Symbol symbol, int frameIndex, SymbolPlacement placement)
     {
-        var source = symbol.Frames[frameIndex] switch
-        {
-            PaintedFrame p => p.Strokes,
-            VectorFrame v => v.Strokes,
-            _ => [],
-        };
+        var source = symbol.Frames[frameIndex].Strokes;
         var cos = Math.Cos(placement.Angle * Math.PI / 180);
         var sin = Math.Sin(placement.Angle * Math.PI / 180);
         var scale = Math.Max(Math.Abs(placement.ScaleX), Math.Abs(placement.ScaleY));
@@ -1080,11 +1079,11 @@ public sealed partial class MainViewModel
 
     // ---- shared plumbing -----------------------------------------------------------
 
-    private static PaintedFrame? FrameIn(Doc doc, string frameId) =>
+    private static Frame? FrameIn(Doc doc, string frameId) =>
         doc.Scene.Layers
             .SelectMany(l => l.Cels)
             .Select(c => c.Frame)
-            .OfType<PaintedFrame>()
+            .OfType<Frame>()
             .FirstOrDefault(f => f.Id == frameId);
 
     private void AfterPlacementChange(string frameId)

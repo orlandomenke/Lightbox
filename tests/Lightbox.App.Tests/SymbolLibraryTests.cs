@@ -31,7 +31,7 @@ public sealed class SymbolLibraryTests : BrushStateIsolated, IDisposable
 
     private static Symbol Sword(string name = "Sword", int version = 1)
     {
-        var frame = new PaintedFrame();
+        var frame = new Frame();
         frame.Strokes.Add(new Stroke
         {
             Tool = ToolKind.Brush,
@@ -65,7 +65,7 @@ public sealed class SymbolLibraryTests : BrushStateIsolated, IDisposable
         var loaded = back.Values.Single();
         Assert.Equal("Sword", loaded.Name);
         Assert.Single(loaded.Frames);
-        Assert.Single(((PaintedFrame)loaded.Frames[0]).Strokes);
+        Assert.Single(((Frame)loaded.Frames[0]).Strokes);
     }
 
     [AvaloniaFact]
@@ -186,7 +186,7 @@ public sealed class SymbolLibraryTests : BrushStateIsolated, IDisposable
 
         var mine = vm.ProjectDocker.Project!.Symbols[global.Id];
         Assert.Single(mine.Frames);
-        Assert.Single(((PaintedFrame)mine.Frames[0]).Strokes);
+        Assert.Single(((Frame)mine.Frames[0]).Strokes);
     }
 
     // ---- promoting and pulling -------------------------------------------------

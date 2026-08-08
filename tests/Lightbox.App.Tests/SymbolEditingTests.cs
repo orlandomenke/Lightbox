@@ -38,12 +38,16 @@ public class SymbolEditingTests : IDisposable
 
     private MainViewModel WithSymbol(out Symbol symbol, int frames = 1)
     {
-        var vm = new MainViewModel(null);
+        // An animation to place the symbol into. It used to arrive free, from a
+        // startup document; the application now opens with nothing, and a test
+        // that reads `ActiveTab!` on an empty one gets a null it then assigns
+        // back — which is how this file went from failing to hanging.
+        var vm = VmLayers.PaperVm();
         var project = ProjectIo.Create("Knight", _root);
         symbol = new Symbol { Name = "Sword", Fps = 12 };
         for (var i = 0; i < frames; i++)
         {
-            symbol.Frames.Add(new PaintedFrame { Strokes = [Bar(30 + i * 10)] });
+            symbol.Frames.Add(new Frame { Strokes = [Bar(30 + i * 10)] });
         }
         project.Symbols[symbol.Id] = symbol;
         vm.ProjectDocker.Project = project;
@@ -51,8 +55,8 @@ public class SymbolEditingTests : IDisposable
         return vm;
     }
 
-    private static PaintedFrame FrameOf(MainViewModel vm) =>
-        (PaintedFrame)vm.Doc.Scene.Layers[^1].Cels[0].Frame!;
+    private static Frame FrameOf(MainViewModel vm) =>
+        (Frame)vm.Doc.Scene.Layers[^1].Cels[0].Frame!;
 
     /// <summary>
     /// A real edit on whatever tab is active, through the ordinary funnel.
@@ -209,7 +213,7 @@ public class SymbolEditingTests : IDisposable
         var vm = WithSymbol(out var sword);
         vm.OpenSymbol(sword);
 
-        vm.Doc.Scene.Layers[0].Cels.Add(new Cel { Frame = new PaintedFrame { Strokes = [Bar(90)] } });
+        vm.Doc.Scene.Layers[0].Cels.Add(new Cel { Frame = new Frame { Strokes = [Bar(90)] } });
         Edit(vm, Bar(95));
 
         Assert.Equal(2, sword.Frames.Count);

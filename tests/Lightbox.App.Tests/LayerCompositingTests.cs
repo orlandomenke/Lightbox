@@ -237,8 +237,8 @@ public class AlphaSelectAndWandTests : BrushStateIsolated
 public class CelClipboardTests
 {
     /// <summary>Cel 0 of a scene layer; -1 (the default) means the layer being drawn on.</summary>
-    private static PaintedFrame Frame0(MainViewModel vm, int layer = -1) =>
-        (PaintedFrame)vm.Doc.Scene.Layers[layer < 0 ? vm.ActiveLayerIndex : layer].Cels[0].Frame!;
+    private static Frame Frame0(MainViewModel vm, int layer = -1) =>
+        (Frame)vm.Doc.Scene.Layers[layer < 0 ? vm.ActiveLayerIndex : layer].Cels[0].Frame!;
 
     /// <summary>A timeline cell; sceneLayer -1 (the default) means the layer being drawn on.</summary>
     private static FrameCell Cell(MainViewModel vm, int sceneLayer, int index) =>
@@ -258,7 +258,7 @@ public class CelClipboardTests
 
         var scene = vm.Doc.Scene;
         Assert.Equal(5, scene.FrameCount);
-        var pasted = (PaintedFrame)vm.PaintLayer().Cels[4].Frame!;
+        var pasted = (Frame)vm.PaintLayer().Cels[4].Frame!;
         Assert.NotEqual(srcId, pasted.Id);
         Assert.Single(pasted.Strokes);
         Assert.NotSame(Frame0(vm).Strokes[0], pasted.Strokes[0]);
@@ -277,26 +277,55 @@ public class CelClipboardTests
         Assert.Null(vm.PaintLayer().Cels[0].Frame);
     }
 
+    /// <remarks>
+    /// Was <c>PasteAcrossKinds_ConvertsStrokes_ButRefusesBaselinePixelsOntoVector</c>,
+    /// and it was right about the old behaviour: a cel carrying imported pixels
+    /// could not be pasted onto a vector layer, and the paste was refused with a
+    /// status mentioning the baseline. There are no kinds to paste across now, so
+    /// the refusal has nothing left to protect — every layer holds what any frame
+    /// holds. The test is kept pointed at the replacement rather than deleted,
+    /// because "a paste that used to be refused now lands, pixels included" is
+    /// exactly the behaviour change somebody would want to find a test for.
+    /// </remarks>
     [AvaloniaFact]
-    public void PasteAcrossKinds_ConvertsStrokes_ButRefusesBaselinePixelsOntoVector()
+    public void PasteOntoAnyLayer_CarriesStrokesAndBaselinePixelsAlike()
     {
         var vm = VmLayers.BareVm();
         vm.SmoothStrokes = false;
         vm.BeginStroke(50, 50, 1);
         vm.EndStroke();
-        vm.AddVectorLayerCommand.Execute(null); // scene layer 1
+        vm.AddPaintedLayerCommand.Execute(null); // scene layer 1
 
-        // painted (strokes only) → vector: converts
+        // Strokes only: lands, as it always did.
         vm.CopyCel(Cell(vm, 0, 0));
         vm.PasteCel(Cell(vm, 1, 0));
-        Assert.IsType<VectorFrame>(vm.Doc.Scene.Layers[1].Cels[0].Frame);
-        Assert.Single(((VectorFrame)vm.Doc.Scene.Layers[1].Cels[0].Frame!).Strokes);
+        Assert.Single(vm.Doc.Scene.Layers[1].Cels[0].Frame!.Strokes);
 
-        // painted WITH baseline pixels → vector: refused
-        ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).PngBase64 = Convert.ToBase64String([1, 2, 3]);
+        // With imported pixels under them: lands too, and that is the change.
+        // A real PNG, not three arbitrary bytes: the paste used to be refused, so
+        // nothing ever decoded what the old test put here. Now it lands and gets
+        // rendered, and the renderer throws on a baseline it cannot decode (B137).
+        var baseline = RealPng();
+        vm.Doc.Scene.Layers[0].Cels[0].Frame!.PngBase64 = baseline;
         vm.CopyCel(Cell(vm, 0, 0));
         vm.PasteCel(Cell(vm, 1, 0));
-        Assert.Contains("baseline", vm.AiStatus, StringComparison.OrdinalIgnoreCase);
+
+        var pasted = vm.Doc.Scene.Layers[1].Cels[0].Frame!;
+        Assert.Equal(baseline, pasted.PngBase64);
+        Assert.Single(pasted.Strokes);
+        Assert.DoesNotContain("baseline", vm.AiStatus, StringComparison.OrdinalIgnoreCase);
+
+        // A paste is a copy, not a share: the clone carries the content and its
+        // own id, or editing one drawing would edit the other.
+        Assert.NotEqual(vm.Doc.Scene.Layers[0].Cels[0].Frame!.Id, pasted.Id);
+    }
+
+    /// <summary>A decodable one-pixel PNG, for a baseline that will be rendered.</summary>
+    private static string RealPng()
+    {
+        using var bitmap = new SKBitmap(new SKImageInfo(1, 1, SKColorType.Rgba8888, SKAlphaType.Premul));
+        bitmap.SetPixel(0, 0, new SKColor(0x33, 0x66, 0x99, 0xFF));
+        return Lightbox.Raster.PngCodec.Encode(bitmap);
     }
 
     [AvaloniaFact]

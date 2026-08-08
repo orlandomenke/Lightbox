@@ -53,7 +53,7 @@ public class SymbolRenderTests : IDisposable
         Name = "Sword",
         PivotX = 10,
         PivotY = 10,
-        Frames = [new PaintedFrame { Strokes = [.. strokes] }],
+        Frames = [new Frame { Strokes = [.. strokes] }],
     };
 
     private static Symbol Cycle(int frames)
@@ -63,7 +63,7 @@ public class SymbolRenderTests : IDisposable
         {
             // One frame per row, so which frame rendered is readable from a
             // single pixel rather than from a hash.
-            symbol.Frames.Add(new PaintedFrame
+            symbol.Frames.Add(new Frame
             {
                 Strokes =
                 [
@@ -80,10 +80,10 @@ public class SymbolRenderTests : IDisposable
         return symbol;
     }
 
-    private static PaintedFrame Placing(params SymbolPlacement[] placements) =>
+    private static Frame Placing(params SymbolPlacement[] placements) =>
         new() { Placements = [.. placements] };
 
-    private static SKBitmap Render(PaintedFrame frame, int celIndex = 0, double outputScale = 1.0) =>
+    private static SKBitmap Render(Frame frame, int celIndex = 0, double outputScale = 1.0) =>
         FrameRasterizer.Materialize(frame, W, H, outputScale, celIndex);
 
     /// <summary>Every non-transparent pixel, as a set of (x, y, colour).</summary>
@@ -186,7 +186,7 @@ public class SymbolRenderTests : IDisposable
     {
         // The absence rule, in pixels: adding the pass must not have changed
         // what a painting looks like.
-        var painted = new PaintedFrame { Strokes = [Jittery(40, 40)] };
+        var painted = new Frame { Strokes = [Jittery(40, 40)] };
 
         using var before = FrameRasterizer.Rasterize(painted.Strokes, W, H);
         using var after = Render(painted);
@@ -262,7 +262,7 @@ public class SymbolRenderTests : IDisposable
         var frame = Placing(new SymbolPlacement { SymbolId = sword.Id, X = 60, Y = 60 });
 
         using var before = Render(frame);
-        ((PaintedFrame)sword.Frames[0]).Strokes.Add(Jittery(10, 40));
+        ((Frame)sword.Frames[0]).Strokes.Add(Jittery(10, 40));
         sword.Version++;
         using var after = Render(frame);
 
@@ -281,7 +281,7 @@ public class SymbolRenderTests : IDisposable
         var frame = Placing(new SymbolPlacement { SymbolId = sword.Id, X = 60, Y = 60 });
         using var before = Render(frame);
 
-        ((PaintedFrame)sword.Frames[0]).Strokes.Add(Jittery(10, 40));
+        ((Frame)sword.Frames[0]).Strokes.Add(Jittery(10, 40));
         using var after = Render(frame);
 
         Assert.Equal(InkCount(before), InkCount(after));

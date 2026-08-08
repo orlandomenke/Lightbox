@@ -42,7 +42,7 @@ public class ProjectFlattenTests : IDisposable
         var strokes = doc.Scene.Layers
             .SelectMany(l => l.Cels)
             .Select(c => c.Frame)
-            .OfType<PaintedFrame>()
+            .OfType<Frame>()
             .SelectMany(f => f.Strokes)
             .ToList();
         using var bmp = FrameRasterizer.Rasterize(strokes, W, H);
@@ -56,7 +56,7 @@ public class ProjectFlattenTests : IDisposable
         // A document's own starting black-and-white would be carried across
         // by definition, and saying so in every assertion adds nothing.
         doc.Palettes.Clear();
-        ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.AddRange(strokes);
+        ((Frame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.AddRange(strokes);
         return doc;
     }
 

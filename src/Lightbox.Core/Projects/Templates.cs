@@ -283,20 +283,13 @@ public static class Templates
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var cel in layer.Cels)
         {
-            switch (cel.Frame)
-            {
-                case VectorFrame v:
-                    foreach (var s in v.Strokes) ids.Add(s.Id);
-                    break;
-                case PaintedFrame p:
-                    foreach (var s in p.Strokes) ids.Add(s.Id);
-                    // Imported pixels have no stroke provenance, so they cannot
-                    // be compared by id. Their presence is itself content, and a
-                    // synthetic marker is what keeps "drawn on" honest for a
-                    // layer whose art arrived as a baseline PNG.
-                    if (p.PngBase64.Length > 0) ids.Add($"baseline:{p.Id}:{p.PngBase64.Length}");
-                    break;
-            }
+            if (cel.Frame is not { } frame) continue;
+            foreach (var s in frame.Strokes) ids.Add(s.Id);
+            // Imported pixels have no stroke provenance, so they cannot be
+            // compared by id. Their presence is itself content, and a synthetic
+            // marker is what keeps "drawn on" honest for a layer whose art
+            // arrived as a baseline PNG.
+            if (frame.HasBaseline) ids.Add($"baseline:{frame.Id}:{frame.PngBase64!.Length}");
         }
         return ids;
     }

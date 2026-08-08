@@ -62,7 +62,7 @@ public class CultureInvarianceTests
     private static Doc SampleDoc()
     {
         var doc = DocumentFactory.CreateDoc(320, 180, 24);
-        var painted = (PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!;
+        var painted = (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
         painted.PngBase64 = Convert.ToBase64String([1, 2, 3, 4]);
         painted.Strokes.Add(new Stroke
         {
@@ -167,7 +167,7 @@ public class CultureInvarianceTests
         var restored = InCulture(culture, () => DocJson.Deserialize(json));
 
         var stroke = Assert.Single(
-            Assert.IsType<PaintedFrame>(restored.Scene.Layers[0].Cels[0].Frame).Strokes);
+            Assert.IsType<Frame>(restored.Scene.Layers[0].Cels[0].Frame).Strokes);
         Assert.Equal(12.5, stroke.Brush.Size);
         Assert.Equal(0.5, stroke.Brush.Hardness);
         Assert.Equal(0.875, stroke.Brush.Opacity);
@@ -190,7 +190,7 @@ public class CultureInvarianceTests
         var restored = InCulture("tr-TR", () => DocJson.Deserialize(json));
 
         var stroke = Assert.Single(
-            Assert.IsType<PaintedFrame>(restored.Scene.Layers[0].Cels[0].Frame).Strokes);
+            Assert.IsType<Frame>(restored.Scene.Layers[0].Cels[0].Frame).Strokes);
         Assert.Equal(0.5, stroke.Brush.Hardness);
         Assert.Equal(new StrokePoint(10.25, 20.5, 0.5), stroke.Points[0]);
     }

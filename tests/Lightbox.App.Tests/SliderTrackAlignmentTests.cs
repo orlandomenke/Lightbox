@@ -11,7 +11,7 @@ namespace Lightbox.App.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>B137.</b> Reported as "the thin slider does not align to the center of
+/// <b>B141.</b> Reported as "the thin slider does not align to the center of
 /// the text". Fluent's slider template reserves 15px above and 15px below the
 /// track — fixed grid rows for tick bars nothing in this application shows —
 /// so inside our 24px slider the whole track assembly sat pinned 15px from

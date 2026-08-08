@@ -143,7 +143,7 @@ public class LiveToolPreviewTests(ITestOutputHelper output) : BrushStateIsolated
     public void AnAbandonedSmudgeLeavesNoTrace()
     {
         var vm = Painted();
-        var strokes = ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
+        var strokes = ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
         Pick(vm, "Smudge");
         vm.BrushSmudgeLength = 0.9;
 
@@ -158,7 +158,7 @@ public class LiveToolPreviewTests(ITestOutputHelper output) : BrushStateIsolated
         vm.SnapshotChanged += s => latest = s;
         vm.PublishSnapshot();
 
-        Assert.Equal(strokes, ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count);
+        Assert.Equal(strokes, ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count);
         Assert.Equal(0, PixelAt(latest!, 180, 150).Alpha);
     }
 

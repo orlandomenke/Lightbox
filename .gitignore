@@ -2,11 +2,8 @@ bin/
 obj/
 *.user
 
-# Generated index. INDEX.md and FEATURES.md are committed, because their
-# diffs show behaviour changing and they are derived purely from file
-# contents — rebuild after an unrelated commit and nothing moves.
-#
-# The rest is not committed, and the test is the same one every time: does
+# Generated index. Nothing under .claude/codemap/ is committed any more,
+# and the test is the same one every time: does
 # the artefact change when nothing about the source did? map.json is a 350 KB
 # graph that regenerates in a second. HOTSPOTS.md ranks files by commit churn,
 # so every commit changes it by construction — committing it meant the file
@@ -15,6 +12,15 @@ obj/
 .claude/codemap/map.json
 .claude/codemap/.stamp
 .claude/codemap/HOTSPOTS.md
+# INDEX.md and FEATURES.md joined the untracked set on 2026-08-08 (Q55).
+# They are derived from the whole solution, so every parallel branch rewrote
+# them end to end and every pull request conflicted on them by construction —
+# and GitHub never runs the merge driver that resolved this locally, so the
+# owner hand-merged main into every surviving branch after every merge. The
+# session-start hook builds them when they are stale or absent; CI builds
+# them to prove the tree parses. Nothing authored lives in them.
+.claude/codemap/INDEX.md
+.claude/codemap/FEATURES.md
 
 # Workflow agents get their own git worktrees under here.
 .claude/worktrees/

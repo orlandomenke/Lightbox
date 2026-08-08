@@ -8,10 +8,22 @@ namespace Lightbox.App.Tests;
 
 public class DocumentTabTests
 {
+    /// <summary>
+    /// A new document says it is not on disk yet.
+    /// </summary>
+    /// <remarks>
+    /// This used to assert the same thing about a tab the application opened for
+    /// itself at startup. It no longer opens one — cancelling the New dialog then
+    /// adopted a canvas nobody chose — so the document is made here instead. The
+    /// badge behaviour B99 pinned is unchanged and is still the point of the test;
+    /// only where the document comes from has moved.
+    /// </remarks>
     [AvaloniaFact]
-    public void StartsWithOneUntitledTabThatSaysItIsNotOnDisk()
+    public void ANewDocumentSaysItIsNotOnDisk()
     {
         var vm = new MainViewModel(null);
+        vm.NewDocument(new NewDocumentSettings("Untitled-1", 400, 300, 12, 72, "#ffffff", false));
+
         var tab = Assert.Single(vm.Tabs);
         Assert.Equal("Untitled-1", tab.Title);
         // B99. It badges, because it has never been written — the reporter
@@ -28,7 +40,8 @@ public class DocumentTabTests
     [AvaloniaFact]
     public void NewDocument_AddsTabWithSettings_AndActivatesIt()
     {
-        var vm = new MainViewModel(null);
+        // One already open, because "adds a tab" is the claim being made.
+        var vm = VmLayers.PaperVm();
         vm.NewDocument(new NewDocumentSettings("Shot 12", 1920, 1080, 24, 300, "#202020", TransparentBackground: false));
 
         Assert.Equal(2, vm.Tabs.Count);
@@ -48,7 +61,7 @@ public class DocumentTabTests
     [AvaloniaFact]
     public void PaintingMarksTheTabDirty_SaveClearsIt()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         Assert.False(vm.Tabs[0].HasWorkToLose);
 
         vm.BeginStroke(10, 10, 0.5);
@@ -67,7 +80,7 @@ public class DocumentTabTests
     [AvaloniaFact]
     public void SwitchingTabs_KeepsEachDocumentAndItsUndoHistory()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         vm.BeginStroke(10, 10, 0.5);
         vm.EndStroke(); // tab 1 has one stroke + one undo step
 
@@ -87,13 +100,13 @@ public class DocumentTabTests
     private static List<Stroke> PaintStrokes(MainViewModel vm)
     {
         var layer = vm.Doc.Scene.Layers.First(l => !l.IsBackground);
-        return ((PaintedFrame)layer.Cels[0].Frame!).Strokes;
+        return ((Frame)layer.Cels[0].Frame!).Strokes;
     }
 
     [AvaloniaFact]
     public void SwitchingTabs_DoesNotMarkAnythingDirty_AndRestoresPlayhead()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         vm.AddFrameCommand.Execute(null);
         vm.NotifySaved("/tmp/a.lightbox.json"); // clean state, 2 frames, playhead at 1
 
@@ -108,10 +121,23 @@ public class DocumentTabTests
         Assert.False(vm.Tabs[1].HasWorkToLose);
     }
 
+    /// <summary>
+    /// Closing a tab activates a neighbour, and closing the last one leaves
+    /// nothing open.
+    /// </summary>
+    /// <remarks>
+    /// The second half of this test used to be called
+    /// <c>AndNeverLeavesZeroTabs</c> and asserted that a fresh untitled document
+    /// appeared. That is the behaviour that was removed: an invented document is
+    /// one whose canvas nobody chose, and there was no way to arrive at an empty
+    /// application even on purpose. The neighbour half is untouched, because that
+    /// part was always right.
+    /// </remarks>
     [AvaloniaFact]
-    public void CloseTab_ActivatesNeighbor_AndNeverLeavesZeroTabs()
+    public void CloseTab_ActivatesNeighbor_AndTheLastCloseLeavesNothingOpen()
     {
         var vm = new MainViewModel(null);
+        vm.NewDocument(new NewDocumentSettings("A", 400, 300, 12, 72, "#ffffff", false));
         vm.NewDocument(new NewDocumentSettings("B", 400, 300, 12, 72, "#ffffff", false));
         vm.NewDocument(new NewDocumentSettings("C", 400, 300, 12, 72, "#ffffff", false));
 
@@ -122,15 +148,51 @@ public class DocumentTabTests
 
         vm.CloseTab(vm.Tabs[0]);
         vm.CloseTab(vm.Tabs[0]);
-        var last = Assert.Single(vm.Tabs); // a fresh untitled appears
-        Assert.Same(last, vm.ActiveTab);
-        Assert.False(last.HasWorkToLose);
+        Assert.Empty(vm.Tabs);
+        Assert.Null(vm.ActiveTab);
+        Assert.False(vm.HasDocument);
+    }
+
+    /// <summary>
+    /// A document opened from disk lands on a paintable layer, and the very
+    /// first stroke lands in it.
+    /// </summary>
+    /// <remarks>
+    /// <b>B136.</b> File ▸ New has set the active layer past the locked paper
+    /// since the paper existed; the open path never did, so every document
+    /// opened from disk — recents, the start screen, File ▸ Open — started on
+    /// the one layer that refuses strokes. The cursor showed, the status strip
+    /// said "locked", nothing appeared: reported as "unable to draw on the
+    /// last build". Asserted through the whole route — open, then draw, then
+    /// look in the record — because an assertion on the index alone would not
+    /// notice a second gate.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ADocumentOpenedFromDiskOpensOnAPaintableLayer()
+    {
+        var vm = new MainViewModel(null);
+        var doc = Lightbox.Core.Documents.DocumentFactory.CreateDoc(
+            400, 300, 12, paperColor: "#ffffff");
+        vm.OpenDocumentTab(DocJson.Clone(doc), "/projects/opened.lightbox.json");
+
+        var layer = vm.Doc.Scene.Layers[vm.ActiveLayerIndex];
+        Assert.False(layer.IsBackground, $"opened onto \u201c{layer.Name}\u201d, the locked paper");
+
+        vm.BeginStroke(50, 50, 0.5);
+        vm.MoveStroke(90, 50, 0.5);
+        vm.EndStroke();
+
+        var painted = (Lightbox.Core.Documents.Frame)layer.Cels[0].Frame!;
+        Assert.Single(painted.Strokes);
     }
 
     [AvaloniaFact]
     public void OpenDocumentTab_UsesFileName_AndKeepsExistingTabs()
     {
-        var vm = new MainViewModel(null);
+        // Something already open, because "keeps existing tabs" is the claim.
+        // It used to come free from the startup document; the application now
+        // starts empty, so the test has to ask for the thing it is about.
+        var vm = VmLayers.PaperVm();
         var doc = Lightbox.Core.Documents.DocumentFactory.CreateDoc(320, 180, 8);
         vm.OpenDocumentTab(DocJson.Clone(doc), "/projects/walk-cycle.lightbox.json");
 

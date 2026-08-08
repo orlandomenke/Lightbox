@@ -6,7 +6,7 @@ using Xunit;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// The scratch track's surface (Q55): import fills the timeline's waveform,
+/// The scratch track's surface (Q59): import fills the timeline's waveform,
 /// a missing file is a badge rather than an error, and removal leaves the
 /// document exactly as it was.
 /// </summary>
@@ -140,7 +140,7 @@ public sealed class AudioTrackUiTests : BrushStateIsolated
     public void PlaybackAndScrubbingAreSafeWhereverThereIsNoAudioDevice()
     {
         // CI and containers have no sound hardware; every playback path must
-        // be a silent no-op there, never a throw (Q55).
+        // be a silent no-op there, never a throw (Q59).
         var (_, vm) = Open();
         var wav = WriteWav("lightbox-audio-play.wav");
         try

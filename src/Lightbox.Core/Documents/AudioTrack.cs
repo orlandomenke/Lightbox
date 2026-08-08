@@ -8,7 +8,7 @@ namespace Lightbox.Core.Documents;
 /// document that never adds audio writes no keys, shows no audio UI, and pays
 /// nothing.
 ///
-/// The sound is referenced, never embedded (Q55): the document stores a path
+/// The sound is referenced, never embedded (Q59): the document stores a path
 /// and the file stays where a DAW can keep editing it. A missing file
 /// degrades to a silent badge, not an error — the timing marks it anchored
 /// are still the artist's work.

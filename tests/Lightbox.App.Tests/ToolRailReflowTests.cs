@@ -22,7 +22,7 @@ public sealed class ToolRailReflowTests : BrushStateIsolated
         var rail = window.FindControl<WrapPanel>("ToolButtons")!;
         Assert.Equal(34.0, rail.Width, 1);   // tall: a single centred column
 
-        window.Height = 420;
+        window.Height = 380;
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Equal(68.0, rail.Width, 1);   // short: two columns
     }

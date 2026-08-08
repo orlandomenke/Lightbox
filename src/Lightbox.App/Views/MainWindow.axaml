@@ -198,8 +198,16 @@
           shortcut editor and can be rebound. The labels come from the map for the same
           reason — a remapped key that still advertises Ctrl+S is worse than no label.
         -->
-        <MenuItem x:Name="SaveMenu" Header="_Save" Click="OnSaveInPlaceClicked" />
-        <MenuItem x:Name="SaveAsMenu" Header="Save _as…" Click="OnSaveClicked" />
+        <!--
+          Everything from here down needs a document. With nothing open they are
+          disabled rather than hidden: a File menu that changes shape depending
+          on whether something is loaded is harder to learn than one where Save
+          is always in the same place and greyed.
+        -->
+        <MenuItem x:Name="SaveMenu" Header="_Save" Click="OnSaveInPlaceClicked"
+                  IsEnabled="{Binding HasDocument}" />
+        <MenuItem x:Name="SaveAsMenu" Header="Save _as…" Click="OnSaveClicked"
+                  IsEnabled="{Binding HasDocument}" />
         <Separator />
         <MenuItem Header="New _project…" Click="OnNewProjectClicked" />
         <MenuItem Header="Open p_roject…" Click="OnOpenProjectClicked" />
@@ -234,6 +242,7 @@
         <MenuItem Header="{Binding TemplateLabel}" ToggleType="CheckBox"
                   IsChecked="{Binding IsActiveDocumentTemplate, Mode=TwoWay}"
                   IsVisible="{Binding HasProject}"
+                  IsEnabled="{Binding HasDocument}"
                   ToolTip.Tip="A template is an ordinary document with a flag. It does not move and does not change; it starts appearing in New from template…" />
         <MenuItem Header="_Update from template…" Click="OnUpdateFromTemplateClicked"
                   IsVisible="{Binding HasProject}"
@@ -241,12 +250,16 @@
                   ToolTip.Tip="Pull layers, guides, fps and a camera forward from the template this document came from. Never touches your drawings or your timing." />
         <Separator />
         <MenuItem Header="Export _document…" Click="OnExportDocumentClicked"
+                  IsEnabled="{Binding HasDocument}"
                   ToolTip.Tip="A standalone .lightbox.json with every shared palette and gradient it uses inlined" />
         <MenuItem Header="_Export PNGs…" Click="OnExportClicked"
+                  IsEnabled="{Binding HasDocument}"
                   ToolTip.Tip="A numbered frame sequence — with the scratch track beside it as audio.wav when there is one" />
         <MenuItem Header="Export _video…" Click="OnExportVideoClicked"
+                  IsEnabled="{Binding HasDocument}"
                   ToolTip.Tip="H.264 MP4 for review, ProRes 422 MOV for editorial — the scratch track muxed in" />
         <MenuItem Header="Export for a _game engine…" Click="OnExportSheetClicked"
+                  IsEnabled="{Binding HasDocument}"
                   ToolTip.Tip="Sprite sheet, sidecar and optional Unity importer. Trim, layout and background handling live here." />
       </MenuItem>
       <MenuItem Header="_Edit" Classes="top">
@@ -287,7 +300,7 @@
         <Separator />
         <MenuItem Header="Ask what to open on start-up" ToggleType="CheckBox"
                   IsChecked="{Binding ShowStartScreen, Mode=TwoWay}"
-                  ToolTip.Tip="The start screen. Escape on it always drops through to a blank document." />
+                  ToolTip.Tip="The start screen. Escape on it opens nothing — you can always ask again from the empty canvas or File ▸ New." />
       </MenuItem>
       <MenuItem Header="_View" Classes="top">
         <!--
@@ -1155,14 +1168,19 @@
     <Border DockPanel.Dock="Bottom" Background="{StaticResource BackgroundSecondaryBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
             Padding="10,2">
       <DockPanel LastChildFill="False">
-        <TextBlock DockPanel.Dock="Left" Text="{Binding DocumentSizeLabel}" FontSize="11" Opacity="0.85"
-                   VerticalAlignment="Center" ToolTip.Tip="Canvas size and resolution of the open document" />
-        <TextBlock DockPanel.Dock="Left" Text="·" FontSize="11" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
-        <TextBlock DockPanel.Dock="Left" Text="{Binding DocumentContentLabel}" FontSize="11" Opacity="0.85"
-                   VerticalAlignment="Center" ToolTip.Tip="Layers and distinct drawings in this document" />
-        <TextBlock DockPanel.Dock="Left" Text="·" FontSize="11" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
-        <TextBlock DockPanel.Dock="Left" Text="{Binding MemoryLabel}" FontSize="11" Opacity="0.6"
-                   VerticalAlignment="Center" ToolTip.Tip="Image memory held for cached frames and the canvas buffers" />
+        <!-- One panel for the document facts, so all of them (and their dot
+             separators) vanish together when nothing is open: these numbers
+             would otherwise describe the internal placeholder document. -->
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" IsVisible="{Binding HasDocument}">
+          <TextBlock Text="{Binding DocumentSizeLabel}" FontSize="11" Opacity="0.85"
+                     VerticalAlignment="Center" ToolTip.Tip="Canvas size and resolution of the open document" />
+          <TextBlock Text="·" FontSize="11" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding DocumentContentLabel}" FontSize="11" Opacity="0.85"
+                     VerticalAlignment="Center" ToolTip.Tip="Layers and distinct drawings in this document" />
+          <TextBlock Text="·" FontSize="11" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding MemoryLabel}" FontSize="11" Opacity="0.6"
+                     VerticalAlignment="Center" ToolTip.Tip="Image memory held for cached frames and the canvas buffers" />
+        </StackPanel>
 
         <!-- Performance headroom, measured from real repaint times -->
         <TextBlock DockPanel.Dock="Right" Text="{Binding Performance.HealthLabel}" FontSize="11"
@@ -1530,6 +1548,7 @@
                             ToolTip.Tip="Edit the reference grid — drag the boxes, drag a corner to resize, right-click for the pivot. Esc leaves." />
             </StackPanel>
           </controls:CanvasOverlayBar>
+
         </Panel>
 
         <GridSplitter x:Name="BottomSplitter" Grid.Row="1" Height="5" ResizeDirection="Rows" />
@@ -1545,6 +1564,41 @@
           <controls:DockStrip x:Name="RightStrip" />
         </Border>
       </Grid>
+
+      <!--
+        Nothing open. Last child of the whole workspace and spanning every row,
+        so it covers the dockers and the timeline as well as the canvas. It
+        started out covering only the canvas, and a screenshot of that build
+        showed why that is not enough: the Layers docker listed the placeholder
+        document's Paint and Background layers and the timeline showed its rows —
+        the one document that must never be visible, on screen twice. Covering
+        the surfaces beats teaching every docker to ask HasDocument, and it is
+        also what the panels' own bindings need: they stay pointed at the
+        placeholder, which is fine exactly as long as nobody can see them.
+
+        A real surface with the ways out on it rather than a grey rectangle:
+        the New dialog is prompted on the way in and when the last tab closes,
+        and if it is dismissed there has to be somewhere to say so again.
+      -->
+      <Border x:Name="NothingOpen" Grid.Row="0" Grid.RowSpan="5"
+              IsVisible="{Binding !HasDocument}"
+              Background="{StaticResource BackgroundPrimaryBrush}">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+          <TextBlock Text="Nothing open" FontSize="18" HorizontalAlignment="Center"
+                     Foreground="{StaticResource TextPrimaryBrush}" />
+          <TextBlock Text="Make a document or a project, or open something you already have."
+                     FontSize="12" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="360"
+                     TextAlignment="Center"
+                     Foreground="{StaticResource TextSecondaryBrush}" />
+          <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" Margin="0,6,0,0">
+            <Button x:Name="NothingOpenNew" Content="New…" Click="OnNewClicked"
+                    ToolTip.Tip="A new document (Ctrl+N)" />
+            <Button x:Name="NothingOpenNewProject" Content="New project…" Click="OnNewProjectClicked" />
+            <Button x:Name="NothingOpenOpen" Content="Open…" Click="OnOpenClicked"
+                    ToolTip.Tip="Open a document from disk (Ctrl+O)" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
 
       <!-- Where panels wait when they are not in a strip: closed, or in flight
            during a drag. Never shown. -->
@@ -2579,11 +2633,13 @@
               <controls:Docker.BottomBar>
                 <Border Classes="dockerBar">
                   <DockPanel>
-                    <ComboBox DockPanel.Dock="Right" ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
-                              Width="110" ToolTip.Tip="Kind of layer the + button creates" />
+                    <!-- A Raster/Vector picker sat on the right of this bar. It asked
+                         the artist to choose a limitation before drawing anything:
+                         both kinds painted identical strokes, and Vector only meant
+                         "this layer cannot hold imported pixels or a symbol". Q52. -->
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                      <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
-                              ToolTip.Tip="Add a new layer of the selected kind" />
+                      <Button Content="＋" Command="{Binding AddPaintedLayerCommand}"
+                              ToolTip.Tip="Add a new layer" />
                       <Button Content="📁" Command="{Binding CreateLayerFolderCommand}"
                               ToolTip.Tip="New folder containing the active layer" />
                       <Button Content="🗑" Command="{Binding DeleteActiveLayerCommand}"
@@ -2717,9 +2773,10 @@
                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveLayerDownCommand}"
                                     CommandParameter="{Binding}" ToolTip.Tip="Move layer down" />
                           </StackPanel>
-                          <TextBlock DockPanel.Dock="Right" Text="{Binding KindLabel}" Width="16"
-                                     VerticalAlignment="Center" Opacity="0.5" FontSize="11"
-                                     ToolTip.Tip="R = raster, V = vector" />
+                          <!-- An "R"/"V" badge sat here, and named a distinction that no
+                               longer exists: every layer holds strokes and can hold
+                               pixels. Q52. (The symbol browser's KindLabel further down
+                               is a different property on a different row.) -->
                           <Panel Margin="4,0" MinHeight="24">
                             <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}"
                                        Background="Transparent" VerticalAlignment="Center"
@@ -3431,7 +3488,7 @@
               <controls:OverflowBar Spacing="10" HorizontalAlignment="Center"
                                     MoreLabel="More  &#x25BE;" MenuPlacement="TopEdgeAlignedRight">
                 <views:TransportBar />
-                <!-- The scratch track (Q55). One button until there is one,
+                <!-- The scratch track (Q59). One button until there is one,
                      then the whole row — the same shape as the camera. -->
                 <Button Content="♪ Add audio" Click="OnImportAudio"
                         IsVisible="{Binding !HasAudio}" VerticalAlignment="Center"
@@ -3471,7 +3528,7 @@
         </controls:Docker>
 
         <!-- The X-sheet: the exposure grid this application has always had,
-             under the name the craft uses for it (Q54). -->
+             under the name the craft uses for it (Q58). -->
         <controls:Docker x:Name="XsheetDocker" PanelId="Xsheet" Title="X-sheet"
                          CloseCommand="{Binding ToggleXsheetDockerCommand}">
         <controls:Docker.TopBar>
@@ -3762,7 +3819,7 @@
 
         <!-- The graph editor: value over time for the things that
              interpolate — the camera's framing, and the measured spacing of
-             the active layer's drawings (Q54, the chart the stroke record
+             the active layer's drawings (Q58, the chart the stroke record
              makes possible). Camera dots drag: vertically for value,
              sideways to retime. -->
         <controls:Docker x:Name="GraphEditorDocker" PanelId="GraphEditor" Title="Graph editor"

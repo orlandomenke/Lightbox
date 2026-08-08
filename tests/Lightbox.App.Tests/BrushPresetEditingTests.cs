@@ -12,7 +12,7 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public class BrushPresetEditingTests : BrushStateIsolated
 {
-    private static MainViewModel Vm() => new(null);
+    private static MainViewModel Vm() => VmLayers.PaperVm();
 
     private static BrushPreset Pencil(MainViewModel vm) =>
         vm.BrushPresetChoices.Single(p => p.Id == "builtin-pencil");

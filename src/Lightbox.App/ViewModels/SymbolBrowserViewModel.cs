@@ -277,12 +277,7 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
         // Through the ordinary pixel path, at the ordinary place: the tile is a
         // picture of what the symbol will actually look like, not a second
         // renderer's opinion of it.
-        using var bitmap = symbol.Frames[0] switch
-        {
-            PaintedFrame p => FrameRasterizer.Materialize(p, info.Width, info.Height),
-            VectorFrame v => FrameRasterizer.Rasterize(v.Strokes, info.Width, info.Height),
-            _ => null,
-        };
+        using var bitmap = FrameRasterizer.Materialize(symbol.Frames[0], info.Width, info.Height);
         return bitmap is null ? null : ThumbnailRenderer.RenderChecker(bitmap, 64, 48);
     }
 }

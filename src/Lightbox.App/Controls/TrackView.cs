@@ -80,7 +80,7 @@ public class TrackView : Control
 
     /// <summary>
     /// The scratch track's waveform, one min/max pair per frame, or null for
-    /// no audio band at all — optional means absent (Q55). Drawn as its own
+    /// no audio band at all — optional means absent (Q59). Drawn as its own
     /// band under the tracks, where the reference strips put sound.
     /// </summary>
     public static readonly StyledProperty<IReadOnlyList<Core.Audio.AudioPeaks.Peak>?> AudioPeaksProperty =

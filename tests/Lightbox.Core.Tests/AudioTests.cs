@@ -5,7 +5,7 @@ using Xunit;
 
 namespace Lightbox.Core.Tests;
 
-/// <summary>The audio track is optional the way the camera is (Q55).</summary>
+/// <summary>The audio track is optional the way the camera is (Q59).</summary>
 public class AudioTrackTests
 {
     [Fact]

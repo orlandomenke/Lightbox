@@ -9,7 +9,7 @@ using Xunit;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// The timeline family (Q54): the track timeline, the X-sheet and the graph
+/// The timeline family (Q58): the track timeline, the X-sheet and the graph
 /// editor share the bottom slot as tabs, three views over one set of records.
 /// </summary>
 [Collection("BrushState")]

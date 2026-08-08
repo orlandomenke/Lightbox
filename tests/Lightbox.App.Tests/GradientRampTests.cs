@@ -156,7 +156,7 @@ public class GradientRampTests
         vm.MoveGradient(w / 2.0, 10);
         vm.EndGradient(w, 10);
 
-        var strokes = ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes;
+        var strokes = ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes;
         using var bmp = Lightbox.Raster.FrameRasterizer.Rasterize(
             strokes, vm.Doc.Scene.Width, vm.Doc.Scene.Height);
 

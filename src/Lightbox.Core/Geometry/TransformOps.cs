@@ -116,13 +116,13 @@ public static class TransformOps
         return count;
     }
 
-    /// <summary>The editable stroke list of either frame kind.</summary>
-    public static List<Stroke> StrokesOf(Frame frame) => frame switch
-    {
-        PaintedFrame p => p.Strokes,
-        VectorFrame v => v.Strokes,
-        _ => throw new ArgumentException($"Unknown frame kind {frame.GetType().Name}"),
-    };
+    /// <summary>The frame's editable stroke list.</summary>
+    /// <remarks>
+    /// Kept as a named method rather than inlined to <c>frame.Strokes</c> at every
+    /// call site: it used to switch on the two frame classes, and the callers read
+    /// better for saying what they want than for reaching through a field.
+    /// </remarks>
+    public static List<Stroke> StrokesOf(Frame frame) => frame.Strokes;
 
     /// <summary>
     /// Region filter: true when the majority of a stroke's points fall

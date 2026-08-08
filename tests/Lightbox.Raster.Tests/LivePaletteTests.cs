@@ -75,8 +75,8 @@ public class LivePaletteTests : IDisposable
         PaletteRegistry.Register([new Palette { Swatches = [swatch] }]);
         var stroke = Bar(swatch.Id, "#000000");
 
-        var vector = new VectorFrame { Strokes = [stroke] };
-        var painted = new PaintedFrame { Strokes = [stroke] };
+        var vector = new Frame { Strokes = [stroke] };
+        var painted = new Frame { Strokes = [stroke] };
 
         using var fromVector = FrameRasterizer.Rasterize(vector.Strokes, W, H);
         using var fromPainted = FrameRasterizer.Materialize(painted, W, H);

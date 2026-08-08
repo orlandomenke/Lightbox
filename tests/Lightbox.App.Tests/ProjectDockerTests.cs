@@ -42,7 +42,8 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
 
     private MainViewModel Vm()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = VmLayers.PaperVm();
+        vm.SmoothStrokes = false;
         _built.Add(vm);
         return vm;
     }
@@ -141,7 +142,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         // And it landed on disk with the work in it — the half of this test that
         // was always the point, and is unchanged.
         var saved = Lightbox.Core.Serialization.DocJson.Load(vm.ProjectDocker.Project!.PathOf(adopted));
-        Assert.Single(((PaintedFrame)saved.Scene.Layers[^1].Cels[0].Frame!).Strokes);
+        Assert.Single(((Frame)saved.Scene.Layers[^1].Cels[0].Frame!).Strokes);
     }
 
     [AvaloniaFact]
@@ -280,7 +281,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
             Points = [new StrokePoint(10, 10, 1), new StrokePoint(60, 60, 1)],
             Brush = new BrushSettings { Size = 12, Opacity = 1 },
         };
-        ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes.Add(stroke);
+        ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.Add(stroke);
         return stroke;
     }
 
@@ -300,7 +301,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
 
         var animation = vm.ProjectDocker.Project!.AllDocuments.First();
         var saved = Lightbox.Core.Serialization.DocJson.Load(vm.ProjectDocker.Project!.PathOf(animation));
-        Assert.Single(((PaintedFrame)saved.Scene.Layers[^1].Cels[0].Frame!).Strokes);
+        Assert.Single(((Frame)saved.Scene.Layers[^1].Cels[0].Frame!).Strokes);
     }
 
     [AvaloniaFact]
@@ -635,7 +636,7 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
             duplicate.Scene.Layers.Sum(l => l.Cels.Count));
         Assert.Contains(
             duplicate.Scene.Layers.SelectMany(l => l.Cels),
-            c => c.Frame is PaintedFrame { Strokes.Count: > 0 });
+            c => c.Frame is Frame { Strokes.Count: > 0 });
     }
 
     [AvaloniaFact]

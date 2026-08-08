@@ -26,7 +26,12 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public sealed class DirtyRevisionTests(ITestOutputHelper output) : BrushStateIsolated
 {
-    private static MainViewModel Vm() => new(null) { SmoothStrokes = false };
+    private static MainViewModel Vm()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.SmoothStrokes = false;
+        return vm;
+    }
 
     private static void Paint(MainViewModel vm, double x = 20)
     {

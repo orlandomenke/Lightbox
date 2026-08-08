@@ -71,9 +71,9 @@ public class StrokeCloneTests
     {
         // The path an artist actually takes: copy a drawing along the
         // timeline, then recolour. Both have to change.
-        var frame = new PaintedFrame { Strokes = [Painted()] };
+        var frame = new Frame { Strokes = [Painted()] };
 
-        var copy = (PaintedFrame)DocumentEditor.CloneFrame(frame)!;
+        var copy = (Frame)DocumentEditor.CloneFrame(frame)!;
 
         Assert.Equal("sw_skin", copy.Strokes[0].SwatchId);
     }

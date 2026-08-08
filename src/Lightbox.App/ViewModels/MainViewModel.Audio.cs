@@ -5,7 +5,7 @@ using Lightbox.Core.Documents;
 namespace Lightbox.App.ViewModels;
 
 /// <summary>
-/// The scratch track (Q55): one referenced sound file the animation is timed
+/// The scratch track (Q59): one referenced sound file the animation is timed
 /// against. Optional the way the camera is — a document without audio shows
 /// none of this and pays for none of it.
 /// </summary>
@@ -18,7 +18,7 @@ public partial class MainViewModel
 
     /// <summary>
     /// The referenced file cannot be read. A missing file is a badge, not an
-    /// error — the sound is a reference (Q55), and the timing anchored to it
+    /// error — the sound is a reference (Q59), and the timing anchored to it
     /// is still the artist's work.
     /// </summary>
     public bool AudioMissing
@@ -226,7 +226,7 @@ public partial class MainViewModel
         _audioPeaks = null;
     }
 
-    // ---- playback (Q55: OpenAL-soft, silent where there is no device) ---------
+    // ---- playback (Q59: OpenAL-soft, silent where there is no device) ---------
 
     private readonly Services.AudioPlayback _audioPlayback = new();
     private bool _audioRunning;

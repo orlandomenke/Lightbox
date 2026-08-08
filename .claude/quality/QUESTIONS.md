@@ -10,6 +10,63 @@ Questions are removed once implemented, with the decision recorded in
 
 ---
 
+## Q54 · Does Lightbox go public, and under what licence? — **answered 2026-08-08: yes, GPL-3.0, history and all**
+
+**What forced the question.** CI stopped allocating runners on 2026-08-08 — run
+#488 on `main` passed `docs`, `changes` and `test`, then `publish-win-x64` failed
+in two seconds with `runner_id: 0`, no steps and a 404 on its logs, and every run
+after it failed the same way on whichever job came first. Not a code fault: the
+account had run out of Actions minutes. Measured burn was **9 billed minutes per
+run** (GitHub rounds each *job* up to the minute, so `changes` at 8 s and `docs`
+at 19 s cost a minute each), and **18 per merged change** — once for the pull
+request, again for the push to `main`.
+
+**Public repositories get unlimited free Actions minutes**, so the answer removed
+the constraint rather than managing it. The owner intended to open-source
+Lightbox anyway; the bill only set the date.
+
+**Three decisions, and what each cost.**
+
+- **Everything is published, history included.** Splitting the planning docs out
+  was considered and rejected twice over. Retroactively: `BUGS.md` has 178
+  commits, `ROADMAP.md` 105 and `QUESTIONS.md` 47, so purging them would rewrite
+  nearly every SHA — including the commit references the ledgers themselves cite.
+  Going forward: `bugs.py` and `roadmap.py` derive their checkboxes by resolving
+  evidence anchors against the code index **in the same tree**, so a separate
+  private repo would turn every derived checkbox back into an assertion. That is
+  the precise failure B81 exists to prevent.
+- **GPL-3.0.** Checked rather than assumed: every dependency is permissive
+  (Avalonia, SkiaSharp, CommunityToolkit, the Anthropic and MCP SDKs all MIT;
+  xunit Apache-2.0, which is GPLv3-compatible but *not* GPLv2-compatible — which
+  is why the v3 family and not v2), and a scan for copied third-party source
+  found only ordinary prose. AGPL was considered for the MCP and IPC surfaces,
+  where "someone hosts Lightbox as a service" is not far-fetched, and declined:
+  the network clause is a no-op for a desktop application and AGPL is on enough
+  corporate blocklists to cost more than it buys.
+- **`main` is protected, with admin bypass kept.** A pull request and passing
+  checks are required, and `LIGHTBOX_PUSH_TO_MAIN=1` still works when a merge is
+  genuinely intended. `.githooks/pre-push` stays the first line; protection is
+  the second.
+
+**The cost that is worth naming, because it is permanent.** Publishing is prior
+art. It forecloses patenting anything in this tree — immediate in most of Europe
+under absolute novelty, with a twelve-month grace period in the US. Nothing here
+looks patentable (brush stamping, flood fill, Bézier geometry and layer blending
+are decades of prior art), but the deterministic `Hash01` dab seeding and the
+inbetweening approach are the two places anyone would look, and that door is now
+shut. Accepted knowingly.
+
+**What keeps the commercial option open**, and it is one thing: **sole
+copyright**. GPL binds recipients, not the owner, so the same code can be
+relicensed later — but only while one person holds all of it. `CONTRIBUTING.md`
+therefore declines pull requests during alpha rather than leaving it to silence.
+The day that changes, it needs a CLA first.
+
+**Not legal advice, and the owner was told so.** An hour with an IP solicitor
+before the switch is cheap if the commercial stakes are real.
+
+---
+
 ## Q46 · What colour does the theme's accent take, and how does a tab say it is the one showing? — **answered 2026-08-07: violet, and an underline**
 
 Three questions in one exchange, because they were three faces of the same
@@ -181,6 +238,37 @@ be one `Frame` with a nullable baseline, which is *absent unless used* stated
 properly. That is a serialization-discriminator change and a bigger piece of
 work; it is named here so it is a decision later rather than a surprise.
 
+### Taken, 2026-08-08 — and the reason was better than the one written above
+
+**Asked as "which kind should a new layer default to", and the owner's reply
+dissolved the question rather than answering it:** *"It is unclear to me why
+pixels and vector could not exist on the same frame."* They could, and did — a
+`PaintedFrame` had always held pixels *and* strokes *and* placements at once. So
+the recommendation two paragraphs up, *"the two frame classes stay because a
+baseline genuinely is different content with different provenance"*, was wrong on
+its own terms: **provenance is a property of content, and it was being encoded as
+a property of the container.** That is what made a class able to be *less* than
+another rather than different from it, and what made B132 possible.
+
+The decisions, both prompted and both answered:
+
+| | |
+| --- | --- |
+| The two classes | **Collapse now, in one go** — not staged behind another branch |
+| `Layer.Kind` | **Keep it, as import provenance only** — the field survives, the choice does not |
+
+**What it cost on disc, stated because it is a real format change.** A document
+saved by this build carries no frame `kind` and carries `pngBase64` only when
+there are imported pixels to carry. Older builds cannot read the result; every
+older file still opens here, and `PreMergeDocumentTests` pins that against a
+fixture and two render fingerprints generated by the two-class build itself.
+
+**And the merge warning landed keyed on the fact rather than the field.** It asks
+the *frame* whether it holds a baseline or a placement, not the *layer* what kind
+it is — because every pre-merge layer is `LayerKind.Painted`, hand-drawn ones
+included, so a warning keyed on `Kind` would fire on every document that exists.
+A warning that appears on every old file teaches an artist to ignore warnings.
+
 ## Q53 · How does an artist get into point editing? — **answered: Illustrator's model in full**
 
 **Answered 2026-08-07: two pointers *and* isolation mode.** A black-arrow
@@ -211,6 +299,32 @@ visibly different things.
 
 **Blocks:** nothing. `PathEditSession` is a second instance of the transform
 tool's modal-session pattern.
+
+## Q55 · Do the derived codemap files stay committed? — **answered: no, gitignored**
+
+**Answered 2026-08-08, asked when the owner reported the treadmill directly:**
+*"We keep running into the same problem due to Claude documents: index,
+features and bugs. We tried guarding it but with each push main gets ahead and
+the next branch always blocks due to merge conflicts on those docs."*
+
+**Decision: stop committing `INDEX.md` and `FEATURES.md`.** They are derived
+from the whole solution, so every branch that touches code rewrote them end to
+end and any two parallel branches conflicted by construction — and GitHub runs
+no merge driver, so every open pull request went red the moment any other one
+merged, requiring a hand-merge of `main` into every survivor after every
+merge. The files are gitignored beside `HOTSPOTS.md`; the session-start hook
+builds them when stale or absent; CI runs `build` instead of `verify`; the
+merge driver is retired. `LedgerGateTests.TheDerivedIndexIsNotTracked` pins it.
+
+**What the alternative cost and why it lost:** the committed copy bought a
+fresh clone an index without a ten-second build, defended by a local merge
+driver plus a CI byte-verify. Both worked as designed and neither ended the
+conflicts, because the web UI merge is the one place neither could run.
+
+**Decided in the same exchange: the ledgers stay committed and hand-resolved.**
+`BUGS.md` is authored prose no script can reproduce; its collisions are rarer
+(two branches must both file bugs) and the pre-push `bugs.py ids` gate already
+refuses the silent losses. Sharding it per domain was offered and declined.
 
 ## Q47 · Does a node carry Bezier handles? — **answered: yes, on a path beside the points**
 
@@ -1755,7 +1869,7 @@ app, and neither is a preference.
 
 </details>
 
-## Q54 · The timeline family: what are the Xsheet, the track Timeline and the Graph Editor in v1? — **answered, all recommendations taken, 2026-08-08**
+## Q58 · The timeline family: what are the Xsheet, the track Timeline and the Graph Editor in v1? — **answered, all recommendations taken, 2026-08-08**
 
 Raised when the owner asked for the reference's timeline (its strip reads
 *Timeline | Xsheet | Dope Sheet | Graph Editor*) plus "2 more dockers
@@ -1796,9 +1910,9 @@ with timing and no values — between our Xsheet and the track view there is no
 job left for it to do. If one earns its way in later it is a view over the
 same records, not a fourth store.
 
-## Q55 · The audio track: which output backend, and where does the sound live? — **answered, both recommendations taken, 2026-08-08**
+## Q59 · The audio track: which output backend, and where does the sound live? — **answered, both recommendations taken, 2026-08-08**
 
-Raised when the audio track (Q54's first "adopt next") came up in the queue.
+Raised when the audio track (Q58's first "adopt next") came up in the queue.
 Playback needs a native audio output — .NET has none built in and Avalonia
 does not either — and a native dependency is exactly the kind of decision that
 goes to the owner before code. Asked with the question prompt.
@@ -1832,7 +1946,7 @@ Raised when the owner asked for a render pipeline ("export our animations to
 (professional) video files") and, in the same breath, video to draw against
 ("like gumball" — drawn characters over live footage). Both need a codec
 engine .NET does not have, so the dependency went to the owner before code,
-the same way Q55's audio backend did. Asked with the question prompt.
+the same way Q59's audio backend did. Asked with the question prompt.
 
 ### The answers
 
@@ -1850,7 +1964,7 @@ the same way Q55's audio backend did. Asked with the question prompt.
 - **Footage: a reference layer, never a drawing layer.** Imported the way
   references work today — under the drawing layers, mapped to the timeline
   (video time follows scene fps, with an offset), referenced by path like
-  audio (Q55), and never exported. Extracting frames onto a raster layer was
+  audio (Q59), and never exported. Extracting frames onto a raster layer was
   rejected: it bloats the document with footage bytes and the frames would
   export unless remembered and excluded.
 
@@ -1891,9 +2005,11 @@ audio and video. Asked with the question prompt.
   taken). The model is a segment list from day one so "split at playhead" and
   reordering land later without a migration.
 
-### Open at build time
+### Answered in the same exchange
 
-What "small production" footage does beyond display — whether it composites
-into exports — was not asked and is not assumed; the earlier answer ("maybe
-not for exporting, but at least to draw against") stands until the owner says
-otherwise.
+**Small-production footage exports.** Asked whether embedded production
+footage stays draw-against-only, the owner answered "yeah also export for
+small production" — so the production path composites into the render
+pipeline's output, unlike references, which never reach an exported pixel.
+That difference is the line between the two paths: a reference is a drawing
+aid, production footage is material.

@@ -93,7 +93,7 @@ public class FieldShapeTests
     [AvaloniaFact]
     public void TheDigitsSitCentredInTheField()
     {
-        // B136. Fluent's theme padding is "10,6,6,5" — eleven vertical pixels,
+        // B140. Fluent's theme padding is "10,6,6,5" — eleven vertical pixels,
         // which in a 22px field leaves less than one line box of room. The
         // digits sat low and lost their bottoms: "100" read as unreadable
         // stumps. The padding flows template-bound from the control's own

@@ -74,8 +74,8 @@ public class CelRangeTests
     public void SetFrameRange_WritesTheSequence_HoldsIncluded()
     {
         var (editor, layer) = OneLayerDoc();
-        var a = new PaintedFrame();
-        var b = new PaintedFrame();
+        var a = new Frame();
+        var b = new Frame();
 
         editor.SetFrameRange(layer.Id, 2, [a, null, b]); // drawing, hold, drawing
 

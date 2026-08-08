@@ -243,30 +243,57 @@ public class LedgerGateTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The committed index describes this tree. Fails on the ordinary mistake —
-    /// adding a type and not rebuilding — as well as on a badly merged index.
+    /// The derived index is not committed — the decision that ended the merge
+    /// conflicts, pinned.
     /// </summary>
+    /// <remarks>
+    /// <b>Q55, 2026-08-08.</b> INDEX.md and FEATURES.md are rewritten end to
+    /// end by every branch that touches code, so any two parallel branches
+    /// conflicted on them by construction — and GitHub runs no merge driver,
+    /// so every open pull request went red the moment any other one merged,
+    /// round after round. The old answer was a committed copy defended by a
+    /// local merge driver and a CI byte-verify; the stronger form of that
+    /// design's own argument ("a committed derived file is not believed, it
+    /// is recomputed") is to commit nothing: the session hook builds the
+    /// index when it is stale or absent, and CI builds it to prove the tree
+    /// parses. This test is what turns re-committing them from an accident
+    /// into a decision.
+    /// </remarks>
     [Fact]
-    [Trait("Category", "Performance")]   // ~10s: it analyses the whole solution
-    public void TheCommittedIndexDescribesThisTree()
+    public void TheDerivedIndexIsNotTracked()
     {
-        var (code, said) = Codemap("verify");
-        Assert.Equal(0, code);
-        Assert.Contains("the index describes this tree", said);
+        var info = new ProcessStartInfo("git", "ls-files .claude/codemap")
+        {
+            WorkingDirectory = RepoRoot(),
+            RedirectStandardOutput = true,
+        };
+        using var process = Process.Start(info);
+        Assert.NotNull(process);
+        var tracked = process!.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit(30_000);
+
+        output.WriteLine(tracked.Length == 0 ? "(nothing tracked under .claude/codemap)" : tracked);
+        Assert.True(tracked.Length == 0,
+            $"derived codemap files are committed again — every parallel branch will conflict on them:\n{tracked}");
+
+        var ignored = File.ReadAllText(Path.Combine(RepoRoot(), ".gitignore"));
+        Assert.Contains(".claude/codemap/INDEX.md", ignored);
+        Assert.Contains(".claude/codemap/FEATURES.md", ignored);
     }
 
     [Fact]
-    public void CiVerifiesTheCommittedIndex()
+    public void CiBuildsTheIndexRatherThanVerifyingACommittedOne()
     {
         var yaml = File.ReadAllText(Path.Combine(RepoRoot(), ".github", "workflows", "build.yml"));
-        Assert.Contains("scripts/codemap.py verify", yaml);
+        Assert.Contains("scripts/codemap.py build", yaml);
+        Assert.DoesNotContain("scripts/codemap.py verify", yaml);
 
         // Not in the hook, and that is a decision rather than an omission: a full
         // analysis is about ten seconds against a few milliseconds for the ledger
         // ids, and a hook nobody can afford gets turned off.
         var hook = File.ReadAllText(Path.Combine(RepoRoot(), ".githooks", "pre-push"));
-        Assert.DoesNotContain("codemap.py verify", hook);
-        output.WriteLine("verify runs in CI, not in the hook — 10s versus milliseconds");
+        Assert.DoesNotContain("codemap.py", hook);
+        output.WriteLine("the index builds in CI, never in the hook — 10s versus milliseconds");
     }
 
     /// <summary>
@@ -280,7 +307,15 @@ public class LedgerGateTests(ITestOutputHelper output)
         var dir = Path.Combine(RepoRoot(), ".claude", "codemap");
         foreach (var name in new[] { "INDEX.md", "FEATURES.md" })
         {
-            var head = File.ReadLines(Path.Combine(dir, name)).Take(6).ToList();
+            // Untracked since Q55, so a fresh checkout may not have built them
+            // yet — absence is fine; a commit stamp in a built one is not.
+            var path = Path.Combine(dir, name);
+            if (!File.Exists(path))
+            {
+                output.WriteLine($"{name}: not built in this checkout — nothing to inspect");
+                continue;
+            }
+            var head = File.ReadLines(path).Take(6).ToList();
             output.WriteLine($"{name}: {string.Join(" ⏎ ", head)}");
             Assert.DoesNotContain(head, line => line.Contains("commit", StringComparison.OrdinalIgnoreCase));
         }

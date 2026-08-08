@@ -21,7 +21,7 @@ public class DockLayoutTests
         Assert.Equal(
             [DockPanelId.Project, DockPanelId.Layers, DockPanelId.Color, DockPanelId.Sheets],
             layout.PanelsIn(DockSide.Right));
-        // The bottom is the timeline family (Q54): three views over one set
+        // The bottom is the timeline family (Q58): three views over one set
         // of records, tabbed, the track view in front.
         Assert.Equal(
             [DockPanelId.Timeline, DockPanelId.Xsheet, DockPanelId.GraphEditor],

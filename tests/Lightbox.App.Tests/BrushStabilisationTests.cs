@@ -150,7 +150,7 @@ public class BrushStabilisationTests : BrushStateIsolated
     {
         // Optional means absent, down to the file.
         var doc = DocumentFactory.CreateDoc(64, 64, 12);
-        ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
+        ((Frame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
         {
             Tool = ToolKind.Brush,
             Points = [new StrokePoint(1, 1, 1)],

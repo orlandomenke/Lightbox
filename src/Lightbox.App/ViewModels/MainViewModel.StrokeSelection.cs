@@ -170,7 +170,5 @@ public partial class MainViewModel
     /// hover highlight arrives it wants a cached index invalidated on the
     /// document's revision, not this.
     /// </remarks>
-    private StrokeIndex IndexOf(IReadOnlyList<Stroke> strokes) => StrokeIndex.Of(
-        strokes,
-        new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+    private StrokeIndex IndexOf(IReadOnlyList<Stroke> strokes) => StrokeIndex.Of(strokes);
 }

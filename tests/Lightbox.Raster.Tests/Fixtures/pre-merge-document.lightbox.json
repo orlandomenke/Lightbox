@@ -1,0 +1,321 @@
+{
+  "version": 1,
+  "scene": {
+    "id": "scene_19fe181fe64_4",
+    "name": "Scene 1",
+    "width": 200,
+    "height": 140,
+    "fps": 12,
+    "frameCount": 1,
+    "backgroundColor": "#ffffff",
+    "transparentBackground": false,
+    "ppi": 72,
+    "layers": [
+      {
+        "id": "layer_painted",
+        "name": "Paint",
+        "kind": "painted",
+        "visible": true,
+        "locked": false,
+        "alphaLocked": false,
+        "isBackground": false,
+        "onionEnabled": true,
+        "opacity": 1,
+        "blendMode": "normal",
+        "cels": [
+          {
+            "frame": {
+              "kind": "painted",
+              "id": "f_painted",
+              "role": "key",
+              "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAAMgAAACMCAYAAAA5kebkAAAABHNCSVQICAgIfAhkiAAAAaJJREFUeJzt1cENgkAURVExFIKd0Ax9TB8WZynYgLlxIxBzznoWbxY3f1rWsd\u002BAj\u002B5nD4ArEwgEgUAQCASBQBAIBIFAEAgEgUCYv3342sZvlxzk8fyPf3AMFwSCQCAIBIJAIAgEgkAgCASCQCAIBIJAIAgEgkAgCASCQCAIBIJAIAgEgkAgCASCQCAIBIJAIAgEgkAgCASCQCAIBIJAIAgEgkAgCASCQCAIBIJAIAgEgkAgCASCQCAIBMK0rGM/ewRclQsCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAkEgEAQCQSAQBAJBIBAEAuENSZ8H1\u002BtXO9EAAAAASUVORK5CYII=",
+              "strokes": [
+                {
+                  "id": "s_19fe18207c3_9",
+                  "tool": "brush",
+                  "color": "#ff8800",
+                  "brush": {
+                    "size": 18,
+                    "antiAlias": true,
+                    "hardness": 0.8,
+                    "opacity": 1,
+                    "flow": 0.9,
+                    "spacing": 0.15,
+                    "kind": "paint",
+                    "smudgeMode": "smearing",
+                    "sampleSource": "thisLayer",
+                    "smudgeLength": 0.5,
+                    "smudgeRadius": 0.5,
+                    "colorRate": 0,
+                    "wetEdge": 0,
+                    "granulation": 0,
+                    "tipRotationDeg": 0,
+                    "rotationJitter": 0,
+                    "scatter": 0,
+                    "sizeJitter": 0,
+                    "minimumDiameter": 0.25,
+                    "roundnessJitter": 0,
+                    "roundness": 1,
+                    "angleFollowsDirection": false,
+                    "flowJitter": 0,
+                    "textureScale": 12,
+                    "textureDepth": 0,
+                    "colorJitter": 0,
+                    "hueJitter": 0,
+                    "saturationJitter": 0,
+                    "brightnessJitter": 0,
+                    "pressureEnabled": true,
+                    "pressureSizeGamma": 1,
+                    "pressureFlowGamma": 0,
+                    "pressureHardnessGamma": 0
+                  },
+                  "points": [
+                    {
+                      "x": 20,
+                      "y": 30,
+                      "pressure": 0.4
+                    },
+                    {
+                      "x": 95,
+                      "y": 70,
+                      "pressure": 1
+                    },
+                    {
+                      "x": 170,
+                      "y": 110,
+                      "pressure": 0.5
+                    }
+                  ],
+                  "alphaLocked": false
+                },
+                {
+                  "id": "s_19fe18207c4_a",
+                  "tool": "brush",
+                  "color": "#003366",
+                  "brush": {
+                    "size": 9,
+                    "antiAlias": true,
+                    "hardness": 0.8,
+                    "opacity": 1,
+                    "flow": 0.9,
+                    "spacing": 0.15,
+                    "kind": "paint",
+                    "smudgeMode": "smearing",
+                    "sampleSource": "thisLayer",
+                    "smudgeLength": 0.5,
+                    "smudgeRadius": 0.5,
+                    "colorRate": 0,
+                    "wetEdge": 0,
+                    "granulation": 0,
+                    "tipRotationDeg": 0,
+                    "rotationJitter": 0,
+                    "scatter": 0,
+                    "sizeJitter": 0,
+                    "minimumDiameter": 0.25,
+                    "roundnessJitter": 0,
+                    "roundness": 1,
+                    "angleFollowsDirection": false,
+                    "flowJitter": 0,
+                    "textureScale": 12,
+                    "textureDepth": 0,
+                    "colorJitter": 0,
+                    "hueJitter": 0,
+                    "saturationJitter": 0,
+                    "brightnessJitter": 0,
+                    "pressureEnabled": true,
+                    "pressureSizeGamma": 1,
+                    "pressureFlowGamma": 0,
+                    "pressureHardnessGamma": 0
+                  },
+                  "points": [
+                    {
+                      "x": 30,
+                      "y": 110,
+                      "pressure": 0.4
+                    },
+                    {
+                      "x": 105,
+                      "y": 67.5,
+                      "pressure": 1
+                    },
+                    {
+                      "x": 180,
+                      "y": 25,
+                      "pressure": 0.5
+                    }
+                  ],
+                  "alphaLocked": false
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "layer_vector",
+        "name": "Lines",
+        "kind": "vector",
+        "visible": true,
+        "locked": false,
+        "alphaLocked": false,
+        "isBackground": false,
+        "onionEnabled": true,
+        "opacity": 1,
+        "blendMode": "normal",
+        "cels": [
+          {
+            "frame": {
+              "kind": "vector",
+              "id": "f_vector",
+              "role": "key",
+              "strokes": [
+                {
+                  "id": "s_19fe18207c4_d",
+                  "tool": "brush",
+                  "color": "#111111",
+                  "brush": {
+                    "size": 6,
+                    "antiAlias": true,
+                    "hardness": 0.8,
+                    "opacity": 1,
+                    "flow": 0.9,
+                    "spacing": 0.15,
+                    "kind": "paint",
+                    "smudgeMode": "smearing",
+                    "sampleSource": "thisLayer",
+                    "smudgeLength": 0.5,
+                    "smudgeRadius": 0.5,
+                    "colorRate": 0,
+                    "wetEdge": 0,
+                    "granulation": 0,
+                    "tipRotationDeg": 0,
+                    "rotationJitter": 0,
+                    "scatter": 0,
+                    "sizeJitter": 0,
+                    "minimumDiameter": 0.25,
+                    "roundnessJitter": 0,
+                    "roundness": 1,
+                    "angleFollowsDirection": false,
+                    "flowJitter": 0,
+                    "textureScale": 12,
+                    "textureDepth": 0,
+                    "colorJitter": 0,
+                    "hueJitter": 0,
+                    "saturationJitter": 0,
+                    "brightnessJitter": 0,
+                    "pressureEnabled": true,
+                    "pressureSizeGamma": 1,
+                    "pressureFlowGamma": 0,
+                    "pressureHardnessGamma": 0
+                  },
+                  "points": [
+                    {
+                      "x": 15,
+                      "y": 20,
+                      "pressure": 0.4
+                    },
+                    {
+                      "x": 100,
+                      "y": 72.5,
+                      "pressure": 1
+                    },
+                    {
+                      "x": 185,
+                      "y": 125,
+                      "pressure": 0.5
+                    }
+                  ],
+                  "alphaLocked": false
+                },
+                {
+                  "id": "s_19fe18207c4_e",
+                  "tool": "brush",
+                  "color": "#cc2255",
+                  "brush": {
+                    "size": 22,
+                    "antiAlias": true,
+                    "hardness": 0.8,
+                    "opacity": 1,
+                    "flow": 0.9,
+                    "spacing": 0.15,
+                    "kind": "paint",
+                    "smudgeMode": "smearing",
+                    "sampleSource": "thisLayer",
+                    "smudgeLength": 0.5,
+                    "smudgeRadius": 0.5,
+                    "colorRate": 0,
+                    "wetEdge": 0,
+                    "granulation": 0,
+                    "tipRotationDeg": 0,
+                    "rotationJitter": 0,
+                    "scatter": 0,
+                    "sizeJitter": 0,
+                    "minimumDiameter": 0.25,
+                    "roundnessJitter": 0,
+                    "roundness": 1,
+                    "angleFollowsDirection": false,
+                    "flowJitter": 0,
+                    "textureScale": 12,
+                    "textureDepth": 0,
+                    "colorJitter": 0,
+                    "hueJitter": 0,
+                    "saturationJitter": 0,
+                    "brightnessJitter": 0,
+                    "pressureEnabled": true,
+                    "pressureSizeGamma": 1,
+                    "pressureFlowGamma": 0,
+                    "pressureHardnessGamma": 0
+                  },
+                  "points": [
+                    {
+                      "x": 100,
+                      "y": 15,
+                      "pressure": 0.4
+                    },
+                    {
+                      "x": 100,
+                      "y": 72.5,
+                      "pressure": 1
+                    },
+                    {
+                      "x": 100,
+                      "y": 130,
+                      "pressure": 0.5
+                    }
+                  ],
+                  "alphaLocked": false
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "markers": [],
+    "layerGroups": [],
+    "hasGhostFrames": false
+  },
+  "referenceSheets": [],
+  "brushTips": {},
+  "clipRegions": {},
+  "palettes": [
+    {
+      "id": "pal_19fe181fe65_5",
+      "name": "Default",
+      "columns": 8,
+      "swatches": [
+        {
+          "id": "swatch_black",
+          "color": "#000000",
+          "name": "Black"
+        },
+        {
+          "id": "swatch_white",
+          "color": "#ffffff",
+          "name": "White"
+        }
+      ]
+    }
+  ],
+  "gradients": {}
+}

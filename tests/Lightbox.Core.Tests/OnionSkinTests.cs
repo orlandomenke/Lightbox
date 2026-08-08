@@ -27,7 +27,7 @@ public class OnionSkinTests
             }
             if (!byLetter.TryGetValue(c, out var frame))
             {
-                byLetter[c] = frame = new PaintedFrame { Id = c.ToString() };
+                byLetter[c] = frame = new Frame { Id = c.ToString() };
             }
             layer.Cels.Add(new Cel { Frame = frame });
         }

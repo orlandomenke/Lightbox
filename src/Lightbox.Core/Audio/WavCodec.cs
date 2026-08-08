@@ -34,7 +34,7 @@ public sealed class AudioClip
 
 /// <summary>
 /// A plain RIFF/WAVE reader: PCM at 8, 16, 24 and 32 bits, and IEEE float 32.
-/// Managed on purpose (Q55) — decoding is deterministic data work, and the
+/// Managed on purpose (Q59) — decoding is deterministic data work, and the
 /// only native surface the audio feature is allowed is the output device.
 /// </summary>
 public static class WavCodec

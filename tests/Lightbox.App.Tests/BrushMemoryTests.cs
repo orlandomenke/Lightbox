@@ -38,7 +38,7 @@ public class BrushMemoryTests : BrushStateIsolated
 
     private MainViewModel WithProject(ProjectType? type = ProjectType.Comic)
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         vm.ProjectDocker.Project = ProjectIo.Create("Knight", _root, type);
         return vm;
     }
@@ -67,7 +67,7 @@ public class BrushMemoryTests : BrushStateIsolated
         // Somebody who opened the app to draw one picture gets exactly what
         // the application always did — and there is nowhere to keep a project
         // brush, so even asking for one cannot change that.
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
 
         Assert.Equal(BrushScope.Global, vm.BrushScope);
         vm.BrushMemoryChoice = "Per project";

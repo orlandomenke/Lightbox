@@ -33,11 +33,11 @@ public static class AnimationSweeps
     /// A drawing of roughly the density of real line art: strokes spread over
     /// the frame, not one blob in the middle.
     /// </summary>
-    private static PaintedFrame Drawing(int strokes, int seed) => Drawing(strokes, seed, W, H);
+    private static Frame Drawing(int strokes, int seed) => Drawing(strokes, seed, W, H);
 
-    private static PaintedFrame Drawing(int strokes, int seed, int w, int h)
+    private static Frame Drawing(int strokes, int seed, int w, int h)
     {
-        var frame = new PaintedFrame();
+        var frame = new Frame();
         for (var s = 0; s < strokes; s++)
         {
             // Deterministic placement — the harness must measure the same
@@ -486,7 +486,7 @@ public static class AnimationSweeps
 
     private static Scenario StrokesPerFrame()
     {
-        PaintedFrame? frame = null;
+        Frame? frame = null;
 
         return new Scenario(
             "Rasterise a frame from its strokes",

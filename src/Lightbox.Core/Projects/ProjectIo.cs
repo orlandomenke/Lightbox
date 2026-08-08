@@ -300,7 +300,7 @@ public static class ProjectIo
             // graph that all have to be right before anything renders, and
             // dropping the placement is a smaller lie than rendering an
             // unbounded recursion.
-            foreach (var frame in symbol.Frames.OfType<PaintedFrame>()) frame.Placements = null;
+            foreach (var frame in symbol.Frames) frame.Placements = null;
             project.Symbols[id] = symbol;
         }
     }
@@ -721,7 +721,6 @@ public static class ProjectIo
     private static List<Symbol> InlineSymbols(Doc copy, List<Frame> frames, Project project)
     {
         var placed = frames
-            .OfType<PaintedFrame>()
             .Where(f => f.HasPlacements)
             .SelectMany(f => f.Placements!)
             .Select(p => p.SymbolId)
@@ -747,12 +746,7 @@ public static class ProjectIo
         return inlined;
     }
 
-    private static IEnumerable<Stroke> StrokesOf(Frame frame) => frame switch
-    {
-        PaintedFrame p => p.Strokes,
-        VectorFrame v => v.Strokes,
-        _ => [],
-    };
+    private static IEnumerable<Stroke> StrokesOf(Frame frame) => frame.Strokes;
 
     // ---- naming -------------------------------------------------------------
 

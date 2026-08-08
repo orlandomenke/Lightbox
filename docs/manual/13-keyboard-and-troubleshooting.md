@@ -56,7 +56,7 @@ outweighing the drawing itself.
 | | |
 | --- | --- |
 | **Display** | Matches the screen — full detail zoomed in, less zoomed out. The default. |
-| **Full** | Always the document's own resolution. Sharpest, slowest. |
+| **Full** | Twice what the screen shows, up to the document's own resolution. Sharpest — the extra detail smooths stroke edges — and it no longer pays for pixels your monitor cannot display: zoomed out on a big document it costs a fraction of what it used to, and at 100% zoom and closer it is the document's own resolution, as it always was. |
 | **Half** | Half of what the screen shows. Softer while you work, fastest. |
 
 It only changes what you see while working. **The drawing, the exports and the
@@ -152,10 +152,16 @@ them. Each entry says what it proves, and the ones that end Lightbox ask first
 when the drawing has unsaved edits. Turning the console switch off takes the
 whole list away again.
 
-**Help → Lightbox 1.0.0+…** is the exact build you are running, and clicking it
-copies that text. It is worth putting in any bug report: "the newest build" is
-several different programs in a week, and the part after the `+` says precisely
-which one.
+**Help → Lightbox 0.1.0-alpha.17+9f3c1ab** is the exact build you are running,
+and clicking it copies that text. It is worth putting in any bug report: "the
+newest build" is several different programs in a week, and this names one.
+
+It has two parts and both earn their place. In front is the **version** — what
+the download called itself, matching the file name on the Releases page. After
+the `+` is the **commit**, which is what makes it exact: a version can be shared
+by a release and the builds that led up to it, a commit cannot be shared by
+anything. An `-alpha.<number>` in the middle means a build made between
+releases, straight off a branch; a plain `0.1.0` means a release.
 
 ## Planned
 
