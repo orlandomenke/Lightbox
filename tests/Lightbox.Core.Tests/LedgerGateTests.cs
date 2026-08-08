@@ -281,6 +281,61 @@ public class LedgerGateTests(ITestOutputHelper output)
         Assert.Contains(".claude/codemap/FEATURES.md", ignored);
     }
 
+    /// <summary>
+    /// No entry names <c>manual</c> beside a real evidence anchor.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>bugs.py</c> matches <c>manual</c> as <b>exactly</b> <c>["manual"]</c>, so
+    /// mixing it with an anchor is not a slightly-worse evidence line — it drops
+    /// the entry out of <em>every</em> category the report prints. Not manual, so
+    /// it leaves the verify-by-hand list a person actually reads; and <c>manual</c>
+    /// is then resolved as though it were a code symbol, which it never is, so the
+    /// checkbox stays open for an accidental reason instead of a stated one.
+    /// </para>
+    /// <para>
+    /// <b>Found by making the mistake.</b> B30's measurement moved into
+    /// <c>tools/Lightbox.Bench</c> and the entry gained
+    /// <c>evidence: PaintingRebuild, manual</c>. Nothing looked wrong in the file,
+    /// <c>check</c> stayed green, the mark did not move — and the bug silently
+    /// stopped being listed anywhere. That is the exact shape of failure the ledger
+    /// tooling exists to refuse, so it gets a gate rather than a note.
+    /// </para>
+    /// <para>
+    /// Asserted against the real ledger rather than a synthetic one on purpose:
+    /// <c>check</c> takes no <c>--ledger</c> override (only <c>ids</c> does), and
+    /// the property worth guarding is that <em>this</em> file stays clean. A
+    /// supporting measurement belongs in an entry's prose, which is where B30 now
+    /// names its bench scenario.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void NoEntryNamesManualBesideARealAnchor()
+    {
+        var ledger = File.ReadAllLines(Path.Combine(RepoRoot(), ".claude", "quality", "BUGS.md"));
+        var offenders = new List<string>();
+
+        foreach (var line in ledger)
+        {
+            var at = line.IndexOf("`evidence:", StringComparison.Ordinal);
+            if (at < 0) continue;
+            var close = line.IndexOf('`', at + 1);
+            if (close < 0) continue;
+
+            var anchors = line[(at + "`evidence:".Length)..close]
+                .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (anchors.Contains("manual") && anchors.Length > 1)
+            {
+                offenders.Add(line.Trim()[..Math.Min(140, line.Trim().Length)]);
+            }
+        }
+
+        foreach (var offender in offenders) output.WriteLine(offender);
+        Assert.True(offenders.Count == 0,
+            "'manual' must stand alone in an evidence line — mixed with an anchor, the entry "
+            + $"falls out of every report while looking fine:\n{string.Join('\n', offenders)}");
+    }
+
     [Fact]
     public void CiBuildsTheIndexRatherThanVerifyingACommittedOne()
     {
