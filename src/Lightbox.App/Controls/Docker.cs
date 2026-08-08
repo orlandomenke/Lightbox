@@ -108,6 +108,39 @@ public class Docker : ContentControl
     }
 
     /// <summary>
+    /// True while the panel lives in its own window. The host writes it; the
+    /// template reads it to swap the float button into a redock button.
+    /// </summary>
+    public static readonly StyledProperty<bool> IsFloatingProperty =
+        AvaloniaProperty.Register<Docker, bool>(nameof(IsFloating));
+
+    public bool IsFloating
+    {
+        get => GetValue(IsFloatingProperty);
+        set => SetValue(IsFloatingProperty, value);
+    }
+
+    /// <summary>
+    /// Whether the header offers the float button at all. The host sets it
+    /// from the panel catalogue — the timeline is not movable, so it is not
+    /// floatable either.
+    /// </summary>
+    public static readonly StyledProperty<bool> CanFloatProperty =
+        AvaloniaProperty.Register<Docker, bool>(nameof(CanFloat), true);
+
+    public bool CanFloat
+    {
+        get => GetValue(CanFloatProperty);
+        set => SetValue(CanFloatProperty, value);
+    }
+
+    /// <summary>
+    /// The float/redock button was clicked. What that means — float from
+    /// where, dock back to where — is the host's knowledge, not the docker's.
+    /// </summary>
+    public event Action<Docker>? FloatToggleRequested;
+
+    /// <summary>
     /// The header was picked up and pulled far enough to mean it. The host runs
     /// the drag from here; a docker does not know where the other docks are.
     /// </summary>
@@ -130,6 +163,11 @@ public class Docker : ContentControl
             header.PointerPressed += (_, args) => HeaderPressed(args);
             header.PointerMoved += (_, args) => HeaderMoved(args);
             header.PointerReleased += (_, _) => HeaderReleased();
+        }
+
+        if (e.NameScope.Find<Button>("PART_Float") is { } floater)
+        {
+            floater.Click += (_, _) => FloatToggleRequested?.Invoke(this);
         }
 
         if (_tabs is not null) _tabs.SelectionChanged -= OnTabPicked;

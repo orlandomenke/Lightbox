@@ -315,6 +315,10 @@ public partial class MainWindow : Window
             // any other rearrangement.
             panel.TabPicked += (_, id) => _vm.Workspace.Activate(id);
             panel.PanelDragStarted += BeginPanelDrag;
+            // The float button follows movability: the timeline cannot leave
+            // the bottom, so it offers no way to try.
+            panel.CanFloat = DockPanels.Of(panel.PanelId).Movable;
+            panel.FloatToggleRequested += OnFloatToggle;
         }
         foreach (var strip in Strips())
         {
@@ -387,7 +391,11 @@ public partial class MainWindow : Window
                 panel.ShowTabs(usable.Select(DockPanels.Of).ToList(), active);
                 panels.Add(panel);
             }
-            foreach (var panel in panels) Detach(panel);
+            foreach (var panel in panels)
+            {
+                Detach(panel);
+                panel.IsFloating = false;
+            }
             strip.Rebuild(panels, layout);
             // The cap comes from the panels actually shown, not from the ones
             // the layout lists: a project panel with no project is not in the
@@ -1130,6 +1138,27 @@ public partial class MainWindow : Window
 
     // ---- floating panels -------------------------------------------------------
 
+    /// <summary>
+    /// The header's ⧉/⇱ button: float a docked panel from where it stands,
+    /// or dock a floating one back where it came from.
+    /// </summary>
+    private void OnFloatToggle(Docker panel)
+    {
+        var id = panel.PanelId;
+        if (_vm.Workspace.Layout.SideOf(id) == DockSide.Floating)
+        {
+            _vm.Workspace.Redock(id);
+            return;
+        }
+        // Float it where it already is, so the panel appears to pop out of
+        // the strip rather than teleporting somewhere new.
+        var at = panel.PointToScreen(default);
+        var info = DockPanels.Of(id);
+        _vm.Workspace.Float(
+            id, at.X + 24, at.Y + 24,
+            Math.Max(panel.Bounds.Width, 260), Math.Max(panel.Bounds.Height, Math.Max(240, info.DefaultExtent)));
+    }
+
     private void ShowFloating(DockPanelId id, Docker panel, DockLayout layout)
     {
         if (_floating.TryGetValue(id, out var open))
@@ -1138,6 +1167,7 @@ public partial class MainWindow : Window
             return;
         }
         Detach(panel);
+        panel.IsFloating = true;
         var window = new FloatingPanelWindow(panel, layout.Place(id));
         window.Dismissed += floated =>
         {

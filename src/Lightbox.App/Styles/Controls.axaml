@@ -564,6 +564,17 @@
     <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
   </Style>
 
+  <!-- The docker's float button: ⧉ floats a docked panel, and on a floating
+       one the same button reads ⇱ and docks it back where it came from. -->
+  <Style Selector="controls|Docker /template/ Button#PART_Float">
+    <Setter Property="Content" Value="⧉" />
+    <Setter Property="ToolTip.Tip" Value="Float this panel in its own window" />
+  </Style>
+  <Style Selector="controls|Docker[IsFloating=True] /template/ Button#PART_Float">
+    <Setter Property="Content" Value="⇱" />
+    <Setter Property="ToolTip.Tip" Value="Dock this panel back where it came from" />
+  </Style>
+
   <Style Selector="ToggleSwitch">
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
   </Style>

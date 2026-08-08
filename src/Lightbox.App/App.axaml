@@ -126,6 +126,12 @@
                 <DockPanel>
                   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
                     <ContentPresenter Content="{TemplateBinding TitleBarExtra}" VerticalAlignment="Center" />
+                    <!-- Float out / dock back. One button, two meanings; the
+                         glyph and tooltip follow IsFloating (styles below the
+                         template), and the host answers the click because only
+                         it knows where "back" is. -->
+                    <Button x:Name="PART_Float" FontSize="11" Padding="6,2"
+                            IsVisible="{TemplateBinding CanFloat}" />
                     <Button Content="✕" FontSize="11" Padding="6,2"
                             Command="{TemplateBinding CloseCommand}"
                             IsVisible="{TemplateBinding CloseCommand, Converter={x:Static ObjectConverters.IsNotNull}}"

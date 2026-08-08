@@ -289,6 +289,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     public void Float(DockPanelId id, double x, double y, double w, double h) =>
         Mutate(l => l.Float(id, x, y, w, h));
 
+    public void Redock(DockPanelId id) => Mutate(l => l.Redock(id));
+
     /// <summary>Tab a panel together with another.</summary>
     public void JoinGroup(DockPanelId id, DockPanelId target) => Mutate(l => l.JoinGroup(id, target));
 

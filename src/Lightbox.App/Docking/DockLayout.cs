@@ -21,6 +21,15 @@ public sealed class DockPlacement
     /// <summary>Along the strip: height in a side strip, width in a top or bottom one.</summary>
     public double Extent { get; set; }
 
+    /// <summary>
+    /// Where the panel was docked before it floated, for the redock button.
+    /// Distinct from <see cref="HomeSide"/>, which floating overwrites —
+    /// this one only ever holds a real strip. Hidden means "never docked".
+    /// </summary>
+    public DockSide LastDockedSide { get; set; } = DockSide.Hidden;
+
+    public int LastDockedOrder { get; set; }
+
     /// <summary>Only meaningful while floating.</summary>
     public double FloatX { get; set; }
 
@@ -281,6 +290,12 @@ public sealed class DockLayout
     {
         var placement = Place(id);
         var from = placement.Side;
+        // Remember where it came from, so the redock button has an answer.
+        if (from is not (DockSide.Floating or DockSide.Hidden))
+        {
+            placement.LastDockedSide = from;
+            placement.LastDockedOrder = placement.Order;
+        }
         placement.Side = DockSide.Floating;
         placement.HomeSide = DockSide.Floating;
         placement.FloatX = x;
@@ -288,6 +303,20 @@ public sealed class DockLayout
         placement.FloatWidth = width;
         placement.FloatHeight = height;
         if (from is not (DockSide.Floating or DockSide.Hidden)) Renumber(SlotsIn(from));
+    }
+
+    /// <summary>
+    /// Put a floating panel back where it was docked before it floated, or on
+    /// the right if it has only ever floated. The inverse of the float button.
+    /// </summary>
+    public void Redock(DockPanelId id)
+    {
+        var placement = Place(id);
+        if (placement.Side != DockSide.Floating) return;
+        var side = placement.LastDockedSide is DockSide.Left or DockSide.Right or DockSide.Top or DockSide.Bottom
+            ? placement.LastDockedSide
+            : DockSide.Right;
+        Dock(id, side, placement.LastDockedOrder);
     }
 
     /// <summary>Take a panel off screen. Its size and order are kept for reopening.</summary>

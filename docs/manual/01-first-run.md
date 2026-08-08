@@ -80,19 +80,26 @@ where it would land:
 
 - Near an **edge with nothing on it**, the highlight grows to the size of the
   area that would open.
-- Over an **existing panel**, the highlight is a band above or below it (or
-  left/right in a top or bottom strip) showing where it would slot in.
-- Over an **existing panel's header**, the highlight is that header — let go and
-  the two become tabs.
+- Over an **existing panel** — header or body — the highlight is the whole
+  panel: let go and the two become tabs.
+- At a panel's **very top or bottom edge**, a slim band shows where the panel
+  would slot in between its neighbours instead.
 - Let go **over the canvas** and the panel floats in a window of its own. Drag
   its header back to a dock zone to put it away again.
+
+Every panel also has a **⧉ button** beside its close button: it floats the
+panel where it stands. On a floating panel the same button reads **⇱** and
+docks it back where it came from. The timeline has neither — it never leaves
+the bottom.
 
 The ghost stays inside the main window: drag a floating panel out past the edge
 and it stops at the boundary rather than following onto the desktop.
 
 Dragging the last panel out of an edge collapses that edge — no empty gutter.
 
-Panels are sized in pixels, and a strip scrolls when it holds more than fits.
+A sidebar never scrolls: its panels share the height, shrinking together as
+more arrive, and each panel's content scrolls inside it while its bars stay
+put. Tab panels together when a side gets crowded.
 This is on purpose: five panels each too short to use is a worse outcome than
 five panels at their proper size with a scrollbar.
 

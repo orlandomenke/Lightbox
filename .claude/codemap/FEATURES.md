@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2942 tests, derived from the suite itself. Each line is a
+2947 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -890,6 +890,15 @@ regression even when every test still compiles.
 - The Startup Document Lands On APaintable Layer — `:143`
 - ATransparent Document Has No Background Layer — `:151`
 - The Brush Ring Follows The Size Slider — `:163`
+
+## FloatRedockTests
+`tests/Lightbox.App.Tests/FloatRedockTests.cs`
+
+- Redock Puts The Panel Back Where It Floated From — `:22`
+- APanel That Only Ever Floated Redocks To The Right — `:37`
+- Redocking ADocked Panel Changes Nothing — `:48`
+- The Float Button Floats And The Same Button Docks Back — `:69`
+- The Timeline Offers No Float Button — `:90`
 
 ## FloatingPanelTests
 `tests/Lightbox.App.Tests/FloatingPanelTests.cs`
