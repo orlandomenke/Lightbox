@@ -48,7 +48,7 @@ scale is then describing controls that do not exist.
 | `--gap` | 4 | Between related controls in a group |
 | `--gap-lg` | 8 | Between groups, and docker content padding |
 | `--label` | 52 | Label column in a labelled-row layout, so rows align |
-| `--field` | 64 | Numeric field beside a slider |
+| `--field` | 44 | Numeric field's floor — it grows with the value, never shrinks below "100%" |
 
 **A strip is as tall as its tallest control plus 2 above and below.** The four
 strips above the canvas — menu, tool options, AI, document tabs — each wrapped

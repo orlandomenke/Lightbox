@@ -721,19 +721,19 @@
                         <DockPanel>
                           <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="12" />
                           <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1"
-                                         Increment="0.05" FormatString="0.00" Width="64" />
+                                         Increment="0.05" FormatString="0.00" MinWidth="44" />
                           <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Margin="4,0" />
                         </DockPanel>
                         <DockPanel>
                           <TextBlock Text="Flow" Width="90" VerticalAlignment="Center" FontSize="12" />
                           <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1"
-                                         Increment="0.05" FormatString="0.00" Width="64" />
+                                         Increment="0.05" FormatString="0.00" MinWidth="44" />
                           <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Margin="4,0" />
                         </DockPanel>
                         <DockPanel>
                           <TextBlock Text="Spacing" Width="90" VerticalAlignment="Center" FontSize="12" />
                           <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2"
-                                         Increment="0.02" FormatString="0.00" Width="64" />
+                                         Increment="0.02" FormatString="0.00" MinWidth="44" />
                           <Slider Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2" Margin="4,0" />
                         </DockPanel>
 
@@ -805,19 +805,19 @@
                           <DockPanel ToolTip.Tip="How far colour travels before the sample refreshes.">
                             <TextBlock Text="Length" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="How wide an area each dab samples. Wider blends more and keeps less detail.">
                             <TextBlock Text="Radius" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="How much of the brush's own colour it adds while smudging. Zero is a pure blender.">
                             <TextBlock Text="Color rate" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushColorRate}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                         </StackPanel>
@@ -825,31 +825,31 @@
                           <DockPanel ToolTip.Tip="How much dab diameter varies. This is the biggest single difference between a digital mark and a natural one.">
                             <TextBlock Text="Size jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="Floor for jittered size. Without it, jitter produces dabs that vanish and the stroke reads as broken rather than varied.">
                             <TextBlock Text="Minimum size" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="1 is circular; lower squashes the dab into a chisel.">
                             <TextBlock Text="Roundness" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
                             <TextBlock Text="Roundness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
                             <TextBlock Text="Angle jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                         <CheckBox Content="Angle follows stroke direction" FontSize="12"
@@ -860,7 +860,7 @@
                           <DockPanel>
                             <TextBlock Text="Scatter" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
 
@@ -889,25 +889,25 @@
                           <DockPanel>
                             <TextBlock Text="Grain size" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128"
-                                           Increment="1" FormatString="0" Width="64" />
+                                           Increment="1" FormatString="0" MinWidth="44" />
                             <Slider Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
                             <TextBlock Text="Depth" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="The flat grain used when no texture surface is chosen.">
                             <TextBlock Text="Granulation" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
                             <TextBlock Text="Wet edge" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
 
@@ -915,7 +915,7 @@
                           <DockPanel ToolTip.Tip="Per-dab paint amount varies, giving wash and build-up variation that pressure alone cannot.">
                             <TextBlock Text="Flow jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
 
@@ -928,25 +928,25 @@
                           <DockPanel>
                             <TextBlock Text="Toward second" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
                             <TextBlock Text="Hue jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
                             <TextBlock Text="Saturation jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
                             <TextBlock Text="Brightness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
 
@@ -964,37 +964,37 @@
                           <DockPanel>
                             <TextBlock Text="Wetness" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumWetness}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumWetness}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
                             <TextBlock Text="Viscosity" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumViscosity}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumViscosity}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
                             <TextBlock Text="Drag" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumDrag}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumDrag}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
                             <TextBlock Text="Absorbency" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="Capillary pull toward the wet boundary — this is what darkens the rim.">
                             <TextBlock Text="Edge pull" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="Simulation iterations. Cost is linear in this — the one control here that can make a stroke commit feel slow.">
                             <TextBlock Text="Flow steps" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32"
-                                           Increment="1" FormatString="0" Width="64" />
+                                           Increment="1" FormatString="0" MinWidth="44" />
                             <Slider Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32" Margin="4,0" />
                           </DockPanel>
 
@@ -1002,19 +1002,19 @@
                           <DockPanel>
                             <TextBlock Text="Density" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="How readily pigment settles into the paper's valleys.">
                             <TextBlock Text="Granularity" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumGranularity}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumGranularity}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="0 is a transparent glaze, 1 fully hides what is underneath.">
                             <TextBlock Text="Hiding" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumHiding}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumHiding}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <CheckBox Content="Mix pigment physically (Kubelka–Munk)" FontSize="12"
@@ -1030,13 +1030,13 @@
                           <DockPanel>
                             <TextBlock Text="Grain size" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128"
-                                           Increment="1" FormatString="0" Width="64" />
+                                           Increment="1" FormatString="0" MinWidth="44" />
                             <Slider Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
                             <TextBlock Text="Influence" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
 
@@ -1044,19 +1044,19 @@
                           <DockPanel ToolTip.Tip="How much a light touch means water rather than pigment. Raise it and light strokes go paler and bloom further.">
                             <TextBlock Text="Light = water" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="How much pressure governs mixing with the paint already there. At 1 a light touch barely disturbs it.">
                             <TextBlock Text="Pressure mix" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="How much this stroke re-wets what is under it. Above zero, earlier paint lifts and travels with the new stroke — wet into wet.">
                             <TextBlock Text="Re-wetting" Width="90" VerticalAlignment="Center" FontSize="12" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumRewetting}" Minimum="0" Maximum="1"
-                                           Increment="0.05" FormatString="0.00" Width="64" />
+                                           Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumRewetting}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
 
@@ -1065,13 +1065,13 @@
                             <DockPanel>
                               <TextBlock Text="Thickness" Width="90" VerticalAlignment="Center" FontSize="12" />
                               <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumBody}" Minimum="0" Maximum="1"
-                                             Increment="0.05" FormatString="0.00" Width="64" />
+                                             Increment="0.05" FormatString="0.00" MinWidth="44" />
                               <Slider Value="{Binding MediumBody}" Minimum="0" Maximum="1" Margin="4,0" />
                             </DockPanel>
                             <DockPanel ToolTip.Tip="Shades the paint's own height, giving impasto relief.">
                               <TextBlock Text="Relief" Width="90" VerticalAlignment="Center" FontSize="12" />
                               <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumRelief}" Minimum="0" Maximum="1"
-                                             Increment="0.05" FormatString="0.00" Width="64" />
+                                             Increment="0.05" FormatString="0.00" MinWidth="44" />
                               <Slider Value="{Binding MediumRelief}" Minimum="0" Maximum="1" Margin="4,0" />
                             </DockPanel>
                             <!--
@@ -1095,7 +1095,7 @@
                             <DockPanel ToolTip.Tip="Paint on the brush at the start. Below 1 the brush runs out — that is dry-brush.">
                               <TextBlock Text="Paint load" Width="90" VerticalAlignment="Center" FontSize="12" />
                               <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1"
-                                             Increment="0.05" FormatString="0.00" Width="64" />
+                                             Increment="0.05" FormatString="0.00" MinWidth="44" />
                               <Slider Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1" Margin="4,0" />
                             </DockPanel>
                           </StackPanel>
@@ -2515,7 +2515,7 @@
                               ToolTip.Tip="Blend mode of the active layer" />
                     <NumericUpDown DockPanel.Dock="Right" Value="{Binding ActiveLayerOpacity}"
                                    Minimum="0" Maximum="100" Increment="5" FormatString="0"
-                                   Width="64" FontSize="12"
+                                   MinWidth="44" FontSize="12"
                                    ToolTip.Tip="Opacity of the active layer (%)" />
                     <Slider Value="{Binding ActiveLayerOpacity}" Minimum="0" Maximum="100" Margin="6,0"
                             VerticalAlignment="Center" ToolTip.Tip="Opacity of the active layer" />
@@ -2885,19 +2885,19 @@
                     <DockPanel>
                       <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360" Margin="4,0" />
                     </DockPanel>
                     <DockPanel>
                       <TextBlock Text="S" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HsvSaturation}" Minimum="0" Maximum="100"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.HsvSaturation}" Minimum="0" Maximum="100" Margin="4,0" />
                     </DockPanel>
                     <DockPanel>
                       <TextBlock Text="V" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HsvValue}" Minimum="0" Maximum="100"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.HsvValue}" Minimum="0" Maximum="100" Margin="4,0" />
                     </DockPanel>
                   </StackPanel>
@@ -2907,19 +2907,19 @@
                     <DockPanel>
                       <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360" Margin="4,0" />
                     </DockPanel>
                     <DockPanel>
                       <TextBlock Text="S" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HslSaturation}" Minimum="0" Maximum="100"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.HslSaturation}" Minimum="0" Maximum="100" Margin="4,0" />
                     </DockPanel>
                     <DockPanel>
                       <TextBlock Text="L" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.HslLightness}" Minimum="0" Maximum="100"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.HslLightness}" Minimum="0" Maximum="100" Margin="4,0" />
                     </DockPanel>
                   </StackPanel>
@@ -2929,19 +2929,19 @@
                     <DockPanel>
                       <TextBlock Text="R" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255" Margin="4,0" />
                     </DockPanel>
                     <DockPanel>
                       <TextBlock Text="G" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Green}" Minimum="0" Maximum="255"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.Green}" Minimum="0" Maximum="255" Margin="4,0" />
                     </DockPanel>
                     <DockPanel>
                       <TextBlock Text="B" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Blue}" Minimum="0" Maximum="255"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.Blue}" Minimum="0" Maximum="255" Margin="4,0" />
                     </DockPanel>
                   </StackPanel>
@@ -2951,25 +2951,25 @@
                     <DockPanel>
                       <TextBlock Text="C" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100" Margin="4,0" />
                     </DockPanel>
                     <DockPanel>
                       <TextBlock Text="M" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Magenta}" Minimum="0" Maximum="100"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.Magenta}" Minimum="0" Maximum="100" Margin="4,0" />
                     </DockPanel>
                     <DockPanel>
                       <TextBlock Text="Y" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Yellow}" Minimum="0" Maximum="100"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.Yellow}" Minimum="0" Maximum="100" Margin="4,0" />
                     </DockPanel>
                     <DockPanel>
                       <TextBlock Text="K" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Black}" Minimum="0" Maximum="100"
-                                     Increment="1" FormatString="0" Width="64" />
+                                     Increment="1" FormatString="0" MinWidth="44" />
                       <Slider Value="{Binding ColorPicker.Black}" Minimum="0" Maximum="100" Margin="4,0" />
                     </DockPanel>
                   </StackPanel>
@@ -3311,13 +3311,13 @@
                 <DockPanel ToolTip.Tip="One scale for every frame: a reference whose size varied frame to frame is the one thing a size reference exists to prevent.">
                   <TextBlock DockPanel.Dock="Left" Text="Scale" Width="52" VerticalAlignment="Center" FontSize="12" />
                   <NumericUpDown DockPanel.Dock="Right" Value="{Binding ReferenceScale}" Minimum="0.05"
-                                 Maximum="8" Increment="0.05" FormatString="0.00" Width="64" />
+                                 Maximum="8" Increment="0.05" FormatString="0.00" MinWidth="44" />
                   <Slider Value="{Binding ReferenceScale}" Minimum="0.05" Maximum="4" Margin="4,0" />
                 </DockPanel>
                 <DockPanel>
                   <TextBlock DockPanel.Dock="Left" Text="Opacity" Width="52" VerticalAlignment="Center" FontSize="12" />
                   <NumericUpDown DockPanel.Dock="Right" Value="{Binding ReferenceOpacity}" Minimum="0"
-                                 Maximum="1" Increment="0.05" FormatString="0.00" Width="64" />
+                                 Maximum="1" Increment="0.05" FormatString="0.00" MinWidth="44" />
                   <Slider Value="{Binding ReferenceOpacity}" Minimum="0" Maximum="1" Margin="4,0" />
                 </DockPanel>
 
@@ -3414,13 +3414,13 @@
                         <DockPanel ToolTip.Tip="Visibility of the nearest ghost">
                           <TextBlock Text="Opacity" Width="76" VerticalAlignment="Center" FontSize="12" />
                           <NumericUpDown DockPanel.Dock="Right" Value="{Binding OnionOpacity}" Minimum="0.02"
-                                         Maximum="1" Increment="0.05" FormatString="0.00" Width="64" />
+                                         Maximum="1" Increment="0.05" FormatString="0.00" MinWidth="44" />
                           <Slider Value="{Binding OnionOpacity}" Minimum="0.02" Maximum="1" Margin="4,0" />
                         </DockPanel>
                         <DockPanel ToolTip.Tip="What each further ghost is worth. 1 makes them all equally visible — right for checking registration across a sequence; 0.5 halves each one — right when drawing an inbetween.">
                           <TextBlock Text="Falloff" Width="76" VerticalAlignment="Center" FontSize="12" />
                           <NumericUpDown DockPanel.Dock="Right" Value="{Binding OnionFalloff}" Minimum="0.05"
-                                         Maximum="1" Increment="0.05" FormatString="0.00" Width="64" />
+                                         Maximum="1" Increment="0.05" FormatString="0.00" MinWidth="44" />
                           <Slider Value="{Binding OnionFalloff}" Minimum="0.05" Maximum="1" Margin="4,0" />
                         </DockPanel>
 

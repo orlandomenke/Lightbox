@@ -72,8 +72,14 @@
     left to right has to be a column of columns, and that is only true if the
     parts are the same size.
   -->
+  <!-- Superseding the fixed 64 above: the owner's call is NARROW and
+       growing — wide enough that "100%" always fits, wider only when the
+       value actually needs more digits. A bar stays a column of columns
+       because the floor is shared; only an unusually long value breaks
+       rank, and that beats every field paying 64px for the longest value
+       any of them might ever hold. -->
   <Style Selector="NumericUpDown.value">
-    <Setter Property="Width" Value="64" />
+    <Setter Property="MinWidth" Value="44" />
     <Setter Property="HorizontalContentAlignment" Value="Right" />
   </Style>
 

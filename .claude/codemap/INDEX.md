@@ -1,6 +1,6 @@
 # Code index
 
-560 files · 147912 lines · 2926 tests.
+560 files · 147921 lines · 2926 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -80,7 +80,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GradientStopRow:16, GradientDockerViewModel:89, HexColor:452
 - `src/Lightbox.App/Services/UnrealExporter.cs` (442 ln) · 2 test files
   - UnrealExportOptions:9, UnrealExportResult:24, UnrealExporter:61, UnrealBlock:70
-- `src/Lightbox.App/Styles/Density.axaml` (431 ln) · **no tests**
+- `src/Lightbox.App/Styles/Density.axaml` (437 ln) · **no tests**
 - `src/Lightbox.App/ViewModels/WorkspaceViewModel.cs` (403 ln) · 1 test files
   - WorkspaceViewModel:20, WorkspaceRow:398
 - `src/Lightbox.App/Views/ConfigureWindow.axaml` (401 ln) · **no tests**

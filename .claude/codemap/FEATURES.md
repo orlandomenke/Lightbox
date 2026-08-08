@@ -628,8 +628,8 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/DensityScaleTests.cs`
 
 - The Scale The Doc Describes Is The Scale The Code Applies — `:56`
-- No View Redeclares ASize The Scale Owns — `:89`
-- The Overlay Tile Agrees With The Scale — `:141`
+- No View Redeclares ASize The Scale Owns — `:92`
+- The Overlay Tile Agrees With The Scale — `:144`
 
 ## DiagnosticLogTests
 `tests/Lightbox.App.Tests/DiagnosticLogTests.cs`
