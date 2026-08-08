@@ -7,6 +7,11 @@ Down the left: **Brush** (B), **Eraser** (E), **Fill**, **Picker**,
 **Gradient**, **Arrow** (A), **Select** (S). Press Select again to cycle its
 variants, or hold it for the list: Freehand, Polygon, Box, Circle, Magic wand.
 
+The rail arranges itself: two centred columns ordinarily, one when the window
+is tall enough to hold every tool in a single column, three when it is short
+and the rail has been dragged wide enough. Drag the rail past ~150&nbsp;px and
+it becomes a single labelled list.
+
 Hold **Ctrl** at any time to pick a colour off the canvas without changing tool.
 
 ### Arrow and Select are not the same tool

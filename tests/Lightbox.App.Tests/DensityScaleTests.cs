@@ -64,7 +64,10 @@ public class DensityScaleTests
             ("--tile", "Button.icon", "Height"),
             ("--bar", "controls|OverflowBar", "Height"),
             ("--tool", "ToggleButton.tool", "Height"),
-            ("--field", "NumericUpDown.value", "Width"),
+            // MinWidth, not Width: the owner's call is a floor the value can
+            // grow past, never a fixed column ("keep enough space so that at
+            // least 100% fits; if more tokens are needed scale dynamically").
+            ("--field", "NumericUpDown.value", "MinWidth"),
         ];
 
         var doc = Design();

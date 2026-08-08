@@ -3,6 +3,7 @@
         xmlns:views="using:Lightbox.App.Views"
         x:Class="Lightbox.App.Views.BrushTipsWindow"
         Title="Brush tips"
+        Icon="/Assets/lightbox.ico"
         Width="760" Height="560"
         WindowStartupLocation="CenterOwner">
 

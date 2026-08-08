@@ -39,6 +39,11 @@ public sealed class TimelineRowAlignmentTests : BrushStateIsolated
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         var vm = (MainViewModel)window.DataContext!;
 
+        // The grid lives on the X-sheet tab now; the track view is in front
+        // by default and has no cels to measure.
+        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Xsheet);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
         // The name column and the cel strip, found by the height they are both
         // bound to rather than by name — the point is that they agree, so
         // asserting on the shared source would prove nothing.

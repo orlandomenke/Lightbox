@@ -3,6 +3,7 @@
         xmlns:views="using:Lightbox.App.Views"
         x:Class="Lightbox.App.Views.BrushLibraryWindow"
         Title="Brush library"
+        Icon="/Assets/lightbox.ico"
         Width="720" Height="620"
         WindowStartupLocation="CenterOwner">
 

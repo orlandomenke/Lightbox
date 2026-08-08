@@ -61,6 +61,26 @@
   <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="TextSecondaryBrush" />
 
   <!--
+    Fluent pins every field's font to this resource (default 14), and a style
+    setter beats inheritance — so the `:is(TopLevel)` FontSize=12 reached every
+    label and *no* field. At 14, a line box no longer fits a 22px field and the
+    digits lost their bottoms: "100" read as "1ᴼᴼ". The density scale's base
+    font and this key must be the same number.
+  -->
+  <x:Double x:Key="ControlContentThemeFontSize">12</x:Double>
+
+  <!--
+    Fluent's slider template reserves 15px ABOVE and BELOW the track for tick
+    bars, as fixed grid rows — so inside our 24px slider the track assembly
+    sat 15px down and read four pixels low against the label beside it. The
+    earlier VerticalAlignment fixes could not win against fixed row heights;
+    this can, because the rows read their height from these keys. Nothing in
+    this application shows slider ticks.
+  -->
+  <GridLength x:Key="SliderPreContentMargin">*</GridLength>
+  <GridLength x:Key="SliderPostContentMargin">*</GridLength>
+
+  <!--
     `TextControlBorderBrushFocused` is deliberately absent: Fluent derives it
     from the accent, so it is already our violet. Restating it here would be a
     second place to change it and a first place for the two to disagree.

@@ -227,6 +227,15 @@ decision goes to `QUESTIONS.md` and is left alone.
   - The direction is the finding, not the colour: a sunken field says "a gap in the panel", a raised one says "a surface you can put something on". Fluent's hover made it *deeper*, which is a control dimming under the pointer.
   - Reported as "we also need to update the text fields across the app, so all windows, context menus, dockers and everywhere else". Fixed at the theme rather than per control, so a view that has never heard of this file still comes out right. Cost: S
 
+- [ ] **B124** `P3` `ui` A docker takes a whole slot, so five panels means five heights and a scroll `evidence: DockLayoutTests, PanelsSharingASlotAreOneGroup, APanelIsStillInExactlyOnePlace, AGroupThatLosesItsLastMemberStopsExisting, SizingASlotSizesEveryTabInIt, AStripIsSizedByTheTabsShowingNotTheOnesHidden, ALayoutSavedBeforeTabsExistedStillLoads, DockZoneTests, DroppingOnAHeaderTabsIntoThatSlot, DroppingOnTheBodyStillMakesASlotOfItsOwn, DockDragGhostTests, ItNeverTakesThePointer, TabbedPanelsShareOneSlotAndOneShows, GroupingAPanelMarksTheWorkspaceUnsaved`
+  - Repro: open five panels. The sidebar is five stacked heights and the stack scrolls, because a slot holds exactly one panel and the header's switcher only *traded* two rather than stacking them.
+  - Not a departure from the design system but a better answer to a rule already in it. `DESIGN.md` says **a docker must never be too small to use**, and the sidebar is pixel heights with a scroll precisely because proportional splitting turned five panels into five slivers. Tabs let N panels share one slot's height instead of needing N.
+  - **The model was already nearly right.** `Order` meant "position of this panel"; it now means "which slot in this strip", so panels sharing an `Order` are tabbed. One new field, `TabActive`. The invariant everything rests on is untouched: `Placements` is keyed by panel id, so a panel still has exactly one home, and grouping cannot give it two.
+  - **Backward compatible with no migration, and that mattered more than it looks.** There is no version field anywhere and `WorkspaceStore.Deserialize` only recovers from `JsonException` — a semantically-old file would have loaded as *garbage* rather than failed. Old layouts have unique orders, and a unique order is a group of one, which is what those files always meant. `ALayoutSavedBeforeTabsExistedStillLoads` asserts it against real pre-tab JSON, because every other round-trip test here serialises something this build made and reads it back, which proves the format is self-consistent and says nothing about the format that shipped.
+  - **What tabs actually bought the shipped workspaces was not compression.** The palette and the gradient used to be hidden in most arrangements — neither was worth a slot of sidebar. Tabbed with colour they are reachable for the cost of a word in a header. The rule the arrangements follow: *tab what is used alternately, never what is used together*; layers and the project tree are read while drawing, so tabbing those would trade a scroll for a click on every stroke.
+  - **The trap, worth naming because it broke first.** Clicking a tab walks up to the header and looks exactly like a press on the drag grip, so the first thing a tab click did was tear the panel out. `LandedOnAControl` needed `ListBox` adding — the same trap the `ComboBox` in that list had been added for.
+  - Cost: M
+
 - [ ] **B100** `P3` `ui` Undo history does not survive a save, and the owner wants it to — blocked on the step record becoming data `evidence: SerializableEditStep, UndoPersistence, UndoHistoryTests, UndoSurvivesAReload, RestoringUndoDoesNotMarkTheDocument`
   - Asked for 2026-08-06: *"undo history is always saved for the max amount of the buffer"*, and *"silently saved instead of showing a badge"* — so persisting it must not itself dirty the document, which B98's derived revision gives for free.
   - **Measured 2026-08-06, and it refuted the estimate above rather than confirming it.** I had said the stack holds commands rather than snapshots and would therefore be cheap. Both halves were wrong, and the class doc says so in its first line — *"snapshot-based undo/redo… snapshots are JSON clones"*.
@@ -274,6 +283,12 @@ decision goes to `QUESTIONS.md` and is left alone.
   - **Tested through the real window rather than by reading the XAML, because what broke was a *parent's* visibility.** `IsVisible` on the swatch itself was true the entire time the bug existed, so an assertion about the element would have passed throughout; `IsEffectivelyVisible` walks the chain, which is where the `IsBrushTool` binding sat. Reverting the XAML fails 7 of the 10 new tests — Fill, Shape, Gradient and all four non-colour tools — and the three that still pass are the brush, the one-pair count and the per-tool controls, which is the right shape.
   - The theory names the colour tools individually rather than reading some `UsesColour` flag, for the reason the fix exists: a flag is the table that drifts, and a test that read it would agree with it when it was wrong. A second theory asserts the stronger property the reporter actually asked for — the block stays put on the eraser, select, move and picker too.
   - Two failure modes worth guarding that "is it visible" does not catch: leaving the original in place would give the brush **two** pairs, so the count is asserted; and moving a block out of a panel is how a sibling gets taken with it, so the brush picker's own presence and its absence on the fill tool are asserted too.
+
+- [ ] **B16** `P3` `ui` The brush parameter flyout scrolls when it should grow `evidence: TheBrushParameterFlyoutIsNotPinnedToOneHeight`
+  - Repro: open the ⚙ flyout and switch category. Short pages have dead space; long ones get a vertical scrollbar.
+  - Cause: the flyout's grid declared `Height="430"` for five pages of different lengths.
+  - Fix: size to the page, with a `MaxHeight` so a very long one cannot run off the screen.
+  - Reported from a build. Cost: S
 
 ---
 
@@ -1044,6 +1059,31 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B139** `P2` `ui` A lone docker cannot be dragged to another edge `evidence: LoneDockerDragTests, APressOnALoneTabIsAGrip, APressOnARealTabStripStaysAControl`
+  - Repro: move the timeline to a side, then try to drag it back — nothing grips. Any docker alone in its slot has the same problem once every slot wears a tab strip.
+  - Cause: the header's do-not-drag list includes the tab ListBox, correctly — clicking a tab must switch tabs, not tear the group out. But a slot of one shows a tab too now, and that tab is most of the header, so the rule ate the grip. A single tab has nothing to switch to.
+  - Fix: in `Docker.LandedOnAControl`, a strip of one is walked past — a press there is a grip. Two or more tabs keep the old rule.
+  - Cost: S
+
+- [x] **B138** `P2` `ui` The tab highlight and the docker showing disagree after a switch `evidence: TabSwitchCrashTests, TheHighlightedTabIsTheDockerThatIsShowing`
+  - Repro: tab two panels together and switch between them a few times — the active docker is visible while its tab sits unlit (reported as "the inactive has the highlight"; the strip's real state is *no* selection, which leaves whatever visual state the eye lands on looking wrong).
+  - Cause: the B127 fix bound the strip's `SelectedValue` to `ActiveTab` in the template, and it works exactly once per docker. Re-binding `Tabs` during a layout rebuild makes the ListBox clear its own selection, and that clear is a **local value — which outranks a template binding permanently** in Avalonia's priority order. Every later push of `ActiveTab` through the binding was silently shadowed.
+  - Fix: `Docker.SyncStripSelection()` — the selection is written in code from `ShowTabs` and on template application, under the same applying-flag the rest of the host writes use. A local value is only beaten by another local value.
+  - The test asserts the strip's **lights**, where the crash tests assert its **content** — four switches, because the first one passes even when broken.
+  - Cost: S
+
+- [x] **B141** `P2` `ui` The slider's hairline track rides low against the label beside it `evidence: SliderTrackAlignmentTests, TheTrackRidesTheVerticalCentreOfTheSlider`
+  - Repro: any row that pairs a label or field with a slider — the Layers top bar, the brush parameter rows. The 3px track sits visibly below the text's centre line.
+  - Cause: Fluent's slider template reserves **15px above and 15px below the track**, as fixed grid rows for tick bars nothing in this application shows. Inside our 24px slider the geometry cannot even fit, and the track assembly pinned 15px from the top. The earlier `VerticalAlignment` fixes on `SliderContainer` and `Track` were aimed at the right symptom and the wrong mechanism — alignment cannot win against a fixed row height.
+  - Fix: the row heights are the dynamic resources `SliderPreContentMargin`/`SliderPostContentMargin`; `Theme.axaml` sets both to `*`, so the track row centres by construction at any slider height instead of at one blessed one.
+  - Cost: S
+
+- [x] **B140** `P2` `ui` The digits in a numeric field sit low and lose their bottoms `evidence: FieldShapeTests, TheDigitsSitCentredInTheField`
+  - Repro: any 22px numeric field — the Layers opacity box is the easiest. "100" renders with the bottoms of the digits cut off, low enough to be unreadable.
+  - Cause: Fluent's theme padding for text controls is `10,6,6,5` — eleven vertical pixels, which in a 22px field leaves less room than one line box. The value flows from the control's own `Padding` template-bound into the inner TextBox, so no amount of styling the inner parts could touch it: **an inline template value outranks a style setter in Avalonia** (Template sits above Style in the priority order, unlike WPF). The probe that found it printed the template's padding where ours was expected.
+  - Fix: `Padding="6,0"` on the `NumericUpDown` density rule — the control's own property is the one thing the template binding reads from. Vertical centring then has room to do its job.
+  - Cost: S
+
 - [x] **B128** `P2` `ui` The palette never reached the theme, so every stock control still paints Windows blue `evidence: PaletteTests, TheThemeAgreesWithThePalette, TheThemePaletteIsWrittenInHexOnPurpose`
   - Repro: open any docker. The eye and lock toggles, every slider thumb, checkboxes, radios, focus rings and list selection are `#0078D7`. Open any dialog: pure black. Sampled, not squinted at — the opacity slider read `#FF6A3D` on the track and `#0078D7` on the thumb, twelve pixels apart.
   - Cause: `App.axaml` had a bare `<FluentTheme />`. **Tokenising the views only reaches surfaces somebody aimed at a token**; stock controls resolve their colours from the *theme's* palette, and Fluent's accent is Windows blue and its region colour is black. The application wore two colour systems, and one control wore both at once.
@@ -1218,15 +1258,6 @@ test reopens the bug.
   - **Why nothing failed.** Every source was internally consistent; they only disagreed with each other, and nothing compared them. No test asserted a single scale number — what was guarded was consistency *within* a bar, which is orthogonal. This is the same shape as B128 one layer up: two coherent systems, no conflict, no failure, and an application that does not match its own documentation.
   - Found while planning the density retune, because the retune's first question — "what is the scale now?" — turned out to have four answers. Cost: S
 
-- [x] **B124** `P3` `ui` A docker takes a whole slot, so five panels means five heights and a scroll `evidence: DockLayoutTests, PanelsSharingASlotAreOneGroup, APanelIsStillInExactlyOnePlace, AGroupThatLosesItsLastMemberStopsExisting, SizingASlotSizesEveryTabInIt, AStripIsSizedByTheTabsShowingNotTheOnesHidden, ALayoutSavedBeforeTabsExistedStillLoads, DockZoneTests, DroppingOnAHeaderTabsIntoThatSlot, DroppingOnTheBodyStillMakesASlotOfItsOwn, DockDragGhostTests, ItNeverTakesThePointer, TabbedPanelsShareOneSlotAndOneShows, GroupingAPanelMarksTheWorkspaceUnsaved`
-  - Repro: open five panels. The sidebar is five stacked heights and the stack scrolls, because a slot holds exactly one panel and the header's switcher only *traded* two rather than stacking them.
-  - Not a departure from the design system but a better answer to a rule already in it. `DESIGN.md` says **a docker must never be too small to use**, and the sidebar is pixel heights with a scroll precisely because proportional splitting turned five panels into five slivers. Tabs let N panels share one slot's height instead of needing N.
-  - **The model was already nearly right.** `Order` meant "position of this panel"; it now means "which slot in this strip", so panels sharing an `Order` are tabbed. One new field, `TabActive`. The invariant everything rests on is untouched: `Placements` is keyed by panel id, so a panel still has exactly one home, and grouping cannot give it two.
-  - **Backward compatible with no migration, and that mattered more than it looks.** There is no version field anywhere and `WorkspaceStore.Deserialize` only recovers from `JsonException` — a semantically-old file would have loaded as *garbage* rather than failed. Old layouts have unique orders, and a unique order is a group of one, which is what those files always meant. `ALayoutSavedBeforeTabsExistedStillLoads` asserts it against real pre-tab JSON, because every other round-trip test here serialises something this build made and reads it back, which proves the format is self-consistent and says nothing about the format that shipped.
-  - **What tabs actually bought the shipped workspaces was not compression.** The palette and the gradient used to be hidden in most arrangements — neither was worth a slot of sidebar. Tabbed with colour they are reachable for the cost of a word in a header. The rule the arrangements follow: *tab what is used alternately, never what is used together*; layers and the project tree are read while drawing, so tabbing those would trade a scroll for a click on every stroke.
-  - **The trap, worth naming because it broke first.** Clicking a tab walks up to the header and looks exactly like a press on the drag grip, so the first thing a tab click did was tear the panel out. `LandedOnAControl` needed `ListBox` adding — the same trap the `ComboBox` in that list had been added for.
-  - Cost: M
-
 - [x] **B118** `P3` `ui` There is no way to reach the diagnostics, and no console for a double-clicked app `evidence: DiagnosticsMenuTests, TheConsoleSwitchIsOffUntilSomebodyAsks, TheSwitchSurvivesTheRestartItExistsFor, HelpOffersTheFolderTheConsoleAndTheBuild, TheBuildLabelNamesTheCommitRatherThanJustAVersion, AskingForAConsoleWorksEvenWhenThereIsNoTerminalToAttachTo`
   - B117 gave a crash somewhere to be written down, and left two gaps. The file is in a folder an artist has no reason to know about, and there was still no way to watch a problem *as it happens* — a log answers what went wrong, never what is going wrong.
   - **The console half had a hole in it that a terminal hides.** B115 attaches to the parent console, which works when the app was launched from a terminal and does nothing at all otherwise — and the ordinary way to start Lightbox is to double-click it, where there is no parent to attach to. `AllocConsole` is what actually produces a window in that case. So "give me a console when something goes wrong" was unanswerable for precisely the launch an artist uses, and `AskingForAConsoleWorksEvenWhenThereIsNoTerminalToAttachTo` is named for that.
@@ -1275,12 +1306,6 @@ test reopens the bug.
 - [x] **B41** `P3` `ui` Tool-options sliders and checkboxes sit above their labels `evidence: manual`
   - The bar is a fixed 30 px row and its children default to `VerticalAlignment=Stretch`; a stretched `Slider` draws its track at the top of the height it is given and a stretched `CheckBox` does the same with its box — so Size, Hardness, Opacity and "Per brush" all sat high against the text beside them.
   - Fix: styles on `OverflowBar`'s descendants rather than an alignment attribute on some forty individual controls, so a control added later is centred without anybody remembering to.
-
-- [x] **B16** `P3` `ui` The brush parameter flyout scrolls when it should grow `evidence: TheBrushParameterFlyoutIsNotPinnedToOneHeight`
-  - Repro: open the ⚙ flyout and switch category. Short pages have dead space; long ones get a vertical scrollbar.
-  - Cause: the flyout's grid declared `Height="430"` for five pages of different lengths.
-  - Fix: size to the page, with a `MaxHeight` so a very long one cannot run off the screen.
-  - Reported from a build. Cost: S
 
 - [x] **B15** `P3` `ui` The tool options bar's columns do not line up `evidence: EveryValueFieldInTheBarIsTheSameWidth, NoValueFieldInTheBarSetsAWidthOfItsOwn`
   - Repro: switch between brush, gradient and selection. The label, slider and value box start and end somewhere different each time.

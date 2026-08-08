@@ -44,11 +44,11 @@ scale is then describing controls that do not exist.
 | `--row` | 24 | Field, combo, small button, list row |
 | `--tile` | 26 | Icon button, overlay-bar tile — a square, and see below |
 | `--bar` | 30 | The tool options bar's fixed row |
-| `--tool` | 28 | Tool palette buttons — hit while drawing, still the largest hit target after the tile |
+| `--tool` | 26 | Tool palette buttons — hit while drawing; 26 with a 12px glyph, the owner's trade of hit size for breathing room (was 28/16) |
 | `--gap` | 4 | Between related controls in a group |
 | `--gap-lg` | 8 | Between groups, and docker content padding |
 | `--label` | 52 | Label column in a labelled-row layout, so rows align |
-| `--field` | 64 | Numeric field beside a slider |
+| `--field` | 44 | Numeric field's floor — it grows with the value, never shrinks below "100%" |
 
 **A strip is as tall as its tallest control plus 2 above and below.** The four
 strips above the canvas — menu, tool options, AI, document tabs — each wrapped
@@ -333,25 +333,41 @@ the invariants in `CLAUDE.md`, and have nothing to do with this section.
 
 ## Dockers
 
-**A docker must never be too small to use.** With five dockers open, a fixed
-grid of starred rows divides the sidebar until each is a sliver and none is
-usable — the failure the sidebar had. The sidebar is therefore a **vertical
-scroll of stacked dockers with explicit pixel heights**, not a proportional
-split:
+**A sidebar never scrolls** — the owner's call, and a **reversal** of the
+first answer, which was pixel heights plus a strip that scrolls (kept below
+for the record). The sidebar is a **proportional split that always fits**:
 
-- Each docker owns a default height and a floor (`MinHeight`) below which it is
-  genuinely unusable rather than merely tight.
-- A splitter sits between every adjacent pair, and dragging one changes only
-  the two it touches.
-- The stack may be taller than the sidebar. That is the point: scrolling past a
-  docker is fine, being unable to use one is not.
-- Hidden dockers cost nothing — `Auto` height, no splitter, no floor.
+- Dockers share the height as weighted stars — the saved extent is the
+  weight — so another panel arriving shrinks everyone proportionally and a
+  splitter drag's proportions survive the next rebuild.
+- The floor per docker is its **chrome**: title strip and option bars stay
+  visible however hard the side is squeezed. The squeeze lands on the
+  content, which scrolls *inside* the docker (the bars never leave).
+- Scalable content — the colour wheel — scales with its docker.
+- Hidden dockers cost nothing — no row, no splitter, no floor.
+
+The first answer, reversed above and kept because its failure mode is real:
+five dockers in starred rows once divided the sidebar until each was a
+sliver, which is why the strip used pixel heights and scrolled. What changed
+is the floor — chrome rather than content, with the content scrolling inside
+its docker — so "too small to use" now degrades to "scroll inside the
+panel", not to five useless slivers. Tabbing (below) remains the real
+answer to a crowded side.
 
 **Panels may share a slot as tabs**, and that is the other half of the rule
-above. Five stacked dockers means five heights and a scroll; five in two slots
-means two. A group is not a thing that exists — it is the panels currently
-sharing a slot, and a slot of one is an ordinary docker that renders as a plain
-title, so nothing about an untabbed panel changes.
+above. Five stacked dockers means five slivers; five in two slots means two
+comfortable panels. A group is not a thing that exists — it is the panels
+currently sharing a slot. **A slot of one wears its title as a tab too** (the
+owner's reversal of "renders as a plain title"): one header treatment
+everywhere, and dropping a panel onto any docker reads as joining tabs that
+are already there. The one wrinkle that buys is in `Docker.LandedOnAControl`
+— a lone tab is a grip, not a control, or the panel cannot be dragged at all.
+
+**Dropping onto a docker's body joins its tabs** — full width, full height,
+previewed over the whole panel. The half-panel insert targets are gone (the
+owner: a dead lower half, and a top target that should have been the entire
+docker). Inserting into the stack lives in a slim sliver at each panel
+boundary, kept only so a stack can be reordered and a group split.
 
 **Tab what is used alternately, never what is used together.** Colour, palette
 and gradient answer one question and you want one at a time. The layers list and
@@ -360,6 +376,13 @@ a click on every stroke — a worse bargain than the height it saves.
 
 **Content scrolls inside its docker**, so a docker with forty swatches is as
 tall as a docker with four until the artist grows it.
+
+**Track colours on the timeline.** Every track wears its own hue, cycling
+violet, blue, magenta, teal, green, gold — a row is findable by colour before
+it is read by name — and the camera always takes the orange, exactly as the
+reference draws it. The vocabulary lives in `TrackView.ColourOf`, the graph
+editor's series reuse the same hues for the same things, and a seventh track
+cycles rather than inventing a colour.
 
 ## Density that has to stay generous
 

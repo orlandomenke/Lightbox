@@ -21,6 +21,15 @@ public sealed class DockPlacement
     /// <summary>Along the strip: height in a side strip, width in a top or bottom one.</summary>
     public double Extent { get; set; }
 
+    /// <summary>
+    /// Where the panel was docked before it floated, for the redock button.
+    /// Distinct from <see cref="HomeSide"/>, which floating overwrites —
+    /// this one only ever holds a real strip. Hidden means "never docked".
+    /// </summary>
+    public DockSide LastDockedSide { get; set; } = DockSide.Hidden;
+
+    public int LastDockedOrder { get; set; }
+
     /// <summary>Only meaningful while floating.</summary>
     public double FloatX { get; set; }
 
@@ -108,12 +117,19 @@ public sealed class DockLayout
         layout.Dock(DockPanelId.Color, DockSide.Right, 2);
         layout.Dock(DockPanelId.Sheets, DockSide.Right, 3);
         layout.Dock(DockPanelId.Timeline, DockSide.Bottom, 0);
+        // The timeline family shares the bottom slot as tabs, track view in
+        // front — the reference's Timeline | Xsheet | Graph Editor strip.
+        layout.JoinGroup(DockPanelId.Xsheet, DockPanelId.Timeline);
+        layout.JoinGroup(DockPanelId.GraphEditor, DockPanelId.Timeline);
+        layout.Activate(DockPanelId.Timeline);
         // Absent until asked for, the same rule the camera and the project
         // follow. A palette and a gradient are things an artist sets up
         // deliberately; empty, they are sidebar height the layers could use.
         layout.Place(DockPanelId.Palette).Side = DockSide.Hidden;
         layout.Place(DockPanelId.Gradient).Side = DockSide.Hidden;
         layout.Place(DockPanelId.Reference).Side = DockSide.Hidden;
+        // Same rule: the gear opens it the first time it is wanted.
+        layout.Place(DockPanelId.ToolOptions).Side = DockSide.Hidden;
         layout.AreaExtents[DockSide.Right] = 300;
         layout.AreaExtents[DockSide.Bottom] = 280;
         return layout;
@@ -279,6 +295,12 @@ public sealed class DockLayout
     {
         var placement = Place(id);
         var from = placement.Side;
+        // Remember where it came from, so the redock button has an answer.
+        if (from is not (DockSide.Floating or DockSide.Hidden))
+        {
+            placement.LastDockedSide = from;
+            placement.LastDockedOrder = placement.Order;
+        }
         placement.Side = DockSide.Floating;
         placement.HomeSide = DockSide.Floating;
         placement.FloatX = x;
@@ -286,6 +308,20 @@ public sealed class DockLayout
         placement.FloatWidth = width;
         placement.FloatHeight = height;
         if (from is not (DockSide.Floating or DockSide.Hidden)) Renumber(SlotsIn(from));
+    }
+
+    /// <summary>
+    /// Put a floating panel back where it was docked before it floated, or on
+    /// the right if it has only ever floated. The inverse of the float button.
+    /// </summary>
+    public void Redock(DockPanelId id)
+    {
+        var placement = Place(id);
+        if (placement.Side != DockSide.Floating) return;
+        var side = placement.LastDockedSide is DockSide.Left or DockSide.Right or DockSide.Top or DockSide.Bottom
+            ? placement.LastDockedSide
+            : DockSide.Right;
+        Dock(id, side, placement.LastDockedOrder);
     }
 
     /// <summary>Take a panel off screen. Its size and order are kept for reopening.</summary>

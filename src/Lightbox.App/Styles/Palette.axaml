@@ -248,4 +248,13 @@
     so nobody mistakes it for chrome and "fixes" it to a dark value.
   -->
   <SolidColorBrush x:Key="CanvasPaperBrush" Color="#F2F0EC" />
+
+  <!--
+    The one red in the chrome: the close button's hover. The system caption
+    red (every Windows user's muscle memory), not the status error red —
+    "this ends the session" and "this operation failed" are different
+    sentences and get different reds.
+  -->
+  <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#C42B1C" />
+
 </ResourceDictionary>

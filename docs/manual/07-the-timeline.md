@@ -1,11 +1,49 @@
 # The timeline
 
 
-## The timeline
+## The timeline family
+
+Three views over the same animation share the bottom panel as tabs, and
+nothing you do in one is invisible in another:
+
+| | |
+| --- | --- |
+| **Timeline** | One coloured track per layer: drawings are dots, holds are the bars behind them, the camera is its own orange track on top, and the scratch track's waveform is its own band underneath. **Drag a dot** to retime that drawing; click anywhere else to scrub. |
+| **X-sheet** | The exposure sheet — the grid described below, where cels are edited, exposed, re-timed and annotated. |
+| **Graph editor** | Value over time for the things that interpolate: the camera's position, zoom and rotation (drag a key dot — up and down for value, sideways to retime; a chip shows the value as you drag), and the **measured spacing** of your drawings — how far the ink actually moves between poses, the spacing chart read off the art itself. Even spacing is constant speed; widening is an ease; a spike is the drawing that pops. **Double-click** the plot to key the camera's framing at that frame (it keys what is already there, so nothing jumps — then drag it). **Right-click a key** for its easing into the next key, and to remove it. The **legend** on the bar toggles each curve, and its swatch says which colour is whose; the dashed **Spacing (intended)** curve is the same travel redistributed by the easing picked on the X-sheet bar — where the hollow dots and the filled ones disagree is the drawing that misses the ease. Spacing curves read the active layer. With one curve showing, the axis carries its numbers. |
+
+## The X-sheet
 
 One row per layer, one cell per frame. Click a cell to go there; the current one
 is highlighted. A **keyed** cell holds a drawing; a **hold** repeats the drawing
 before it, which is what animating on 2s and 3s is made of.
+
+## The scratch track
+
+**Audio is optional and absent until you add it** — the same rule the camera
+follows. **♪ Add audio** on the Timeline docker's bar imports a WAV file, and
+the timeline grows an **Audio** band: one bar per frame, tall where the sound
+is loud, so a beat or a syllable can be found by eye and a drawing timed onto
+it.
+
+The sound is **referenced, not embedded**: the document stores where the file
+is (relative to the document when it lives nearby, so a project folder moves
+as one thing) plus the offset, volume and mute you set. Keep editing it in
+your audio tool — the timeline reads the file as it is on disk. If the file
+goes missing the bar shows a *missing* badge and the track waits, silently,
+for it to come back; your timing is never lost with it.
+
+The bar's controls: **Mute**, **volume**, the **start frame** (negative trims
+a lead-in without editing the file), and **✕** to remove the track — the file
+itself is untouched.
+
+**It plays.** Press play and the sound runs in sync with the frames, looping
+when playback loops and following the Speed % control (faster playback raises
+the pitch, the way scrubbing tape does). Dragging the playhead plays the
+slice of sound under each frame — the track read a syllable at a time, which
+is how a mouth is matched to a line. Playing backwards is silent on purpose;
+reversed audio is noise, not information. On a machine with no sound device
+the track simply stays quiet — nothing breaks.
 
 ## Markers, notes and events
 

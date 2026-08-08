@@ -122,23 +122,45 @@ public static class DockZones
         return n;
     }
 
-    /// <summary>Insert before or after the panel under the pointer.</summary>
-    private static DropTarget Beside(
+    /// <summary>
+    /// How deep the insert bands at a panel's first and last edge run. Slim on
+    /// purpose: the owner's call is that a panel's body is ONE target — join
+    /// its tabs — with the half-panel insert targets gone. The bands remain
+    /// only so a stack can still be reordered and a tab group still split.
+    /// </summary>
+    public const double InsertBand = 18;
+
+    /// <summary>
+    /// Join the panel under the pointer, or slip in at one of its edges.
+    /// </summary>
+    /// <remarks>
+    /// The body — full width AND full height, per the owner — means "tab into
+    /// this panel", previewed over the whole panel so the offer reads as
+    /// becoming part of it. The old layout offered the header for tabbing and
+    /// the panel's halves for inserting, and the report was exact about what
+    /// that felt like: a dead lower half and a top target that should have
+    /// been the entire docker.
+    /// </remarks>
+    private static DropTarget? Beside(
         PanelSlot slot, double x, double y, DockPanelId dragged, IReadOnlyList<PanelSlot> slots)
     {
-        // The header first, because it is inside the upper half and would
-        // otherwise never be reachable: aiming at a header would insert the
-        // panel above the one whose tabs you were aiming for.
-        if (slot.HeaderHeight > 0 && slot.Header.Contains(x, y) && slot.Id != dragged)
-        {
-            return new DropTarget(slot.Side, slot.Order, slot.Header) { IntoGroupOf = slot.Id };
-        }
-
         var vertical = slot.Side is DockSide.Left or DockSide.Right;
         var along = vertical ? y - slot.Bounds.Y : x - slot.Bounds.X;
         var span = vertical ? slot.Bounds.Height : slot.Bounds.Width;
-        var after = along > span / 2;
+        var band = Math.Min(InsertBand, span / 4);
 
+        // The tab strip is the loudest "join" affordance there is, so it wins
+        // outright — even over the insert sliver it sits inside.
+        if (slot.HeaderHeight > 0 && slot.Header.Contains(x, y))
+        {
+            return Join(slot, dragged);
+        }
+        if (along >= band && along <= span - band)
+        {
+            return Join(slot, dragged);
+        }
+
+        var after = along > span / 2;
         var index = slot.Order + (after ? 1 : 0);
         // Dropping a panel back where it already is: taking it out shifts
         // everything after it up by one, so the index has to come with it or
@@ -155,6 +177,16 @@ public static class DockZones
             : new DockRect(after ? slot.Bounds.Right - want : slot.Bounds.X, slot.Bounds.Y, want, slot.Bounds.Height);
         return new DropTarget(slot.Side, index, preview);
     }
+
+    /// <summary>
+    /// Tab into this panel's slot, previewed over the whole panel so the
+    /// offer reads as becoming part of it. Null when the panel is the one
+    /// being dragged — nothing can join its own group.
+    /// </summary>
+    private static DropTarget? Join(PanelSlot slot, DockPanelId dragged) =>
+        slot.Id == dragged
+            ? null
+            : new DropTarget(slot.Side, slot.Order, slot.Bounds) { IntoGroupOf = slot.Id };
 
     /// <summary>The whole strip, at the width or height the panel would open at.</summary>
     private static DockRect StripPreview(DockSide side, DockRect content, DockPanelId dragged)

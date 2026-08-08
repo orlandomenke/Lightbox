@@ -248,6 +248,13 @@ public sealed class Scene
     public Camera? Camera { get; set; }
 
     /// <summary>
+    /// The scratch track the animation is timed against, or null — and null
+    /// is the default, exactly like <see cref="Camera"/>. A document that
+    /// never adds audio writes no key and shows no audio UI.
+    /// </summary>
+    public AudioTrack? Audio { get; set; }
+
+    /// <summary>
     /// The sprite's origin in document coordinates, or null — and null is the
     /// default, exactly like <see cref="Camera"/>.
     ///

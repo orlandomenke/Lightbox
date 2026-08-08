@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 639.84 380.898">
+  <defs>
+    <linearGradient id="seg0" gradientUnits="userSpaceOnUse" x1="100" y1="10" x2="8" y2="66"><stop offset="0" stop-color="#F9913C"/><stop offset="1" stop-color="#F25B55"/></linearGradient>
+    <linearGradient id="seg1" gradientUnits="userSpaceOnUse" x1="8" y1="66" x2="8" y2="194"><stop offset="0" stop-color="#F25B55"/><stop offset="1" stop-color="#C9359F"/></linearGradient>
+    <linearGradient id="seg2" gradientUnits="userSpaceOnUse" x1="8" y1="194" x2="100" y2="250"><stop offset="0" stop-color="#C9359F"/><stop offset="0.55" stop-color="#802AC5"/><stop offset="1" stop-color="#5A36E0"/></linearGradient>
+    <linearGradient id="seg3" gradientUnits="userSpaceOnUse" x1="100" y1="250" x2="192" y2="194"><stop offset="0" stop-color="#5A36E0"/><stop offset="1" stop-color="#4148F8"/></linearGradient>
+    <linearGradient id="seg4" gradientUnits="userSpaceOnUse" x1="192" y1="194" x2="192" y2="116"><stop offset="0" stop-color="#4148F8"/><stop offset="0.72" stop-color="#7A5CFF"/><stop offset="1" stop-color="#A98BFF"/></linearGradient>
+    <linearGradient id="face" gradientUnits="userSpaceOnUse" x1="189" y1="117" x2="105" y2="150"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#ECE8F4"/></linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="10"/></filter>
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="5"/></filter>
+    <radialGradient id="flare" gradientUnits="userSpaceOnUse" cx="189" cy="117" r="22"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="0.45" stop-color="#FFD9F0" stop-opacity="0.35"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+  </defs>
+  <g transform="translate(219.92 20)">
+    <path d="M100 10 L8 66 L41 84.6 L100 48.6 Z" fill="url(#seg0)"/>
+    <path d="M8 66 L8 194 L41 175.4 L41 84.6 Z" fill="url(#seg1)"/>
+    <path d="M8 194 L100 250 L100 211.4 L41 175.4 Z" fill="url(#seg2)"/>
+    <path d="M100 250 L192 194 L159 175.4 L100 211.4 Z" fill="url(#seg3)"/>
+    <path d="M192 194 L192 116 L159 150 L159 175.4 Z" fill="url(#seg4)"/>
+    <path d="M105 69 L189 117 L174 189 L105 150 Z" fill="#FFFFFF" opacity="0.45" filter="url(#glow)"/>
+    <path d="M98 78 L182 126 L167 198 L98 159 Z" fill="#0A0A18" opacity="0.75" filter="url(#shadow)"/>
+    <path d="M105 69 L189 117 L174 189 L105 150 Z" fill="url(#face)"/>
+    <circle cx="189" cy="117" r="22" fill="url(#flare)"/>
+  </g>
+  <g transform="translate(20 320) scale(1.13606)">
+      <g transform="translate(0 0)"><path d="M2 0 V34 H44" fill="none" stroke="#FFFFFF" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(64 0)"><path d="M2 0 V36" fill="none" stroke="#FFFFFF" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(88 0)"><path d="M56 2 H12 Q2 2 2 12 V24 Q2 34 12 34 H56 M56 18 H36" fill="none" stroke="#FFFFFF" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(164 0)"><path d="M2 0 V36 M54 0 V36 M2 18 H54" fill="none" stroke="#FFFFFF" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(240 0)"><path d="M0 2 H56 M28 9 V36" fill="none" stroke="#FFFFFF" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(316 0)"><path d="M2 0 V36 M2 2 H46 Q52 2 52 8 V12 Q52 18 46 18 H2 M2 18 H46 Q52 18 52 24 V28 Q52 34 46 34 H2" fill="none" stroke="#FFFFFF" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(390 0)"><path d="M14 2 H44 Q58 2 58 14 V22 Q58 34 44 34 H14 Q2 34 2 22 V14 Q2 2 14 2 Z" fill="none" stroke="#FFFFFF" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(470 0)"><path d="M0 0 L7.6 0 L58 36 L50.4 36 Z M50.4 0 L58 0 L7.6 36 L0 36 Z" fill="#FFFFFF"/></g>
+  </g>
+</svg>

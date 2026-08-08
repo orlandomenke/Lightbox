@@ -46,7 +46,7 @@ public sealed class TabSwitchCrashTests : BrushStateIsolated
 
     private static ListBox Strip(MainWindow w) =>
         w.FindControl<DockStrip>("RightStrip")!.Children.OfType<Docker>()
-            .First(d => d.Tabs is not null)
+            .First(d => d.Tabs?.Count() > 1)
             .GetVisualDescendants().OfType<ListBox>().First();
 
     /// <summary>Click a tab the way the pointer does: through the ListBox.</summary>
@@ -97,6 +97,36 @@ public sealed class TabSwitchCrashTests : BrushStateIsolated
         ClickTab(w, DockPanelId.Color);
         ClickTab(w, DockPanelId.Sheets);
         ClickTab(w, DockPanelId.Color);
+    }
+
+    [AvaloniaFact]
+    public void TheHighlightedTabIsTheDockerThatIsShowing()
+    {
+        // B138. Reported after the crash fix: "the active docker is visible
+        // but the tab is in rest while the inactive has the highlight". The
+        // crash tests above assert the strip's CONTENT; this asserts the
+        // strip's LIGHTS — the ListBox selection the artist actually reads.
+        var (w, vm) = Open();
+
+        vm.Workspace.JoinGroup(DockPanelId.Palette, DockPanelId.Layers);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        foreach (var target in new[]
+        {
+            DockPanelId.Layers, DockPanelId.Palette,
+            DockPanelId.Layers, DockPanelId.Palette,
+        })
+        {
+            ClickTab(w, target);
+
+            var docker = w.FindControl<DockStrip>("RightStrip")!.Children.OfType<Docker>()
+                .First(d => d.Tabs?.Count() > 1);
+            var strip = docker.GetVisualDescendants().OfType<ListBox>().First();
+            Assert.Equal(target, docker.PanelId);
+            var lit = Assert.IsType<DockPanelInfo>(strip.SelectedItem);
+            Assert.True(lit.Id == target,
+                $"the strip shows {docker.PanelId} but the highlight sits on {lit.Id}");
+        }
     }
 
     [AvaloniaFact]

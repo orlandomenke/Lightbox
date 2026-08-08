@@ -160,18 +160,17 @@ public sealed class ToolBarAlignmentTests : BrushStateIsolated
     // ---- B16: the brush flyout is as tall as its page --------------------------
 
     [AvaloniaFact]
-    public void TheBrushParameterFlyoutIsNotPinnedToOneHeight()
+    public void TheGearCarriesNoFlyoutAnyMore()
     {
-        // A fixed height gave the short pages empty space and the long ones a
-        // scrollbar. The cap stays, so a very long page cannot run off screen.
+        // The brush parameters became the Tool options DOCKER (the owner's
+        // call), so the gear is a plain command button. A flyout reappearing
+        // here would mean the two hosts have quietly forked.
         var bar = OptionsBar(Open());
         var button = bar.GetVisualDescendants().OfType<Button>()
             .First(b => b.Content as string == "⚙");
 
-        var grid = Assert.IsType<Grid>((button.Flyout as Flyout)!.Content);
-
-        Assert.True(double.IsNaN(grid.Height), "the flyout still declares a fixed height");
-        Assert.True(grid.MaxHeight > 0 && !double.IsPositiveInfinity(grid.MaxHeight));
+        Assert.Null(button.Flyout);
+        Assert.NotNull(button.Command);
     }
 
     // ---- B14: deleting the paper leaves no paper --------------------------------
