@@ -14,7 +14,7 @@ public class MediumSettingsTests
     private static Doc DocWithMedium(MediumSettings medium)
     {
         var doc = DocumentFactory.CreateDoc(64, 64, 12);
-        var frame = (PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
         frame.Strokes.Add(new Stroke
         {
             Tool = ToolKind.Brush,
@@ -41,7 +41,7 @@ public class MediumSettingsTests
         };
 
         var reloaded = DocJson.Deserialize(DocJson.Serialize(DocWithMedium(medium)));
-        var back = ((PaintedFrame)reloaded.Scene.Layers[0].Cels[0].Frame!).Strokes[0].Brush.Medium;
+        var back = ((Frame)reloaded.Scene.Layers[0].Cels[0].Frame!).Strokes[0].Brush.Medium;
 
         Assert.Equal(MediumKind.Oil, back.Kind);
         Assert.Equal(0.17, back.Wetness, 6);
@@ -77,7 +77,7 @@ public class MediumSettingsTests
         var stripped = StripProperty(parsed.RootElement, "medium");
 
         var reloaded = DocJson.Deserialize(stripped);
-        var back = ((PaintedFrame)reloaded.Scene.Layers[0].Cels[0].Frame!).Strokes[0].Brush.Medium;
+        var back = ((Frame)reloaded.Scene.Layers[0].Cels[0].Frame!).Strokes[0].Brush.Medium;
 
         Assert.NotNull(back);
         Assert.Equal(MediumKind.None, back.Kind);

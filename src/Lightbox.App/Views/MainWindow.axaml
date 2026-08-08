@@ -2567,11 +2567,13 @@
               <controls:Docker.BottomBar>
                 <Border Classes="dockerBar">
                   <DockPanel>
-                    <ComboBox DockPanel.Dock="Right" ItemsSource="{Binding NewLayerKindChoices}" SelectedItem="{Binding NewLayerKind}"
-                              Width="110" ToolTip.Tip="Kind of layer the + button creates" />
+                    <!-- A Raster/Vector picker sat on the right of this bar. It asked
+                         the artist to choose a limitation before drawing anything:
+                         both kinds painted identical strokes, and Vector only meant
+                         "this layer cannot hold imported pixels or a symbol". Q52. -->
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                      <Button Content="＋" Command="{Binding AddLayerOfSelectedKindCommand}"
-                              ToolTip.Tip="Add a new layer of the selected kind" />
+                      <Button Content="＋" Command="{Binding AddPaintedLayerCommand}"
+                              ToolTip.Tip="Add a new layer" />
                       <Button Content="📁" Command="{Binding CreateLayerFolderCommand}"
                               ToolTip.Tip="New folder containing the active layer" />
                       <Button Content="🗑" Command="{Binding DeleteActiveLayerCommand}"
@@ -2705,9 +2707,10 @@
                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveLayerDownCommand}"
                                     CommandParameter="{Binding}" ToolTip.Tip="Move layer down" />
                           </StackPanel>
-                          <TextBlock DockPanel.Dock="Right" Text="{Binding KindLabel}" Width="16"
-                                     VerticalAlignment="Center" Opacity="0.5" FontSize="11"
-                                     ToolTip.Tip="R = raster, V = vector" />
+                          <!-- An "R"/"V" badge sat here, and named a distinction that no
+                               longer exists: every layer holds strokes and can hold
+                               pixels. Q52. (The symbol browser's KindLabel further down
+                               is a different property on a different row.) -->
                           <Panel Margin="4,0" MinHeight="24">
                             <TextBlock Text="{Binding Name}" IsVisible="{Binding !IsRenaming}"
                                        Background="Transparent" VerticalAlignment="Center"

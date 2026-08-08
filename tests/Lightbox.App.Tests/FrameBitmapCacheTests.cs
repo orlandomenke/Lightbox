@@ -15,7 +15,7 @@ public class FrameBitmapCacheTests : IDisposable
 
     public void Dispose() => FrameBitmapCache.ByteBudget = _budget;
 
-    private static VectorFrame FrameWithInk(int seed) => new()
+    private static Frame FrameWithInk(int seed) => new()
     {
         Strokes =
         [

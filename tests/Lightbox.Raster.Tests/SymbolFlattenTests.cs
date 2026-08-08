@@ -63,14 +63,14 @@ public class SymbolFlattenTests : IDisposable
         Name = "Sword",
         PivotX = 10,
         PivotY = 10,
-        Frames = [new PaintedFrame { Strokes = [Jittery(10, 10, swatchId, "#000000")] }],
+        Frames = [new Frame { Strokes = [Jittery(10, 10, swatchId, "#000000")] }],
     };
 
     private static Doc DocPlacing(Symbol symbol, double x = 70, double y = 50)
     {
         var doc = DocumentFactory.CreateDoc(W, H, 12);
         doc.Palettes.Clear();
-        var frame = (PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
         frame.Placements = [new SymbolPlacement { SymbolId = symbol.Id, X = x, Y = y }];
         return doc;
     }
@@ -78,7 +78,7 @@ public class SymbolFlattenTests : IDisposable
     /// <summary>Render exactly as the app does: through the frame materializer.</summary>
     private static byte[] Render(Doc doc)
     {
-        var frame = (PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
         using var bmp = FrameRasterizer.Materialize(frame, W, H);
         return bmp.GetPixelSpan().ToArray();
     }

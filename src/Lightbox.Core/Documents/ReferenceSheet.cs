@@ -43,7 +43,7 @@ public sealed class ReferenceView
             {
                 Name = "Lines",
                 Kind = LayerKind.Painted,
-                Cels = [new Cel { Frame = new PaintedFrame() }],
+                Cels = [new Cel { Frame = new Frame() }],
             },
         ],
     };

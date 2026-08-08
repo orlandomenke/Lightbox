@@ -216,7 +216,7 @@ public class OnionTests : BrushStateIsolated
         var vm = Vm();
         Bar(vm, 100, 100);
         vm.AddFrameCommand.Execute(null);
-        vm.PaintLayer().Cels[1].Frame = new PaintedFrame();
+        vm.PaintLayer().Cels[1].Frame = new Frame();
         Bar(vm, 300, 100);
         vm.PaintLayer().Cels[0].Frame = null; // the layer now begins at frame 1
         vm.CurrentFrameIndex = 0;
@@ -246,7 +246,7 @@ public class OnionTests : BrushStateIsolated
         var vm = Vm();
         Bar(vm, 200, 100);
         vm.AddFrameCommand.Execute(null);
-        vm.PaintLayer().Cels[1].Frame = new PaintedFrame();
+        vm.PaintLayer().Cels[1].Frame = new Frame();
         Bar(vm, 200, 100); // the same place, on the new drawing
         vm.OnionSkin = true;
         vm.OnionBefore = 1;

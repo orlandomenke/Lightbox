@@ -100,7 +100,7 @@ public class DocumentTabTests
     private static List<Stroke> PaintStrokes(MainViewModel vm)
     {
         var layer = vm.Doc.Scene.Layers.First(l => !l.IsBackground);
-        return ((PaintedFrame)layer.Cels[0].Frame!).Strokes;
+        return ((Frame)layer.Cels[0].Frame!).Strokes;
     }
 
     [AvaloniaFact]
@@ -182,7 +182,7 @@ public class DocumentTabTests
         vm.MoveStroke(90, 50, 0.5);
         vm.EndStroke();
 
-        var painted = (Lightbox.Core.Documents.PaintedFrame)layer.Cels[0].Frame!;
+        var painted = (Lightbox.Core.Documents.Frame)layer.Cels[0].Frame!;
         Assert.Single(painted.Strokes);
     }
 

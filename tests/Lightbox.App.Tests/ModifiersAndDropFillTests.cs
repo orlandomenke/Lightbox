@@ -17,7 +17,7 @@ namespace Lightbox.App.Tests;
 public class TemporaryToolModifierTests : BrushStateIsolated
 {
     private static List<Stroke> Strokes(MainViewModel vm) =>
-        ((PaintedFrame)vm.Doc.Scene.Layers.First(l => !l.IsBackground).Cels[0].Frame!).Strokes;
+        ((Frame)vm.Doc.Scene.Layers.First(l => !l.IsBackground).Cels[0].Frame!).Strokes;
 
     [AvaloniaFact]
     public void AltHeld_ErasesWithTheCurrentBrush_WithoutSwitchingTools()
@@ -83,7 +83,7 @@ public class DropColorFillTests : BrushStateIsolated
     }
 
     private static List<Stroke> Strokes(MainViewModel vm) =>
-        ((PaintedFrame)vm.Doc.Scene.Layers.First(l => !l.IsBackground).Cels[0].Frame!).Strokes;
+        ((Frame)vm.Doc.Scene.Layers.First(l => !l.IsBackground).Cels[0].Frame!).Strokes;
 
     [AvaloniaFact]
     public void DroppingAColour_FillsAndAdoptsIt()

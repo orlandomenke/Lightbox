@@ -50,7 +50,7 @@ public class ReferenceGridEditTests : BrushStateIsolated
         // Half a mark made while adjusting a grid is a mark you then have to
         // find and undo.
         var (vm, _) = Imported();
-        var before = ((Lightbox.Core.Documents.PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
+        var before = ((Lightbox.Core.Documents.Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
 
         vm.ReferenceGridEditMode = true;
         vm.BeginStroke(20, 20, 1);
@@ -58,7 +58,7 @@ public class ReferenceGridEditTests : BrushStateIsolated
         vm.EndStroke();
 
         Assert.True(vm.SuppressesPainting);
-        Assert.Equal(before, ((Lightbox.Core.Documents.PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count);
+        Assert.Equal(before, ((Lightbox.Core.Documents.Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count);
     }
 
     [AvaloniaFact]
@@ -76,7 +76,7 @@ public class ReferenceGridEditTests : BrushStateIsolated
         vm.BeginStroke(20, 20, 1);
         vm.MoveStroke(60, 60, 1);
         vm.EndStroke();
-        Assert.NotEmpty(((Lightbox.Core.Documents.PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes);
+        Assert.NotEmpty(((Lightbox.Core.Documents.Frame)vm.PaintLayer().Cels[0].Frame!).Strokes);
     }
 
     // ---- where the boxes are ----------------------------------------------------

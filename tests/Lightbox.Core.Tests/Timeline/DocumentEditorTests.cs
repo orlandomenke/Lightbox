@@ -11,27 +11,27 @@ public class DocumentEditorTests
     public void AddFrame_GrowsAllLayersAndFrameCount()
     {
         var ed = NewEditor();
-        ed.Doc.Scene.Layers.Add(new Layer { Kind = LayerKind.Vector, Cels = [new Cel { Frame = new VectorFrame() }] });
+        ed.Doc.Scene.Layers.Add(new Layer { Kind = LayerKind.Vector, Cels = [new Cel { Frame = new Frame() }] });
 
         ed.AddFrameAfter(0);
 
         Assert.Equal(2, ed.Doc.Scene.FrameCount);
         Assert.All(ed.Doc.Scene.Layers, l => Assert.Equal(2, l.Cels.Count));
         Assert.NotNull(ed.Doc.Scene.Layers[0].Cels[1].Frame);
-        Assert.IsType<PaintedFrame>(ed.Doc.Scene.Layers[0].Cels[1].Frame);
-        Assert.IsType<VectorFrame>(ed.Doc.Scene.Layers[1].Cels[1].Frame);
+        Assert.IsType<Frame>(ed.Doc.Scene.Layers[0].Cels[1].Frame);
+        Assert.IsType<Frame>(ed.Doc.Scene.Layers[1].Cels[1].Frame);
     }
 
     [Fact]
     public void DuplicateFrame_CopiesExposedContent()
     {
         var ed = NewEditor();
-        var frame = (PaintedFrame)ed.Doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = (Frame)ed.Doc.Scene.Layers[0].Cels[0].Frame!;
         frame.Strokes.Add(new Stroke { Points = [new(1, 1, 0.5)], Label = "x" });
 
         ed.DuplicateFrame(0);
 
-        var copy = Assert.IsType<PaintedFrame>(ed.Doc.Scene.Layers[0].Cels[1].Frame);
+        var copy = Assert.IsType<Frame>(ed.Doc.Scene.Layers[0].Cels[1].Frame);
         Assert.NotSame(frame, copy);
         Assert.NotEqual(frame.Id, copy.Id);
         var s = Assert.Single(copy.Strokes);
@@ -132,7 +132,7 @@ public class DocumentEditorTests
             layer.Cels[2].Frame = null;
         });
 
-        var tweens = new List<Frame> { new PaintedFrame(), new PaintedFrame() };
+        var tweens = new List<Frame> { new Frame(), new Frame() };
         ed.InsertInbetweens(layer.Id, 0, tweens);
 
         Assert.Equal(4, ed.Doc.Scene.FrameCount);
@@ -147,7 +147,7 @@ public class DocumentEditorTests
         var layer = ed.Doc.Scene.Layers[0];
         ed.AddFrameAfter(0); // keys at 0 and 1, no gap
 
-        var tweens = new List<Frame> { new PaintedFrame() };
+        var tweens = new List<Frame> { new Frame() };
         ed.InsertInbetweens(layer.Id, 0, tweens);
 
         Assert.Equal(3, ed.Doc.Scene.FrameCount);

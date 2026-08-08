@@ -70,10 +70,10 @@ public class PressureTests
         Assert.Equal(1.5, clone.PressureHardnessGamma);
 
         var doc = Lightbox.Core.Documents.DocumentFactory.CreateDoc(32, 32, 12);
-        var frame = (PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
         frame.Strokes.Add(new Stroke { Brush = brush, Points = [new(1, 1, 0.5)] });
         var restored = Lightbox.Core.Serialization.DocJson.Deserialize(Lightbox.Core.Serialization.DocJson.Serialize(doc));
-        var restoredBrush = ((PaintedFrame)restored.Scene.Layers[0].Cels[0].Frame!).Strokes[0].Brush;
+        var restoredBrush = ((Frame)restored.Scene.Layers[0].Cels[0].Frame!).Strokes[0].Brush;
         Assert.False(restoredBrush.PressureEnabled);
         Assert.Equal(1.5, restoredBrush.PressureHardnessGamma);
     }

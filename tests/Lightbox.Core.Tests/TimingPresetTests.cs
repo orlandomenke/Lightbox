@@ -14,7 +14,7 @@ public class TimingPresetTests
     private static Layer OnOnes(int drawings)
     {
         var layer = new Layer { Name = "Anim", Kind = LayerKind.Painted };
-        for (var i = 0; i < drawings; i++) layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        for (var i = 0; i < drawings; i++) layer.Cels.Add(new Cel { Frame = new Frame() });
         return layer;
     }
 
@@ -61,7 +61,7 @@ public class TimingPresetTests
         var layer = new Layer { Kind = LayerKind.Painted };
         for (var i = 0; i < 6; i++)
         {
-            layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+            layer.Cels.Add(new Cel { Frame = new Frame() });
             layer.Cels.Add(new Cel());
         }
 
@@ -116,7 +116,7 @@ public class TimingPresetTests
         // keyed before the range, which was never touched.
         var layer = OnOnes(1);
         for (var i = 0; i < 5; i++) layer.Cels.Add(new Cel());
-        layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        layer.Cels.Add(new Cel { Frame = new Frame() });
         var was = Pattern(layer);
 
         var change = ExposureSheet.ApplyTiming(layer, 2, 4, new TimingPreset("On 2s", [2]));
@@ -133,11 +133,11 @@ public class TimingPresetTests
         // before the range into it would put one Frame object in two cels, and
         // editing either would then edit both.
         var layer = new Layer { Kind = LayerKind.Painted };
-        var outside = new PaintedFrame();
+        var outside = new Frame();
         layer.Cels.Add(new Cel { Frame = outside });      // 0: keyed
         layer.Cels.Add(new Cel());                        // 1: hold
         layer.Cels.Add(new Cel());                        // 2: hold
-        var inside = new PaintedFrame();
+        var inside = new Frame();
         layer.Cels.Add(new Cel { Frame = inside });       // 3: keyed
 
         ExposureSheet.ApplyTiming(layer, 1, 3, new TimingPreset("On 2s", [2]));

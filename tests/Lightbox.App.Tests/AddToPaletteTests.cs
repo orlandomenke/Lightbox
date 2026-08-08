@@ -91,7 +91,7 @@ public class AddToPaletteTests
         vm.BeginStroke(20, 20, 1);
         vm.MoveStroke(60, 60, 1);
         vm.EndStroke();
-        Assert.Equal(swatch.Id, ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1].SwatchId);
+        Assert.Equal(swatch.Id, ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1].SwatchId);
     }
 
     [AvaloniaFact]
@@ -271,7 +271,7 @@ public class AddToPaletteTests
         vm.MoveStroke(60, 60, 1);
         vm.EndStroke();
 
-        Assert.Equal(black.Id, ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1].SwatchId);
+        Assert.Equal(black.Id, ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1].SwatchId);
     }
 
     [AvaloniaFact]

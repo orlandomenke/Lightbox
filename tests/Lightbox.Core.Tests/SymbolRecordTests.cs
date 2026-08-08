@@ -22,7 +22,7 @@ public class SymbolRecordTests
         Tags = ["knight", "act two"],
         PivotX = 12,
         PivotY = 40,
-        Frames = [new PaintedFrame { Strokes = [Line(0, 0, 10, 10)] }],
+        Frames = [new Frame { Strokes = [Line(0, 0, 10, 10)] }],
     };
 
     private static Stroke Line(double x0, double y0, double x1, double y1) => new()
@@ -31,9 +31,9 @@ public class SymbolRecordTests
     };
 
     /// <summary>A document with one painted cel, which <c>new Doc()</c> is not.</summary>
-    private static (Doc Doc, PaintedFrame Frame) DocWithACel()
+    private static (Doc Doc, Frame Frame) DocWithACel()
     {
-        var frame = new PaintedFrame();
+        var frame = new Frame();
         var doc = new Doc();
         doc.Scene.Layers.Add(new Layer
         {
@@ -73,7 +73,7 @@ public class SymbolRecordTests
     [Fact]
     public void AFreshPaintedFrameHasNoPlacements()
     {
-        var frame = new PaintedFrame();
+        var frame = new Frame();
 
         Assert.Null(frame.Placements);
         Assert.False(frame.HasPlacements);
@@ -119,7 +119,7 @@ public class SymbolRecordTests
 
         var back = DocJson.Deserialize(DocJson.Serialize(doc));
 
-        var placement = Assert.Single(((PaintedFrame)back.Scene.Layers[^1].Cels[0].Frame!).Placements!);
+        var placement = Assert.Single(((Frame)back.Scene.Layers[^1].Cels[0].Frame!).Placements!);
         Assert.Equal("sym_sword", placement.SymbolId);
         Assert.Equal(100, placement.X);
         Assert.Equal(0.5, placement.ScaleX);
@@ -150,7 +150,7 @@ public class SymbolRecordTests
             Assert.Equal(SymbolKind.Prop, read.Kind);
             Assert.Equal(["knight", "act two"], read.Tags);
             Assert.Equal(12, read.PivotX);
-            Assert.Single(((PaintedFrame)read.Frames[0]).Strokes);
+            Assert.Single(((Frame)read.Frames[0]).Strokes);
         }
         finally
         {
@@ -195,7 +195,7 @@ public class SymbolRecordTests
         {
             var project = ProjectIo.Create("Knight", root);
             var sword = Sword();
-            ((PaintedFrame)sword.Frames[0]).Placements =
+            ((Frame)sword.Frames[0]).Placements =
                 [new SymbolPlacement { SymbolId = "sym_itself" }];
             project.Symbols[sword.Id] = sword;
             ProjectIo.Save(project);
@@ -203,7 +203,7 @@ public class SymbolRecordTests
             var back = ProjectIo.Load(root);
 
             var read = Assert.Single(back!.Symbols).Value;
-            Assert.Null(((PaintedFrame)read.Frames[0]).Placements);
+            Assert.Null(((Frame)read.Frames[0]).Placements);
         }
         finally
         {

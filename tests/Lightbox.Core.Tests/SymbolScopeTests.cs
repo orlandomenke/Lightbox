@@ -12,7 +12,7 @@ public class SymbolScopeTests
 {
     private static Symbol Sword(string name = "Sword", int version = 1)
     {
-        var frame = new PaintedFrame();
+        var frame = new Frame();
         frame.Strokes.Add(new Stroke
         {
             Tool = ToolKind.Brush,
@@ -66,7 +66,7 @@ public class SymbolScopeTests
         var mine = project.Symbols[global.Id];
         Assert.Single(mine.Frames);
         Assert.Equal("Sword", mine.Name);
-        Assert.Single(((PaintedFrame)mine.Frames[0]).Strokes);
+        Assert.Single(((Frame)mine.Frames[0]).Strokes);
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public class SymbolScopeTests
         var project = Empty();
         SymbolScopes.Adopt(project, library[original.Id]);
 
-        var frame = new PaintedFrame { Placements = [new SymbolPlacement { SymbolId = original.Id, X = 10, Y = 20 }] };
+        var frame = new Frame { Placements = [new SymbolPlacement { SymbolId = original.Id, X = 10, Y = 20 }] };
         var placementId = frame.Placements![0].Id;
 
         library[original.Id] = Sword("New", version: 9);
@@ -238,7 +238,7 @@ public class SymbolScopeTests
 
         var symbol = back.Values.Single();
         Assert.Single(symbol.Frames);
-        Assert.Single(((PaintedFrame)symbol.Frames[0]).Strokes);
+        Assert.Single(((Frame)symbol.Frames[0]).Strokes);
     }
 
 

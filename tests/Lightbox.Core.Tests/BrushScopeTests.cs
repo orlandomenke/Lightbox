@@ -131,7 +131,7 @@ public class BrushScopeTests
         // every stroke still carries its own settings, and what the document
         // remembers reaches nothing that renders.
         var doc = DocumentFactory.CreateDoc(120, 80, 12);
-        var frame = (PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
         var stroke = new Stroke
         {
             Tool = ToolKind.Brush,

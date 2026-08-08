@@ -13,7 +13,7 @@ public class AnchorTests
     {
         var scene = new Scene { FrameCount = drawings };
         var layer = new Layer { Name = "Anim" };
-        for (var i = 0; i < drawings; i++) layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        for (var i = 0; i < drawings; i++) layer.Cels.Add(new Cel { Frame = new Frame() });
         scene.Layers.Add(layer);
         return scene;
     }
@@ -90,9 +90,9 @@ public class AnchorTests
         // same edit done twice — so the count would lie.
         var scene = new Scene { FrameCount = 4 };
         var layer = new Layer();
-        layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        layer.Cels.Add(new Cel { Frame = new Frame() });
         layer.Cels.Add(new Cel());
-        layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        layer.Cels.Add(new Cel { Frame = new Frame() });
         layer.Cels.Add(new Cel());
         scene.Layers.Add(layer);
         var anchor = Anchors.Declare(scene, "Hand");
@@ -111,7 +111,7 @@ public class AnchorTests
     {
         var scene = new Scene { FrameCount = 3 };
         var layer = new Layer();
-        layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        layer.Cels.Add(new Cel { Frame = new Frame() });
         layer.Cels.Add(new Cel());
         layer.Cels.Add(new Cel());
         scene.Layers.Add(layer);
@@ -192,7 +192,7 @@ public class AnchorTests
     {
         var scene = new Scene { FrameCount = 3 };
         var layer = new Layer();
-        layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        layer.Cels.Add(new Cel { Frame = new Frame() });
         layer.Cels.Add(new Cel());
         scene.Layers.Add(layer);
         var anchor = Anchors.Declare(scene, "Hand");
@@ -209,7 +209,7 @@ public class AnchorTests
         // The same precedence the layer stack already means everywhere else.
         var scene = OnOnes(1);
         var upper = new Layer { Name = "Upper" };
-        upper.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        upper.Cels.Add(new Cel { Frame = new Frame() });
         scene.Layers.Add(upper);
         var anchor = Anchors.Declare(scene, "Hand");
 

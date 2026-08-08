@@ -647,23 +647,26 @@ public sealed class DocumentEditor
         while (layer.Cels.Count < frameCount) layer.Cels.Add(new Cel());
     }
 
-    private static Frame NewEmptyFrame(Layer layer) => layer.Kind switch
-    {
-        LayerKind.Vector => new VectorFrame(),
-        _ => new PaintedFrame(),
-    };
+    /// <summary>
+    /// An empty drawing. Takes the layer for symmetry with its callers rather than
+    /// because it reads anything off it — one frame class means the layer no longer
+    /// decides what kind of frame it gets.
+    /// </summary>
+    private static Frame NewEmptyFrame(Layer layer) => new();
 
     /// <summary>Deep-clone a frame with a fresh id (ids key the render cache).</summary>
-    public static Frame? CloneFrame(Frame? src) => src switch
+    /// <remarks>
+    /// <b>Placements are deliberately not cloned</b>, and that predates the frame
+    /// merge: this used to have two arms and only the raster one carried
+    /// placements, which it also did not copy. Duplicating a cel therefore
+    /// duplicates the drawing and not the symbols placed over it. Recorded rather
+    /// than changed, because changing it is a behaviour decision and this is a
+    /// refactor.
+    /// </remarks>
+    public static Frame? CloneFrame(Frame? src) => src is null ? null : new Frame
     {
-        null => null,
-        VectorFrame v => new VectorFrame { Role = v.Role, Strokes = v.Strokes.Select(s => s.Clone()).ToList() },
-        PaintedFrame p => new PaintedFrame
-        {
-            Role = p.Role,
-            PngBase64 = p.PngBase64,
-            Strokes = p.Strokes.Select(s => s.Clone()).ToList(),
-        },
-        _ => throw new InvalidOperationException($"Unknown frame type {src.GetType().Name}"),
+        Role = src.Role,
+        PngBase64 = src.PngBase64,
+        Strokes = src.Strokes.Select(s => s.Clone()).ToList(),
     };
 }

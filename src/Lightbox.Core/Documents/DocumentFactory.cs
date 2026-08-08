@@ -15,7 +15,7 @@ public static class DocumentFactory
         {
             Name = "Paint",
             Kind = LayerKind.Painted,
-            Cels = [new Cel { Frame = new PaintedFrame() }],
+            Cels = [new Cel { Frame = new Frame() }],
         });
         return new Doc
         {
@@ -78,7 +78,7 @@ public static class DocumentFactory
         [
             new Cel
             {
-                Frame = new PaintedFrame
+                Frame = new Frame
                 {
                     Strokes =
                     [

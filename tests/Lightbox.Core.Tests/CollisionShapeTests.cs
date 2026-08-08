@@ -20,7 +20,7 @@ public class CollisionShapeTests
     {
         var scene = new Scene { FrameCount = drawings };
         var layer = new Layer { Name = "Anim" };
-        for (var i = 0; i < drawings; i++) layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        for (var i = 0; i < drawings; i++) layer.Cels.Add(new Cel { Frame = new Frame() });
         scene.Layers.Add(layer);
         return scene;
     }
@@ -112,9 +112,9 @@ public class CollisionShapeTests
         // one drawing is the same edit done twice — so the count would lie.
         var scene = new Scene { FrameCount = 4 };
         var layer = new Layer();
-        layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        layer.Cels.Add(new Cel { Frame = new Frame() });
         layer.Cels.Add(new Cel());
-        layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        layer.Cels.Add(new Cel { Frame = new Frame() });
         layer.Cels.Add(new Cel());
         scene.Layers.Add(layer);
         var shape = CollisionShapes.Declare(scene, "Body");
@@ -232,7 +232,7 @@ public class CollisionShapeTests
     {
         var scene = new Scene { FrameCount = 3 };
         var layer = new Layer();
-        layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        layer.Cels.Add(new Cel { Frame = new Frame() });
         layer.Cels.Add(new Cel());
         scene.Layers.Add(layer);
         var shape = CollisionShapes.Declare(scene, "Body");
@@ -248,7 +248,7 @@ public class CollisionShapeTests
     {
         var scene = OnOnes(1);
         var upper = new Layer { Name = "Upper" };
-        upper.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        upper.Cels.Add(new Cel { Frame = new Frame() });
         scene.Layers.Add(upper);
         var shape = CollisionShapes.Declare(scene, "Body");
 

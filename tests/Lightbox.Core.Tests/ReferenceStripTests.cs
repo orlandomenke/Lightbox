@@ -155,7 +155,7 @@ public class ReferenceStripTests
         editor.SetKeyAt(layer.Id, 0, FrameRole.Key);
         editor.SetKeyAt(layer.Id, 1, FrameRole.Key);
 
-        editor.InsertInbetweens(layer.Id, 0, [new PaintedFrame(), new PaintedFrame(), new PaintedFrame()]);
+        editor.InsertInbetweens(layer.Id, 0, [new Frame(), new Frame(), new Frame()]);
 
         Assert.Equal(0, strip.CellAt(0)!.X);
         Assert.Null(strip.CellAt(1));

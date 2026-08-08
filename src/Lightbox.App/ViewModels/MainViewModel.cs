@@ -1333,7 +1333,7 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var layer in scene.Layers)
         {
             if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } exposed) continue;
-            if (exposed is PaintedFrame painted && LiveStrokes(painted) is { Count: > 0 } live)
+            if (exposed is Frame painted && LiveStrokes(painted) is { Count: > 0 } live)
             {
                 Rebake(live, below, scene.Width, scene.Height);
                 _cache.Invalidate(painted.Id);
@@ -1343,7 +1343,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private static List<Stroke> LiveStrokes(PaintedFrame frame) =>
+    private static List<Stroke> LiveStrokes(Frame frame) =>
         [.. frame.Strokes.Where(s => s.Brush.SampleSource == SampleSource.AllLayersLive)];
 
     /// <summary>Re-freeze one frame's live strokes against the stack beneath it.</summary>
@@ -4020,7 +4020,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (ActiveTool == ToolId.Select)
         {
             var frame = PaintTargetOrKey();
-            if (frame is not PaintedFrame pf) return;
+            if (frame is not Frame pf) return;
 
             // Select all placements on current frame
             if (pf.Placements is not null && pf.Placements.Count > 0)
@@ -4638,18 +4638,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ObservableCollection<Layer> LayerChoices { get; } = [];
 
-    /// <summary>Kind used by the layer docker's "+" button.</summary>
-    public sealed record LayerKindChoice(string Label, LayerKind Kind)
-    {
-        public override string ToString() => Label;
-    }
-
-    public IReadOnlyList<LayerKindChoice> NewLayerKindChoices { get; } =
-        [new("Raster", LayerKind.Painted), new("Vector", LayerKind.Vector)];
-
-    [ObservableProperty]
-    private LayerKindChoice _newLayerKind = new("Raster", LayerKind.Painted);
-
     [ObservableProperty]
     private int _playbackSpeedPercent = 100;
 
@@ -4854,7 +4842,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         var index = here;
         var layerId = layer.Id;
-        Frame fresh = layer.Kind == LayerKind.Vector ? new VectorFrame() : new PaintedFrame();
+        var fresh = new Frame();        // one class, so the layer's kind decides nothing here
         _editor.PerformDelta(
             apply: doc =>
             {
@@ -4876,7 +4864,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Get placements from the current frame for selection feedback.</summary>
     public IReadOnlyList<SymbolPlacement>? GetCurrentFramePlacements()
     {
-        if (PaintTargetOrKey() is PaintedFrame frame && frame.Placements is not null)
+        if (PaintTargetOrKey() is Frame frame && frame.Placements is not null)
             return frame.Placements.AsReadOnly();
         return null;
     }
@@ -6691,25 +6679,13 @@ public sealed partial class MainViewModel : ObservableObject
         var frames = new List<Frame?>(clip.Frames.Count);
         foreach (var source in clip.Frames)
         {
-            var frame = DocumentEditor.CloneFrame(source); // fresh id per paste
-            if (frame is not null && layer.Kind != clip.Kind)
-            {
-                // Strokes carry over between kinds; baseline pixels cannot become vector.
-                if (layer.Kind == LayerKind.Vector && frame is PaintedFrame p)
-                {
-                    if (!string.IsNullOrEmpty(p.PngBase64))
-                    {
-                        AiStatus = "Can't paste onto a vector layer: the copied cel carries baseline pixels.";
-                        return;
-                    }
-                    frame = new VectorFrame { Role = p.Role, Strokes = p.Strokes };
-                }
-                else if (layer.Kind == LayerKind.Painted && frame is VectorFrame v)
-                {
-                    frame = new PaintedFrame { Role = v.Role, Strokes = v.Strokes };
-                }
-            }
-            frames.Add(frame);
+            // No conversion, and nothing refused. One frame class means a copied
+            // cel is already the shape every layer takes — this used to rebuild
+            // the frame as the other kind, and to reject a paste outright when a
+            // baseline could not "become vector". Both were consequences of the
+            // split rather than decisions: pixels and strokes always coexisted on
+            // one frame, so there was never anything to convert.
+            frames.Add(DocumentEditor.CloneFrame(source)); // fresh id per paste
         }
         _editor.SetFrameRange(layer.Id, cell.Index, frames);
         ActiveLayerIndex = cell.LayerIndex;
@@ -7388,7 +7364,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (_transformParts.TryGetValue(frame.Id, out var cached)) return cached;
 
         TransformParts? parts;
-        if (frame is PaintedFrame painted && _transformFilter is { } filter)
+        if (frame is Frame painted && _transformFilter is { } filter)
         {
             var moving = painted.Strokes.Where(filter).ToList();
             var rest = painted.Strokes.Where(s => !filter(s)).ToList();
@@ -7480,7 +7456,7 @@ public sealed partial class MainViewModel : ObservableObject
                 TransformOps.TransformFrame(frame, map, sizeScale, filter);
                 // Raster baselines resample once per commit; a region-limited
                 // transform moves strokes only (baseline pixels stay put).
-                if (filter is null && frame is PaintedFrame { PngBase64.Length: > 0 } painted)
+                if (filter is null && frame is Frame { PngBase64.Length: > 0 } painted)
                 {
                     ResampleBaseline(painted, baselineMatrix);
                 }
@@ -7511,11 +7487,22 @@ public sealed partial class MainViewModel : ObservableObject
         _ => new SKSamplingOptions(SKFilterMode.Linear),
     };
 
-    private void ResampleBaseline(PaintedFrame frame, SKMatrix matrix)
+    /// <summary>
+    /// Re-render a frame's baseline pixels through a matrix. Does nothing when the
+    /// frame has no baseline.
+    /// </summary>
+    /// <remarks>
+    /// The early return rather than a <c>!</c> at the one call site: the baseline
+    /// is nullable now, every caller already tests it, and a method that is correct
+    /// on its own does not need the next caller to remember. Nothing to resample is
+    /// not an error.
+    /// </remarks>
+    private void ResampleBaseline(Frame frame, SKMatrix matrix)
     {
+        if (frame.PngBase64 is not { Length: > 0 } encoded) return;
         try
         {
-            var bytes = Convert.FromBase64String(frame.PngBase64);
+            var bytes = Convert.FromBase64String(encoded);
             using var src = SKBitmap.Decode(bytes);
             if (src is null) return;
             var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
@@ -7778,15 +7765,20 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshThumbnails();
     }
 
+    /// <summary>
+    /// Adds a drawing layer. There is one kind of layer to add.
+    /// </summary>
+    /// <remarks>
+    /// This was three commands and a dropdown — <c>AddPaintedLayer</c>,
+    /// <c>AddVectorLayer</c> and an <c>AddLayerOfSelectedKind</c> reading a
+    /// Raster/Vector picker. The choice never meant anything an artist could act
+    /// on: both kinds drew the same strokes through the same engine, and picking
+    /// Vector only subtracted the ability to hold imported pixels or a symbol
+    /// placement. Asking the question up front made the artist guess at a
+    /// limitation instead of choosing a capability. Q52.
+    /// </remarks>
     [RelayCommand]
     private void AddPaintedLayer() => AddLayer(LayerKind.Painted);
-
-    [RelayCommand]
-    private void AddVectorLayer() => AddLayer(LayerKind.Vector);
-
-    /// <summary>The layer docker's "+" button: adds a layer of the dropdown's kind.</summary>
-    [RelayCommand]
-    private void AddLayerOfSelectedKind() => AddLayer(NewLayerKind.Kind);
 
     [RelayCommand]
     private void ToggleSidebar() => SidebarVisible = !SidebarVisible;
@@ -7968,7 +7960,7 @@ public sealed partial class MainViewModel : ObservableObject
                 var fresh = new Layer
                 {
                     Name = "Paint 1",
-                    Cels = [new Cel { Frame = new PaintedFrame() }],
+                    Cels = [new Cel { Frame = new Frame() }],
                 };
                 while (fresh.Cels.Count < scene.FrameCount) fresh.Cels.Add(new Cel());
                 scene.Layers.Add(fresh);
@@ -8161,29 +8153,30 @@ public sealed partial class MainViewModel : ObservableObject
             if (target is null) return;
             foreach (var cel in target.Cels)
             {
-                switch (cel.Frame)
-                {
-                    case PaintedFrame painted:
-                        painted.Strokes.Clear();
-                        painted.PngBase64 = "";
-                        break;
-                    case VectorFrame vector:
-                        vector.Strokes.Clear();
-                        break;
-                }
+                if (cel.Frame is not { } frame) continue;
+                frame.Strokes.Clear();
+                // Null rather than "": clearing a layer should leave frames that
+                // write no baseline key, the same as ones that never had one.
+                frame.PngBase64 = null;
             }
         });
     }
 
+    /// <remarks>
+    /// <paramref name="kind"/> is still written, because <c>Layer.Kind</c> is kept
+    /// as provenance — it records where a layer's content came from, and every
+    /// layer created in the app comes from the same place. It no longer picks a
+    /// frame class, because there is one.
+    /// </remarks>
     private void AddLayer(LayerKind kind)
     {
         _editor.Perform(doc =>
         {
             var layer = new Layer
             {
-                Name = $"{(kind == LayerKind.Vector ? "Vector" : "Paint")} {doc.Scene.Layers.Count + 1}",
+                Name = $"Paint {doc.Scene.Layers.Count + 1}",
                 Kind = kind,
-                Cels = [new Cel { Frame = kind == LayerKind.Vector ? new VectorFrame() : new PaintedFrame() }],
+                Cels = [new Cel { Frame = new Frame() }],
             };
             while (layer.Cels.Count < doc.Scene.FrameCount) layer.Cels.Add(new Cel());
             doc.Scene.Layers.Add(layer);
@@ -8411,12 +8404,7 @@ public sealed partial class MainViewModel : ObservableObject
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
     }
 
-    private static List<Stroke> StrokesOf(Frame frame) => frame switch
-    {
-        PaintedFrame p => p.Strokes,
-        VectorFrame v => v.Strokes,
-        _ => [],
-    };
+    private static List<Stroke> StrokesOf(Frame frame) => frame.Strokes;
 
     /// <summary>
     /// Resolve a frame's stroke list by id inside a given document instance —
@@ -8443,12 +8431,15 @@ public sealed partial class MainViewModel : ObservableObject
         return null;
     }
 
-    /// <summary>A new frame of the layer's own kind carrying the given strokes.</summary>
-    private static Frame NewFrameFor(Layer layer, List<Stroke> strokes, FrameRole role = FrameRole.Key) => layer.Kind switch
-    {
-        LayerKind.Vector => new VectorFrame { Strokes = strokes, Role = role },
-        _ => new PaintedFrame { Strokes = strokes, Role = role },
-    };
+    /// <summary>A new frame carrying the given strokes.</summary>
+    /// <remarks>
+    /// Took a <see cref="Layer"/> to pick a frame class from its kind, and both
+    /// arms of that switch now construct the same thing. The parameter stays so
+    /// every call site keeps reading as "a frame for this layer" — the layer is
+    /// what a caller has to hand, and threading it through costs nothing.
+    /// </remarks>
+    private static Frame NewFrameFor(Layer layer, List<Stroke> strokes, FrameRole role = FrameRole.Key) =>
+        new() { Strokes = strokes, Role = role };
 
     // ---- AI -----------------------------------------------------------------
 
@@ -8544,6 +8535,13 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        // Worked out before the request goes, reported after it comes back: the
+        // status line in between belongs to progress, and a warning written into
+        // it now would be overwritten before anybody read it.
+        var unseen = AiEnabled
+            ? UnseenByTheModel(layer.Cels[aIndex].Frame!, layer.Cels[bIndex].Frame!)
+            : null;
+
         var ts = Enumerable.Range(1, TweenCount)
             .Select(k => (double)k / (TweenCount + 1))
             .ToList();
@@ -8569,8 +8567,47 @@ public sealed partial class MainViewModel : ObservableObject
             .ToList();
         _editor.InsertInbetweens(layer.Id, aIndex, frames);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
-        AiStatus = $"Inserted {frames.Count} AI inbetween(s).";
+        AiStatus = unseen is null
+            ? $"Inserted {frames.Count} AI inbetween(s)."
+            : $"Inserted {frames.Count} AI inbetween(s) — drawn lines only, {unseen} not tweened.";
     }
+
+    /// <summary>
+    /// What the two keys hold that an inbetween cannot carry across, or null when
+    /// they hold nothing but strokes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Inbetweening — the model's and the deterministic engine's alike — works
+    /// from the stroke record. An imported pixel baseline and a symbol placement
+    /// are neither of them strokes, so a key holding one produces a tween with
+    /// that part of the drawing missing. That is not new behaviour, but it is
+    /// newly <em>reachable</em>: before the two frame classes merged, a layer
+    /// created as Vector had nowhere to put either, and the two that could hold
+    /// them were rarer.
+    /// </para>
+    /// <para>
+    /// <b>This asks the frame what it holds, deliberately, rather than asking the
+    /// layer what kind it is.</b> Keying it on <c>Layer.Kind</c> would be the
+    /// obvious shortcut and would fire on every document that exists: every
+    /// pre-merge layer is <c>LayerKind.Painted</c>, including the hand-drawn ones
+    /// that have no baseline at all. A warning that appears on every old file
+    /// teaches an artist to ignore warnings.
+    /// </para>
+    /// <para>
+    /// Only worth saying when there is an AI to say it about, which is why the
+    /// caller gates it on <c>AiEnabled</c> — a studio that switched AI off does
+    /// not need to hear what the model would have missed. Q52.
+    /// </para>
+    /// </remarks>
+    private static string? UnseenByTheModel(Frame a, Frame b) =>
+        (a.HasBaseline || b.HasBaseline, a.HasPlacements || b.HasPlacements) switch
+        {
+            (true, true) => "imported pixels and placed symbols",
+            (true, false) => "imported pixels",
+            (false, true) => "placed symbols",
+            _ => null,
+        };
 
     /// <summary>
     /// What the project knows about the subject this document belongs to, or

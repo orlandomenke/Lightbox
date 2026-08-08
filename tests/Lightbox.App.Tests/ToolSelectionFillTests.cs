@@ -64,7 +64,7 @@ public class ToolModelTests
 
 public class FillToolTests
 {
-    private static PaintedFrame FrameOf(MainViewModel vm) =>
+    private static Frame FrameOf(MainViewModel vm) =>
         vm.PaintedCel();
 
     private static void DrawLine(MainViewModel vm)

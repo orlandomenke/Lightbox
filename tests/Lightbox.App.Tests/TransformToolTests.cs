@@ -38,8 +38,8 @@ public class TransformToolTests : BrushStateIsolated
         return vm;
     }
 
-    private static PaintedFrame ActiveFrame(MainViewModel vm) =>
-        (PaintedFrame)vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!;
+    private static Frame ActiveFrame(MainViewModel vm) =>
+        (Frame)vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!;
 
     [AvaloniaFact]
     public void BeginTransform_ReportsTheStrokeBounds_AndCommitMovesThePoints()
@@ -148,7 +148,7 @@ public class TransformToolTests : BrushStateIsolated
 
         foreach (var layer in vm.Doc.Scene.Layers)
         {
-            var frame = (PaintedFrame)layer.Cels[0].Frame!;
+            var frame = (Frame)layer.Cels[0].Frame!;
             Assert.All(frame.Strokes, s => Assert.True(s.Points[0].Y is 225 or 125));
         }
     }

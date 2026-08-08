@@ -9,12 +9,12 @@ namespace Lightbox.App.Tests;
 public class LayerTests
 {
     [AvaloniaFact]
-    public void AddVectorLayer_BecomesActive_PaintingCreatesVectorStrokes()
+    public void AddLayer_BecomesActive_AndPaintingLandsOnItAlone()
     {
         var vm = new MainViewModel(null);
-        vm.AddVectorLayerCommand.Execute(null);
+        vm.AddPaintedLayerCommand.Execute(null);
 
-        // Paper, the paint layer it opened on, and the new vector layer.
+        // Paper, the layer it opened on, and the new one.
         Assert.Equal(3, vm.Doc.Scene.Layers.Count);
         Assert.Equal(2, vm.ActiveLayerIndex);
         Assert.Equal(3, vm.LayerChoices.Count);
@@ -23,21 +23,23 @@ public class LayerTests
         vm.MoveStroke(20, 20, 0.5);
         vm.EndStroke();
 
-        var vecLayer = vm.PaintLayer();
-        Assert.Equal(LayerKind.Vector, vecLayer.Kind);
-        var frame = Assert.IsType<VectorFrame>(vecLayer.Cels[0].Frame);
+        var frame = vm.PaintLayer().Cels[0].Frame!;
         Assert.Single(frame.Strokes);
 
-        // The original painted layer was untouched.
-        var painted = Assert.IsType<PaintedFrame>(vm.Doc.Scene.Layers[1].Cels[0].Frame);
-        Assert.Empty(painted.Strokes);
+        // The layer below was untouched.
+        Assert.Empty(vm.Doc.Scene.Layers[1].Cels[0].Frame!.Strokes);
     }
 
+    /// <remarks>
+    /// Was <c>InbetweensOnVectorLayer_ProduceVectorFrames</c>. The producing half
+    /// asserted a frame class that no longer varies, so what is left worth pinning
+    /// is that an inbetween appears at all and carries the tweened line.
+    /// </remarks>
     [AvaloniaFact]
-    public void InbetweensOnVectorLayer_ProduceVectorFrames()
+    public void Inbetweens_LandOnTheLayerTheyWereAskedFor()
     {
         var vm = new MainViewModel(null);
-        vm.AddVectorLayerCommand.Execute(null);
+        vm.AddPaintedLayerCommand.Execute(null);
 
         vm.BeginStroke(0, 0, 0.5);
         vm.MoveStroke(30, 0, 0.5);
@@ -50,7 +52,10 @@ public class LayerTests
         vm.TweenCount = 1;
         vm.InsertInbetweensCommand.Execute(null);
 
-        Assert.IsType<VectorFrame>(vm.PaintLayer().Cels[1].Frame);
+        var tween = vm.PaintLayer().Cels[1].Frame;
+        Assert.NotNull(tween);
+        Assert.Equal(FrameRole.Inbetween, tween.Role);
+        Assert.Single(tween.Strokes);
     }
 
     [AvaloniaFact]

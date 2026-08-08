@@ -45,11 +45,11 @@ public class AutoExportTests : IDisposable
         var doc = DocumentFactory.CreateDoc(100, 80, 12, "#ffffff");
         doc.Scene.FrameCount = frames;
         var layer = doc.Scene.Layers.First(l => !l.IsBackground);
-        while (layer.Cels.Count < frames) layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        while (layer.Cels.Count < frames) layer.Cels.Add(new Cel { Frame = new Frame() });
 
         for (var i = 0; i < frames; i++)
         {
-            if (layer.Cels[i].Frame is not PaintedFrame p) continue;
+            if (layer.Cels[i].Frame is not Frame p) continue;
             double x = 20 + i * 6;
             p.Strokes.Add(new Stroke
             {

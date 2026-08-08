@@ -109,10 +109,10 @@ public class AntiAliasTests
         Assert.True(clone.AntiAlias);
 
         var doc = Lightbox.Core.Documents.DocumentFactory.CreateDoc(32, 32, 12);
-        var frame = (PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!;
+        var frame = (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
         frame.Strokes.Add(new Stroke { Brush = new BrushSettings { AntiAlias = false }, Points = [new(1, 1, 1)] });
         var restored = Lightbox.Core.Serialization.DocJson.Deserialize(Lightbox.Core.Serialization.DocJson.Serialize(doc));
-        Assert.False(((PaintedFrame)restored.Scene.Layers[0].Cels[0].Frame!).Strokes[0].Brush.AntiAlias);
+        Assert.False(((Frame)restored.Scene.Layers[0].Cels[0].Frame!).Strokes[0].Brush.AntiAlias);
     }
 }
 

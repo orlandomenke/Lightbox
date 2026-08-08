@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2931 tests, derived from the suite itself. Each line is a
+2939 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -720,29 +720,29 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
 
 - Rows Show Topmost Layer First And Track Cells — `:13`
-- Rename Through Row Writes To Document And Is Undoable — `:31`
-- Rename To Blank Snaps Back Without An Undo Step — `:46`
-- Visibility Toggle Through Row Is Undoable — `:60`
-- Select Frame On Another Layers Cell Selects That Layer And Frame — `:72`
-- Add Layer Button Follows Kind Dropdown — `:89`
+- Rename Through Row Writes To Document And Is Undoable — `:30`
+- Rename To Blank Snaps Back Without An Undo Step — `:45`
+- Visibility Toggle Through Row Is Undoable — `:59`
+- Select Frame On Another Layers Cell Selects That Layer And Frame — `:71`
+- Add Layer Button Adds ADrawable Layer With No Kind To Choose — `:96`
 
 ## PerLayerOnionTests
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
 
-- Disabling Layer Onion Removes Its Ghosts From The Snapshot — `:112`
+- Disabling Layer Onion Removes Its Ghosts From The Snapshot — `:126`
 
 ## PlaybackSpeedTests
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
 
-- Speed Percent Clamps To Sane Range — `:141`
-- Clock Interval Scales With Fps And Speed — `:151`
+- Speed Percent Clamps To Sane Range — `:155`
+- Clock Interval Scales With Fps And Speed — `:165`
 
 ## SidebarTests
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
 
-- Toggle Sidebar Flips Visibility — `:162`
-- Switch Sidebar Side Flips Side — `:173`
-- Toggle Timeline Flips Visibility — `:184`
+- Toggle Sidebar Flips Visibility — `:176`
+- Switch Sidebar Side Flips Side — `:187`
+- Toggle Timeline Flips Visibility — `:198`
 
 ## DocumentScopedStateTests
 `tests/Lightbox.App.Tests/DocumentScopedStateTests.cs`
@@ -1109,8 +1109,8 @@ regression even when every test still compiles.
 
 - Copy Paste Deep Clones With Fresh Ids And Extends The Timeline — `:249`
 - Cut Copies Then Clears So The Cel Becomes AHold — `:268`
-- Paste Across Kinds Converts Strokes But Refuses Baseline Pixels Onto Vector — `:281`
-- Exposure Editing From Cells Extends And Clears — `:303`
+- Paste Onto Any Layer Carries Strokes And Baseline Pixels Alike — `:291`
+- Exposure Editing From Cells Extends And Clears — `:332`
 
 ## LayerPanelTests
 `tests/Lightbox.App.Tests/LayerCompositingTests.cs`
@@ -1281,30 +1281,30 @@ regression even when every test still compiles.
 ## ExportTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
 
-- Export Png Sequence Writes One File Per Frame Resolving Holds — `:125`
+- Export Png Sequence Writes One File Per Frame Resolving Holds — `:130`
 
 ## FpsTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
 
-- Fps Clamps And Persists To Scene — `:160`
+- Fps Clamps And Persists To Scene — `:165`
 
 ## LayerTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
 
-- Add Vector Layer Becomes Active Painting Creates Vector Strokes — `:12`
-- Inbetweens On Vector Layer Produce Vector Frames — `:37`
-- New Layer Is Padded To Frame Count And Undoable — `:57`
+- Add Layer Becomes Active And Painting Lands On It Alone — `:12`
+- Inbetweens Land On The Layer They Were Asked For — `:39`
+- New Layer Is Padded To Frame Count And Undoable — `:62`
 
 ## SmoothingTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
 
-- Smoothing On Reduces Spikes Preserves Endpoints — `:75`
-- Smoothing Off Keeps Raw Points — `:91`
+- Smoothing On Reduces Spikes Preserves Endpoints — `:80`
+- Smoothing Off Keeps Raw Points — `:96`
 
 ## ThumbnailTests
 `tests/Lightbox.App.Tests/Milestone3Tests.cs`
 
-- Keyed Cells Get Thumbnails Holds Do Not — `:107`
+- Keyed Cells Get Thumbnails Holds Do Not — `:112`
 
 ## DropColorFillTests
 `tests/Lightbox.App.Tests/ModifiersAndDropFillTests.cs`
@@ -2109,24 +2109,24 @@ regression even when every test still compiles.
 ## StrokeActionTests
 `tests/Lightbox.App.Tests/StrokeActionTests.cs`
 
-- Deleting The Selection Takes The Line And Lets Go Of It — `:59`
-- Deleting Nothing Is Not An Edit — `:75`
-- Undoing ADelete Puts The Line Back In Its Old Place In The Order — `:87`
-- Deleting Several Is One Undo Step — `:105`
-- Moving The Selection Shifts Every Point — `:120`
-- Moving Nowhere Is Not An Edit — `:136`
-- Only The Selected Line Moves — `:145`
-- Undoing AMove Restores The Exact Coordinates — `:166`
-- Moving AFill Takes Its Holes With It — `:191`
-- ANudge Is One Pixel And Shift Makes It Ten — `:225`
-- Recolouring The Selection Changes Its Colour — `:240`
-- Recolouring ALine From APalette Cuts It Loose From The Swatch — `:258`
-- Recolouring To The Colour It Already Is Does Nothing — `:283`
-- The Canvas Nudge Moves Lines When The Arrow Is Holding Some — `:298`
-- The Nudge Is Ignored Unless The Arrow Is The Tool In Hand — `:311`
-- The Actions Are Registered Where The Configuration Window Can See Them — `:329`
-- The Commands The Options Bar Binds To Exist — `:346`
-- ALocked Layer Refuses Every Action — `:364`
+- Deleting The Selection Takes The Line And Lets Go Of It — `:50`
+- Deleting Nothing Is Not An Edit — `:66`
+- Undoing ADelete Puts The Line Back In Its Old Place In The Order — `:78`
+- Deleting Several Is One Undo Step — `:96`
+- Moving The Selection Shifts Every Point — `:111`
+- Moving Nowhere Is Not An Edit — `:127`
+- Only The Selected Line Moves — `:136`
+- Undoing AMove Restores The Exact Coordinates — `:157`
+- Moving AFill Takes Its Holes With It — `:182`
+- ANudge Is One Pixel And Shift Makes It Ten — `:216`
+- Recolouring The Selection Changes Its Colour — `:231`
+- Recolouring ALine From APalette Cuts It Loose From The Swatch — `:249`
+- Recolouring To The Colour It Already Is Does Nothing — `:274`
+- The Canvas Nudge Moves Lines When The Arrow Is Holding Some — `:289`
+- The Nudge Is Ignored Unless The Arrow Is The Tool In Hand — `:302`
+- The Actions Are Registered Where The Configuration Window Can See Them — `:320`
+- The Commands The Options Bar Binds To Exist — `:337`
+- ALocked Layer Refuses Every Action — `:355`
 
 ## StrokeLatencyTests
 `tests/Lightbox.App.Tests/StrokeLatencyTests.cs`
@@ -2139,29 +2139,29 @@ regression even when every test still compiles.
 ## StrokeSelectionTests
 `tests/Lightbox.App.Tests/StrokeSelectionTests.cs`
 
-- Clicking ALine Picks It — `:46`
-- Clicking Empty Canvas Picks Nothing — `:61`
-- Clicking Away Lets Go — `:72`
-- AShift Click That Misses Keeps The Selection — `:87`
-- Shift Click Adds And Shift Click Again Takes Away — `:97`
-- Clicking ASecond Line Without Shift Replaces The Selection — `:113`
-- AMarquee Picks Every Line It Touches — `:128`
-- AMarquee Over Nothing Lets Go — `:144`
-- AShift Marquee Adds To The Selection — `:159`
-- Picking Lines Does Not Touch The Pixel Selection — `:185`
-- Deleting An Earlier Line Does Not Repoint The Selection — `:204`
-- ALine That Is Gone Is Dropped From The Selection — `:226`
-- Moving To Another Layer Lets Go Of The Selection — `:256`
-- AHeld Cel Keeps The Selection — `:273`
-- ALocked Layer Refuses And Says Why — `:291`
-- ALocked Layer Is Quiet When You Click Nothing — `:306`
-- Picking On An Empty Layer Creates Nothing — `:321`
-- Picking ALine Publishes Its Outline — `:356`
-- Letting Go Takes The Outline Away — `:377`
-- AFills Outline Is Closed — `:397`
-- The Canvas Takes The Outlines It Is Handed — `:422`
-- The Arrow Tool Is Reachable And Bindable — `:443`
-- The Arrow Tool Has ABindable Shortcut — `:464`
+- Clicking ALine Picks It — `:42`
+- Clicking Empty Canvas Picks Nothing — `:57`
+- Clicking Away Lets Go — `:68`
+- AShift Click That Misses Keeps The Selection — `:83`
+- Shift Click Adds And Shift Click Again Takes Away — `:93`
+- Clicking ASecond Line Without Shift Replaces The Selection — `:109`
+- AMarquee Picks Every Line It Touches — `:124`
+- AMarquee Over Nothing Lets Go — `:140`
+- AShift Marquee Adds To The Selection — `:155`
+- Picking Lines Does Not Touch The Pixel Selection — `:181`
+- Deleting An Earlier Line Does Not Repoint The Selection — `:200`
+- ALine That Is Gone Is Dropped From The Selection — `:222`
+- Moving To Another Layer Lets Go Of The Selection — `:252`
+- AHeld Cel Keeps The Selection — `:269`
+- ALocked Layer Refuses And Says Why — `:287`
+- ALocked Layer Is Quiet When You Click Nothing — `:302`
+- Picking On An Empty Layer Creates Nothing — `:317`
+- Picking ALine Publishes Its Outline — `:352`
+- Letting Go Takes The Outline Away — `:373`
+- AFills Outline Is Closed — `:393`
+- The Canvas Takes The Outlines It Is Handed — `:418`
+- The Arrow Tool Is Reachable And Bindable — `:439`
+- The Arrow Tool Has ABindable Shortcut — `:460`
 
 ## SubjectReadingWiringTests
 `tests/Lightbox.App.Tests/SubjectReadingWiringTests.cs`
@@ -2252,32 +2252,35 @@ regression even when every test still compiles.
 - Placing Is One Undo Step — `:88`
 - Placing An Unknown Symbol Does Nothing And Says So — `:101`
 - ALocked Layer Refuses APlacement — `:113`
-- Removing APlacement Leaves The Symbol Alone — `:122`
-- Removing Is One Undo Step And Keeps The Order — `:134`
-- APlacement Can Be Found Under The Pointer — `:151`
-- Empty Canvas Under The Pointer Finds Nothing — `:160`
-- The Topmost Placement Wins — `:169`
-- The Move Tool Grabs APlacement Before The Drawing — `:183`
-- The Move Tool Still Moves The Drawing Away From APlacement — `:195`
-- Dragging APlacement Moves It — `:208`
-- Shift Holds The Placement To One Axis — `:222`
-- Moving APlacement Is One Undo Step — `:236`
-- Moving APlacement Does Not Touch The Symbol — `:253`
-- AClick That Went Nowhere Is Not An Edit — `:272`
-- Cancelling AMove Puts It Back — `:285`
-- Dragging ASelected Group Moves Every One The Full Distance — `:309`
-- ASelection Makes The Move Tool Move It Wherever The Drag Starts — `:339`
-- Moving AGroup Is One Undo Step — `:357`
-- Shift Holds AGroup To One Axis — `:386`
-- ALocked Layer Refuses To Move ASelected Group — `:405`
-- AGroup Drag That Went Nowhere Is Not An Edit — `:422`
-- Cancelling AGroup Move Puts Them All Back — `:443`
-- Moving AGroup Does Not Touch The Symbol — `:468`
-- Breaking The Link Leaves Ordinary Strokes — `:489`
-- Broken Strokes Keep Their Swatch — `:506`
-- Breaking The Link Is One Undo Step — `:526`
-- Breaking One Link Leaves Other Placements Linked — `:540`
-- AScaled Placement Bakes Its Size Into The Brush — `:553`
+- ASymbol Can Be Placed On Any Layer — `:144`
+- APlacement On AFormerly Vector Layer Survives AReload — `:164`
+- AFrame With No Placements Writes No Placements Key — `:190`
+- Removing APlacement Leaves The Symbol Alone — `:202`
+- Removing Is One Undo Step And Keeps The Order — `:214`
+- APlacement Can Be Found Under The Pointer — `:231`
+- Empty Canvas Under The Pointer Finds Nothing — `:240`
+- The Topmost Placement Wins — `:249`
+- The Move Tool Grabs APlacement Before The Drawing — `:263`
+- The Move Tool Still Moves The Drawing Away From APlacement — `:275`
+- Dragging APlacement Moves It — `:288`
+- Shift Holds The Placement To One Axis — `:302`
+- Moving APlacement Is One Undo Step — `:316`
+- Moving APlacement Does Not Touch The Symbol — `:333`
+- AClick That Went Nowhere Is Not An Edit — `:352`
+- Cancelling AMove Puts It Back — `:365`
+- Dragging ASelected Group Moves Every One The Full Distance — `:389`
+- ASelection Makes The Move Tool Move It Wherever The Drag Starts — `:419`
+- Moving AGroup Is One Undo Step — `:437`
+- Shift Holds AGroup To One Axis — `:466`
+- ALocked Layer Refuses To Move ASelected Group — `:485`
+- AGroup Drag That Went Nowhere Is Not An Edit — `:502`
+- Cancelling AGroup Move Puts Them All Back — `:523`
+- Moving AGroup Does Not Touch The Symbol — `:548`
+- Breaking The Link Leaves Ordinary Strokes — `:569`
+- Broken Strokes Keep Their Swatch — `:586`
+- Breaking The Link Is One Undo Step — `:606`
+- Breaking One Link Leaves Other Placements Linked — `:620`
+- AScaled Placement Bakes Its Size Into The Brush — `:633`
 
 ## SymbolScopeTests
 `tests/Lightbox.App.Tests/SymbolScopeTests.cs`
@@ -3362,12 +3365,14 @@ regression even when every test still compiles.
 `tests/Lightbox.Core.Tests/Serialization/RoundTripTests.cs`
 
 - Round Trip Preserves Everything — `:42`
-- Serialize Uses Camel Case And Kind Discriminator — `:72`
-- Deserialize Accepts Kind Anywhere In Object — `:92`
-- Onion Enabled Round Trips And Defaults True For Older Docs — `:113`
-- Deserialize Unknown Kind Throws — `:139`
-- Clone Is Deep And Independent — `:146`
-- Save And Load File Round Trips — `:155`
+- Serialize Uses Camel Case And Writes No Frame Kind — `:81`
+- Serialize Omits Png Base64 When The Frame Has No Baseline — `:104`
+- Deserialize Accepts And Ignores The Old Frame Kind Anywhere — `:123`
+- Deserialize Normalises An Empty Baseline To Absent — `:159`
+- Onion Enabled Round Trips And Defaults True For Older Docs — `:185`
+- Deserialize Unknown Kind Throws — `:211`
+- Clone Is Deep And Independent — `:218`
+- Save And Load File Round Trips — `:227`
 
 ## ShapeBuilderTests
 `tests/Lightbox.Core.Tests/ShapeBuilderTests.cs`
@@ -4004,6 +4009,13 @@ regression even when every test still compiles.
 - Post Processing Pre Stamped Dabs Matches Rendering From Scratch — `:102`
 - AStroke That Reaches Nothing Reports No Bounds — `:123`
 - The Cost Of APass Does Not Grow With The Length Of The Stroke — `:134`
+
+## PreMergeDocumentTests
+`tests/Lightbox.Raster.Tests/PreMergeDocumentTests.cs`
+
+- The Document Still Opens And Keeps Everything It Held — `:63`
+- Both Frames Render Exactly As The Two Class Build Rendered Them — `:93`
+- Saving It Again Drops The Dead Keys And Keeps The Pixels — `:109`
 
 ## PressureCurveTests
 `tests/Lightbox.Raster.Tests/PressureCurveTests.cs`

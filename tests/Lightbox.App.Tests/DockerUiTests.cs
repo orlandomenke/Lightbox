@@ -13,14 +13,13 @@ public class LayerRowTests
     public void Rows_ShowTopmostLayerFirst_AndTrackCells()
     {
         var vm = new MainViewModel(null);
-        vm.AddVectorLayerCommand.Execute(null);
+        vm.AddPaintedLayerCommand.Execute(null);
 
-        // Paper, the layer the document opened on, and the new vector layer.
+        // Paper, the layer the document opened on, and the new one.
         Assert.Equal(3, vm.LayerRows.Count);
         Assert.Same(vm.PaintLayer(), vm.LayerRows[0].Layer);
         Assert.Same(vm.Doc.Scene.Layers[1], vm.LayerRows[1].Layer);
         Assert.Same(vm.Doc.Scene.Layers[0], vm.LayerRows[2].Layer);
-        Assert.Equal("V", vm.LayerRows[0].KindLabel);
         Assert.True(vm.LayerRows[0].IsActive); // new layer becomes active
 
         vm.AddFrameCommand.Execute(null);
@@ -74,7 +73,7 @@ public class LayerRowTests
         // Bare: this is about row/layer addressing, so paper would only shift
         // every index without changing what is being checked.
         var vm = VmLayers.BareVm();
-        vm.AddVectorLayerCommand.Execute(null); // active layer = 1
+        vm.AddPaintedLayerCommand.Execute(null); // active layer = 1
         vm.AddFrameCommand.Execute(null);       // playhead = 1
 
         var bottomRowCell = vm.LayerRows[1].Cells[0]; // scene layer 0, frame 0
@@ -85,18 +84,33 @@ public class LayerRowTests
         Assert.True(vm.LayerRows[1].IsActive);
     }
 
+    /// <remarks>
+    /// Was <c>AddLayerButton_FollowsKindDropdown</c>, and pinned a Raster/Vector
+    /// picker beside the + button. The picker is gone (Q52) — every layer can hold
+    /// strokes, imported pixels and symbol placements, so the question had no
+    /// answer an artist could act on. Kept pointed the other way rather than
+    /// deleted: the + button still has to add a usable layer, and the choice must
+    /// not creep back.
+    /// </remarks>
     [AvaloniaFact]
-    public void AddLayerButton_FollowsKindDropdown()
+    public void AddLayerButton_AddsADrawableLayer_WithNoKindToChoose()
     {
         var vm = new MainViewModel(null);
+        var before = vm.Doc.Scene.Layers.Count;
 
-        vm.NewLayerKind = vm.NewLayerKindChoices[1]; // Vector
-        vm.AddLayerOfSelectedKindCommand.Execute(null);
-        Assert.Equal(LayerKind.Vector, vm.Doc.Scene.Layers[^1].Kind);
+        vm.AddPaintedLayerCommand.Execute(null);
 
-        vm.NewLayerKind = vm.NewLayerKindChoices[0]; // Raster (the default)
-        vm.AddLayerOfSelectedKindCommand.Execute(null);
-        Assert.Equal(LayerKind.Painted, vm.Doc.Scene.Layers[^1].Kind);
+        Assert.Equal(before + 1, vm.Doc.Scene.Layers.Count);
+        var added = vm.Doc.Scene.Layers[^1];
+        Assert.Equal(LayerKind.Painted, added.Kind);   // provenance: created in-app
+        Assert.NotNull(added.Cels[0].Frame);           // keyed and ready to draw on
+        Assert.Empty(added.Cels[0].Frame!.Strokes);
+        Assert.False(added.Cels[0].Frame!.HasBaseline);
+
+        // The view model no longer offers a kind at all. A dropdown here was the
+        // only thing that ever set it away from Painted.
+        Assert.Null(typeof(MainViewModel).GetProperty("NewLayerKindChoices"));
+        Assert.Null(typeof(MainViewModel).GetProperty("NewLayerKind"));
     }
 }
 

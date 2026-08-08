@@ -30,12 +30,8 @@ public class StrokeSelectionTests
     {
         var vm = new MainViewModel(null);
         var frame = vm.Doc.Scene.Layers[^1].Cels[0].Frame;
-        switch (frame)
-        {
-            case PaintedFrame p: p.Strokes.AddRange(strokes); break;
-            case VectorFrame v: v.Strokes.AddRange(strokes); break;
-            default: Assert.Fail($"unexpected frame {frame?.GetType().Name ?? "null"}"); break;
-        }
+        Assert.NotNull(frame);                      // a new document's top cel is keyed, not a hold
+        frame.Strokes.AddRange(strokes);
         vm.ActiveLayerIndex = vm.Doc.Scene.Layers.Count - 1;
         return vm;
     }
@@ -472,10 +468,5 @@ public class StrokeSelectionTests
     }
 
     private static List<Stroke> StrokesOfCurrentFrame(MainViewModel vm) =>
-        vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame switch
-        {
-            PaintedFrame p => p.Strokes,
-            VectorFrame v => v.Strokes,
-            _ => [],
-        };
+        vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame?.Strokes ?? [];
 }

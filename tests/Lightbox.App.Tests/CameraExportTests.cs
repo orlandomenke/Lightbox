@@ -50,7 +50,7 @@ public class CameraExportTests : IDisposable
 
         foreach (var cel in layer.Cels)
         {
-            if (cel.Frame is PaintedFrame p)
+            if (cel.Frame is Frame p)
             {
                 p.Strokes.Add(Blob(100, "#ff0000"));
                 p.Strokes.Add(Blob(700, "#0000ff"));

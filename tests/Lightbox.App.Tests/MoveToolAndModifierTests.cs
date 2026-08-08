@@ -25,7 +25,7 @@ public class MoveToolAndModifierTests : BrushStateIsolated
     }
 
     private static List<Stroke> Strokes(MainViewModel vm) =>
-        ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes;
+        ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes;
 
     private static Stroke Last(MainViewModel vm) => Strokes(vm)[^1];
 
@@ -124,8 +124,8 @@ public class MoveToolAndModifierTests : BrushStateIsolated
         Draw(vm, 200, 200, 240, 220);
 
         var layer = vm.PaintLayer();
-        var first = (PaintedFrame)layer.Cels[0].Frame!;
-        var second = (PaintedFrame)layer.Cels[1].Frame!;
+        var first = (Frame)layer.Cels[0].Frame!;
+        var second = (Frame)layer.Cels[1].Frame!;
         var a = first.Strokes[^1].Points[0].X;
         var b = second.Strokes[^1].Points[0].X;
 
@@ -148,7 +148,7 @@ public class MoveToolAndModifierTests : BrushStateIsolated
         Draw(vm, 200, 200, 240, 220);
 
         var layer = vm.PaintLayer();
-        var first = (PaintedFrame)layer.Cels[0].Frame!;
+        var first = (Frame)layer.Cels[0].Frame!;
         var untouched = first.Strokes[^1].Points[0].X;
 
         vm.BeginMove(210, 210, wholeLayer: false);

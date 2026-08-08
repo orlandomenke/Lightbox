@@ -52,8 +52,8 @@ internal static class VmLayers
 
     public static Layer PaintLayer(this MainViewModel vm) => vm.Doc.Scene.Layers[vm.ActiveLayerIndex];
 
-    public static PaintedFrame PaintedCel(this MainViewModel vm, int cel = 0) =>
-        (PaintedFrame)vm.PaintLayer().Cels[cel].Frame!;
+    public static Frame PaintedCel(this MainViewModel vm, int cel = 0) =>
+        (Frame)vm.PaintLayer().Cels[cel].Frame!;
 
     public static List<Stroke> PaintStrokes(this MainViewModel vm, int cel = 0) => vm.PaintedCel(cel).Strokes;
 }

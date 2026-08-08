@@ -44,9 +44,9 @@ public class MainViewModelTests
         vm.EndStroke();
 
         Assert.NotNull(layer.Cels[1].Frame);
-        Assert.Single(((PaintedFrame)layer.Cels[1].Frame!).Strokes);
+        Assert.Single(((Frame)layer.Cels[1].Frame!).Strokes);
         // And the drawing that was being held is untouched.
-        Assert.Empty(((PaintedFrame)layer.Cels[0].Frame!).Strokes);
+        Assert.Empty(((Frame)layer.Cels[0].Frame!).Strokes);
     }
 
     [AvaloniaFact]
@@ -68,7 +68,7 @@ public class MainViewModelTests
             vm.EndStroke();
 
             Assert.Null(layer.Cels[1].Frame);     // still a hold
-            Assert.Single(((PaintedFrame)layer.Cels[0].Frame!).Strokes);
+            Assert.Single(((Frame)layer.Cels[0].Frame!).Strokes);
         }
         finally
         {
@@ -100,7 +100,7 @@ public class MainViewModelTests
         vm.MoveStroke(30, 30, 0.5);
         vm.EndStroke();
 
-        PaintedFrame Frame() => vm.PaintedCel();
+        Frame Frame() => vm.PaintedCel();
         Assert.Single(Frame().Strokes);
 
         vm.UndoCommand.Execute(null);
@@ -134,7 +134,7 @@ public class MainViewModelTests
         var layer = vm.PaintLayer();
         for (var i = 1; i <= 3; i++)
         {
-            var tween = Assert.IsType<PaintedFrame>(layer.Cels[i].Frame);
+            var tween = Assert.IsType<Frame>(layer.Cels[i].Frame);
             var s = Assert.Single(tween.Strokes);
             // t = i/4 → y = 100 * i/4 under EaseInOut (mid tween exactly 50).
             if (i == 2) Assert.Equal(50, s.Points[0].Y, 3);

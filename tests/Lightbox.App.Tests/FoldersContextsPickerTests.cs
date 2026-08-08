@@ -164,7 +164,7 @@ public class LayerFolderTests
         // painting on a folder-hidden layer is blocked like a hidden layer
         vm.BeginStroke(50, 50, 1);
         vm.EndStroke();
-        Assert.Empty(((PaintedFrame)layer.Cels[0].Frame!).Strokes);
+        Assert.Empty(((Frame)layer.Cels[0].Frame!).Strokes);
         Assert.Contains("hidden", vm.AiStatus);
     }
 
