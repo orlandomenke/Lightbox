@@ -9,9 +9,18 @@ namespace Lightbox.App.Tests;
 /// The screen the application opens on, and the recents behind it.
 /// </summary>
 /// <remarks>
-/// The screen is offered over an already-open untitled document, so the case
-/// that matters most is the one where it is answered with nothing: Escape has
-/// to leave a usable blank page rather than an empty application.
+/// <para>
+/// The screen used to be offered over an already-open untitled document, and the
+/// case that mattered most was answering it with nothing: Escape left that
+/// document behind as a usable blank page.
+/// </para>
+/// <para>
+/// <b>That is the behaviour this file now pins the reverse of</b>, on request.
+/// Escaping adopted a canvas nobody chose — a 960×540 at 12 fps you find out
+/// about after drawing on it — and there was no way to decline. The screen is
+/// now offered over an empty application, and answering it with nothing leaves
+/// the application empty.
+/// </para>
 /// </remarks>
 [Collection("BrushState")]
 public sealed class StartScreenTests : BrushStateIsolated
@@ -32,21 +41,26 @@ public sealed class StartScreenTests : BrushStateIsolated
 
     // ---- the fast path ---------------------------------------------------------
 
+    /// <summary>
+    /// Declining the start screen declines the document as well.
+    /// </summary>
+    /// <remarks>
+    /// The assertion here used to be its own opposite, and the reason it changed
+    /// is worth keeping: escaping left a canvas the artist had not chosen, and
+    /// the next stroke committed them to it. Nothing open is a state you can
+    /// leave by choosing, which "a blank 960×540" is not.
+    /// </remarks>
     [AvaloniaFact]
-    public async Task EscapeLeavesABlankDocumentRatherThanNothing()
+    public async Task EscapeLeavesNothingOpenRatherThanACanvasNobodyChose()
     {
-        // The whole reason the screen is shown over a document instead of
-        // instead of one. "Open it and draw" stays a keystroke.
         var (w, vm) = Open();
-        var tabs = vm.Tabs.Count;
+        Assert.Empty(vm.Tabs);
 
         await Apply(w, StartChoice.Nothing);
 
-        Assert.Equal(tabs, vm.Tabs.Count);
-        Assert.NotNull(vm.ActiveTab);
-        // Escaping the start screen leaves a blank document, not work — it
-        // badges as never-written (B99) and has nothing to lose.
-        Assert.False(vm.ActiveTab!.HasWorkToLose);
+        Assert.Empty(vm.Tabs);
+        Assert.Null(vm.ActiveTab);
+        Assert.False(vm.HasDocument);
     }
 
     [AvaloniaFact]
@@ -73,7 +87,10 @@ public sealed class StartScreenTests : BrushStateIsolated
         // Would block on a modal dialog if it opened one.
         await w.OfferStartScreenAsync();
 
-        Assert.NotNull(vm.ActiveTab);
+        // And it invents nothing on the way past: turning the screen off is a
+        // preference about the screen, not a standing order to make a document.
+        Assert.Empty(vm.Tabs);
+        Assert.Null(vm.ActiveTab);
     }
 
     // ---- what it makes ---------------------------------------------------------
@@ -158,7 +175,7 @@ public sealed class StartScreenTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
-    public void SavingSomewhereNewRecordsItToo()
+    public async Task SavingSomewhereNewRecordsItToo()
     {
         // A document written for the first time is one you have every reason
         // to come back to; recording only opens means it appears the second
@@ -166,7 +183,15 @@ public sealed class StartScreenTests : BrushStateIsolated
         var dir = Directory.CreateTempSubdirectory("lightbox-recent-save");
         try
         {
-            var (_, vm) = Open();
+            var (w, vm) = Open();
+            // Something to save. The window used to come up with one; it now
+            // comes up empty, so the test asks the screen for it — which is also
+            // the route an artist takes.
+            await Apply(w, new StartChoice
+            {
+                Document = new NewDocumentSettings(
+                    "fresh", 960, 540, 12, 72, "#ffffff", false, null, WorkspaceChoice.Keep),
+            });
             var path = Path.Combine(dir.FullName, "fresh.lightbox.json");
             File.WriteAllText(path, vm.SerializeDocument());
 

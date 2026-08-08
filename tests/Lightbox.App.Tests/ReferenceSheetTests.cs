@@ -55,7 +55,8 @@ public class ReferenceTabTests
 {
     private static MainViewModel VmWithSheet(out ReferenceView view)
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = VmLayers.PaperVm();
+        vm.SmoothStrokes = false;
         vm.AddReferenceSheet();
         var sheet = vm.ReferenceSheetsView[0];
         vm.AddReferenceView(sheet); // also opens the tab
@@ -127,9 +128,21 @@ public class ReferenceTabTests
     {
         var vm = VmWithSheet(out _);
         Assert.Equal(2, vm.Tabs.Count);
+
+        var announced = 0;
+        vm.LastDocumentClosed += () => announced++;
+
         vm.CloseTab(vm.Tabs[0]); // close the animation tab
-        var remaining = Assert.Single(vm.Tabs);
-        Assert.Equal(DocumentTabKind.Animation, remaining.Kind); // fresh untitled, orphan closed too
+
+        // Both go: a sheet tab is a view onto its owner's document, so an owner
+        // that is gone leaves nothing for it to show. This used to end with one
+        // fresh untitled tab, because closing the last document conjured a
+        // replacement; the application can now simply be empty, and the sheet
+        // going with its owner is what makes that the *right* number rather
+        // than an accident of the auto-create.
+        Assert.Empty(vm.Tabs);
+        Assert.False(vm.HasDocument);
+        Assert.Equal(1, announced);
     }
 
     [AvaloniaFact]
@@ -160,7 +173,8 @@ public class ReferenceAiTests
 
         static MainViewModel VmWith(out ReferenceView v)
         {
-            var vm = new MainViewModel(null) { SmoothStrokes = false };
+            var vm = VmLayers.PaperVm();
+            vm.SmoothStrokes = false;
             vm.AddReferenceSheet();
             vm.AddReferenceView(vm.ReferenceSheetsView[0]); // opens tab, active
             v = vm.ReferenceSheetsView[0].Views[0];
@@ -172,7 +186,8 @@ public class ReferenceAiTests
     public void AiInbetween_CarriesReferenceImages()
     {
         var fake = new FakeArtist();
-        var vm = new MainViewModel(fake) { SmoothStrokes = false };
+        var vm = VmLayers.PaperVm(fake);
+        vm.SmoothStrokes = false;
         vm.AddReferenceSheet();
         vm.AddReferenceView(vm.ReferenceSheetsView[0]);
         vm.BeginStroke(10, 10, 1);
@@ -200,7 +215,7 @@ public class ReferenceAiTests
     [AvaloniaFact]
     public void IpcListAndRender_ExposeReferenceViews()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         vm.AddReferenceSheet();
         vm.AddReferenceView(vm.ReferenceSheetsView[0]);
         vm.ActiveTab = vm.Tabs[0];
@@ -237,7 +252,7 @@ public class CharacterSheetFileTests
     [AvaloniaFact]
     public void ACharacterSheetOutsideAProjectPromptsToSave()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         var asked = 0;
         vm.ReferenceSheetNeedsAFile += () => asked++;
 
@@ -260,7 +275,7 @@ public class CharacterSheetFileTests
         var root = Path.Combine(Path.GetTempPath(), $"lightbox-b66-{Guid.NewGuid():N}.lbproj");
         try
         {
-            var vm = new MainViewModel(null);
+            var vm = VmLayers.PaperVm();
             vm.NewProject(root, "Knight");
             vm.ProjectDocker.AddDocumentCommand.Execute(null);
 
@@ -288,20 +303,20 @@ public class CharacterSheetFileTests
     [AvaloniaFact]
     public void ACharacterSheetAsksForItsNameBeforeItsLocation()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
 
-        var named = vm.AddReferenceSheet("Rusty knight");
+        var named = Assert.IsType<ReferenceSheet>(vm.AddReferenceSheet("Rusty knight"));
         Assert.Equal("Rusty knight", named.Name);
 
         // Whitespace is not a name, and an empty prompt must not produce a sheet
         // called "   ". It falls back to the numbered default rather than
         // refusing, because the sheet is already wanted by this point.
-        var blank = vm.AddReferenceSheet("   ");
+        var blank = Assert.IsType<ReferenceSheet>(vm.AddReferenceSheet("   "));
         Assert.StartsWith("Character ", blank.Name);
 
         // The old parameterless call still means what it did, so nothing that
         // already added a sheet changed behaviour.
-        var legacy = vm.AddReferenceSheet();
+        var legacy = Assert.IsType<ReferenceSheet>(vm.AddReferenceSheet());
         Assert.StartsWith("Character ", legacy.Name);
     }
 }

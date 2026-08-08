@@ -22,7 +22,7 @@ public class ProjectCreationTests(ITestOutputHelper output) : BrushStateIsolated
     public void NoUnwantedAssetFoldersCreated()
     {
         using var scratch = new Scratch();
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         vm.NewProject(scratch.Root, "Project");
 
         var folders = Folders(scratch.Root);
@@ -50,7 +50,7 @@ public class ProjectCreationTests(ITestOutputHelper output) : BrushStateIsolated
     public void NewProjectHasCorrectDefaultStructure()
     {
         using var scratch = new Scratch();
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         vm.NewProject(scratch.Root, "Project");
 
         var folders = Folders(scratch.Root);
@@ -75,7 +75,7 @@ public class ProjectCreationTests(ITestOutputHelper output) : BrushStateIsolated
     public void AllFoldersAppearAtProjectRoot()
     {
         using var scratch = new Scratch();
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         vm.NewProject(scratch.Root, "Project");
 
         foreach (var dir in Directory.EnumerateDirectories(scratch.Root, "*", SearchOption.AllDirectories))
@@ -100,7 +100,7 @@ public class ProjectCreationTests(ITestOutputHelper output) : BrushStateIsolated
     public void NewProjectFolderStructureIsCorrect()
     {
         using var scratch = new Scratch();
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         vm.NewProject(scratch.Root, "Project");
         var project = vm.ProjectDocker.Project!;
 
@@ -137,7 +137,7 @@ public class ProjectCreationTests(ITestOutputHelper output) : BrushStateIsolated
     public void AllDefaultFoldersAreListedInProjectFile()
     {
         using var scratch = new Scratch();
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         vm.NewProject(scratch.Root, "Production");
         var docker = vm.ProjectDocker;
 

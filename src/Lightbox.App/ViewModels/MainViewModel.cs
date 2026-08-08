@@ -336,13 +336,20 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(IAiArtist? artist)
     {
         _artist = artist;
-        var first = new DocumentTab(new DocumentEditor(StartupDoc()), "Untitled-1") { IsActive = true };
-        Tabs.Add(first);
-        _activeTab = first;
-        _editor = first.Editor;
-        // Land on something paintable: layer 0 is the locked paper, so leaving
-        // the index at 0 would make the very first stroke bounce.
-        _activeLayerIndex = FirstPaintableLayer(first.Editor.Doc);
+        // Nothing is open. The application no longer invents a document to sit
+        // behind the start screen, because Cancel then adopted a canvas nobody
+        // chose — the artist got a 960×540 they never asked for, and only
+        // noticed once they had drawn on it.
+        //
+        // `_editor` still points at something, and that is a deliberate choice
+        // rather than an oversight. It is read from 86 places here and `Scene`
+        // from 192 more; making it genuinely null would put a guard on every one
+        // of them, in the second-riskiest file in the repository, to express a
+        // state the UI can describe with one boolean. So the placeholder exists,
+        // is never in `Tabs`, is never saved, and is never shown —
+        // `HasDocument` is what everything else asks.
+        _editor = new DocumentEditor(StartupDoc());
+        _activeLayerIndex = FirstPaintableLayer(_editor.Doc);
         _editor.Changed += OnDocumentChanged;
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
@@ -608,6 +615,20 @@ public sealed partial class MainViewModel : ObservableObject
         _ => ActiveTab,
     };
 
+    /// <summary>
+    /// The tab a document-scoped operation acts on, or null when nothing is open.
+    /// </summary>
+    /// <remarks>
+    /// Every caller of this used to end in <c>?? Tabs[0]</c>. That fallback was
+    /// only ever reached on a symbol tab — where <see cref="SaveTargetTab"/> is
+    /// deliberately null — and it was safe because the application could not be
+    /// empty. It can now, and <c>Tabs[0]</c> throws there, so the fallback has to
+    /// become a question rather than an assumption. Each caller answers it the
+    /// same way: do nothing, because the surface that reached it is disabled with
+    /// no document open.
+    /// </remarks>
+    private DocumentTab? TargetTab => SaveTargetTab ?? Tabs.FirstOrDefault();
+
     /// <summary>Timeline is hidden on reference tabs regardless of the View-menu toggle.</summary>
     public bool ShowTimeline => TimelineVisible && ActiveTab?.Kind != DocumentTabKind.Reference;
 
@@ -663,6 +684,24 @@ public sealed partial class MainViewModel : ObservableObject
     /// </remarks>
     public bool OnlyAnUntouchedBlankDocument =>
         Tabs.Count == 1 && Tabs[0].FilePath is null && !Tabs[0].HasWorkToLose;
+
+    /// <summary>
+    /// Whether anything is open at all. The one question every document-scoped
+    /// command and every docker asks before doing anything.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Backed by <see cref="Tabs"/> rather than by the editor, because the editor
+    /// deliberately always has a document — see the constructor. A tab is the
+    /// thing an artist opened; the placeholder behind it is an implementation
+    /// detail that must never become visible, and asking `Tabs` is what keeps
+    /// that true.
+    /// </para>
+    /// <para>
+    /// Raised whenever the collection changes, so the UI can bind to it directly.
+    /// </para>
+    /// </remarks>
+    public bool HasDocument => Tabs.Count > 0;
 
     public void NewDocument(NewDocumentSettings settings) => NewDocument(settings, reuseBlank: false);
 
@@ -1099,15 +1138,37 @@ public sealed partial class MainViewModel : ObservableObject
         // A reference view belongs to the document it was opened from, so only a
         // tab that owns its own document can take a row out of the project.
         if (tab.Owner is null) ProjectDocker.ForgetIfNeverWritten(tab.Source);
+
+        // Closing the last tab used to conjure a replacement, which meant there
+        // was no way to arrive at an empty application and the canvas of that
+        // invented document became whatever you drew on next. Now the workspace
+        // simply empties, and the window asks what to open — the same question
+        // the start screen asks, at the only other moment it is the right one.
         if (Tabs.Count == 0)
         {
-            Tabs.Add(new DocumentTab(new DocumentEditor(DocumentFactory.CreateDoc()), NextUntitledName()));
+            ActiveTab = null;
+            OnPropertyChanged(nameof(HasDocument));
+            LastDocumentClosed?.Invoke();
+            return;
         }
+
+        OnPropertyChanged(nameof(HasDocument));
         if (ActiveTab == tab || ActiveTab is null || !Tabs.Contains(ActiveTab))
         {
             ActiveTab = Tabs[Math.Clamp(index, 0, Tabs.Count - 1)];
         }
     }
+
+    /// <summary>
+    /// The last document was closed and nothing is open.
+    /// </summary>
+    /// <remarks>
+    /// An event rather than the view model opening a dialog itself, for the
+    /// reason every other dialog here is the window's job: a view model that
+    /// shows windows cannot be tested headlessly, and this one is reached by
+    /// `CloseTab`, which the suite drives constantly.
+    /// </remarks>
+    public event Action? LastDocumentClosed;
 
     /// <summary>The active document was written to disk: adopt the name, clear the dirty dot.</summary>
     public void NotifySaved(string filePath)
@@ -1130,8 +1191,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void AddTab(DocumentTab tab)
     {
+        var wasEmpty = Tabs.Count == 0;
         Tabs.Add(tab);
         ActiveTab = tab;
+        // Coming back from empty is the transition the whole UI hangs off, and a
+        // property that only ever falls is worse than no property at all.
+        if (wasEmpty) OnPropertyChanged(nameof(HasDocument));
     }
 
     private string NextUntitledName() => $"Untitled-{++_untitledCounter}";
@@ -1316,16 +1381,20 @@ public sealed partial class MainViewModel : ObservableObject
     /// "in a project, a character sheet is directly added" half of the report.
     /// </remarks>
     public bool AReferenceSheetWouldBeUnsaved =>
-        (SaveTargetTab ?? Tabs[0]) is { FilePath: null, Source: null };
+        TargetTab is { FilePath: null, Source: null };
 
     /// <param name="name">
     /// What to call it. Null keeps the old numbered default, which is what the
     /// existing callers pass and what B65's rule says a *new* surface should
     /// stop doing — the prompt supplies a real name before anything is written.
     /// </param>
-    public ReferenceSheet AddReferenceSheet(string? name = null)
+    /// <returns>
+    /// The sheet, or null when nothing is open — a sheet belongs to a document
+    /// and there is no document to put it in.
+    /// </returns>
+    public ReferenceSheet? AddReferenceSheet(string? name = null)
     {
-        var target = SaveTargetTab ?? Tabs[0];
+        if (TargetTab is not { } target) return null;
         var needsAFile = AReferenceSheetWouldBeUnsaved;
 
         var sheet = new ReferenceSheet
@@ -1352,7 +1421,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <inheritdoc cref="AddReferenceSheet"/>
     public void AddReferenceView(ReferenceSheet sheet)
     {
-        var target = SaveTargetTab ?? Tabs[0];
+        if (TargetTab is not { } target) return;
         var view = ReferenceView.Create($"view {sheet.Views.Count + 1}", Scene.Width, Scene.Height);
         target.Editor.Perform(_ => sheet.Views.Add(view));
         MarkDocumentEdited();
@@ -1387,7 +1456,7 @@ public sealed partial class MainViewModel : ObservableObject
             ActiveTab = open;
             return;
         }
-        var owner = SaveTargetTab ?? Tabs[0];
+        if (TargetTab is not { } owner) return;
         var sheet = owner.Doc.ReferenceSheets.FirstOrDefault(s => s.Views.Contains(view));
         // The wrapper scene SHARES the view's layer list: edits land in the
         // owning document directly.
@@ -8618,8 +8687,22 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Replace the ACTIVE tab's document (fresh editor, clean state).</summary>
+    /// <remarks>
+    /// With nothing open there is nothing to replace, and refusing would hand
+    /// back a document the caller asked to see and cannot. So the empty case
+    /// opens it instead — same intent, one tab either way.
+    /// </remarks>
     public void ReplaceDocument(Doc doc)
     {
+        if (Tabs.Count == 0)
+        {
+            var opened = new DocumentTab(new DocumentEditor(doc), doc.Scene.Name);
+            opened.State.LayerIndex = FirstPaintableLayer(doc);
+            AddTab(opened);
+            opened.MarkSaved();
+            return;
+        }
+
         _switchingTabs = true;
         var tab = ActiveTab ?? Tabs[0];
         tab.Editor = new DocumentEditor(doc);

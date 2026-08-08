@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Lightbox.Ai;
 using Lightbox.App.ViewModels;
+using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
 
 namespace Lightbox.App.Tests;
@@ -54,7 +55,9 @@ public class SubjectReadingWiringTests(ITestOutputHelper output) : BrushStateIso
     private static (MainViewModel Vm, ProjectFolder Character) WithCharacter(
         FakeArtist artist, Scratch scratch)
     {
-        var vm = new MainViewModel(artist);
+        // A project forms around the document that is already open, so there has
+        // to be one — the application no longer supplies it at startup.
+        var vm = VmLayers.PaperVm(artist);
         vm.NewProject(scratch.Root, "Production");
         var project = vm.ProjectDocker.Project!;
         var character = ProjectFolders.Add(project.Manifest, "Knight");
@@ -63,7 +66,7 @@ public class SubjectReadingWiringTests(ITestOutputHelper output) : BrushStateIso
 
         // A reference sheet with a visible layer — what CollectReferenceImages
         // sends, and the only thing a reading has to look at.
-        var sheet = vm.AddReferenceSheet("Knight sheet");
+        var sheet = Assert.IsType<ReferenceSheet>(vm.AddReferenceSheet("Knight sheet"));
         vm.AddReferenceView(sheet);   // a view with a visible layer is what gets sent
         return (vm, character);
     }

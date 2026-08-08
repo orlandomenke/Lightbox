@@ -43,7 +43,7 @@ public class DocumentScopedStateTests(ITestOutputHelper output) : BrushStateIsol
     [AvaloniaFact]
     public void ZoomIsRememberedPerDocumentRatherThanShared()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         var canvas = new CanvasControl { Width = 400, Height = 300 };
         canvas.Measure(new Size(400, 300));
         canvas.Arrange(new Rect(0, 0, 400, 300));
@@ -81,7 +81,7 @@ public class DocumentScopedStateTests(ITestOutputHelper output) : BrushStateIsol
     [AvaloniaFact]
     public void TheWholeFramingTravels_NotOnlyTheZoom()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         var canvas = new CanvasControl { Width = 400, Height = 300 };
         canvas.Measure(new Size(400, 300));
         canvas.Arrange(new Rect(0, 0, 400, 300));
@@ -116,7 +116,7 @@ public class DocumentScopedStateTests(ITestOutputHelper output) : BrushStateIsol
     [AvaloniaFact]
     public void ADocumentWithNoReferenceShowsNoReferencePanel()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         var a = vm.Tabs[0];
         a.Doc.Scene.References = [Strip("front"), Strip("side"), Strip("back")];
         vm.ActiveReferenceIndex = 2;
@@ -147,7 +147,7 @@ public class DocumentScopedStateTests(ITestOutputHelper output) : BrushStateIsol
     [AvaloniaFact]
     public void SwitchingTabsRestoresThatDocumentsToolState()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         var a = vm.Tabs[0];
         vm.AddFrameCommand.Execute(null);
         vm.AddFrameCommand.Execute(null);
@@ -179,7 +179,7 @@ public class DocumentScopedStateTests(ITestOutputHelper output) : BrushStateIsol
     [AvaloniaFact]
     public void TheBrushDoesNotFollowTheDocument_BecauseQ9SaysSo()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         Assert.Null(vm.ProjectDocker.Project);
         Assert.Equal(BrushScope.Global, vm.BrushScope);
 

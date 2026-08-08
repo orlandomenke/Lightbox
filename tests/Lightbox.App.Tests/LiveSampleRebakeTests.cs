@@ -50,7 +50,7 @@ public class LiveSampleRebakeTests : BrushStateIsolated
     /// <summary>Two layers: something to smudge underneath, the smudge on top.</summary>
     private static MainViewModel TwoLayers(out PaintedFrame under, out PaintedFrame over)
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         var scene = vm.Doc.Scene;
         under = (PaintedFrame)scene.Layers[^1].Cels[0].Frame!;
         under.Strokes.Add(Block("#20c040", 60));
@@ -158,7 +158,7 @@ public class LiveSampleRebakeTests : BrushStateIsolated
         // A smudge on the bottom layer has no backdrop to follow, so it goes
         // back to reading its own layer. Keeping the last one would be a mark
         // blended with something no longer below it.
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         // One layer only, so there is genuinely nothing underneath.
         var scene = vm.Doc.Scene;
         while (scene.Layers.Count > 1) scene.Layers.RemoveAt(scene.Layers.Count - 1);

@@ -38,7 +38,11 @@ public class SymbolEditingTests : IDisposable
 
     private MainViewModel WithSymbol(out Symbol symbol, int frames = 1)
     {
-        var vm = new MainViewModel(null);
+        // An animation to place the symbol into. It used to arrive free, from a
+        // startup document; the application now opens with nothing, and a test
+        // that reads `ActiveTab!` on an empty one gets a null it then assigns
+        // back — which is how this file went from failing to hanging.
+        var vm = VmLayers.PaperVm();
         var project = ProjectIo.Create("Knight", _root);
         symbol = new Symbol { Name = "Sword", Fps = 12 };
         for (var i = 0; i < frames; i++)

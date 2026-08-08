@@ -26,7 +26,7 @@ public class PaletteDockerTests : BrushStateIsolated
     /// </summary>
     private static MainViewModel Vm()
     {
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
         vm.Doc.Palettes.Clear();
         vm.PaletteDocker.Load(vm.Doc);
         return vm;
@@ -53,7 +53,7 @@ public class PaletteDockerTests : BrushStateIsolated
         // and one that carries a reference, and only the second can be
         // recoloured later. Starting empty means the first hour of work can
         // never follow a palette edit.
-        var vm = new MainViewModel(null);
+        var vm = VmLayers.PaperVm();
 
         var palette = Assert.Single(vm.Doc.Palettes);
         Assert.Equal(["Black", "White"], palette.Swatches.Select(s => s.Name));

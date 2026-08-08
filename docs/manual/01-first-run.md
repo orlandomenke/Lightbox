@@ -8,16 +8,23 @@ window replaces it. It is deliberately plain — a placeholder, not a design —
 and it appears once Lightbox is far enough along to draw anything at all, so on
 a cold start there is still a moment before it shows up.
 
-Lightbox then opens on an untitled document — 960 × 540 at 12 fps, on white paper —
-with a brush selected. You can draw immediately. Nothing has to be created,
-named or configured first.
+Lightbox opens with **nothing open**, and says so: an empty workspace with
+*New…*, *New project…* and *Open…* in the middle of it. Nothing is created
+until you choose a canvas — which means the canvas you choose is the canvas
+you get, rather than an untitled 960 × 540 that arrived on its own and adopted
+your first strokes.
 
-A **start screen** appears over that document offering three things: the New
-file fields, the New project fields, and what you had open last. It is asked
-over the blank page rather than instead of it, which is what makes **Escape**
-a complete answer — press it and you are on the blank page you would have had
-anyway. *Don't show this again* turns it off, and *Edit → Ask what to open on
-start-up* turns it back on.
+A **start screen** appears over that offering three things: the New file
+fields, the New project fields, and what you had open last. **Escape** declines
+it — you are on the empty workspace, and the same choices are waiting on it and
+under **File**. *Don't show this again* turns the start screen off, and
+*Edit → Ask what to open on start-up* turns it back on; the empty workspace's
+buttons are not affected by either.
+
+Closing the last tab returns you to the same place: the workspace empties and
+the same what-to-open question is asked once, rather than a fresh untitled
+document being invented for you. Closing an untouched blank never argues about
+unsaved changes — there is nothing in it to lose.
 
 Double-click a recent entry to open it, or select one and press Create. Recent
 holds files and projects together, newest first — "what was I working on" does
@@ -25,11 +32,11 @@ not sort itself by kind. The same list is under **File → Open recent**, with
 *Clear the list* at the bottom. Anything you open or save for the first time
 joins it; anything that has since moved is simply not offered.
 
-The blank-page start is deliberate, and it is the rule the whole application
+The empty start is deliberate, and it is the rule the whole application
 follows:
-**optional means absent, not disabled.** A project, a camera, a palette, a
-gradient and six of the eight panels do not exist until you ask for them, and
-until then they cost you no screen, no keys and no thinking.
+**optional means absent, not disabled.** A document, a project, a camera, a
+palette, a gradient and six of the eight panels do not exist until you ask for
+them, and until then they cost you no screen, no keys and no thinking.
 
 ---
 
