@@ -1,6 +1,6 @@
 # Code index
 
-584 files · 152412 lines · 2998 tests.
+586 files · 152844 lines · 3005 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,11 +49,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (11040 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4558, TransformParts:7438
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4762 ln) · 29 test files
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4799 ln) · 29 test files
   - MainWindow:19, UnsavedChoice:3204
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4192 ln) · 15 test files
   - CanvasControl:28, CameraDrag:460, CanvasToolMode:960, GridGesture:1017, TxDrag:1230, DrawOp:3336
-- `src/Lightbox.App/Views/MainWindow.axaml` (3818 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3821 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
@@ -115,14 +115,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Workspace:13, WorkspaceStore:51
 - `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 29 indirect only
   - RampTrack:10, GradientRamp:41
+- `src/Lightbox.App/ViewModels/MainViewModel.Audio.cs` (293 ln) · 119 test files
+  - MainViewModel:12
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
 - `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · **no tests**
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (283 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
-- `src/Lightbox.App/ViewModels/MainViewModel.Audio.cs` (282 ln) · 119 test files
-  - MainViewModel:12
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
   - CurveEditor:29
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 3 test files
@@ -140,6 +140,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - NewDocumentSettings:20, WorkspaceChoice:32, DocumentTabKind:41, DocumentTab:60
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
+- `src/Lightbox.App/Services/VideoExporter.cs` (240 ln) · 1 test files
+  - VideoFormat:8, VideoExporter:28
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
   - RigMarkKind:4, RigCorner:47, RigOverlay:86
 - `src/Lightbox.App/Rendering/FrameBitmapCache.cs` (231 ln) · 2 test files
@@ -262,6 +264,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - OnionMode:4, OnionSettings:28
 - `src/Lightbox.App/Rendering/RenderSnapshot.cs` (76 ln) · 22 test files
   - RenderSnapshot:24
+- `src/Lightbox.App/Services/SequenceExporter.cs` (75 ln) · 2 test files
+  - SequenceExporter:21
 - `src/Lightbox.App/Views/NewDocumentPanel.axaml` (75 ln) · **no tests**
   - BackgroundBox, FpsBox, HeightBox, NameBox, PpiBox, PresetBox, TransparentBox, TypeBox …
 - `src/Lightbox.App/ViewModels/DocumentScopedState.cs` (73 ln) · 1 test files
@@ -274,8 +278,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - NormalMapWriter:22
 - `src/Lightbox.App/Program.cs` (66 ln) · 1 test files
   - Program:7
-- `src/Lightbox.App/Services/SequenceExporter.cs` (62 ln) · 2 test files
-  - SequenceExporter:20
 - `src/Lightbox.App/Docking/OverlayConverters.cs` (61 ln) · 2 test files
   - OverlayConverters:7
 - `src/Lightbox.App/Views/NewProjectPanel.axaml.cs` (61 ln) · 29 indirect only
@@ -397,7 +399,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ExportArtifact:14, ExportPlan:47
 - `src/Lightbox.Core/Projects/SymbolUsage.cs` (163 ln) · 1 test files
   - SymbolUse:9, SymbolUsage:12, SymbolGraph:46
-- `src/Lightbox.Core/Audio/WavCodec.cs` (162 ln) · 1 test files
+- `src/Lightbox.Core/Audio/WavCodec.cs` (162 ln) · 2 test files
   - AudioClip:8, WavCodec:40
 - `src/Lightbox.Core/Documents/CollisionShapes.cs` (157 ln) · 5 test files
   - CollisionShapes:21

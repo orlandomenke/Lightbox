@@ -207,6 +207,17 @@ public partial class MainViewModel
             : null;
     }
 
+    /// <summary>
+    /// The sound file a video export should mux, or null when there is
+    /// nothing to hear — no track, muted, or the file is missing.
+    /// </summary>
+    internal string? ResolvedAudioPathForExport()
+    {
+        if (Scene.Audio is not { } track || track.Muted) return null;
+        var resolved = ResolveAudioPath(track);
+        return resolved is not null && File.Exists(resolved) ? resolved : null;
+    }
+
     private void DropAudioCache()
     {
         _audioLoadedFrom = null;

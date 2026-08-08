@@ -4060,8 +4060,45 @@ public partial class MainWindow : Window
         if (folders.Count == 0) return;
         var dir = folders[0].TryGetLocalPath();
         if (dir is null) return;
-        var written = await Task.Run(() => Services.SequenceExporter.ExportPngSequence(_vm.Doc, dir));
-        _vm.AiStatus = $"Exported {written.Count} PNG frame(s).";
+        var clip = _vm.ResolvedAudioPathForExport() is not null ? _vm.AudioClipNow : null;
+        var written = await Task.Run(() =>
+        {
+            var files = Services.SequenceExporter.ExportPngSequence(_vm.Doc, dir);
+            // The scratch track rides along as plain PCM, the one encoding
+            // every comp package reads (Q56).
+            if (clip is not null)
+            {
+                Services.VideoExporter.WriteWavPcm16(clip, Path.Combine(dir, "audio.wav"));
+            }
+            return files;
+        });
+        _vm.AiStatus = clip is null
+            ? $"Exported {written.Count} PNG frame(s)."
+            : $"Exported {written.Count} PNG frame(s) and audio.wav.";
+    }
+
+    private async void OnExportVideoClicked(object? sender, RoutedEventArgs e)
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export video",
+            SuggestedFileName = "animation",
+            DefaultExtension = "mp4",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("MP4 video (H.264)") { Patterns = ["*.mp4"] },
+                new FilePickerFileType("ProRes 422 (MOV)") { Patterns = ["*.mov"] },
+            ],
+        });
+        if (file?.TryGetLocalPath() is not { } path) return;
+
+        var format = Path.GetExtension(path).Equals(".mov", StringComparison.OrdinalIgnoreCase)
+            ? Services.VideoFormat.ProRes
+            : Services.VideoFormat.Mp4;
+        var audio = _vm.ResolvedAudioPathForExport();
+        _vm.AiStatus = "Rendering video…";
+        var error = await Task.Run(() => Services.VideoExporter.Export(_vm.Doc, format, path, audio));
+        _vm.AiStatus = error ?? $"Exported “{Path.GetFileName(path)}”.";
     }
 
     /// <summary>

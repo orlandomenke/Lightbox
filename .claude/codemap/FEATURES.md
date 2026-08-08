@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2998 tests, derived from the suite itself. Each line is a
+3005 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2680,6 +2680,17 @@ regression even when every test still compiles.
 - ANew Document With No Project Open Changes Nothing — `:361`
 - Saving ADocument Outside The Project Takes It Out Of The Project — `:409`
 - Saving ADocument Into The Project Repaths Its Row — `:450`
+
+## VideoExporterTests
+`tests/Lightbox.App.Tests/VideoExporterTests.cs`
+
+- Mp4 Args Carry Raw Input The Codec And The Target — `:16`
+- Pro Res Writes The Editorial Codec — `:31`
+- The Scratch Track Muxes With Its Offset And Volume — `:41`
+- ANegative Offset Trims The Lead In Instead — `:58`
+- The Pcm Writer Round Trips Through Our Own Decoder — `:71`
+- AReal Encode Produces AFile — `:97`
+- Ffmpeg Discovery Prefers The Bundled Copy — `:120`
 
 ## ViewportCullingPerformanceTests
 `tests/Lightbox.App.Tests/ViewportCullingPerformanceTests.cs`

@@ -242,7 +242,10 @@
         <Separator />
         <MenuItem Header="Export _document…" Click="OnExportDocumentClicked"
                   ToolTip.Tip="A standalone .lightbox.json with every shared palette and gradient it uses inlined" />
-        <MenuItem Header="_Export PNGs…" Click="OnExportClicked" />
+        <MenuItem Header="_Export PNGs…" Click="OnExportClicked"
+                  ToolTip.Tip="A numbered frame sequence — with the scratch track beside it as audio.wav when there is one" />
+        <MenuItem Header="Export _video…" Click="OnExportVideoClicked"
+                  ToolTip.Tip="H.264 MP4 for review, ProRes 422 MOV for editorial — the scratch track muxed in" />
         <MenuItem Header="Export for a _game engine…" Click="OnExportSheetClicked"
                   ToolTip.Tip="Sprite sheet, sidecar and optional Unity importer. Trim, layout and background handling live here." />
       </MenuItem>
