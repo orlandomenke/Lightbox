@@ -203,11 +203,23 @@ public sealed class TileStore : IDisposable
 
                     canvas.DrawBitmap(bitmap, srcRect, destRect);
                     canvas.Flush();
+
+                    // A tile that came out blank goes straight back: keeping it
+                    // would make memory proportional to area again, which is
+                    // the one number this type exists to change. The scan costs
+                    // one pass over pixels that were just written and hot.
+                    if (IsBlank(tile)) store.Drop(coord);
                 }
             }
         }
 
         return store;
+    }
+
+    private static bool IsBlank(SKBitmap tile)
+    {
+        var span = tile.GetPixelSpan();
+        return !span.ContainsAnyExcept((byte)0);
     }
 
     public void Dispose()

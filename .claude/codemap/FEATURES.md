@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2928 tests, derived from the suite itself. Each line is a
+2937 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2493,11 +2493,15 @@ regression even when every test still compiles.
 ## UnboundedCanvasPixelTests
 `tests/Lightbox.App.Tests/UnboundedCanvasPixelTests.cs`
 
-- Tiled Rendering Stroke Across Tile Boundary Has No Visible Seam — `:50`
-- Tiled Rendering Multiple Tiles Stroke Maintains Relative Position — `:81`
-- Tiled Rendering With Viewport Offset Strokes Render Correctly — `:117`
-- Tiled Rendering Multiple Renders Produces Consistent Output — `:152`
-- Tiled Rendering Large Document Renders Tiles Correctly — `:202`
+- Tiled Rendering Stroke Across Tile Boundary Has No Visible Seam — `:57`
+- Tiled Rendering Multiple Tiles Stroke Maintains Relative Position — `:88`
+- Tiled Rendering With Viewport Offset Strokes Render Correctly — `:124`
+- Tiled Rendering Multiple Renders Produces Consistent Output — `:159`
+- Tiled Rendering Large Document Renders Tiles Correctly — `:209`
+- ASecond Publish Shows The Same Picture As The First — `:257`
+- ACommitted Stroke Survives Many Publishes — `:284`
+- AZoomed Out Publish Keeps The Stroke In Place — `:312`
+- AViewport Past The Canvas Edge Renders Calmly — `:338`
 
 ## UnityExportTests
 `tests/Lightbox.App.Tests/UnityExportTests.cs`
@@ -4186,6 +4190,15 @@ regression even when every test still compiles.
 - AViewport With No Area Draws Nothing — `:170`
 - Asking For ABitmap With No Area Is Refused — `:194`
 - ACulled Composite Matches The Same Rectangle Of An Untiled Render — `:226`
+
+## TilePyramidTests
+`tests/Lightbox.Raster.Tests/TilePyramidTests.cs`
+
+- Level Zero Is The Source Itself — `:41`
+- The Level Matches The Scale — `:49`
+- Four Tiles Fold Into One Mip Tile — `:64`
+- Sparsity Is Kept And Negative Coords Land In The Right Quadrant — `:80`
+- APyramid Level Matches ADownscale Of The Flattened Artwork — `:117`
 
 ## TileStoreTests
 `tests/Lightbox.Raster.Tests/TileStoreTests.cs`

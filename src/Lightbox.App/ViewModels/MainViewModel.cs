@@ -78,7 +78,7 @@ public sealed partial class MainViewModel : ObservableObject
     private long _publishSeq;
 
     /// <summary>Cache of TileStores by bitmap identity to avoid reconverting unchanged frames.</summary>
-    private readonly Dictionary<int, (SKBitmap Bitmap, TileStore Store)> _tileStoreCache = new();
+
 
     /// <summary>Document region changed since the last publish (null = everything).</summary>
     private SKRectI? _pendingDirty;
@@ -4768,7 +4768,6 @@ public sealed partial class MainViewModel : ObservableObject
         // count keeps reporting lines nothing can show, which reads as the
         // arrow having stopped working.
         PruneStrokeSelection();
-        _tileStoreCache.Clear();  // Clear cached tiles when frame changes
         RefreshCellHighlights();
         RefreshLayerThumbs();
         RefreshCamera();
@@ -9963,7 +9962,11 @@ public sealed partial class MainViewModel : ObservableObject
         // TODO: Optimize TileStore.FromBitmap or render directly to tiles to make this faster.
         var hasExplicitUnboundedCanvas = Doc?.Features?.TryGetValue(
             nameof(Lightbox.Core.Projects.FeatureKey.UnboundedCanvas), out var enabled) == true && enabled;
-        var useUnboundedPath = hasExplicitUnboundedCanvas && _pendingViewport is { Width: > 0, Height: > 0 };
+        // A camera defers to the camera path: the unbounded compositor maps the
+        // viewport itself, and two things that both map the view disagree.
+        var useUnboundedPath = hasExplicitUnboundedCanvas
+            && cameraView is null
+            && _pendingViewport is { Width: > 0, Height: > 0 };
 
         // What changed since the last publish. Null means "everything", which is
         // what a frame change, a layer edit or a view change produces.
@@ -10098,11 +10101,40 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Render passes using tiled compositing for viewport-culled rendering.
-    /// For now, converts layer bitmaps to TileStores and composites only visible tiles.
-    /// This is a functional but not yet optimized implementation — future work will
-    /// render strokes directly to tiles to avoid the full-bitmap allocation.
+    /// Composite the visible rectangle of an unbounded document.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Each pass is one direct draw with a viewport source rectangle</b> —
+    /// Skia reads only the source region a draw covers, so this is already
+    /// proportional to the viewport rather than the document, and a single
+    /// image has no interior edges to seam at any zoom. The previous version
+    /// split every layer bitmap into a cached <c>TileStore</c> first, which
+    /// bought nothing (the document-sized bitmap it split already existed)
+    /// and cost two real defects: the cached store was disposed at the end of
+    /// the very loop that cached it, so every repaint after the first drew
+    /// from freed tiles — "the infinite canvas does not work at all" — and
+    /// the cache keyed on bitmap identity, which a stroke commit does not
+    /// change because <c>FrameRasterizer.Append</c> stamps into the cached
+    /// bitmap in place (see <c>BitmapVersion</c>).
+    /// </para>
+    /// <para>
+    /// The tile machinery keeps its real job for the step after this one:
+    /// frames rasterised stroke→tile with no document-sized bitmap at all
+    /// (<c>TiledRasterizer</c>), composited through <c>TilePyramid</c> levels
+    /// so deep zoom-outs get mip quality. That is where ink beyond the
+    /// nominal canvas becomes storable, which is what "unbounded" ultimately
+    /// means.
+    /// </para>
+    /// <para>
+    /// Pass opacity, tint and blend ride on the draw's paint — the same math
+    /// as <c>SceneRenderer.DrawPass</c>, isolation included. The live-stroke
+    /// overlay draws in document space under the same viewport transform with
+    /// its erase mode and opacity honoured; the alpha-lock and selection-clip
+    /// masks are commit-time-only on this path for now — noted rather than
+    /// silently dropped.
+    /// </para>
+    /// </remarks>
     private SKImage ComposeUnboundedSnapshot(
         Lightbox.Core.Documents.Scene scene,
         List<RenderPass> passes,
@@ -10112,128 +10144,132 @@ public sealed partial class MainViewModel : ObservableObject
         long seq)
     {
         var viewport = _pendingViewport!.Value;
-        var viewportWidth = (int)Math.Ceiling(viewport.Width * renderScale);
-        var viewportHeight = (int)Math.Ceiling(viewport.Height * renderScale);
-
-        // Create output surface sized to viewport
         var info = new SKImageInfo(
-            Math.Max(1, viewportWidth),
-            Math.Max(1, viewportHeight),
+            Math.Max(1, (int)Math.Ceiling(viewport.Width * renderScale)),
+            Math.Max(1, (int)Math.Ceiling(viewport.Height * renderScale)),
             SKColorType.Rgba8888,
             SKAlphaType.Premul);
 
-        var surface = SKSurface.Create(info);
-        if (surface is null) throw new InvalidOperationException("Failed to create render surface");
-
+        using var surface = SKSurface.Create(info)
+            ?? throw new InvalidOperationException("Failed to create render surface");
         var canvas = surface.Canvas;
         canvas.Clear(background);
 
-        // For each pass, composite using TileCompositor for visible tiles only
+        // Document space under the viewport: everything below draws in
+        // document coordinates and lands where the artist is looking.
+        canvas.Save();
+        canvas.Scale((float)renderScale);
+        canvas.Translate(-viewport.Left, -viewport.Top);
+
         foreach (var pass in passes)
         {
             if (pass.Bitmap is null) continue;
 
-            // Convert the pass bitmap to a TileStore, with caching to avoid reconverting
-            // unchanged bitmaps on subsequent viewport changes (e.g., during zoom).
-            var bitmapHash = pass.Bitmap.GetHashCode();
-            TileStore tileStore;
-
-            if (_tileStoreCache.TryGetValue(bitmapHash, out var cached) && ReferenceEquals(cached.Bitmap, pass.Bitmap))
+            var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
+            using var paint = new SKPaint
             {
-                // Bitmap is unchanged, reuse cached TileStore
-                tileStore = cached.Store;
+                Color = SKColors.White.WithAlpha(alpha),
+                BlendMode = pass.Blend,
+            };
+            if (pass.Tint is { } tint)
+            {
+                paint.ColorFilter = SKColorFilter.CreateBlendMode(tint, SKBlendMode.SrcIn);
+            }
+
+            // Mirrors SceneRenderer.DrawPass: an eraser overlay or a
+            // translucent/blended layer combines with its own layer before
+            // meeting the stack.
+            var needsIsolation = pass.Overlay is { Erases: true }
+                || alpha != 255
+                || pass.Blend != SKBlendMode.SrcOver;
+            if (needsIsolation) canvas.SaveLayer(paint);
+            var contentPaint = needsIsolation ? null : paint;
+
+            if (pass.Matrix is { } m)
+            {
+                // A positioned pass — a reference strip. Its matrix nests
+                // inside the viewport transform, exactly as it nests inside
+                // the scene transform on the bounded path.
+                canvas.Save();
+                canvas.Concat(m);
+                DrawWhole(canvas, pass, contentPaint);
+                canvas.Restore();
+            }
+            else if (pass.Source is not null)
+            {
+                DrawWhole(canvas, pass, contentPaint);
             }
             else
             {
-                // Bitmap is new or changed, create fresh TileStore and cache it
-                tileStore = Lightbox.Raster.TileStore.FromBitmap(pass.Bitmap);
-
-                // Cap cache size to prevent unbounded growth (e.g., during rapid undo/redo)
-                if (_tileStoreCache.Count >= 10)
+                // The ordinary layer: draw only the part the viewport can
+                // see. The source rectangle is clamped to the bitmap — the
+                // viewport of an unbounded canvas extends past every edge of
+                // the nominal document, and a source rect off the bitmap is
+                // undefined rather than transparent.
+                var src = SKRectI.Intersect(
+                    viewport, SKRectI.Create(0, 0, pass.Bitmap.Width, pass.Bitmap.Height));
+                if (src.Width > 0 && src.Height > 0)
                 {
-                    // Evict oldest entry (simple FIFO approximation via enumeration)
-                    var oldestKey = _tileStoreCache.Keys.First();
-                    _tileStoreCache.Remove(oldestKey);
+                    using var img = SKImage.FromBitmap(pass.Bitmap);
+                    if (img is not null)
+                    {
+                        canvas.DrawImage(
+                            img, src,
+                            SKRect.Create(src.Left, src.Top, src.Width, src.Height),
+                            Linear, contentPaint);
+                    }
                 }
-
-                _tileStoreCache[bitmapHash] = (pass.Bitmap, tileStore);
             }
 
-            try
-            {
-                canvas.Save();
-
-                // Transform viewport to account for pass matrix and render scale
-                var transformedViewport = viewport;
-                if (pass.Matrix.HasValue)
-                {
-                    canvas.Concat(pass.Matrix.Value);
-                }
-
-                // Translate so viewport origin aligns with surface origin (0,0)
-                canvas.Translate((float)(-viewport.Left * renderScale), (float)(-viewport.Top * renderScale));
-
-                // Create paint with pass blending and opacity
-                var paint = new SKPaint
-                {
-                    BlendMode = pass.Blend
-                };
-
-                // Apply tint if present (onion skin)
-                if (pass.Tint.HasValue)
-                {
-                    paint.ColorFilter = SKColorFilter.CreateBlendMode(pass.Tint.Value, SKBlendMode.Multiply);
-                }
-
-                // For opacity, we need to composite at reduced alpha. TileCompositor
-                // doesn't apply opacity directly, so we composite to a temporary surface
-                // if opacity < 1. For now, we skip this optimization.
-                if (pass.Opacity < 1.0)
-                {
-                    // TODO: composite to intermediate surface with opacity applied
-                    // For now, fallback to full-canvas rendering for this pass
-                    paint.Color = paint.Color.WithAlpha((byte)(pass.Opacity * 255));
-                }
-
-                // Composite only visible tiles
-                Lightbox.Raster.TileCompositor.Composite(canvas, tileStore, transformedViewport);
-
-                paint.Dispose();
-                canvas.Restore();
-            }
-            finally
-            {
-                tileStore.Dispose();
-            }
-
-            // Handle overlay if present (live stroke preview, etc.)
             if (pass.Overlay is { } overlay)
             {
-                canvas.Save();
-                var overlayPaint = new SKPaint
+                using var strokePaint = new SKPaint
                 {
-                    BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver
+                    Color = SKColors.White.WithAlpha(
+                        (byte)Math.Round(Math.Clamp(overlay.Opacity, 0, 1) * 255)),
+                    BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
                 };
-
-                // For now, draw overlay at full resolution. TODO: render overlays to tiles
-                // and composite with TileCompositor for consistency.
-                if (overlay.Opacity < 1.0)
+                var src = SKRectI.Intersect(
+                    viewport,
+                    SKRectI.Create(0, 0, overlay.Scratch.Width, overlay.Scratch.Height));
+                if (src.Width > 0 && src.Height > 0)
                 {
-                    overlayPaint.Color = overlayPaint.Color.WithAlpha((byte)(overlay.Opacity * 255));
+                    using var scratch = SKImage.FromBitmap(overlay.Scratch);
+                    if (scratch is not null)
+                    {
+                        canvas.DrawImage(
+                            scratch, src,
+                            SKRect.Create(src.Left, src.Top, src.Width, src.Height),
+                            Linear, strokePaint);
+                    }
                 }
-
-                canvas.DrawBitmap(overlay.Scratch, 0, 0, overlayPaint);
-                overlayPaint.Dispose();
-                canvas.Restore();
             }
+
+            if (needsIsolation) canvas.Restore();
         }
 
+        canvas.Restore();
         canvas.Flush();
-        var image = surface.Snapshot();
-        surface.Dispose();
-
-        return image;
+        return surface.Snapshot();
     }
+
+    /// <summary>A pass drawn in full — a windowed reference cell, or one under its own matrix.</summary>
+    private static void DrawWhole(SKCanvas canvas, RenderPass pass, SKPaint? paint)
+    {
+        using var img = SKImage.FromBitmap(pass.Bitmap);
+        if (img is null) return;
+        if (pass.Source is { } window)
+        {
+            canvas.DrawImage(
+                img, window, SKRect.Create(window.Width, window.Height), Linear, paint);
+        }
+        else
+        {
+            canvas.DrawImage(img, 0, 0, Linear, paint);
+        }
+    }
+
+    private static readonly SKSamplingOptions Linear = new(SKFilterMode.Linear);
 
     /// <summary>
     /// Convert the document rectangle a publish repainted into the image's own
