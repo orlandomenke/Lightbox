@@ -17,9 +17,8 @@ your first strokes.
 A **start screen** appears over that offering three things: the New file
 fields, the New project fields, and what you had open last. **Escape** declines
 it — you are on the empty workspace, and the same choices are waiting on it and
-under **File**. *Don't show this again* turns the start screen off, and
-*Edit → Ask what to open on start-up* turns it back on; the empty workspace's
-buttons are not affected by either.
+under **File**. *Edit → Ask what to open on start-up* turns the screen off and
+back on; the empty workspace's buttons are not affected by it.
 
 Closing the last tab returns you to the same place: the workspace empties and
 the same what-to-open question is asked once, rather than a fresh untitled
