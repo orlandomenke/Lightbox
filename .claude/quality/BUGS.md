@@ -1026,6 +1026,25 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B138** `P2` `ui` The tab highlight and the docker showing disagree after a switch `evidence: TabSwitchCrashTests, TheHighlightedTabIsTheDockerThatIsShowing`
+  - Repro: tab two panels together and switch between them a few times — the active docker is visible while its tab sits unlit (reported as "the inactive has the highlight"; the strip's real state is *no* selection, which leaves whatever visual state the eye lands on looking wrong).
+  - Cause: the B127 fix bound the strip's `SelectedValue` to `ActiveTab` in the template, and it works exactly once per docker. Re-binding `Tabs` during a layout rebuild makes the ListBox clear its own selection, and that clear is a **local value — which outranks a template binding permanently** in Avalonia's priority order. Every later push of `ActiveTab` through the binding was silently shadowed.
+  - Fix: `Docker.SyncStripSelection()` — the selection is written in code from `ShowTabs` and on template application, under the same applying-flag the rest of the host writes use. A local value is only beaten by another local value.
+  - The test asserts the strip's **lights**, where the crash tests assert its **content** — four switches, because the first one passes even when broken.
+  - Cost: S
+
+- [x] **B137** `P2` `ui` The slider's hairline track rides low against the label beside it `evidence: SliderTrackAlignmentTests, TheTrackRidesTheVerticalCentreOfTheSlider`
+  - Repro: any row that pairs a label or field with a slider — the Layers top bar, the brush parameter rows. The 3px track sits visibly below the text's centre line.
+  - Cause: Fluent's slider template reserves **15px above and 15px below the track**, as fixed grid rows for tick bars nothing in this application shows. Inside our 24px slider the geometry cannot even fit, and the track assembly pinned 15px from the top. The earlier `VerticalAlignment` fixes on `SliderContainer` and `Track` were aimed at the right symptom and the wrong mechanism — alignment cannot win against a fixed row height.
+  - Fix: the row heights are the dynamic resources `SliderPreContentMargin`/`SliderPostContentMargin`; `Theme.axaml` sets both to `*`, so the track row centres by construction at any slider height instead of at one blessed one.
+  - Cost: S
+
+- [x] **B136** `P2` `ui` The digits in a numeric field sit low and lose their bottoms `evidence: FieldShapeTests, TheDigitsSitCentredInTheField`
+  - Repro: any 22px numeric field — the Layers opacity box is the easiest. "100" renders with the bottoms of the digits cut off, low enough to be unreadable.
+  - Cause: Fluent's theme padding for text controls is `10,6,6,5` — eleven vertical pixels, which in a 22px field leaves less room than one line box. The value flows from the control's own `Padding` template-bound into the inner TextBox, so no amount of styling the inner parts could touch it: **an inline template value outranks a style setter in Avalonia** (Template sits above Style in the priority order, unlike WPF). The probe that found it printed the template's padding where ours was expected.
+  - Fix: `Padding="6,0"` on the `NumericUpDown` density rule — the control's own property is the one thing the template binding reads from. Vertical centring then has room to do its job.
+  - Cost: S
+
 - [x] **B128** `P2` `ui` The palette never reached the theme, so every stock control still paints Windows blue `evidence: PaletteTests, TheThemeAgreesWithThePalette, TheThemePaletteIsWrittenInHexOnPurpose`
   - Repro: open any docker. The eye and lock toggles, every slider thumb, checkboxes, radios, focus rings and list selection are `#0078D7`. Open any dialog: pure black. Sampled, not squinted at — the opacity slider read `#FF6A3D` on the track and `#0078D7` on the thumb, twelve pixels apart.
   - Cause: `App.axaml` had a bare `<FluentTheme />`. **Tokenising the views only reaches surfaces somebody aimed at a token**; stock controls resolve their colours from the *theme's* palette, and Fluent's accent is Windows blue and its region colour is black. The application wore two colour systems, and one control wore both at once.

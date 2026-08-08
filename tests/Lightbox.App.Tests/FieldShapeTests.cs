@@ -91,6 +91,35 @@ public class FieldShapeTests
     }
 
     [AvaloniaFact]
+    public void TheDigitsSitCentredInTheField()
+    {
+        // B136. Fluent's theme padding is "10,6,6,5" — eleven vertical pixels,
+        // which in a 22px field leaves less than one line box of room. The
+        // digits sat low and lost their bottoms: "100" read as unreadable
+        // stumps. The padding flows template-bound from the control's own
+        // Padding into the inner TextBox, so the control's Padding is the one
+        // property that reaches it — styling the inner parts directly loses to
+        // the template binding (Template outranks Style in Avalonia).
+        Host(out _, out var num, out _);
+
+        var presenter = num.GetVisualDescendants()
+            .OfType<Avalonia.Controls.Presenters.TextPresenter>().First();
+        double top = 0;
+        for (Visual? n = presenter; n is not null && !ReferenceEquals(n, num); n = n.GetVisualParent())
+        {
+            top += n.Bounds.Y;
+        }
+
+        var centred = (num.Bounds.Height - presenter.Bounds.Height) / 2;
+        Assert.True(Math.Abs(top - centred) <= 1.0,
+            $"the text sits at y={top:F1} in a {num.Bounds.Height} field; centred would be {centred:F1}");
+        // And it fits. A line pushed down far enough is also clipped, and a
+        // centred-but-overflowing line would pass the assertion above.
+        Assert.True(top >= -0.5 && top + presenter.Bounds.Height <= num.Bounds.Height + 0.5,
+            $"the {presenter.Bounds.Height}px line overflows the {num.Bounds.Height}px field from y={top:F1}");
+    }
+
+    [AvaloniaFact]
     public void AFieldIsAWellRatherThanARaisedSurface()
     {
         // The reversal, stated as the rule rather than as a colour: a field

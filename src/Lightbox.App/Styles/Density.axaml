@@ -49,6 +49,15 @@
     <Setter Property="Height" Value="22" />
     <Setter Property="FontSize" Value="11" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <!--
+      The theme's default is "10,6,6,5" — 11px of vertical padding, which in a
+      22px field leaves less than one line box of room, so the digits sat low
+      and lost their bottoms. The value flows template-bound into the inner
+      TextBox, so this is the one property that reaches it; styling the inner
+      parts directly loses to the template binding (Template outranks Style
+      in Avalonia, unlike WPF).
+    -->
+    <Setter Property="Padding" Value="6,0" />
     <!-- Every numeric field scrubs: press and drag sideways. Set here so it
          is true of all of them rather than the ones somebody remembered. -->
     <Setter Property="controls:ValueDrag.Enabled" Value="True" />
@@ -108,6 +117,7 @@
   <Style Selector="NumericUpDown /template/ TextBox">
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="NumericUpDown /template/ TextBox /template/ Border#PART_BorderElement">
     <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
@@ -399,8 +409,8 @@
     there, never the height, so the column keeps one rhythm at both widths.
   -->
   <Style Selector="ToggleButton.tool">
-    <Setter Property="Height" Value="28" />
-    <Setter Property="MinHeight" Value="28" />
+    <Setter Property="Height" Value="26" />
+    <Setter Property="MinHeight" Value="26" />
     <Setter Property="Margin" Value="1" />
     <Setter Property="Padding" Value="4,0" />
     <Setter Property="FontSize" Value="12" />

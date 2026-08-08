@@ -377,7 +377,11 @@
     <Setter Property="Stretch" Value="Fill" />
     <Setter Property="HorizontalAlignment" Value="Right" />
     <Setter Property="VerticalAlignment" Value="Bottom" />
-    <Setter Property="Margin" Value="0,0,1,1" />
+    <!-- The mark pins to the BUTTON's corner, not the content box: the
+         button pads its content 4px horizontally, so without the negative
+         margin the wedge floated toward the centre. -3 backs out the
+         padding and leaves the same 1px breath it has vertically. -->
+    <Setter Property="Margin" Value="0,0,-3,1" />
     <Setter Property="IsHitTestVisible" Value="False" />
   </Style>
 
@@ -389,8 +393,8 @@
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
     <Setter Property="Stretch" Value="Uniform" />
-    <Setter Property="Width" Value="16" />
-    <Setter Property="Height" Value="16" />
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
   </Style>
   <Style Selector="ToggleButton.tool:checked Path:not(.variantmark)">
     <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2919 tests, derived from the suite itself. Each line is a
+2922 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -857,7 +857,8 @@ regression even when every test still compiles.
 
 - Every Field Is The Same Shape As Every Other One — `:53`
 - The Inner Text Box Fits Inside The Field That Hosts It — `:75`
-- AField Is AWell Rather Than ARaised Surface — `:94`
+- The Digits Sit Centred In The Field — `:94`
+- AField Is AWell Rather Than ARaised Surface — `:123`
 
 ## FileRevealTests
 `tests/Lightbox.App.Tests/FileRevealTests.cs`
@@ -1964,6 +1965,11 @@ regression even when every test still compiles.
 - ABody Medium Stays Opaque — `:126`
 - Pigment Density Reads Like AConcentration — `:142`
 
+## SliderTrackAlignmentTests
+`tests/Lightbox.App.Tests/SliderTrackAlignmentTests.cs`
+
+- The Track Rides The Vertical Centre Of The Slider — `:28`
+
 ## DeltaCommitTests
 `tests/Lightbox.App.Tests/SmoothingAndCommitTests.cs`
 
@@ -2272,7 +2278,8 @@ regression even when every test still compiles.
 
 - Switching Back And Forth Between Tabs Does Not Crash — `:62`
 - The Other Pair In The Report Behaves The Same Way — `:87`
-- The Docker Showing After ASwitch Is The One In The Strip — `:103`
+- The Highlighted Tab Is The Docker That Is Showing — `:103`
+- The Docker Showing After ASwitch Is The One In The Strip — `:133`
 
 ## TemplateUiTests
 `tests/Lightbox.App.Tests/TemplateUiTests.cs`

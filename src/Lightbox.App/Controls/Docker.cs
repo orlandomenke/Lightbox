@@ -134,7 +134,38 @@ public class Docker : ContentControl
 
         if (_tabs is not null) _tabs.SelectionChanged -= OnTabPicked;
         _tabs = e.NameScope.Find<ListBox>("PART_Tabs");
-        if (_tabs is not null) _tabs.SelectionChanged += OnTabPicked;
+        if (_tabs is not null)
+        {
+            _tabs.SelectionChanged += OnTabPicked;
+            // The template can apply after the host has already written the
+            // tabs in, so the strip starts life with whatever is current.
+            SyncStripSelection();
+        }
+    }
+
+    /// <summary>
+    /// Point the strip's highlight at <see cref="ActiveTab"/>, in code.
+    /// </summary>
+    /// <remarks>
+    /// <b>B138: the template binding cannot do this job.</b> The template binds
+    /// <c>SelectedValue</c> to <see cref="ActiveTab"/>, and it worked exactly
+    /// once per docker: re-binding <see cref="Tabs"/> makes the ListBox clear
+    /// its own selection, and that write is a <em>local</em> value — which
+    /// outranks a template binding permanently in Avalonia. From then on the
+    /// active docker was visible while its tab sat unlit. A local value is
+    /// only beaten by another local value, so the sync lives here.
+    /// </remarks>
+    private void SyncStripSelection()
+    {
+        if (_tabs is null) return;
+        var current = Tabs?.FirstOrDefault(t => t.Id == ActiveTab);
+        if (!ReferenceEquals(_tabs.SelectedItem, current))
+        {
+            var was = _applying;
+            _applying = true;
+            try { _tabs.SelectedItem = current; }
+            finally { _applying = was; }
+        }
     }
 
     /// <summary>
@@ -212,6 +243,7 @@ public class Docker : ContentControl
         {
             Tabs = tabs;
             ActiveTab = active;
+            SyncStripSelection();
         }
         finally
         {
