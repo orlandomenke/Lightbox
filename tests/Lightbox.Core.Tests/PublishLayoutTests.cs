@@ -54,13 +54,23 @@ public class PublishLayoutTests(ITestOutputHelper output)
     /// The workflow with its comments stripped — what the runner acts on.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Only for absence checks, and for reading the publish lines: the comment
     /// above those steps explains the folder the server moved out of, so a raw
     /// search for the old path finds the explanation and reports it as the
     /// thing being explained.
+    /// </para>
+    /// <para>
+    /// <b>`release.yml`, not `build.yml`.</b> The publish steps moved there when
+    /// bundles stopped being built on every push — one tag or one button now,
+    /// rather than a throwaway artifact per commit. These assertions follow the
+    /// steps rather than the file, because what they guard is the shape of the
+    /// bundle (the server in its own folder, embedded debug info) and that is
+    /// true wherever it is built.
+    /// </para>
     /// </remarks>
     private static string WorkflowDirectives() =>
-        string.Join("\n", Read(".github", "workflows", "build.yml")
+        string.Join("\n", Read(".github", "workflows", "release.yml")
             .ReplaceLineEndings("\n")
             .Split('\n')
             .Select(line =>
