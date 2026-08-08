@@ -519,6 +519,21 @@ def cmd_check() -> int:
     clashing_questions = duplicate_questions()
     partial = [b for b in bugs if b.partly_resolved]
 
+    # `manual` is matched as EXACTLY ["manual"], so naming it alongside a real
+    # anchor silently drops an entry out of every category above: not manual, so
+    # it leaves the verify-by-hand list a person reads; and `manual` itself is
+    # then looked up as a code symbol, which can never resolve, so the checkbox
+    # stays open for an accidental reason rather than a stated one.
+    #
+    # Found by making the mistake: B30 gained `evidence: PaintingRebuild, manual`
+    # when its measurement moved into the bench, and vanished from the report
+    # without changing its mark. Nothing was wrong in the file and nothing was
+    # reported — the shape of failure this whole script exists to refuse.
+    #
+    # A supporting measurement belongs in the entry's prose, where B30 now names
+    # the scenario in a sentence rather than in an anchor slot.
+    mixed_manual = [b for b in bugs if "manual" in b.evidence and not b.manual]
+
     # The other half of the merge failure, and the half nothing used to look for.
     # Reported here as well as in `ids` so a push to main is checked even when the
     # hook was bypassed — which is exactly the push that matters.
@@ -548,6 +563,11 @@ def cmd_check() -> int:
         print(f"               resolves {', '.join(bug.resolved)} but not {', '.join(bug.missing)}")
         print("               half-landed fix, a bug filed ahead of its tests, or a name that "
               "can never resolve — a private method is invisible here")
+    for bug in mixed_manual:
+        others = ", ".join(a for a in bug.evidence if a != "manual")
+        print(f"  MIXED MANUAL {bug.id}  'manual' named beside {others}")
+        print("               'manual' must stand alone or it is treated as a code anchor, "
+              "and the entry falls out of every report — put the measurement in the prose")
     for bug in wrong_domain:
         print(f"  BAD DOMAIN   {bug.id}  '{bug.domain}' is not one of {sorted(DOMAINS)}")
     for bug_id, clashing in duplicates.items():
@@ -570,7 +590,8 @@ def cmd_check() -> int:
             print(f"               missing: {', '.join(bug.missing)}")
 
     # `partial` is deliberately absent from this condition — see `partly_resolved`.
-    if drifted or unverifiable or wrong_domain or duplicates or clashing_questions or lost:
+    if (drifted or unverifiable or wrong_domain or duplicates or clashing_questions
+            or lost or mixed_manual):
         # sync fixes drift and placement; the rest need a person, so say so honestly
         # rather than pointing at a command that will not help.
         if drifted:

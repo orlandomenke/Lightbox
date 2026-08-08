@@ -1,9 +1,18 @@
 # The raster checkpoint: making a painting cheap to reopen
 
-Status: **design only, nothing built.** Opened 2026-08-08 after B30 was measured
-against a painting rather than a frame of line art. The decision to design before
-implementing was deliberate: this adds a cache *inside* the artwork, and a cache
-that can be silently wrong is worse than one that is slow.
+Status: **designed and decided, nothing built.** Opened 2026-08-08 after B30 was
+measured against a painting rather than a frame of line art; the five open
+decisions were answered the same day and are recorded in **Q56**. The decision to
+design before implementing was deliberate: this adds a cache *inside* the artwork,
+and a cache that can be silently wrong is worse than one that is slow.
+
+| | Decided |
+| --- | --- |
+| Where the pixels live | **In the document**, in a new field beside the strokes |
+| When one is taken | **On save, rendered on a background thread** — the save returns first |
+| What invalidates it | **Any edit it covers drops it**; the next save makes a fresh one |
+| Undo limit | **A memory budget, not a step count** |
+| The clone stall found on the way | **Filed as B138**, fixed separately |
 
 ## The problem, measured
 
@@ -141,64 +150,143 @@ It also calls itself *"the one thing in the record that is pixels rather than
 instructions"*, which a checkpoint would become the second of. That sentence
 should be updated rather than quietly falsified.
 
-## The open shape
+## How everybody else avoids this problem
 
-Enough is settled to name the decisions rather than guess at them. Recommendation
-marked in each case; costs stated for the alternatives.
+Worth writing down because it reframes the whole thing: **no comparable
+application solves this. They each give up one of the two properties Lightbox
+insists on.**
 
-### Where the pixels live
+| | Document is | One mark costs | So reopening is |
+| --- | --- | --- | --- |
+| Photoshop, Krita, GIMP, Procreate, TVPaint | **pixels** | irrelevant, pixels are stored | fast: load the buffers |
+| Illustrator, Inkscape, Affinity Designer | **geometry** | cheap — a filled path, no per-dab stamping | fast: replay is trivial |
+| Blender Grease Pencil | **geometry** | expensive, but on the **GPU**, redrawn every frame | fast: never cached |
+| **Lightbox** | **geometry** | **expensive, per-dab, on the CPU** | **slow — nobody else sits here** |
 
-- **(a) In the document, in a new nullable field beside the strokes.** Simple,
-  travels with the file, survives being copied to another machine. Cost: file
-  size grows by a full-canvas PNG per checkpointed cel, and a `.lightbox.json`
-  goes from megabytes to tens.
-- **(b) In a sidecar cache file next to the document, or under the project.**
-  *Recommended.* The document stays exactly what it is — no format change, no
-  size growth, nothing new to migrate, and a cache that is obviously a cache is
-  harder to mistake for art. It is also deletable as a support action: "throw
-  the cache away and reopen" is a repair an artist can perform. Cost: a
-  document mailed to somebody else arrives without its checkpoint and pays the
-  replay once; the cache needs a location convention and an eviction policy.
+Lightbox chose textured per-dab marks *and* the stroke record as the truth. That
+intersection is the whole differentiator and the whole bill.
 
-Q55's reasoning applies almost verbatim — *"with nothing committed there is
-nothing to drift, nothing to merge and nothing to verify"* — and it argued for
-keeping derived artefacts out of the tracked file. This is the same argument
-pointed at a document instead of a repository.
+- **Photoshop.** Pixels, tiles, scratch disk — and a `.psd` stores a
+  **pre-composited flattened image alongside the layer data** so other
+  applications can preview it. That is a raster checkpoint, shipped since 1990.
+  History states are deltas on the scratch disk and are **bounded** (default
+  around 50), which is Adobe reaching the same conclusion as Q56 about undo depth.
+- **Krita.** Paint layers are tiled pixels with copy-on-write and a pool that
+  swaps to disk; a `.kra` is essentially a zip of per-layer images; undo commands
+  hold only the tiles they changed. It also has an instant-preview level-of-detail
+  mode for large canvases — the same idea as rung 1 in
+  `docs/DESIGN-4k-playback-and-8k.md`, which has landed. **And its vector layers
+  do not get the brush engine**, which is the trade Lightbox refused.
+- **Illustrator.** Geometry, and it gets away with it because its primitives are
+  cheap. Where they stop being cheap — gradient meshes, blends, blur — it caches
+  raster previews at a document raster-effects resolution, and offers **Expand**
+  and **Rasterize** as explicit destructive escapes. `.ai` also embeds a PDF
+  stream: again a derived copy stored beside the source.
+- **Blender Grease Pencil.** The closest structural relative: point lists with
+  pressure, rendered by a GPU engine every frame, no checkpoint because the render
+  is fast enough to keep redoing. **That route is already closed here**, and
+  deliberately — `docs/DESIGN-4k-playback-and-8k.md` rejects GPU stamping because
+  GPU rasterization is not bit-identical across drivers, generations or operating
+  systems, which under invariant 2 is flicker on a replayed sequence; and because
+  smudge and the wet media read pixels back per dab, which on a GPU is a
+  round-trip per dab.
 
-### When a checkpoint is taken
+**The pattern that decided Q56's first question.** Every application offering
+geometry-as-truth restricts mark quality on those layers, and every application
+that keeps full mark quality stores the pixels. Nobody makes replay fast — they
+stop replaying. The initial recommendation here was a sidecar cache, reasoning
+from Q55's logic about derived artefacts; the industry went the other way and
+portability is why, so **in-document won**.
 
-- **(a) On save.** Predictable, and the artist is already waiting.
-  *Recommended*, with the render on a background thread so a save does not block
-  drawing.
-- **(b) Every N strokes.** Bounds the worst case tightly, but pays repeatedly
-  during work, which is the one moment that must stay cheap (invariant 6).
-- **(c) On idle.** Best of both in theory; needs an idle notion the app does not
-  currently have.
+Confidence: the architectural claims are firm. Specific figures — Photoshop's
+default history count, Krita's tile size — are from memory and would want checking
+before anything depends on them. Toon Boom Harmony is the closest commercial
+analogue (vector drawings, textured brushes, for animation) and is the one whose
+internals are least known here.
 
-### How it is invalidated
+## The decisions
 
-The hard half. A checkpoint is valid for a specific *prefix* of the record, so
-it has to name that prefix in a way that cannot be forged. Sketch: store the
-stroke count it covers plus a hash of those strokes' ids in order, and accept the
-checkpoint only when the frame's leading strokes still hash the same. An
-`AfterStrokeEdit`-style hook already exists for the selection actions and is the
-natural place to drop a stale one.
+Q56 carries the reasoning; this is what they mean for the build.
 
-**What must be true regardless of the answers**, because these are the
-invariants rather than the preferences:
+### The pixels live in the document
+
+A new nullable field beside the strokes — **not `PngBase64`**, for the three
+reasons above. Absent unless used, so a document that never checkpoints
+serializes exactly as it does today.
+
+The cost accepted: the file grows by roughly one full-canvas PNG per checkpointed
+cel, so a big painting goes from a few megabytes to tens. Taken knowingly, because
+a document that arrives on another machine without its checkpoint is a document
+that opens in 106 seconds, and PSD and `.kra` both made the same call.
+
+### Taken on save, rendered on a background thread
+
+The save writes the record and returns immediately; the snapshot renders off-thread
+and is attached when it finishes. Saving must never stall — that is the constraint
+this was chosen against.
+
+The consequence, stated: quit straight after saving and the checkpoint may be
+missing. Harmless by construction — a missing checkpoint is a slow open, never a
+wrong one.
+
+### Any edit it covers drops it
+
+Touch a stroke the checkpoint includes and the checkpoint is discarded; the next
+save makes a fresh one. One slow reopen, then fast again.
+
+Deliberately the coarsest of the three options considered. Keeping several
+checkpoints at different depths would preserve the fast path more often and costs
+several full-canvas images per cel plus a much subtler invalidation — and
+invalidation is the half that fails by **showing stale art**, which this ledger
+ranks worse than being slow. Coarse and obviously-correct wins.
+
+Mechanically: store the count of strokes covered plus an ordered hash of their
+ids, and accept the checkpoint only when the frame's leading strokes still hash
+the same. `AfterStrokeEdit` already exists as the funnel the selection actions go
+through and is where the drop belongs.
+
+### Undo is bounded by memory, not by step count
+
+Measured, because the intuition here is wrong too. On a 5 000-stroke painting:
+
+| step kind | pushed in | held per step | undo cost |
+| --- | ---: | ---: | ---: |
+| Delta — every brush stroke | ~0.002 ms | ~0.9 KB | **0.07 ms** |
+| Snapshot — every structural edit | **615 ms** | 2.85 MB | forces a full rebuild |
+
+500 delta steps push in 1 ms, hold **433 KB total**, and undo at 0.07 ms each.
+**Depth is free for painting**, so a step count prices a cost that is not there —
+while 500 *snapshots* would hold 1.4 GB. So the limit is a byte budget with a
+generous step ceiling, the way the frame cache is already budgeted: painting gets
+its hundreds of steps for under a megabyte, and a snapshot-heavy session
+self-limits.
+
+`MaxUndo` is 64 today and appears in no UI. Raising it and exposing it is a
+separate, smaller piece of work than this design; it is named here so the number
+stops being invisible.
+
+### The stall found on the way is B138
+
+Measuring undo turned up something worse than undo: `DocumentEditor.Perform`
+pushes `SnapshotStep(DocJson.Clone(Doc))`, so **every structural edit
+serialize-and-deserializes the entire document** — 615 ms warm and ~1.1 s cold at
+5 000 strokes, 72.5 MB allocated. Adding a layer to a painting freezes.
+
+Filed as **B138** rather than folded in here: B30 is pixel replay, this is record
+cloning, and one fix does not touch the other. They compound, because a snapshot
+undo restores a whole document tree and then forces the rebuild B30 measures.
+
+### What must be true regardless
 
 - **A missing or unreadable checkpoint is not an error.** It degrades to a full
-  replay, silently. This is B137 with a second caller: today unreadable pixels
-  throw out of `Materialize` and take the repaint down.
-- **Deleting every checkpoint changes no pixel.** The test writes itself: render
-  a document with and without, compare bytes. If that ever fails, the cache has
-  become the source of truth and invariant 1 is gone.
-- **A checkpoint is never authored, exported, or sent to a model.** It is not
-  content. `ProjectIo.Flatten` and every export path must ignore it and work
-  from the record.
-- **It is per cel, not per document.** A painting is one cel, but the machinery
-  belongs where the strokes are, or an animation with one heavy cel cannot use
-  it.
+  replay, silently. B137 with a second caller.
+- **Deleting every checkpoint changes no pixel.** Render with and without, compare
+  bytes. If that ever fails the cache has become the source of truth and invariant
+  1 is gone.
+- **A checkpoint is never authored, exported, or sent to a model.** `Flatten` and
+  every export path work from the record.
+- **It is per cel, not per document**, or an animation with one heavy cel cannot
+  use it.
 
 ## Not in this design
 

@@ -167,6 +167,7 @@ public static class AnimationSweeps
         yield return OnionDepth();
         yield return StrokesPerFrame();
         yield return PaintingRebuild();
+        yield return UndoSnapshot();
         yield return SceneLength();
         yield return Playback();
         yield return Scrubbing();
@@ -581,6 +582,59 @@ public static class AnimationSweeps
             // Three, not fifteen. A 2000-stroke painterly rebuild is ~20 s, so the
             // default would make one row an eight-minute job for a p95 that adds
             // nothing — the variance here is far below the effect being measured.
+            Iterations = 3,
+            Warmup = 1,
+        };
+    }
+
+    /// <summary>
+    /// What one undo step costs when it is a snapshot rather than a delta.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two kinds of undo step, and only one of them is cheap.</b> A stroke commit
+    /// goes through <c>DocumentEditor.PerformDelta</c> — a pair of closures, pushed
+    /// in microseconds. A structural edit goes through <c>Perform</c>, which pushes
+    /// <c>new SnapshotStep(DocJson.Clone(Doc))</c>: a serialize-and-deserialize of
+    /// the *entire document*. On a painting that is the whole stroke record, so the
+    /// cost of adding a layer grows with everything already painted.
+    /// </para>
+    /// <para>
+    /// <c>DocumentEditor</c>'s own remark called this out — <em>"Snapshots are JSON
+    /// clones — cheap at pencil-test scale"</em> — and it is right about the scale it
+    /// names. This scenario measures the scale past it. Filed as B138.
+    /// </para>
+    /// <para>
+    /// Measured as pushed-per-action rather than as a stack: depth turns out not to
+    /// be the interesting axis. 500 delta steps hold well under a megabyte and undo
+    /// at 0.07 ms each, so a step *count* limit prices a cost that is not there —
+    /// what wants bounding is bytes, and this is the row that says how many.
+    /// </para>
+    /// </remarks>
+    private static Scenario UndoSnapshot()
+    {
+        Doc? doc = null;
+
+        return new Scenario(
+            "Snapshot the document for one undo step",
+            "strokes",
+            [500, 2000, 5000],
+            Cadence.PerAction,
+            Setup: n =>
+            {
+                doc = DocumentFactory.CreateDoc(2000, 1500, 12);
+                var frame = doc.Scene.Layers[^1].Cels[0].Frame!;
+                frame.Strokes.AddRange(Painting(n, seed: 11).Strokes);
+                return null;
+            },
+            Work: _ =>
+            {
+                var clone = Lightbox.Core.Serialization.DocJson.Clone(doc!);
+                GC.KeepAlive(clone);
+            },
+            Note: "Paid by every structural edit — add a layer, edit a palette, apply a template. "
+                + "A stroke commit does NOT pay this: it pushes a delta instead.")
+        {
             Iterations = 3,
             Warmup = 1,
         };
