@@ -1,6 +1,6 @@
 # Code index
 
-560 files · 148541 lines · 2934 tests.
+562 files · 148658 lines · 2936 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -119,6 +119,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
   - CurveEditor:29
+- `src/Lightbox.App/Rendering/LayerStackBake.cs` (266 ln) · 2 test files
+  - LayerStackBake:68, Segment:74
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 3 test files
   - ComposeRing:31, Buffer:33
 - `src/Lightbox.App/Services/ShortcutMap.cs` (264 ln) · 7 test files
@@ -130,8 +132,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
 - `src/Lightbox.App/Styles/Palette.axaml` (251 ln) · **no tests**
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
-- `src/Lightbox.App/Rendering/LayerStackBake.cs` (250 ln) · 2 test files
-  - LayerStackBake:54, Segment:60
 - `src/Lightbox.App/App.axaml` (248 ln) · **no tests**
   - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
@@ -383,7 +383,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolUse:9, SymbolUsage:12, SymbolGraph:46
 - `src/Lightbox.Core/Documents/CollisionShapes.cs` (157 ln) · 5 test files
   - CollisionShapes:21
-- `src/Lightbox.Core/Documents/Stroke.cs` (156 ln) · 105 test files
+- `src/Lightbox.Core/Documents/Stroke.cs` (156 ln) · 106 test files
   - Stroke:9, BakedSample:148
 - `src/Lightbox.Core/Documents/Camera.cs` (146 ln) · 6 test files
   - CameraKey:10, Camera:46, CameraOps:65
@@ -532,7 +532,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokeIndex:37
 - `src/Lightbox.Raster/BrushTipOutline.cs` (150 ln) · 1 test files
   - BrushTipOutline:42
-- `src/Lightbox.Raster/FrameRasterizer.cs` (136 ln) · 28 test files
+- `src/Lightbox.Raster/FrameRasterizer.cs` (140 ln) · 29 test files
   - FrameRasterizer:10
 - `src/Lightbox.Raster/Tips/TipCatalogue.cs` (135 ln) · 4 test files
   - TipCatalogue:32
@@ -546,6 +546,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolRegistry:24
 - `src/Lightbox.Raster/BrushTipRegistry.cs` (51 ln) · 6 test files
   - BrushTipRegistry:12
+- `src/Lightbox.Raster/BitmapVersion.cs` (50 ln) · 1 test files
+  - BitmapVersion:34, Counter:36
 - `src/Lightbox.Raster/ReferenceStripRegistry.cs` (50 ln) · **no tests**
   - ReferenceStripRegistry:22
 - `src/Lightbox.Raster/BlendModes.cs` (49 ln) · 37 indirect only

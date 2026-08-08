@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2934 tests, derived from the suite itself. Each line is a
+2936 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -3669,6 +3669,12 @@ regression even when every test still compiles.
 - Without The Lock The Same Stroke Spills Outside — `:77`
 - The Flag Survives AClone And ARound Trip — `:85`
 - Re Rendering The Whole Frame Reproduces The Mask Without Storing It — `:98`
+
+## BitmapVersionTests
+`tests/Lightbox.Raster.Tests/BitmapVersionTests.cs`
+
+- An Untouched Bitmap Is Version Zero And Bumps Count — `:14`
+- Append Bumps The Layer It Stamps Into — `:33`
 
 ## BrushDynamicsTests
 `tests/Lightbox.Raster.Tests/BrushDynamicsTests.cs`

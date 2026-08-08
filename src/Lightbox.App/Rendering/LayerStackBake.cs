@@ -27,14 +27,28 @@ namespace Lightbox.App.Rendering;
 /// the exotic one stays correct.
 /// </para>
 /// <para>
-/// <b>The key is reference identity, which the frame cache provides.</b>
-/// A segment's identity is the sequence of (bitmap instance, tint, opacity,
-/// blend, source rect) of its passes. Layer bitmaps come from
-/// <see cref="FrameBitmapCache"/>, which returns the same instance until the
-/// frame is invalidated — so "nothing beneath me changed" is a list of
-/// reference comparisons, not a pixel diff. Editing a background layer
-/// invalidates its frame, the cache hands back a new bitmap, the key no
-/// longer matches, and the bake rebuilds. Nothing subscribes to anything.
+/// <b>The key is bitmap identity plus content version — identity alone is a
+/// trap here.</b> Committing a stroke does not replace the cached layer
+/// bitmap; <c>FrameRasterizer.Append</c> stamps into it in place (bounded
+/// work, invariant 6), so an instance survives its pixels changing.
+/// <c>Lightbox.Raster.BitmapVersion</c> carries the content version the
+/// mutator bumps, and it joins every reference in the key. Nothing
+/// subscribes to anything: a re-render is a new instance, an in-place edit
+/// is a new version, and either way the key misses and the bake rebuilds.
+/// </para>
+/// <para>
+/// <b>Honest note: the version half is defence, not a tested fix.</b> The
+/// stale-bake trap could not be sprung through today's public API — in-place
+/// commits only reach the <em>active</em> layer, and making a layer active
+/// reshapes the segments, which disposes or rebuilds the bake before a stale
+/// key can match. Every attempt at the failing test came back green with the
+/// version deleted. It is kept because the reachability argument is
+/// incidental — one new in-place mutation path that does not route through
+/// active-layer segmentation (a background eraser, an AI edit stamping into
+/// a cached bitmap) makes it load-bearing, and stale art is wrong quietly.
+/// Same standing as the ComposeRing invalidation note in
+/// <c>PublishSnapshot</c>: do not delete it as dead on the strength of the
+/// tests passing without it.
 /// </para>
 /// <para>
 /// <b>Folding waits for the second consecutive publish with the same key.</b>
@@ -54,7 +68,7 @@ namespace Lightbox.App.Rendering;
 public sealed class LayerStackBake : IDisposable
 {
     private readonly record struct PassKey(
-        SKBitmap Bitmap, SKColor? Tint, double Opacity, SKBlendMode Blend,
+        SKBitmap Bitmap, long Version, SKColor? Tint, double Opacity, SKBlendMode Blend,
         SKMatrix? Matrix, SKRectI? Source);
 
     private sealed class Segment : IDisposable
@@ -233,7 +247,9 @@ public sealed class LayerStackBake : IDisposable
         var key = new List<PassKey>(passes.Count);
         foreach (var p in passes)
         {
-            key.Add(new PassKey(p.Bitmap, p.Tint, p.Opacity, p.Blend, p.Matrix, p.Source));
+            key.Add(new PassKey(
+                p.Bitmap, Lightbox.Raster.BitmapVersion.Of(p.Bitmap),
+                p.Tint, p.Opacity, p.Blend, p.Matrix, p.Source));
         }
         return key;
     }
