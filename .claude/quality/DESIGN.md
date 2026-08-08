@@ -355,10 +355,19 @@ panel", not to five useless slivers. Tabbing (below) remains the real
 answer to a crowded side.
 
 **Panels may share a slot as tabs**, and that is the other half of the rule
-above. Five stacked dockers means five heights and a scroll; five in two slots
-means two. A group is not a thing that exists — it is the panels currently
-sharing a slot, and a slot of one is an ordinary docker that renders as a plain
-title, so nothing about an untabbed panel changes.
+above. Five stacked dockers means five slivers; five in two slots means two
+comfortable panels. A group is not a thing that exists — it is the panels
+currently sharing a slot. **A slot of one wears its title as a tab too** (the
+owner's reversal of "renders as a plain title"): one header treatment
+everywhere, and dropping a panel onto any docker reads as joining tabs that
+are already there. The one wrinkle that buys is in `Docker.LandedOnAControl`
+— a lone tab is a grip, not a control, or the panel cannot be dragged at all.
+
+**Dropping onto a docker's body joins its tabs** — full width, full height,
+previewed over the whole panel. The half-panel insert targets are gone (the
+owner: a dead lower half, and a top target that should have been the entire
+docker). Inserting into the stack lives in a slim sliver at each panel
+boundary, kept only so a stack can be reordered and a group split.
 
 **Tab what is used alternately, never what is used together.** Colour, palette
 and gradient answer one question and you want one at a time. The layers list and

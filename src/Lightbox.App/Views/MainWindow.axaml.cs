@@ -379,7 +379,12 @@ public partial class MainWindow : Window
                 // One call, not two assignments: between them the strip holds a
                 // new tab list against an old active id, and the docker used to
                 // read that as a click. See Docker.ShowTabs and B132.
-                panel.ShowTabs(usable.Count > 1 ? usable.Select(DockPanels.Of).ToList() : null, active);
+                //
+                // A slot of ONE also gets the list — the owner wants the tabbed
+                // header even when a docker stands alone, so every panel wears
+                // one treatment and dropping another onto it reads as joining
+                // tabs that are already there.
+                panel.ShowTabs(usable.Select(DockPanels.Of).ToList(), active);
                 panels.Add(panel);
             }
             foreach (var panel in panels) Detach(panel);

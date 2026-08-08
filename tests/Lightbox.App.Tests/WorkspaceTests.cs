@@ -180,7 +180,7 @@ public sealed class WorkspaceTests : BrushStateIsolated
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         var docker = Strip(w, DockSide.Right).Children.OfType<Docker>()
-            .First(d => d.Tabs is not null);
+            .First(d => d.Tabs?.Count() > 1);
         var strip = docker.GetVisualDescendants().OfType<ListBox>().First();
         var items = strip.GetVisualDescendants().OfType<ListBoxItem>().ToList();
         Assert.Equal(2, items.Count);
@@ -258,15 +258,23 @@ public sealed class WorkspaceTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
-    public void AnUntabbedDockerLooksExactlyAsItDid()
+    public void ALoneDockerWearsItsTitleAsATab()
     {
-        // Most dockers hold one panel, and they must not have grown a tab strip
-        // for a group of one.
+        // A reversal, and the owner's words are the spec: "I want a tabbed
+        // view even if just only one docker is present." Every panel wears the
+        // one header treatment, and a slot of one shows exactly one tab, lit —
+        // an unlit lone tab reads as a panel that is somehow not showing.
         var (w, _) = Open();
 
         foreach (var docker in Strip(w, DockSide.Right).Children.OfType<Docker>())
         {
-            Assert.Null(docker.Tabs);
+            Assert.NotNull(docker.Tabs);
+            var only = Assert.Single(docker.Tabs!);
+            Assert.Equal(docker.PanelId, only.Id);
+
+            var strip = docker.GetVisualDescendants().OfType<ListBox>().First();
+            var lit = Assert.IsType<DockPanelInfo>(strip.SelectedItem);
+            Assert.Equal(docker.PanelId, lit.Id);
         }
     }
 

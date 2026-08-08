@@ -46,7 +46,7 @@ public sealed class TabSwitchCrashTests : BrushStateIsolated
 
     private static ListBox Strip(MainWindow w) =>
         w.FindControl<DockStrip>("RightStrip")!.Children.OfType<Docker>()
-            .First(d => d.Tabs is not null)
+            .First(d => d.Tabs?.Count() > 1)
             .GetVisualDescendants().OfType<ListBox>().First();
 
     /// <summary>Click a tab the way the pointer does: through the ListBox.</summary>
@@ -120,7 +120,7 @@ public sealed class TabSwitchCrashTests : BrushStateIsolated
             ClickTab(w, target);
 
             var docker = w.FindControl<DockStrip>("RightStrip")!.Children.OfType<Docker>()
-                .First(d => d.Tabs is not null);
+                .First(d => d.Tabs?.Count() > 1);
             var strip = docker.GetVisualDescendants().OfType<ListBox>().First();
             Assert.Equal(target, docker.PanelId);
             var lit = Assert.IsType<DockPanelInfo>(strip.SelectedItem);

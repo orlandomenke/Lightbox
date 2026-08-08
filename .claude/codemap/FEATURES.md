@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2933 tests, derived from the suite itself. Each line is a
+2936 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -702,17 +702,17 @@ regression even when every test still compiles.
 - Each Edge Is Reachable — `:37`
 - The Middle Of The Canvas Is Not ADrop Target — `:43`
 - The Timeline Cannot Be Dropped — `:51`
-- The Upper Half Of APanel Inserts Above It — `:62`
-- The Lower Half Of APanel Inserts Below It — `:72`
-- The Preview Is ABand At The Boundary So The Neighbour Visibly Makes Room — `:78`
-- Dropping APanel Back Where It Already Is Changes Nothing — `:91`
-- Dragging The Only Panel Of AStrip Over Itself Offers Nothing — `:102`
-- AGap Below AShort Stack Appends To It — `:110`
-- ATop Strip Splits Left To Right Rather Than Top To Bottom — `:126`
-- Dropping On AHeader Tabs Into That Slot — `:139`
-- Dropping On The Body Still Makes ASlot Of Its Own — `:161`
-- APanel Cannot Be Tabbed Into Itself — `:178`
-- AHeaderless Slot Offers No Tab Target — `:193`
+- The Top Sliver Of APanel Inserts Above It — `:62`
+- The Bottom Sliver Of APanel Inserts Below It — `:76`
+- The Preview Is ABand At The Boundary So The Neighbour Visibly Makes Room — `:82`
+- Dropping APanel Back Where It Already Is Changes Nothing — `:95`
+- Dragging The Only Panel Of AStrip Over Itself Offers Nothing — `:107`
+- AGap Below AShort Stack Appends To It — `:115`
+- ATop Strip Splits Left To Right Rather Than Top To Bottom — `:131`
+- Dropping On AHeader Tabs Into That Slot — `:144`
+- Dropping On The Body Joins That Slot — `:166`
+- APanel Cannot Be Tabbed Into Itself — `:186`
+- AHeaderless Slot Offers No Tab Target — `:201`
 
 ## LayerRowTests
 `tests/Lightbox.App.Tests/DockerUiTests.cs`
@@ -1220,6 +1220,13 @@ regression even when every test still compiles.
 - An Effect Brush Mid Drag Cannot Exceed The Wash It Started From — `:361`
 - Abandoning An Effect Brush Does Not Block The Next Ordinary Stroke — `:412`
 - Blur Ships With ARadius You Can Actually See — `:445`
+
+## LoneDockerDragTests
+`tests/Lightbox.App.Tests/LoneDockerDragTests.cs`
+
+- APress On ALone Tab Is AGrip — `:42`
+- APress On AReal Tab Strip Stays AControl — `:51`
+- The Close Button Is Still AControl Either Way — `:60`
 
 ## LongStrokeCostTests _Category=Performance_
 `tests/Lightbox.App.Tests/LongStrokeCostTests.cs`
@@ -2639,14 +2646,14 @@ regression even when every test still compiles.
 - Closing APanel Parks It Rather Than Destroying It — `:119`
 - Tabbed Panels Share One Slot And One Shows — `:138`
 - The Tab Showing Is The One That Looks Like It Is Showing — `:161`
-- An Untabbed Docker Looks Exactly As It Did — `:261`
-- Grouping APanel Marks The Workspace Unsaved — `:274`
-- The Project Panel Appears As Soon As There Is AProject — `:289`
-- The Canvas Gets The Room Left Over By The Strips — `:312`
-- The Project Row Menu Actually Does Something When Clicked — `:336`
-- The New Menu Actually Makes Things — `:473`
-- The Reference Panel Is Absent Until It Is Asked For — `:545`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:561`
+- ALone Docker Wears Its Title As ATab — `:261`
+- Grouping APanel Marks The Workspace Unsaved — `:282`
+- The Project Panel Appears As Soon As There Is AProject — `:297`
+- The Canvas Gets The Room Left Over By The Strips — `:320`
+- The Project Row Menu Actually Does Something When Clicked — `:344`
+- The New Menu Actually Makes Things — `:481`
+- The Reference Panel Is Absent Until It Is Asked For — `:553`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:569`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

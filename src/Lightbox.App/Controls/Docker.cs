@@ -292,7 +292,10 @@ public class Docker : ContentControl
         _pressed = e.GetPosition(this);
     }
 
-    private bool LandedOnAControl(Visual? source)
+    // Internal for the tests: the lone-tab-is-a-grip rule below broke once
+    // (reported as a lone docker that could not be dragged) and pointer
+    // simulation is not reliable enough to guard it end to end.
+    internal bool LandedOnAControl(Visual? source)
     {
         for (var node = source; node is not null && !ReferenceEquals(node, this); node = node.GetVisualParent())
         {
@@ -300,7 +303,18 @@ public class Docker : ContentControl
             // to the header, looks exactly like a press on the grip, and tears
             // the panel out instead of switching tabs — the same trap the
             // ComboBox above was added for.
-            if (node is Button or ComboBox or ToggleButton or TextBox or Slider or CheckBox or ListBox)
+            //
+            // Except a strip of ONE: every docker wears a tab now, so for a
+            // lone panel the tab is most of the header — treating it as a
+            // control made the panel undraggable (reported: the timeline
+            // moved to a side could not be dragged back). A single tab has
+            // nothing to switch to; a press there is a grip.
+            if (node is ListBox)
+            {
+                if (Tabs is null || Tabs.Count() > 1) return true;
+                continue;
+            }
+            if (node is Button or ComboBox or ToggleButton or TextBox or Slider or CheckBox)
             {
                 return true;
             }

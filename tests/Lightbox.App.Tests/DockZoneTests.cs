@@ -59,19 +59,23 @@ public class DockZoneTests
     private static readonly PanelSlot Bot = new(DockPanelId.Color, DockSide.Right, 1, new(900, 400, 300, 400));
 
     [Fact]
-    public void TheUpperHalfOfAPanelInsertsAboveIt()
+    public void TheTopSliverOfAPanelInsertsAboveIt()
     {
-        var drop = At(1000, 420, DockPanelId.Palette, Top, Bot);
+        // The halves are gone — the owner's call is that a panel's body is
+        // one target, joining its tabs. Inserting into the stack lives in a
+        // slim sliver at each boundary.
+        var drop = At(1000, 410, DockPanelId.Palette, Top, Bot);
 
         Assert.Equal(DockSide.Right, drop!.Value.Side);
         Assert.Equal(1, drop.Value.Index);
         Assert.False(drop.Value.OpensArea);
+        Assert.Null(drop.Value.IntoGroupOf);
     }
 
     [Fact]
-    public void TheLowerHalfOfAPanelInsertsBelowIt()
+    public void TheBottomSliverOfAPanelInsertsBelowIt()
     {
-        Assert.Equal(2, At(1000, 780, DockPanelId.Palette, Top, Bot)!.Value.Index);
+        Assert.Equal(2, At(1000, 790, DockPanelId.Palette, Top, Bot)!.Value.Index);
     }
 
     [Fact]
@@ -79,7 +83,7 @@ public class DockZoneTests
     {
         // A highlight floating over the panel does not tell you what you are
         // about to get; a band the neighbour has to move for does.
-        var drop = At(1000, 420, DockPanelId.Palette, Top, Bot);
+        var drop = At(1000, 410, DockPanelId.Palette, Top, Bot);
 
         var preview = drop!.Value.Preview;
         Assert.Equal(400, preview.Y);            // the top edge of the panel below
@@ -92,8 +96,9 @@ public class DockZoneTests
     {
         // Removing a panel shifts everything after it up by one, so without
         // correcting for that a panel walks forward one place on every
-        // no-op drag.
-        var drop = At(1000, 100, DockPanelId.Layers, Top, Bot);
+        // no-op drag. Its own top sliver is the no-op spot now — its body
+        // offers nothing, because a panel cannot join its own group.
+        var drop = At(1000, 10, DockPanelId.Layers, Top, Bot);
 
         Assert.Equal(0, drop!.Value.Index);
     }
@@ -130,9 +135,9 @@ public class DockZoneTests
         var a = new PanelSlot(DockPanelId.Palette, DockSide.Top, 0, new(0, 0, 600, 200));
         var b = new PanelSlot(DockPanelId.Gradient, DockSide.Top, 1, new(600, 0, 600, 200));
 
-        Assert.Equal(1, At(500, 100, DockPanelId.Color, a, b)!.Value.Index);
-        Assert.Equal(1, At(700, 100, DockPanelId.Color, a, b)!.Value.Index);
-        Assert.Equal(2, At(1100, 100, DockPanelId.Color, a, b)!.Value.Index);
+        Assert.Equal(1, At(590, 100, DockPanelId.Color, a, b)!.Value.Index);
+        Assert.Equal(1, At(610, 100, DockPanelId.Color, a, b)!.Value.Index);
+        Assert.Equal(2, At(1190, 100, DockPanelId.Color, a, b)!.Value.Index);
     }
 
     [Fact]
@@ -152,15 +157,18 @@ public class DockZoneTests
 
         Assert.NotNull(drop);
         Assert.Equal(DockPanelId.Layers, drop!.Value.IntoGroupOf);
-        // And the highlight is the header band itself, not the whole panel —
-        // the preview has to say "this becomes a tab", not "this gets replaced".
-        Assert.Equal(22, drop.Value.Preview.Height);
+        // The highlight is the WHOLE panel, per the owner: full width and
+        // full height, so the offer reads as becoming part of it.
+        Assert.Equal(400, drop.Value.Preview.Height);
     }
 
     [Fact]
-    public void DroppingOnTheBodyStillMakesASlotOfItsOwn()
+    public void DroppingOnTheBodyJoinsThatSlot()
     {
-        // The header band must not have eaten the ordinary insert.
+        // A reversal, and the owner's own words are the spec: "the top one
+        // should be the entire width (correct already) and height (incorrect)
+        // of the docker", with the lower half-target removed. The body is one
+        // target and it means join; inserting lives in the boundary slivers.
         var content = new DockRect(0, 0, 1000, 800);
         var slots = new List<PanelSlot>
         {
@@ -170,8 +178,8 @@ public class DockZoneTests
         var drop = DockZones.Resolve(820, 300, content, slots, DockPanelId.Palette, DockLayout.Default());
 
         Assert.NotNull(drop);
-        Assert.Null(drop!.Value.IntoGroupOf);
-        Assert.Equal(1, drop.Value.Index);   // below the panel it was dropped over
+        Assert.Equal(DockPanelId.Layers, drop!.Value.IntoGroupOf);
+        Assert.Equal(new DockRect(700, 0, 300, 400), drop.Value.Preview);
     }
 
     [Fact]
