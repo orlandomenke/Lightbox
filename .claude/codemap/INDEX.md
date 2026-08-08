@@ -1,6 +1,6 @@
 # Code index
 
-558 files · 148054 lines · 2930 tests.
+558 files · 148060 lines · 2930 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,7 +49,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (10852 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4635, TransformParts:7325
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4635 ln) · 24 test files
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4638 ln) · 24 test files
   - MainWindow:19, UnsavedChoice:3030
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4039 ln) · 14 test files
   - CanvasControl:28, CanvasToolMode:908, GridGesture:965, TxDrag:1178, DrawOp:3220
@@ -188,10 +188,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockStrip:24
 - `src/Lightbox.App/Services/RecentItems.cs` (132 ln) · 2 test files
   - RecentKind:3, RecentItem:10, RecentItems:43
-- `src/Lightbox.App/Views/StartScreen.axaml.cs` (131 ln) · 1 test files
-  - StartChoice:14, StartScreen:61
 - `src/Lightbox.App/Controls/ValueDrag.cs` (126 ln) · 4 indirect only
   - ValueDrag:27, Session:43
+- `src/Lightbox.App/Views/StartScreen.axaml.cs` (126 ln) · 1 test files
+  - StartChoice:14, StartScreen:58
 - `src/Lightbox.App/Services/FileReveal.cs` (125 ln) · 3 test files
   - Desktop:7, FileReveal:35
 - `src/Lightbox.App/Docking/CanvasOverlays.cs` (123 ln) · 2 test files
@@ -239,10 +239,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BrushList, CancelButton, CountLabel, ImportButton, ImportProgress, ProgressLabel, ProgressRow, RemoveButton …
 - `src/Lightbox.App/Services/AutosaveService.cs` (85 ln) · 5 indirect only
   - AutosaveService:22
-- `src/Lightbox.App/Views/StartScreen.axaml` (84 ln) · **no tests**
-  - DocumentFields, DontShowBox, NoRecents, ProjectFields, RecentList, Tabs
 - `src/Lightbox.App/App.axaml.cs` (82 ln) · 8 test files
   - App:11
+- `src/Lightbox.App/Views/StartScreen.axaml` (81 ln) · **no tests**
+  - DocumentFields, NoRecents, ProjectFields, RecentList, Tabs
 - `src/Lightbox.App/Services/SymbolLibrary.cs` (78 ln) · 1 test files
   - SymbolLibrary:32
 - `src/Lightbox.App/Services/OnionSettings.cs` (77 ln) · 1 test files
