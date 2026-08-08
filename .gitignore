@@ -2,11 +2,8 @@ bin/
 obj/
 *.user
 
-# Generated index. INDEX.md and FEATURES.md are committed, because their
-# diffs show behaviour changing and they are derived purely from file
-# contents — rebuild after an unrelated commit and nothing moves.
-#
-# The rest is not committed, and the test is the same one every time: does
+# Generated index. Nothing under .claude/codemap/ is committed any more,
+# and the test is the same one every time: does
 # the artefact change when nothing about the source did? map.json is a 350 KB
 # graph that regenerates in a second. HOTSPOTS.md ranks files by commit churn,
 # so every commit changes it by construction — committing it meant the file
