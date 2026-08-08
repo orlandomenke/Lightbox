@@ -35,8 +35,15 @@ for it to come back; your timing is never lost with it.
 
 The bar's controls: **Mute**, **volume**, the **start frame** (negative trims
 a lead-in without editing the file), and **✕** to remove the track — the file
-itself is untouched. Playback through the speakers is *Planned*; today the
-scratch track is the waveform you time against.
+itself is untouched.
+
+**It plays.** Press play and the sound runs in sync with the frames, looping
+when playback loops and following the Speed % control (faster playback raises
+the pitch, the way scrubbing tape does). Dragging the playhead plays the
+slice of sound under each frame — the track read a syllable at a time, which
+is how a mouth is matched to a line. Playing backwards is silent on purpose;
+reversed audio is noise, not information. On a machine with no sound device
+the track simply stays quiet — nothing breaks.
 
 ## Markers, notes and events
 

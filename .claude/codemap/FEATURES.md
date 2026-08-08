@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2995 tests, derived from the suite itself. Each line is a
+2996 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -218,7 +218,8 @@ regression even when every test still compiles.
 - Something That Is Not AWav Reports Instead Of Throwing — `:84`
 - AMissing File Is ABadge Not An Error — `:103`
 - Removing The Track Leaves No Audio Behind — `:119`
-- The Offset Slides The Waveform — `:140`
+- Playback And Scrubbing Are Safe Wherever There Is No Audio Device — `:140`
+- The Offset Slides The Waveform — `:170`
 
 ## AutoExportTests
 `tests/Lightbox.App.Tests/AutoExportTests.cs`

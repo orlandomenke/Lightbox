@@ -38,6 +38,7 @@ public partial class MainViewModel
         {
             if (Scene.Audio is not { } track || track.Muted == value) return;
             track.Muted = value;
+            TickAudio();   // muting mid-play stops the sound now, not next tick
             NotifyAudioSurface();
             _autosave.MarkDirty();
         }
@@ -52,6 +53,7 @@ public partial class MainViewModel
             var clamped = Math.Clamp(value, 0.0, 1.0);
             if (Math.Abs(track.Volume - clamped) < 1e-9) return;
             track.Volume = clamped;
+            _audioPlayback.SetGain(clamped);   // live, so the slider is audible
             NotifyAudioSurface();
             _autosave.MarkDirty();
         }
@@ -211,6 +213,60 @@ public partial class MainViewModel
         _audioClip = null;
         _audioMono = null;
         _audioPeaks = null;
+    }
+
+    // ---- playback (Q55: OpenAL-soft, silent where there is no device) ---------
+
+    private readonly Services.AudioPlayback _audioPlayback = new();
+    private bool _audioRunning;
+
+    /// <summary>
+    /// Keep the sound where the playhead is. Called when playback starts and
+    /// on every step; cheap when nothing changed. Backwards playback is
+    /// silent on purpose — reversed audio is noise, not information.
+    /// </summary>
+    private void TickAudio()
+    {
+        if (!IsPlaying || _playDirection < 0
+            || Scene.Audio is not { } track || track.Muted || AudioClipNow is not { } clip)
+        {
+            StopAudio();
+            return;
+        }
+
+        var t = (CurrentFrameIndex - track.OffsetFrames) / (double)Math.Max(1, Scene.Fps);
+        if (t < 0 || t >= clip.DurationSeconds)
+        {
+            // Before the sound starts or past its end: quiet, and ready to
+            // start the moment the playhead crosses in.
+            StopAudio();
+            return;
+        }
+        if (_audioRunning) return;
+
+        _audioPlayback.Play(clip, t, track.Volume, Math.Clamp(PlaybackSpeedPercent / 100.0, 0.05, 8));
+        _audioRunning = true;
+    }
+
+    private void StopAudio()
+    {
+        if (!_audioRunning) return;
+        _audioPlayback.Stop();
+        _audioRunning = false;
+    }
+
+    /// <summary>
+    /// One frame's worth of sound under the playhead while scrubbing — the
+    /// track read a syllable at a time. Playback has its own path above.
+    /// </summary>
+    private void ScrubAudioTick()
+    {
+        if (IsPlaying || _switchingTabs) return;
+        if (Scene.Audio is not { } track || track.Muted || AudioClipNow is not { } clip) return;
+        var fps = Math.Max(1, Scene.Fps);
+        var t = (CurrentFrameIndex - track.OffsetFrames) / (double)fps;
+        if (t < 0 || t >= clip.DurationSeconds) return;
+        _audioPlayback.ScrubTick(clip, t, 1.0 / fps, track.Volume);
     }
 
     private void NotifyAudioSurface()

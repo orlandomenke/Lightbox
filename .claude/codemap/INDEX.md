@@ -1,6 +1,6 @@
 # Code index
 
-582 files · 152041 lines · 2995 tests.
+583 files · 152333 lines · 2996 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,8 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (11032 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4557, TransformParts:7430
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (11040 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4558, TransformParts:7438
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4732 ln) · 28 test files
   - MainWindow:19, UnsavedChoice:3174
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4192 ln) · 15 test files
@@ -121,6 +121,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (283 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
+- `src/Lightbox.App/ViewModels/MainViewModel.Audio.cs` (282 ln) · 119 test files
+  - MainViewModel:12
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
   - CurveEditor:29
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 3 test files
@@ -144,8 +146,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FrameBitmapCache:13, EvictionOrder:56
 - `src/Lightbox.App/Services/AutoExport.cs` (227 ln) · 1 test files
   - AutoExportSettings:23, AutoExportOutcome:54, AutoExportReport:78, AutoExport:106
-- `src/Lightbox.App/ViewModels/MainViewModel.Audio.cs` (226 ln) · 119 test files
-  - MainViewModel:12
 - `src/Lightbox.App/ViewModels/PaletteNode.cs` (225 ln) · 2 test files
   - PaletteScope:16, PaletteNodeKind:22, PaletteNode:39, PaletteAssignTarget:145, PaletteTarget:166, PaletteAddIntent:188, PaletteAddRequest:212, PaletteAddOutcome:222
 - `src/Lightbox.App/Services/ProjectWatcher.cs` (224 ln) · 1 test files
@@ -158,6 +158,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - AppSettings:16
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml` (206 ln) · **no tests**
   - AngleSlider, BlackSlider, CategoryList, CentreBox, CountLabel, CountRow, CountSlider, CrossedBox …
+- `src/Lightbox.App/Services/AudioPlayback.cs` (198 ln) · **no tests**
+  - AudioPlayback:15
 - `src/Lightbox.App/ViewModels/LayerRow.cs` (194 ln) · 1 test files
   - GroupRow:11, LayerRow:90
 - `src/Lightbox.App/Services/IpcDocumentApi.cs` (193 ln) · 1 test files

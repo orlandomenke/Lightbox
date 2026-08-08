@@ -137,6 +137,36 @@ public sealed class AudioTrackUiTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void PlaybackAndScrubbingAreSafeWhereverThereIsNoAudioDevice()
+    {
+        // CI and containers have no sound hardware; every playback path must
+        // be a silent no-op there, never a throw (Q55).
+        var (_, vm) = Open();
+        var wav = WriteWav("lightbox-audio-play.wav");
+        try
+        {
+            var cell = vm.FrameCells.First(c => c.Index == 0);
+            for (var i = 0; i < 5; i++) vm.ExtendExposureAt(cell);
+            Assert.Null(vm.ImportAudio(wav));
+
+            vm.PlayCommand.Execute(null);
+            vm.StepPlayback();
+            vm.AudioMuted = true;    // mute mid-play
+            vm.StepPlayback();
+            vm.AudioMuted = false;
+            vm.PauseCommand.Execute(null);
+            Assert.False(vm.IsPlaying);
+
+            vm.CurrentFrameIndex = 2;   // the scrub path
+            vm.AudioVolume = 0.5;       // the live-gain path
+        }
+        finally
+        {
+            File.Delete(wav);
+        }
+    }
+
+    [AvaloniaFact]
     public void TheOffsetSlidesTheWaveform()
     {
         var (_, vm) = Open();

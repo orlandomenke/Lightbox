@@ -619,6 +619,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _clock.Stop();
         IsPlaying = false;
+        StopAudio();
         _strokeBuilder.Cancel();
         ClearLiveEffectState();
         _editor.Changed -= OnDocumentChanged;
@@ -4911,6 +4912,7 @@ public sealed partial class MainViewModel : ObservableObject
         // Which reference frame is showing, and therefore which cell the
         // alignment fields are editing, is a property of the playhead.
         NotifyReference();
+        ScrubAudioTick();
         PublishSnapshot();
     }
 
@@ -6307,6 +6309,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!IsPlaying) return;
         _clock.Stop();
         IsPlaying = false;
+        StopAudio();
         PublishSnapshot();
     }
 
@@ -6318,6 +6321,7 @@ public sealed partial class MainViewModel : ObservableObject
         ClearLiveEffectState();
         IsPlaying = true;
         _clock.Start(Scene.Fps, PlaybackSpeedPercent);
+        TickAudio();
         PublishSnapshot();
     }
 
@@ -6429,9 +6433,13 @@ public sealed partial class MainViewModel : ObservableObject
                 Pause();
                 return;
             }
+            // The loop wrapped: the sound cannot wrap with it, so it stops
+            // here and TickAudio restarts it at the range's start.
             next = next > end ? start : end;
+            StopAudio();
         }
         CurrentFrameIndex = Math.Clamp(next, 0, Math.Max(0, Scene.FrameCount - 1));
+        TickAudio();
     }
 
     // ---- playback range + frame insertion (timeline context menu) -----------
