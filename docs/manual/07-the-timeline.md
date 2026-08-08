@@ -49,6 +49,24 @@ source file. Trimming eats or restores source frames; the trimmed window is
 what plays, scrubs and exports. Footage clips get the same bar, one row per
 clip, with the same body-slide and edge-trim handles.
 
+**Cut a clip where the playhead is.** Put the playhead inside a bar,
+right-click it and choose **Split at frame *n***. The bar becomes two, and
+from then on each section slides and trims on its own — move a line of
+dialogue three frames later without moving the rest of the take, or hold a
+piece of footage while the shot after it stays where it is. Cut again to make
+a third; a cut at a section's own edge is refused, because there is nothing
+there to divide.
+
+Two things sections will not do. They **never overlap**: drag one into its
+neighbour and it stops against it, so the timeline can always say what is
+playing at a frame. And splitting **never edits the source** — a section is a
+window onto the file and a place to put it, so nothing you do here can lose
+sound or frames you have not got a copy of.
+
+A split clip's timing is no longer one offset and one trim, so exports lay
+the sections out on the timeline first: gaps come out as silence, and the
+sound lands frame-for-frame where the bars say it does.
+
 The bar's controls: **Mute**, **volume**, the **start frame** (negative trims
 a lead-in without editing the file), and **✕** to remove the track — the file
 itself is untouched.
