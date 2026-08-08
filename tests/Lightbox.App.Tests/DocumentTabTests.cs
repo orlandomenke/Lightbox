@@ -153,6 +153,39 @@ public class DocumentTabTests
         Assert.False(vm.HasDocument);
     }
 
+    /// <summary>
+    /// A document opened from disk lands on a paintable layer, and the very
+    /// first stroke lands in it.
+    /// </summary>
+    /// <remarks>
+    /// <b>B136.</b> File ▸ New has set the active layer past the locked paper
+    /// since the paper existed; the open path never did, so every document
+    /// opened from disk — recents, the start screen, File ▸ Open — started on
+    /// the one layer that refuses strokes. The cursor showed, the status strip
+    /// said "locked", nothing appeared: reported as "unable to draw on the
+    /// last build". Asserted through the whole route — open, then draw, then
+    /// look in the record — because an assertion on the index alone would not
+    /// notice a second gate.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ADocumentOpenedFromDiskOpensOnAPaintableLayer()
+    {
+        var vm = new MainViewModel(null);
+        var doc = Lightbox.Core.Documents.DocumentFactory.CreateDoc(
+            400, 300, 12, paperColor: "#ffffff");
+        vm.OpenDocumentTab(DocJson.Clone(doc), "/projects/opened.lightbox.json");
+
+        var layer = vm.Doc.Scene.Layers[vm.ActiveLayerIndex];
+        Assert.False(layer.IsBackground, $"opened onto \u201c{layer.Name}\u201d, the locked paper");
+
+        vm.BeginStroke(50, 50, 0.5);
+        vm.MoveStroke(90, 50, 0.5);
+        vm.EndStroke();
+
+        var painted = (Lightbox.Core.Documents.PaintedFrame)layer.Cels[0].Frame!;
+        Assert.Single(painted.Strokes);
+    }
+
     [AvaloniaFact]
     public void OpenDocumentTab_UsesFileName_AndKeepsExistingTabs()
     {
