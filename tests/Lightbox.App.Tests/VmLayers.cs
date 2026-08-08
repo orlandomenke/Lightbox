@@ -28,6 +28,28 @@ internal static class VmLayers
         return vm;
     }
 
+    /// <summary>
+    /// A view model with one ordinary document open — paper and all — which is
+    /// the state the application used to be in the instant it started.
+    /// </summary>
+    /// <remarks>
+    /// It no longer starts that way: nothing is open until an artist asks for a
+    /// document. <c>new MainViewModel(null)</c> still answers <c>Doc</c> and
+    /// <c>Scene</c>, because the empty state keeps a placeholder document behind
+    /// it, so a test that only paints is unaffected. This is for the ones that
+    /// reach for a <em>tab</em> — <c>Tabs</c>, a save target, a reference sheet's
+    /// owner — where the placeholder is deliberately not reachable.
+    /// </remarks>
+    public static MainViewModel PaperVm(Lightbox.Ai.IAiArtist? artist = null)
+    {
+        var vm = new MainViewModel(artist);
+        // Named the way the startup tab was named, so tests that read a title or
+        // a derived filename keep meaning what they meant.
+        vm.NewDocument(new NewDocumentSettings(
+            "Untitled-1", 960, 540, 12, 72, Scene.DefaultBackgroundColor, false));
+        return vm;
+    }
+
     public static Layer PaintLayer(this MainViewModel vm) => vm.Doc.Scene.Layers[vm.ActiveLayerIndex];
 
     public static PaintedFrame PaintedCel(this MainViewModel vm, int cel = 0) =>

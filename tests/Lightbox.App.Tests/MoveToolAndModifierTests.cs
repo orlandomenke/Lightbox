@@ -17,7 +17,12 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public class MoveToolAndModifierTests : BrushStateIsolated
 {
-    private static MainViewModel Vm() => new(null) { SmoothStrokes = false };
+    private static MainViewModel Vm()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.SmoothStrokes = false;
+        return vm;
+    }
 
     private static List<Stroke> Strokes(MainViewModel vm) =>
         ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes;

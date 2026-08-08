@@ -30,7 +30,8 @@ public sealed class ProjectHierarchyTests(ITestOutputHelper output) : BrushState
 
     private MainViewModel Open()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = VmLayers.PaperVm();
+        vm.SmoothStrokes = false;
         _built.Add(vm);
         vm.NewProject(_root, "Production");
         return vm;

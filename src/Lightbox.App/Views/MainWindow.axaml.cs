@@ -246,6 +246,7 @@ public partial class MainWindow : Window
         // B67. The canvas framing belongs to the document, and the window is the
         // only thing that holds both a tab and a CanvasControl.
         _vm.TabSwitched += CarryTheViewBetweenTabs;
+        _vm.LastDocumentClosed += OnLastDocumentClosed;
         InitialisePanels();
         InitialiseOverlays();
         ApplyDockLayout();
@@ -1672,7 +1673,9 @@ public partial class MainWindow : Window
         if (name is null) return;   // cancelled: nothing is created
 
         var needsAFile = _vm.AReferenceSheetWouldBeUnsaved;
-        var sheet = _vm.AddReferenceSheet(name);
+        // Null only with nothing open, where the docker holding this button is
+        // not on screen to be pressed.
+        if (_vm.AddReferenceSheet(name) is not { } sheet) return;
         // B78: the picker opens already named, rather than asking a second time.
         if (needsAFile) await SaveDocumentAsAsync(sheet.Name);
     }
@@ -3039,7 +3042,13 @@ public partial class MainWindow : Window
     private async void OnCloseTabClicked(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not DocumentTab tab) return;
-        if (!tab.IsDirty)
+        // HasWorkToLose, not IsDirty — B99 split them exactly for this moment.
+        // A brand-new document badges dirty because it differs from disk (it has
+        // no disk), but there is nothing in it to lose, and "close the tab you
+        // just made" should not argue. Gating on IsDirty was masked while
+        // closing the last tab conjured a replacement; with the application able
+        // to empty, it put the unsaved-changes dialog on an untouched blank.
+        if (!tab.HasWorkToLose)
         {
             _vm.CloseTab(tab);
             return;
@@ -4434,10 +4443,51 @@ public partial class MainWindow : Window
     public async Task OfferStartScreenAsync()
     {
         if (!_vm.Settings.ShowStartScreen) return;
+        await AskWhatToOpenAsync();
+    }
+
+    /// <summary>Show the start screen and act on the answer, gate or no gate.</summary>
+    private async Task AskWhatToOpenAsync()
+    {
         var screen = new StartScreen(_vm.Settings.Recent);
         await screen.ShowDialog(this);
         await ApplyStartChoiceAsync(screen.Answer);
     }
+
+    /// <summary>
+    /// The last tab closed, so ask what to open next.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Closing the last document used to conjure a replacement, which is the
+    /// same complaint as escaping the start screen: a canvas nobody chose,
+    /// arrived at by not answering. Asking is the honest version — and it is
+    /// asked <em>after</em> the tab is gone, so the answer can be "nothing" and
+    /// leave the application empty.
+    /// </para>
+    /// <para>
+    /// Posted rather than shown inline. <c>CloseTab</c> is still unwinding when
+    /// this fires — the tab strip and the canvas have not caught up — and a
+    /// modal opened from inside that paints over a window still describing a
+    /// document that no longer exists.
+    /// </para>
+    /// <para>
+    /// It ignores <c>ShowStartScreen</c>, which gates the startup offer only.
+    /// That preference means "do not interrupt me on the way in"; this is a
+    /// question about something the artist just did.
+    /// </para>
+    /// </remarks>
+    private void OnLastDocumentClosed() =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            async () =>
+            {
+                // Something may have been opened in the gap — a recent, a
+                // project row — and asking then would be asking about a
+                // question that has already been answered.
+                if (_vm.HasDocument) return;
+                await AskWhatToOpenAsync();
+            },
+            Avalonia.Threading.DispatcherPriority.Background);
 
     /// <summary>Act on what the start screen was answered with.</summary>
     public async Task ApplyStartChoiceAsync(StartChoice choice)

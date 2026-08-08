@@ -211,7 +211,8 @@ public class BrushPresetTests : BrushStateIsolated
     [AvaloniaFact]
     public void ImportedBrush_BecomesAPreset_AndItsTipEntersTheDocument()
     {
-        var vm = new MainViewModel(null);
+        // The tab is the subject of the last assertion, so it has to exist.
+        var vm = VmLayers.PaperVm();
         var gbr = GbrFixture(24);
         var (added, failed) = vm.ImportBrushFiles([("square.gbr", gbr)]);
 

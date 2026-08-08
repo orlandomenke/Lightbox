@@ -287,6 +287,10 @@ public sealed class RigOverlayPainterTests(ITestOutputHelper output) : BrushStat
         window.Show();
         Dispatcher.UIThread.RunJobs();
         var vm = (MainViewModel)window.DataContext!;
+        // A document, because the press has to reach the canvas: with nothing
+        // open the "Nothing open" surface covers it and takes the pointer.
+        vm.NewDocument(new NewDocumentSettings("Untitled-1", 960, 540, 12, 72, "#ffffff", false));
+        Dispatcher.UIThread.RunJobs();
         var canvas = window.GetVisualDescendants().OfType<CanvasControl>().First();
 
         vm.RigEditMode = true;

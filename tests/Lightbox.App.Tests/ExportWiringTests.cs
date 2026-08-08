@@ -22,7 +22,8 @@ public sealed class ExportWiringTests(ITestOutputHelper output) : BrushStateIsol
 
     private MainViewModel Vm()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = VmLayers.PaperVm();
+        vm.SmoothStrokes = false;
         _built.Add(vm);
         vm.NewProject(_root, "Production");
         return vm;

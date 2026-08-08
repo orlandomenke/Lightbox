@@ -42,7 +42,8 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
 
     private MainViewModel Vm()
     {
-        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var vm = VmLayers.PaperVm();
+        vm.SmoothStrokes = false;
         _built.Add(vm);
         return vm;
     }
