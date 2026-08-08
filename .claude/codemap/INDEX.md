@@ -1,6 +1,6 @@
 # Code index
 
-558 files · 147967 lines · 2928 tests.
+560 files · 148535 lines · 2934 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,8 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10825 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4608, TransformParts:7298
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10871 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4623, TransformParts:7313
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4635 ln) · 24 test files
   - MainWindow:19, UnsavedChoice:3030
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4039 ln) · 14 test files
@@ -113,7 +113,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Docker:17
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
-- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 113 test files
+- `src/Lightbox.App/ViewModels/MainViewModel.Rig.cs` (287 ln) · 114 test files
   - MainViewModel:32
 - `src/Lightbox.App/Services/GodotExporter.cs` (283 ln) · 2 test files
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
@@ -130,6 +130,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 - `src/Lightbox.App/Styles/Palette.axaml` (251 ln) · **no tests**
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
+- `src/Lightbox.App/Rendering/LayerStackBake.cs` (250 ln) · 2 test files
+  - LayerStackBake:54, Segment:60
 - `src/Lightbox.App/App.axaml` (248 ln) · **no tests**
   - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
@@ -247,7 +249,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SymbolLibrary:32
 - `src/Lightbox.App/Services/OnionSettings.cs` (77 ln) · 1 test files
   - OnionMode:4, OnionSettings:28
-- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (76 ln) · 22 test files
+- `src/Lightbox.App/Rendering/RenderSnapshot.cs` (76 ln) · 23 test files
   - RenderSnapshot:24
 - `src/Lightbox.App/Views/NewDocumentPanel.axaml` (75 ln) · **no tests**
   - BackgroundBox, FpsBox, HeightBox, NameBox, PpiBox, PresetBox, TransparentBox, TypeBox …
@@ -305,7 +307,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `tools/Lightbox.Bench/AnimationSweeps.cs` (605 ln) · 6 test files
   - AnimationSweeps:18, Target:103, Rig:129, Sides:270
-- `tools/Lightbox.Bench/Harness.cs` (236 ln) · 15 test files
+- `tools/Lightbox.Bench/Harness.cs` (236 ln) · 16 test files
   - Cadence:23, Budgets:38, Sample:50, Scenario:66, Curve:96, Runner:176
 - `tools/Lightbox.Bench/DrawingSweeps.cs` (215 ln) · 6 indirect only
   - DrawingSweeps:27, Sheet:51

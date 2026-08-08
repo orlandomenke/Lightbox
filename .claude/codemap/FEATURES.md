@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2928 tests, derived from the suite itself. Each line is a
+2934 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1137,6 +1137,16 @@ regression even when every test still compiles.
 - ALocked Folder Locks Its Members And Says So — `:107`
 - Locking Is Undoable — `:128`
 - Alpha Lock Is Recorded On The Stroke Not Read Back From The Layer — `:140`
+
+## LayerStackBakeTests _Category=Performance_
+`tests/Lightbox.App.Tests/LayerStackBakeTests.cs`
+
+- The Fold Happens And The Image Does Not Change — `:101`
+- Editing ALayer Under The Bake Shows Up Immediately — `:124`
+- ANon Normal Blend Mode Refuses To Fold And Still Renders It — `:151`
+- Playback Does Not Build Bakes — `:178`
+- Folded Publishes Are Cheaper On ADeep Stack — `:208`
+- AFold Transition Repaints The Whole Canvas — `:253`
 
 ## LiveMaskPixelTests
 `tests/Lightbox.App.Tests/LiveMaskPixelTests.cs`
