@@ -39,10 +39,11 @@ public class UnboundedCanvasPixelTests : BrushStateIsolated
         vm.BrushGranulation = 0;
         vm.BrushScatter = 0;
 
-        vm.Doc.Features ??= [];
-        vm.Doc.Features[nameof(FeatureKey.UnboundedCanvas)] = true;
-        // What the canvas control would report: the visible document rectangle.
+        // Viewport first — in the app the canvas reports one before the
+        // Configure window can be opened — then the real toggle path, which
+        // clears renders made under the old setting.
         vm.SetViewport(SKRectI.Create(0, 0, 960, 540));
+        vm.SetDocumentFeature(FeatureKey.UnboundedCanvas, true, projectDefault: false);
         return vm;
     }
 
@@ -360,5 +361,94 @@ public class UnboundedCanvasPixelTests : BrushStateIsolated
         var off = bmp.GetPixel(100, 100);
         Assert.True(off.Alpha == 0 || (off.Red > 200 && off.Green > 200),
             $"off-canvas space shows garbage ({off})");
+    }
+
+    /// <summary>
+    /// The point of the tile store, asserted in bytes: an unbounded document
+    /// costs its ink, and never materialises a document-sized layer bitmap.
+    /// </summary>
+    /// <remarks>
+    /// On a transparent document, because paper is a full-canvas fill stroke:
+    /// it inks every tile of the nominal canvas by definition, so a papered
+    /// document's tile cost approximates its paper — the sparsity the store
+    /// buys is for the ink layers above it and for everything beyond the
+    /// paper's edge, and a transparent document is where it shows cleanly.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AnUnboundedFrameCostsItsInkNotItsCanvas()
+    {
+        var vm = VmLayers.BareVm(); // transparent: no paper fill
+        vm.SmoothStrokes = false;
+        vm.SetViewport(SKRectI.Create(0, 0, 960, 540));
+        vm.SetDocumentFeature(FeatureKey.UnboundedCanvas, true, projectDefault: false);
+
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(300, 120, 1);
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        vm.PublishSnapshot();
+        vm.PublishSnapshot();
+
+        var docBytes = (long)vm.Doc.Scene.Width * vm.Doc.Scene.Height * 4;
+        var tileBytes = vm.TileFrames.AllocatedBytes;
+        var bitmapBytes = vm.BitmapCacheBytes;
+
+        Assert.True(vm.TileFrames.CachedFrames > 0, "no frame is held as tiles — the tile-native path never ran");
+        Assert.True(tileBytes > 0 && tileBytes < docBytes / 2,
+            $"tiles cost {tileBytes} bytes against a {docBytes}-byte canvas — memory is following the paper, not the ink");
+        // Thumbnails legitimately cache small renders; what must not exist is
+        // a document-sized bitmap per layer.
+        Assert.True(bitmapBytes < docBytes,
+            $"the bitmap cache holds {bitmapBytes} bytes — a document-sized layer bitmap was materialised for an unbounded document");
+    }
+
+    /// <summary>
+    /// The tile-native render and the bitmap render are the same picture — the
+    /// parity that lets one document opt in without changing what it looks like.
+    /// </summary>
+    [AvaloniaFact]
+    public void AnUnboundedDocumentRendersWhatABoundedOneRenders()
+    {
+        static SKBitmap Render(bool unbounded)
+        {
+            var vm = VmLayers.PaperVm();
+            vm.SmoothStrokes = false;
+            vm.SetViewport(SKRectI.Create(0, 0, 960, 540));
+            if (unbounded)
+            {
+                vm.SetDocumentFeature(FeatureKey.UnboundedCanvas, true, projectDefault: false);
+            }
+
+            RenderSnapshot? latest = null;
+            vm.SnapshotChanged += s => latest = s;
+            vm.BeginStroke(100, 100, 1);
+            vm.MoveStroke(500, 260, 1);
+            vm.EndStroke();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            vm.PublishSnapshot();
+            Assert.NotNull(latest);
+            var bmp = new SKBitmap(latest!.Image.Width, latest.Image.Height);
+            latest.Image.ReadPixels(bmp.Info, bmp.GetPixels(), bmp.RowBytes, 0, 0);
+            return bmp;
+        }
+
+        using var bounded = Render(unbounded: false);
+        using var tiled = Render(unbounded: true);
+
+        Assert.Equal(bounded.Width, tiled.Width);
+        var worst = 0;
+        for (var y = 0; y < bounded.Height; y += 2)
+        {
+            for (var x = 0; x < bounded.Width; x += 2)
+            {
+                var p = bounded.GetPixel(x, y);
+                var q = tiled.GetPixel(x, y);
+                worst = Math.Max(worst, Math.Abs(p.Red - q.Red));
+                worst = Math.Max(worst, Math.Abs(p.Green - q.Green));
+                worst = Math.Max(worst, Math.Abs(p.Blue - q.Blue));
+            }
+        }
+        Assert.True(worst <= 1,
+            $"tile-native differs from the bitmap render by {worst} — the two paths disagree about the same record");
     }
 }

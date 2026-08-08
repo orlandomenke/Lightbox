@@ -47,14 +47,22 @@ public sealed record StrokeOverlay(
 /// image; cutting the cell out here means one decoded bitmap for the whole
 /// sheet rather than one per frame, and no copy on the composite path.
 /// </param>
+/// <param name="SourceFrame">
+/// The frame to composite from tiles instead of from <paramref name="Bitmap"/>,
+/// set only by the unbounded-canvas pass builder. When present, Bitmap is null
+/// and only <c>ComposeUnboundedSnapshot</c> knows what to do — the bounded
+/// compositor never receives such a pass, and <c>DrawPass</c> skips it rather
+/// than dereferencing nothing.
+/// </param>
 public sealed record RenderPass(
-    SKBitmap Bitmap,
+    SKBitmap? Bitmap,
     SKColor? Tint,
     double Opacity,
     SKBlendMode Blend = SKBlendMode.SrcOver,
     StrokeOverlay? Overlay = null,
     SKMatrix? Matrix = null,
-    SKRectI? Source = null);
+    SKRectI? Source = null,
+    Lightbox.Core.Documents.Frame? SourceFrame = null);
 
 /// <summary>
 /// Pure SkiaSharp scene compositing: white paper, then passes in order
@@ -143,6 +151,9 @@ public static class SceneRenderer
 
     private static void DrawPass(SKCanvas canvas, RenderPass pass)
     {
+        // A tile-native pass carries no bitmap; only the unbounded compositor
+        // can draw it, and it never sends one here.
+        if (pass.Bitmap is null) return;
         var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
         using var paint = new SKPaint
         {

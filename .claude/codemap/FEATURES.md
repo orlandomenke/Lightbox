@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2940 tests, derived from the suite itself. Each line is a
+2944 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2496,15 +2496,17 @@ regression even when every test still compiles.
 ## UnboundedCanvasPixelTests
 `tests/Lightbox.App.Tests/UnboundedCanvasPixelTests.cs`
 
-- Tiled Rendering Stroke Across Tile Boundary Has No Visible Seam — `:57`
-- Tiled Rendering Multiple Tiles Stroke Maintains Relative Position — `:88`
-- Tiled Rendering With Viewport Offset Strokes Render Correctly — `:124`
-- Tiled Rendering Multiple Renders Produces Consistent Output — `:159`
-- Tiled Rendering Large Document Renders Tiles Correctly — `:209`
-- ASecond Publish Shows The Same Picture As The First — `:257`
-- ACommitted Stroke Survives Many Publishes — `:284`
-- AZoomed Out Publish Keeps The Stroke In Place — `:312`
-- AViewport Past The Canvas Edge Renders Calmly — `:338`
+- Tiled Rendering Stroke Across Tile Boundary Has No Visible Seam — `:58`
+- Tiled Rendering Multiple Tiles Stroke Maintains Relative Position — `:89`
+- Tiled Rendering With Viewport Offset Strokes Render Correctly — `:125`
+- Tiled Rendering Multiple Renders Produces Consistent Output — `:160`
+- Tiled Rendering Large Document Renders Tiles Correctly — `:210`
+- ASecond Publish Shows The Same Picture As The First — `:258`
+- ACommitted Stroke Survives Many Publishes — `:285`
+- AZoomed Out Publish Keeps The Stroke In Place — `:313`
+- AViewport Past The Canvas Edge Renders Calmly — `:339`
+- An Unbounded Frame Costs Its Ink Not Its Canvas — `:378`
+- An Unbounded Document Renders What ABounded One Renders — `:410`
 
 ## UnityExportTests
 `tests/Lightbox.App.Tests/UnityExportTests.cs`
@@ -4219,6 +4221,12 @@ regression even when every test still compiles.
 - Ink Bounds Is Null Until Something Is Drawn — `:254`
 - Dropping ATile Releases Its Bytes — `:266`
 - The Tile Size Is AParameter Rather Than Baked In — `:283`
+
+## TiledRasterizerAppendTests
+`tests/Lightbox.Raster.Tests/TiledRasterizerAppendTests.cs`
+
+- Appending The Last Stroke Matches Rasterising The Whole Record — `:26`
+- An Effect Stroke Refuses And Stamps Nothing — `:64`
 
 ## TiledRasterizerTests
 `tests/Lightbox.Raster.Tests/TiledRasterizerTests.cs`
