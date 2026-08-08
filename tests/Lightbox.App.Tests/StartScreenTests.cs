@@ -63,14 +63,25 @@ public sealed class StartScreenTests : BrushStateIsolated
         Assert.False(vm.HasDocument);
     }
 
+    /// <summary>
+    /// The Edit-menu toggle is the one switch for the start screen, and it
+    /// persists both ways.
+    /// </summary>
+    /// <remarks>
+    /// This test used to drive a "Don't show this again" checkbox on the screen
+    /// itself. That checkbox existed while the screen sat over an already-open
+    /// blank document, so skipping it cost nothing; the application now starts
+    /// empty, and opting out on the way past would mean staring at an empty
+    /// workspace every launch. The checkbox is gone — the preference lives only
+    /// under Edit, where turning it off is a decision.
+    /// </remarks>
     [AvaloniaFact]
-    public async Task DontShowAgainIsRememberedAndCanBeTurnedBackOn()
+    public void TheStartScreenToggleLivesInTheEditMenuAndPersists()
     {
-        var (w, vm) = Open();
+        var (_, vm) = Open();
         Assert.True(vm.Settings.ShowStartScreen);
 
-        await Apply(w, StartChoice.Nothing with { DontShowAgain = true });
-        Assert.False(vm.Settings.ShowStartScreen);
+        vm.ShowStartScreen = false;
         Assert.False(AppSettings.Load().ShowStartScreen);
 
         // And there is a way back, or it is a setting you can only switch off.
