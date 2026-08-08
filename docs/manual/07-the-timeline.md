@@ -41,6 +41,14 @@ On import you choose **where the sound lives**:
 
 Either way the offset, volume and mute you set are part of the document.
 
+**The clip is a bar you can take hold of.** In the Timeline docker the sound
+spans its frames as a bar around the waveform: **drag the body** to slide the
+whole clip for timing, **drag either end** to trim its in and out points —
+cut the slate off the front, end on the beat — all without touching the
+source file. Trimming eats or restores source frames; the trimmed window is
+what plays, scrubs and exports. Footage clips get the same bar, one row per
+clip, with the same body-slide and edge-trim handles.
+
 The bar's controls: **Mute**, **volume**, the **start frame** (negative trims
 a lead-in without editing the file), and **✕** to remove the track — the file
 itself is untouched.

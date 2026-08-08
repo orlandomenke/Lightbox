@@ -121,6 +121,12 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>The audio span as the timeline's clip bar, or null.</summary>
+    public Controls.ClipBar? TimelineAudioClip =>
+        AudioClipSpan is { } span
+            ? new Controls.ClipBar("Audio", span.Start, span.Start + span.Length - 1, -1)
+            : null;
+
     /// <summary>The clip bar's body drag: the whole clip moves along the timeline.</summary>
     public void SlideAudioClip(int deltaFrames)
     {
@@ -182,7 +188,7 @@ public partial class MainViewModel
     private AudioClip? _audioClip;
     private float[]? _audioMono;
     private AudioPeaks.Peak[]? _audioPeaks;
-    private (int Offset, int Frames, int Fps) _audioPeaksKey;
+    private (int Offset, int Frames, int Fps, int TrimStart, int? TrimLength) _audioPeaksKey;
 
     /// <summary>
     /// Import a sound file onto the document. Returns null on success, or a
@@ -418,6 +424,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(AudioVolume));
         OnPropertyChanged(nameof(AudioOffsetFrames));
         OnPropertyChanged(nameof(AudioClipSpan));
+        OnPropertyChanged(nameof(TimelineAudioClip));
         OnPropertyChanged(nameof(TimelineAudioPeaks));
     }
 }

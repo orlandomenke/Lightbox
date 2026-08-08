@@ -405,6 +405,12 @@ public class TrackView : Control
         context.DrawRectangle(handle, null, new Rect(rect.Right - 3, rect.Y, 3, rect.Height));
     }
 
+    /// <summary>
+    /// The frame under x with no clamping — clip drags may aim past the end
+    /// of the document (the timeline grows to follow) or left of frame zero.
+    /// </summary>
+    private int RawFrameAtX(double x) => (int)Math.Floor((x - Gutter) / Math.Max(0.01, FrameWidth));
+
     private (bool IsAudio, int StripIndex, ClipEditKind Kind)? ClipHitAt(Point p, int trackCount)
     {
         // The edge zone grows with the frames so trimming stays hittable
@@ -477,6 +483,16 @@ public class TrackView : Control
             }
         }
 
+        // A clip bar under the pointer takes the drag before scrubbing does
+        // (Q57) — body slides, edges trim.
+        if (ClipHitAt(p, tracks.Count) is { } hit)
+        {
+            _clipDrag = (hit.IsAudio, hit.StripIndex, hit.Kind, RawFrameAtX(p.X), 0);
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
+
         // Anywhere else in the frame area scrubs, ruler included.
         _scrubbing = true;
         e.Pointer.Capture(this);
@@ -488,6 +504,17 @@ public class TrackView : Control
     {
         base.OnPointerMoved(e);
         var p = e.GetPosition(this);
+        if (_clipDrag is { } cd)
+        {
+            var delta = RawFrameAtX(p.X) - cd.PressFrame;
+            if (delta != cd.Delta)
+            {
+                _clipDrag = cd with { Delta = delta };
+                InvalidateVisual();
+            }
+            e.Handled = true;
+            return;
+        }
         if (_drag is { } d)
         {
             var to = FrameAtX(p.X, FrameWidth, FrameCount);
@@ -509,6 +536,19 @@ public class TrackView : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_clipDrag is { } cd)
+        {
+            _clipDrag = null;
+            e.Pointer.Capture(null);
+            InvalidateVisual();
+            if (cd.Delta != 0)
+            {
+                if (cd.IsAudio) AudioClipEdited?.Invoke(cd.Kind, cd.Delta);
+                else VideoClipEdited?.Invoke(cd.StripIndex, cd.Kind, cd.Delta);
+            }
+            e.Handled = true;
+            return;
+        }
         if (_drag is { } d)
         {
             _drag = null;

@@ -10273,7 +10273,7 @@ public sealed partial class MainViewModel : ObservableObject
             for (var i = 0; i < strips.Count; i++)
             {
                 var strip = strips[i];
-                if (strip.VideoPath is null) continue;
+                if (strip.VideoPath is null && strip.VideoData is null) continue;
                 var first = strip.FirstAssignedSlot();
                 if (first < 0) continue;
                 clips.Add(new Controls.ClipBar(strip.Name, first, strip.LastAssignedSlot(), i));
