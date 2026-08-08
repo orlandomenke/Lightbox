@@ -129,6 +129,17 @@ public sealed partial class MainViewModel : ObservableObject
 
     private DocumentEditor _editor;
     private readonly ComposeRing _composeRing = new();
+
+    /// <summary>
+    /// Baked below-active/above-active layer stacks, so a repaint while
+    /// drawing blends three passes instead of one per layer. Self-invalidating
+    /// by key (see its remarks); the only explicit resets are the wholesale
+    /// ones where the document itself changes under it.
+    /// </summary>
+    private readonly LayerStackBake _stackBake = new();
+
+    /// <summary>The bake's counters, for tests and the render report.</summary>
+    internal LayerStackBake StackBake => _stackBake;
     private long _publishSeq;
 
     /// <summary>Cache of TileStores by bitmap identity to avoid reconverting unchanged frames.</summary>
@@ -726,7 +737,13 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.Changed -= OnDocumentChanged;
         _editor = editor;
         _editor.Changed += OnDocumentChanged;
+        // ClearFrameRenders subsumes the _cache.Clear() this used to be: it
+        // empties the tile cache alongside it, through the one funnel.
         ClearFrameRenders();
+        // The bakes hold bitmaps folded from the old document's cache; the
+        // keys would miss anyway, but a document switch should not keep two
+        // document-sized bitmaps of a scene nobody is looking at.
+        _stackBake.Reset();
         _allThumbsDirty = true;
         ClearPlaybackRange();
         OnDocumentChanged();
@@ -9898,10 +9915,20 @@ public sealed partial class MainViewModel : ObservableObject
             && scene.Camera is null
             && _pendingViewport is { Width: > 0, Height: > 0 };
 
+        // Where the active layer's contribution begins and ends in the pass
+        // list, so the layers that are NOT being drawn on can be folded into
+        // two baked bitmaps below. The active layer's own ghosts belong to its
+        // segment — they change with the playhead and the onion settings, and
+        // a bake that had to watch them would rebuild on exactly the publishes
+        // it exists to make cheap.
+        var activeStart = -1;
+        var activeEnd = -1;
+
         var referencesQueued = false;
         foreach (var layer in scene.Layers)
         {
             if (!scene.IsLayerVisible(layer)) continue;
+            var isActive = layer.Id == ActiveLayer.Id;
 
             // An imported reference goes over the paper and under every
             // drawing — the same place as the photograph you would tape to the
@@ -9913,6 +9940,11 @@ public sealed partial class MainViewModel : ObservableObject
                 passes.AddRange(ReferencePasses(scene));
                 referencesQueued = true;
             }
+
+            // After the references block on purpose: a reference is part of
+            // what is beneath the drawing even when the active layer is the
+            // first one over the paper.
+            if (isActive) activeStart = passes.Count;
 
             // Ghosts go directly beneath the layer they belong to, not beneath
             // the whole stack. Queuing them all first was invisible while every
@@ -9931,6 +9963,7 @@ public sealed partial class MainViewModel : ObservableObject
                 // into. The ghosts still show — there is simply no drawing of
                 // this layer's own to put them under or over.
                 if (Onion.DrawOver) passes.AddRange(ghosts);
+                if (isActive) activeEnd = passes.Count;
                 continue;
             }
 
@@ -10050,6 +10083,7 @@ public sealed partial class MainViewModel : ObservableObject
                     parts.Moving, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
                     overlay, preview));
                 if (Onion.DrawOver) passes.AddRange(ghosts);
+                if (isActive) activeEnd = passes.Count;
                 continue;
             }
 
@@ -10073,12 +10107,26 @@ public sealed partial class MainViewModel : ObservableObject
             // line you have just made would otherwise hide the one you are
             // comparing it to.
             if (Onion.DrawOver) passes.AddRange(ghosts);
+            if (isActive) activeEnd = passes.Count;
         }
 
         // A document with nothing but paper in it still shows its reference —
         // that is the state you are in when you have imported one and have not
         // drawn anything yet, which is every time you start.
         if (!referencesQueued) passes.AddRange(ReferencePasses(scene));
+
+        // Fold the layers that are not being drawn on into two baked bitmaps —
+        // see LayerStackBake for the whole argument. Held off during playback,
+        // where the pass list changes every frame and a bake could never be
+        // reused before it was stale. Downstream (the ring, the culled path,
+        // the unbounded path) sees a shorter list of the same pixels.
+        passes = _stackBake.Fold(
+            passes, activeStart, activeEnd, scene.Width, scene.Height, hold: IsPlaying,
+            out var foldTransitioned);
+        // A fold transition repaints everything once (see the out parameter's
+        // remarks): folded and unfolded pixels can differ by an LSB, and a
+        // dirty-region patch must never mix the two on one surface.
+        if (foldTransitioned) _dirtyIsWholeCanvas = true;
 
         // Compose at the resolution the canvas can actually show. A 4K document
         // in a laptop window is displayed at roughly 40%, and handing the
