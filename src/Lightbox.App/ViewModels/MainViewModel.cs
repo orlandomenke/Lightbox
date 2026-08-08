@@ -4682,7 +4682,63 @@ public sealed partial class MainViewModel : ObservableObject
             }
             list.Add(new("Spacing (measured)", Avalonia.Media.Color.Parse("#2FD1B9"),
                 spacing, spanFrames, Editable: false));
-            return list;
+
+            // The intent laid over the measurement: the same travel,
+            // redistributed by the easing picked on the X-sheet bar. The gap
+            // between the hollow dots and the filled ones is the drawing
+            // that misses the ease.
+            var intended = new double[n];
+            Array.Fill(intended, double.NaN);
+            var wantFrames = new List<int>();
+            foreach (var span in Lightbox.Core.Timeline.SpacingChart.Intended(ActiveLayer, TweenEasing))
+            {
+                if (span.Frame >= n) continue;
+                intended[span.Frame] = span.Distance;
+                wantFrames.Add(span.Frame);
+            }
+            list.Add(new("Spacing (intended)", Avalonia.Media.Color.Parse("#8FE8DC"),
+                intended, wantFrames, Editable: false, Dashed: true));
+
+            SyncGraphLegend(list);
+            return list.Where(s => !_hiddenGraphSeries.Contains(s.Name)).ToList();
+        }
+    }
+
+    /// <summary>
+    /// Series the artist switched off in the graph's legend. By name, which
+    /// survives the projection rebuilding its lists on every change.
+    /// </summary>
+    private readonly HashSet<string> _hiddenGraphSeries = [];
+
+    /// <summary>The legend's rows — stable instances, synced by name.</summary>
+    public ObservableCollection<GraphLegendItem> GraphLegend { get; } = [];
+
+    internal void SetGraphSeriesShown(string name, bool shown)
+    {
+        if (shown ? _hiddenGraphSeries.Remove(name) : _hiddenGraphSeries.Add(name))
+        {
+            OnPropertyChanged(nameof(GraphSeriesList));
+        }
+    }
+
+    /// <summary>
+    /// Keep the legend's rows matching the series that exist, without
+    /// replacing instances — a toggle mid-click must not be swapped out from
+    /// under the pointer.
+    /// </summary>
+    private void SyncGraphLegend(IReadOnlyList<Lightbox.App.Controls.GraphSeries> all)
+    {
+        for (var i = GraphLegend.Count - 1; i >= 0; i--)
+        {
+            if (all.All(s => s.Name != GraphLegend[i].Name)) GraphLegend.RemoveAt(i);
+        }
+        foreach (var s in all)
+        {
+            if (GraphLegend.All(l => l.Name != s.Name))
+            {
+                GraphLegend.Add(new GraphLegendItem(this, s.Name,
+                    new Avalonia.Media.SolidColorBrush(s.Colour), !_hiddenGraphSeries.Contains(s.Name)));
+            }
         }
     }
 
@@ -10530,6 +10586,44 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
         key.Frame = toFrame;
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>
+    /// Author a key at the given frame with the framing already interpolated
+    /// there — the graph's double-click. Keying what is already true changes
+    /// nothing visually, which is exactly what makes it safe to then drag.
+    /// </summary>
+    public void AddCameraKeyAt(int frame)
+    {
+        if (Scene.Camera is not { } camera) return;
+        if (CameraOps.KeyAt(camera, frame) is not null) return;
+        CameraOps.SetKey(camera, frame, CameraOps.At(camera, frame, Scene.Width, Scene.Height));
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>Remove the key at the given frame — the graph's key menu.</summary>
+    public void RemoveCameraKeyAt(int frame)
+    {
+        if (Scene.Camera is not { } camera) return;
+        if (!CameraOps.ClearKey(camera, frame)) return;
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>The easing a key runs into its successor with, for the menu's check mark.</summary>
+    public Easing? CameraKeyEaseAt(int frame) => CameraOps.KeyAt(Scene.Camera, frame)?.Ease;
+
+    /// <summary>Set how the key at the given frame eases into the next one.</summary>
+    public void SetCameraKeyEase(int frame, Easing ease)
+    {
+        if (CameraOps.KeyAt(Scene.Camera, frame) is not { } key || key.Ease == ease) return;
+        key.Ease = ease;
         RefreshCamera();
         NotifyCameraSurface();
         _autosave.MarkDirty();

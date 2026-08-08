@@ -91,3 +91,71 @@ public class SpacingChartTests
         Assert.Empty(SpacingChart.Measure(LayerWith((3, null))));
     }
 }
+
+/// <summary>
+/// The intended chart: the run's measured travel redistributed by the easing,
+/// so measured-vs-intended overlays name the drawing that misses the ease.
+/// </summary>
+public class IntendedSpacingTests
+{
+    private static VectorFrame DrawingAt(double x, FrameRole role = FrameRole.Key) => new()
+    {
+        Role = role,
+        Strokes = [new Stroke { Points = [new StrokePoint(x, 0, 1), new StrokePoint(x, 2, 1)] }],
+    };
+
+    private static Layer LayerWith(params VectorFrame[] frames)
+    {
+        var layer = new Layer { Kind = LayerKind.Vector };
+        foreach (var f in frames) layer.Cels.Add(new Cel { Frame = f });
+        return layer;
+    }
+
+    [Fact]
+    public void LinearIntendedSpacingIsEven()
+    {
+        // Extreme, two inbetweens, extreme — travelled 30 in total, drawn
+        // unevenly. Linear intent: 10 per step.
+        var layer = LayerWith(
+            DrawingAt(0),
+            DrawingAt(3, FrameRole.Inbetween),
+            DrawingAt(24, FrameRole.Inbetween),
+            DrawingAt(30));
+
+        var intended = Lightbox.Core.Timeline.SpacingChart.Intended(layer, Lightbox.Core.Inbetween.Easing.Linear);
+
+        Assert.Equal(3, intended.Count);
+        Assert.All(intended, s => Assert.Equal(10, s.Distance, 3));
+    }
+
+    [Fact]
+    public void EaseInIntendedSpacingWidens()
+    {
+        var layer = LayerWith(
+            DrawingAt(0),
+            DrawingAt(10, FrameRole.Inbetween),
+            DrawingAt(20, FrameRole.Inbetween),
+            DrawingAt(30));
+
+        var intended = Lightbox.Core.Timeline.SpacingChart.Intended(layer, Lightbox.Core.Inbetween.Easing.EaseIn);
+
+        Assert.True(intended[0].Distance < intended[1].Distance
+                    && intended[1].Distance < intended[2].Distance,
+            $"ease-in must widen: {intended[0].Distance:F1}, {intended[1].Distance:F1}, {intended[2].Distance:F1}");
+        // And the travel is conserved — the intent re-spaces, never re-draws.
+        Assert.Equal(30, intended.Sum(s => s.Distance), 3);
+    }
+
+    [Fact]
+    public void AllExtremesMeansIntendedEqualsMeasured()
+    {
+        // Every drawing an extreme (the default role): each run is a single
+        // interval, and there is nothing for the easing to re-space.
+        var layer = LayerWith(DrawingAt(0), DrawingAt(7), DrawingAt(30));
+
+        var measured = Lightbox.Core.Timeline.SpacingChart.Measure(layer);
+        var intended = Lightbox.Core.Timeline.SpacingChart.Intended(layer, Lightbox.Core.Inbetween.Easing.EaseInOut);
+
+        Assert.Equal(measured.Select(s => (s.Frame, s.Distance)), intended.Select(s => (s.Frame, s.Distance)));
+    }
+}

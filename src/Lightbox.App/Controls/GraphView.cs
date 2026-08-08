@@ -11,12 +11,17 @@ namespace Lightbox.App.Controls;
 /// exists where a drawing was measured); <paramref name="KeyFrames"/> marks
 /// the frames wearing a draggable dot when <paramref name="Editable"/>.
 /// </summary>
+/// <param name="Dashed">
+/// Drawn as a dashed line with hollow marks — the treatment for an INTENDED
+/// curve laid over a measured one.
+/// </param>
 public sealed record GraphSeries(
     string Name,
     Color Colour,
     IReadOnlyList<double> Samples,
     IReadOnlyList<int> KeyFrames,
-    bool Editable);
+    bool Editable,
+    bool Dashed = false);
 
 /// <summary>
 /// The graph editor: value over time for the things that interpolate — the
@@ -69,6 +74,15 @@ public class GraphView : Control
     /// series' own units). The host writes the document.
     /// </summary>
     public event Action<string, int, int, double>? KeyEdited;
+
+    /// <summary>A double-click on the plot: author a key at this frame.</summary>
+    public event Action<int>? KeyAddRequested;
+
+    /// <summary>
+    /// A right-click landed on a key dot: the host offers the key's menu
+    /// (easing, removal) at the given position in this control's coordinates.
+    /// </summary>
+    public event Action<string, int, Point>? KeyMenuRequested;
 
     internal const double Gutter = 46;      // the value axis
     internal const double RulerHeight = 20;
@@ -141,10 +155,36 @@ public class GraphView : Control
             context.DrawText(label, new Point(x - label.Width / 2, 2));
         }
 
+        // With exactly one series on the plot its units are unambiguous, so
+        // the axis says them; with several, every range differs and numbers
+        // would lie about all but one curve.
+        if (series.Count == 1)
+        {
+            var only = series[0];
+            var range0 = RangeOf(only);
+            var axis = new SolidColorBrush(only.Colour);
+            foreach (var (v, label) in new[]
+            {
+                (range0.Max, range0.Max.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)),
+                ((range0.Min + range0.Max) / 2, ((range0.Min + range0.Max) / 2).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)),
+                (range0.Min, range0.Min.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)),
+            })
+            {
+                var t = new FormattedText(
+                    label, System.Globalization.CultureInfo.InvariantCulture,
+                    FlowDirection.LeftToRight, typeface, 9, axis);
+                context.DrawText(t, new Point(
+                    Gutter - t.Width - 6, YAtValue(v, range0, PlotHeight) - t.Height / 2));
+            }
+        }
+
         foreach (var s in series)
         {
             var range = RangeOf(s);
-            var pen = new Pen(new SolidColorBrush(s.Colour), 1.8);
+            var pen = new Pen(new SolidColorBrush(s.Colour), 1.8)
+            {
+                DashStyle = s.Dashed ? new DashStyle([3, 3], 0) : null,
+            };
             Point? last = null;
             for (var f = 0; f < Math.Min(s.Samples.Count, FrameCount); f++)
             {
@@ -167,6 +207,11 @@ public class GraphView : Control
                 {
                     context.DrawEllipse(new SolidColorBrush(s.Colour), new Pen(Brushes.White, 1.5), at, DotRadius, DotRadius);
                 }
+                else if (s.Dashed)
+                {
+                    // Hollow: the intent, not a measurement.
+                    context.DrawEllipse(null, new Pen(new SolidColorBrush(s.Colour), 1.5), at, 3, 3);
+                }
                 else
                 {
                     context.DrawEllipse(new SolidColorBrush(s.Colour), null, at, 3, 3);
@@ -174,13 +219,23 @@ public class GraphView : Control
             }
         }
 
-        // The dragged dot's ghost.
+        // The dragged dot's ghost, with the value it would set — dragging
+        // blind was the readout gap this round exists to close.
         if (_drag is { } d)
         {
             var s = series[d.SeriesIndex];
+            var ghost = new Point(XAtFrame(d.ToFrame, FrameWidth), d.Y);
             context.DrawEllipse(
                 new SolidColorBrush(Color.FromArgb(0x88, s.Colour.R, s.Colour.G, s.Colour.B)), null,
-                new Point(XAtFrame(d.ToFrame, FrameWidth), d.Y), DotRadius, DotRadius);
+                ghost, DotRadius, DotRadius);
+            var value = ValueAtY(d.Y, RangeOf(s), PlotHeight);
+            var chip = new FormattedText(
+                value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+                System.Globalization.CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight, typeface, 10, Brushes.White);
+            var box = new Rect(ghost.X + 8, ghost.Y - chip.Height / 2 - 3, chip.Width + 10, chip.Height + 6);
+            context.DrawRectangle(new SolidColorBrush(Color.Parse("#CC26292F")), null, new RoundedRect(box, 3));
+            context.DrawText(chip, new Point(box.X + 5, box.Y + 3));
         }
 
         var playX = XAtFrame(CurrentFrame, FrameWidth);
@@ -193,14 +248,11 @@ public class GraphView : Control
     private (int SeriesIndex, int FromFrame, int ToFrame, double Y)? _drag;
     private bool _scrubbing;
 
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    /// <summary>The editable key dot under the pointer, or null.</summary>
+    private (int SeriesIndex, int Frame, Point At)? DotAt(Point p)
     {
-        base.OnPointerPressed(e);
         var series = Series;
-        if (series is null || series.Count == 0) return;
-        var p = e.GetPosition(this);
-        if (p.X < Gutter) return;
-
+        if (series is null) return null;
         for (var si = 0; si < series.Count; si++)
         {
             var s = series[si];
@@ -210,14 +262,45 @@ public class GraphView : Control
             {
                 if (key < 0 || key >= s.Samples.Count || double.IsNaN(s.Samples[key])) continue;
                 var at = new Point(XAtFrame(key, FrameWidth), YAtValue(s.Samples[key], range, PlotHeight));
-                if (Math.Abs(at.X - p.X) <= 7 && Math.Abs(at.Y - p.Y) <= 7)
-                {
-                    _drag = (si, key, key, at.Y);
-                    e.Pointer.Capture(this);
-                    e.Handled = true;
-                    return;
-                }
+                if (Math.Abs(at.X - p.X) <= 7 && Math.Abs(at.Y - p.Y) <= 7) return (si, key, at);
             }
+        }
+        return null;
+    }
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+        var series = Series;
+        if (series is null || series.Count == 0) return;
+        var p = e.GetPosition(this);
+        if (p.X < Gutter) return;
+
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+        {
+            if (DotAt(p) is { } hit)
+            {
+                KeyMenuRequested?.Invoke(series[hit.SeriesIndex].Name, hit.Frame, p);
+                e.Handled = true;
+            }
+            return;
+        }
+
+        // A double-click authors a key at the clicked frame — the graph can
+        // edit keys, so it must be able to make one.
+        if (e.ClickCount == 2)
+        {
+            KeyAddRequested?.Invoke(FrameAtX(p.X, FrameWidth, FrameCount));
+            e.Handled = true;
+            return;
+        }
+
+        if (DotAt(p) is { } grabbed)
+        {
+            _drag = (grabbed.SeriesIndex, grabbed.Frame, grabbed.Frame, grabbed.At.Y);
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
         }
 
         _scrubbing = true;

@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2965 tests, derived from the suite itself. Each line is a
+2972 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2383,9 +2383,9 @@ regression even when every test still compiles.
 ## GraphViewGeometryTests
 `tests/Lightbox.App.Tests/TimelineFamilyTests.cs`
 
-- Value And Pixel Are Inverses — `:157`
-- AFlat Series Still Gets ARange To Live In — `:166`
-- An All Na NSeries Does Not Poison The Range — `:174`
+- Value And Pixel Are Inverses — `:227`
+- AFlat Series Still Gets ARange To Live In — `:236`
+- An All Na NSeries Does Not Poison The Range — `:244`
 
 ## TimelineFamilyTests
 `tests/Lightbox.App.Tests/TimelineFamilyTests.cs`
@@ -2394,15 +2394,19 @@ regression even when every test still compiles.
 - The Projection Puts The Camera On Top And Reads The Sheet — `:42`
 - AHold Reads As ABar Behind Its Dot — `:63`
 - Dragging ACamera Dot Retimes The Key — `:82`
-- The Graph Offers The Spacing Series Even Without ACamera — `:95`
-- Editing ACamera Key Through The Graph Writes The Channel It Names — `:106`
+- The Graph Offers The Spacing Pair Even Without ACamera — `:95`
+- The Legend Toggles ACurve Off And On — `:108`
+- The Legend Grows The Camera Rows When ACamera Arrives — `:125`
+- ADouble Click Keys The Framing Already There — `:139`
+- The Key Menu Edits Easing And Removal — `:160`
+- Editing ACamera Key Through The Graph Writes The Channel It Names — `:176`
 
 ## TrackViewGeometryTests
 `tests/Lightbox.App.Tests/TimelineFamilyTests.cs`
 
-- The Frame Under ADot Is The Frame The Dot Was Drawn At — `:127`
-- The Row Under ADot Is The Row It Was Drawn In — `:134`
-- The Camera Always Wears The Camera Colour — `:143`
+- The Frame Under ADot Is The Frame The Dot Was Drawn At — `:197`
+- The Row Under ADot Is The Row It Was Drawn In — `:204`
+- The Camera Always Wears The Camera Colour — `:213`
 
 ## TimelineHoldTests
 `tests/Lightbox.App.Tests/TimelineHoldTests.cs`
@@ -3461,6 +3465,13 @@ regression even when every test still compiles.
 - No Sprites Is Not ACrash — `:174`
 - AZero Sized Sprite Is Given APixel Rather Than Disappearing — `:182`
 - ALong Sheet Stays Fast Enough To Export — `:194`
+
+## IntendedSpacingTests
+`tests/Lightbox.Core.Tests/SpacingChartTests.cs`
+
+- Linear Intended Spacing Is Even — `:115`
+- Ease In Intended Spacing Widens — `:132`
+- All Extremes Means Intended Equals Measured — `:150`
 
 ## SpacingChartTests
 `tests/Lightbox.Core.Tests/SpacingChartTests.cs`

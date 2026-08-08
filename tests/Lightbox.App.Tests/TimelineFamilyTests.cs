@@ -92,14 +92,84 @@ public sealed class TimelineFamilyTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
-    public void TheGraphOffersTheSpacingSeriesEvenWithoutACamera()
+    public void TheGraphOffersTheSpacingPairEvenWithoutACamera()
     {
         var (_, vm) = Open();
 
         var series = vm.GraphSeriesList;
-        var spacing = Assert.Single(series);
-        Assert.False(spacing.Editable, "the spacing series is measured off the art, not editable");
-        Assert.Contains("Spacing", spacing.Name);
+        Assert.Equal(2, series.Count);
+        var measured = series.First(s => s.Name == "Spacing (measured)");
+        var intended = series.First(s => s.Name == "Spacing (intended)");
+        Assert.False(measured.Editable, "the spacing series is measured off the art, not editable");
+        Assert.True(intended.Dashed, "the intent wears the dashed treatment, or the two are indistinguishable");
+    }
+
+    [AvaloniaFact]
+    public void TheLegendTogglesACurveOffAndOn()
+    {
+        var (_, vm) = Open();
+
+        _ = vm.GraphSeriesList;   // build the legend
+        var row = vm.GraphLegend.First(l => l.Name == "Spacing (intended)");
+
+        row.IsShown = false;
+        Assert.DoesNotContain(vm.GraphSeriesList, s => s.Name == "Spacing (intended)");
+        // The legend still offers the hidden curve — that is its whole job.
+        Assert.Contains(vm.GraphLegend, l => l.Name == "Spacing (intended)");
+
+        row.IsShown = true;
+        Assert.Contains(vm.GraphSeriesList, s => s.Name == "Spacing (intended)");
+    }
+
+    [AvaloniaFact]
+    public void TheLegendGrowsTheCameraRowsWhenACameraArrives()
+    {
+        var (_, vm) = Open();
+        _ = vm.GraphSeriesList;
+        Assert.DoesNotContain(vm.GraphLegend, l => l.Name == "Zoom");
+
+        vm.AddCameraCommand.Execute(null);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        _ = vm.GraphSeriesList;
+
+        Assert.Contains(vm.GraphLegend, l => l.Name == "Zoom");
+    }
+
+    [AvaloniaFact]
+    public void ADoubleClickKeysTheFramingAlreadyThere()
+    {
+        var (_, vm) = Open();
+        // Room to author in: the default document is one frame long.
+        var cell = vm.FrameCells.First(c => c.Index == 0);
+        for (var i = 0; i < 7; i++) vm.ExtendExposureAt(cell);
+        vm.AddCameraCommand.Execute(null);
+        vm.SetCameraKeyCommand.Execute(null);
+        vm.EditCameraKey("Zoom", 0, 0, 2.0);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        vm.AddCameraKeyAt(6);
+
+        Assert.Equal([0, 6], vm.CameraKeyFrames.Order());
+        // The new key holds what was already interpolated there — authoring
+        // it changed nothing visually.
+        var zoom = vm.GraphSeriesList.First(s => s.Name == "Zoom");
+        Assert.Equal(2.0, zoom.Samples[6], 3);
+    }
+
+    [AvaloniaFact]
+    public void TheKeyMenuEditsEasingAndRemoval()
+    {
+        var (_, vm) = Open();
+        vm.AddCameraCommand.Execute(null);
+        vm.SetCameraKeyCommand.Execute(null);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        vm.SetCameraKeyEase(0, Lightbox.Core.Inbetween.Easing.EaseIn);
+        Assert.Equal(Lightbox.Core.Inbetween.Easing.EaseIn, vm.CameraKeyEaseAt(0));
+
+        vm.RemoveCameraKeyAt(0);
+        Assert.Empty(vm.CameraKeyFrames);
+        Assert.Null(vm.CameraKeyEaseAt(0));
     }
 
     [AvaloniaFact]

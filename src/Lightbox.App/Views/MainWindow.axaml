@@ -3735,6 +3735,28 @@
               <controls:OverflowBar Spacing="10" HorizontalAlignment="Center"
                                     MoreLabel="More  &#x25BE;" MenuPlacement="TopEdgeAlignedRight">
                 <views:TransportBar />
+                <!-- The legend IS the series switchboard: each row toggles
+                     its curve, and the swatch says which colour is whose.
+                     The spacing rows read the ACTIVE layer. -->
+                <ItemsControl ItemsSource="{Binding GraphLegend}" VerticalAlignment="Center">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" Spacing="4" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GraphLegendItem">
+                      <ToggleButton IsChecked="{Binding IsShown, Mode=TwoWay}" Padding="6,2"
+                                    ToolTip.Tip="Show or hide this curve. The spacing curves read the active layer.">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                          <Border Width="8" Height="8" CornerRadius="4" VerticalAlignment="Center"
+                                  Background="{Binding Colour}" />
+                          <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </ToggleButton>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
               </controls:OverflowBar>
             </Border>
           </controls:Docker.TopBar>

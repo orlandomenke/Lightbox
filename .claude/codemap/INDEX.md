@@ -1,6 +1,6 @@
 # Code index
 
-574 files · 150341 lines · 2965 tests.
+575 files · 150787 lines · 2972 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,13 +47,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10912 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4557, TransformParts:7374
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4682 ln) · 26 test files
-  - MainWindow:19, UnsavedChoice:3124
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (11006 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4557, TransformParts:7430
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4711 ln) · 26 test files
+  - MainWindow:19, UnsavedChoice:3153
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4039 ln) · 14 test files
   - CanvasControl:28, CanvasToolMode:908, GridGesture:965, TxDrag:1178, DrawOp:3220
-- `src/Lightbox.App/Views/MainWindow.axaml` (3762 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3784 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
@@ -93,6 +93,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - TimelineRuler:17, Handle:101
 - `src/Lightbox.App/ViewModels/ColorPickerViewModel.cs` (367 ln) · 4 test files
   - ColorMode:9, ColorPickerViewModel:25
+- `src/Lightbox.App/Controls/GraphView.cs` (353 ln) · 1 test files
+  - GraphSeries:18, GraphView:32
 - `src/Lightbox.App/Rendering/PresentedFrame.cs` (352 ln) · 2 test files
   - PresentedFrame:45
 - `src/Lightbox.App/ViewModels/SelectionManager.cs` (346 ln) · 4 indirect only
@@ -121,8 +123,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GodotExportOptions:9, GodotExportResult:14, GodotExporter:56, GodotBlock:65
 - `src/Lightbox.App/Controls/CurveEditor.cs` (271 ln) · 1 test files
   - CurveEditor:29
-- `src/Lightbox.App/Controls/GraphView.cs` (270 ln) · 1 test files
-  - GraphSeries:14, GraphView:27
 - `src/Lightbox.App/Rendering/ComposeRing.cs` (264 ln) · 3 test files
   - ComposeRing:31, Buffer:33
 - `src/Lightbox.App/Services/ShortcutMap.cs` (264 ln) · 7 test files
@@ -300,6 +300,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlacementChoiceDialog:11, PlacementChoice:30
 - `src/Lightbox.App/Views/PlacementChoiceDialog.axaml` (32 ln) · **no tests**
   - DontAskAgain, ImportOption, ReferenceOption
+- `src/Lightbox.App/ViewModels/GraphLegendItem.cs` (31 ln) · 4 indirect only
+  - GraphLegendItem:11
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml` (26 ln) · **no tests**
   - Message, RevertButton, SaveButton
 - `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 26 indirect only
@@ -409,6 +411,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - UnityConvert:34
 - `src/Lightbox.Core/Geometry/IncrementalDensify.cs` (132 ln) · 1 test files
   - IncrementalDensify:48
+- `src/Lightbox.Core/Timeline/SpacingChart.cs` (126 ln) · 1 test files
+  - SpacingChart:27
 - `src/Lightbox.Core/Geometry/TileGrid.cs` (125 ln) · 4 test files
   - TileGrid:33
 - `src/Lightbox.Core/Timeline/ExposureSheet.cs` (125 ln) · 4 test files
@@ -459,8 +463,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - FeatureConflict:19, FeatureConflicts:40
 - `src/Lightbox.Core/Serialization/DocJson.cs` (77 ln) · 33 test files
   - DocJson:11
-- `src/Lightbox.Core/Timeline/SpacingChart.cs` (77 ln) · 1 test files
-  - SpacingChart:27
 - `src/Lightbox.Core/Versioning/VersionEntry.cs` (77 ln) · 1 test files
   - VersionEntry:10
 - `src/Lightbox.Core/Documents/Anchor.cs` (70 ln) · 10 test files

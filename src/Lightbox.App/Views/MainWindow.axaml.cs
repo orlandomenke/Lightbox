@@ -37,6 +37,8 @@ public partial class MainWindow : Window
         Canvas.SelectedLinesDragged += (dx, dy) => _vm.MoveSelectedStrokes(dx, dy);
         TimelineTrackView.KeyDragged += OnTrackKeyDragged;
         GraphEditorView.KeyEdited += (series, from, to, value) => _vm.EditCameraKey(series, from, to, value);
+        GraphEditorView.KeyAddRequested += frame => _vm.AddCameraKeyAt(frame);
+        GraphEditorView.KeyMenuRequested += OnGraphKeyMenu;
         Canvas.SetPlacementProvider(_vm.GetCurrentFramePlacements);
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
@@ -3075,6 +3077,33 @@ public partial class MainWindow : Window
         var to = row.Cells.FirstOrDefault(c => c.Index == toFrame);
         if (from is null || to is null) return;
         _vm.MoveCel(from, to, copy: false);
+    }
+
+    /// <summary>
+    /// The graph's key menu: how this key eases into the next, and removal.
+    /// Built in code because the flyout needs the frame it was asked about.
+    /// </summary>
+    private void OnGraphKeyMenu(string series, int frame, Avalonia.Point at)
+    {
+        var current = _vm.CameraKeyEaseAt(frame);
+        var flyout = new MenuFlyout { Placement = PlacementMode.Pointer };
+        foreach (var ease in (Lightbox.Core.Inbetween.Easing[])
+                 [Lightbox.Core.Inbetween.Easing.Linear, Lightbox.Core.Inbetween.Easing.EaseIn,
+                  Lightbox.Core.Inbetween.Easing.EaseOut, Lightbox.Core.Inbetween.Easing.EaseInOut])
+        {
+            var item = new MenuItem
+            {
+                Header = ease == current ? $"✓ {ease}" : ease.ToString(),
+            };
+            var chosen = ease;
+            item.Click += (_, _) => _vm.SetCameraKeyEase(frame, chosen);
+            flyout.Items.Add(item);
+        }
+        flyout.Items.Add(new Separator());
+        var remove = new MenuItem { Header = $"Remove key at {frame + 1}" };
+        remove.Click += (_, _) => _vm.RemoveCameraKeyAt(frame);
+        flyout.Items.Add(remove);
+        flyout.ShowAt(GraphEditorView, showAtPointer: true);
     }
 
     // ---- the chrome is ours -------------------------------------------------
