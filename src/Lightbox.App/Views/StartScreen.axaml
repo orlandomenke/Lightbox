@@ -76,9 +76,6 @@
         <Button Classes="primary" Content="Create" IsDefault="True" Click="OnCreate" MinWidth="90"
                 ToolTip.Tip="Esc goes straight to the blank document already open" />
       </StackPanel>
-      <CheckBox x:Name="DontShowBox" Content="Don't show this again"
-                VerticalAlignment="Center" FontSize="11"
-                ToolTip.Tip="You can turn it back on in Edit → Configure" />
     </DockPanel>
   </Grid>
 </Window>
