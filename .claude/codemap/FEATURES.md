@@ -2087,15 +2087,15 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/StartScreenTests.cs`
 
 - Escape Leaves Nothing Open Rather Than ACanvas Nobody Chose — `:54`
-- Dont Show Again Is Remembered And Can Be Turned Back On — `:67`
-- Offering The Screen Does Nothing When It Is Turned Off — `:82`
-- New File Uses The Values The Screen Collected — `:99`
-- Opening ARecent Document Opens It — `:116`
-- AFile That Has Moved Says So Rather Than Doing Nothing — `:137`
-- Opening ADocument Puts It In The Recents — `:155`
-- Saving Somewhere New Records It Too — `:178`
-- Clearing The List Empties It On Disk As Well — `:209`
-- Only What Is Still On Disk Is Offered — `:232`
+- The Start Screen Toggle Lives In The Edit Menu And Persists — `:79`
+- Offering The Screen Does Nothing When It Is Turned Off — `:93`
+- New File Uses The Values The Screen Collected — `:110`
+- Opening ARecent Document Opens It — `:127`
+- AFile That Has Moved Says So Rather Than Doing Nothing — `:148`
+- Opening ADocument Puts It In The Recents — `:166`
+- Saving Somewhere New Records It Too — `:189`
+- Clearing The List Empties It On Disk As Well — `:220`
+- Only What Is Still On Disk Is Offered — `:243`
 
 ## StartupHandoffTests
 `tests/Lightbox.App.Tests/StartupHandoffTests.cs`
