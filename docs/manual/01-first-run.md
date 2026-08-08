@@ -51,7 +51,7 @@ From the top:
 
 Eight panels: **Project**, **Layers**, **Color**, **Reference sheets**,
 **Palette**, **Gradient**, **Reference**, **Timeline**. Open and close them
-from **View**.
+from **View ▸ Dockers**, where every panel toggle lives in one submenu.
 
 Each panel's header is three things at once:
 

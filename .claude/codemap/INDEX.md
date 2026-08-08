@@ -1,6 +1,6 @@
 # Code index
 
-583 files · 152333 lines · 2996 tests.
+584 files · 152412 lines · 2998 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,11 +49,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (11040 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4558, TransformParts:7438
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4732 ln) · 28 test files
-  - MainWindow:19, UnsavedChoice:3174
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4762 ln) · 29 test files
+  - MainWindow:19, UnsavedChoice:3204
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4192 ln) · 15 test files
   - CanvasControl:28, CameraDrag:460, CanvasToolMode:960, GridGesture:1017, TxDrag:1230, DrawOp:3336
-- `src/Lightbox.App/Views/MainWindow.axaml` (3809 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3818 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
@@ -113,7 +113,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MainViewModel:39
 - `src/Lightbox.App/Docking/WorkspaceStore.cs` (303 ln) · 5 test files
   - Workspace:13, WorkspaceStore:51
-- `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 28 indirect only
+- `src/Lightbox.App/Controls/GradientRamp.cs` (301 ln) · 29 indirect only
   - RampTrack:10, GradientRamp:41
 - `src/Lightbox.App/ViewModels/SymbolBrowserViewModel.cs` (288 ln) · **no tests**
   - SymbolRow:16, SymbolBrowserViewModel:92
@@ -278,7 +278,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SequenceExporter:20
 - `src/Lightbox.App/Docking/OverlayConverters.cs` (61 ln) · 2 test files
   - OverlayConverters:7
-- `src/Lightbox.App/Views/NewProjectPanel.axaml.cs` (61 ln) · 28 indirect only
+- `src/Lightbox.App/Views/NewProjectPanel.axaml.cs` (61 ln) · 29 indirect only
   - NewProjectSettings:8, NewProjectPanel:16, TypeChoice:18, PanelChoice:34
 - `src/Lightbox.App/Rendering/ThumbnailRenderer.cs` (60 ln) · 4 indirect only
   - ThumbnailRenderer:7
@@ -288,7 +288,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SplashWindow:33
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml` (51 ln) · **no tests**
   - ApplyButton, CameraBox, ChangesPanel, DrawnOnList, DrawnOnPanel, FpsBox, GuidesBox, LayerPropertiesBox …
-- `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 28 indirect only
+- `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 29 indirect only
   - SaveFirstChoice:7, SaveFirstDialog:32
 - `src/Lightbox.App/Services/BrushFilter.cs` (47 ln) · 1 test files
   - BrushFilter:12
@@ -300,7 +300,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**
   - NameBox, TypeBox, WorkspaceBox
-- `src/Lightbox.App/Views/PlacementChoiceDialog.axaml.cs` (34 ln) · 28 indirect only
+- `src/Lightbox.App/Views/PlacementChoiceDialog.axaml.cs` (34 ln) · 29 indirect only
   - PlacementChoiceDialog:11, PlacementChoice:30
 - `src/Lightbox.App/Views/PlacementChoiceDialog.axaml` (32 ln) · **no tests**
   - DontAskAgain, ImportOption, ReferenceOption
@@ -308,9 +308,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GraphLegendItem:11
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml` (26 ln) · **no tests**
   - Message, RevertButton, SaveButton
-- `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 28 indirect only
+- `src/Lightbox.App/Views/NewProjectDialog.axaml.cs` (25 ln) · 29 indirect only
   - NewProjectDialog:10
-- `src/Lightbox.App/Views/NewDocumentDialog.axaml.cs` (22 ln) · 28 indirect only
+- `src/Lightbox.App/Views/NewDocumentDialog.axaml.cs` (22 ln) · 29 indirect only
   - NewDocumentDialog:15
 - `src/Lightbox.App/Views/NewDocumentDialog.axaml` (17 ln) · **no tests**
   - Fields

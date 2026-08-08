@@ -2085,11 +2085,41 @@ public partial class MainWindow : Window
     /// Toolbar width decides its shape: two icon columns when narrow, one
     /// full-width column when widened, icon + tool name when wider still.
     /// </summary>
-    private void OnToolbarSizeChanged(object? sender, SizeChangedEventArgs e)
+    private void OnToolbarSizeChanged(object? sender, SizeChangedEventArgs e) =>
+        ReflowToolRail(e.NewSize.Width, e.NewSize.Height);
+
+    /// <summary>
+    /// The rail's column count follows the window (Q56): one column when the
+    /// window is tall enough to hold every tool in it, two as the ordinary
+    /// case, three when the window is short and the rail wide enough — and
+    /// the columns sit centred. Dragged past 150 px the rail becomes the
+    /// labelled single-column list it always was.
+    /// </summary>
+    private void ReflowToolRail(double width, double height)
     {
-        var width = e.NewSize.Width;
-        ToolButtons.ItemWidth = width < 96 ? 34 : Math.Max(40, width - 14);
-        Toolbar.Classes.Set("labels", width >= 150);
+        if (width <= 0 || height <= 0) return;
+
+        if (width >= 150)
+        {
+            Toolbar.Classes.Set("labels", true);
+            ToolButtons.ItemWidth = Math.Max(40, width - 14);
+            ToolButtons.Width = double.NaN;
+            return;
+        }
+        Toolbar.Classes.Set("labels", false);
+
+        const double tile = 34;
+        var visible = ToolButtons.Children.Count(c => c.IsVisible);
+        if (visible == 0) return;
+        var first = ToolButtons.Children.First(c => c.IsVisible);
+        var tileH = first.Bounds.Height > 1 ? first.Bounds.Height + 4 : 32;
+
+        var maxByWidth = Math.Clamp((int)((width - 8) / tile), 1, 3);
+        var cols = 1;
+        while (cols < maxByWidth && Math.Ceiling(visible / (double)cols) * tileH > height - 8) cols++;
+
+        ToolButtons.ItemWidth = tile;
+        ToolButtons.Width = cols * tile;
     }
 
     // Press-and-hold a tool button to list its variants (like Photoshop/Krita).

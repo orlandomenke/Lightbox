@@ -331,29 +331,33 @@
                     IsEnabled="{Binding RigEditMode}" />
         </MenuItem>
         <Separator />
-        <!-- MenuItem.IsChecked binds one-way by default: without Mode=TwoWay the
-             click only flips the checkmark locally and the docker never reopens. -->
-        <!-- Project and Symbols need a project to have anything to show, and
-             `IsPanelUsable` keeps them out of the layout without one. The menu
-             items have to be absent for the same reason: an item you can tick
-             that then does nothing is worse than one that is not there. -->
-        <MenuItem Header="Project" ToggleType="CheckBox" IsVisible="{Binding HasProject}"
-                  IsChecked="{Binding Workspace.ProjectPanelVisible, Mode=TwoWay}" />
-        <MenuItem Header="Layers" ToggleType="CheckBox" IsChecked="{Binding Workspace.LayersPanelVisible, Mode=TwoWay}" />
-        <MenuItem Header="Timeline" ToggleType="CheckBox" IsChecked="{Binding TimelineVisible, Mode=TwoWay}" />
-        <MenuItem Header="X-sheet" ToggleType="CheckBox" IsChecked="{Binding Workspace.XsheetDockerVisible, Mode=TwoWay}" />
-        <MenuItem Header="Graph editor" ToggleType="CheckBox" IsChecked="{Binding Workspace.GraphEditorDockerVisible, Mode=TwoWay}" />
-        <MenuItem Header="Color" ToggleType="CheckBox" IsChecked="{Binding ColorDockerVisible, Mode=TwoWay}" />
-        <MenuItem Header="Palette" ToggleType="CheckBox" IsChecked="{Binding PaletteDockerVisible, Mode=TwoWay}" />
-        <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
-        <MenuItem Header="Reference sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
-        <MenuItem Header="Reference" ToggleType="CheckBox" IsChecked="{Binding ReferenceDockerVisible, Mode=TwoWay}" />
-        <MenuItem Header="Tool options" ToggleType="CheckBox"
-                  IsChecked="{Binding Workspace.ToolOptionsDockerVisible, Mode=TwoWay}"
-                  ToolTip.Tip="The full brush parameters as a panel — the same pages the toolbar's gear opens" />
-        <MenuItem Header="Symbols" ToggleType="CheckBox"
-                  IsChecked="{Binding Workspace.SymbolsPanelVisible, Mode=TwoWay}"
-                  ToolTip.Tip="A drawing stored once and placed many times. Your own library is here with no project open; project symbols need a project." />
+        <!-- Every docker toggle in one submenu (Q56): twelve checkable items
+             inline made View a list to scan past to reach anything else. -->
+        <MenuItem Header="_Dockers">
+          <!-- MenuItem.IsChecked binds one-way by default: without Mode=TwoWay the
+               click only flips the checkmark locally and the docker never reopens. -->
+          <!-- Project and Symbols need a project to have anything to show, and
+               `IsPanelUsable` keeps them out of the layout without one. The menu
+               items have to be absent for the same reason: an item you can tick
+               that then does nothing is worse than one that is not there. -->
+          <MenuItem Header="Project" ToggleType="CheckBox" IsVisible="{Binding HasProject}"
+                    IsChecked="{Binding Workspace.ProjectPanelVisible, Mode=TwoWay}" />
+          <MenuItem Header="Layers" ToggleType="CheckBox" IsChecked="{Binding Workspace.LayersPanelVisible, Mode=TwoWay}" />
+          <MenuItem Header="Timeline" ToggleType="CheckBox" IsChecked="{Binding TimelineVisible, Mode=TwoWay}" />
+          <MenuItem Header="X-sheet" ToggleType="CheckBox" IsChecked="{Binding Workspace.XsheetDockerVisible, Mode=TwoWay}" />
+          <MenuItem Header="Graph editor" ToggleType="CheckBox" IsChecked="{Binding Workspace.GraphEditorDockerVisible, Mode=TwoWay}" />
+          <MenuItem Header="Color" ToggleType="CheckBox" IsChecked="{Binding ColorDockerVisible, Mode=TwoWay}" />
+          <MenuItem Header="Palette" ToggleType="CheckBox" IsChecked="{Binding PaletteDockerVisible, Mode=TwoWay}" />
+          <MenuItem Header="Gradient" ToggleType="CheckBox" IsChecked="{Binding GradientDockerVisible, Mode=TwoWay}" />
+          <MenuItem Header="Reference sheets" ToggleType="CheckBox" IsChecked="{Binding SheetsDockerVisible, Mode=TwoWay}" />
+          <MenuItem Header="Reference" ToggleType="CheckBox" IsChecked="{Binding ReferenceDockerVisible, Mode=TwoWay}" />
+          <MenuItem Header="Tool options" ToggleType="CheckBox"
+                    IsChecked="{Binding Workspace.ToolOptionsDockerVisible, Mode=TwoWay}"
+                    ToolTip.Tip="The full brush parameters as a panel — the same pages the toolbar's gear opens" />
+          <MenuItem Header="Symbols" ToggleType="CheckBox"
+                    IsChecked="{Binding Workspace.SymbolsPanelVisible, Mode=TwoWay}"
+                    ToolTip.Tip="A drawing stored once and placed many times. Your own library is here with no project open; project symbols need a project." />
+        </MenuItem>
         <Separator />
         <!-- The bars that sit on the canvas. Separate from the panels above
              because they are a different trade: a panel takes room away from
@@ -1239,7 +1243,9 @@
 
       <Grid x:Name="WorkArea" Grid.Row="2">
         <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="76" MinWidth="40" MaxWidth="220" />
+          <!-- 88: two centred 34px tool columns fit with the border and
+               margins paid (Q56). 76 held exactly one. -->
+          <ColumnDefinition Width="88" MinWidth="40" MaxWidth="220" />
           <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="Auto" />
@@ -1252,7 +1258,10 @@
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
                 Margin="4,4,0,4" ClipToBounds="True" SizeChanged="OnToolbarSizeChanged">
           <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <WrapPanel x:Name="ToolButtons" Margin="3">
+            <!-- Columns are decided in ReflowToolRail (Q56): 1 when the
+                 window is tall enough, 2 by default, 3 where width allows —
+                 always centred in the rail. -->
+            <WrapPanel x:Name="ToolButtons" Margin="3" HorizontalAlignment="Center">
               <ToggleButton Classes="tool" IsChecked="{Binding IsBrushTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Brush}"
                             ToolTip.Tip="Brush (B)">

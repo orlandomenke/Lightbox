@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2996 tests, derived from the suite itself. Each line is a
+2998 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2534,6 +2534,12 @@ regression even when every test still compiles.
 - Absent Until Asked For — `:28`
 - The Gear Opens The Panel On The Right — `:37`
 - The Gear Never Closes — `:57`
+
+## ToolRailReflowTests
+`tests/Lightbox.App.Tests/ToolRailReflowTests.cs`
+
+- The Rail Uses One Column When Tall And Two When Short — `:16`
+- The Columns Sit Centred In The Rail — `:31`
 
 ## FillToolTests
 `tests/Lightbox.App.Tests/ToolSelectionFillTests.cs`
