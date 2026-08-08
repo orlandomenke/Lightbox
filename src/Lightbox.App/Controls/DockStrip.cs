@@ -61,25 +61,13 @@ public class DockStrip : Grid
             return;
         }
 
-        // A horizontal strip still wants its content's width as a minimum so
-        // its ScrollViewer can do its job; a vertical one must fit, always.
-        if (!Vertical)
-        {
-            var wanted = 0.0;
-            for (var i = 0; i < panels.Count; i++)
-            {
-                if (i > 0) wanted += SplitterSize;
-                var e = layout.Place(panels[i].PanelId).Extent;
-                wanted += e > 0 ? e : DockPanels.Of(panels[i].PanelId).DefaultExtent;
-            }
-            MinWidth = wanted;
-            MinHeight = 0;
-        }
-        else
-        {
-            MinWidth = 0;
-            MinHeight = 0;
-        }
+        // A strip always fits the area it is given — this is what "a sidebar
+        // never scrolls" means, and the bottom strip follows the same rule so
+        // its bars can run their overflow arithmetic against a real width
+        // instead of a scrolled one. A minimum here would put the ▾ menu in
+        // the part of the bar nobody can see.
+        MinWidth = 0;
+        MinHeight = 0;
 
         for (var i = 0; i < panels.Count; i++)
         {
@@ -95,21 +83,15 @@ public class DockStrip : Grid
             var extent = layout.Place(panel.PanelId).Extent;
             if (extent <= 0) extent = info.DefaultExtent;
 
-            var length = Vertical
-                // Weighted stars: the saved extent is the weight, so the
-                // panels keep their proportions while always fitting, and
-                // another panel arriving shrinks everyone proportionally.
-                ? new GridLength(extent, GridUnitType.Star)
-                // Across, pixels as before — the last panel absorbs the slack
-                // so a single-panel strip fills its area.
-                : i == panels.Count - 1
-                    ? new GridLength(1, GridUnitType.Star)
-                    : new GridLength(extent, GridUnitType.Pixel);
-            // The floor is the panel's CHROME when it shares a side, or its
-            // content minimum when it stands alone or sits across the bottom:
-            // bars stay visible however hard a full sidebar is squeezed, and
-            // the squeeze lands on the content, which scrolls.
-            var min = Vertical && panels.Count > 1 ? ChromeFloor : info.MinExtent;
+            // Weighted stars: the saved extent is the weight, so the panels
+            // keep their proportions while always fitting, and another panel
+            // arriving shrinks everyone proportionally.
+            var length = new GridLength(extent, GridUnitType.Star);
+            // The floor is the panel's CHROME when it shares a strip: bars
+            // stay visible however hard the strip is squeezed, and the
+            // squeeze lands on the content, which scrolls inside the panel.
+            // Alone there is nothing to share with, so no floor is needed.
+            var min = panels.Count > 1 ? ChromeFloor : 0;
             AddSlot(panel, length, min);
         }
     }

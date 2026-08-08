@@ -544,7 +544,8 @@
         <Border Width="1" Margin="6,3,0,3" Background="{StaticResource BorderBrush}" />
       </StackPanel>
 
-      <controls:OverflowBar Spacing="14" VerticalAlignment="Center">
+      <controls:OverflowBar Spacing="14" VerticalAlignment="Center"
+                            MoreLabel="More tool options  &#x25BE;">
 
         <!-- Transform session (Ctrl+T): shown above whatever tool was active -->
         <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding TransformActive}">
@@ -1965,10 +1966,11 @@
         </Panel>
 
         <GridSplitter x:Name="BottomSplitter" Grid.Row="1" Height="5" ResizeDirection="Rows" />
-        <ScrollViewer x:Name="BottomHost" Grid.Row="2" Margin="4,0,0,4"
-                      VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Auto">
+        <!-- No ScrollViewer: the strip fits, and each panel's bars run
+             their overflow against the real width. -->
+        <Border x:Name="BottomHost" Grid.Row="2" Margin="4,0,0,4">
           <controls:DockStrip x:Name="BottomStrip" />
-        </ScrollViewer>
+        </Border>
         </Grid>
 
         <GridSplitter x:Name="RightSplitter" Grid.Column="5" Width="5" ResizeDirection="Columns" />
@@ -3368,8 +3370,11 @@
         <controls:Docker.TopBar>
           <Border Classes="dockerBar">
             <!-- Centred on the docker, per the owner: playback is symmetric, so
-                 it reads from the middle out. -->
-            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                 it reads from the middle out. When the docker narrows, the
+                 Frames slider gives way first; only at its floor do controls
+                 start moving into the ▾ menu — the owner's overflow rule. -->
+            <controls:OverflowBar Spacing="10" HorizontalAlignment="Center"
+                                  MoreLabel="More  &#x25BE;" MenuPlacement="TopEdgeAlignedRight">
               <StackPanel Orientation="Horizontal" Spacing="2">
                 <Button Content="⏮" Command="{Binding GoToStartFrameCommand}"
                         ToolTip.Tip="To start frame (the set start frame, else the first)" />
@@ -3458,19 +3463,20 @@
               </StackPanel>
               <!-- How many frames fit on screen. Narrow to read the timing of
                    a long scene, wide to read the thumbnails of a short one. -->
-              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                <TextBlock Text="Frames" VerticalAlignment="Center" />
+              <DockPanel VerticalAlignment="Center" controls:OverflowBar.Flex="True"
+                         MinWidth="96" MaxWidth="150">
+                <TextBlock DockPanel.Dock="Left" Text="Frames" VerticalAlignment="Center" Margin="0,0,4,0" />
                 <Slider Value="{Binding TimelineFrameWidth}" Minimum="14" Maximum="72"
-                        Classes="param" VerticalAlignment="Center"
+                        VerticalAlignment="Center"
                         ToolTip.Tip="How wide a frame is on the timeline" />
-              </StackPanel>
+              </DockPanel>
               <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                 <TextBlock Text="Speed %" VerticalAlignment="Center" />
                 <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
                                FormatString="0" Width="50" VerticalAlignment="Center"
                                ToolTip.Tip="Playback speed as a percentage of real time" />
               </StackPanel>
-            </StackPanel>
+            </controls:OverflowBar>
           </Border>
         </controls:Docker.TopBar>
 

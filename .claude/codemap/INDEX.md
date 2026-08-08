@@ -1,6 +1,6 @@
 # Code index
 
-560 files · 147921 lines · 2926 tests.
+561 files · 148118 lines · 2933 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -53,7 +53,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MainWindow:19, UnsavedChoice:3029
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4039 ln) · 14 test files
   - CanvasControl:28, CanvasToolMode:908, GridGesture:965, TxDrag:1178, DrawOp:3220
-- `src/Lightbox.App/Views/MainWindow.axaml` (3689 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3695 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
@@ -123,6 +123,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ComposeRing:31, Buffer:33
 - `src/Lightbox.App/Services/ShortcutMap.cs` (264 ln) · 7 test files
   - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
+- `src/Lightbox.App/Controls/OverflowBar.cs` (263 ln) · 4 test files
+  - OverflowBar:25
 - `src/Lightbox.App/Services/ExportRunner.cs` (256 ln) · 5 test files
   - ExportRun:17, ExportRunner:42
 - `src/Lightbox.App/App.axaml` (254 ln) · **no tests**
@@ -158,8 +160,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DockZones:67
 - `src/Lightbox.App/Controls/FieldMath.cs` (179 ln) · 1 test files
   - FieldMath:32, Converter:156
-- `src/Lightbox.App/Controls/OverflowBar.cs` (178 ln) · 3 test files
-  - OverflowBar:25
 - `src/Lightbox.App/Rendering/GuidePainter.cs` (177 ln) · 1 test files
   - GuidePainter:27
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 3 test files
@@ -172,8 +172,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ColorField:29
 - `src/Lightbox.App/ViewModels/Tools.cs` (166 ln) · 24 test files
   - ToolId:4, CanvasQuality:75, TransformScope:88, TransformSampling:114, SelectVariant:127, HoldDrawing:146
-- `src/Lightbox.App/Controls/DockStrip.cs` (161 ln) · 2 test files
-  - DockStrip:33
 - `src/Lightbox.App/Rendering/RigOverlayPainter.cs` (152 ln) · 1 test files
   - RigOverlayPainter:36
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml.cs` (150 ln) · 1 test files
@@ -184,6 +182,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - DiagnosticLog:22
 - `src/Lightbox.App/Services/BrushImportJob.cs` (144 ln) · 1 test files
   - BrushImportProgress:11, BrushImportOutcome:23, BrushImportJob:52
+- `src/Lightbox.App/Controls/DockStrip.cs` (143 ln) · 2 test files
+  - DockStrip:33
 - `src/Lightbox.App/Styles/Theme.axaml` (140 ln) · **no tests**
 - `src/Lightbox.App/Services/TipStore.cs` (139 ln) · 2 test files
   - TipStore:32, State:45

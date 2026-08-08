@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2926 tests, derived from the suite itself. Each line is a
+2933 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1373,6 +1373,13 @@ regression even when every test still compiles.
 - ADocument That Pins Nothing Writes No Pin Key — `:386`
 - ALayer With Onion Off Contributes No Ghosts — `:400`
 
+## OverflowBarFlexTests
+`tests/Lightbox.App.Tests/OverflowBarFlexTests.cs`
+
+- With Room To Spare The Flex Child Is At Its Cap — `:34`
+- Squeezing The Bar Shrinks The Flex Child First — `:42`
+- Past The Floor The Menu Opens And Nothing Sticks Out — `:55`
+
 ## OverflowBarTests
 `tests/Lightbox.App.Tests/OverflowBarTests.cs`
 
@@ -1382,6 +1389,10 @@ regression even when every test still compiles.
 - An Item Too Wide For The Bar At All Is Pushed Into The Menu — `:41`
 - An Empty Bar Overflows Nothing — `:49`
 - The Order Is Kept — `:55`
+- The Flexible Child Is At Full Width When Everything Fits — `:72`
+- The Flexible Child Gives Way Before Anything Overflows — `:81`
+- Only At The Floor Does The Menu Start — `:92`
+- No Flex Index Behaves Exactly As Before — `:104`
 
 ## OverlayBarLayoutTests
 `tests/Lightbox.App.Tests/OverlayBarLayoutTests.cs`
