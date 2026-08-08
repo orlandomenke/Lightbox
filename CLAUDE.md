@@ -4,6 +4,25 @@ A raster + vector desktop application for **frame-by-frame animation** and
 **digital painting**, with AI assistance throughout — most visibly filling in
 the inbetweens. C#/.NET 10, Avalonia 12, SkiaSharp.
 
+**This repository is public, and licensed GPL-3.0.** Everything written into it
+is published the moment it is pushed — including `BUGS.md`, `QUESTIONS.md` and
+`ROADMAP.md`, which are candid by design about what is broken, what was decided
+badly, and what is not built yet. That candour is the point and it should not
+change: a ledger that flatters the project is worth nothing. What *does* change
+is that it is now a choice rather than a private note. Two consequences worth
+holding on to:
+
+- **Nothing private goes in.** No keys, no customer names, no anything that
+  would be a problem in a search result. The one deliberate test fixture is
+  `sk-ant-test`, which is not a key.
+- **Write for a reader who is not here.** The ledgers already explain *why*
+  rather than *what*, which is what makes them survive being read by a stranger
+  — keep it that way, and the file stays useful to the next contributor as well
+  as to the next session.
+
+Contributions are not being accepted while Lightbox is alpha
+(`CONTRIBUTING.md`), because sole copyright is what keeps relicensing possible.
+
 ## What it is for, and how that settles arguments
 
 Two first-class purposes, not one with a hobby attached:
