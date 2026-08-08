@@ -101,7 +101,10 @@ public sealed class Guide
     /// A vanishing point has no fixed angle — its direction depends on where
     /// you are standing — so it returns nothing here and is handled by
     /// <see cref="Snapper.DirectionAt"/> instead.
+    ///
+    /// <para>Derived; never serialized — see <see cref="Scene.HasGhostFrames"/>.</para>
     /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyList<double> Angles => Kind switch
     {
         GuideKind.Line => [Angle],

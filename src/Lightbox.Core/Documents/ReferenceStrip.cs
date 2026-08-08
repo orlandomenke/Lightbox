@@ -57,11 +57,21 @@ public sealed class ReferenceCell
 
     public double? PivotY { get; set; }
 
-    /// <summary>Where the pivot is, decided or not.</summary>
+    /// <summary>
+    /// Where the pivot is, decided or not. Derived; never serialized — a
+    /// tuple has public fields rather than properties, so this wrote an empty
+    /// <c>"pivot": {}</c> onto every cell, which is the same leak as the
+    /// others and harder to spot for looking like nothing.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public (double X, double Y) Pivot =>
         (PivotX ?? X + Width / 2.0, PivotY ?? Y + Height);
 
-    /// <summary>Whether the pivot was placed by hand rather than assumed.</summary>
+    /// <summary>
+    /// Whether the pivot was placed by hand rather than assumed. Derived;
+    /// never serialized.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool HasPivot => PivotX is not null || PivotY is not null;
 
     public ReferenceCell Clone() => (ReferenceCell)MemberwiseClone();

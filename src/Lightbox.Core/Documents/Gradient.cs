@@ -96,7 +96,8 @@ public sealed class Gradient
     /// </remarks>
     public List<GradientAlphaStop>? AlphaStops { get; set; }
 
-    /// <summary>Whether opacity is authored separately from colour.</summary>
+    /// <summary>Whether opacity is authored separately from colour. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool HasAlphaTrack => AlphaStops is { Count: > 0 };
 
     /// <summary>The alpha track, creating it on first use.</summary>

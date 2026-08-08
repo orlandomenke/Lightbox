@@ -748,6 +748,13 @@ test reopens the bug.
 
 ### project
 
+- [x] **B143** `P2` `project` Five derived getters write themselves into every saved document `evidence: DerivedPropertyTests, APinnedFrameDoesNotAlsoWriteAFlagSayingSo, AGuideDoesNotCarryTheAnglesDerivedFromItsKind, ADerivedPropertyOnTheDocumentModelIsMarkedAsOne`
+  - Repro: serialize a document with a pinned frame, a guide, a reference strip and a gradient with an alpha track, then look at the JSON. `hasGhostFrames`, `angles`, `hasPivot`, `hasAlphaTrack` and `pivot` are all in it. None is read back — every one is a getter with no setter — so they are bytes written on every save that only ever travel outward.
+  - **The same defect as `BlendOrNormal`, and the entry for that one is why this is a `P2` rather than a tidy-up.** `System.Text.Json` writes any public getter, so a convenience property added beside a nullable field reintroduces under a second name exactly the key that making the field nullable existed to remove. `Scene.GhostFrames` is nullable so that a document which pins nothing carries no machinery for pinning — and `hasGhostFrames: false` was written onto every document ever saved, which is that saving undone. `HasReferences` and `HasGuides`, six lines away in the same file, both carry `[JsonIgnore]` and both say in their remarks that they have to.
+  - `Guide.Angles` is the worst of them: not a flag but an array, recomputed from `Kind` and `Angle` on load regardless, written once per guide. `ReferenceCell.Pivot` is the one worth remembering — a tuple's members are fields rather than properties, so it serialized as an empty `"pivot": {}` and looked like nothing.
+  - Found by a test written for something else. `ImageResizeTests.EveryCoordinateOnTheSceneIsAccountedFor` enumerates `Scene`'s serialized properties to prove the resize visitor handles all of them, and `HasGhostFrames` turned up in a list it had no business being in.
+  - Fixed: `[JsonIgnore]` on all five, and `ADerivedPropertyOnTheDocumentModelIsMarkedAsOne` sweeps every public getter-without-setter in `Lightbox.Core.Documents` so the sixth fails a test instead of shipping. Old documents still load — the keys were never read, so ignoring them on the way in was already the behaviour.
+
 - [x] **B114** `P1` `project` A character's animations are invisible to export and to scoped resources `evidence: CharacterDocumentsAreInTheProject, AWholeProjectExportIncludesCharacterAnimations, AFolderPaletteReachesACharactersAnimation`
   - Measured, not reasoned about. A project with one character owning `walk`, plus one loose `background` filed in a folder that declares a palette:
 
@@ -1084,6 +1091,18 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B141** `P2` `ui` The slider's hairline track rides low against the label beside it `evidence: SliderTrackAlignmentTests, TheTrackRidesTheVerticalCentreOfTheSlider`
+  - Repro: any row that pairs a label or field with a slider — the Layers top bar, the brush parameter rows. The 3px track sits visibly below the text's centre line.
+  - Cause: Fluent's slider template reserves **15px above and 15px below the track**, as fixed grid rows for tick bars nothing in this application shows. Inside our 24px slider the geometry cannot even fit, and the track assembly pinned 15px from the top. The earlier `VerticalAlignment` fixes on `SliderContainer` and `Track` were aimed at the right symptom and the wrong mechanism — alignment cannot win against a fixed row height.
+  - Fix: the row heights are the dynamic resources `SliderPreContentMargin`/`SliderPostContentMargin`; `Theme.axaml` sets both to `*`, so the track row centres by construction at any slider height instead of at one blessed one.
+  - Cost: S
+
+- [x] **B140** `P2` `ui` The digits in a numeric field sit low and lose their bottoms `evidence: FieldShapeTests, TheDigitsSitCentredInTheField`
+  - Repro: any 22px numeric field — the Layers opacity box is the easiest. "100" renders with the bottoms of the digits cut off, low enough to be unreadable.
+  - Cause: Fluent's theme padding for text controls is `10,6,6,5` — eleven vertical pixels, which in a 22px field leaves less room than one line box. The value flows from the control's own `Padding` template-bound into the inner TextBox, so no amount of styling the inner parts could touch it: **an inline template value outranks a style setter in Avalonia** (Template sits above Style in the priority order, unlike WPF). The probe that found it printed the template's padding where ours was expected.
+  - Fix: `Padding="6,0"` on the `NumericUpDown` density rule — the control's own property is the one thing the template binding reads from. Vertical centring then has room to do its job.
+  - Cost: S
+
 - [x] **B139** `P2` `ui` A lone docker cannot be dragged to another edge `evidence: LoneDockerDragTests, APressOnALoneTabIsAGrip, APressOnARealTabStripStaysAControl`
   - Repro: move the timeline to a side, then try to drag it back — nothing grips. Any docker alone in its slot has the same problem once every slot wears a tab strip.
   - Cause: the header's do-not-drag list includes the tab ListBox, correctly — clicking a tab must switch tabs, not tear the group out. But a slot of one shows a tab too now, and that tab is most of the header, so the rule ate the grip. A single tab has nothing to switch to.
@@ -1095,18 +1114,6 @@ test reopens the bug.
   - Cause: the B127 fix bound the strip's `SelectedValue` to `ActiveTab` in the template, and it works exactly once per docker. Re-binding `Tabs` during a layout rebuild makes the ListBox clear its own selection, and that clear is a **local value — which outranks a template binding permanently** in Avalonia's priority order. Every later push of `ActiveTab` through the binding was silently shadowed.
   - Fix: `Docker.SyncStripSelection()` — the selection is written in code from `ShowTabs` and on template application, under the same applying-flag the rest of the host writes use. A local value is only beaten by another local value.
   - The test asserts the strip's **lights**, where the crash tests assert its **content** — four switches, because the first one passes even when broken.
-  - Cost: S
-
-- [x] **B141** `P2` `ui` The slider's hairline track rides low against the label beside it `evidence: SliderTrackAlignmentTests, TheTrackRidesTheVerticalCentreOfTheSlider`
-  - Repro: any row that pairs a label or field with a slider — the Layers top bar, the brush parameter rows. The 3px track sits visibly below the text's centre line.
-  - Cause: Fluent's slider template reserves **15px above and 15px below the track**, as fixed grid rows for tick bars nothing in this application shows. Inside our 24px slider the geometry cannot even fit, and the track assembly pinned 15px from the top. The earlier `VerticalAlignment` fixes on `SliderContainer` and `Track` were aimed at the right symptom and the wrong mechanism — alignment cannot win against a fixed row height.
-  - Fix: the row heights are the dynamic resources `SliderPreContentMargin`/`SliderPostContentMargin`; `Theme.axaml` sets both to `*`, so the track row centres by construction at any slider height instead of at one blessed one.
-  - Cost: S
-
-- [x] **B140** `P2` `ui` The digits in a numeric field sit low and lose their bottoms `evidence: FieldShapeTests, TheDigitsSitCentredInTheField`
-  - Repro: any 22px numeric field — the Layers opacity box is the easiest. "100" renders with the bottoms of the digits cut off, low enough to be unreadable.
-  - Cause: Fluent's theme padding for text controls is `10,6,6,5` — eleven vertical pixels, which in a 22px field leaves less room than one line box. The value flows from the control's own `Padding` template-bound into the inner TextBox, so no amount of styling the inner parts could touch it: **an inline template value outranks a style setter in Avalonia** (Template sits above Style in the priority order, unlike WPF). The probe that found it printed the template's padding where ours was expected.
-  - Fix: `Padding="6,0"` on the `NumericUpDown` density rule — the control's own property is the one thing the template binding reads from. Vertical centring then has room to do its job.
   - Cost: S
 
 - [x] **B128** `P2` `ui` The palette never reached the theme, so every stock control still paints Windows blue `evidence: PaletteTests, TheThemeAgreesWithThePalette, TheThemePaletteIsWrittenInHexOnPurpose`
