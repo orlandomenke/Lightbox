@@ -210,6 +210,88 @@ public sealed class ReferenceStrip
     }
 
     /// <summary>
+    /// Timeline frames where this clip's bar is cut (Q57), or null — no key
+    /// until the artist splits. A split point divides a contiguous run of
+    /// assigned slots so each section can slide and trim on its own; points
+    /// that stop falling inside a contiguous run (because the sections moved
+    /// apart and the gap now divides them) are normalised away.
+    /// </summary>
+    public List<int>? SplitPoints { get; set; }
+
+    /// <summary>
+    /// The clip's sections on the timeline: contiguous runs of assigned
+    /// slots, divided further at <see cref="SplitPoints"/>. Inclusive frame
+    /// ranges, in timeline order.
+    /// </summary>
+    public IReadOnlyList<(int Start, int End)> AssignedRuns()
+    {
+        var runs = new List<(int Start, int End)>();
+        int? start = null;
+        for (var i = 0; i <= Slots.Count; i++)
+        {
+            var assigned = i < Slots.Count && Slots[i] >= 0;
+            if (assigned && start is null)
+            {
+                start = i;
+            }
+            else if (assigned && start is { } s && SplitPoints?.Contains(i) == true)
+            {
+                runs.Add((s, i - 1));
+                start = i;
+            }
+            else if (!assigned && start is { } open)
+            {
+                runs.Add((open, i - 1));
+                start = null;
+            }
+        }
+        return runs;
+    }
+
+    /// <summary>Drop split points that no longer sit inside a contiguous run.</summary>
+    public void NormaliseSplitPoints()
+    {
+        if (SplitPoints is null) return;
+        SplitPoints.RemoveAll(p =>
+            p <= 0 || p >= Slots.Count || Slots[p] < 0 || Slots[p - 1] < 0);
+        if (SplitPoints.Count == 0) SplitPoints = null;
+    }
+
+    /// <summary>
+    /// Slide one section (Q57): the assignments in the inclusive range move
+    /// by <paramref name="delta"/>. The caller has already clamped the delta
+    /// against the neighbouring sections; assignments pushed past frame zero
+    /// are dropped, as in <see cref="SlideSlots"/>.
+    /// </summary>
+    public void SlideRange(int start, int end, int delta)
+    {
+        if (delta == 0) return;
+        var moved = new List<(int At, int Cell)>();
+        for (var i = Math.Max(0, start); i <= Math.Min(end, Slots.Count - 1); i++)
+        {
+            if (Slots[i] < 0) continue;
+            moved.Add((i + delta, Slots[i]));
+            Slots[i] = -1;
+        }
+        foreach (var (at, cell) in moved)
+        {
+            if (at < 0) continue;
+            Assign(at, cell);
+        }
+        if (SplitPoints is not null)
+        {
+            for (var i = 0; i < SplitPoints.Count; i++)
+            {
+                if (SplitPoints[i] > start && SplitPoints[i] <= end + 1)
+                {
+                    SplitPoints[i] += delta;
+                }
+            }
+        }
+        NormaliseSplitPoints();
+    }
+
+    /// <summary>
     /// Slide every assignment along the timeline by <paramref name="delta"/>
     /// frames (Q57) — the clip bar's body drag. Assignments pushed past
     /// frame zero are dropped off the front, which is what dragging a clip

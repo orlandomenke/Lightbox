@@ -36,26 +36,29 @@ public partial class MainWindow : Window
         // strokes, which is exactly what invariant 6 forbids.
         Canvas.SelectedLinesDragged += (dx, dy) => _vm.MoveSelectedStrokes(dx, dy);
         TimelineTrackView.KeyDragged += OnTrackKeyDragged;
-        // The clip bars (Q57): body slides, edges trim; the view model owns
-        // what that does to the record.
-        TimelineTrackView.AudioClipEdited += (kind, delta) =>
+        // The clip bars (Q57): body slides, edges trim, right-click splits;
+        // the view model owns what that does to the record. An audio bar's
+        // StripIndex is its section index; a video bar is named by its strip
+        // and the frame its section starts on.
+        TimelineTrackView.AudioClipEdited += (bar, kind, delta) =>
         {
             switch (kind)
             {
-                case Controls.ClipEditKind.Slide: _vm.SlideAudioClip(delta); break;
-                case Controls.ClipEditKind.TrimIn: _vm.TrimAudioClipIn(delta); break;
-                case Controls.ClipEditKind.TrimOut: _vm.TrimAudioClipOut(delta); break;
+                case Controls.ClipEditKind.Slide: _vm.SlideAudioClip(bar.StripIndex, delta); break;
+                case Controls.ClipEditKind.TrimIn: _vm.TrimAudioClipIn(bar.StripIndex, delta); break;
+                case Controls.ClipEditKind.TrimOut: _vm.TrimAudioClipOut(bar.StripIndex, delta); break;
             }
         };
-        TimelineTrackView.VideoClipEdited += (strip, kind, delta) =>
+        TimelineTrackView.VideoClipEdited += (bar, kind, delta) =>
         {
             switch (kind)
             {
-                case Controls.ClipEditKind.Slide: _vm.SlideVideoClip(strip, delta); break;
-                case Controls.ClipEditKind.TrimIn: _vm.TrimVideoClipIn(strip, delta); break;
-                case Controls.ClipEditKind.TrimOut: _vm.TrimVideoClipOut(strip, delta); break;
+                case Controls.ClipEditKind.Slide: _vm.SlideVideoClip(bar.StripIndex, bar.Start, delta); break;
+                case Controls.ClipEditKind.TrimIn: _vm.TrimVideoClipIn(bar.StripIndex, bar.Start, delta); break;
+                case Controls.ClipEditKind.TrimOut: _vm.TrimVideoClipOut(bar.StripIndex, bar.Start, delta); break;
             }
         };
+        TimelineTrackView.ClipMenuRequested += OnClipMenu;
         GraphEditorView.KeyEdited += (series, from, to, value) => _vm.EditCameraKey(series, from, to, value);
         GraphEditorView.KeyAddRequested += frame => _vm.AddCameraKeyAt(frame);
         GraphEditorView.KeyMenuRequested += OnGraphKeyMenu;

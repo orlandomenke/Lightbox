@@ -126,21 +126,32 @@ public class TrackView : Control
         set => SetValue(VideoClipsProperty, value);
     }
 
-    /// <summary>The audio clip's span, drawn as a bar around the waveform, or null.</summary>
-    public static readonly StyledProperty<ClipBar?> AudioClipProperty =
-        AvaloniaProperty.Register<TrackView, ClipBar?>(nameof(AudioClip));
+    /// <summary>
+    /// The scratch track's sections, drawn as bars around the waveform (Q57):
+    /// one for an unsplit clip, one per section after splitting. For these
+    /// bars <see cref="ClipBar.StripIndex"/> is the section index.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<ClipBar>?> AudioClipsProperty =
+        AvaloniaProperty.Register<TrackView, IReadOnlyList<ClipBar>?>(nameof(AudioClips));
 
-    public ClipBar? AudioClip
+    public IReadOnlyList<ClipBar>? AudioClips
     {
-        get => GetValue(AudioClipProperty);
-        set => SetValue(AudioClipProperty, value);
+        get => GetValue(AudioClipsProperty);
+        set => SetValue(AudioClipsProperty, value);
     }
 
-    /// <summary>A clip bar finished a drag: which strip, what kind, how many frames.</summary>
-    public event Action<int, ClipEditKind, int>? VideoClipEdited;
+    /// <summary>A footage bar finished a drag: which bar, what kind, how many frames.</summary>
+    public event Action<ClipBar, ClipEditKind, int>? VideoClipEdited;
 
-    /// <summary>The audio bar finished a drag.</summary>
-    public event Action<ClipEditKind, int>? AudioClipEdited;
+    /// <summary>An audio bar finished a drag.</summary>
+    public event Action<ClipBar, ClipEditKind, int>? AudioClipEdited;
+
+    /// <summary>
+    /// A clip bar was right-clicked (Q57): the host opens the section menu —
+    /// split at playhead — at the given position. The bool says whether the
+    /// bar is audio.
+    /// </summary>
+    public event Action<ClipBar, bool, Point>? ClipMenuRequested;
 
     // The reference's geometry, measured off its timeline strip.
     internal const double Gutter = 118;   // track names
@@ -154,7 +165,7 @@ public class TrackView : Control
             TracksProperty, FrameWidthProperty, FrameCountProperty, AudioPeaksProperty, VideoClipsProperty);
         AffectsRender<TrackView>(
             TracksProperty, FrameWidthProperty, CurrentFrameProperty, FrameCountProperty,
-            AudioPeaksProperty, VideoClipsProperty, AudioClipProperty);
+            AudioPeaksProperty, VideoClipsProperty, AudioClipsProperty);
     }
 
     // ---- geometry, static so the tests can hold it still ---------------------
@@ -298,7 +309,7 @@ public class TrackView : Control
             {
                 var clip = clips[j];
                 var y = RulerHeight + (tracks.Count + j) * RowPitch;
-                var (start, end) = DraggedSpan(clip.Start, clip.End, isAudio: false, stripIndex: clip.StripIndex);
+                var (start, end) = DraggedSpan(clip, isAudio: false);
 
                 var clipName = new FormattedText(
                     clip.Name, System.Globalization.CultureInfo.InvariantCulture,
@@ -326,12 +337,15 @@ public class TrackView : Control
                 FlowDirection.LeftToRight, typeface, 11, text);
             context.DrawText(audioName, new Point(10, mid - audioName.Height / 2));
 
-            // The clip bar around the waveform (Q57), drawn first so the
-            // sound reads on top of its own handle.
-            if (AudioClip is { } audioClip)
+            // The clip bars around the waveform (Q57) — one per section —
+            // drawn first so the sound reads on top of its own handles.
+            if (AudioClips is { Count: > 0 } audioClips)
             {
-                var (start, end) = DraggedSpan(audioClip.Start, audioClip.End, isAudio: true, stripIndex: -1);
-                DrawClipBar(context, audioColour, start, end, top);
+                foreach (var audioClip in audioClips)
+                {
+                    var (start, end) = DraggedSpan(audioClip, isAudio: true);
+                    DrawClipBar(context, audioColour, start, end, top);
+                }
             }
 
             var gap = FrameWidth >= 4 ? 1.0 : 0.0;
@@ -369,24 +383,23 @@ public class TrackView : Control
 
     // ---- clip bars (Q57) --------------------------------------------------------
 
-    private (bool IsAudio, int StripIndex, ClipEditKind Kind, int PressFrame, int Delta)? _clipDrag;
+    private (ClipBar Bar, bool IsAudio, ClipEditKind Kind, int PressFrame, int Delta)? _clipDrag;
 
     private double AudioBandTop(int trackCount) =>
         RulerHeight + (trackCount + (VideoClips?.Count ?? 0)) * RowPitch;
 
     /// <summary>The bar's span with the live drag applied — the ghost the hand follows.</summary>
-    private (int Start, int End) DraggedSpan(int start, int end, bool isAudio, int stripIndex)
+    private (int Start, int End) DraggedSpan(ClipBar bar, bool isAudio)
     {
-        if (_clipDrag is not { } cd || cd.IsAudio != isAudio
-            || (!isAudio && cd.StripIndex != stripIndex))
+        if (_clipDrag is not { } cd || cd.IsAudio != isAudio || cd.Bar != bar)
         {
-            return (start, end);
+            return (bar.Start, bar.End);
         }
         return cd.Kind switch
         {
-            ClipEditKind.Slide => (start + cd.Delta, end + cd.Delta),
-            ClipEditKind.TrimIn => (Math.Min(start + cd.Delta, end), end),
-            _ => (start, Math.Max(end + cd.Delta, start)),
+            ClipEditKind.Slide => (bar.Start + cd.Delta, bar.End + cd.Delta),
+            ClipEditKind.TrimIn => (Math.Min(bar.Start + cd.Delta, bar.End), bar.End),
+            _ => (bar.Start, Math.Max(bar.End + cd.Delta, bar.Start)),
         };
     }
 
@@ -411,7 +424,7 @@ public class TrackView : Control
     /// </summary>
     private int RawFrameAtX(double x) => (int)Math.Floor((x - Gutter) / Math.Max(0.01, FrameWidth));
 
-    private (bool IsAudio, int StripIndex, ClipEditKind Kind)? ClipHitAt(Point p, int trackCount)
+    private (ClipBar Bar, bool IsAudio, ClipEditKind Kind)? ClipHitAt(Point p, int trackCount)
     {
         // The edge zone grows with the frames so trimming stays hittable
         // zoomed out, and never eats the whole bar zoomed in.
@@ -422,16 +435,22 @@ public class TrackView : Control
             var j = (int)Math.Floor((p.Y - rowsTop) / RowPitch);
             if (j >= 0 && j < clips.Count && SpanHit(p.X, clips[j].Start, clips[j].End, edge) is { } kind)
             {
-                return (false, clips[j].StripIndex, kind);
+                return (clips[j], false, kind);
             }
         }
-        if (AudioClip is { } audio && AudioPeaks is { Count: > 0 })
+        if (AudioClips is { Count: > 0 } audio && AudioPeaks is { Count: > 0 })
         {
             var top = AudioBandTop(trackCount);
-            if (p.Y >= top && p.Y < top + RowPitch
-                && SpanHit(p.X, audio.Start, audio.End, edge) is { } kind)
+            if (p.Y >= top && p.Y < top + RowPitch)
             {
-                return (true, -1, kind);
+                // The sections share one band, so the hit is decided by x.
+                foreach (var bar in audio)
+                {
+                    if (SpanHit(p.X, bar.Start, bar.End, edge) is { } kind)
+                    {
+                        return (bar, true, kind);
+                    }
+                }
             }
         }
         return null;
@@ -484,16 +503,23 @@ public class TrackView : Control
         }
 
         // A clip bar under the pointer takes the drag before scrubbing does
-        // (Q57) — body slides, edges trim.
+        // (Q57) — body slides, edges trim, right-click opens the section menu.
         if (ClipHitAt(p, tracks.Count) is { } hit)
         {
-            _clipDrag = (hit.IsAudio, hit.StripIndex, hit.Kind, RawFrameAtX(p.X), 0);
+            if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+            {
+                ClipMenuRequested?.Invoke(hit.Bar, hit.IsAudio, p);
+                e.Handled = true;
+                return;
+            }
+            _clipDrag = (hit.Bar, hit.IsAudio, hit.Kind, RawFrameAtX(p.X), 0);
             e.Pointer.Capture(this);
             e.Handled = true;
             return;
         }
 
         // Anywhere else in the frame area scrubs, ruler included.
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         _scrubbing = true;
         e.Pointer.Capture(this);
         CurrentFrame = FrameAtX(p.X, FrameWidth, FrameCount);
@@ -543,8 +569,8 @@ public class TrackView : Control
             InvalidateVisual();
             if (cd.Delta != 0)
             {
-                if (cd.IsAudio) AudioClipEdited?.Invoke(cd.Kind, cd.Delta);
-                else VideoClipEdited?.Invoke(cd.StripIndex, cd.Kind, cd.Delta);
+                if (cd.IsAudio) AudioClipEdited?.Invoke(cd.Bar, cd.Kind, cd.Delta);
+                else VideoClipEdited?.Invoke(cd.Bar, cd.Kind, cd.Delta);
             }
             e.Handled = true;
             return;

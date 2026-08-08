@@ -1,6 +1,26 @@
 namespace Lightbox.Core.Documents;
 
 /// <summary>
+/// One section of the scratch track on the timeline (Q57): which part of the
+/// source plays (<see cref="SourceStartFrames"/>, <see cref="LengthFrames"/>)
+/// and where it sits (<see cref="AtFrame"/>). Splitting a clip at the
+/// playhead makes two of these; each then slides and trims on its own.
+/// </summary>
+public sealed class AudioSegment
+{
+    /// <summary>First source frame this section plays, at the scene's fps.</summary>
+    public int SourceStartFrames { get; set; }
+
+    /// <summary>How many source frames this section plays.</summary>
+    public int LengthFrames { get; set; }
+
+    /// <summary>The timeline frame this section starts on.</summary>
+    public int AtFrame { get; set; }
+
+    public AudioSegment Clone() => (AudioSegment)MemberwiseClone();
+}
+
+/// <summary>
 /// The scene's scratch track: one sound file the animation is timed against.
 ///
 /// A scene has one only if the artist asked for one (<see cref="Scene.Audio"/>
@@ -59,4 +79,59 @@ public sealed class AudioTrack
     public double Volume { get; set; } = 1.0;
 
     public bool Muted { get; set; }
+
+    /// <summary>
+    /// The clip cut into sections (Q57), or null — and null is the default
+    /// and the unsplit case: the whole trimmed clip at
+    /// <see cref="OffsetFrames"/>, exactly as before splitting existed. The
+    /// promise this keeps is that a document never splits writes no key and
+    /// no migration ever runs; the offset/trim fields stay authoritative
+    /// until the first split materialises them into segments.
+    /// </summary>
+    public List<AudioSegment>? Segments { get; set; }
+
+    /// <summary>
+    /// The sections the timeline actually plays, in timeline order: the
+    /// stored list when the clip has been split, or the offset/trim fields
+    /// as one implicit section. <paramref name="totalSourceFrames"/> is the
+    /// decoded clip's length at the scene's fps.
+    /// </summary>
+    public IReadOnlyList<AudioSegment> EffectiveSegments(int totalSourceFrames)
+    {
+        if (Segments is { Count: > 0 } stored)
+        {
+            return [.. stored.OrderBy(s => s.AtFrame)];
+        }
+        if (totalSourceFrames <= 0) return [];
+        var start = Math.Clamp(TrimStartFrames, 0, totalSourceFrames - 1);
+        var length = Math.Clamp(TrimLengthFrames ?? totalSourceFrames - start, 1, totalSourceFrames - start);
+        return [new AudioSegment { SourceStartFrames = start, LengthFrames = length, AtFrame = OffsetFrames }];
+    }
+
+    /// <summary>
+    /// Split the section under <paramref name="frame"/> in two (Q57). The
+    /// first split materialises the implicit section into
+    /// <see cref="Segments"/>. False when the frame is not strictly inside a
+    /// section — an edge has nothing to split.
+    /// </summary>
+    public bool SplitAt(int frame, int totalSourceFrames)
+    {
+        var segments = EffectiveSegments(totalSourceFrames).Select(s => s.Clone()).ToList();
+        for (var i = 0; i < segments.Count; i++)
+        {
+            var s = segments[i];
+            if (frame <= s.AtFrame || frame >= s.AtFrame + s.LengthFrames) continue;
+            var cut = frame - s.AtFrame;
+            segments.Insert(i + 1, new AudioSegment
+            {
+                SourceStartFrames = s.SourceStartFrames + cut,
+                LengthFrames = s.LengthFrames - cut,
+                AtFrame = frame,
+            });
+            s.LengthFrames = cut;
+            Segments = segments;
+            return true;
+        }
+        return false;
+    }
 }

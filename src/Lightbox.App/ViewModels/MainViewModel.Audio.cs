@@ -86,12 +86,12 @@ public partial class MainViewModel
             if (_audioMono is null || _audioClip is null) return null;
 
             var key = (track.OffsetFrames, TimelineFrameCount, Scene.Fps,
-                track.TrimStartFrames, track.TrimLengthFrames);
+                track.TrimStartFrames, track.TrimLengthFrames, _audioSegmentsVersion);
             if (_audioPeaks is null || _audioPeaksKey != key)
             {
                 _audioPeaks = AudioPeaks.Build(
                     _audioMono, _audioClip.SampleRate, Scene.Fps, TimelineFrameCount,
-                    track.OffsetFrames, track.TrimStartFrames, track.TrimLengthFrames);
+                    AudioSegmentsNow);
                 _audioPeaksKey = key;
             }
             return _audioPeaks;
@@ -121,55 +121,167 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>The audio span as the timeline's clip bar, or null.</summary>
-    public Controls.ClipBar? TimelineAudioClip =>
-        AudioClipSpan is { } span
-            ? new Controls.ClipBar("Audio", span.Start, span.Start + span.Length - 1, -1)
-            : null;
+    /// <summary>The clip's sections in timeline order (Q57): stored when split, implicit before.</summary>
+    internal IReadOnlyList<AudioSegment> AudioSegmentsNow =>
+        Scene.Audio is { } track ? track.EffectiveSegments(AudioSourceFrames) : [];
 
-    /// <summary>The clip bar's body drag: the whole clip moves along the timeline.</summary>
-    public void SlideAudioClip(int deltaFrames)
+    /// <summary>Bumped by every section edit — the peak cache's invalidation key.</summary>
+    private int _audioSegmentsVersion;
+
+    /// <summary>One bar per section (Q57); the bar's StripIndex carries the section index.</summary>
+    public IReadOnlyList<Controls.ClipBar> TimelineAudioClips
+    {
+        get
+        {
+            var segments = AudioSegmentsNow;
+            var bars = new List<Controls.ClipBar>(segments.Count);
+            for (var i = 0; i < segments.Count; i++)
+            {
+                var s = segments[i];
+                bars.Add(new Controls.ClipBar(
+                    segments.Count == 1 ? "Audio" : $"Audio {i + 1}",
+                    s.AtFrame, s.AtFrame + s.LengthFrames - 1, i));
+            }
+            return bars;
+        }
+    }
+
+    /// <summary>
+    /// Split the section under the playhead in two (Q57). The first split
+    /// materialises the implicit section; false when the playhead sits on an
+    /// edge or outside the clip — an edge has nothing to split.
+    /// </summary>
+    public bool SplitAudioAtPlayhead()
+    {
+        if (Scene.Audio is not { } track) return false;
+        var total = AudioSourceFrames;
+        if (total <= 0 || !track.SplitAt(CurrentFrameIndex, total)) return false;
+        _audioSegmentsVersion++;
+        NotifyAudioSurface();
+        _autosave.MarkDirty();
+        return true;
+    }
+
+    /// <summary>
+    /// A section's body drag: it slides along the timeline, stopped by its
+    /// neighbours — sections never overlap, because two sounds under one
+    /// frame is not a timing, it is a mix, and this is a scratch track.
+    /// </summary>
+    public void SlideAudioClip(int segmentIndex, int deltaFrames)
     {
         if (Scene.Audio is not { } track || deltaFrames == 0) return;
-        track.OffsetFrames += deltaFrames;
+        if (track.Segments is not { Count: > 0 })
+        {
+            if (segmentIndex != 0) return;
+            track.OffsetFrames += deltaFrames;   // unsplit: the field is the record
+        }
+        else
+        {
+            var segments = OrderedSegments(track);
+            if (segmentIndex < 0 || segmentIndex >= segments.Count) return;
+            var d = ClampSegmentSlide(segments, segmentIndex, deltaFrames);
+            if (d == 0) return;
+            segments[segmentIndex].AtFrame += d;
+        }
+        _audioSegmentsVersion++;
         NotifyAudioSurface();
         _autosave.MarkDirty();
     }
 
     /// <summary>
-    /// Drag the IN edge (Q57): +d eats d more source frames off the head and
-    /// the bar's left edge follows; the tail stays anchored where it was.
-    /// The source is never edited.
+    /// Drag a section's IN edge (Q57): +d eats d more source frames off its
+    /// head and the left edge follows; the tail stays anchored. −d restores
+    /// hidden source, bounded by the source itself and by the section before.
     /// </summary>
-    public void TrimAudioClipIn(int deltaFrames)
+    public void TrimAudioClipIn(int segmentIndex, int deltaFrames)
     {
         if (Scene.Audio is not { } track || deltaFrames == 0) return;
         var total = AudioSourceFrames;
         if (total <= 0) return;
-        var start = Math.Clamp(track.TrimStartFrames, 0, total - 1);
-        var length = Math.Clamp(track.TrimLengthFrames ?? total - start, 1, total - start);
-        var d = Math.Clamp(deltaFrames, -start, length - 1);
-        if (d == 0) return;
-        track.TrimStartFrames = start + d;
-        track.TrimLengthFrames = length - d;
-        track.OffsetFrames += d;
+
+        if (track.Segments is not { Count: > 0 })
+        {
+            if (segmentIndex != 0) return;
+            var start = Math.Clamp(track.TrimStartFrames, 0, total - 1);
+            var length = Math.Clamp(track.TrimLengthFrames ?? total - start, 1, total - start);
+            var d = Math.Clamp(deltaFrames, -start, length - 1);
+            if (d == 0) return;
+            track.TrimStartFrames = start + d;
+            track.TrimLengthFrames = length - d;
+            track.OffsetFrames += d;
+        }
+        else
+        {
+            var segments = OrderedSegments(track);
+            if (segmentIndex < 0 || segmentIndex >= segments.Count) return;
+            var s = segments[segmentIndex];
+            var minByTimeline = segmentIndex > 0
+                ? segments[segmentIndex - 1].AtFrame + segments[segmentIndex - 1].LengthFrames - s.AtFrame
+                : int.MinValue / 2;
+            var d = Math.Clamp(deltaFrames, Math.Max(-s.SourceStartFrames, minByTimeline), s.LengthFrames - 1);
+            if (d == 0) return;
+            s.SourceStartFrames += d;
+            s.LengthFrames -= d;
+            s.AtFrame += d;
+        }
+        _audioSegmentsVersion++;
         NotifyAudioSurface();
         _autosave.MarkDirty();
     }
 
-    /// <summary>Drag the OUT edge (Q57): +d plays d more source frames, to the clip's end.</summary>
-    public void TrimAudioClipOut(int deltaFrames)
+    /// <summary>
+    /// Drag a section's OUT edge: +d plays d more source frames, bounded by
+    /// the source's end and by the section after it.
+    /// </summary>
+    public void TrimAudioClipOut(int segmentIndex, int deltaFrames)
     {
         if (Scene.Audio is not { } track || deltaFrames == 0) return;
         var total = AudioSourceFrames;
         if (total <= 0) return;
-        var start = Math.Clamp(track.TrimStartFrames, 0, total - 1);
-        var length = Math.Clamp(track.TrimLengthFrames ?? total - start, 1, total - start);
-        var grown = Math.Clamp(length + deltaFrames, 1, total - start);
-        if (grown == length) return;
-        track.TrimLengthFrames = grown;
+
+        if (track.Segments is not { Count: > 0 })
+        {
+            if (segmentIndex != 0) return;
+            var start = Math.Clamp(track.TrimStartFrames, 0, total - 1);
+            var length = Math.Clamp(track.TrimLengthFrames ?? total - start, 1, total - start);
+            var grown = Math.Clamp(length + deltaFrames, 1, total - start);
+            if (grown == length) return;
+            track.TrimLengthFrames = grown;
+        }
+        else
+        {
+            var segments = OrderedSegments(track);
+            if (segmentIndex < 0 || segmentIndex >= segments.Count) return;
+            var s = segments[segmentIndex];
+            var maxBySource = total - s.SourceStartFrames;
+            var maxByTimeline = segmentIndex < segments.Count - 1
+                ? segments[segmentIndex + 1].AtFrame - s.AtFrame
+                : int.MaxValue / 2;
+            var grown = Math.Clamp(s.LengthFrames + deltaFrames, 1, Math.Min(maxBySource, maxByTimeline));
+            if (grown == s.LengthFrames) return;
+            s.LengthFrames = grown;
+        }
+        _audioSegmentsVersion++;
         NotifyAudioSurface();
         _autosave.MarkDirty();
+    }
+
+    private static List<AudioSegment> OrderedSegments(AudioTrack track)
+    {
+        track.Segments!.Sort((a, b) => a.AtFrame.CompareTo(b.AtFrame));
+        return track.Segments;
+    }
+
+    private static int ClampSegmentSlide(List<AudioSegment> segments, int index, int delta)
+    {
+        var s = segments[index];
+        var min = index > 0
+            ? segments[index - 1].AtFrame + segments[index - 1].LengthFrames - s.AtFrame
+            : int.MinValue / 2;
+        var max = index < segments.Count - 1
+            ? segments[index + 1].AtFrame - s.LengthFrames - s.AtFrame
+            : int.MaxValue / 2;
+        return Math.Clamp(delta, min, max);
     }
 
     /// <summary>The decoded sound, for playback. Null when missing or absent.</summary>
@@ -188,7 +300,7 @@ public partial class MainViewModel
     private AudioClip? _audioClip;
     private float[]? _audioMono;
     private AudioPeaks.Peak[]? _audioPeaks;
-    private (int Offset, int Frames, int Fps, int TrimStart, int? TrimLength) _audioPeaksKey;
+    private (int Offset, int Frames, int Fps, int TrimStart, int? TrimLength, int Version) _audioPeaksKey;
 
     /// <summary>
     /// Import a sound file onto the document. Returns null on success, or a
@@ -365,39 +477,49 @@ public partial class MainViewModel
             return;
         }
 
-        // The source position under the playhead, honouring the trim (Q57):
-        // the timeline plays the window [TrimStart, TrimStart+Length) only.
-        var fps = Math.Max(1, Scene.Fps);
-        var t = (CurrentFrameIndex - track.OffsetFrames + track.TrimStartFrames) / (double)fps;
-        var (windowFrom, windowTo) = AudioSourceWindowSeconds(track, clip, fps);
-        if (t < windowFrom || t >= windowTo)
+        // The section under the playhead decides what plays (Q57): its own
+        // window of the source, at its own place. Crossing a cut or a gap
+        // restarts the stream at the right sample — a straight run through
+        // one section stays one uninterrupted play.
+        if (AudioSourcePositionAt(CurrentFrameIndex, clip) is not var (t, segmentIndex) || segmentIndex < 0)
         {
-            // Before the clip starts or past its out-point: quiet, and ready
-            // to start the moment the playhead crosses in.
             StopAudio();
             return;
         }
-        if (_audioRunning) return;
+        if (_audioRunning && _audioRunningSegment == segmentIndex) return;
 
         _audioPlayback.Play(clip, t, track.Volume, Math.Clamp(PlaybackSpeedPercent / 100.0, 0.05, 8));
         _audioRunning = true;
+        _audioRunningSegment = segmentIndex;
     }
 
-    /// <summary>The trimmed window of the source, in seconds.</summary>
-    private (double From, double To) AudioSourceWindowSeconds(AudioTrack track, AudioClip clip, int fps)
+    /// <summary>
+    /// The source position (seconds) and section index under a timeline
+    /// frame, or index -1 when no section covers it.
+    /// </summary>
+    private (double Seconds, int SegmentIndex) AudioSourcePositionAt(int frame, AudioClip clip)
     {
-        var from = Math.Max(0, track.TrimStartFrames) / (double)fps;
-        var to = track.TrimLengthFrames is { } len
-            ? Math.Min((track.TrimStartFrames + len) / (double)fps, clip.DurationSeconds)
-            : clip.DurationSeconds;
-        return (from, Math.Max(from, to));
+        var fps = Math.Max(1, Scene.Fps);
+        var segments = AudioSegmentsNow;
+        for (var i = 0; i < segments.Count; i++)
+        {
+            var s = segments[i];
+            if (frame < s.AtFrame || frame >= s.AtFrame + s.LengthFrames) continue;
+            var seconds = (frame - s.AtFrame + s.SourceStartFrames) / (double)fps;
+            if (seconds < 0 || seconds >= clip.DurationSeconds) return (0, -1);
+            return (seconds, i);
+        }
+        return (0, -1);
     }
+
+    private int _audioRunningSegment = -1;
 
     private void StopAudio()
     {
         if (!_audioRunning) return;
         _audioPlayback.Stop();
         _audioRunning = false;
+        _audioRunningSegment = -1;
     }
 
     /// <summary>
@@ -408,11 +530,8 @@ public partial class MainViewModel
     {
         if (IsPlaying || _switchingTabs) return;
         if (Scene.Audio is not { } track || track.Muted || AudioClipNow is not { } clip) return;
-        var fps = Math.Max(1, Scene.Fps);
-        var t = (CurrentFrameIndex - track.OffsetFrames + track.TrimStartFrames) / (double)fps;
-        var (windowFrom, windowTo) = AudioSourceWindowSeconds(track, clip, fps);
-        if (t < windowFrom || t >= windowTo) return;
-        _audioPlayback.ScrubTick(clip, t, 1.0 / fps, track.Volume);
+        if (AudioSourcePositionAt(CurrentFrameIndex, clip) is not var (t, segmentIndex) || segmentIndex < 0) return;
+        _audioPlayback.ScrubTick(clip, t, 1.0 / Math.Max(1, Scene.Fps), track.Volume);
     }
 
     private void NotifyAudioSurface()
@@ -424,7 +543,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(AudioVolume));
         OnPropertyChanged(nameof(AudioOffsetFrames));
         OnPropertyChanged(nameof(AudioClipSpan));
-        OnPropertyChanged(nameof(TimelineAudioClip));
+        OnPropertyChanged(nameof(TimelineAudioClips));
         OnPropertyChanged(nameof(TimelineAudioPeaks));
     }
 }
