@@ -23,4 +23,12 @@ public sealed class FrameGroup
 
     /// <summary>Whether this group is expanded in the timeline UI (true = show all frames, false = collapsed preview).</summary>
     public bool Expanded { get; set; } = true;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public FrameGroup Clone()
+    {
+        var copy = (FrameGroup)MemberwiseClone();
+        copy.PlacementIds = [.. PlacementIds];
+        return copy;
+    }
 }

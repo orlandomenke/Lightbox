@@ -16,6 +16,9 @@ public sealed class Swatch
     public string Color { get; set; } = "#000000";
 
     public string? Name { get; set; }
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public Swatch Clone() => (Swatch)MemberwiseClone();
 }
 
 /// <summary>
@@ -44,6 +47,14 @@ public sealed class Palette
     public string? FolderId { get; set; }
 
     public List<Swatch> Swatches { get; set; } = [];
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public Palette Clone()
+    {
+        var copy = (Palette)MemberwiseClone();
+        copy.Swatches = Swatches.Select(s => s.Clone()).ToList();
+        return copy;
+    }
 }
 
 /// <summary>

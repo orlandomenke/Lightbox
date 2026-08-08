@@ -25,6 +25,9 @@ public sealed class PaletteFolder
 
     /// <summary>The folder this one sits in, or null for the top level.</summary>
     public string? ParentId { get; set; }
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public PaletteFolder Clone() => (PaletteFolder)MemberwiseClone();
 }
 
 /// <summary>

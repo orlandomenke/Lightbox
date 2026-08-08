@@ -58,6 +58,9 @@ public sealed class Anchor
     public string Name { get; set; } = "Socket";
 
     public AnchorKind Kind { get; set; } = AnchorKind.Socket;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public Anchor Clone() => (Anchor)MemberwiseClone();
 }
 
 /// <summary>Where an anchor sits on one drawing, in document pixels.</summary>

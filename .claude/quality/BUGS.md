@@ -137,14 +137,6 @@ decision goes to `QUESTIONS.md` and is left alone.
 
 ### canvas
 
-- [ ] **B142** `P2` `canvas` Adding a layer to a painting stalls for a second, because every structural edit clones the whole document `evidence: manual`
-  - Repro: paint 5 000 strokes, then add a layer. Measured **615 ms p95 warm, ~1.1 s on the first one after opening** — and the first one is the one an artist meets. At 10 000 strokes the cold clone measured 2.1 s. `AnimationSweeps.UndoSnapshot` sweeps it; allocation is 72.5 MB per clone at 5 000 strokes, so it is a guaranteed GC pause as well as a wait.
-  - Cause, and it is one line: `DocumentEditor.Perform` pushes `new SnapshotStep(DocJson.Clone(Doc))` — a serialize-and-deserialize of the **entire document** — for every structural edit. 43 call sites go through it: add layer, palette edit, apply template, add reference sheet, and more. `DocumentEditor`'s own remark predicted exactly this: *"Snapshots are JSON clones — cheap at pencil-test scale"*. It is right about the scale it names, and a painting is past it.
-  - **Distinct from B30, which is why it is filed separately rather than noted inside it.** B30 is *pixel replay* — rebuilding a render from strokes. This is *record cloning* — copying the document object graph. Different cause, different fix, and folding them together would let whoever fixes B30 believe they had fixed this. The two do compound: a snapshot undo restores a whole document instance tree, which then forces the full rebuild B30 measures.
-  - **A stroke commit does not pay this**, checked rather than assumed: `EndStroke` goes through `PerformDelta` with an apply/revert closure pair, measured at ~0.002 ms to push and 0.07 ms to undo. That is why painting thousands of strokes stays cheap and why undo *depth* is not the problem — 500 delta steps hold under a megabyte.
-  - P2 on reach and surprise rather than severity: nothing is lost, but it is a freeze on an ordinary action with no progress indication, and it gets worse the longer a painting goes on — the artist experiences the application degrading as their work grows.
-  - Fix, unmeasured and in preference order: make the structural edits that *can* be deltas into deltas (most touch one layer or one list, not the whole document); clone off the UI thread for the ones that cannot; or replace the JSON round-trip with a real deep clone, since serialize-then-parse is the slowest possible way to copy an object graph. The third is the smallest change and probably the largest win. Cost: M, and it touches the undo system, which is the one place a mistake corrupts a document rather than slowing it — so it wants its own branch and a test that a snapshot undo still restores byte-identically.
-
 - [ ] **B125** `P2` `canvas` Layer compositing is entirely CPU raster, which is the ceiling left at 4K `evidence: manual`
   - Split out of B122 rather than left inside it: B122's upload half landed and its checkbox is derived, so leaving this in the same entry would have marked "compositing is on the CPU" fixed when only the transfer was. Reported still-lagging at **4K at 180 dpi** after B121 and B122, mildly improved — which is what a CPU composite of 8.3 megapixels per whole-canvas publish looks like once the transfer stops dominating.
   - Every compositing surface is CPU raster: `SKSurface.Create(SKImageInfo)` with no `GRContext` at `ComposeRing.cs:94`, `SceneRenderer.cs:72`, `MainViewModel.cs` (culled and unbounded paths), and `FrameRasterizer.cs:28` is a CPU `SKBitmap` plus a CPU `SKCanvas`. Nothing in the solution ever creates a `GRContext`.
@@ -1030,6 +1022,26 @@ test reopens the bug.
   - Fix: interleave — for each layer, its own ghosts, then the layer. That is also what makes multi-layer onion read correctly.
   - Regression I introduced with the paper layer. Cost: S
 
+- [x] **B142** `P2` `timeline` Adding a layer to a painting stalls for a second, because every structural edit clones the whole document `evidence: TheFastCloneMatchesTheSerializerItReplaced, NoMutableObjectAppearsInBothGraphs, CloningChangesNothingAboutTheOriginal`
+  - Repro was: paint 5 000 strokes, then add a layer. Measured **615 ms p95 warm, ~1.1 s on the first one after opening** — and the first one is the one an artist meets. At 10 000 strokes the cold clone measured 2.1 s, with 72.5 MB allocated per clone, so it was a guaranteed GC pause as well as a wait.
+  - Cause was one line: `DocumentEditor.Perform` pushed `new SnapshotStep(DocJson.Clone(Doc))` — a serialize-and-deserialize of the **entire document** — for each of 43 structural call sites. `DocumentEditor`'s own remark predicted it: *"Snapshots are JSON clones — cheap at pencil-test scale"*. Right about the scale it names; a painting is past it.
+  - **Fixed by `Doc.Clone()`, a direct graph walk.** `AnimationSweeps.UndoSnapshot`, same workload, before → after:
+
+    ```
+    strokes    DocJson.Clone      Doc.Clone      alloc
+        500        180.8 ms         0.6 ms    7 271 → 506 KB
+      2 000        328.7 ms         8.1 ms   28 984 → 2 018 KB
+      5 000        614.9 ms         5.8 ms   72 542 → 5 041 KB
+    ```
+
+    **~106× at 5 000 strokes and 14× less garbage**, and the row goes from 615% of the per-action budget to 8% with no cliff. The absolute figures are now small enough that the sweep's three iterations put p95 in the noise — 2 000 reads slower than 5 000 — so the order of magnitude is the result, not the individual numbers.
+  - **Built on `MemberwiseClone` at every level, and that is the safety argument rather than a style choice.** The runtime copies every value field, so a scalar property added later cannot be silently dropped by a clone nobody updated; only reference members are written out, and a missed one is caught by `DocCloneTests.NoMutableObjectAppearsInBothGraphs`, which walks both graphs and reports any object present in both. Enumerating every field by hand — which is what `Stroke.Clone` did — fails in the direction that corrupts a document rather than slowing it.
+  - **`Stroke.Clone` was rewritten the same way, and it was already carrying that exact bug's scar.** Its remark recorded that the by-hand list had silently omitted `SwatchId` and `GradientId`, so a copied drawing kept its colour and lost its palette link — then concluded the list "must be exhaustive", which is a rule no reader can enforce. It now takes `newId: false` for snapshots, since a snapshot restores the stroke that was there rather than making a new one.
+  - **Two objects are shared on purpose and the test names them**: `AnchorPoint` and `ShapeBox` are positional records whose only extras are computed `[JsonIgnore]` getters, so nothing can mutate one; and `BakedSample`, which its own remarks call *"immutable in practice — nothing edits a baked sample, it is replaced or dropped"* and which can be a megabyte of base64. Both were found by the walker rather than predicted.
+  - **Domain corrected from `canvas` to `timeline`** when it was fixed: the symptom is a UI freeze, but the code is `DocumentEditor`, and `bugs.py mine timeline` is what somebody editing the undo system runs.
+  - `DocJson.Clone` stays, and is load-bearing twice over: it is what `ProjectIo.Flatten`, `Templates` and `CharacterLibrary` use where a copy must also prove it survives serialization, and it is the oracle `DocCloneTests` compares the fast clone against.
+  - **A near-miss worth recording.** The bench scenario written when this was *filed* called `DocJson.Clone` directly, so after the fix it measured dead code and reported a 25% wobble as the result. Caught only because allocation was identical to the kilobyte — 72 542 KB before and after. A benchmark aimed at the implementation being replaced reports the fix as noise, and the tell is a number that does not move at all.
+
 - [x] **B28** `P2` `timeline` Past the frame cache's size, playing or scrubbing misses every single time `evidence: EvictionOrder, AnLruScanThrowsAwayEverythingItIsAboutToNeed, EvictingTheMostRecentKeepsHalfTheSheetResident, ScanEvictionIsBetterThanLruOnAScan, TheFrameBeingShownIsNeverTheOneEvicted, PlayingSwitchesTheCacheToScanEviction`
   - Repro: a 3-layer scene at 1280×720. A cel is 3.5 MB, so 48 frames is 506 MB against `FrameBitmapCache.ByteBudget` of 512 MB, and 96 frames is 1 GB. Walk the sheet in order — which is what playback does, and scrubbing, and export.
   - Cause: an LRU against a sequential scan, which is the one access pattern LRU is worst at. Walking 96 frames evicts the frames at the start to make room for the ones at the end, so by the time the playhead comes round again *everything it is about to ask for has just been thrown away*. The hit rate is not degraded, it is **zero** — the cache stops being a cache and every frame is re-rasterised from strokes. Found by the sweep in `tools/Lightbox.Bench` refusing to terminate at 192 frames, which is the same fact stated less politely.
@@ -1084,6 +1096,18 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B141** `P2` `ui` The slider's hairline track rides low against the label beside it `evidence: SliderTrackAlignmentTests, TheTrackRidesTheVerticalCentreOfTheSlider`
+  - Repro: any row that pairs a label or field with a slider — the Layers top bar, the brush parameter rows. The 3px track sits visibly below the text's centre line.
+  - Cause: Fluent's slider template reserves **15px above and 15px below the track**, as fixed grid rows for tick bars nothing in this application shows. Inside our 24px slider the geometry cannot even fit, and the track assembly pinned 15px from the top. The earlier `VerticalAlignment` fixes on `SliderContainer` and `Track` were aimed at the right symptom and the wrong mechanism — alignment cannot win against a fixed row height.
+  - Fix: the row heights are the dynamic resources `SliderPreContentMargin`/`SliderPostContentMargin`; `Theme.axaml` sets both to `*`, so the track row centres by construction at any slider height instead of at one blessed one.
+  - Cost: S
+
+- [x] **B140** `P2` `ui` The digits in a numeric field sit low and lose their bottoms `evidence: FieldShapeTests, TheDigitsSitCentredInTheField`
+  - Repro: any 22px numeric field — the Layers opacity box is the easiest. "100" renders with the bottoms of the digits cut off, low enough to be unreadable.
+  - Cause: Fluent's theme padding for text controls is `10,6,6,5` — eleven vertical pixels, which in a 22px field leaves less room than one line box. The value flows from the control's own `Padding` template-bound into the inner TextBox, so no amount of styling the inner parts could touch it: **an inline template value outranks a style setter in Avalonia** (Template sits above Style in the priority order, unlike WPF). The probe that found it printed the template's padding where ours was expected.
+  - Fix: `Padding="6,0"` on the `NumericUpDown` density rule — the control's own property is the one thing the template binding reads from. Vertical centring then has room to do its job.
+  - Cost: S
+
 - [x] **B139** `P2` `ui` A lone docker cannot be dragged to another edge `evidence: LoneDockerDragTests, APressOnALoneTabIsAGrip, APressOnARealTabStripStaysAControl`
   - Repro: move the timeline to a side, then try to drag it back — nothing grips. Any docker alone in its slot has the same problem once every slot wears a tab strip.
   - Cause: the header's do-not-drag list includes the tab ListBox, correctly — clicking a tab must switch tabs, not tear the group out. But a slot of one shows a tab too now, and that tab is most of the header, so the rule ate the grip. A single tab has nothing to switch to.
@@ -1095,18 +1119,6 @@ test reopens the bug.
   - Cause: the B127 fix bound the strip's `SelectedValue` to `ActiveTab` in the template, and it works exactly once per docker. Re-binding `Tabs` during a layout rebuild makes the ListBox clear its own selection, and that clear is a **local value — which outranks a template binding permanently** in Avalonia's priority order. Every later push of `ActiveTab` through the binding was silently shadowed.
   - Fix: `Docker.SyncStripSelection()` — the selection is written in code from `ShowTabs` and on template application, under the same applying-flag the rest of the host writes use. A local value is only beaten by another local value.
   - The test asserts the strip's **lights**, where the crash tests assert its **content** — four switches, because the first one passes even when broken.
-  - Cost: S
-
-- [x] **B141** `P2` `ui` The slider's hairline track rides low against the label beside it `evidence: SliderTrackAlignmentTests, TheTrackRidesTheVerticalCentreOfTheSlider`
-  - Repro: any row that pairs a label or field with a slider — the Layers top bar, the brush parameter rows. The 3px track sits visibly below the text's centre line.
-  - Cause: Fluent's slider template reserves **15px above and 15px below the track**, as fixed grid rows for tick bars nothing in this application shows. Inside our 24px slider the geometry cannot even fit, and the track assembly pinned 15px from the top. The earlier `VerticalAlignment` fixes on `SliderContainer` and `Track` were aimed at the right symptom and the wrong mechanism — alignment cannot win against a fixed row height.
-  - Fix: the row heights are the dynamic resources `SliderPreContentMargin`/`SliderPostContentMargin`; `Theme.axaml` sets both to `*`, so the track row centres by construction at any slider height instead of at one blessed one.
-  - Cost: S
-
-- [x] **B140** `P2` `ui` The digits in a numeric field sit low and lose their bottoms `evidence: FieldShapeTests, TheDigitsSitCentredInTheField`
-  - Repro: any 22px numeric field — the Layers opacity box is the easiest. "100" renders with the bottoms of the digits cut off, low enough to be unreadable.
-  - Cause: Fluent's theme padding for text controls is `10,6,6,5` — eleven vertical pixels, which in a 22px field leaves less room than one line box. The value flows from the control's own `Padding` template-bound into the inner TextBox, so no amount of styling the inner parts could touch it: **an inline template value outranks a style setter in Avalonia** (Template sits above Style in the priority order, unlike WPF). The probe that found it printed the template's padding where ours was expected.
-  - Fix: `Padding="6,0"` on the `NumericUpDown` density rule — the control's own property is the one thing the template binding reads from. Vertical centring then has room to do its job.
   - Cost: S
 
 - [x] **B128** `P2` `ui` The palette never reached the theme, so every stock control still paints Windows blue `evidence: PaletteTests, TheThemeAgreesWithThePalette, TheThemePaletteIsWrittenInHexOnPurpose`

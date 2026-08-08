@@ -629,11 +629,18 @@ public static class AnimationSweeps
             },
             Work: _ =>
             {
-                var clone = Lightbox.Core.Serialization.DocJson.Clone(doc!);
+                // `Doc.Clone`, because that is what `DocumentEditor.Perform` pushes.
+                // This measured `DocJson.Clone` when the scenario was written, which
+                // was right then and became a measurement of dead code the moment
+                // B142 changed the undo path — a benchmark aimed at the old
+                // implementation reports the fix as noise. Caught because allocation
+                // did not move: 72 542 KB before and after, to the kilobyte.
+                var clone = doc!.Clone();
                 GC.KeepAlive(clone);
             },
             Note: "Paid by every structural edit — add a layer, edit a palette, apply a template. "
-                + "A stroke commit does NOT pay this: it pushes a delta instead.")
+                + "A stroke commit does NOT pay this: it pushes a delta instead. "
+                + "Was DocJson.Clone (serialize-and-parse) until B142: 615 ms p95 at 5000 strokes.")
         {
             Iterations = 3,
             Warmup = 1,

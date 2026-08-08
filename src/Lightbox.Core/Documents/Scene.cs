@@ -60,6 +60,9 @@ public sealed class FrameMarker
     /// <summary>Whether this marker is exported as an event. Derived; never serialized.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool ExportsAsEvent => IsEvent == true;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public FrameMarker Clone() => (FrameMarker)MemberwiseClone();
 }
 
 /// <summary>Which way an engine plays a tagged range.</summary>
@@ -131,6 +134,9 @@ public sealed class AnimationTag
     /// <summary>Frames the tag covers, at least one.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public int Length => Math.Max(1, Math.Abs(End - Start) + 1);
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public AnimationTag Clone() => (AnimationTag)MemberwiseClone();
 }
 
 public sealed class Scene
@@ -320,4 +326,29 @@ public sealed class Scene
     /// </summary>
     public bool IsLayerEditable(Layer layer) =>
         !layer.Locked && GroupOf(layer) is not { Locked: true };
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    /// <remarks>
+    /// Every optional block stays null when it is null here, so a scene that never
+    /// authored a camera does not gain an empty one by being cloned — the same
+    /// "absent unless used" rule the serializer follows.
+    /// </remarks>
+    public Scene Clone()
+    {
+        var copy = (Scene)MemberwiseClone();
+        copy.Layers = Layers.Select(l => l.Clone()).ToList();
+        copy.Markers = Markers.Select(m => m.Clone()).ToList();
+        copy.LayerGroups = LayerGroups.Select(g => g.Clone()).ToList();
+        copy.FrameGroups = FrameGroups?.Select(g => g.Clone()).ToList();
+        copy.GhostFrames = GhostFrames is null ? null : [.. GhostFrames];
+        copy.References = References?.Select(r => r.Clone()).ToList();
+        copy.Guides = Guides?.Select(g => g.Clone()).ToList();
+        copy.Camera = Camera?.Clone();
+        copy.Audio = Audio?.Clone();
+        copy.Pivot = Pivot?.Clone();
+        copy.Anchors = Anchors?.Select(a => a.Clone()).ToList();
+        copy.Tags = Tags?.Select(t => t.Clone()).ToList();
+        copy.Shapes = Shapes?.Select(s => s.Clone()).ToList();
+        return copy;
+    }
 }

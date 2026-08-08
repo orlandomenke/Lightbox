@@ -72,6 +72,9 @@ public sealed class CollisionShape
     public string Name { get; set; } = "Body";
 
     public ShapeRole Role { get; set; } = ShapeRole.Hurtbox;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public CollisionShape Clone() => (CollisionShape)MemberwiseClone();
 }
 
 /// <summary>

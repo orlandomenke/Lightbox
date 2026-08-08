@@ -128,4 +128,27 @@ public sealed class Frame
     /// </remarks>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasBaseline => !string.IsNullOrEmpty(PngBase64);
+
+    /// <summary>A copy holding no reference in common with this one, id included.</summary>
+    /// <remarks>
+    /// <para>
+    /// The undo path's deep copy (B142). Distinct from
+    /// <c>DocumentEditor.CloneFrame</c>, which gives the copy a <em>fresh</em> id
+    /// because it is duplicating a drawing an artist can see; a snapshot has to
+    /// restore the frame that was there, so the id is carried.
+    /// </para>
+    /// <para>
+    /// <c>AnchorPoint</c> and <c>ShapeBox</c> are positional records and immutable,
+    /// so a new dictionary over the same values is a complete copy.
+    /// </para>
+    /// </remarks>
+    public Frame Clone()
+    {
+        var copy = (Frame)MemberwiseClone();
+        copy.Strokes = Strokes.Select(s => s.Clone(newId: false)).ToList();
+        copy.Placements = Placements?.Select(p => p.Clone()).ToList();
+        copy.Anchors = Anchors is null ? null : new Dictionary<string, AnchorPoint>(Anchors);
+        copy.Shapes = Shapes is null ? null : new Dictionary<string, ShapeBox>(Shapes);
+        return copy;
+    }
 }

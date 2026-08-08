@@ -36,6 +36,9 @@ public sealed class GradientStop
     public string Color { get; set; } = "#000000";
 
     public double Alpha { get; set; } = 1.0;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public GradientStop Clone() => (GradientStop)MemberwiseClone();
 }
 
 /// <summary>
@@ -59,6 +62,9 @@ public sealed class GradientAlphaStop
     public double Position { get; set; }
 
     public double Alpha { get; set; } = 1.0;
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public GradientAlphaStop Clone() => (GradientAlphaStop)MemberwiseClone();
 }
 
 /// <summary>
@@ -101,6 +107,15 @@ public sealed class Gradient
 
     /// <summary>The alpha track, creating it on first use.</summary>
     public List<GradientAlphaStop> EnsureAlphaTrack() => AlphaStops ??= [];
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public Gradient Clone()
+    {
+        var copy = (Gradient)MemberwiseClone();
+        copy.Stops = Stops.Select(s => s.Clone()).ToList();
+        copy.AlphaStops = AlphaStops?.Select(s => s.Clone()).ToList();
+        return copy;
+    }
 }
 
 /// <summary>Colour along a gradient. Pure, so a re-render always agrees.</summary>

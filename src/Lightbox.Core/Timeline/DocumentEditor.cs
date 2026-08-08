@@ -70,9 +70,21 @@ public sealed class DocumentEditor
     public bool CanRedo => _redo.Count > 0;
 
     /// <summary>Run a mutation as one undoable step (whole-document snapshot).</summary>
+    /// <remarks>
+    /// <b>The snapshot is a direct deep copy, not a serialize-and-parse (B142).</b>
+    /// This read <c>DocJson.Clone(Doc)</c>, which made every structural edit — add a
+    /// layer, edit a palette, apply a template, 43 call sites — build the whole
+    /// document as JSON text and parse it back. Measured on a 5 000-stroke painting:
+    /// 615 ms warm, ~1.1 s on the first one after opening, 72.5 MB allocated. Adding
+    /// a layer froze, and got worse the longer the painting went on.
+    /// <para>
+    /// <see cref="Doc.Clone"/> walks the graph instead. Same guarantee — nothing
+    /// shared with the live document — without the text.
+    /// </para>
+    /// </remarks>
     public void Perform(Action<Doc> mutate)
     {
-        PushStep(new SnapshotStep(DocJson.Clone(Doc)));
+        PushStep(new SnapshotStep(Doc.Clone()));
         mutate(Doc);
         Changed?.Invoke();
     }

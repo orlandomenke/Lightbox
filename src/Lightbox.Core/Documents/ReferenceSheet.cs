@@ -15,6 +15,14 @@ public sealed class ReferenceSheet
     public string Name { get; set; } = "Character";
 
     public List<ReferenceView> Views { get; set; } = [];
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public ReferenceSheet Clone()
+    {
+        var copy = (ReferenceSheet)MemberwiseClone();
+        copy.Views = Views.Select(v => v.Clone()).ToList();
+        return copy;
+    }
 }
 
 /// <summary>One view of the subject (e.g. "side"), with its own layer stack.</summary>
@@ -47,4 +55,12 @@ public sealed class ReferenceView
             },
         ],
     };
+
+    /// <summary>A copy holding no reference in common with this one.</summary>
+    public ReferenceView Clone()
+    {
+        var copy = (ReferenceView)MemberwiseClone();
+        copy.Layers = Layers.Select(l => l.Clone()).ToList();
+        return copy;
+    }
 }
