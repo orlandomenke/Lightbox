@@ -164,20 +164,66 @@ jobs:
       # .github/scripts/prune-artifacts.sh talks to the API, it needs no pinning
       # or supply-chain review, and `--generate-notes` writes the commit summary
       # for free.
-      # `--prerelease` is unconditional, and that is not laziness: Lightbox is
-      # alpha, the document format still changes, and the README says so at the
-      # top. Marking a build "latest release" would contradict it. Drop this flag
-      # in the same change that drops the alpha banner, not before.
+      # The prerelease flag is unconditional, and that is not laziness: Lightbox
+      # is alpha, the document format still changes, and the README says so at
+      # the top. Marking a build "latest release" would contradict it. Drop this
+      # flag in the same change that drops the alpha banner, not before.
+      #
+      # **Two routes get here and only one of them can create anything.** Pushing
+      # a tag from a terminal arrives with no Release yet, so this makes one.
+      # Drafting a Release in the web UI is the opposite order: GitHub writes the
+      # tag and the Release together and *then* fires this workflow, so the
+      # Release already exists and `gh release create` fails outright — a
+      # published Release with no bundle attached and a red run beside it. That
+      # is the likelier route, not an edge case, since the UI is the only place
+      # GitHub offers to make a tag at all.
+      #
+      # So: create when absent, attach when present. When it is present the
+      # notes and the prerelease checkbox are left exactly as the person set
+      # them — they were typed deliberately, and overwriting hand-written notes
+      # with `--generate-notes` would be the worse failure of the two.
       - name: Publish the Release
         if: github.ref_type == 'tag'
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "${GITHUB_REF_NAME}"
-          "${{ steps.name.outputs.zip }}"
-          --title "Lightbox ${{ steps.version.outputs.version }}"
-          --generate-notes
-          --prerelease
+        run: |
+          set -euo pipefail
+          ZIP="${{ steps.name.outputs.zip }}"
+
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists — attaching the bundle to it."
+            # --clobber so a re-run replaces the asset instead of failing on a
+            # name that is already taken.
+            gh release upload "${GITHUB_REF_NAME}" "$ZIP" --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" "$ZIP" \
+              --title "Lightbox ${{ steps.version.outputs.version }}" \
+              --generate-notes \
+              --prerelease
+          fi
+
+      # Said here because here is the moment it matters, and it is the one part
+      # of the scheme a person has to do by hand.
+      #
+      # VersionPrefix is the version being worked *toward*, not the last one
+      # shipped. Leave it at 0.1.0 after releasing v0.1.0 and every untagged
+      # build afterwards calls itself 0.1.0-alpha.N — which semver orders
+      # *before* the 0.1.0 that already shipped, so a bundle built from newer
+      # code claims to predate the release it comes after. That is precisely the
+      # ambiguity the version exists to remove, arriving by the back door.
+      - name: Remind whoever cut this to move the version on
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          {
+            echo "### Released \`${{ steps.version.outputs.version }}\` :tada:"
+            echo
+            echo "**Next: bump \`<VersionPrefix>\` in \`Directory.Build.props\`** to the version"
+            echo "you are now working toward — otherwise untagged builds keep calling themselves"
+            echo "\`${{ steps.version.outputs.version }}-alpha.N\`, which sorts *before* the release"
+            echo "you just cut rather than after it."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # ---- a manual run just hands back the zip -------------------------------
       - name: Upload the bundle
