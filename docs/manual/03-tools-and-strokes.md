@@ -4,10 +4,85 @@
 ## Tools
 
 Down the left: **Brush** (B), **Eraser** (E), **Fill**, **Picker**,
-**Gradient**, **Select** (S). Press Select again to cycle its variants, or hold
-it for the list: Freehand, Polygon, Box, Circle, Magic wand.
+**Gradient**, **Arrow** (A), **Select** (S). Press Select again to cycle its
+variants, or hold it for the list: Freehand, Polygon, Box, Circle, Magic wand.
 
 Hold **Ctrl** at any time to pick a colour off the canvas without changing tool.
+
+### Arrow and Select are not the same tool
+
+They sound alike and they do different things, so it is worth one paragraph.
+
+| | |
+| --- | --- |
+| **Select** (S) | Picks an **area**. Draw a shape round part of the drawing and what you paint afterwards is confined to it. What you have selected is a region, not any particular mark. |
+| **Arrow** (A) | Picks a **thing**. Click a line and you have got that line — the entire stroke you drew in one go, however far it runs. It also picks guides, placed symbols and rig anchors. |
+
+Click to take something; **Shift**-click to add another, and Shift-click one you
+already have to put it back. Click empty canvas to let go of everything — though
+a Shift-click that misses leaves your selection alone, because you are part-way
+through building one. **What you have picked is traced in cyan**, so it is
+always clear which line you got.
+
+**Drag from empty canvas** to sweep up everything the box touches — touched, not
+enclosed, so a box across a limb takes its lines without your having to draw one
+round the whole character. Hold **Shift** as you start the drag to add to what
+you already have. The box is cyan and dashed rather than the marching ants of an
+area selection, because it is doing a different job.
+
+It picks what you can see. Where two lines cross you get the one on top, and an
+eraser stroke never steals a click from ink that is visible underneath it —
+though an eraser on its own is selectable, so a stray one can still be removed.
+Clicking inside a filled shape picks the fill; clicking in a hole in that shape
+does not, because the hole is not part of it. A gradient is picked by the line
+you dragged to make it, not by everywhere it reaches.
+
+**Guides and symbols win over lines** where they overlap. The drawing is the
+thing that is everywhere, so if it won, a guide crossing a line would be
+unclickable wherever you had drawn.
+
+Moving to another layer lets go of what you had picked, because it is not there
+any more. Stepping along a **hold** does not — the same drawing is still on
+screen.
+
+If the layer is locked it says so rather than doing nothing — but only when you
+actually click a line on it, not every time you click past one.
+
+A line drawn entirely outside the canvas cannot be picked yet — filed as B134,
+and it matters mainly for the infinite canvas that is still being built.
+
+### What you can do with what you picked
+
+**Move it** by dragging one of the selected lines. The outline follows your
+pointer while the button is down and the drawing itself arrives when you let go —
+so you can see exactly where it is going without the canvas redrawing the whole
+frame on every twitch. A press that does not move is just a click.
+
+**Nudge it** with the arrow keys: one pixel, or ten with Shift. This is the way
+to place a line exactly, because a drag cannot reliably land on a single pixel.
+The cost is worth knowing: while the Arrow is in your hand *and* something is
+selected, ← and → nudge instead of stepping frames. Let go of the selection, or
+pick up another tool, and they step frames again.
+
+**Delete it** with Delete, or the button in the tool options. Undo puts the lines
+back in the order they were in, so nothing quietly ends up in front of something
+it was behind.
+
+**Recolour it** with the button in the tool options — the selected lines take the
+current foreground colour. If a line was taking its colour from a **palette
+swatch**, recolouring it this way stops it following that swatch: you asked for
+this colour rather than that swatch's colour. Undo restores the link.
+
+Everything is one undo step per action, however many lines are selected.
+
+> **A moved line's texture changes, and that is deliberate.** The grain of a
+> brush comes from *where the mark is on the canvas* — that is what stops it
+> boiling when you animate. Move a line and it is somewhere else, so it grains
+> differently. If you need a mark preserved exactly, move the **layer** rather
+> than the line.
+
+*Planned:* scaling and rotating what you picked, and a box with handles to do it
+with.
 
 ## What a stroke is
 

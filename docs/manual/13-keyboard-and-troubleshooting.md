@@ -9,6 +9,9 @@ canvas, the timeline and the Layers panel.
 | Key | Action |
 | --- | --- |
 | B / E / S | Brush, Eraser, Select (press again to cycle variants) |
+| A | Arrow — select whole lines, guides, symbols |
+| Delete | Delete the selected lines |
+| Arrows | Nudge the selected lines a pixel, ten with Shift (Arrow tool only) |
 | Ctrl (hold) | Pick a colour |
 | Ctrl+Z / Ctrl+Y | Undo, redo |
 | Ctrl+T | Transform |
@@ -166,8 +169,9 @@ Not built. Listed so the gap is visible rather than implied.
 **Drawing**
 - Pixel-perfect mode
 - Brush symmetry
-- Perspective rulers, vanishing points, grid and snapping
-- Shape tools and vector guides
+- Reshaping a line after you have drawn it — dragging its individual points, and
+  a pen tool. Picking a whole line and moving, deleting or recolouring it is
+  built; see [the Arrow](03-tools-and-strokes.md#what-you-can-do-with-what-you-picked)
 - Pattern fills
 
 **Layers**

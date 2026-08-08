@@ -143,18 +143,46 @@ jobs:
 
       # The ledgers, for the one failure a merge can introduce that nothing else
       # would notice: two ids the same. `bugs.py` grew `duplicate_ids` when two
-      # bugs shared B39, and B81 is the same fault in QUESTIONS.md — but nothing
-      # ran either check, so the guard existed and never fired.
+      # bugs shared B39, and B81 is the same fault in QUESTIONS.md.
       #
       # A merge is exactly how it happens. Two branches each take the next free
       # id, both are right on their own branch, and the collision only exists in
       # the merged file. The ledgers are deliberately NOT auto-merged (see
       # .gitattributes), so a person resolves that conflict — and this is what
       # tells them they got it wrong.
+      #
+      # THIS STEP IS THE SECOND LINE, NOT THE FIRST. It was the only one until
+      # 2026-08-07, when four ids collided across two merges with it green the
+      # whole time — because a collision reaches CI only after it is pushed, and
+      # by then other branches have rebased onto the bad resolution. The first
+      # line is now `.githooks/pre-push`, which runs `bugs.py ids` before the
+      # push. This still matters: it sees a push that bypassed the hook, and a
+      # merge performed by GitHub itself, where no hook runs at all.
+      #
+      # `check` also reports an entry that a merge parent had and this tree does
+      # not — the failure the duplicate check structurally cannot see, because
+      # taking one side of the conflict leaves a perfectly consistent file.
       - name: The bug ledger is consistent and its ids are unique
         run: python3 scripts/bugs.py check
       - name: The roadmap's checkboxes match the code
         run: python3 scripts/roadmap.py check
+
+      # The generated index, same principle one artefact along: do not believe
+      # what is committed, derive it and compare.
+      #
+      # `.gitattributes` points INDEX.md and FEATURES.md at a merge driver that
+      # rebuilds them from the merged tree, which is why they stopped being
+      # hand-resolved. Three holes it cannot cover, and this closes all three:
+      # GitHub does not run merge drivers, so a PR merged in the web UI resolves
+      # them however it likes; the driver deliberately gives up while the build is
+      # red and keeps one side instead; and an ordinary commit that adds a type
+      # and forgets to rebuild leaves an index that answers "where does X live"
+      # with silence.
+      #
+      # Safe in a shallow checkout — unlike HOTSPOTS.md, these two are derived
+      # from file contents only and carry no commit stamp, on purpose.
+      - name: The committed index describes this tree
+        run: python3 scripts/codemap.py verify
 
   # Is there anything in this push that could change the bundle? A Windows
   # build of a Markdown edit is 105 MB of storage for a file nobody ships.

@@ -61,6 +61,31 @@ public sealed class ShortcutMap
             new("tool.gradient", "Gradient", "Tools", G(Key.G)),
             new("tool.select", "Select / next variant", "Tools", G(Key.S)),
             new("tool.move", "Move (drawing and guides)", "Tools", G(Key.V)),
+            // Illustrator's black arrow is V, which Move already has here and
+            // has had for longer. A is Illustrator's other pointer and is free,
+            // so the pair stays adjacent in the hand even though the letters do
+            // not match Adobe's exactly.
+            new("tool.arrow", "Arrow (select lines, guides, symbols)", "Tools", G(Key.A)),
+            // What the arrow can then do. Registered rather than wired straight
+            // to the key handler, because a command that is not in here cannot be
+            // found, searched or rebound — which is the failure this whole map
+            // exists for. Nudging is absent here on purpose and is not missing:
+            // `canvas.nudge*` below is already the canvas-scoped binding for "move
+            // what is selected", and `NudgeSelection` asks the line selection
+            // before the pixel one. A second set of keys would mean an artist
+            // rebinding one and finding the other still on the old key.
+            // Canvas-scoped, not global, and the test suite is what said so:
+            // `docker.deleteLayer` already owns Delete over the Layers docker, and
+            // a global binding on the same key shadows it. So this is another of
+            // the context twins below — Delete over the canvas removes lines,
+            // Delete over the layer list removes a layer, and each is what an
+            // artist would expect from where their pointer is.
+            new("lines.delete", "Delete the selected lines (canvas)", "Tools", G(Key.Delete), ShortcutContext.Canvas),
+            // No default gesture, and that is allowed rather than an oversight:
+            // every sensible letter is taken, and the button in the arrow's
+            // options bar is the way in. Being here is what lets an artist bind
+            // it to whatever they have free.
+            new("lines.recolour", "Recolour the selected lines", "Tools", null),
             // Brush sizing by eye. It was Shift+drag on the canvas until Shift
             // became the constraint key on every tool; these are the two keys
             // every other application uses for it.

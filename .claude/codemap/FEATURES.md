@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2856 tests, derived from the suite itself. Each line is a
+2919 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -897,29 +897,29 @@ regression even when every test still compiles.
 
 - Same Key Means Different Things Per Context — `:12`
 - Global Bindings Fire In Every Context Unless Shadowed — `:23`
-- Conflicts Only Count When Contexts Overlap — `:36`
+- Conflicts Only Count When Contexts Overlap — `:42`
 
 ## LayerFolderTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Create Folder Groups The Active Layer And Shows AHeader Row — `:132`
-- Folder Visibility Gates Its Members In Compositing And Painting — `:147`
-- Collapse Hides Member Rows From The Docker Panel Only — `:166`
-- Add And Remove Keep The Folder Contiguous — `:179`
-- Folder Color Is Undoable And Serializes — `:196`
-- Dissolve Ungroups Everything And Folders Serialize — `:214`
+- Create Folder Groups The Active Layer And Shows AHeader Row — `:138`
+- Folder Visibility Gates Its Members In Compositing And Painting — `:153`
+- Collapse Hides Member Rows From The Docker Panel Only — `:172`
+- Add And Remove Keep The Folder Contiguous — `:185`
+- Folder Color Is Undoable And Serializes — `:202`
+- Dissolve Ungroups Everything And Folders Serialize — `:220`
 
 ## NudgeSelectionTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Nudge Shifts Every Contour Point By Whole Pixels — `:96`
-- Nudge Without ASelection Is ANo Op — `:109`
+- Nudge Shifts Every Contour Point By Whole Pixels — `:102`
+- Nudge Without ASelection Is ANo Op — `:115`
 
 ## PickerToolTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Pick Color At Reads The Composited Color And Paper When Empty — `:55`
-- Insert Keyframe At Playhead Keys The Active Cel — `:80`
+- Pick Color At Reads The Composited Color And Paper When Empty — `:61`
+- Insert Keyframe At Playhead Keys The Active Cel — `:86`
 
 ## FrameBitmapCacheTests
 `tests/Lightbox.App.Tests/FrameBitmapCacheTests.cs`
@@ -2086,6 +2086,28 @@ regression even when every test still compiles.
 - ASlow Load Is Not Padded Further — `:35`
 - The Minimum Is Long Enough To Be Seen And Short Enough Not To Be Waited On — `:44`
 
+## StrokeActionTests
+`tests/Lightbox.App.Tests/StrokeActionTests.cs`
+
+- Deleting The Selection Takes The Line And Lets Go Of It — `:59`
+- Deleting Nothing Is Not An Edit — `:75`
+- Undoing ADelete Puts The Line Back In Its Old Place In The Order — `:87`
+- Deleting Several Is One Undo Step — `:105`
+- Moving The Selection Shifts Every Point — `:120`
+- Moving Nowhere Is Not An Edit — `:136`
+- Only The Selected Line Moves — `:145`
+- Undoing AMove Restores The Exact Coordinates — `:166`
+- Moving AFill Takes Its Holes With It — `:191`
+- ANudge Is One Pixel And Shift Makes It Ten — `:225`
+- Recolouring The Selection Changes Its Colour — `:240`
+- Recolouring ALine From APalette Cuts It Loose From The Swatch — `:258`
+- Recolouring To The Colour It Already Is Does Nothing — `:283`
+- The Canvas Nudge Moves Lines When The Arrow Is Holding Some — `:298`
+- The Nudge Is Ignored Unless The Arrow Is The Tool In Hand — `:311`
+- The Actions Are Registered Where The Configuration Window Can See Them — `:329`
+- The Commands The Options Bar Binds To Exist — `:346`
+- ALocked Layer Refuses Every Action — `:364`
+
 ## StrokeLatencyTests
 `tests/Lightbox.App.Tests/StrokeLatencyTests.cs`
 
@@ -2093,6 +2115,33 @@ regression even when every test still compiles.
 - APen Burst Is One Frame Not One Per Event — `:180`
 - When The Burst Has Drained The Mark Reaches The Pen — `:212`
 - Smoothings Own Lag Is Measured Separately — `:246`
+
+## StrokeSelectionTests
+`tests/Lightbox.App.Tests/StrokeSelectionTests.cs`
+
+- Clicking ALine Picks It — `:46`
+- Clicking Empty Canvas Picks Nothing — `:61`
+- Clicking Away Lets Go — `:72`
+- AShift Click That Misses Keeps The Selection — `:87`
+- Shift Click Adds And Shift Click Again Takes Away — `:97`
+- Clicking ASecond Line Without Shift Replaces The Selection — `:113`
+- AMarquee Picks Every Line It Touches — `:128`
+- AMarquee Over Nothing Lets Go — `:144`
+- AShift Marquee Adds To The Selection — `:159`
+- Picking Lines Does Not Touch The Pixel Selection — `:185`
+- Deleting An Earlier Line Does Not Repoint The Selection — `:204`
+- ALine That Is Gone Is Dropped From The Selection — `:226`
+- Moving To Another Layer Lets Go Of The Selection — `:256`
+- AHeld Cel Keeps The Selection — `:273`
+- ALocked Layer Refuses And Says Why — `:291`
+- ALocked Layer Is Quiet When You Click Nothing — `:306`
+- Picking On An Empty Layer Creates Nothing — `:321`
+- Picking ALine Publishes Its Outline — `:356`
+- Letting Go Takes The Outline Away — `:377`
+- AFills Outline Is Closed — `:397`
+- The Canvas Takes The Outlines It Is Handed — `:422`
+- The Arrow Tool Is Reachable And Bindable — `:443`
+- The Arrow Tool Has ABindable Shortcut — `:464`
 
 ## SubjectReadingWiringTests
 `tests/Lightbox.App.Tests/SubjectReadingWiringTests.cs`
@@ -3003,6 +3052,20 @@ regression even when every test still compiles.
 - AShorter List Is Handled Rather Than Indexed Past — `:116`
 - Under Three Points Behaves Like Densify — `:137`
 - An Append Costs AFraction Of Re Densifying — `:199`
+
+## LedgerGateTests _Category=Performance_
+`tests/Lightbox.Core.Tests/LedgerGateTests.cs`
+
+- Two Bugs With The Same Id Fail The Gate — `:122`
+- Two Questions With The Same Id Fail The Gate — `:133`
+- AMerge That Keeps Only One Side Of ALedger Conflict Fails The Gate — `:148`
+- ADeletion Can Be Allowed Deliberately — `:165`
+- The Ledgers In This Tree Pass Their Own Gate — `:182`
+- The Pre Push Hook Runs The Ledger Gate — `:190`
+- Ci Checks The Ledger Too — `:208`
+- The Committed Index Describes This Tree — `:251`
+- Ci Verifies The Committed Index — `:259`
+- The Index Carries No Commit Stamp So It Is Reproducible — `:278`
 
 ## NormalMapTests
 `tests/Lightbox.Core.Tests/NormalMapTests.cs`
@@ -4024,6 +4087,22 @@ regression even when every test still compiles.
 - AStroke That Reaches Nothing Is Recorded Rather Than Skipped — `:138`
 - Negative Coordinates Index And Query The Same As Positive Ones — `:152`
 - ATile Sized Query Touches AFraction Of ABusy Drawing — `:176`
+
+## StrokePickerTests
+`tests/Lightbox.Raster.Tests/StrokePickerTests.cs`
+
+- The Stroke On Top Is The Picked One — `:59`
+- An Eraser Does Not Steal AClick From Ink Under It — `:76`
+- An Eraser With Nothing Under It Is Still Picked — `:93`
+- AClick Beside The Line Picks Nothing — `:108`
+- AWide Stroke Is Wide To Hit — `:127`
+- AFill Is Picked From The Inside — `:147`
+- AHole In AFill Is Not Part Of It — `:161`
+- AGradient Is Picked By Its Axis Rather Than Its Coverage — `:188`
+- AMarquee Catches What It Touches Rather Than Only What It Encloses — `:211`
+- AMarquee Returns Record Order — `:232`
+- AZero Area Marquee Catches Nothing — `:252`
+- Bounds Are Narrowed By Geometry Rather Than Trusted — `:269`
 
 ## SubjectReadingIsNotRenderedTests
 `tests/Lightbox.Raster.Tests/SubjectReadingIsNotRenderedTests.cs`

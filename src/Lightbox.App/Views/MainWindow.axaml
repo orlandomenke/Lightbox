@@ -1456,6 +1456,29 @@
         </StackPanel>
 
         <!-- Fill options -->
+        <!-- The arrow. Nothing to configure yet: what it has to say is what is
+             selected, and the actions that need a selection arrive with V3. An
+             empty bar would still be right to register now, because a tool with
+             no options panel is a tool the bar has never heard of. -->
+        <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsArrowTool}">
+          <TextBlock Text="{Binding StrokeSelectionSummary}" VerticalAlignment="Center"
+                     ToolTip.Tip="Click a line to select it, Shift to add. Click empty canvas to let go." />
+          <TextBlock Text="Click a line, a guide or a symbol to select it."
+                     VerticalAlignment="Center" Opacity="0.6"
+                     IsVisible="{Binding !HasStrokeSelection}" />
+          <!-- The actions appear with a selection rather than sitting greyed
+               out. A bar that is mostly disabled controls reads as a tool that
+               is mostly broken; this one says nothing until it can do something. -->
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                      IsVisible="{Binding HasStrokeSelection}">
+            <Button Content="Recolour" Command="{Binding RecolourSelectedLinesCommand}"
+                    ToolTip.Tip="Repaint the selected lines in the foreground colour. A line that came from a palette stops following its swatch." />
+            <Button Content="Delete" Command="{Binding DeleteSelectedLinesCommand}"
+                    ToolTip.Tip="Delete the selected lines (Delete). Undo puts them back in the order they were in." />
+            <TextBlock Text="arrow keys nudge, Shift ×10" VerticalAlignment="Center" Opacity="0.6" />
+          </StackPanel>
+        </StackPanel>
+
         <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding IsFillTool}">
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <TextBlock Text="Tolerance" VerticalAlignment="Center" />
@@ -1748,6 +1771,14 @@
                 <StackPanel Orientation="Horizontal" Spacing="6">
                   <Path Data="{StaticResource IconMove}" />
                   <TextBlock Text="Move" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsArrowTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Arrow}"
+                            ToolTip.Tip="Arrow (A) — click to select a whole line, a guide, a placed symbol or a rig anchor. Shift adds. Selects things, not areas of pixels.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="➤" FontSize="15" />
+                  <TextBlock Text="Arrow" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
               <ToggleButton x:Name="SelectToolButton" Classes="tool" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
@@ -3325,7 +3356,9 @@
                          CloseCommand="{Binding ToggleTimelineCommand}">
         <controls:Docker.TopBar>
           <Border Classes="dockerBar">
-            <StackPanel Orientation="Horizontal" Spacing="10">
+            <!-- Centred on the docker, per the owner: playback is symmetric, so
+                 it reads from the middle out. -->
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
               <StackPanel Orientation="Horizontal" Spacing="2">
                 <Button Content="⏮" Command="{Binding GoToStartFrameCommand}"
                         ToolTip.Tip="To start frame (the set start frame, else the first)" />
@@ -3349,10 +3382,10 @@
                    controls nobody touches twice in a session. -->
               <CheckBox Content="Onion skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" />
               <NumericUpDown Value="{Binding OnionBefore}" Minimum="0" Maximum="10" Increment="1"
-                             FormatString="0" Width="60" VerticalAlignment="Center"
+                             FormatString="0" Width="44" VerticalAlignment="Center"
                              ToolTip.Tip="Drawings to ghost before the playhead" />
               <NumericUpDown Value="{Binding OnionAfter}" Minimum="0" Maximum="10" Increment="1"
-                             FormatString="0" Width="60" VerticalAlignment="Center"
+                             FormatString="0" Width="44" VerticalAlignment="Center"
                              ToolTip.Tip="Drawings to ghost after the playhead" />
               <Button Content="⚙" VerticalAlignment="Center" ToolTip.Tip="Onion skin settings">
                 <Button.Flyout>
@@ -3410,7 +3443,7 @@
               <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                 <TextBlock Text="fps" VerticalAlignment="Center" />
                 <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
-                               FormatString="0" Width="68" VerticalAlignment="Center" />
+                               FormatString="0" Width="48" VerticalAlignment="Center" />
               </StackPanel>
               <!-- How many frames fit on screen. Narrow to read the timing of
                    a long scene, wide to read the thumbnails of a short one. -->
@@ -3423,7 +3456,7 @@
               <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                 <TextBlock Text="Speed %" VerticalAlignment="Center" />
                 <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
-                               FormatString="0" Width="72" VerticalAlignment="Center"
+                               FormatString="0" Width="50" VerticalAlignment="Center"
                                ToolTip.Tip="Playback speed as a percentage of real time" />
               </StackPanel>
             </StackPanel>

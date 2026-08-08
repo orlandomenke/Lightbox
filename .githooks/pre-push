@@ -38,6 +38,47 @@ while read -r _local_ref _local_sha remote_ref _remote_sha; do
   [ "$remote_ref" = "$protected" ] && blocked="$remote_ref"
 done
 
+# THE LEDGER IDS, ON EVERY PUSH — not only pushes to the default branch.
+#
+# WHY HERE. `bugs.py check` has refused a duplicate id since the day two bugs
+# shared B39, and CI runs it. Both of those are true and neither one helped on
+# 2026-08-07, when four ids collided across two merges — Q46, B123, B124, B125,
+# each filed independently on `main` and on a branch. The reason is timing rather
+# than a missing check: **a collision does not exist in either branch, only in
+# the merged file**, so the earliest a check in CI can see one is after it has
+# been pushed. By then the wrong resolution is public and other branches have
+# rebased onto it.
+#
+# So this runs at the last moment the mistake is still private. `ids` is the
+# cheap half of `check` — no evidence anchors, no code index, no rebuild — which
+# is what makes it affordable in a hook that runs on every push.
+#
+# It also catches the failure a duplicate check structurally cannot see: taking
+# one side of a ledger conflict. That leaves a file with no duplicate in it, so
+# every check passes and the other branch's entry is gone for good. See
+# `lost_ids` in scripts/bugs.py.
+if command -v python3 >/dev/null 2>&1; then
+  if ! ledger=$(python3 "$(git rev-parse --show-toplevel)/scripts/bugs.py" ids 2>&1); then
+    printf '%s\n' "$ledger" >&2
+    cat >&2 <<'EOF'
+
+pre-push: refusing the push — the ledger ids above are not safe.
+
+  A duplicate id means two branches took the same number and the merge kept
+  both. Renumber all but one, above the highest id on either side, and update
+  every reference to the one that moved.
+
+  A lost id means a ledger conflict was resolved by taking one side, which
+  deletes the other side's entry. Both have to survive: put them back and
+  renumber. If an entry really is meant to go:
+
+      LIGHTBOX_ALLOW_LEDGER_DELETION=1 git push ...
+
+EOF
+    exit 1
+  fi
+fi
+
 [ -n "$blocked" ] || exit 0
 
 if [ "${LIGHTBOX_PUSH_TO_MAIN:-}" = "1" ]; then

@@ -143,7 +143,7 @@ public class Docker : ContentControl
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>B132: posted, not raised.</b> Answering this event means the strip is
+    /// <b>B135: posted, not raised.</b> Answering this event means the strip is
     /// rebuilt — the docker showing leaves it and another takes its place — and
     /// the docker showing is <em>this one</em>, whose ListBox is still
     /// dispatching the selection it just changed. Detaching a control from
@@ -189,7 +189,7 @@ public class Docker : ContentControl
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Not two property assignments, and B132 is why.</b> Writing
+    /// <b>Not two property assignments, and B135 is why.</b> Writing
     /// <see cref="Tabs"/> re-binds the strip and writing <see cref="ActiveTab"/>
     /// moves its selection; each raises <c>SelectionChanged</c>, and in between
     /// the two the control is in a state no artist ever produced — the new tab

@@ -14,7 +14,7 @@ namespace Lightbox.App.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>B132.</b> Reported from a shipped build: tab two panels together, switch
+/// <b>B135.</b> Reported from a shipped build: tab two panels together, switch
 /// to one, switch back, and the application dies. Reproduced with Layers +
 /// Palette and again with Colour + Reference sheets, so it is the mechanism
 /// rather than any particular pair.

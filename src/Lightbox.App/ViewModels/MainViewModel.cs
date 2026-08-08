@@ -3342,6 +3342,7 @@ public sealed partial class MainViewModel : ObservableObject
     // way to pick a shape.
     [NotifyPropertyChangedFor(nameof(IsShapeTool))]
     [NotifyPropertyChangedFor(nameof(IsPaintTool))]
+    [NotifyPropertyChangedFor(nameof(IsArrowTool))]
     private ToolId _activeTool = ToolId.Brush;
 
     [ObservableProperty]
@@ -3364,6 +3365,9 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsWandVariant => ActiveSelectVariant == SelectVariant.Wand;
 
     public bool IsBrushTool => ActiveTool == ToolId.Brush;
+
+    /// <summary>The black arrow — picks things (lines, guides, symbols) rather than an area of pixels.</summary>
+    public bool IsArrowTool => ActiveTool == ToolId.Arrow;
 
     public bool IsEraserTool => ActiveTool == ToolId.Eraser;
 
@@ -4003,7 +4007,16 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Arrow keys over the canvas: shift the selection outline by whole pixels.</summary>
     public void NudgeSelection(int dx, int dy)
     {
-        if (!HasSelection || (dx == 0 && dy == 0)) return;
+        if (dx == 0 && dy == 0) return;
+        // A line selection wins, because the two cannot both be live in a way
+        // that matters: the Arrow holds lines, the Select tools hold an area, and
+        // only one of them is what the artist is looking at. Asked first rather
+        // than given its own keys — `canvas.nudge*` is already the registered,
+        // rebindable, canvas-scoped binding for "move what is selected", and
+        // adding a second set would mean an artist rebinding one and finding the
+        // other still on the old key.
+        if (NudgeSelectionFromKeyboard(dx, dy, coarse: false)) return;
+        if (!HasSelection) return;
         foreach (var contour in _selectionContours)
         {
             for (var i = 0; i < contour.Count; i++)
@@ -4575,6 +4588,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         // "Carry on from where I stopped" stops being true on another layer.
         _lastStrokeEnd = null;
+        PruneStrokeSelection();   // and neither is a line picked on the old one
         foreach (var row in LayerRows) row.IsActive = row.SceneIndex == value;
         OnPropertyChanged(nameof(FrameCells));
         OnPropertyChanged(nameof(ActiveLayerOnion));
@@ -4681,6 +4695,10 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentFrameIndexChanged(int value)
     {
         _lastStrokeEnd = null;   // and it stops being true on another drawing
+        // A line selected on another drawing is not on this one. Left alone the
+        // count keeps reporting lines nothing can show, which reads as the
+        // arrow having stopped working.
+        PruneStrokeSelection();
         _tileStoreCache.Clear();  // Clear cached tiles when frame changes
         RefreshCellHighlights();
         RefreshLayerThumbs();

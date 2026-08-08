@@ -27,6 +27,14 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = _vm;
         Canvas.SetSelectionManager(_vm.Selection);
+        Canvas.SetLinePicker(_vm.PickStrokeAt);
+        _vm.SelectedLinesChanged += Canvas.SetSelectedLines;
+        Canvas.LinesMarqueed += (rect, add) => _vm.PickStrokesIn(rect, add);
+        // The drag commits on release. The outline follows the pointer while the
+        // button is down (chrome only, see DrawSelectedLines) and the pixels move
+        // once, here — a per-move re-render would repaint the whole frame from its
+        // strokes, which is exactly what invariant 6 forbids.
+        Canvas.SelectedLinesDragged += (dx, dy) => _vm.MoveSelectedStrokes(dx, dy);
         Canvas.SetPlacementProvider(_vm.GetCurrentFramePlacements);
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
@@ -1993,6 +2001,12 @@ public partial class MainWindow : Window
             ToolId.Gradient => Rendering.CanvasControl.CanvasToolMode.Gradient,
             ToolId.Shape => Rendering.CanvasControl.CanvasToolMode.Shape,
             ToolId.Move => Rendering.CanvasControl.CanvasToolMode.Move,
+            // Reviving the object-selection mode rather than adding a parallel
+            // one. It has been in the enum with its whole hit-test chain since
+            // the selection manager landed, and nothing ever assigned it — so
+            // picking a placement, guide or anchor has been unreachable. The
+            // black arrow is what that code was always for.
+            ToolId.Arrow => Rendering.CanvasControl.CanvasToolMode.Select,
             ToolId.Select => _vm.ActiveSelectVariant switch
             {
                 SelectVariant.Polygon => Rendering.CanvasControl.CanvasToolMode.SelectPolygon,
@@ -2845,6 +2859,15 @@ public partial class MainWindow : Window
                 break;
             case "tool.move":
                 _vm.SelectToolCommand.Execute(ToolId.Move);
+                break;
+            case "tool.arrow":
+                _vm.SelectToolCommand.Execute(ToolId.Arrow);
+                break;
+            case "lines.delete":
+                _vm.DeleteSelectedLinesCommand.Execute(null);
+                break;
+            case "lines.recolour":
+                _vm.RecolourSelectedLinesCommand.Execute(null);
                 break;
             // Sizing by eye used to be Shift+drag on the canvas. Shift is the
             // constraint key now, everywhere, so the brush keeps the two keys
