@@ -173,4 +173,50 @@ public class PublishLayoutTests(ITestOutputHelper output)
         Assert.Contains(@"mcp\", checklist);
         Assert.Contains("B116", checklist);
     }
+
+    /// <summary>
+    /// CI must run this class when the documents it reads change.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two assertions above read <c>README.md</c> and
+    /// <c>MANUAL_TESTING.md</c>, which makes those files <b>test inputs</b>
+    /// however they are spelled. <c>build.yml</c>'s <c>changes</c> filter skips
+    /// the suite for a documentation-only change, and it classified any
+    /// root-level <c>.md</c> as documentation — so a README-only change skipped
+    /// the one test guarding the README, and the change most likely to break
+    /// that assertion was the change that never ran it.
+    /// </para>
+    /// <para>
+    /// Found on PR #95, a README rewrite, where <c>test</c> reported
+    /// <c>skipped</c> beside two green checks. Nothing was red, nothing was
+    /// wrong, and the guard simply had not run — which is the failure shape this
+    /// repository treats as worse than a break.
+    /// </para>
+    /// <para>
+    /// Asserted <em>here</em>, next to the reads it protects, rather than in
+    /// <c>CiRuntimeTests</c> with the workflow's other checks. A list of test
+    /// inputs kept somewhere else is a list somebody forgets to extend; kept
+    /// beside the reads, adding a third one and forgetting the filter fails on
+    /// the line directly below the read that caused it.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void TheDocumentsThisClassReadsAreNotTreatedAsDocumentationByCi()
+    {
+        var filter = Read(".github", "workflows", "build.yml");
+
+        foreach (var document in new[] { "README.md", "MANUAL_TESTING.md" })
+        {
+            // Escaped as the workflow's own grep pattern writes it, so this
+            // matches the live expression rather than a paraphrase of it.
+            var pattern = document.Replace(".", @"\.");
+            Assert.True(
+                filter.Contains(pattern, StringComparison.Ordinal),
+                $"{document} is read by this class but build.yml's changes filter does not name it, "
+                + "so a change to it would skip the suite that checks it");
+        }
+
+        output.WriteLine("build.yml treats README.md and MANUAL_TESTING.md as code");
+    }
 }

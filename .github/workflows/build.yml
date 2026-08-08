@@ -218,8 +218,26 @@ jobs:
           fi
           CHANGED=$(git diff --name-only "$BASE" "$GITHUB_SHA")
           printf '%s\n' "$CHANGED"
-          # Anything that is not documentation counts as code.
-          if printf '%s\n' "$CHANGED" | grep -qvE '^(docs/|\.claude/)|^[^/]*\.md$'; then
+
+          # Some documents are test inputs, and those are code however they are
+          # spelled. `PublishLayoutTests` reads README.md and MANUAL_TESTING.md
+          # to check they still name the folder the MCP server ships in — a
+          # string whose being wrong produces silence rather than an error, which
+          # is precisely why it is asserted rather than trusted.
+          #
+          # Without this line the rule below classified them as documentation and
+          # skipped the only test guarding them, so the one change most likely to
+          # break that assertion was the one change that never ran it. Caught on
+          # PR #95, a README-only change, where `test` reported `skipped`.
+          #
+          # If a test starts reading another document, it belongs here — and
+          # `PublishLayoutTests` asserts this list covers the ones it reads, so
+          # the omission fails a build rather than quietly widening the hole.
+          if printf '%s\n' "$CHANGED" | grep -qE '^(README\.md|MANUAL_TESTING\.md)$'; then
+            echo "a document the suite reads changed — building"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          # Anything else that is not documentation counts as code.
+          elif printf '%s\n' "$CHANGED" | grep -qvE '^(docs/|\.claude/)|^[^/]*\.md$'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "documentation only — skipping the test suite"
