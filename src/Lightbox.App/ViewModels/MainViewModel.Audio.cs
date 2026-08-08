@@ -455,6 +455,57 @@ public partial class MainViewModel
         return resolved is not null && File.Exists(resolved) ? resolved : null;
     }
 
+    /// <summary>
+    /// A split track's sections laid out on the timeline as one WAV (Q57),
+    /// or null when the track has never been split and its offset and trim
+    /// still say everything. Silence fills the gaps, so frame zero of the
+    /// file is frame zero of the render and the encoder needs no offset.
+    /// </summary>
+    internal string? AssembledAudioForExport()
+    {
+        if (Scene.Audio is not { Segments: { Count: > 0 } } track) return null;
+        if (AudioClipNow is not { } clip || clip.SampleRate <= 0) return null;
+
+        var fps = Math.Max(1, Scene.Fps);
+        var channels = Math.Max(1, clip.Channels);
+        var frames = Math.Max(1, TimelineFrameCount);
+        var total = (long)frames * clip.SampleRate / fps * channels;
+        if (total <= 0 || total > int.MaxValue) return null;
+
+        var samples = new float[total];
+        foreach (var segment in track.EffectiveSegments(AudioSourceFrames))
+        {
+            for (var f = Math.Max(0, segment.AtFrame);
+                 f < Math.Min(frames, segment.AtFrame + segment.LengthFrames); f++)
+            {
+                var source = f - segment.AtFrame + segment.SourceStartFrames;
+                var from = (long)source * clip.SampleRate / fps * channels;
+                var to = (long)(source + 1) * clip.SampleRate / fps * channels;
+                var at = (long)f * clip.SampleRate / fps * channels;
+                for (var i = from; i < to; i++)
+                {
+                    var target = at + (i - from);
+                    if (i < 0 || i >= clip.Samples.Length || target >= samples.Length) break;
+                    samples[target] = clip.Samples[i];
+                }
+            }
+        }
+
+        try
+        {
+            var temp = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(), $"lightbox-export-sections-{Scene.Id}.wav");
+            Services.VideoExporter.WriteWavPcm16(
+                new AudioClip { Samples = samples, Channels = channels, SampleRate = clip.SampleRate },
+                temp);
+            return temp;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
+
     private void DropAudioCache()
     {
         _audioLoadedFrom = null;

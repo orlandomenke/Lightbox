@@ -146,10 +146,17 @@ public static class VideoExporter
         var (width, height) = SequenceExporter.OutputSize(scene);
         var fps = Math.Max(1, scene.Fps);
         var track = scene.Audio;
+        // A split track arrives already laid out on the timeline (Q57) — the
+        // sections have been assembled into one WAV with silence in the gaps —
+        // so applying the offset and trim again would move the sound twice.
+        var assembled = track?.Segments is { Count: > 0 };
         var args = BuildArgs(
             format, width, height, fps, outputPath,
-            audioPath, track?.OffsetFrames ?? 0, track?.Volume ?? 1.0,
-            track?.TrimStartFrames ?? 0, track?.TrimLengthFrames);
+            audioPath,
+            assembled ? 0 : track?.OffsetFrames ?? 0,
+            track?.Volume ?? 1.0,
+            assembled ? 0 : track?.TrimStartFrames ?? 0,
+            assembled ? null : track?.TrimLengthFrames);
 
         var info = new ProcessStartInfo
         {
