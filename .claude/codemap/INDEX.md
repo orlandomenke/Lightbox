@@ -1,6 +1,6 @@
 # Code index
 
-558 files · 148015 lines · 2929 tests.
+558 files · 148102 lines · 2931 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -47,8 +47,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.App
 
-- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10834 ln) · 4 test files
-  - FrameCell:19, MainViewModel:62, LayerKindChoice:4615, TransformParts:7305
+- `src/Lightbox.App/ViewModels/MainViewModel.cs` (10861 ln) · 4 test files
+  - FrameCell:19, MainViewModel:62, LayerKindChoice:4642, TransformParts:7332
 - `src/Lightbox.App/Views/MainWindow.axaml.cs` (4638 ln) · 24 test files
   - MainWindow:19, UnsavedChoice:3030
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4039 ln) · 14 test files
@@ -166,10 +166,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MainViewModel:26
 - `src/Lightbox.App/Styles/ColorPicker.axaml` (174 ln) · **no tests**
   - PART_Clear, PART_Swatch
+- `src/Lightbox.App/ViewModels/Tools.cs` (172 ln) · 24 test files
+  - ToolId:4, CanvasQuality:75, TransformScope:94, TransformSampling:120, SelectVariant:133, HoldDrawing:152
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln) · **no tests**
   - ColorField:29
-- `src/Lightbox.App/ViewModels/Tools.cs` (166 ln) · 24 test files
-  - ToolId:4, CanvasQuality:75, TransformScope:88, TransformSampling:114, SelectVariant:127, HoldDrawing:146
 - `src/Lightbox.App/Rendering/RigOverlayPainter.cs` (152 ln) · 1 test files
   - RigOverlayPainter:36
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml.cs` (150 ln) · 1 test files

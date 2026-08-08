@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2929 tests, derived from the suite itself. Each line is a
+2931 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -514,7 +514,9 @@ regression even when every test still compiles.
 - Half Quality Composites Fewer Pixels Than Full — `:49`
 - The Snapshot Still Describes The Document It Came From — `:68`
 - An Export Is Full Resolution Whatever The Canvas Is Set To — `:90`
-- Full Quality Is Unaffected By What The Screen Can Show — `:109`
+- Full Quality Is Bounded By What The Screen Can Show — `:122`
+- Full Quality Saturates To Document Resolution Working Close — `:144`
+- The Quality Ladder Keeps Its Order Zoomed Out — `:163`
 
 ## CanvasReliefTests
 `tests/Lightbox.App.Tests/CanvasReliefTests.cs`
