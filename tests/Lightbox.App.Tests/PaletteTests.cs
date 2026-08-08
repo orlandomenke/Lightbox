@@ -196,10 +196,6 @@ public class PaletteTests
         string[] allowed =
         [
             "#00000001",  // the drag grip's fill: a hit target, not a colour
-            "#FF7A00",    // the splash placeholder, defined in App.axaml;
-                          // branding is deferred entirely until the vector
-                          // tooling exists, so this is the one colour the
-                          // design deliberately has no opinion about yet
         ];
 
         var offenders = new List<string>();

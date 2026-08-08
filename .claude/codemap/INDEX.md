@@ -1,6 +1,6 @@
 # Code index
 
-567 files · 148979 lines · 2947 tests.
+567 files · 149084 lines · 2948 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -53,7 +53,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MainWindow:19, UnsavedChoice:3100
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4039 ln) · 14 test files
   - CanvasControl:28, CanvasToolMode:908, GridGesture:965, TxDrag:1178, DrawOp:3220
-- `src/Lightbox.App/Views/MainWindow.axaml` (3732 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3733 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
@@ -123,11 +123,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ComposeRing:31, Buffer:33
 - `src/Lightbox.App/Services/ShortcutMap.cs` (264 ln) · 7 test files
   - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
-- `src/Lightbox.App/App.axaml` (263 ln) · **no tests**
-  - PART_Close, PART_Collapse, PART_Float, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Controls/OverflowBar.cs` (263 ln) · 4 test files
   - OverflowBar:25
 - `src/Lightbox.App/Styles/Palette.axaml` (260 ln) · **no tests**
+- `src/Lightbox.App/App.axaml` (256 ln) · **no tests**
+  - PART_Close, PART_Collapse, PART_Float, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Services/ExportRunner.cs` (256 ln) · 5 test files
   - ExportRun:17, ExportRunner:42
 - `src/Lightbox.App/ViewModels/DocumentTab.cs` (253 ln) · 28 test files
@@ -201,6 +201,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Desktop:7, FileReveal:35
 - `src/Lightbox.App/Docking/CanvasOverlays.cs` (123 ln) · 2 test files
   - OverlayId:12, CanvasEdge:21, OverlayPlacement:30, CanvasOverlayLayout:54
+- `src/Lightbox.App/Styles/Brand.axaml` (122 ln) · **no tests**
 - `src/Lightbox.App/Rendering/SelectionRenderer.cs` (117 ln) · **no tests**
   - SelectionRenderer:10
 - `src/Lightbox.App/Views/ProjectWindow.axaml.cs` (117 ln) · **no tests**
@@ -257,13 +258,14 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - BackgroundBox, FpsBox, HeightBox, NameBox, PpiBox, PresetBox, TransparentBox, TypeBox …
 - `src/Lightbox.App/ViewModels/DocumentScopedState.cs` (73 ln) · 1 test files
   - DocumentScopedState:31
+- `src/Lightbox.App/Views/SplashWindow.axaml` (73 ln) · **no tests**
+  - Backdrop, BackgroundImage, Ground, Scrim, Status
 - `src/Lightbox.App/Views/FloatingPanelWindow.cs` (72 ln) · 1 test files
   - FloatingPanelWindow:16
 - `src/Lightbox.App/Services/NormalMapWriter.cs` (71 ln) · 1 test files
   - NormalMapWriter:22
 - `src/Lightbox.App/Program.cs` (66 ln) · 1 test files
   - Program:7
-- `src/Lightbox.App/Styles/Brand.axaml` (66 ln) · **no tests**
 - `src/Lightbox.App/Services/SequenceExporter.cs` (62 ln) · 2 test files
   - SequenceExporter:20
 - `src/Lightbox.App/Docking/OverlayConverters.cs` (61 ln) · 2 test files
@@ -274,6 +276,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ThumbnailRenderer:7
 - `src/Lightbox.App/Input/StrokeBuilder.cs` (58 ln) · 4 indirect only
   - StrokeBuilder:10
+- `src/Lightbox.App/Views/SplashWindow.axaml.cs` (54 ln) · 2 test files
+  - SplashWindow:33
 - `src/Lightbox.App/Views/SaveFirstDialog.axaml.cs` (50 ln) · 25 indirect only
   - SaveFirstChoice:7, SaveFirstDialog:32
 - `src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml` (50 ln) · **no tests**
@@ -283,10 +287,6 @@ whole file. `codemap.py find <term>` answers targeted questions.
 - `src/Lightbox.App/Styles/Icons.axaml` (45 ln) · **no tests**
 - `src/Lightbox.App/Services/IpcProtocol.cs` (43 ln) · 8 test files
   - IpcProtocol:12, Request:23, Response:29
-- `src/Lightbox.App/Views/SplashWindow.axaml` (39 ln) · **no tests**
-  - Backdrop, Status
-- `src/Lightbox.App/Views/SplashWindow.axaml.cs` (38 ln) · 2 test files
-  - SplashWindow:33
 - `src/Lightbox.App/Services/PlaybackClock.cs` (35 ln) · 1 test files
   - PlaybackClock:9
 - `src/Lightbox.App/Views/NewProjectPanel.axaml` (34 ln) · **no tests**

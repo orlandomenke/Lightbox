@@ -63,4 +63,60 @@
       <GeometryDrawing Brush="#FFFFFF" Geometry="M 105,69 L 189,117 L 174,189 L 105,150 Z" />
     </DrawingGroup>
   </DrawingImage>
+
+  <!-- The wordmark: the same hand-authored letterforms as the committed
+       logo (extended monoline, detached T, floating G bar, flat-cut X).
+       The I is baked into its own geometry; every other letter rides a
+       translate to its advance position. -->
+  <DrawingImage x:Key="BrandWordmarkDrawing">
+    <DrawingGroup>
+      <GeometryDrawing Geometry="M2 0 V34 H44">
+        <GeometryDrawing.Pen><Pen Brush="#FFFFFF" Thickness="4" /></GeometryDrawing.Pen>
+      </GeometryDrawing>
+      <GeometryDrawing Geometry="M66 0 V36">
+        <GeometryDrawing.Pen><Pen Brush="#FFFFFF" Thickness="4" /></GeometryDrawing.Pen>
+      </GeometryDrawing>
+      <DrawingGroup Transform="1,0,0,1,88,0">
+        <GeometryDrawing Geometry="M56 2 H12 Q2 2 2 12 V24 Q2 34 12 34 H56 M56 18 H36">
+          <GeometryDrawing.Pen><Pen Brush="#FFFFFF" Thickness="4" /></GeometryDrawing.Pen>
+        </GeometryDrawing>
+      </DrawingGroup>
+      <DrawingGroup Transform="1,0,0,1,164,0">
+        <GeometryDrawing Geometry="M2 0 V36 M54 0 V36 M2 18 H54">
+          <GeometryDrawing.Pen><Pen Brush="#FFFFFF" Thickness="4" /></GeometryDrawing.Pen>
+        </GeometryDrawing>
+      </DrawingGroup>
+      <DrawingGroup Transform="1,0,0,1,240,0">
+        <GeometryDrawing Geometry="M0 2 H56 M28 9 V36">
+          <GeometryDrawing.Pen><Pen Brush="#FFFFFF" Thickness="4" /></GeometryDrawing.Pen>
+        </GeometryDrawing>
+      </DrawingGroup>
+      <DrawingGroup Transform="1,0,0,1,316,0">
+        <GeometryDrawing Geometry="M2 0 V36 M2 2 H46 Q52 2 52 8 V12 Q52 18 46 18 H2 M2 18 H46 Q52 18 52 24 V28 Q52 34 46 34 H2">
+          <GeometryDrawing.Pen><Pen Brush="#FFFFFF" Thickness="4" /></GeometryDrawing.Pen>
+        </GeometryDrawing>
+      </DrawingGroup>
+      <DrawingGroup Transform="1,0,0,1,390,0">
+        <GeometryDrawing Geometry="M14 2 H44 Q58 2 58 14 V22 Q58 34 44 34 H14 Q2 34 2 22 V14 Q2 2 14 2 Z">
+          <GeometryDrawing.Pen><Pen Brush="#FFFFFF" Thickness="4" /></GeometryDrawing.Pen>
+        </GeometryDrawing>
+      </DrawingGroup>
+      <DrawingGroup Transform="1,0,0,1,470,0">
+        <GeometryDrawing Brush="#FFFFFF" Geometry="M0 0 L7.6 0 L58 36 L50.4 36 Z M50.4 0 L58 0 L7.6 36 L0 36 Z" />
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage>
+
+  <!--
+    The splash and app-icon ground: dark gray with a lighter step across the
+    45-degree diagonal. Here rather than the palette because these belong to
+    the brand surfaces, not the chrome.
+  -->
+  <SolidColorBrush x:Key="BrandGroundBrush" Color="#26292F" />
+  <SolidColorBrush x:Key="BrandGroundLightBrush" Color="#3A3E47" />
+
+  <!-- The reference's payoff colours: coral for Painting, violet for
+       Animation — the two halves of the product in the two accents. -->
+  <SolidColorBrush x:Key="BrandCoralBrush" Color="#F25B55" />
+  <SolidColorBrush x:Key="BrandVioletBrush" Color="#7A5CFF" />
 </ResourceDictionary>

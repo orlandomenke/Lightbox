@@ -11,6 +11,7 @@
         x:Class="Lightbox.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Lightbox"
+        Icon="/Assets/lightbox.ico"
         Width="1280" Height="800"
         Background="{StaticResource BackgroundPrimaryBrush}"
         ExtendClientAreaToDecorationsHint="True"

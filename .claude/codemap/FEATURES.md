@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2947 tests, derived from the suite itself. Each line is a
+2948 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2044,9 +2044,10 @@ regression even when every test still compiles.
 ## SplashScreenTests
 `tests/Lightbox.App.Tests/SplashScreenTests.cs`
 
-- The Splash Is Orange — `:23`
-- The Splash Takes Its Colour From One Place — `:33`
-- The Splash Looks Like ASplash Rather Than AWindow — `:49`
+- The Splash Stands On The Brand Ground — `:23`
+- The Mark And The Wordmark Are Vectors — `:36`
+- The Background Image Stays Hidden Until The Art Ships — `:48`
+- The Splash Looks Like ASplash Rather Than AWindow — `:58`
 
 ## SpriteSheetExportTests
 `tests/Lightbox.App.Tests/SpriteSheetExportTests.cs`

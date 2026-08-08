@@ -2,47 +2,56 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Lightbox.App.Views;
 using Xunit;
 
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// The splash is a flat placeholder, and looks like a splash rather than a window.
+/// The designed splash: the mark, the wordmark and the payoff on the brand
+/// ground, with the background-image slot empty until the art ships.
 /// </summary>
 /// <remarks>
-/// <b>What these assert, precisely.</b> The colour the splash *would* paint,
-/// not the pixels it paints. The headless platform here draws without Skia, so
-/// there is no frame to capture, and changing that to prove one rectangle is
-/// orange would alter the platform for the whole suite — a bad trade for a
-/// placeholder. The visual check lives in <c>MANUAL_TESTING.md</c>.
+/// <b>What these assert, precisely.</b> The colours and sources the splash
+/// *would* paint, not the pixels it paints — the headless platform here
+/// draws without Skia. The visual check lives in <c>MANUAL_TESTING.md</c>.
 /// </remarks>
 public class SplashScreenTests
 {
     [AvaloniaFact]
-    public void TheSplashIsOrange()
+    public void TheSplashStandsOnTheBrandGround()
     {
         var splash = new SplashWindow();
-        var backdrop = splash.FindControl<Border>("Backdrop");
-        Assert.NotNull(backdrop);
-        var brush = Assert.IsType<SolidColorBrush>(backdrop!.Background);
-        Assert.Equal(Color.Parse("#FF7A00"), brush.Color);
+        var ground = splash.FindControl<Border>("Ground");
+        Assert.NotNull(ground);
+
+        Assert.True(
+            Application.Current!.TryFindResource("BrandGroundBrush", out var resource),
+            "BrandGroundBrush is not in Application.Resources");
+        Assert.Same(resource, ground!.Background);
     }
 
     [AvaloniaFact]
-    public void TheSplashTakesItsColourFromOnePlace()
+    public void TheMarkAndTheWordmarkAreVectors()
     {
-        // The one that earns its keep: it makes a second hardcoded orange
-        // impossible to add quietly, which is the whole reason the brush is a
-        // resource rather than a literal on the border.
+        // The same drawings the title bar uses — one brand, one geometry.
         var splash = new SplashWindow();
-        var backdrop = splash.FindControl<Border>("Backdrop");
-        Assert.NotNull(backdrop);
+        splash.Show();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var images = splash.GetVisualDescendants().OfType<Image>()
+            .Where(i => i.Source is DrawingImage).ToList();
+        Assert.Equal(2, images.Count);
+    }
 
-        Assert.True(
-            Application.Current!.TryFindResource("SplashBackgroundBrush", out var resource),
-            "SplashBackgroundBrush is not in Application.Resources");
-        Assert.Same(resource, backdrop!.Background);
+    [AvaloniaFact]
+    public void TheBackgroundImageStaysHiddenUntilTheArtShips()
+    {
+        // The slot exists so shipping splash art is a file drop, not a code
+        // change; without the asset it must cost nothing and show nothing.
+        var splash = new SplashWindow();
+        Assert.False(splash.FindControl<Image>("BackgroundImage")!.IsVisible);
+        Assert.False(splash.FindControl<Border>("Scrim")!.IsVisible);
     }
 
     [AvaloniaFact]

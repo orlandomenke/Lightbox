@@ -1,17 +1,17 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 
 namespace Lightbox.App.Views;
 
 /// <summary>
-/// A flat panel shown while the main window is built.
+/// The brand panel shown while the main window is built: the mark, the
+/// wordmark and the payoff on the brand ground — with an optional
+/// background image (ship <c>Assets/splash-background.png</c> and it
+/// appears under a scrim; ship nothing and the ground is plain).
 /// </summary>
 /// <remarks>
-/// <para>
-/// A placeholder, and the orange says so. It exists to be replaced by a
-/// designed splash, which is why the colour lives in one resource in
-/// <c>App.axaml</c> rather than here.
-/// </para>
 /// <para>
 /// <b>Two things the replacement must not get wrong.</b> First, this cannot
 /// animate. Building <see cref="MainWindow"/> blocks the UI thread — window
@@ -32,7 +32,23 @@ namespace Lightbox.App.Views;
 /// </remarks>
 public partial class SplashWindow : Window
 {
-    public SplashWindow() => InitializeComponent();
+    private static readonly Uri BackgroundAsset =
+        new("avares://Lightbox.App/Assets/splash-background.png");
+
+    public SplashWindow()
+    {
+        InitializeComponent();
+        // The image slot fills only when the art exists. Everything else
+        // about the splash is identical either way, so shipping the art is
+        // a file drop rather than a code change.
+        if (AssetLoader.Exists(BackgroundAsset))
+        {
+            var image = this.FindControl<Image>("BackgroundImage")!;
+            image.Source = new Bitmap(AssetLoader.Open(BackgroundAsset));
+            image.IsVisible = true;
+            this.FindControl<Border>("Scrim")!.IsVisible = true;
+        }
+    }
 
     private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 }

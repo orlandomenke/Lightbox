@@ -19,16 +19,9 @@
              not the chrome; see the note inside. -->
         <ResourceInclude Source="avares://Lightbox.App/Styles/Brand.axaml" />
       </ResourceDictionary.MergedDictionaries>
-    <!--
-      The splash colour, and the only place it is written down.
-
-      Deliberately a placeholder and deliberately loud: the splash is a flat
-      panel until a designed one replaces it, and this is the line that gets
-      swapped rather than a colour somebody has to go looking for. Not the
-      layer-group amber from MainWindow — sharing that literal would imply a
-      relationship between the two that does not exist.
-    -->
-      <SolidColorBrush x:Key="SplashBackgroundBrush" Color="#FF7A00" />
+      <!-- The splash's colours moved to Brand.axaml when the designed
+           splash replaced the orange placeholder — they are brand surfaces
+           now, not a placeholder waiting to be swapped. -->
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
