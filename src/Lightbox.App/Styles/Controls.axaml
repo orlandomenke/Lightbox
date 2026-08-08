@@ -540,6 +540,30 @@
     two voices. Leaving it to the accent is also what makes the next control
     nobody has styled yet come out right by default.
   -->
+  <!--
+    Caption buttons are FLAT — no rim light, no card: they are part of the
+    window's edge, not controls sitting on a surface. The close button's
+    hover is the one red in the chrome, because "this ends the session" is
+    the one meaning strong enough to earn it.
+  -->
+  <Style Selector="Button.caption">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.caption /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.caption:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+  </Style>
+  <Style Selector="Button.caption.close:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource CaptionCloseHoverBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+  </Style>
+
   <Style Selector="ToggleSwitch">
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
   </Style>

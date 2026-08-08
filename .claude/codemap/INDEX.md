@@ -1,6 +1,6 @@
 # Code index
 
-565 files · 148582 lines · 2942 tests.
+566 files · 148765 lines · 2942 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -49,11 +49,11 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 - `src/Lightbox.App/ViewModels/MainViewModel.cs` (10752 ln) · 4 test files
   - FrameCell:19, MainViewModel:62, LayerKindChoice:4549, TransformParts:7239
-- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4592 ln) · 24 test files
-  - MainWindow:19, UnsavedChoice:3034
+- `src/Lightbox.App/Views/MainWindow.axaml.cs` (4628 ln) · 24 test files
+  - MainWindow:19, UnsavedChoice:3070
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4039 ln) · 14 test files
   - CanvasControl:28, CanvasToolMode:908, GridGesture:965, TxDrag:1178, DrawOp:3220
-- `src/Lightbox.App/Views/MainWindow.axaml` (3702 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3732 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
@@ -69,7 +69,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SpriteSheetOptions:14, SpriteSheetResult:54, SpriteSheetExporter:103, SheetDocument:677, SheetFrame:683, SheetMeta:716, SheetTag:747, SheetEvent:761 …
 - `src/Lightbox.App/Services/UnityExporter.cs` (666 ln) · 15 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
-- `src/Lightbox.App/Styles/Controls.axaml` (556 ln) · **no tests**
+- `src/Lightbox.App/Styles/Controls.axaml` (580 ln) · **no tests**
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml.cs` (496 ln) · 1 test files
   - TipScope:16, TipRow:29, BrushTipsWindow:62
 - `src/Lightbox.App/Services/BrushPresets.cs` (479 ln) · 9 test files
@@ -78,9 +78,9 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StructureRows
 - `src/Lightbox.App/ViewModels/GradientDockerViewModel.cs` (467 ln) · 1 test files
   - GradientStopRow:16, GradientDockerViewModel:89, HexColor:452
+- `src/Lightbox.App/Styles/Density.axaml` (449 ln) · **no tests**
 - `src/Lightbox.App/Services/UnrealExporter.cs` (442 ln) · 2 test files
   - UnrealExportOptions:9, UnrealExportResult:24, UnrealExporter:61, UnrealBlock:70
-- `src/Lightbox.App/Styles/Density.axaml` (437 ln) · **no tests**
 - `src/Lightbox.App/ViewModels/WorkspaceViewModel.cs` (410 ln) · 1 test files
   - WorkspaceViewModel:20, WorkspaceRow:405
 - `src/Lightbox.App/Views/ConfigureWindow.axaml` (401 ln) · **no tests**
@@ -125,13 +125,13 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ShortcutContext:7, ShortcutDefinition:16, ShortcutMap:41
 - `src/Lightbox.App/Controls/OverflowBar.cs` (263 ln) · 4 test files
   - OverflowBar:25
+- `src/Lightbox.App/Styles/Palette.axaml` (260 ln) · **no tests**
+- `src/Lightbox.App/App.axaml` (257 ln) · **no tests**
+  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/Services/ExportRunner.cs` (256 ln) · 5 test files
   - ExportRun:17, ExportRunner:42
-- `src/Lightbox.App/App.axaml` (254 ln) · **no tests**
-  - PART_Close, PART_Collapse, PART_Grip, PART_Header, PART_Tabs
 - `src/Lightbox.App/ViewModels/DocumentTab.cs` (253 ln) · 28 test files
   - NewDocumentSettings:20, WorkspaceChoice:32, DocumentTabKind:41, DocumentTab:60
-- `src/Lightbox.App/Styles/Palette.axaml` (251 ln) · **no tests**
 - `src/Lightbox.App/Controls/RulerStrip.cs` (250 ln) · 1 test files
   - RulerStrip:27
 - `src/Lightbox.App/Rendering/RigOverlay.cs` (239 ln) · 4 test files
@@ -263,6 +263,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - NormalMapWriter:22
 - `src/Lightbox.App/Program.cs` (66 ln) · 1 test files
   - Program:7
+- `src/Lightbox.App/Styles/Brand.axaml` (66 ln) · **no tests**
 - `src/Lightbox.App/Services/SequenceExporter.cs` (62 ln) · 2 test files
   - SequenceExporter:20
 - `src/Lightbox.App/Docking/OverlayConverters.cs` (61 ln) · 2 test files

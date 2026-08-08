@@ -15,6 +15,9 @@
         <ResourceInclude Source="avares://Lightbox.App/Styles/Theme.axaml" />
         <!-- The monoline icon geometry, replacing emoji glyph by glyph. -->
         <ResourceInclude Source="avares://Lightbox.App/Styles/Icons.axaml" />
+        <!-- The brand mark as vectors — its own file because the brand is
+             not the chrome; see the note inside. -->
+        <ResourceInclude Source="avares://Lightbox.App/Styles/Brand.axaml" />
       </ResourceDictionary.MergedDictionaries>
     <!--
       The splash colour, and the only place it is written down.

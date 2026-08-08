@@ -210,6 +210,9 @@ public class PaletteTests
             var name = Path.GetFileName(file);
             if (name is "Palette.axaml") continue;      // where colour is defined
             if (name is "SplashWindow.axaml") continue; // the placeholder; branding is deferred
+            if (name is "Brand.axaml") continue;        // the brand IS its colours — they are
+                                                        // measured off the reference and must not
+                                                        // move when the palette is re-pointed
 
             var text = File.ReadAllText(file);
 

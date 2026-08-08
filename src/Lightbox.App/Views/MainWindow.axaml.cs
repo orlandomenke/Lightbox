@@ -3023,6 +3023,42 @@ public partial class MainWindow : Window
         Patterns = ["*.lightbox.json"],
     };
 
+    // ---- the chrome is ours -------------------------------------------------
+
+    /// <summary>
+    /// A press on the title bar's bare chrome moves the window. Presses that
+    /// land on the menu, a caption button or anything else interactive stay
+    /// with their control — the same walk the docker headers do.
+    /// </summary>
+    private void OnTitleBarPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        for (var node = e.Source as Visual; node is not null && !ReferenceEquals(node, TitleBar); node = node.GetVisualParent())
+        {
+            if (node is Button or Menu or MenuItem) return;
+        }
+        BeginMoveDrag(e);
+    }
+
+    private void OnTitleBarDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        for (var node = e.Source as Visual; node is not null && !ReferenceEquals(node, TitleBar); node = node.GetVisualParent())
+        {
+            if (node is Button or Menu or MenuItem) return;
+        }
+        ToggleMaximised();
+    }
+
+    private void OnMinimiseClicked(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void OnMaximiseClicked(object? sender, RoutedEventArgs e) => ToggleMaximised();
+
+    private void OnCloseClicked(object? sender, RoutedEventArgs e) => Close();
+
+    private void ToggleMaximised() =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+
     private async void OnNewClicked(object? sender, RoutedEventArgs e)
     {
         var settings = await new NewDocumentDialog().ShowDialog<NewDocumentSettings?>(this);

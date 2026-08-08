@@ -414,6 +414,18 @@
     threshold) reveals the names beside the icons; only the alignment changes
     there, never the height, so the column keeps one rhythm at both widths.
   -->
+  <!-- Caption buttons: the window's own minimise/maximise/close. Wide and
+       full-height because they are aimed at with momentum, at the screen
+       edge, exactly as the system's were. -->
+  <Style Selector="Button.caption">
+    <Setter Property="Width" Value="44" />
+    <Setter Property="Height" Value="33" />
+    <Setter Property="MinWidth" Value="44" />
+    <Setter Property="MinHeight" Value="33" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="VerticalAlignment" Value="Top" />
+  </Style>
+
   <Style Selector="ToggleButton.tool">
     <Setter Property="Height" Value="26" />
     <Setter Property="MinHeight" Value="26" />

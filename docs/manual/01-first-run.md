@@ -39,7 +39,8 @@ From the top:
 
 | Strip | What it is |
 | --- | --- |
-| Menu | File, Edit, View |
+| Title bar | The Lightbox mark, the menu, and the window's own minimise / maximise / close. Drag the empty part to move the window; double-click it to maximise. |
+| Menu | File, Edit, View — lives in the title bar |
 | Tool options | Controls for the tool you have selected. Changes with the tool; never changes height, and never scrolls — anything that does not fit goes into the **▾** at the end. On the right, the workspace picker. |
 | AI bar | AI Inbetween, and what the model is doing |
 | Tabs | One per open document |

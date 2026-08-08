@@ -13,6 +13,9 @@
         Title="Lightbox"
         Width="1280" Height="800"
         Background="{StaticResource BackgroundPrimaryBrush}"
+        ExtendClientAreaToDecorationsHint="True"
+        WindowDecorations="BorderOnly"
+        ExtendClientAreaTitleBarHeightHint="-1"
         WindowStartupLocation="CenterScreen">
 
   <Window.Styles>
@@ -152,10 +155,33 @@
     </Style>
   </Window.Styles>
 
-  <DockPanel>
+  <!-- Padded by the window's own off-screen margin so a maximised window
+       does not clip its first pixel rows under the screen edge. -->
+  <DockPanel Margin="{Binding OffScreenMargin, RelativeSource={RelativeSource FindAncestor, AncestorType=Window}}">
+
+    <!--
+      The chrome is ours: the title bar carries the brand mark, the menu, a
+      drag region and the caption buttons, and saves the ~30px a system bar
+      would have added above all of that. Owner-approved after the logo
+      landed. The drag/double-click handlers live in code-behind; presses
+      that land on the menu or a button stay theirs.
+    -->
+    <Border DockPanel.Dock="Top" x:Name="TitleBar" Height="34"
+            Background="{StaticResource BackgroundSecondaryBrush}"
+            BorderBrush="{StaticResource BackgroundPrimaryBrush}" BorderThickness="0,0,0,1"
+            PointerPressed="OnTitleBarPressed" DoubleTapped="OnTitleBarDoubleTapped">
+      <DockPanel>
+        <Image DockPanel.Dock="Left" Source="{StaticResource BrandIconDrawing}"
+               Width="17" Height="21" Margin="10,0,6,0" VerticalAlignment="Center" />
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Stretch">
+          <Button Classes="caption" Content="&#x2500;" Click="OnMinimiseClicked" ToolTip.Tip="Minimise" />
+          <Button Classes="caption" x:Name="MaximiseButton" Content="&#x25A1;" Click="OnMaximiseClicked" ToolTip.Tip="Maximise" />
+          <Button Classes="caption close" Content="&#x2715;" Click="OnCloseClicked" ToolTip.Tip="Close" />
+        </StackPanel>
 
     <!-- Menu bar -->
-    <Menu DockPanel.Dock="Top">
+    <Menu DockPanel.Dock="Left" VerticalAlignment="Center" x:Name="MainMenu"
+          Background="Transparent" BorderThickness="0">
       <MenuItem Header="_File" Classes="top">
         <MenuItem Header="_New…" Click="OnNewClicked" />
         <MenuItem Header="_Open…" Click="OnOpenClicked" />
@@ -403,6 +429,10 @@
                   ToolTip.Tip="Click to copy — a bug report is far more useful with the build in it" />
       </MenuItem>
     </Menu>
+        <!-- Whatever the menu and the buttons leave of the row is grip. -->
+        <Border Background="Transparent" />
+      </DockPanel>
+    </Border>
 
     <!-- Dynamic tool options bar: contents depend on the selected tool -->
     <Border DockPanel.Dock="Top" Padding="8,2" Background="{StaticResource BackgroundSecondaryBrush}">
