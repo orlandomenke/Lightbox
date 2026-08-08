@@ -829,9 +829,10 @@ public static class BrushEngine
         return (float)Math.Min(reach, brush.Size);
     }
 
-    /// <summary>The stroke's points inflated by the dab reach, clamped to the canvas; null when off-canvas.</summary>
-    private static SKRectI? SegmentBounds(Stroke stroke, SKImageInfo info, float margin)
+    /// <summary>The stroke's points inflated by the dab reach, unclamped; null for an empty stroke.</summary>
+    private static SKRectI? RawBounds(Stroke stroke, float margin)
     {
+        if (stroke.Points.Count == 0) return null;
         float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
         foreach (var p in stroke.Points)
         {
@@ -840,10 +841,21 @@ public static class BrushEngine
             minY = Math.Min(minY, (float)p.Y);
             maxY = Math.Max(maxY, (float)p.Y);
         }
-        var left = (int)Math.Floor(Math.Clamp(minX - margin, 0, info.Width));
-        var top = (int)Math.Floor(Math.Clamp(minY - margin, 0, info.Height));
-        var right = (int)Math.Ceiling(Math.Clamp(maxX + margin, 0, info.Width));
-        var bottom = (int)Math.Ceiling(Math.Clamp(maxY + margin, 0, info.Height));
+        return new SKRectI(
+            (int)Math.Floor(minX - margin),
+            (int)Math.Floor(minY - margin),
+            (int)Math.Ceiling(maxX + margin),
+            (int)Math.Ceiling(maxY + margin));
+    }
+
+    /// <summary>The stroke's points inflated by the dab reach, clamped to the canvas; null when off-canvas.</summary>
+    private static SKRectI? SegmentBounds(Stroke stroke, SKImageInfo info, float margin)
+    {
+        if (RawBounds(stroke, margin) is not { } raw) return null;
+        var left = Math.Clamp(raw.Left, 0, info.Width);
+        var top = Math.Clamp(raw.Top, 0, info.Height);
+        var right = Math.Clamp(raw.Right, 0, info.Width);
+        var bottom = Math.Clamp(raw.Bottom, 0, info.Height);
         if (right <= left || bottom <= top) return null;
         return new SKRectI(left, top, right, bottom);
     }
@@ -885,7 +897,22 @@ public static class BrushEngine
     /// the exact stamping path uses, widened for blur and for the feather of
     /// its clip region. Callers use it to repaint only what changed.
     /// </summary>
-    public static SKRectI? CommitBounds(Stroke stroke, SKImageInfo info)
+    public static SKRectI? CommitBounds(Stroke stroke, SKImageInfo info) =>
+        SegmentBounds(stroke, info, CommitMargin(stroke));
+
+    /// <summary>
+    /// The same reach, unclamped — bounds as <em>where the stroke is</em> rather
+    /// than <em>what to repaint</em>. <see cref="CommitBounds"/> clamps to the
+    /// surface because nothing off the surface needs repainting; the stroke
+    /// index and the picker ask a different question, and a stroke lying
+    /// entirely outside the document still has to answer it (B134). Null only
+    /// for a stroke with no points.
+    /// </summary>
+    public static SKRectI? ReachBounds(Stroke stroke) =>
+        RawBounds(stroke, CommitMargin(stroke));
+
+    /// <summary>The margin around a stroke's points that its final render can reach.</summary>
+    private static float CommitMargin(Stroke stroke)
     {
         var margin = DabReach(stroke.Brush);
         if (stroke.Brush.Kind == BrushKind.Blur)
@@ -897,7 +924,7 @@ public static class BrushEngine
         {
             margin += (float)(region.Feather * 2);
         }
-        return SegmentBounds(stroke, info, margin);
+        return margin;
     }
 
     /// <summary>

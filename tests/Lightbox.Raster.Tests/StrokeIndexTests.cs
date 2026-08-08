@@ -148,6 +148,37 @@ public class StrokeIndexTests(ITestOutputHelper output)
         Assert.Equal([0, 2], index.Intersecting(SKRectI.Create(0, 0, 100, 100)).ToList());
     }
 
+    /// <summary>
+    /// B134: <see cref="StrokeIndex.Of"/> records reach, not repaint bounds. It
+    /// used to build from the surface-clamped <c>CommitBounds</c>, so a stroke
+    /// wholly outside the document was indexed as reaching nothing and could
+    /// never be found — however close the click.
+    /// </summary>
+    [Fact]
+    public void TheIndexKeepsUnclampedBoundsForPicking()
+    {
+        // Off the right edge, off the bottom edge, and off into negative space:
+        // the three directions a clamp to [0, size] erases differently.
+        List<Stroke> strokes =
+        [
+            MarkAt(2500, 100),
+            MarkAt(100, 2500),
+            MarkAt(-300, -300),
+        ];
+
+        var index = StrokeIndex.Of(strokes);
+
+        for (var i = 0; i < strokes.Count; i++)
+        {
+            var bounds = index.BoundsOf(i);
+            output.WriteLine($"stroke {i}: {bounds}");
+            Assert.False(bounds.IsEmpty, $"stroke {i} lies outside the document and was indexed as reaching nothing");
+        }
+        Assert.Equal([0], index.Intersecting(SKRectI.Create(2490, 90, 40, 40)).ToList());
+        Assert.Equal([1], index.Intersecting(SKRectI.Create(90, 2490, 40, 40)).ToList());
+        Assert.Equal([2], index.Intersecting(SKRectI.Create(-310, -310, 40, 40)).ToList());
+    }
+
     [Fact]
     public void NegativeCoordinatesIndexAndQueryTheSameAsPositiveOnes()
     {

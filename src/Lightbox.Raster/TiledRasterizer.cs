@@ -101,7 +101,7 @@ public static class TiledRasterizer
     private static void RasterizeByTile(
         TileStore store, IReadOnlyList<Stroke> strokes, SKImageInfo info, SKRectI? region)
     {
-        var index = StrokeIndex.Of(strokes, info, store.Grid);
+        var index = StrokeIndex.Of(strokes, store.Grid);
         var area = region ?? SKRectI.Create(0, 0, info.Width, info.Height);
         if (area.Width <= 0 || area.Height <= 0) return;
 
@@ -187,6 +187,46 @@ public static class TiledRasterizer
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// Stamp one committed stroke into the tiles it can reach — the tiled
+    /// counterpart of <see cref="FrameRasterizer.Append"/>, and what keeps a
+    /// commit proportional to the stroke on a store the way invariant 6 keeps
+    /// it proportional on a bitmap.
+    /// </summary>
+    /// <returns>
+    /// False when the stroke cannot be stamped tile-by-tile (an effect brush —
+    /// see <see cref="CanTile"/>): the caller must drop the store and rebuild
+    /// from the record, because a smudge reads pixels a single tile does not
+    /// hold. Nothing is half-stamped on the false path.
+    /// </returns>
+    /// <remarks>
+    /// A tile the bounds reach that does not exist yet is rented fresh, and
+    /// fresh means transparent — which is correct, not approximate: earlier
+    /// strokes whose bounds never reached that tile left no ink there, and a
+    /// tile inside an earlier stroke's bounds already exists (blank if the ink
+    /// missed it), because <see cref="Rasterize"/> rents by reach.
+    /// </remarks>
+    public static bool AppendStroke(TileStore store, Stroke stroke, SKImageInfo info)
+    {
+        if (!CanTile([stroke])) return false;
+        if (BrushEngine.CommitBounds(stroke, info) is not { } bounds) return true;
+
+        var size = store.Grid.TileSize;
+        foreach (var coord in store.Grid.Covering(
+            bounds.Left, bounds.Top, bounds.Width, bounds.Height))
+        {
+            var (originX, originY) = store.Grid.OriginOf(coord);
+            var tile = store.Rent(coord);
+            using var canvas = new SKCanvas(tile);
+            canvas.Save();
+            canvas.Translate(-originX, -originY);
+            BrushEngine.StampStroke(canvas, stroke, info, tile);
+            canvas.Restore();
+            canvas.Flush();
+        }
+        return true;
     }
 
     /// <summary>

@@ -63,11 +63,13 @@ public sealed class StrokeIndex
     /// the record position and not an arbitrary id, or the render order is lost.
     /// </param>
     /// <param name="bounds">
-    /// What the stroke can reach, from <see cref="BrushEngine.CommitBounds"/>.
-    /// Null means the stroke reaches nothing — an empty stroke, or one whose
-    /// bounds fell outside the surface — and it is recorded as reaching nothing
-    /// rather than skipped, so <see cref="Count"/> still matches the record and a
-    /// caller cannot silently lose a stroke.
+    /// What the stroke can reach, from <see cref="BrushEngine.ReachBounds"/> —
+    /// unclamped, because the index answers "where is this stroke" rather than
+    /// "what do I repaint", and a stroke lying entirely outside the document
+    /// still has to be findable (B134). Null means the stroke reaches nothing —
+    /// an empty stroke — and it is recorded as reaching nothing rather than
+    /// skipped, so <see cref="Count"/> still matches the record and a caller
+    /// cannot silently lose a stroke.
     /// </param>
     public void Add(int position, SKRectI? bounds)
     {
@@ -94,13 +96,18 @@ public sealed class StrokeIndex
     /// <summary>
     /// Build an index over a whole stroke list, in record order.
     /// </summary>
-    public static StrokeIndex Of(
-        IReadOnlyList<Stroke> strokes, SKImageInfo info, TileGrid? grid = null)
+    /// <remarks>
+    /// No <c>SKImageInfo</c>, deliberately: the index used to be built from the
+    /// surface-clamped <see cref="BrushEngine.CommitBounds"/>, which recorded a
+    /// stroke wholly outside the document as reaching nothing — unpickable
+    /// however close the click (B134). Reach does not depend on the paper.
+    /// </remarks>
+    public static StrokeIndex Of(IReadOnlyList<Stroke> strokes, TileGrid? grid = null)
     {
         var index = new StrokeIndex(grid);
         for (var i = 0; i < strokes.Count; i++)
         {
-            index.Add(i, BrushEngine.CommitBounds(strokes[i], info));
+            index.Add(i, BrushEngine.ReachBounds(strokes[i]));
         }
         return index;
     }
