@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2902 tests, derived from the suite itself. Each line is a
+2928 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -629,7 +629,7 @@ regression even when every test still compiles.
 
 - The Scale The Doc Describes Is The Scale The Code Applies — `:56`
 - No View Redeclares ASize The Scale Owns — `:89`
-- The Overlay Tile Agrees With The Scale — `:135`
+- The Overlay Tile Agrees With The Scale — `:141`
 
 ## DiagnosticLogTests
 `tests/Lightbox.App.Tests/DiagnosticLogTests.cs`
@@ -852,6 +852,13 @@ regression even when every test still compiles.
 - ADocument That Cannot Be Read Is Named Rather Than Throwing — `:316`
 - The Confirmation Names What Has Drifted Since It Was Built — `:353`
 
+## FieldShapeTests
+`tests/Lightbox.App.Tests/FieldShapeTests.cs`
+
+- Every Field Is The Same Shape As Every Other One — `:53`
+- The Inner Text Box Fits Inside The Field That Hosts It — `:75`
+- AField Is AWell Rather Than ARaised Surface — `:94`
+
 ## FileRevealTests
 `tests/Lightbox.App.Tests/FileRevealTests.cs`
 
@@ -890,29 +897,29 @@ regression even when every test still compiles.
 
 - Same Key Means Different Things Per Context — `:12`
 - Global Bindings Fire In Every Context Unless Shadowed — `:23`
-- Conflicts Only Count When Contexts Overlap — `:36`
+- Conflicts Only Count When Contexts Overlap — `:42`
 
 ## LayerFolderTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Create Folder Groups The Active Layer And Shows AHeader Row — `:132`
-- Folder Visibility Gates Its Members In Compositing And Painting — `:147`
-- Collapse Hides Member Rows From The Docker Panel Only — `:166`
-- Add And Remove Keep The Folder Contiguous — `:179`
-- Folder Color Is Undoable And Serializes — `:196`
-- Dissolve Ungroups Everything And Folders Serialize — `:214`
+- Create Folder Groups The Active Layer And Shows AHeader Row — `:138`
+- Folder Visibility Gates Its Members In Compositing And Painting — `:153`
+- Collapse Hides Member Rows From The Docker Panel Only — `:172`
+- Add And Remove Keep The Folder Contiguous — `:185`
+- Folder Color Is Undoable And Serializes — `:202`
+- Dissolve Ungroups Everything And Folders Serialize — `:220`
 
 ## NudgeSelectionTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Nudge Shifts Every Contour Point By Whole Pixels — `:96`
-- Nudge Without ASelection Is ANo Op — `:109`
+- Nudge Shifts Every Contour Point By Whole Pixels — `:102`
+- Nudge Without ASelection Is ANo Op — `:115`
 
 ## PickerToolTests
 `tests/Lightbox.App.Tests/FoldersContextsPickerTests.cs`
 
-- Pick Color At Reads The Composited Color And Paper When Empty — `:55`
-- Insert Keyframe At Playhead Keys The Active Cel — `:80`
+- Pick Color At Reads The Composited Color And Paper When Empty — `:61`
+- Insert Keyframe At Playhead Keys The Active Cel — `:86`
 
 ## FrameBitmapCacheTests
 `tests/Lightbox.App.Tests/FrameBitmapCacheTests.cs`
@@ -956,6 +963,13 @@ regression even when every test still compiles.
 - AGame Maker Preset Still Reports What It Left Out — `:456`
 - ANormal Map Is Written For Every Strip Rather Than Only The First — `:468`
 - The Strip Layout Controls Are Hidden Rather Than Shown And Overridden — `:482`
+
+## GlyphToggleTests
+`tests/Lightbox.App.Tests/GlyphToggleTests.cs`
+
+- The Eye Opens And Closes Rather Than Changing Colour — `:43`
+- Every Stateful Glyph Resolves Both Drawings — `:64`
+- AGlyph Toggle Carries No Accent Fill — `:83`
 
 ## GodotExportTests
 `tests/Lightbox.App.Tests/GodotExportTests.cs`
@@ -1433,10 +1447,9 @@ regression even when every test still compiles.
 - Every Token The Design Names Resolves — `:45`
 - The Core Surfaces Are The Colours The Design Gave — `:71`
 - The Theme Agrees With The Palette — `:94`
-- AField Is Lighter Than Whatever It Sits On — `:116`
-- Nothing That Floats Keeps Fluents Grey — `:175`
-- The Theme Palette Is Written In Hex On Purpose — `:198`
-- No View Invents Its Own Chrome Colour — `:225`
+- Nothing That Floats Keeps Fluents Grey — `:132`
+- The Theme Palette Is Written In Hex On Purpose — `:155`
+- No View Invents Its Own Chrome Colour — `:182`
 
 ## PresentedFrameTests
 `tests/Lightbox.App.Tests/PresentedFrameTests.cs`
@@ -2090,6 +2103,28 @@ regression even when every test still compiles.
 - ASlow Load Is Not Padded Further — `:35`
 - The Minimum Is Long Enough To Be Seen And Short Enough Not To Be Waited On — `:44`
 
+## StrokeActionTests
+`tests/Lightbox.App.Tests/StrokeActionTests.cs`
+
+- Deleting The Selection Takes The Line And Lets Go Of It — `:59`
+- Deleting Nothing Is Not An Edit — `:75`
+- Undoing ADelete Puts The Line Back In Its Old Place In The Order — `:87`
+- Deleting Several Is One Undo Step — `:105`
+- Moving The Selection Shifts Every Point — `:120`
+- Moving Nowhere Is Not An Edit — `:136`
+- Only The Selected Line Moves — `:145`
+- Undoing AMove Restores The Exact Coordinates — `:166`
+- Moving AFill Takes Its Holes With It — `:191`
+- ANudge Is One Pixel And Shift Makes It Ten — `:225`
+- Recolouring The Selection Changes Its Colour — `:240`
+- Recolouring ALine From APalette Cuts It Loose From The Swatch — `:258`
+- Recolouring To The Colour It Already Is Does Nothing — `:283`
+- The Canvas Nudge Moves Lines When The Arrow Is Holding Some — `:298`
+- The Nudge Is Ignored Unless The Arrow Is The Tool In Hand — `:311`
+- The Actions Are Registered Where The Configuration Window Can See Them — `:329`
+- The Commands The Options Bar Binds To Exist — `:346`
+- ALocked Layer Refuses Every Action — `:364`
+
 ## StrokeLatencyTests
 `tests/Lightbox.App.Tests/StrokeLatencyTests.cs`
 
@@ -2248,6 +2283,13 @@ regression even when every test still compiles.
 - AProjects Symbols Resolve Once The Project Is Open — `:46`
 - Closing AProject Stops Its Symbols Resolving — `:60`
 - Deleting ASymbol Stops It Resolving — `:78`
+
+## TabSwitchCrashTests
+`tests/Lightbox.App.Tests/TabSwitchCrashTests.cs`
+
+- Switching Back And Forth Between Tabs Does Not Crash — `:62`
+- The Other Pair In The Report Behaves The Same Way — `:87`
+- The Docker Showing After ASwitch Is The One In The Strip — `:103`
 
 ## TemplateUiTests
 `tests/Lightbox.App.Tests/TemplateUiTests.cs`
@@ -2588,14 +2630,14 @@ regression even when every test still compiles.
 - Closing APanel Parks It Rather Than Destroying It — `:130`
 - Tabbed Panels Share One Slot And One Shows — `:149`
 - The Tab Showing Is The One That Looks Like It Is Showing — `:172`
-- An Untabbed Docker Looks Exactly As It Did — `:258`
-- Grouping APanel Marks The Workspace Unsaved — `:271`
-- The Project Panel Appears As Soon As There Is AProject — `:286`
-- The Canvas Gets The Room Left Over By The Strips — `:309`
-- The Project Row Menu Actually Does Something When Clicked — `:333`
-- The New Menu Actually Makes Things — `:470`
-- The Reference Panel Is Absent Until It Is Asked For — `:542`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:558`
+- An Untabbed Docker Looks Exactly As It Did — `:272`
+- Grouping APanel Marks The Workspace Unsaved — `:285`
+- The Project Panel Appears As Soon As There Is AProject — `:300`
+- The Canvas Gets The Room Left Over By The Strips — `:323`
+- The Project Row Menu Actually Does Something When Clicked — `:347`
+- The New Menu Actually Makes Things — `:484`
+- The Reference Panel Is Absent Until It Is Asked For — `:556`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:572`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`
