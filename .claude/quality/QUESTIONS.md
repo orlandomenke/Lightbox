@@ -269,7 +269,7 @@ visibly different things.
 **Blocks:** nothing. `PathEditSession` is a second instance of the transform
 tool's modal-session pattern.
 
-## Q54 · Do the derived codemap files stay committed? — **answered: no, gitignored**
+## Q55 · Do the derived codemap files stay committed? — **answered: no, gitignored**
 
 **Answered 2026-08-08, asked when the owner reported the treadmill directly:**
 *"We keep running into the same problem due to Claude documents: index,

@@ -353,7 +353,7 @@ recomputed. Both worked as designed and neither ended the pain, because
 and had to have `main` hand-merged in — round after round, once per merge, for
 as long as more than one branch was open.
 
-**So the files are not committed at all any more (Q54, 2026-08-08).** The
+**So the files are not committed at all any more (Q55, 2026-08-08).** The
 stronger form of verify's own argument won: with nothing committed there is
 nothing to drift, nothing to merge and nothing to verify. `INDEX.md` and
 `FEATURES.md` are gitignored beside `HOTSPOTS.md`; the session-start hook

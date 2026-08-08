@@ -247,7 +247,7 @@ public class LedgerGateTests(ITestOutputHelper output)
     /// conflicts, pinned.
     /// </summary>
     /// <remarks>
-    /// <b>Q54, 2026-08-08.</b> INDEX.md and FEATURES.md are rewritten end to
+    /// <b>Q55, 2026-08-08.</b> INDEX.md and FEATURES.md are rewritten end to
     /// end by every branch that touches code, so any two parallel branches
     /// conflicted on them by construction — and GitHub runs no merge driver,
     /// so every open pull request went red the moment any other one merged,
@@ -307,7 +307,7 @@ public class LedgerGateTests(ITestOutputHelper output)
         var dir = Path.Combine(RepoRoot(), ".claude", "codemap");
         foreach (var name in new[] { "INDEX.md", "FEATURES.md" })
         {
-            // Untracked since Q54, so a fresh checkout may not have built them
+            // Untracked since Q55, so a fresh checkout may not have built them
             // yet — absence is fine; a commit stamp in a built one is not.
             var path = Path.Combine(dir, name);
             if (!File.Exists(path))

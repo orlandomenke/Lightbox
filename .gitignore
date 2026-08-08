@@ -15,7 +15,7 @@ obj/
 .claude/codemap/map.json
 .claude/codemap/.stamp
 .claude/codemap/HOTSPOTS.md
-# INDEX.md and FEATURES.md joined the untracked set on 2026-08-08 (Q54).
+# INDEX.md and FEATURES.md joined the untracked set on 2026-08-08 (Q55).
 # They are derived from the whole solution, so every parallel branch rewrote
 # them end to end and every pull request conflicted on them by construction —
 # and GitHub never runs the merge driver that resolved this locally, so the

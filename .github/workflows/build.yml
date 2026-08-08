@@ -171,7 +171,7 @@ jobs:
       - name: The roadmap's checkboxes match the code
         run: python3 scripts/roadmap.py check
 
-      # The generated index is untracked (2026-08-08, Q54): committing it made
+      # The generated index is untracked (2026-08-08, Q55): committing it made
       # every pair of parallel branches conflict by construction, and GitHub
       # runs no merge driver, so every open PR went red the moment any other
       # one merged. With nothing committed there is nothing to drift and

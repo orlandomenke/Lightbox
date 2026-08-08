@@ -25,7 +25,7 @@ Usage
                                   queryable form of FEATURES.md
     codemap.py stale              exit 0 if the map is current, 1 if not —
                                   mtime-based, so a local answer only
-    codemap.py verify             retired (Q54): the index is not committed
+    codemap.py verify             retired (Q55): the index is not committed
     codemap.py refresh            rebuild only if the map is out of date
 """
 
@@ -751,7 +751,7 @@ def cmd_stale() -> None:
 
 
 def cmd_verify() -> None:
-    """Retired (2026-08-08, Q54): the index is no longer committed.
+    """Retired (2026-08-08, Q55): the index is no longer committed.
 
     This used to derive INDEX.md and FEATURES.md and compare them against the
     committed bytes, because a committed derived file is not believed, it is

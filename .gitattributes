@@ -1,6 +1,6 @@
 # The codemap merge driver used to live here, resolving INDEX.md and
 # FEATURES.md by regenerating them from the merged tree. It is gone because
-# the files are gone from the repository (2026-08-08, Q54): they are derived
+# the files are gone from the repository (2026-08-08, Q55): they are derived
 # artefacts the session hook and CI rebuild on demand, and committing them
 # made every pair of parallel branches conflict by construction — on GitHub,
 # where no merge driver ever runs, that meant every open pull request went

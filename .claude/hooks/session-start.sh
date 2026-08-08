@@ -34,7 +34,7 @@ set -euo pipefail
     fi
 
     # The codemap merge driver used to be registered here. Retired on
-    # 2026-08-08 (Q54) along with the committed INDEX.md/FEATURES.md it
+    # 2026-08-08 (Q55) along with the committed INDEX.md/FEATURES.md it
     # resolved: the files are untracked now, so there is nothing to merge.
     # Clean up the config keys it left behind, or git dies on any clone that
     # still has .gitattributes naming a driver whose command is half-unset.
