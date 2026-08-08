@@ -9102,7 +9102,20 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- internals ----------------------------------------------------------
 
-    private void OnPlaybackTick() => StepPlayback();
+    /// <summary>
+    /// Advance by what the clock says, not by one.
+    /// </summary>
+    /// <remarks>
+    /// The count is the whole of <see cref="PlaybackClock"/>'s contract: a tick
+    /// that arrived a frame and a half late owes two frames, and honouring only
+    /// one is the accumulating drift the paced clock exists to remove. Written
+    /// as a loop rather than an index jump so a wrap, a range end and the audio
+    /// resync all happen exactly as they do at speed.
+    /// </remarks>
+    private void OnPlaybackTick(int frames)
+    {
+        for (var i = 0; i < frames && IsPlaying; i++) StepPlayback();
+    }
 
     /// <summary>
     /// Set while committing an edit whose visible effect the caller already

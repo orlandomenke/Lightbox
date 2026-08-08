@@ -181,4 +181,16 @@ Space plays and pauses. Transport buttons step, jump and loop. Set fps and a
 speed percentage. Holds resolve properly, so a drawing exposed on 3s stays up
 for its full three frames.
 
+**Playback keeps time rather than counting frames.** A scene set to 12 fps runs
+at twelve frames a second of real time, and each frame is held the same length
+as every other — which matters more than it sounds like it should, because an
+uneven frame length is what the eye reads as stutter even when the average rate
+looks right. It also keeps the picture with the scratch track instead of
+drifting away from it over a long take.
+
+If the machine cannot keep up, frames are dropped so the timing stays true
+rather than the animation running slow. After a real interruption — a dialog, a
+laptop lid, a breakpoint — playback picks up from where it is rather than racing
+to catch up on what it missed.
+
 ---
