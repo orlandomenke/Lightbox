@@ -376,8 +376,10 @@ public partial class MainWindow : Window
                 // the slot blank.
                 var active = usable.Contains(layout.ActiveOf(slot)) ? layout.ActiveOf(slot) : usable[0];
                 var panel = _panels[active];
-                panel.Tabs = usable.Count > 1 ? usable.Select(DockPanels.Of).ToList() : null;
-                panel.ActiveTab = active;
+                // One call, not two assignments: between them the strip holds a
+                // new tab list against an old active id, and the docker used to
+                // read that as a click. See Docker.ShowTabs and B132.
+                panel.ShowTabs(usable.Count > 1 ? usable.Select(DockPanels.Of).ToList() : null, active);
                 panels.Add(panel);
             }
             foreach (var panel in panels) Detach(panel);
@@ -952,22 +954,19 @@ public partial class MainWindow : Window
 
     private void OnWorkspacePicked(object? sender, SelectionChangedEventArgs e)
     {
-        if (sender is not ComboBox picker || picker.SelectedItem is not WorkspaceRow row) return;
-        // Back to the placeholder — which shows the current workspace's name —
-        // because the list is a set of verbs, not a bound value. Leaving a
-        // selection in it would go stale the moment anything is rearranged.
-        picker.SelectedItem = null;
+        if (sender is not ListBox picker || picker.SelectedItem is not WorkspaceRow row) return;
+        // The tabs SHOW the current workspace now, so selection is state rather
+        // than a verb — and the guard is what stops the loop: applying raises
+        // SelectedName, which re-selects the row, which fires this again.
+        if (row.Name == _vm.Workspace.SelectedName) return;
         _vm.Workspace.Apply(row.Name);
     }
 
     private void OnDeleteWorkspace(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.Tag is not string name) return;
-        // The bin is inside the row, so the click would also pick the row.
         e.Handled = true;
         _vm.Workspace.Delete(name);
-        WorkspacePicker.SelectedItem = null;
-        WorkspacePicker.IsDropDownOpen = false;
     }
 
     // ---- dragging a panel ----------------------------------------------------

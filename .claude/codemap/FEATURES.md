@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2911 tests, derived from the suite itself. Each line is a
+2919 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -629,7 +629,7 @@ regression even when every test still compiles.
 
 - The Scale The Doc Describes Is The Scale The Code Applies — `:56`
 - No View Redeclares ASize The Scale Owns — `:89`
-- The Overlay Tile Agrees With The Scale — `:135`
+- The Overlay Tile Agrees With The Scale — `:141`
 
 ## DiagnosticLogTests
 `tests/Lightbox.App.Tests/DiagnosticLogTests.cs`
@@ -852,6 +852,13 @@ regression even when every test still compiles.
 - ADocument That Cannot Be Read Is Named Rather Than Throwing — `:315`
 - The Confirmation Names What Has Drifted Since It Was Built — `:352`
 
+## FieldShapeTests
+`tests/Lightbox.App.Tests/FieldShapeTests.cs`
+
+- Every Field Is The Same Shape As Every Other One — `:53`
+- The Inner Text Box Fits Inside The Field That Hosts It — `:75`
+- AField Is AWell Rather Than ARaised Surface — `:94`
+
 ## FileRevealTests
 `tests/Lightbox.App.Tests/FileRevealTests.cs`
 
@@ -956,6 +963,13 @@ regression even when every test still compiles.
 - AGame Maker Preset Still Reports What It Left Out — `:456`
 - ANormal Map Is Written For Every Strip Rather Than Only The First — `:468`
 - The Strip Layout Controls Are Hidden Rather Than Shown And Overridden — `:482`
+
+## GlyphToggleTests
+`tests/Lightbox.App.Tests/GlyphToggleTests.cs`
+
+- The Eye Opens And Closes Rather Than Changing Colour — `:43`
+- Every Stateful Glyph Resolves Both Drawings — `:64`
+- AGlyph Toggle Carries No Accent Fill — `:83`
 
 ## GodotExportTests
 `tests/Lightbox.App.Tests/GodotExportTests.cs`
@@ -1416,10 +1430,9 @@ regression even when every test still compiles.
 - Every Token The Design Names Resolves — `:45`
 - The Core Surfaces Are The Colours The Design Gave — `:71`
 - The Theme Agrees With The Palette — `:94`
-- AField Is Lighter Than Whatever It Sits On — `:116`
-- Nothing That Floats Keeps Fluents Grey — `:175`
-- The Theme Palette Is Written In Hex On Purpose — `:198`
-- No View Invents Its Own Chrome Colour — `:225`
+- Nothing That Floats Keeps Fluents Grey — `:132`
+- The Theme Palette Is Written In Hex On Purpose — `:155`
+- No View Invents Its Own Chrome Colour — `:182`
 
 ## PresentedFrameTests
 `tests/Lightbox.App.Tests/PresentedFrameTests.cs`
@@ -2254,6 +2267,13 @@ regression even when every test still compiles.
 - Closing AProject Stops Its Symbols Resolving — `:60`
 - Deleting ASymbol Stops It Resolving — `:78`
 
+## TabSwitchCrashTests
+`tests/Lightbox.App.Tests/TabSwitchCrashTests.cs`
+
+- Switching Back And Forth Between Tabs Does Not Crash — `:62`
+- The Other Pair In The Report Behaves The Same Way — `:87`
+- The Docker Showing After ASwitch Is The One In The Strip — `:103`
+
 ## TemplateUiTests
 `tests/Lightbox.App.Tests/TemplateUiTests.cs`
 
@@ -2593,14 +2613,14 @@ regression even when every test still compiles.
 - Closing APanel Parks It Rather Than Destroying It — `:119`
 - Tabbed Panels Share One Slot And One Shows — `:138`
 - The Tab Showing Is The One That Looks Like It Is Showing — `:161`
-- An Untabbed Docker Looks Exactly As It Did — `:247`
-- Grouping APanel Marks The Workspace Unsaved — `:260`
-- The Project Panel Appears As Soon As There Is AProject — `:275`
-- The Canvas Gets The Room Left Over By The Strips — `:298`
-- The Project Row Menu Actually Does Something When Clicked — `:322`
-- The New Menu Actually Makes Things — `:459`
-- The Reference Panel Is Absent Until It Is Asked For — `:531`
-- ACapped Strip Is No Wider Than Its Panels Can Use — `:547`
+- An Untabbed Docker Looks Exactly As It Did — `:261`
+- Grouping APanel Marks The Workspace Unsaved — `:274`
+- The Project Panel Appears As Soon As There Is AProject — `:289`
+- The Canvas Gets The Room Left Over By The Strips — `:312`
+- The Project Row Menu Actually Does Something When Clicked — `:336`
+- The New Menu Actually Makes Things — `:473`
+- The Reference Panel Is Absent Until It Is Asked For — `:545`
+- ACapped Strip Is No Wider Than Its Panels Can Use — `:561`
 
 ## AnchorTests
 `tests/Lightbox.Core.Tests/AnchorTests.cs`

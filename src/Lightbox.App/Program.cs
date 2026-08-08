@@ -19,6 +19,11 @@ internal static class Program
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<App>()
             .UsePlatformDetect()
+            // Inter, bundled: the typeface both design references are set in,
+            // and the same face on every platform. Half of "the fonts look
+            // big" was the fallback font — DejaVu runs a size wider than
+            // Inter at the same size.
+            .WithInterFont()
             .LogToTrace();
 
     /// <summary>

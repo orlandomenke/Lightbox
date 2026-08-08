@@ -13,6 +13,30 @@
     in a comment at the site.
   -->
 
+  <!--
+    The application's base font size, and the single biggest reason the UI read
+    LARGER than Krita's on the same monitor. Fluent's default is 14, and
+    anything without an explicit FontSize — layer names, dialog labels, menu
+    items, most plain TextBlocks — rendered at it, towering over the 11s and
+    12s around them. The scale's font row starts at 12, so 12 is what
+    "unstyled" means here.
+
+    `:is(TopLevel)` rather than `Window`, twice over: a bare type selector
+    does not match subclasses, and a POPUP is not a Window at all — menus,
+    flyouts and tooltips live in a PopupRoot, whose common ancestor with
+    Window is TopLevel. `:is(Window)` was here first, and every context menu
+    stayed at Fluent's 14 while the windows dropped to 12 — "the fonts in the
+    context menu are still too large", reported precisely because the two no
+    longer matched.
+  -->
+  <Style Selector=":is(TopLevel)">
+    <Setter Property="FontSize" Value="12" />
+    <!-- Segoe first, so a Windows build renders it and everything else falls
+         through to the bundled Inter — the owner wants to compare the two.
+         Prefer Inter outright? Delete the two Segoe names. -->
+    <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, fonts:Inter#Inter, $Default" />
+  </Style>
+
   <!-- Numeric fields: no spinner arrows anywhere.
 
        The up/down buttons cost ~20px of width and a couple of height, and no
@@ -48,15 +72,56 @@
     <Setter Property="Width" Value="96" />
   </Style>
 
-  <Style Selector="NumericUpDown /template/ TextBox">
-    <Setter Property="Padding" Value="4,0" />
-    <Setter Property="MinHeight" Value="20" />
+  <Style Selector="NumericUpDown">
+    <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
+  </Style>
+  <Style Selector="TextBox">
+    <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
+  </Style>
+  <Style Selector="ComboBox">
+    <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
   </Style>
 
   <Style Selector="TextBox">
     <Setter Property="MinHeight" Value="24" />
     <Setter Property="Padding" Value="6,2" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!--
+    The inner box a NumericUpDown wraps — and it must come AFTER the generic
+    TextBox rule above, which is the fix for the squarest-looking bug in the
+    application.
+
+    Every numeric field rendered with square corners and no top border while
+    the ComboBox beside it was round, and the reason was not the radius: this
+    rule set the inner TextBox to fit its 22px host, and then the generic
+    `TextBox MinHeight=24` two rules LATER silently won, because Avalonia
+    resolves competing styles by order. A 24px box inside a 22px host is
+    clipped top and bottom — the rounded corners and the top border were not
+    painted square, they were CUT OFF, which no property probe can see because
+    every property reads correct. This file already documents order being
+    load-bearing for the overlay bars; this is the same trap with a subtler
+    symptom, and it also explains the `MinHeight="0" Height="22"` hand-fixes
+    two views had grown around specific fields.
+  -->
+  <Style Selector="NumericUpDown /template/ TextBox">
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
+  </Style>
+  <Style Selector="NumericUpDown /template/ TextBox /template/ Border#PART_BorderElement">
+    <Setter Property="CornerRadius" Value="{StaticResource FieldCornerRadius}" />
+  </Style>
+  <!--
+    The actual thief, found by measuring geometry after every property read
+    correct: Fluent's ButtonSpinner carries MinHeight 32, so inside our 22px
+    NumericUpDown the whole inner stack overflowed by five pixels top and
+    bottom and was CLIPPED — taking the rounded corners and the top border
+    with it. `FieldShapeTests.TheInnerTextBoxFitsInsideTheFieldThatHostsIt`
+    is the geometry check that finally saw it.
+  -->
+  <Style Selector="NumericUpDown /template/ ButtonSpinner">
+    <Setter Property="MinHeight" Value="0" />
   </Style>
 
   <Style Selector="ComboBox">
@@ -229,13 +294,22 @@
   <Style Selector="Slider:horizontal /template/ Track">
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
+  <!-- The reference's slider: a hairline rounded track with a dot riding it.
+       Both halves of the track are named TrackBackground, so one rule rounds
+       the filled and unfilled sides together. -->
+  <Style Selector="Slider /template/ Border#TrackBackground">
+    <Setter Property="Height" Value="3" />
+    <Setter Property="CornerRadius" Value="1.5" />
+  </Style>
+  <!-- 10, from the reference's sliders: a dot riding a hairline track, not a
+       knob. The track is already 2px; the thumb was the fat part. -->
   <Style Selector="Slider:horizontal /template/ Thumb">
-    <Setter Property="Width" Value="14" />
-    <Setter Property="Height" Value="14" />
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
   </Style>
   <Style Selector="Slider:vertical /template/ Thumb">
-    <Setter Property="Width" Value="14" />
-    <Setter Property="Height" Value="14" />
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
   </Style>
 
   <!--
@@ -293,6 +367,16 @@
   <Style Selector="Menu">
     <Setter Property="Padding" Value="0" />
     <Setter Property="Height" Value="24" />
+    <!--
+      The menu is the same surface as the toolbar under it, separated by a 1px
+      line of the deepest background — measured off the reference, where the
+      menu flows into the toolbar rather than being its own strip. Two strips
+      of one colour with a scored line between them read as one piece of
+      chrome; two strips of different colours read as a stack.
+    -->
+    <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BackgroundPrimaryBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
   </Style>
   <Style Selector="MenuItem.top">
     <Setter Property="Height" Value="24" />
@@ -302,7 +386,7 @@
   <!--
     Tool buttons are hit while drawing; they keep the larger target.
 
-    **34, which is what shipped rather than the 30 this used to claim.** The
+    **28, retuned against the reference after landing at the 34 that had shipped.** The
     tool palette declared its own size in `MainWindow.axaml` and that override
     won, so the 30 here was never applied to a single control — a scale entry
     that describes nothing. Merged the other way round on purpose: the palette
@@ -315,8 +399,8 @@
     there, never the height, so the column keeps one rhythm at both widths.
   -->
   <Style Selector="ToggleButton.tool">
-    <Setter Property="Height" Value="34" />
-    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="MinHeight" Value="28" />
     <Setter Property="Margin" Value="1" />
     <Setter Property="Padding" Value="4,0" />
     <Setter Property="FontSize" Value="12" />

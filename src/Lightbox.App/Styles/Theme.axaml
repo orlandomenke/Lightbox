@@ -29,13 +29,25 @@
     has never heard of this file still comes out right, which is the whole
     reason to fix it here rather than with a style per control.
 
-    Fluent's values are `#66000000` resting and `#99000000` hovered — 40% and
-    60% black. So today a field is a hole in its panel and *hovering deepens
-    the hole*, which is the opposite of a control lighting up under the pointer.
+    **A field is a well, not a raised surface**, and this is a correction to the
+    first answer rather than the first answer. Fluent's ground is `#66000000` —
+    40% black, so a field darkened whatever it landed on by an unpredictable
+    amount and *hovering deepened the hole*. The fix for that was a white tint,
+    read off the reference, which lifted a field above its panel.
+
+    Wrong direction, per the owner: a field takes the **darkest** surface, so it
+    reads as a well cut into the panel with the panel's own edge around it. That
+    is the "solidity" the alternate reference has and ours did not — a field on
+    a docker, a field on a dialog and a field in a flyout are then the same
+    colour, and the surface behind them is what changes.
+
+    The tint is kept for the hover, because the *direction* argument still holds
+    at the point of contact: pointing at something should make it lighter, never
+    darker. It composites over the well rather than over the panel now.
   -->
-  <StaticResource x:Key="TextControlBackground" ResourceKey="FieldGroundBrush" />
+  <StaticResource x:Key="TextControlBackground" ResourceKey="BackgroundPrimaryBrush" />
   <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="FieldGroundHoverBrush" />
-  <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="FieldGroundHoverBrush" />
+  <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="BackgroundPrimaryBrush" />
   <StaticResource x:Key="TextControlBackgroundDisabled" ResourceKey="FieldGroundDisabledBrush" />
 
   <!--
@@ -54,10 +66,42 @@
     second place to change it and a first place for the two to disagree.
   -->
 
-  <StaticResource x:Key="ComboBoxBackground" ResourceKey="FieldGroundBrush" />
+  <StaticResource x:Key="ComboBoxBackground" ResourceKey="BackgroundPrimaryBrush" />
   <StaticResource x:Key="ComboBoxBackgroundPointerOver" ResourceKey="FieldGroundHoverBrush" />
   <StaticResource x:Key="ComboBoxBackgroundPressed" ResourceKey="FieldGroundHoverBrush" />
+
+  <!--
+    Every field the same shape as every other boxed thing on the page.
+
+    The combo was rounded and the numeric field square, side by side in the same
+    row of the Layers docker — reported as "every boxed element has rounded
+    corners except those text boxes", and visible the moment the two are cropped
+    together. It is one value rather than four because a corner radius is the
+    kind of number that only reads as deliberate when nothing disagrees with it.
+  -->
+  <CornerRadius x:Key="FieldCornerRadius">4</CornerRadius>
   <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="BorderStrongBrush" />
+
+  <!-- ===== Buttons =================================================== -->
+  <!--
+    A button is the bar's own dark surface with a rim light along its top —
+    read off the reference, where the toolbar's buttons are the same dark as
+    the toolbar and only the lit top edge says "pressable". Fluent's default
+    is `#33ffffff`, 20% white, which made every unranked button a pale box and
+    the toolbar a wall of them.
+
+    The rim is the BorderBrush: a vertical white-to-nothing gradient that a
+    1px border samples by position, so the top edge catches light, the sides
+    taper and the bottom gets none. One brush, no second element.
+  -->
+  <StaticResource x:Key="ButtonBackground" ResourceKey="SurfacePanelBrush" />
+  <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="SurfaceElevatedBrush" />
+  <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="BackgroundPrimaryBrush" />
+  <StaticResource x:Key="ButtonBorderBrush" ResourceKey="RimLightBrush" />
+  <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="RimLightBrush" />
+  <StaticResource x:Key="ToggleButtonBackground" ResourceKey="SurfacePanelBrush" />
+  <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="SurfaceElevatedBrush" />
+  <StaticResource x:Key="ToggleButtonBorderBrush" ResourceKey="RimLightBrush" />
 
   <!-- ===== Things that float ========================================= -->
   <!--

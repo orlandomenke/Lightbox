@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Lightbox.App.Controls">
   <!--
     The control treatments from the design, in one place.
 
@@ -34,10 +35,17 @@
   </Style>
 
   <!-- The ordinary button, and what most things are. -->
+  <!--
+    Dark ground, rim light on the top edge — the same treatment the theme now
+    gives every unranked button, restated here so the rank survives a theme
+    change. The reference's buttons are the bar's own dark with only a lit top
+    edge saying "pressable"; the old SurfaceElevated fill made every button a
+    pale box and a row of them a wall.
+  -->
   <Style Selector="Button.secondary">
-    <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+    <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource RimLightBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 
@@ -153,8 +161,8 @@
   -->
   <Style Selector="ListBox.tabs > ListBoxItem">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Padding" Value="10,3" />
-    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="Padding" Value="13,4" />
+    <Setter Property="MinHeight" Value="24" />
     <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
     <Setter Property="Template">
       <ControlTemplate>
@@ -181,13 +189,26 @@
                 CornerRadius="4,4,0,0"
                 Background="{TemplateBinding Background}"
                 BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="1,1,1,1">
-          <ContentPresenter Name="PART_ContentPresenter"
-                            Content="{TemplateBinding Content}"
-                            ContentTemplate="{TemplateBinding ContentTemplate}"
-                            Foreground="{TemplateBinding Foreground}"
-                            Padding="{TemplateBinding Padding}"
-                            VerticalAlignment="Center" />
+                BorderThickness="0,0,0,1">
+          <Panel>
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Foreground="{TemplateBinding Foreground}"
+                              Padding="{TemplateBinding Padding}"
+                              VerticalAlignment="Center" />
+            <!--
+              The active tab's purple gradient line, along the TOP edge — where
+              the reference draws it (the Brush Settings' active tab), not
+              underneath. Always present and usually transparent, for the same
+              reason as the ground: a mark that appears on click changes the
+              strip's height, one that only changes colour does not. Inset 2px
+              so it does not overrun the rounded corners.
+            -->
+            <Border Name="PART_TopLine" Height="2" Margin="2,0"
+                    VerticalAlignment="Top" CornerRadius="1"
+                    Background="Transparent" IsHitTestVisible="False" />
+          </Panel>
         </Border>
       </ControlTemplate>
     </Setter>
@@ -202,7 +223,6 @@
   -->
   <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ Border#PART_Tab">
     <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
   </Style>
   <!--
     After the hover rules, not before. Avalonia takes the last matching style,
@@ -219,6 +239,9 @@
     <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
     <Setter Property="BorderThickness" Value="1,1,1,0" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_TopLine">
+    <Setter Property="Background" Value="{StaticResource TabActiveLineBrush}" />
   </Style>
   <!--
     Both halves, and the second is the one that does the work: the theme sets a
@@ -242,6 +265,241 @@
   -->
   <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <!-- ===== Glyph toggles ============================================= -->
+  <!--
+    The eye, the lock, the onion skin: buttons whose STATE is the icon.
+
+    The old treatment was Fluent's — a checked toggle fills with the accent —
+    so a layers panel was a column of purple boxes that said "on" in colour
+    and nothing in shape. The owner's call: one button colour with a hover,
+    the glyph swaps (open eye / closed eye), the off state dims, and the
+    only purple left is a subtle press flash. State you can read at a
+    glance without decoding a colour scheme, and it survives the accent
+    being retuned.
+
+    The recipe composes with `.icon` (the 26px square from Density.axaml):
+    `Classes="icon glyph eye"` is a square, quiet, stateful eye button.
+  -->
+  <Style Selector="ToggleButton.glyph">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ToggleButton.glyph /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ToggleButton.glyph:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.glyph:checked /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ToggleButton.glyph:checked:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.glyph:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource PressTintBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.glyph:checked:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource PressTintBrush}" />
+  </Style>
+
+  <Style Selector="ToggleButton.glyph Path">
+    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Fill" Value="{x:Null}" />
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="Width" Value="15" />
+    <Setter Property="Height" Value="15" />
+  </Style>
+  <!-- Off is dimmer AND a different drawing; either alone is squintable. -->
+  <Style Selector="ToggleButton.glyph:not(:checked) Path">
+    <Setter Property="Opacity" Value="0.45" />
+    <Setter Property="Stroke" Value="{StaticResource TextSecondaryBrush}" />
+  </Style>
+
+  <Style Selector="ToggleButton.eye Path">
+    <Setter Property="Data" Value="{StaticResource IconEyeClosed}" />
+  </Style>
+  <Style Selector="ToggleButton.eye:checked Path">
+    <Setter Property="Data" Value="{StaticResource IconEyeOpen}" />
+  </Style>
+  <Style Selector="ToggleButton.lock Path">
+    <Setter Property="Data" Value="{StaticResource IconLockOpen}" />
+  </Style>
+  <Style Selector="ToggleButton.lock:checked Path">
+    <Setter Property="Data" Value="{StaticResource IconLockClosed}" />
+  </Style>
+  <Style Selector="ToggleButton.alpha Path">
+    <Setter Property="Data" Value="{StaticResource IconAlphaLock}" />
+  </Style>
+  <Style Selector="ToggleButton.onion Path">
+    <Setter Property="Data" Value="{StaticResource IconOnionOff}" />
+  </Style>
+  <Style Selector="ToggleButton.onion:checked Path">
+    <Setter Property="Data" Value="{StaticResource IconOnionOn}" />
+  </Style>
+
+  <!--
+    Overlay-bar glyphs: the shortcut bar's tiles all share one chrome, so a
+    stateful glyph there keeps the TILE look of its neighbours — only the
+    drawing swaps. The .glyph chrome (transparent, dim-when-off) is for rows
+    whose ground carries the colour; a tile carries its own.
+  -->
+  <Style Selector="controls|CanvasOverlayBar ToggleButton Path">
+    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Fill" Value="{x:Null}" />
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="Width" Value="15" />
+    <Setter Property="Height" Value="15" />
+  </Style>
+
+  <!--
+    The corner mark for a tool with variants: hold the button and the list
+    opens. A filled notch rather than a glyph, because it is a property of the
+    button, not part of the icon.
+  -->
+  <Style Selector="Path.variantmark">
+    <!-- A wedge whose outer edge follows the button's own rounded corner, so
+         it reads as part of the button rather than a sticker on it. Violet:
+         it is an affordance, and affordances wear the accent. -->
+    <Setter Property="Data" Value="M8,0 L8,4 A4,4 0 0 1 4,8 L0,8 Z" />
+    <Setter Property="Fill" Value="{StaticResource AccentVioletBrush}" />
+    <Setter Property="Stroke" Value="{x:Null}" />
+    <Setter Property="Width" Value="7" />
+    <Setter Property="Height" Value="7" />
+    <Setter Property="Stretch" Value="Fill" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="VerticalAlignment" Value="Bottom" />
+    <Setter Property="Margin" Value="0,0,1,1" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+  </Style>
+
+  <!-- The tool rail's glyphs: quiet at rest, full-strength on the active tool. -->
+  <Style Selector="ToggleButton.tool Path:not(.variantmark)">
+    <Setter Property="Stroke" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Fill" Value="{x:Null}" />
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="Width" Value="16" />
+    <Setter Property="Height" Value="16" />
+  </Style>
+  <Style Selector="ToggleButton.tool:checked Path:not(.variantmark)">
+    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.tool:checked Path.variantmark">
+    <Setter Property="Fill" Value="{StaticResource TextOnAccentBrush}" />
+  </Style>
+
+  <!--
+    The shared shape of every tab strip's top line, so the document tabs and
+    the docker tabs stay one treatment. Transparent until an .active ancestor
+    says otherwise.
+  -->
+  <Style Selector="Border.tabline">
+    <Setter Property="Height" Value="2" />
+    <Setter Property="Margin" Value="2,0" />
+    <Setter Property="VerticalAlignment" Value="Top" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+  </Style>
+  <Style Selector="Border.docTab.active Border.tabline">
+    <Setter Property="Background" Value="{StaticResource TabActiveLineBrush}" />
+  </Style>
+
+  <!-- ===== Floating chrome =========================================== -->
+  <!--
+    Context menus and flyouts are cards too: same radius as the dockers, so
+    everything that floats shares one shape language. The elevated surface
+    they already have; this is the missing half of the card.
+  -->
+  <Style Selector="MenuFlyoutPresenter">
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style Selector="FlyoutPresenter">
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style Selector="ContextMenu">
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+
+  <!-- ===== Section tabs ============================================== -->
+  <!--
+    The second tab kind: flush text with a bottom highlight, for strips that
+    divide a MODE rather than a stack of panels — the workspace picker first,
+    the timeline's modes when they arrive. No ground, no box; the underline is
+    the whole statement, which is why it is the accent.
+  -->
+  <Style Selector="ListBox.sectiontabs">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="ListBox.sectiontabs > ListBoxItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="12,3" />
+    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="{TemplateBinding Background}">
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Foreground="{TemplateBinding Foreground}"
+                            Padding="{TemplateBinding Padding}"
+                            VerticalAlignment="Center" />
+          <Border Name="PART_Underline" Height="2" Margin="4,0"
+                  VerticalAlignment="Bottom" CornerRadius="1"
+                  Background="Transparent" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <!--
+    Transparent in every state, set here because Fluent sets Background ON THE
+    ITEM when it is selected and the template binds it — without these the
+    "flush text" tab wears the theme's violet pill, which is the exact box
+    this treatment exists to not have.
+  -->
+  <Style Selector="ListBox.sectiontabs > ListBoxItem:selected">
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.sectiontabs > ListBoxItem:selected:pointerover">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.sectiontabs > ListBoxItem:pressed">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.sectiontabs > ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <!-- Fluent paints its selection colour straight onto any presenter named
+         PART_ContentPresenter, template ownership notwithstanding — the same
+         way the docker tabs learned it. -->
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.sectiontabs > ListBoxItem:selected:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.sectiontabs > ListBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.sectiontabs > ListBoxItem:selected /template/ Border#PART_Underline">
+    <Setter Property="Background" Value="{StaticResource AccentVioletBrush}" />
+  </Style>
+  <Style Selector="ListBox.sectiontabs > ListBoxItem:pointerover /template/ Border#PART_Underline">
+    <Setter Property="Background" Value="{StaticResource BorderStrongBrush}" />
   </Style>
 
   <!-- ===== Sliders =================================================== -->

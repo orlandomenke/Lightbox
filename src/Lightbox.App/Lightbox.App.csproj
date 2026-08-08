@@ -15,6 +15,10 @@
     <PackageReference Include="Avalonia" Version="12.1.1" />
     <PackageReference Include="Avalonia.Controls.ColorPicker" Version="12.1.1" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
+    <!-- The reference designs are set in Inter. Bundling it means the UI is
+         the same typeface on every platform, instead of Segoe on Windows and
+         DejaVu on Linux — the latter being a size wider at the same pt. -->
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>

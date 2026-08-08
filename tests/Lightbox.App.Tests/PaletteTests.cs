@@ -108,68 +108,25 @@ public class PaletteTests
             "SystemAccentColor", Avalonia.Styling.ThemeVariant.Dark, out var accent));
         var violet = Assert.IsType<Color>(accent);
 
-        Application.Current!.TryFindResource("AccentVioletBrush", out var role);
+        // The DEEP violet, not the bright one — the theme's accent paints
+        // fills the size of a button, and full AccentViolet glows at that
+        // size. The bright violet stays for marks: dots, gradients, the tab
+        // line, focus.
+        Application.Current!.TryFindResource("AccentVioletDeepBrush", out var role);
         Assert.Equal(((SolidColorBrush)role!).Color, violet);
     }
 
-    [AvaloniaFact]
-    public void AFieldIsLighterThanWhateverItSitsOn()
-    {
-        // The direction, not the colour. Fluent's `TextControlBackground` is
-        // `#66000000` — 40% *black* — so every text box, numeric field and combo
-        // in the application was a hole in its panel, and hovering deepened the
-        // hole. Measured against the design reference, a field interior reads
-        // 39–52 against a 19–22 ground: a lift, in the tool bar, the dockers
-        // and the dialogs alike.
-        //
-        // Checked against **all four surfaces**, because that is the whole
-        // reason it is a tint and not a colour. An opaque `SurfaceElevated`
-        // field would be a lift on a panel and invisible on a dialog, and the
-        // dialog is the case somebody would only find by opening one.
-        string[] grounds =
-        [
-            "BackgroundPrimaryBrush", "BackgroundSecondaryBrush",
-            "SurfacePanelBrush", "SurfaceElevatedBrush",
-        ];
-
-        foreach (var key in new[] { "TextControlBackground", "ComboBoxBackground" })
-        {
-            Assert.True(Application.Current!.TryFindResource(
-                key, Avalonia.Styling.ThemeVariant.Dark, out var found), $"{key} does not resolve");
-            var field = Assert.IsType<SolidColorBrush>(found);
-
-            foreach (var groundKey in grounds)
-            {
-                Application.Current!.TryFindResource(groundKey, out var g);
-                var ground = ((SolidColorBrush)g!).Color;
-                var over = Composite(field, ground);
-
-                Assert.True(Luma(over) > Luma(ground),
-                    $"{key} over {groundKey}: {over} is not lighter than {ground}");
-            }
-        }
-
-        // Hover goes further in the same direction. A control that dims under
-        // the pointer reads as disabled, and Fluent's did exactly that —
-        // #66000000 resting, #99000000 hovered.
-        Application.Current!.TryFindResource("TextControlBackground", out var rest);
-        Application.Current!.TryFindResource("TextControlBackgroundPointerOver", out var hover);
-        Assert.True(((SolidColorBrush)hover!).Opacity > ((SolidColorBrush)rest!).Opacity,
-            "hovering a field must lift it further, not less");
-
-        static Color Composite(SolidColorBrush over, Color under)
-        {
-            // Opacity on the brush, not alpha in the colour — which is how the
-            // palette writes every other tint, so the arithmetic has to match.
-            var a = over.Opacity * (over.Color.A / 255.0);
-            return Color.FromRgb(
-                (byte)(under.R + a * (over.Color.R - under.R)),
-                (byte)(under.G + a * (over.Color.G - under.G)),
-                (byte)(under.B + a * (over.Color.B - under.B)));
-        }
-
-        static double Luma(Color c) => 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B;
-    }
+    // `AFieldIsLighterThanWhateverItSitsOn` stood here and is deleted rather
+    // than adjusted, because the rule it asserted was reversed rather than
+    // refined. It read the first design reference and concluded a field is a
+    // raised surface; the owner's call is that a field is a *well* — the
+    // darkest surface, the same colour on a docker, a dialog and a flyout, with
+    // only what is behind it changing. `FieldShapeTests` owns that rule now,
+    // along with the corner radius it turned out to share a cause with.
+    //
+    // The half of it that survived moved with it: hover still has to *lift*,
+    // because the direction argument holds at the point of contact even though
+    // it lost the resting state.
 
     [AvaloniaFact]
     public void NothingThatFloatsKeepsFluentsGrey()
@@ -207,7 +164,7 @@ public class PaletteTests
 
         foreach (var (property, token) in new[]
                  {
-                     ("Accent", "AccentViolet"),
+                     ("Accent", "AccentVioletDeep"),
                      ("RegionColor", "SurfaceElevated"),
                  })
         {

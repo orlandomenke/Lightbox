@@ -69,9 +69,23 @@
   <Color x:Key="AccentLime">#A7E72E</Color>
   <Color x:Key="AccentAmber">#FFB020</Color>
 
+  <!--
+    The violet, one step down. The interactive surfaces — a toggled eye, a
+    selected row, the theme's whole "this is on" family — wore AccentViolet at
+    full strength, and at the size of a button fill it glows. The owner's read
+    of the alternate reference: the purple is slightly darker, and the darkness
+    is where the solidity comes from. So the accent COLOUR keeps its value for
+    small marks (keyframe dots, gradients, the tab line, focus), and anything
+    that uses violet as a GROUND takes this instead. Derived by compositing
+    AccentViolet over BackgroundPrimary at 70%, so it stays the same hue and
+    follows a retune of either parent by re-deriving.
+  -->
+  <Color x:Key="AccentVioletDeep">#5B48C8</Color>
+
   <SolidColorBrush x:Key="AccentCoralBrush" Color="{StaticResource AccentCoral}" />
   <SolidColorBrush x:Key="AccentMagentaBrush" Color="{StaticResource AccentMagenta}" />
   <SolidColorBrush x:Key="AccentVioletBrush" Color="{StaticResource AccentViolet}" />
+  <SolidColorBrush x:Key="AccentVioletDeepBrush" Color="{StaticResource AccentVioletDeep}" />
   <SolidColorBrush x:Key="AccentCyanBrush" Color="{StaticResource AccentCyan}" />
   <SolidColorBrush x:Key="AccentLimeBrush" Color="{StaticResource AccentLime}" />
   <SolidColorBrush x:Key="AccentAmberBrush" Color="{StaticResource AccentAmber}" />
@@ -115,44 +129,69 @@
     nothing merges into whatever is actually behind it, which is what "fades
     into the background" has to mean when the background is not one thing.
 
-    The last stop is at 0.62, not 1. The design fades *fast* — most of the tab
-    is already the panel colour, and it is the lit top edge that says "this one
-    is in front", not an evenly shaded box. Stretching it to 1 gives a tab that
-    reads as a lighter block, which is the segmented-control look the docker
-    tabs are specifically not.
+    The fade runs the tab's whole height. It ended at 0.62 first, read off a
+    26px tab in the compressed mockup, and at that size "fast" and "full
+    height" are two pixels apart; the owner's correction is that the real
+    thing fades over a larger distance — the subtlety IS the length of the
+    fade. What keeps it from becoming a segmented-control block is that it
+    still ends at nothing and starts soft.
 
-    The 12% lean is the reference's, and it is the only part of this that is
-    decoration rather than meaning.
+    No lean. There was a 12% x-lean read off the reference, and it was a
+    trap: gradient points are RELATIVE, so on a 26px docker tab the lean was
+    invisible and on a 200px document tab it became a sideways fade-out — the
+    same brush telling two different stories at two widths. Purely vertical
+    is the version that scales.
   -->
-  <LinearGradientBrush x:Key="TabActiveGroundBrush" StartPoint="0%,0%" EndPoint="12%,100%">
-    <GradientStop Offset="0" Color="{StaticResource SurfaceElevated}" />
-    <GradientStop Offset="0.62" Color="#00222634" />
+  <LinearGradientBrush x:Key="TabActiveGroundBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+    <GradientStop Offset="0" Color="#D8222634" />
+    <GradientStop Offset="1" Color="#00222634" />
+  </LinearGradientBrush>
+
+  <!--
+    The line along the active tab's top edge — the reference draws it on the
+    Brush Settings' active tab, and the owner named it as the marker to keep:
+    a purple gradient, brightest where the tab is, dying before the far edge.
+    Violet into magenta rather than the full coral gradient, because at 2px
+    tall coral reads as a warning stripe.
+  -->
+  <LinearGradientBrush x:Key="TabActiveLineBrush" StartPoint="0%,0%" EndPoint="100%,0%">
+    <GradientStop Offset="0" Color="{StaticResource AccentViolet}" />
+    <GradientStop Offset="0.75" Color="{StaticResource AccentMagenta}" />
+    <GradientStop Offset="1" Color="#00D946FF" />
+  </LinearGradientBrush>
+
+  <!--
+    A rim light: the top edge catches light, the sides fade, the bottom gets
+    none. Used as a BorderBrush — a border samples this gradient by position,
+    so one brush gives the lit-from-above edge the reference's buttons have
+    without a second border element anywhere. On a BorderThickness of 1 the
+    cost is nothing.
+  -->
+  <!--
+    The press flash on a glyph toggle. The old treatment filled a checked
+    toggle with the accent, so a row of layer buttons was a row of purple
+    boxes; the state lives in the glyph now, and what remains of the purple
+    is this — a subtle tint for the moment of the press, so the click still
+    answers the finger without shouting afterwards.
+  -->
+  <SolidColorBrush x:Key="PressTintBrush" Color="{StaticResource AccentVioletDeep}" Opacity="0.28" />
+
+  <!-- Diagonal, so the light lands on the top and LEFT edges and the right
+       and bottom get none — one light source, upper left, per the owner. -->
+  <LinearGradientBrush x:Key="RimLightBrush" StartPoint="0%,0%" EndPoint="100%,100%">
+    <GradientStop Offset="0" Color="#3CFFFFFF" />
+    <GradientStop Offset="0.5" Color="#0CFFFFFF" />
+    <GradientStop Offset="1" Color="#00FFFFFF" />
   </LinearGradientBrush>
 
   <!-- ===== Fields ==================================================== -->
   <!--
-    The ground under anything you type into or pick from — text boxes, numeric
-    fields, combo boxes, search boxes.
-
-    **A field is LIGHTER than what it sits on, and the theme had it backwards.**
-    Fluent's `TextControlBackground` is `#66000000`: 40% *black*, so a field
-    darkens its container wherever it lands. Measured against the design
-    reference, a field interior reads 39–52 against a 19–22 ground — a lift,
-    every time, in the tool bar, the dockers and the dialogs alike.
-
-    That is not a colour preference, it is which way the light goes. A sunken
-    field says "a hole in the panel"; a raised one says "a surface you can put
-    something on", and this application asks you to type into these all day.
-
-    **A tint rather than a colour**, for the reason `SelectionBrush` above gives:
-    a field on a panel and a field in a dialog sit on different grounds, and one
-    flat value cannot be a lift on both. It also cannot vanish — an opaque
-    `SurfaceElevated` field on an elevated dialog would be invisible, which is
-    exactly the dialog case.
-
-    White rather than grey: grey at these opacities pulls the blue out of the
-    surface underneath and the field reads faintly warm against a cool panel,
-    which nobody can name and everybody can see.
+    Fields take `BackgroundPrimary` — a field is a well, the darkest surface,
+    the same colour wherever it lands. The rule lives in `Theme.axaml` where
+    the theme keys are pointed at it; what remains here is the HOVER tint,
+    because the direction argument survives the reversal that moved the rest:
+    pointing at something makes it lighter, never darker. White rather than
+    grey so the lift keeps the surface's own blue.
   -->
   <SolidColorBrush x:Key="FieldGroundBrush" Color="#FFFFFF" Opacity="0.09" />
   <SolidColorBrush x:Key="FieldGroundHoverBrush" Color="#FFFFFF" Opacity="0.14" />

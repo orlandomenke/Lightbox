@@ -113,7 +113,13 @@ public class DensityScaleTests
                          @"<Style\s+Selector=""([^""]+)""\s*>(.*?)</Style>", RegexOptions.Singleline))
             {
                 var selector = style.Groups[1].Value;
-                if (!owned.Any(c => selector.Contains($".{c}"))) continue;
+                // The owned class must be on the selector's TARGET — the last
+                // simple selector — not merely on an ancestor. `Button.icon`
+                // re-declaring a size is the drift this guards against;
+                // `ToggleButton.tool Path` sizing the glyph INSIDE a tool
+                // button is sizing content, and content is not the box.
+                var target = selector.Split(' ', StringSplitOptions.RemoveEmptyEntries)[^1];
+                if (!owned.Any(c => target.Contains($".{c}"))) continue;
 
                 foreach (var size in new[]
                          { "Height", "Width", "MinHeight", "MinWidth", "MaxWidth", "Padding" })
