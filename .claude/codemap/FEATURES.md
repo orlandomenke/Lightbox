@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2972 tests, derived from the suite itself. Each line is a
+2977 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -456,6 +456,19 @@ regression even when every test still compiles.
 - AStatic Camera Frames The Same Thing On Every Frame — `:139`
 - ACamera With No Keys Frames The Scene Centre — `:153`
 - APush In Enlarges What The Frame Shows — `:167`
+
+## CameraGizmoGeometryTests
+`tests/Lightbox.App.Tests/CameraGizmoTests.cs`
+
+- The Rotate Handle Sits Outside The Top Edge — `:19`
+- The Rotate Handle Follows The Frame Roll — `:32`
+
+## CameraGizmoTests
+`tests/Lightbox.App.Tests/CameraGizmoTests.cs`
+
+- AGizmo Nudge Moves The Framing And Keys It — `:57`
+- AZoom Drag Multiplies And Clamps — `:75`
+- ARotate Drag Accumulates Degrees — `:94`
 
 ## CameraViewModelTests
 `tests/Lightbox.App.Tests/CameraViewModelTests.cs`

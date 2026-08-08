@@ -145,6 +145,25 @@ public class GraphView : Control
         var faint = new Pen(new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)), 1);
         var typeface = new Typeface(Avalonia.Media.FontFamily.Default);
 
+        // The light grid: per-frame verticals when there is room for them, and
+        // a few horizontal bands across the plot. Barely-there on purpose —
+        // the grid is for judging a curve's shape, never a thing to look at.
+        var grid = new Pen(new SolidColorBrush(Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF)), 1);
+        if (FrameWidth >= 8)
+        {
+            for (var f = 0; f < FrameCount; f++)
+            {
+                if (f % 12 == 0) continue;   // the ruler line below already covers it
+                var gx = XAtFrame(f, FrameWidth);
+                context.DrawLine(grid, new Point(gx, RulerHeight), new Point(gx, Bounds.Height));
+            }
+        }
+        for (var band = 0; band <= 4; band++)
+        {
+            var gy = RulerHeight + Pad + band / 4.0 * PlotHeight;
+            context.DrawLine(grid, new Point(Gutter, gy), new Point(Bounds.Width, gy));
+        }
+
         for (var f = 0; f < FrameCount; f += 12)
         {
             var x = XAtFrame(f, FrameWidth);

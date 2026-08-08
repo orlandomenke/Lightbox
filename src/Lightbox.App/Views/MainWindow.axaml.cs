@@ -98,6 +98,9 @@ public partial class MainWindow : Window
         // keeps a sprite document free of camera UI.
         _vm.CameraChanged += () => Canvas.CameraFrame = _vm.CameraFrameCorners;
         Canvas.CameraFrame = _vm.CameraFrameCorners;
+        Canvas.CameraPanned += (dx, dy) => _vm.NudgeCamera(dx, dy);
+        Canvas.CameraZoomedBy += factor => _vm.ZoomCameraBy(factor);
+        Canvas.CameraRotatedBy += deg => _vm.RotateCameraBy(deg);
 
         LayersDocker.PointerEntered += (_, _) => _pointerInLayersDocker = true;
         LayersDocker.PointerExited += (_, _) => _pointerInLayersDocker = false;

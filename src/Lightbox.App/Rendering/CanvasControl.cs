@@ -446,6 +446,58 @@ public sealed class CanvasControl : Control
 
     private SKPoint[]? _cameraFrame;
 
+    /// <summary>The camera gizmo's drags, as document-space deltas per move.
+    /// The window maps them onto the framing at the playhead, which keys it —
+    /// adjusting the camera IS keying it, same as the numeric fields.</summary>
+    public event Action<double, double>? CameraPanned;
+
+    /// <summary>Multiplicative zoom change from a corner drag.</summary>
+    public event Action<double>? CameraZoomedBy;
+
+    /// <summary>Roll change in degrees from the rotate handle.</summary>
+    public event Action<double>? CameraRotatedBy;
+
+    private enum CameraDrag { None, Pan, Zoom, Rotate }
+
+    private CameraDrag _cameraDrag;
+    private Point _cameraLast;
+
+    /// <summary>Centre of the camera frame, in document coordinates.</summary>
+    private static SKPoint FrameCentre(SKPoint[] corners) => new(
+        (corners[0].X + corners[1].X + corners[2].X + corners[3].X) / 4,
+        (corners[0].Y + corners[1].Y + corners[2].Y + corners[3].Y) / 4);
+
+    /// <summary>Midpoint of the frame's top edge — the pan grip.</summary>
+    private static SKPoint PanGrip(SKPoint[] corners) => new(
+        (corners[0].X + corners[1].X) / 2, (corners[0].Y + corners[1].Y) / 2);
+
+    /// <summary>The rotate handle: pushed out from the pan grip, away from the centre.</summary>
+    internal static SKPoint RotateHandle(SKPoint[] corners, float offset)
+    {
+        var grip = PanGrip(corners);
+        var centre = FrameCentre(corners);
+        var dx = grip.X - centre.X;
+        var dy = grip.Y - centre.Y;
+        var len = MathF.Sqrt(dx * dx + dy * dy);
+        if (len < 1e-3f) return grip;
+        return new SKPoint(grip.X + dx / len * offset, grip.Y + dy / len * offset);
+    }
+
+    private CameraDrag CameraHandleAt(double x, double y, float scale)
+    {
+        if (_cameraFrame is not { Length: 4 } corners) return CameraDrag.None;
+        var r = 9f / Math.Max(0.01f, scale);
+        bool Near(SKPoint p) => Math.Abs(p.X - x) <= r && Math.Abs(p.Y - y) <= r;
+
+        if (Near(RotateHandle(corners, 26f / Math.Max(0.01f, scale)))) return CameraDrag.Rotate;
+        if (Near(PanGrip(corners))) return CameraDrag.Pan;
+        foreach (var corner in corners)
+        {
+            if (Near(corner)) return CameraDrag.Zoom;
+        }
+        return CameraDrag.None;
+    }
+
     /// <summary>
     /// One editable box on a reference sheet, in document coordinates.
     /// </summary>
@@ -2196,6 +2248,19 @@ public sealed class CanvasControl : Control
                 return;
             }
 
+            // The camera gizmo's handles are deliberately small targets, so a
+            // press on one is a decision — everywhere else on the canvas still
+            // paints, camera or no camera.
+            if (_cameraFrame is { Length: 4 } &&
+                CameraHandleAt(x, y, (float)(FitScale() * _zoom)) is var handle and not CameraDrag.None)
+            {
+                _cameraDrag = handle;
+                _cameraLast = new Point(x, y);
+                e.Pointer.Capture(this);
+                e.Handled = true;
+                return;
+            }
+
             if (ReferenceBoxes is not null)
             {
                 BeginGridGesture(x, y);
@@ -2530,6 +2595,50 @@ public sealed class CanvasControl : Control
                 return;
             }
 
+            if (_cameraDrag != CameraDrag.None)
+            {
+                var (cx, cy) = ViewToDoc(e.GetPosition(this));
+                if (_cameraFrame is { Length: 4 } frame)
+                {
+                    var centre = FrameCentre(frame);
+                    switch (_cameraDrag)
+                    {
+                        case CameraDrag.Pan:
+                            // Incremental doc-space deltas, like the reference
+                            // nudge — the window keys the framing per event.
+                            CameraPanned?.Invoke(cx - _cameraLast.X, cy - _cameraLast.Y);
+                            break;
+                        case CameraDrag.Zoom:
+                        {
+                            // Corner out grows the frame, which is seeing MORE:
+                            // the factor is old-distance over new-distance.
+                            var d0 = Math.Sqrt(
+                                (_cameraLast.X - centre.X) * (_cameraLast.X - centre.X)
+                                + (_cameraLast.Y - centre.Y) * (_cameraLast.Y - centre.Y));
+                            var d1 = Math.Sqrt(
+                                (cx - centre.X) * (cx - centre.X) + (cy - centre.Y) * (cy - centre.Y));
+                            if (d0 > 1e-3 && d1 > 1e-3) CameraZoomedBy?.Invoke(d0 / d1);
+                            break;
+                        }
+                        case CameraDrag.Rotate:
+                        {
+                            var a0 = Math.Atan2(_cameraLast.Y - centre.Y, _cameraLast.X - centre.X);
+                            var a1 = Math.Atan2(cy - centre.Y, cx - centre.X);
+                            var delta = (a1 - a0) * 180.0 / Math.PI;
+                            if (delta > 180) delta -= 360;
+                            if (delta < -180) delta += 360;
+                            // The frame sits at MINUS the camera's roll in doc
+                            // space, so turning the frame by δ is rolling by −δ.
+                            CameraRotatedBy?.Invoke(-delta);
+                            break;
+                        }
+                    }
+                }
+                _cameraLast = new Point(cx, cy);
+                e.Handled = true;
+                return;
+            }
+
             if (_movingRefBoxes)
             {
                 var (mx, my) = ViewToDoc(e.GetPosition(this));
@@ -2762,6 +2871,13 @@ public sealed class CanvasControl : Control
             _movingRefBoxes = false;
             e.Pointer.Capture(null);
             RefBoxesMovedEnded?.Invoke();
+            e.Handled = true;
+            return;
+        }
+        if (_cameraDrag != CameraDrag.None)
+        {
+            _cameraDrag = CameraDrag.None;
+            e.Pointer.Capture(null);
             e.Handled = true;
             return;
         }
@@ -3736,14 +3852,51 @@ public sealed class CanvasControl : Control
                 canvas.DrawPath(outside, dim);
             }
 
+            // Camera orange — the same colour the timeline gives the camera
+            // track, so "this is the camera" is one colour everywhere.
             using var edge = new SKPaint
             {
                 IsAntialias = true,
                 Style = SKPaintStyle.Stroke,
                 StrokeWidth = 1.6f / scale,
-                Color = new SKColor(0xff, 0xd0, 0x40, 240),
+                Color = new SKColor(0xff, 0x9f, 0x45, 240),
             };
             canvas.DrawPath(frame, edge);
+
+            // The gizmo's handles: corner squares zoom, the top-edge grip
+            // pans, and the circle pushed out from the grip rotates. Small
+            // targets on purpose — everywhere else on the canvas still paints.
+            using var fill = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Fill,
+                Color = new SKColor(0xff, 0x9f, 0x45, 255),
+            };
+            using var casing = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.2f / scale,
+                Color = new SKColor(0x26, 0x29, 0x2f, 220),
+            };
+
+            var half = 4f / scale;
+            foreach (var corner in corners)
+            {
+                var box = new SKRect(corner.X - half, corner.Y - half, corner.X + half, corner.Y + half);
+                canvas.DrawRect(box, fill);
+                canvas.DrawRect(box, casing);
+            }
+
+            var grip = PanGrip(corners);
+            var gripBox = new SKRect(grip.X - half, grip.Y - half, grip.X + half, grip.Y + half);
+            canvas.DrawRect(gripBox, fill);
+            canvas.DrawRect(gripBox, casing);
+
+            var rotate = RotateHandle(corners, 26f / scale);
+            canvas.DrawLine(grip, rotate, edge);
+            canvas.DrawCircle(rotate, 4.5f / scale, fill);
+            canvas.DrawCircle(rotate, 4.5f / scale, casing);
         }
 
         /// <summary>

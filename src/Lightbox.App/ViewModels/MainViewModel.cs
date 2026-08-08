@@ -10700,6 +10700,31 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// The canvas gizmo's three drags. Each goes through
+    /// <see cref="SetFraming"/>, so a drag keys the framing at the playhead
+    /// exactly as typing into the fields does — adjusting IS keying.
+    /// </summary>
+    public void NudgeCamera(double dx, double dy)
+    {
+        var now = FramingNow();
+        SetFraming(now with { X = now.X + dx, Y = now.Y + dy });
+    }
+
+    public void ZoomCameraBy(double factor)
+    {
+        if (!double.IsFinite(factor) || factor <= 0) return;
+        var now = FramingNow();
+        SetFraming(now with { Zoom = Math.Clamp(now.Zoom * factor, 0.05, 64) });
+    }
+
+    public void RotateCameraBy(double deltaDeg)
+    {
+        if (!double.IsFinite(deltaDeg)) return;
+        var now = FramingNow();
+        SetFraming(now with { RotationDeg = now.RotationDeg + deltaDeg });
+    }
+
+    /// <summary>
     /// Editing a framing field writes it straight to the key at the playhead,
     /// creating one if there is none. A framing you cannot see keyed is a
     /// framing you will lose by scrubbing away from it.

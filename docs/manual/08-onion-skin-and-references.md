@@ -137,6 +137,14 @@ That matters because Lightbox has two output targets and neither is the default:
 Add one from the timeline bar. Pan, zoom and roll are keyframed and interpolated;
 set a key at the playhead, or clear it. **Through camera** previews the framing.
 
+With a camera, the canvas shows its frame in orange with everything outside
+dimmed — and the frame is a gizmo. Drag the square on its top edge to pan, a
+corner square to zoom (drag inward to push in, outward to pull back), and the
+circle floating above the top edge to roll. Each drag writes to the framing at
+the playhead, keying it there exactly as the numeric fields do — adjusting the
+camera *is* keying it. The handles are small on purpose: a press anywhere else
+on the canvas still paints, camera or no camera.
+
 The camera is the one transform that is not view-only: it is authored, saved and
 exported. It still never touches a stroke — it only decides what part of the
 record a render shows.

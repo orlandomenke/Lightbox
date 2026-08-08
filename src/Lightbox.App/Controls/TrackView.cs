@@ -146,6 +146,26 @@ public class TrackView : Control
         var faint = new Pen(new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)), 1);
         var typeface = new Typeface(Avalonia.Media.FontFamily.Default);
 
+        // The light grid: a per-frame vertical when the frames are wide enough
+        // to want one, and a hairline under each track row. Barely-there — it
+        // exists so a dot's frame can be read without counting.
+        var grid = new Pen(new SolidColorBrush(Color.FromArgb(0x10, 0xFF, 0xFF, 0xFF)), 1);
+        if (FrameWidth >= 8)
+        {
+            for (var f = 0; f < FrameCount; f++)
+            {
+                if (f % 12 == 0) continue;   // the ruler line below already covers it
+                var gx = XAtFrame(f, FrameWidth);
+                context.DrawLine(grid, new Point(gx, RulerHeight), new Point(gx, Bounds.Height));
+            }
+        }
+        for (var r = 0; r <= tracks.Count; r++)
+        {
+            var gy = RulerHeight + r * RowPitch;
+            context.DrawLine(grid,
+                new Point(Gutter, gy), new Point(Gutter + FrameCount * FrameWidth, gy));
+        }
+
         // Ruler: a number at 1 and every dozen frames after, the reference's
         // cadence; a faint vertical at each numbered frame.
         for (var f = 0; f < FrameCount; f += 12)
