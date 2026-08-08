@@ -209,9 +209,13 @@
           gesture is registered in ShortcutMap rather than written onto this
           item, which is the trap Ctrl+S fell into.
         -->
-        <MenuItem Header="Pro_ject window…" Click="OnProjectWindowClicked"
-                  IsVisible="{Binding HasProject}"
-                  ToolTip.Tip="Structure, status, tags, assets and people — what you do between drawings" />
+        <!-- Present even without a project — invisible was how the owner
+             never found it ("I have not found the project manager window in
+             the application whatsoever"). Disabled with the reason instead:
+             discoverable, and not a dead click. -->
+        <MenuItem Header="Pro_ject manager…" Click="OnProjectWindowClicked"
+                  IsEnabled="{Binding HasProject}"
+                  ToolTip.Tip="Structure, status, tags, assets and people — what you do between drawings. Needs an open project." />
         <!--
           Conversion is a change of intent, not a migration: no document is
           read, rewritten or recreated. Absent unless a project is open, since

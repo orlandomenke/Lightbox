@@ -3,6 +3,7 @@
         xmlns:views="using:Lightbox.App.Views"
         x:Class="Lightbox.App.Views.UpdateFromTemplateWindow"
         Title="Update from template"
+        Icon="/Assets/lightbox.ico"
         Width="460" SizeToContent="Height" MaxHeight="620"
         WindowStartupLocation="CenterOwner"
         CanResize="False">

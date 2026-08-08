@@ -3,6 +3,7 @@
         xmlns:views="using:Lightbox.App.Views"
         x:Class="Lightbox.App.Views.ConfigureWindow"
         Title="Configure Lightbox"
+        Icon="/Assets/lightbox.ico"
         Width="640" Height="520"
         WindowStartupLocation="CenterOwner">
 

@@ -6,7 +6,8 @@
         x:DataType="vm:ProjectWindowViewModel"
         Width="1080" Height="700" MinWidth="720" MinHeight="420"
         WindowStartupLocation="CenterOwner"
-        Title="{Binding Title}">
+        Title="{Binding Title}"
+        Icon="/Assets/lightbox.ico">
 
   <!--
     Q41. Its own window rather than a docker: the whole point is columns —
