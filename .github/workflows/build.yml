@@ -167,22 +167,17 @@ jobs:
       - name: The roadmap's checkboxes match the code
         run: python3 scripts/roadmap.py check
 
-      # The generated index, same principle one artefact along: do not believe
-      # what is committed, derive it and compare.
-      #
-      # `.gitattributes` points INDEX.md and FEATURES.md at a merge driver that
-      # rebuilds them from the merged tree, which is why they stopped being
-      # hand-resolved. Three holes it cannot cover, and this closes all three:
-      # GitHub does not run merge drivers, so a PR merged in the web UI resolves
-      # them however it likes; the driver deliberately gives up while the build is
-      # red and keeps one side instead; and an ordinary commit that adds a type
-      # and forgets to rebuild leaves an index that answers "where does X live"
-      # with silence.
+      # The generated index is untracked (2026-08-08, Q54): committing it made
+      # every pair of parallel branches conflict by construction, and GitHub
+      # runs no merge driver, so every open PR went red the moment any other
+      # one merged. With nothing committed there is nothing to drift and
+      # nothing to verify — building proves the whole tree still parses, which
+      # is the half of the old `verify` that still means something.
       #
       # Safe in a shallow checkout — unlike HOTSPOTS.md, these two are derived
       # from file contents only and carry no commit stamp, on purpose.
-      - name: The committed index describes this tree
-        run: python3 scripts/codemap.py verify
+      - name: The index builds from this tree
+        run: python3 scripts/codemap.py build
 
   # Is there anything in this push that could change the bundle? A Windows
   # build of a Markdown edit is 105 MB of storage for a file nobody ships.

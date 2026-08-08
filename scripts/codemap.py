@@ -25,9 +25,7 @@ Usage
                                   queryable form of FEATURES.md
     codemap.py stale              exit 0 if the map is current, 1 if not —
                                   mtime-based, so a local answer only
-    codemap.py verify             exit 1 if the committed INDEX.md or FEATURES.md
-                                  disagrees with the tree. Derives and compares
-                                  bytes, so it works in a fresh clone
+    codemap.py verify             retired (Q54): the index is not committed
     codemap.py refresh            rebuild only if the map is out of date
 """
 
@@ -753,69 +751,23 @@ def cmd_stale() -> None:
 
 
 def cmd_verify() -> None:
-    """The two committed artefacts say what this tree actually contains.
+    """Retired (2026-08-08, Q54): the index is no longer committed.
 
-    **Why `stale` cannot do this job.** `is_stale` compares a stored fingerprint
-    of file count and newest mtime. Both are local facts: a fresh clone gives
-    every file the same recent mtime, so the fingerprint is meaningless on a build
-    machine and a stale index in a clone reads as current. This derives the
-    artefacts instead and compares the bytes, which is the same trick the ledger
-    uses — the checkbox is not believed, it is recomputed.
+    This used to derive INDEX.md and FEATURES.md and compare them against the
+    committed bytes, because a committed derived file is not believed, it is
+    recomputed. The stronger form of that argument won: the files are not
+    committed at all any more. They are gitignored, the session hook builds
+    them when stale or absent, and CI runs `build` to prove the tree parses.
+    The three failure modes verify existed to catch — a GitHub-side merge no
+    driver could fix, a driver that kept one side while the build was red, and
+    the ordinary forgot-to-rebuild — are all ways a *committed* index went
+    wrong, and there is no committed index.
 
-    **What it catches, given the merge driver exists.** `scripts/codemap-merge.sh`
-    rebuilds these two on a local merge, and it is the reason they stopped being
-    hand-resolved. Three ways a wrong version still reaches a commit:
-
-    - **GitHub does not run merge drivers.** A pull request merged in the web UI
-      resolves them however GitHub chooses, and nothing rebuilds afterwards.
-    - **The driver gives up when the build is red**, which is right — an index
-      parsed from files carrying conflict markers would be wrong rather than
-      stale — but it then keeps one side and says so, and that side is committed
-      unless somebody acts on the message.
-    - **An ordinary commit that adds a type and forgets to rebuild.** The most
-      common one by far, and invisible: the index is merely out of date, so it
-      answers "where does X live" with silence.
-
-    Not in the pre-push hook, deliberately: a full analysis is about ten seconds,
-    against a few milliseconds for the ledger ids. This is a CI check, and the
-    session-start staleness check is what catches it locally.
+    Kept as a stub so muscle memory and old instructions get an explanation
+    instead of an unknown-command error.
     """
-    data = analyse()
-    expected = {"INDEX.md": render_index(data), "FEATURES.md": render_features(data)}
-
-    wrong = []
-    for name, want in expected.items():
-        path = OUT_DIR / name
-        if not path.exists():
-            wrong.append((name, "missing entirely", 0, 0))
-            continue
-        have = path.read_text(encoding="utf-8")
-        if have == want:
-            print(f"  {name} matches the tree ({len(want.splitlines())} lines)")
-            continue
-        have_lines, want_lines = have.splitlines(), want.splitlines()
-        # A real diff rather than a positional comparison. One inserted line
-        # shifts every line after it, so zipping the two lists and counting
-        # mismatches reports thousands of differences for a one-line change —
-        # a number that is arithmetically correct and tells a reader nothing.
-        changed = sum(1 for line in difflib.ndiff(have_lines, want_lines)
-                      if line[:1] in "+-")
-        first = next((n + 1 for n, (a, b) in enumerate(zip(have_lines, want_lines)) if a != b),
-                     min(len(have_lines), len(want_lines)) + 1)
-        wrong.append((name, f"{changed} line(s) added or removed, first change at :{first}",
-                      len(have_lines), len(want_lines)))
-
-    if not wrong:
-        print(f"  the index describes this tree — {data['file_count']} files, "
-              f"{data['test_count']} tests")
-        return
-
-    for name, why, have_n, want_n in wrong:
-        print(f"  DRIFTED  {name}  {why}  (committed {have_n} lines, tree wants {want_n})")
-    print("\nThe committed index does not describe this tree. It is derived, so there is "
-          "nothing to merge or\nedit by hand — regenerate it:\n\n    python3 scripts/codemap.py build\n")
-    sys.exit(1)
-
+    print("verify is retired: the index is not committed any more (see .gitattributes).")
+    print("The session hook rebuilds a stale or missing index; run `build` to force one now.")
 
 def main() -> None:
     args = sys.argv[1:]

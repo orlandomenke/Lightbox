@@ -1,32 +1,16 @@
-# The generated codemap index is derived from the whole solution, so every
-# branch that touches code rewrites it end to end and two branches always
-# collide here. Resolving it is never a hand-merge — the file comes from the
-# merged tree, not from either parent — so a driver does it instead of a person.
-# See scripts/codemap-merge.sh; the driver is registered by
-# .claude/hooks/session-start.sh. A clone without the hook is no worse off:
-# git falls back to an ordinary conflict when the driver is unregistered, which
-# is exactly what happened before this existed.
-.claude/codemap/INDEX.md    merge=codemap
-.claude/codemap/FEATURES.md merge=codemap
-
-# THESE TWO LINES ARE THE WHOLE LIST, and the temptation is to grow it. The
-# ledgers collide on parallel branches just as reliably — BUGS.md, ROADMAP.md,
-# QUESTIONS.md and the contents list in MANUAL.md are all kept in step by a
-# script, which makes them look like the same problem. They are not, and the
-# difference is what can be reconstructed.
+# The codemap merge driver used to live here, resolving INDEX.md and
+# FEATURES.md by regenerating them from the merged tree. It is gone because
+# the files are gone from the repository (2026-08-08, Q54): they are derived
+# artefacts the session hook and CI rebuild on demand, and committing them
+# made every pair of parallel branches conflict by construction — on GitHub,
+# where no merge driver ever runs, that meant every open pull request went
+# red the moment any other one merged.
 #
-# `codemap.py build` writes INDEX.md and FEATURES.md **from nothing**: delete
-# them and they come back identical, because every fact in them is derived from
-# the source. There is no authored content to lose, so regenerating from the
-# merged tree is not a resolution strategy — it is the definition of the file.
-#
-# `bugs.py sync`, `roadmap.py sync` and `manual.py sync` all *parse* their file
-# and rewrite a part of it: a checkbox, an ordering, a marked block. Every entry
-# is authored prose that no script can reproduce. Two branches that each filed a
-# bug have two entries that both have to survive, and choosing which id each
-# keeps is a judgement. Auto-resolving that would throw away work while
-# reporting success, which is worse than the conflict it saved.
-#
-# scripts/codemap-merge.sh refuses any path outside .claude/codemap/ so that
-# adding a line here cannot quietly do that. What protects the ledgers instead
-# is `bugs.py check` in CI, which fails on duplicate ids.
+# The temptation this file used to warn about still stands, one step over:
+# do NOT add a merge driver (or union attribute) for the ledgers. BUGS.md,
+# ROADMAP.md, QUESTIONS.md and MANUAL.md are authored prose a script cannot
+# reproduce — `bugs.py sync` rewrites checkboxes in them, it cannot rewrite
+# the entries. Two branches that each filed a bug have two entries that both
+# have to survive, and which id each keeps is a judgement. Auto-resolving
+# that throws away work while reporting success. The pre-push `bugs.py ids`
+# gate is what guards them instead.
