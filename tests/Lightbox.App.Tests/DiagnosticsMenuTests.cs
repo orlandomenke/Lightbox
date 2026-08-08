@@ -71,9 +71,10 @@ public class DiagnosticsMenuTests
     [Fact]
     public void TheBuildLabelNamesTheCommitRatherThanJustAVersion()
     {
-        // "1.0.0" identifies nothing when every build says it. The SDK stamps
-        // the informational version as 1.0.0+<sha>, and that is what makes a
-        // bug report answerable.
+        // A version number alone cannot be exact enough: an untagged bundle and
+        // the release it precedes can share one, and a version can be re-cut.
+        // The SDK appends +<sha> to the informational version, and that is the
+        // half that makes a bug report answerable.
         Assert.Matches(new Regex(@"\+[0-9a-f]{7,}"), DiagnosticLog.Build);
     }
 }

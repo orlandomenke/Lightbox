@@ -38,11 +38,14 @@ internal static class DiagnosticLog
     /// Which build this is, exactly.
     /// </summary>
     /// <remarks>
-    /// The SDK already stamps <c>AssemblyInformationalVersion</c> as
-    /// <c>1.0.0+&lt;git sha&gt;</c>, so a log can name the commit it came from
-    /// without any version machinery being invented for it. That matters more
-    /// than the marketing version: "1.0.0" identifies nothing when every build
-    /// says it.
+    /// Both halves, and both are needed. The SDK appends <c>+&lt;git sha&gt;</c>
+    /// to <c>AssemblyInformationalVersion</c>, which names the exact commit —
+    /// the part that makes a report answerable, and the part that was doing all
+    /// the work back when every build called itself <c>1.0.0</c>. In front of it
+    /// is the release version from <c>Directory.Build.props</c>, or the tag that
+    /// overrode it, so a stamp now reads <c>0.1.0-alpha.42+9f3c1ab</c>: which
+    /// build a person thinks they are running, and which commit they actually
+    /// are.
     /// </remarks>
     public static string Build =>
         typeof(DiagnosticLog).Assembly
