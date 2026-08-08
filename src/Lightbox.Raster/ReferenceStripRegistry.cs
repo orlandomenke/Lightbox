@@ -40,6 +40,18 @@ public static class ReferenceStripRegistry
         }
     }
 
+    /// <summary>
+    /// Hold an already-decoded sheet — the video-reference path (Q56), where
+    /// the pixels come from footage rather than a stored PNG. Takes ownership.
+    /// </summary>
+    public static void Register(string id, SKBitmap sheet)
+    {
+        if (!Sheets.TryAdd(id, sheet))
+        {
+            sheet.Dispose();
+        }
+    }
+
     public static SKBitmap? Resolve(string id) => Sheets.GetValueOrDefault(id);
 
     /// <summary>Forget one sheet — a reference the artist removed.</summary>

@@ -2011,6 +2011,12 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Lightbox.Raster.ReferenceStripRegistry.Register(
                 strips.Select(s => (s.Id, s.Png)));
+            // Video references carry no PNG — their pixels come back off the
+            // footage itself (Q56).
+            foreach (var strip in strips.Where(s => s.VideoPath is not null))
+            {
+                RegisterVideoReference(strip);
+            }
         }
     }
 
@@ -9432,6 +9438,95 @@ public sealed partial class MainViewModel : ObservableObject
         ActiveReferenceIndex = index;
         AfterReferenceChange();
         return strip;
+    }
+
+    /// <summary>
+    /// Footage to draw against (Q56): the clip's frames extracted at the
+    /// scene's fps and laid against the timeline like any reference. The
+    /// document keeps the path — relative when the file lives near it — and
+    /// the pixels are rebuilt from the footage on load. Returns null on
+    /// success or a sentence saying why not.
+    /// </summary>
+    public async Task<string?> ImportVideoReference(string path)
+    {
+        if (Services.VideoExporter.FindFfmpeg() is not { } ffmpeg)
+        {
+            return "FFmpeg was not found — reinstall Lightbox, or install FFmpeg and put it on PATH.";
+        }
+        // The extraction is an FFmpeg run — seconds, off the UI thread. The
+        // document edit below stays on it, like every other edit.
+        var fps = Math.Max(1, Scene.Fps);
+        var (extracted, error) = await Task.Run(() =>
+        {
+            var r = Services.VideoReferenceImporter.Extract(ffmpeg, path, fps, out var e);
+            return (r, e);
+        });
+        if (extracted is not { } result) return error ?? "The clip could not be read.";
+
+        var stored = path;
+        if (System.IO.Path.GetDirectoryName(SaveTargetTab?.FilePath) is { Length: > 0 } docDir)
+        {
+            var relative = System.IO.Path.GetRelativePath(docDir, path);
+            if (!relative.StartsWith("..", StringComparison.Ordinal)
+                && !System.IO.Path.IsPathRooted(relative))
+            {
+                stored = relative;
+            }
+        }
+
+        var strip = new ReferenceStrip
+        {
+            Name = System.IO.Path.GetFileNameWithoutExtension(path),
+            VideoPath = stored,
+            SheetWidth = result.Sheet.Width,
+            SheetHeight = result.Sheet.Height,
+            Cells = result.Cells,
+        };
+        strip.LayOutFrom(CurrentFrameIndex);
+        strip.Scale = FitScale(strip, Scene);
+        strip.CentreOn(Scene.Width, Scene.Height);
+
+        var index = 0;
+        _editor.Perform(doc =>
+        {
+            doc.Scene.References ??= [];
+            index = doc.Scene.References.Count;
+            doc.Scene.References.Add(strip);
+            if (strip.Slots.Count > doc.Scene.FrameCount)
+            {
+                doc.Scene.FrameCount = strip.Slots.Count;
+            }
+        });
+
+        Lightbox.Raster.ReferenceStripRegistry.Register(strip.Id, result.Sheet);
+        ActiveReferenceIndex = index;
+        AfterReferenceChange();
+        return null;
+    }
+
+    /// <summary>
+    /// Rebuild a loaded video reference's pixels from its footage. Quiet when
+    /// FFmpeg or the file is gone — drawing against nothing is the reference
+    /// system's standing answer to a source it cannot read.
+    /// </summary>
+    private void RegisterVideoReference(ReferenceStrip strip)
+    {
+        if (Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id) is not null) return;
+        if (Services.VideoExporter.FindFfmpeg() is not { } ffmpeg) return;
+
+        var resolved = strip.VideoPath!;
+        if (!System.IO.Path.IsPathRooted(resolved))
+        {
+            if (System.IO.Path.GetDirectoryName(SaveTargetTab?.FilePath) is not { Length: > 0 } docDir) return;
+            resolved = System.IO.Path.Combine(docDir, resolved);
+        }
+        if (!File.Exists(resolved)) return;
+
+        var extracted = Services.VideoReferenceImporter.Extract(ffmpeg, resolved, Math.Max(1, Scene.Fps), out _);
+        if (extracted is { } result)
+        {
+            Lightbox.Raster.ReferenceStripRegistry.Register(strip.Id, result.Sheet);
+        }
     }
 
     private static List<ReferenceCell> SliceSheet(SKBitmap sheet, SliceOptions options)

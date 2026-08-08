@@ -2001,10 +2001,28 @@ public partial class MainWindow : Window
             AllowMultiple = false,
             FileTypeFilter =
             [
+                new FilePickerFileType("Images and video")
+                {
+                    Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp",
+                                "*.mp4", "*.mov", "*.avi", "*.mkv", "*.webm"],
+                },
                 new FilePickerFileType("Images") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"] },
+                new FilePickerFileType("Video") { Patterns = ["*.mp4", "*.mov", "*.avi", "*.mkv", "*.webm"] },
             ],
         });
         if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path) return;
+
+        // Footage goes its own way (Q56): frames extracted at the scene's
+        // fps, referenced by path rather than embedded.
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        if (ext is ".mp4" or ".mov" or ".avi" or ".mkv" or ".webm")
+        {
+            _vm.AiStatus = "Reading the clip…";
+            var error = await _vm.ImportVideoReference(path);
+            _vm.AiStatus = error ?? $"Drawing against “{Path.GetFileName(path)}”.";
+            if (error is null) _vm.ReferenceDockerVisible = true;
+            return;
+        }
 
         // Everything becomes PNG on the way in. The document carries the image
         // itself rather than a path — a reference that broke when the file

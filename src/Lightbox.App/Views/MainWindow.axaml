@@ -3335,7 +3335,7 @@
                         ToolTip.Tip="Remove this reference" />
                 <Button Classes="icon" DockPanel.Dock="Right" Content="＋" FontSize="10"
                         Click="OnImportReferenceClicked"
-                        ToolTip.Tip="Import an image of an animation and lay it against the timeline" />
+                        ToolTip.Tip="Import an image of an animation — or a video clip to draw against — and lay it against the timeline" />
                 <ComboBox ItemsSource="{Binding References}"
                           SelectedIndex="{Binding ActiveReferenceIndex}"
                           HorizontalAlignment="Stretch" IsVisible="{Binding HasReferences}"

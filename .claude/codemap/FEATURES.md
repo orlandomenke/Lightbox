@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-3005 tests, derived from the suite itself. Each line is a
+3009 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -2691,6 +2691,18 @@ regression even when every test still compiles.
 - The Pcm Writer Round Trips Through Our Own Decoder — `:71`
 - AReal Encode Produces AFile — `:97`
 - Ffmpeg Discovery Prefers The Bundled Copy — `:120`
+
+## VideoReferenceImportTests
+`tests/Lightbox.App.Tests/VideoReferenceTests.cs`
+
+- AClip Becomes AReference Mapped To The Timeline — `:64`
+
+## VideoReferenceModelTests
+`tests/Lightbox.App.Tests/VideoReferenceTests.cs`
+
+- An Image Reference Writes No Video Key — `:19`
+- AVideo Reference Round Trips Its Path And Carries No Pixels — `:33`
+- The Contact Sheet Grid Is Near Square — `:53`
 
 ## ViewportCullingPerformanceTests
 `tests/Lightbox.App.Tests/ViewportCullingPerformanceTests.cs`

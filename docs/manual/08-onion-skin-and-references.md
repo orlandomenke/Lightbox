@@ -73,6 +73,27 @@ in the pixels, and no amount of looking finds one that is not there. Set **Cols*
 and **Rows** and press **Apply grid** and the image is not consulted at all.
 **Detect** goes back to reading it. Or edit the boxes by hand — see below.
 
+### Video to draw against
+
+The same **＋** also takes a **video clip** (MP4, MOV, AVI, MKV, WebM) — the
+drawn-over-live-footage workflow. The clip's frames are extracted at the
+scene's own fps and laid against the timeline like any reference: frame 1
+under frame 1, the timeline growing to fit, your drawing layers on top.
+
+Two things are different about footage, both deliberate:
+
+- **The document keeps the path, not the pixels.** Video is megabytes per
+  second, and embedding it would turn every document that draws over a shot
+  into a copy of the shot. The frames are rebuilt from the file when the
+  document opens; if the file has gone, you are drawing against nothing until
+  it is back — the drawing itself is never touched.
+- **There is a budget.** Frames come in at reference quality (up to 480 px
+  wide) and at most 240 of them — twenty seconds at 12 fps. A reference is
+  for registration and timing, not for grading.
+
+Extraction runs through the same bundled FFmpeg the video export uses; on a
+machine without it, the import says so instead of failing quietly.
+
 ## Editing the grid by hand
 
 The **⊞** in the shortcut bar turns on grid editing. Every box on the sheet
