@@ -43,18 +43,48 @@ public class VideoExportSettingsTests
     }
 
     [Fact]
-    public void AScaledRenderLandsOnEvenDimensions()
+    public void TheVideoAndThePngSequenceRenderTheSamePixels()
     {
-        // H.264's yuv420p cannot encode an odd side, and half of 101 is 50.5.
+        // An odd-sided document at the window's own defaults. Rounding the
+        // size to even here — which the codecs want — made the video 102x100
+        // while the sequence stayed 101x99, breaking SequenceExporter's
+        // promise that the two are the same pixels by construction, at the
+        // settings nobody had touched. The encoder pads the odd edge instead:
+        // padding adds a pixel, rounding changes what was rendered.
+        var doc = SceneOf(101, 99, 1);
+        var settings = VideoExportSettings.For(doc.Scene);
+
+        Assert.Equal((101, 99), settings.OutputSize(doc.Scene));
+
+        using var cache = new FrameBitmapCache();
+        using var sequence = SequenceExporter.RenderFrame(doc, cache, 0);
+        var (w, h) = settings.OutputSize(doc.Scene);
+        using var video = SequenceExporter.RenderFrame(doc, cache, 0, settings.Scale, (w, h));
+
+        Assert.Equal(sequence.Width, video.Width);
+        Assert.Equal(sequence.Height, video.Height);
+    }
+
+    [Fact]
+    public void EveryFormatPadsAnOddEdgeRatherThanResizingTheArt()
+    {
+        foreach (var format in (VideoFormat[])[VideoFormat.Mp4, VideoFormat.ProRes])
+        {
+            var args = VideoExporter.BuildArgs(format, 101, 99, 12, "/out/a" + VideoExporter.ExtensionOf(format));
+            var at = args.IndexOf("-vf");
+            Assert.True(at >= 0, $"{format} must pad an odd dimension");
+            Assert.Contains("pad=", args[at + 1]);
+        }
+    }
+
+    [Fact]
+    public void AScaledRenderRoundsToWholePixels()
+    {
         var doc = SceneOf(101, 99, 4);
 
         var half = VideoExportSettings.For(doc.Scene) with { Scale = 0.5 };
-        var (width, height) = half.OutputSize(doc.Scene);
 
-        Assert.Equal(0, width % 2);
-        Assert.Equal(0, height % 2);
-        Assert.InRange(width, 50, 52);
-        Assert.InRange(height, 48, 50);
+        Assert.Equal((51, 50), half.OutputSize(doc.Scene));
     }
 
     [Fact]
@@ -137,7 +167,7 @@ public class VideoExportSettingsTests
         // bytes, so the even-number rounding may only be decided in one place.
         var doc = SceneOf(101, 99, 1);
         var settings = VideoExportSettings.For(doc.Scene) with { Scale = 0.5 };
-        var size = settings.OutputSize(doc.Scene);
+        var size = settings.OutputSize(doc.Scene);   // 51x50 — odd on a side
 
         using var cache = new FrameBitmapCache();
         using var image = SequenceExporter.RenderFrame(doc, cache, 0, 0.5, size);
@@ -300,5 +330,46 @@ public class VideoExportSettingsTests
         var audio = window.FindControl<CheckBox>("AudioBox")!;
         Assert.False(audio.IsEnabled);
         Assert.False(window.CurrentSettings().IncludeAudio);
+    }
+
+    [AvaloniaFact]
+    public void ATrackWhoseFileCannotBeFoundDoesNotPromiseSound()
+    {
+        // Having a track and being able to read it are different questions. A
+        // ticked box over a WAV that has moved renders a silent video and
+        // reports success — which is B146 again, one feature along, so the
+        // window asks the resolver rather than trusting the track.
+        var doc = SceneOf(64, 48, 6);
+        doc.Scene.Audio = new AudioTrack { Path = "/no/such/folder/take.wav" };
+
+        var window = new VideoExportWindow(doc, () => null, "take");
+
+        var audio = window.FindControl<CheckBox>("AudioBox")!;
+        Assert.False(audio.IsChecked);
+        Assert.False(audio.IsEnabled);
+        Assert.Contains("cannot be found", audio.Content?.ToString());
+        Assert.False(window.CurrentSettings().IncludeAudio);
+    }
+
+    [AvaloniaFact]
+    public void ATrackThatCanBeReadIsOfferedAndOnByDefault()
+    {
+        var doc = SceneOf(64, 48, 6);
+        doc.Scene.Audio = new AudioTrack { Path = "take.wav" };
+        var wav = Path.Combine(Path.GetTempPath(), "lightbox-window-audio.wav");
+        File.WriteAllBytes(wav, [1, 2, 3]);
+        try
+        {
+            var window = new VideoExportWindow(doc, () => wav, "take");
+
+            var audio = window.FindControl<CheckBox>("AudioBox")!;
+            Assert.True(audio.IsChecked);
+            Assert.True(audio.IsEnabled);
+            Assert.True(window.CurrentSettings().IncludeAudio);
+        }
+        finally
+        {
+            File.Delete(wav);
+        }
     }
 }

@@ -111,7 +111,10 @@ public static class VideoExporter
                 if (audioPath is not null) args.AddRange(["-c:a", "aac", "-b:a", "192k"]);
                 break;
             case VideoFormat.ProRes:
+                // yuv422p10le wants an even width for the same reason, and a
+                // document is free to be an odd number of pixels wide.
                 args.AddRange([
+                    "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
                     "-c:v", "prores_ks",
                     "-profile:v", Math.Clamp(quality ?? 3, 0, 5).ToString(System.Globalization.CultureInfo.InvariantCulture),
                     "-pix_fmt", "yuv422p10le", "-vendor", "apl0",

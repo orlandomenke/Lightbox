@@ -45,18 +45,35 @@ public sealed record VideoExportSettings(
         format switch { VideoFormat.ProRes => 3, _ => 18 };
 
     /// <summary>
-    /// The encoded size: the scene's output size — the camera's when there is
-    /// one — taken through <see cref="Scale"/>. Never below 2 px, and never
-    /// odd on a side, because H.264's yuv420p cannot encode an odd dimension
-    /// and padding a deliberate half-size render is a worse answer than
-    /// landing on the even number next door.
+    /// The rendered size: the scene's output size — the camera's when there is
+    /// one — taken through <see cref="Scale"/>.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately <b>not</b> rounded to even numbers, though every codec
+    /// here wants even sides. Rounding here was tried and is wrong: at scale 1
+    /// it made a 101×99 document encode at 102×100 while
+    /// <c>ExportPngSequence</c> rendered it at 101×99, breaking
+    /// <see cref="SequenceExporter"/>'s promise that a video and a sequence of
+    /// the same document are the same pixels by construction — and breaking it
+    /// at the window's own defaults, where nobody asked for a resize.
+    /// </para>
+    /// <para>
+    /// The encoder pads the odd edge instead, which is what it did before this
+    /// window existed. Padding adds a pixel of background; rounding changes
+    /// what was rendered.
+    /// </para>
+    /// </remarks>
     public (int Width, int Height) OutputSize(Scene scene)
     {
         var (w, h) = SequenceExporter.OutputSize(scene);
-        return (Even(w * Scale), Even(h * Scale));
+        // Away from zero rather than .NET's banker's default: half of 101 is
+        // 51 to everyone who is not a floating-point library.
+        return Scale == 1.0
+            ? (w, h)
+            : (Round(w * Scale), Round(h * Scale));
 
-        static int Even(double v) => Math.Max(2, (int)Math.Round(v / 2, MidpointRounding.AwayFromZero) * 2);
+        static int Round(double v) => Math.Max(1, (int)Math.Round(v, MidpointRounding.AwayFromZero));
     }
 
     /// <summary>The frames this render covers, clamped to what the scene has.</summary>

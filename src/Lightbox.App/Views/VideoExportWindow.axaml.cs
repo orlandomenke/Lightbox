@@ -60,9 +60,20 @@ public partial class VideoExportWindow : Window
         FpsBox.Text = Math.Max(1, scene.Fps).ToString();
         FromBox.IsEnabled = ToBox.IsEnabled = false;
 
-        var hasAudio = scene.Audio is { Muted: false };
-        AudioBox.IsChecked = hasAudio;
-        AudioBox.IsEnabled = hasAudio;
+        // Whether there is sound is not the same question as whether the sound
+        // can be found: a referenced WAV that has moved, or embedded bytes that
+        // will not decode, resolve to nothing. Asking the resolver here rather
+        // than trusting the track means the checkbox cannot promise a sound
+        // the encode then silently drops — which would be B146 again, one
+        // feature along.
+        var hasTrack = scene.Audio is { Muted: false };
+        var resolvable = hasTrack && resolveAudio() is not null;
+        AudioBox.IsChecked = resolvable;
+        AudioBox.IsEnabled = resolvable;
+        if (hasTrack && !resolvable)
+        {
+            AudioBox.Content = "The scratch track's file cannot be found";
+        }
 
         PathBox.Text = Path.Combine(DefaultFolder(), suggestedName + ".mp4");
 
@@ -212,6 +223,10 @@ public partial class VideoExportWindow : Window
         }
 
         var audio = settings.IncludeAudio ? _resolveAudio?.Invoke() : null;
+        // The file can go missing between opening this window and pressing the
+        // button. A silent video reported as a success is the failure this
+        // whole window exists to end, so the sentence says so.
+        var soundWasAskedForAndLost = settings.IncludeAudio && audio is null && _doc.Scene.Audio is { Muted: false };
         _cancel = new CancellationTokenSource();
         _running = true;
         ExportButton.Content = "Stop";
@@ -249,7 +264,11 @@ public partial class VideoExportWindow : Window
         ExportButton.Content = "Export";
         CloseButton.IsEnabled = true;
         Progress.IsVisible = false;
-        StatusText.Text = error ?? VideoExportReport.Done(target, settings, doc.Scene);
+        StatusText.Text = error
+            ?? VideoExportReport.Done(target, settings, doc.Scene)
+               + (soundWasAskedForAndLost
+                   ? " No sound: the scratch track's file could not be read."
+                   : "");
         Reported = StatusText.Text;
     }
 
