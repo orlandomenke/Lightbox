@@ -209,6 +209,48 @@ public sealed class ReferenceStrip
         Slots[frame] = cell;
     }
 
+    /// <summary>
+    /// Slide every assignment along the timeline by <paramref name="delta"/>
+    /// frames (Q57) — the clip bar's body drag. Assignments pushed past
+    /// frame zero are dropped off the front, which is what dragging a clip
+    /// off the left edge means.
+    /// </summary>
+    public void SlideSlots(int delta)
+    {
+        if (delta == 0 || Slots.Count == 0) return;
+        var moved = new List<int>(Slots.Count + Math.Max(0, delta));
+        for (var i = 0; i < Slots.Count + Math.Max(0, delta); i++) moved.Add(-1);
+        for (var i = 0; i < Slots.Count; i++)
+        {
+            if (Slots[i] < 0) continue;
+            var at = i + delta;
+            if (at < 0) continue;
+            while (moved.Count <= at) moved.Add(-1);
+            moved[at] = Slots[i];
+        }
+        Slots = moved;
+    }
+
+    /// <summary>First timeline frame with a cell assigned, or -1 for none.</summary>
+    public int FirstAssignedSlot()
+    {
+        for (var i = 0; i < Slots.Count; i++)
+        {
+            if (Slots[i] >= 0) return i;
+        }
+        return -1;
+    }
+
+    /// <summary>Last timeline frame with a cell assigned, or -1 for none.</summary>
+    public int LastAssignedSlot()
+    {
+        for (var i = Slots.Count - 1; i >= 0; i--)
+        {
+            if (Slots[i] >= 0) return i;
+        }
+        return -1;
+    }
+
     /// <summary>Every frame in order, one cell each, starting at <paramref name="from"/>.</summary>
     public void LayOutFrom(int from)
     {

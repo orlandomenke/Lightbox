@@ -27,6 +27,21 @@ public sealed record TrackRow(
     bool IsCamera);
 
 /// <summary>
+/// One clip's span on the timeline (Q57): footage or sound as a bar the hand
+/// can take hold of. <paramref name="StripIndex"/> names the reference strip
+/// it stands for; -1 for the audio track.
+/// </summary>
+public sealed record ClipBar(string Name, int Start, int End, int StripIndex);
+
+/// <summary>What a drag on a clip bar means: the body slides, an edge trims.</summary>
+public enum ClipEditKind
+{
+    Slide,
+    TrimIn,
+    TrimOut,
+}
+
+/// <summary>
 /// The reference's timeline: one coloured track per layer, drawings as dots,
 /// holds as bars, the camera as its own track, a ruler and a playhead. Dots
 /// drag to retime; the host answers <see cref="KeyDragged"/> because moving a
@@ -101,6 +116,32 @@ public class TrackView : Control
         set => SetValue(AudioLabelProperty, value);
     }
 
+    /// <summary>Footage clips shown as draggable bars, one row each (Q57).</summary>
+    public static readonly StyledProperty<IReadOnlyList<ClipBar>?> VideoClipsProperty =
+        AvaloniaProperty.Register<TrackView, IReadOnlyList<ClipBar>?>(nameof(VideoClips));
+
+    public IReadOnlyList<ClipBar>? VideoClips
+    {
+        get => GetValue(VideoClipsProperty);
+        set => SetValue(VideoClipsProperty, value);
+    }
+
+    /// <summary>The audio clip's span, drawn as a bar around the waveform, or null.</summary>
+    public static readonly StyledProperty<ClipBar?> AudioClipProperty =
+        AvaloniaProperty.Register<TrackView, ClipBar?>(nameof(AudioClip));
+
+    public ClipBar? AudioClip
+    {
+        get => GetValue(AudioClipProperty);
+        set => SetValue(AudioClipProperty, value);
+    }
+
+    /// <summary>A clip bar finished a drag: which strip, what kind, how many frames.</summary>
+    public event Action<int, ClipEditKind, int>? VideoClipEdited;
+
+    /// <summary>The audio bar finished a drag.</summary>
+    public event Action<ClipEditKind, int>? AudioClipEdited;
+
     // The reference's geometry, measured off its timeline strip.
     internal const double Gutter = 118;   // track names
     internal const double RulerHeight = 20;
@@ -109,9 +150,11 @@ public class TrackView : Control
 
     static TrackView()
     {
-        AffectsMeasure<TrackView>(TracksProperty, FrameWidthProperty, FrameCountProperty, AudioPeaksProperty);
+        AffectsMeasure<TrackView>(
+            TracksProperty, FrameWidthProperty, FrameCountProperty, AudioPeaksProperty, VideoClipsProperty);
         AffectsRender<TrackView>(
-            TracksProperty, FrameWidthProperty, CurrentFrameProperty, FrameCountProperty, AudioPeaksProperty);
+            TracksProperty, FrameWidthProperty, CurrentFrameProperty, FrameCountProperty,
+            AudioPeaksProperty, VideoClipsProperty, AudioClipProperty);
     }
 
     // ---- geometry, static so the tests can hold it still ---------------------
@@ -154,10 +197,11 @@ public class TrackView : Control
     protected override Size MeasureOverride(Size availableSize)
     {
         var rows = Tracks?.Count ?? 0;
+        var clipRows = VideoClips?.Count ?? 0;
         var audioBand = AudioPeaks is { Count: > 0 } ? RowPitch : 0;
         return new Size(
             Gutter + FrameCount * FrameWidth + 24,
-            RulerHeight + rows * RowPitch + audioBand + 6);
+            RulerHeight + (rows + clipRows) * RowPitch + audioBand + 6);
     }
 
     // ---- painting -------------------------------------------------------------
@@ -245,13 +289,33 @@ public class TrackView : Control
             }
         }
 
+        // Footage clip bars (Q57): one row per clip, the bar the hand takes
+        // hold of — body slides, edges trim.
+        var clipColour = Color.Parse("#6F9BE8");
+        if (VideoClips is { Count: > 0 } clips)
+        {
+            for (var j = 0; j < clips.Count; j++)
+            {
+                var clip = clips[j];
+                var y = RulerHeight + (tracks.Count + j) * RowPitch;
+                var (start, end) = DraggedSpan(clip.Start, clip.End, isAudio: false, stripIndex: clip.StripIndex);
+
+                var clipName = new FormattedText(
+                    clip.Name, System.Globalization.CultureInfo.InvariantCulture,
+                    FlowDirection.LeftToRight, typeface, 11, text);
+                context.DrawText(clipName, new Point(10, y + RowPitch / 2 - clipName.Height / 2));
+
+                DrawClipBar(context, clipColour, start, end, y);
+            }
+        }
+
         // The scratch track's waveform, its own band under the drawing
         // tracks — where the reference strips put sound. One bar per frame:
         // the band answers "what is under frame 12", not "what does the
         // pressure wave look like", so it is addressed the way frames are.
         if (AudioPeaks is { Count: > 0 } audio)
         {
-            var top = RulerHeight + tracks.Count * RowPitch;
+            var top = AudioBandTop(tracks.Count);
             var mid = top + RowPitch / 2;
             var half = RowPitch / 2 - 3;
             var audioColour = Color.Parse("#63C7A6");
@@ -261,6 +325,14 @@ public class TrackView : Control
                 AudioLabel, System.Globalization.CultureInfo.InvariantCulture,
                 FlowDirection.LeftToRight, typeface, 11, text);
             context.DrawText(audioName, new Point(10, mid - audioName.Height / 2));
+
+            // The clip bar around the waveform (Q57), drawn first so the
+            // sound reads on top of its own handle.
+            if (AudioClip is { } audioClip)
+            {
+                var (start, end) = DraggedSpan(audioClip.Start, audioClip.End, isAudio: true, stripIndex: -1);
+                DrawClipBar(context, audioColour, start, end, top);
+            }
 
             var gap = FrameWidth >= 4 ? 1.0 : 0.0;
             for (var f = 0; f < Math.Min(audio.Count, FrameCount); f++)
@@ -293,6 +365,86 @@ public class TrackView : Control
             (CurrentFrame + 1).ToString(), System.Globalization.CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight, typeface, 9, Brushes.White);
         context.DrawText(frameLabel, new Point(playX - frameLabel.Width / 2, 4));
+    }
+
+    // ---- clip bars (Q57) --------------------------------------------------------
+
+    private (bool IsAudio, int StripIndex, ClipEditKind Kind, int PressFrame, int Delta)? _clipDrag;
+
+    private double AudioBandTop(int trackCount) =>
+        RulerHeight + (trackCount + (VideoClips?.Count ?? 0)) * RowPitch;
+
+    /// <summary>The bar's span with the live drag applied — the ghost the hand follows.</summary>
+    private (int Start, int End) DraggedSpan(int start, int end, bool isAudio, int stripIndex)
+    {
+        if (_clipDrag is not { } cd || cd.IsAudio != isAudio
+            || (!isAudio && cd.StripIndex != stripIndex))
+        {
+            return (start, end);
+        }
+        return cd.Kind switch
+        {
+            ClipEditKind.Slide => (start + cd.Delta, end + cd.Delta),
+            ClipEditKind.TrimIn => (Math.Min(start + cd.Delta, end), end),
+            _ => (start, Math.Max(end + cd.Delta, start)),
+        };
+    }
+
+    private void DrawClipBar(DrawingContext context, Color colour, int start, int end, double y)
+    {
+        var x0 = Gutter + start * FrameWidth;
+        var width = Math.Max(FrameWidth, (end - start + 1) * FrameWidth);
+        var rect = new Rect(x0, y + 2, width, RowPitch - 4);
+        context.DrawRectangle(
+            new SolidColorBrush(Color.FromArgb(0x30, colour.R, colour.G, colour.B)),
+            new Pen(new SolidColorBrush(Color.FromArgb(0xA0, colour.R, colour.G, colour.B)), 1),
+            new RoundedRect(rect, 3));
+        // Brighter edge handles, so trimming has somewhere to aim.
+        var handle = new SolidColorBrush(Color.FromArgb(0xE0, colour.R, colour.G, colour.B));
+        context.DrawRectangle(handle, null, new Rect(rect.X, rect.Y, 3, rect.Height));
+        context.DrawRectangle(handle, null, new Rect(rect.Right - 3, rect.Y, 3, rect.Height));
+    }
+
+    /// <summary>
+    /// The frame under x with no clamping — clip drags may aim past the end
+    /// of the document (the timeline grows to follow) or left of frame zero.
+    /// </summary>
+    private int RawFrameAtX(double x) => (int)Math.Floor((x - Gutter) / Math.Max(0.01, FrameWidth));
+
+    private (bool IsAudio, int StripIndex, ClipEditKind Kind)? ClipHitAt(Point p, int trackCount)
+    {
+        // The edge zone grows with the frames so trimming stays hittable
+        // zoomed out, and never eats the whole bar zoomed in.
+        var edge = Math.Max(5.0, Math.Min(FrameWidth, 12.0));
+        if (VideoClips is { Count: > 0 } clips)
+        {
+            var rowsTop = RulerHeight + trackCount * RowPitch;
+            var j = (int)Math.Floor((p.Y - rowsTop) / RowPitch);
+            if (j >= 0 && j < clips.Count && SpanHit(p.X, clips[j].Start, clips[j].End, edge) is { } kind)
+            {
+                return (false, clips[j].StripIndex, kind);
+            }
+        }
+        if (AudioClip is { } audio && AudioPeaks is { Count: > 0 })
+        {
+            var top = AudioBandTop(trackCount);
+            if (p.Y >= top && p.Y < top + RowPitch
+                && SpanHit(p.X, audio.Start, audio.End, edge) is { } kind)
+            {
+                return (true, -1, kind);
+            }
+        }
+        return null;
+    }
+
+    private ClipEditKind? SpanHit(double x, int start, int end, double edge)
+    {
+        var x0 = Gutter + start * FrameWidth;
+        var x1 = Gutter + (end + 1) * FrameWidth;
+        if (x < x0 - 2 || x > x1 + 2) return null;
+        if (x <= x0 + edge) return ClipEditKind.TrimIn;
+        if (x >= x1 - edge) return ClipEditKind.TrimOut;
+        return ClipEditKind.Slide;
     }
 
     // ---- interaction -----------------------------------------------------------
@@ -331,6 +483,16 @@ public class TrackView : Control
             }
         }
 
+        // A clip bar under the pointer takes the drag before scrubbing does
+        // (Q57) — body slides, edges trim.
+        if (ClipHitAt(p, tracks.Count) is { } hit)
+        {
+            _clipDrag = (hit.IsAudio, hit.StripIndex, hit.Kind, RawFrameAtX(p.X), 0);
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
+
         // Anywhere else in the frame area scrubs, ruler included.
         _scrubbing = true;
         e.Pointer.Capture(this);
@@ -342,6 +504,17 @@ public class TrackView : Control
     {
         base.OnPointerMoved(e);
         var p = e.GetPosition(this);
+        if (_clipDrag is { } cd)
+        {
+            var delta = RawFrameAtX(p.X) - cd.PressFrame;
+            if (delta != cd.Delta)
+            {
+                _clipDrag = cd with { Delta = delta };
+                InvalidateVisual();
+            }
+            e.Handled = true;
+            return;
+        }
         if (_drag is { } d)
         {
             var to = FrameAtX(p.X, FrameWidth, FrameCount);
@@ -363,6 +536,19 @@ public class TrackView : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_clipDrag is { } cd)
+        {
+            _clipDrag = null;
+            e.Pointer.Capture(null);
+            InvalidateVisual();
+            if (cd.Delta != 0)
+            {
+                if (cd.IsAudio) AudioClipEdited?.Invoke(cd.Kind, cd.Delta);
+                else VideoClipEdited?.Invoke(cd.StripIndex, cd.Kind, cd.Delta);
+            }
+            e.Handled = true;
+            return;
+        }
         if (_drag is { } d)
         {
             _drag = null;

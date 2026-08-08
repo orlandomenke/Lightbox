@@ -3521,6 +3521,8 @@
             <controls:TrackView x:Name="TimelineTrackView"
                                 Tracks="{Binding TimelineTracks}"
                                 AudioPeaks="{Binding TimelineAudioPeaks}"
+                                AudioClip="{Binding TimelineAudioClip}"
+                                VideoClips="{Binding TimelineVideoClips}"
                                 FrameCount="{Binding TimelineFrameCount}"
                                 FrameWidth="{Binding TimelineFrameWidth}"
                                 CurrentFrame="{Binding CurrentFrameIndex, Mode=TwoWay}" />

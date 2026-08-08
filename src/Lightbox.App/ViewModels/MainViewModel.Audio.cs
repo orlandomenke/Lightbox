@@ -85,15 +85,91 @@ public partial class MainViewModel
             EnsureAudioLoaded();
             if (_audioMono is null || _audioClip is null) return null;
 
-            var key = (track.OffsetFrames, TimelineFrameCount, Scene.Fps);
+            var key = (track.OffsetFrames, TimelineFrameCount, Scene.Fps,
+                track.TrimStartFrames, track.TrimLengthFrames);
             if (_audioPeaks is null || _audioPeaksKey != key)
             {
                 _audioPeaks = AudioPeaks.Build(
-                    _audioMono, _audioClip.SampleRate, Scene.Fps, TimelineFrameCount, track.OffsetFrames);
+                    _audioMono, _audioClip.SampleRate, Scene.Fps, TimelineFrameCount,
+                    track.OffsetFrames, track.TrimStartFrames, track.TrimLengthFrames);
                 _audioPeaksKey = key;
             }
             return _audioPeaks;
         }
+    }
+
+    /// <summary>The source's length in timeline frames at the scene's fps.</summary>
+    internal int AudioSourceFrames =>
+        AudioClipNow is { } clip
+            ? (int)Math.Ceiling(clip.DurationSeconds * Math.Max(1, Scene.Fps))
+            : 0;
+
+    /// <summary>
+    /// The clip bar's span on the timeline (Q57): where the trimmed clip
+    /// starts and how many frames of it play. Null without decodable audio.
+    /// </summary>
+    public (int Start, int Length)? AudioClipSpan
+    {
+        get
+        {
+            if (Scene.Audio is not { } track) return null;
+            var total = AudioSourceFrames;
+            if (total <= 0) return null;
+            var start = Math.Clamp(track.TrimStartFrames, 0, total - 1);
+            var length = Math.Clamp(track.TrimLengthFrames ?? total - start, 1, total - start);
+            return (track.OffsetFrames, length);
+        }
+    }
+
+    /// <summary>The audio span as the timeline's clip bar, or null.</summary>
+    public Controls.ClipBar? TimelineAudioClip =>
+        AudioClipSpan is { } span
+            ? new Controls.ClipBar("Audio", span.Start, span.Start + span.Length - 1, -1)
+            : null;
+
+    /// <summary>The clip bar's body drag: the whole clip moves along the timeline.</summary>
+    public void SlideAudioClip(int deltaFrames)
+    {
+        if (Scene.Audio is not { } track || deltaFrames == 0) return;
+        track.OffsetFrames += deltaFrames;
+        NotifyAudioSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>
+    /// Drag the IN edge (Q57): +d eats d more source frames off the head and
+    /// the bar's left edge follows; the tail stays anchored where it was.
+    /// The source is never edited.
+    /// </summary>
+    public void TrimAudioClipIn(int deltaFrames)
+    {
+        if (Scene.Audio is not { } track || deltaFrames == 0) return;
+        var total = AudioSourceFrames;
+        if (total <= 0) return;
+        var start = Math.Clamp(track.TrimStartFrames, 0, total - 1);
+        var length = Math.Clamp(track.TrimLengthFrames ?? total - start, 1, total - start);
+        var d = Math.Clamp(deltaFrames, -start, length - 1);
+        if (d == 0) return;
+        track.TrimStartFrames = start + d;
+        track.TrimLengthFrames = length - d;
+        track.OffsetFrames += d;
+        NotifyAudioSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>Drag the OUT edge (Q57): +d plays d more source frames, to the clip's end.</summary>
+    public void TrimAudioClipOut(int deltaFrames)
+    {
+        if (Scene.Audio is not { } track || deltaFrames == 0) return;
+        var total = AudioSourceFrames;
+        if (total <= 0) return;
+        var start = Math.Clamp(track.TrimStartFrames, 0, total - 1);
+        var length = Math.Clamp(track.TrimLengthFrames ?? total - start, 1, total - start);
+        var grown = Math.Clamp(length + deltaFrames, 1, total - start);
+        if (grown == length) return;
+        track.TrimLengthFrames = grown;
+        NotifyAudioSurface();
+        _autosave.MarkDirty();
     }
 
     /// <summary>The decoded sound, for playback. Null when missing or absent.</summary>
@@ -112,7 +188,7 @@ public partial class MainViewModel
     private AudioClip? _audioClip;
     private float[]? _audioMono;
     private AudioPeaks.Peak[]? _audioPeaks;
-    private (int Offset, int Frames, int Fps) _audioPeaksKey;
+    private (int Offset, int Frames, int Fps, int TrimStart, int? TrimLength) _audioPeaksKey;
 
     /// <summary>
     /// Import a sound file onto the document. Returns null on success, or a
@@ -289,11 +365,15 @@ public partial class MainViewModel
             return;
         }
 
-        var t = (CurrentFrameIndex - track.OffsetFrames) / (double)Math.Max(1, Scene.Fps);
-        if (t < 0 || t >= clip.DurationSeconds)
+        // The source position under the playhead, honouring the trim (Q57):
+        // the timeline plays the window [TrimStart, TrimStart+Length) only.
+        var fps = Math.Max(1, Scene.Fps);
+        var t = (CurrentFrameIndex - track.OffsetFrames + track.TrimStartFrames) / (double)fps;
+        var (windowFrom, windowTo) = AudioSourceWindowSeconds(track, clip, fps);
+        if (t < windowFrom || t >= windowTo)
         {
-            // Before the sound starts or past its end: quiet, and ready to
-            // start the moment the playhead crosses in.
+            // Before the clip starts or past its out-point: quiet, and ready
+            // to start the moment the playhead crosses in.
             StopAudio();
             return;
         }
@@ -301,6 +381,16 @@ public partial class MainViewModel
 
         _audioPlayback.Play(clip, t, track.Volume, Math.Clamp(PlaybackSpeedPercent / 100.0, 0.05, 8));
         _audioRunning = true;
+    }
+
+    /// <summary>The trimmed window of the source, in seconds.</summary>
+    private (double From, double To) AudioSourceWindowSeconds(AudioTrack track, AudioClip clip, int fps)
+    {
+        var from = Math.Max(0, track.TrimStartFrames) / (double)fps;
+        var to = track.TrimLengthFrames is { } len
+            ? Math.Min((track.TrimStartFrames + len) / (double)fps, clip.DurationSeconds)
+            : clip.DurationSeconds;
+        return (from, Math.Max(from, to));
     }
 
     private void StopAudio()
@@ -319,8 +409,9 @@ public partial class MainViewModel
         if (IsPlaying || _switchingTabs) return;
         if (Scene.Audio is not { } track || track.Muted || AudioClipNow is not { } clip) return;
         var fps = Math.Max(1, Scene.Fps);
-        var t = (CurrentFrameIndex - track.OffsetFrames) / (double)fps;
-        if (t < 0 || t >= clip.DurationSeconds) return;
+        var t = (CurrentFrameIndex - track.OffsetFrames + track.TrimStartFrames) / (double)fps;
+        var (windowFrom, windowTo) = AudioSourceWindowSeconds(track, clip, fps);
+        if (t < windowFrom || t >= windowTo) return;
         _audioPlayback.ScrubTick(clip, t, 1.0 / fps, track.Volume);
     }
 
@@ -332,6 +423,8 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(AudioMuted));
         OnPropertyChanged(nameof(AudioVolume));
         OnPropertyChanged(nameof(AudioOffsetFrames));
+        OnPropertyChanged(nameof(AudioClipSpan));
+        OnPropertyChanged(nameof(TimelineAudioClip));
         OnPropertyChanged(nameof(TimelineAudioPeaks));
     }
 }

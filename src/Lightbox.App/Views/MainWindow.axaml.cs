@@ -36,6 +36,26 @@ public partial class MainWindow : Window
         // strokes, which is exactly what invariant 6 forbids.
         Canvas.SelectedLinesDragged += (dx, dy) => _vm.MoveSelectedStrokes(dx, dy);
         TimelineTrackView.KeyDragged += OnTrackKeyDragged;
+        // The clip bars (Q57): body slides, edges trim; the view model owns
+        // what that does to the record.
+        TimelineTrackView.AudioClipEdited += (kind, delta) =>
+        {
+            switch (kind)
+            {
+                case Controls.ClipEditKind.Slide: _vm.SlideAudioClip(delta); break;
+                case Controls.ClipEditKind.TrimIn: _vm.TrimAudioClipIn(delta); break;
+                case Controls.ClipEditKind.TrimOut: _vm.TrimAudioClipOut(delta); break;
+            }
+        };
+        TimelineTrackView.VideoClipEdited += (strip, kind, delta) =>
+        {
+            switch (kind)
+            {
+                case Controls.ClipEditKind.Slide: _vm.SlideVideoClip(strip, delta); break;
+                case Controls.ClipEditKind.TrimIn: _vm.TrimVideoClipIn(strip, delta); break;
+                case Controls.ClipEditKind.TrimOut: _vm.TrimVideoClipOut(strip, delta); break;
+            }
+        };
         GraphEditorView.KeyEdited += (series, from, to, value) => _vm.EditCameraKey(series, from, to, value);
         GraphEditorView.KeyAddRequested += frame => _vm.AddCameraKeyAt(frame);
         GraphEditorView.KeyMenuRequested += OnGraphKeyMenu;
