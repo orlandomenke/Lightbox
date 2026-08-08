@@ -105,22 +105,76 @@ public class CanvasQualityEffectTests : BrushStateIsolated
         Assert.Equal(vm.Doc.Scene.Height, decoded.Height);
     }
 
+    /// <summary>
+    /// Full composites what the screen can use — twice the display scale for
+    /// supersampled edges — rather than the whole document regardless.
+    /// </summary>
+    /// <remarks>
+    /// This test used to assert the opposite, deliberately: "Full means the
+    /// document's own resolution, not the display's." That contract made a
+    /// frame change on a large document cost the whole canvas — measured at
+    /// n^1.04 in canvas area, ~1 s per frame change at 8K on the container —
+    /// for detail a zoomed-out monitor cannot show. The 2× margin is where
+    /// Full's "sharpest" now lives; the export test above still pins that
+    /// nothing leaving the application reads any of this.
+    /// </remarks>
     [AvaloniaFact]
-    public void FullQualityIsUnaffectedByWhatTheScreenCanShow()
+    public void FullQualityIsBoundedByWhatTheScreenCanShow()
     {
-        // Full means the document's own resolution, not the display's. A zoomed
-        // -out canvas must not quietly become the export's resolution too, and
-        // compositing ABOVE the document would invent detail the record does
-        // not contain.
         var vm = new MainViewModel(null);
         vm.CanvasQuality = CanvasQuality.Full;
 
+        // Zoomed well out: an 8K-in-a-window situation. 0.25 × 2 = half-size.
         vm.SetDisplayScale(0.25);
         var zoomedOut = Publish(vm);
+
+        Assert.True(zoomedOut.W > 0, "nothing was published");
+        Assert.Equal(vm.Doc.Scene.Width / 2, zoomedOut.W);
+        Assert.True(
+            zoomedOut.W < vm.Doc.Scene.Width,
+            $"Full published {zoomedOut.W}px wide for a display that can show a quarter of {vm.Doc.Scene.Width}");
+    }
+
+    /// <summary>
+    /// Working close is unchanged: at 100% zoom and above the margin saturates
+    /// and Full is document resolution — never more, because compositing above
+    /// the document would invent detail the record does not contain.
+    /// </summary>
+    [AvaloniaFact]
+    public void FullQualitySaturatesToDocumentResolutionWorkingClose()
+    {
+        var vm = new MainViewModel(null);
+        vm.CanvasQuality = CanvasQuality.Full;
+
+        // 0.5 × 2 = 1.0 exactly; 4.0 would be 8× and must still cap at 1.0.
+        vm.SetDisplayScale(0.5);
+        var atHalf = Publish(vm);
         vm.SetDisplayScale(4.0);
         var zoomedIn = Publish(vm);
 
-        Assert.Equal(vm.Doc.Scene.Width, zoomedOut.W);
-        Assert.Equal(zoomedOut, zoomedIn);
+        Assert.Equal(vm.Doc.Scene.Width, atHalf.W);
+        Assert.Equal(atHalf, zoomedIn);
+    }
+
+    /// <summary>
+    /// The ladder keeps its order at every display scale: Half ≤ Display ≤ Full.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheQualityLadderKeepsItsOrderZoomedOut()
+    {
+        var vm = new MainViewModel(null);
+        vm.SetDisplayScale(0.25);
+
+        vm.CanvasQuality = CanvasQuality.Half;
+        var half = Publish(vm);
+        vm.CanvasQuality = CanvasQuality.Display;
+        var display = Publish(vm);
+        vm.CanvasQuality = CanvasQuality.Full;
+        var full = Publish(vm);
+
+        Assert.True(half.W <= display.W && display.W <= full.W,
+            $"half {half.W}, display {display.W}, full {full.W}");
+        Assert.True(full.W < vm.Doc.Scene.Width,
+            "zoomed out, even Full should not pay for the whole document");
     }
 }

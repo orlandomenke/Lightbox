@@ -77,7 +77,13 @@ public enum CanvasQuality
     /// <summary>Match the screen: full detail when zoomed in, less when zoomed out.</summary>
     Display,
 
-    /// <summary>Always composite at document resolution. Sharpest, slowest.</summary>
+    /// <summary>
+    /// Twice what the screen shows, capped at document resolution. Sharpest —
+    /// the margin supersamples stroke edges — and no longer pays for pixels
+    /// the monitor cannot display: zoomed out on a large document this
+    /// composites a fraction of what it used to, and at 100% zoom and above it
+    /// is document resolution exactly as before.
+    /// </summary>
     Full,
 
     /// <summary>Half of what the screen shows. Softer while drawing, fastest.</summary>
