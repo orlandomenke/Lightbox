@@ -108,11 +108,13 @@ public sealed partial class MainViewModel : ObservableObject
     /// </remarks>
     private void AppendToFrameRender(Lightbox.Core.Documents.Frame target, Stroke stroke)
     {
-        if (UnboundedCanvasOn && TileFrameCache.CanTileFrame(target))
-        {
-            _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
-            return;
-        }
+        // Unconditionally, now that playback warms the tile cache on bounded
+        // documents too: a no-op for a frame tiles do not hold, and a stroke
+        // tiles cannot say evicts the frame's entry itself. Skipping this on
+        // the bounded arm would leave playback-warmed tiles one stroke stale
+        // — the next play would show the drawing without its newest line.
+        _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
+        if (UnboundedCanvasOn && TileFrameCache.CanTileFrame(target)) return;
         FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
     }
 
@@ -10412,7 +10414,19 @@ public sealed partial class MainViewModel : ObservableObject
         // the decision to build them must equal the decision to use it — a
         // publish with no viewport yet, or with a camera authored, takes the
         // bounded path, and a tile pass sent there would silently vanish.
-        var unboundedDoc = UnboundedCanvasOn
+        //
+        // Playback joins the unbounded canvas here (B144/Q62): while frames
+        // are flipping, a cel costs its ink rather than its paper, so a
+        // scene whose full-frame bitmaps thrash the cache above 720p stays
+        // resident as tiles — measured at 145 → 14 ms a frame at 1080p on
+        // sparse cels. The line is drawn at motion on purpose: a paused
+        // publish returns to the bounded compositor, so the still picture is
+        // always today's canonical render, and any resample difference the
+        // pyramid introduces below 100% zoom exists only while the sequence
+        // is moving. No live stroke, transform or ghost pass exists during
+        // playback, which is what keeps the two compositors' remaining
+        // differences (live clip masks, bake folding) out of reach.
+        var tileNativeDoc = (UnboundedCanvasOn || IsPlaying)
             && scene.Camera is null
             && _pendingViewport is { Width: > 0, Height: > 0 };
 
@@ -10479,7 +10493,7 @@ public sealed partial class MainViewModel : ObservableObject
             SKBitmap? bmp = null;
             var liveEffectHere = _liveComposite is not null
                 && _strokeBuilder.IsActive && layer.Id == ActiveLayer.Id;
-            if (unboundedDoc && !liveEffectHere && TileFrameCache.CanTileFrame(frame))
+            if (tileNativeDoc && !liveEffectHere && TileFrameCache.CanTileFrame(frame))
             {
                 tileFrame = frame;
             }
@@ -10647,7 +10661,7 @@ public sealed partial class MainViewModel : ObservableObject
         // TODO: Optimize TileStore.FromBitmap or render directly to tiles to make this faster.
         // A camera defers to the camera path: the unbounded compositor maps the
         // viewport itself, and two things that both map the view disagree.
-        var useUnboundedPath = unboundedDoc
+        var useUnboundedPath = tileNativeDoc
             && cameraView is null
             && _pendingViewport is { Width: > 0, Height: > 0 };
 
