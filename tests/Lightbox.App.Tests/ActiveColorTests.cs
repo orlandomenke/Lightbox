@@ -93,7 +93,7 @@ public class ActiveColorTests
         vm.MoveStroke(60, 60, 1);
         vm.EndStroke();
 
-        var stroke = ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1];
+        var stroke = ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1];
         Assert.Equal(DocumentFactory.WhiteSwatchId, stroke.SwatchId);
     }
 

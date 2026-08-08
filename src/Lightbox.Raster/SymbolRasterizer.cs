@@ -69,7 +69,7 @@ public static class SymbolRasterizer
     /// with the sequence rather than freezing on one drawing.
     /// </param>
     public static void StampPlacements(
-        SKCanvas target, PaintedFrame frame, SKImageInfo info, int celIndex, double outputScale = 1.0)
+        SKCanvas target, Frame frame, SKImageInfo info, int celIndex, double outputScale = 1.0)
     {
         if (!frame.HasPlacements) return;
         foreach (var placement in frame.Placements!)
@@ -240,12 +240,11 @@ public static class SymbolRasterizer
     /// </remarks>
     private static Rendered? Render(Frame frame, SKImageInfo info, double scale)
     {
-        using var full = frame switch
-        {
-            PaintedFrame p => FrameRasterizer.Materialize(p, info.Width, info.Height, scale),
-            VectorFrame v => FrameRasterizer.Rasterize(v.Strokes, info.Width, info.Height, scale),
-            _ => null,
-        };
+        // `Materialize` rather than `Rasterize`, and one call rather than two arms:
+        // it is baseline-then-strokes, and it already treats an absent baseline as
+        // nothing to draw. The vector arm used to call `Rasterize` only because a
+        // `VectorFrame` had no baseline field to consult.
+        using var full = FrameRasterizer.Materialize(frame, info.Width, info.Height, scale);
         if (full is null) return null;
         if (InkBounds(full) is not { } ink) return null;
 

@@ -1,8 +1,16 @@
 # Vector tooling: making the lines you already drew editable
 
-Status: **agreed design, phase 0 in progress.** Decisions Q47–Q53, answered
-2026-08-07. Unblocked by Q26, which has been answered since the same day and
-which two other documents still describe as open — see *Corrections* at the end.
+Status: **agreed design; phase 0 landed except rotate and scale, phases 1–4 not
+started.** Decisions Q47–Q53, answered 2026-08-07. Unblocked by Q26, which has
+been answered since the same day and which two other documents still describe as
+open — see *Corrections* at the end.
+
+Two things happened alongside phase 0 that are not phases and are worth finding
+here rather than only in the ledgers: **B132** (a symbol could not be placed on a
+vector layer) and **Q52**'s UI removal were both settled by collapsing
+`PaintedFrame` and `VectorFrame` into one `Frame` on 2026-08-08. That touched the
+record and the serialized format, so it is named in the phase table below even
+though it belongs to no phase.
 
 ## The thing that reframes the job
 
@@ -175,6 +183,8 @@ One branch, one objective.
 | | Branch | What |
 | --- | --- | --- |
 | **0** | `feat/canvas/stroke-selection` | `StrokePicker`; `SelectedStrokeIds`; the black arrow; move/rotate/scale/delete/recolour selected strokes through the existing transform session with a stroke-id filter. **No record change** |
+| **0** | *landed, partly* | Picker, selection, arrow, move, delete and recolour shipped (PRs #74, #75). **Rotate and scale did not**, and neither did the route this row specifies: no `TransformScope` can mean *"these strokes inside this cel"*, so move/delete/recolour went through `DocumentEditor.PerformDelta` instead of the transform session. Finishing phase 0 means adding that scope, and it is a separate objective |
+| **—** | `fix/project/B132-one-frame-class` | Not a phase. `PaintedFrame` + `VectorFrame` → one `Frame` with a nullable baseline and nullable placements; the Raster/Vector picker and the R/V badge removed. **A record and format change**: closes B132, completes Q52's UI half, and drops `kind` and empty `pngBase64` from the file |
 | **1** | `feat/core/stroke-path` | `StrokePath`, `PathNode`, `Stroke.Path`, flatten, Schneider fit, the agreement invariant. **No UI** |
 | **2** | `feat/canvas/path-editing` | `PathEditSession`, isolation, the white arrow, the node overlay. Closes `ROADMAP.md:158` and ships Q26's manual line |
 | **3** | `feat/canvas/pen-tool` | The pen and its four modifiers |

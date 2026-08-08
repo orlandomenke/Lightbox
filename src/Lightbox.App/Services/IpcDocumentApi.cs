@@ -51,12 +51,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                ?? throw new ArgumentException($"No layer with id \"{layerId}\".");
     }
 
-    private static List<Stroke> StrokesOf(Frame frame) => frame switch
-    {
-        PaintedFrame p => p.Strokes,
-        VectorFrame v => v.Strokes,
-        _ => [],
-    };
+    private static List<Stroke> StrokesOf(Frame frame) => frame.Strokes;
 
     // ---- ops ----------------------------------------------------------------
 

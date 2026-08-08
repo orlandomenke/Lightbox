@@ -88,10 +88,10 @@ public class AlphaLockTests
         Assert.True(stroke.Clone().AlphaLocked);
 
         var doc = DocumentFactory.CreateDoc(64, 64, 12);
-        ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(stroke);
+        ((Frame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(stroke);
         var reloaded = Lightbox.Core.Serialization.DocJson.Deserialize(
             Lightbox.Core.Serialization.DocJson.Serialize(doc));
-        Assert.True(((PaintedFrame)reloaded.Scene.Layers[0].Cels[0].Frame!).Strokes[0].AlphaLocked);
+        Assert.True(((Frame)reloaded.Scene.Layers[0].Cels[0].Frame!).Strokes[0].AlphaLocked);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class AlphaLockTests
         // The rasterizer stamps strokes in order, so the content before an
         // alpha-locked stroke is whatever it has already drawn. That must hold
         // on a cold re-render, not just when painting live.
-        var frame = new PaintedFrame();
+        var frame = new Frame();
         frame.Strokes.Add(new Stroke
         {
             Tool = ToolKind.Brush, Color = "#0000ff",

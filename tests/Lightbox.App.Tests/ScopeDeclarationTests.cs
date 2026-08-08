@@ -134,7 +134,7 @@ public sealed class ScopeDeclarationTests(ITestOutputHelper output) : BrushState
         var offscreen = first.Doc.Scene.Layers
             .SelectMany(l => l.Cels)
             .Select(c => c.Frame)
-            .OfType<PaintedFrame>()
+            .OfType<Frame>()
             .Single(f => f.Strokes.Any(st => st.SwatchId == swatch.Id));
 
         var row = Assert.Single(vm.PaletteDocker.Swatches, r => r.Id == swatch.Id);

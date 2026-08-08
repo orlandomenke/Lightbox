@@ -30,7 +30,7 @@ public sealed class SymbolGraphTests : IDisposable
     private static Symbol Sword(string name = "Sword")
     {
         var symbol = new Symbol { Name = name };
-        var frame = new PaintedFrame();
+        var frame = new Frame();
         frame.Strokes.Add(new Stroke
         {
             Tool = ToolKind.Brush,
@@ -41,8 +41,8 @@ public sealed class SymbolGraphTests : IDisposable
         return symbol;
     }
 
-    private static PaintedFrame FirstFrame(Doc doc) =>
-        (PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!;
+    private static Frame FirstFrame(Doc doc) =>
+        (Frame)doc.Scene.Layers[0].Cels[0].Frame!;
 
     private static void Place(Doc doc, Symbol symbol, int times = 1)
     {
@@ -142,7 +142,7 @@ public sealed class SymbolGraphTests : IDisposable
         var project = Knight(out var walk, out _, out var sword);
         Place(walk, sword);
         var top = new Layer { Name = "Top", Kind = LayerKind.Painted };
-        var frame = new PaintedFrame { Placements = [new SymbolPlacement { SymbolId = sword.Id }] };
+        var frame = new Frame { Placements = [new SymbolPlacement { SymbolId = sword.Id }] };
         top.Cels.Add(new Cel { Frame = frame });
         walk.Scene.Layers.Add(top);
 

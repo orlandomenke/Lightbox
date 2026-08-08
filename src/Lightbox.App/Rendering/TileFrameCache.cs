@@ -55,14 +55,20 @@ public sealed class TileFrameCache : IDisposable
     public long AllocatedBytes { get; private set; }
 
     /// <summary>Whether this frame can be held as tiles at all.</summary>
-    public static bool CanTileFrame(Frame frame) => frame switch
-    {
-        VectorFrame v => TiledRasterizer.CanTile(v.Strokes),
-        PaintedFrame p => p.PngBase64.Length == 0
-            && !p.HasPlacements
-            && TiledRasterizer.CanTile(p.Strokes),
-        _ => false,
-    };
+    /// <remarks>
+    /// Was a two-arm switch over <c>VectorFrame</c> and <c>PaintedFrame</c>, and
+    /// the arms disagreed only because one class could not hold the things the
+    /// other was checked for: the vector arm skipped the baseline and placement
+    /// tests since a <c>VectorFrame</c> had nowhere to put either. One frame class
+    /// means one condition, and it is the painted arm's — a tile is rebuilt from
+    /// strokes, so stored pixels and placed symbols are exactly what it cannot
+    /// reproduce. Reading <see cref="Frame.HasBaseline"/> rather than
+    /// <c>PngBase64.Length == 0</c> also matters now the field is nullable.
+    /// </remarks>
+    public static bool CanTileFrame(Frame frame) =>
+        !frame.HasBaseline
+        && !frame.HasPlacements
+        && TiledRasterizer.CanTile(frame.Strokes);
 
     /// <summary>
     /// The frame's tiles and pyramid, built from its stroke record on a miss.
@@ -138,12 +144,7 @@ public sealed class TileFrameCache : IDisposable
 
     public void Dispose() => Clear();
 
-    private static IReadOnlyList<Stroke> StrokesOf(Frame frame) => frame switch
-    {
-        VectorFrame v => v.Strokes,
-        PaintedFrame p => p.Strokes,
-        _ => [],
-    };
+    private static IReadOnlyList<Stroke> StrokesOf(Frame frame) => frame.Strokes;
 
     private void Evict()
     {

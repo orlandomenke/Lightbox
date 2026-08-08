@@ -103,7 +103,7 @@ public static class FrameRasterizer
     /// symbol tile — and those fall back to sampling the layer itself.
     /// </param>
     public static SKBitmap Materialize(
-        PaintedFrame frame, int width, int height, double outputScale = 1.0, int celIndex = 0,
+        Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0,
         SKBitmap? backdrop = null)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);

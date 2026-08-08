@@ -98,7 +98,7 @@ public class TimelineBugTests : BrushStateIsolated
         vm.MoveStroke(90, 90, 1);
         vm.EndStroke();
 
-        var frame = Assert.IsType<PaintedFrame>(vm.PaintLayer().Cels[vm.CurrentFrameIndex].Frame);
+        var frame = Assert.IsType<Frame>(vm.PaintLayer().Cels[vm.CurrentFrameIndex].Frame);
         Assert.Single(frame.Strokes);
     }
 
@@ -112,7 +112,7 @@ public class TimelineBugTests : BrushStateIsolated
 
         vm.FillAt(50, 50);
 
-        var frame = Assert.IsType<PaintedFrame>(vm.PaintLayer().Cels[vm.CurrentFrameIndex].Frame);
+        var frame = Assert.IsType<Frame>(vm.PaintLayer().Cels[vm.CurrentFrameIndex].Frame);
         Assert.Single(frame.Strokes);
     }
 
@@ -138,7 +138,7 @@ public class TimelineBugTests : BrushStateIsolated
         vm.UndoCommand.Execute(null); // the stroke
         var kept = vm.PaintLayer().Cels[vm.CurrentFrameIndex].Frame;
         Assert.NotNull(kept);
-        Assert.Empty(((PaintedFrame)kept!).Strokes);
+        Assert.Empty(((Frame)kept!).Strokes);
 
         vm.UndoCommand.Execute(null); // the cel the stroke created
         Assert.Null(vm.PaintLayer().Cels[vm.CurrentFrameIndex].Frame);
@@ -165,7 +165,7 @@ public class TimelineBugTests : BrushStateIsolated
         var after = vm.LayerRows.First(r => r.SceneIndex == vm.ActiveLayerIndex)
             .Cells.First(c => c.Index == 0);
         Assert.NotNull(after.Thumb);
-        Assert.Single(((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes);
+        Assert.Single(((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes);
     }
 
     /// <summary>B6 — deleting a cel pulls the following cels back, in one undo step.</summary>

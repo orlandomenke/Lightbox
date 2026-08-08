@@ -33,7 +33,7 @@ public sealed class ReferenceImagePayloadTests(ITestOutputHelper output) : Brush
         var vm = new MainViewModel(null);
         var sheet = new ReferenceSheet { Name = "Knight" };
         var layer = new Layer { Name = "Front", Visible = true };
-        var frame = new PaintedFrame();
+        var frame = new Frame();
 
         // Dense-ish strokes: the measurement in the bug entry was taken on line art, and an
         // empty view encodes to almost nothing, which would make any timing here meaningless.
@@ -233,7 +233,7 @@ public sealed class ReferenceImagePayloadTests(ITestOutputHelper output) : Brush
             Name = "front",
             Width = 400,
             Height = 300,
-            Layers = [new Layer { Name = "Front", Visible = true, Cels = { new Cel { Frame = new PaintedFrame() } } }],
+            Layers = [new Layer { Name = "Front", Visible = true, Cels = { new Cel { Frame = new Frame() } } }],
         };
         sheet.Views.Add(cloned);
         second.ReferenceSheets.Add(sheet);
@@ -293,7 +293,7 @@ public sealed class ReferenceImagePayloadTests(ITestOutputHelper output) : Brush
         emptySheet.Views.Add(new ReferenceView
         {
             Name = "front", Width = 1920, Height = 1080,
-            Layers = [new Layer { Name = "Front", Visible = true, Cels = { new Cel { Frame = new PaintedFrame() } } }],
+            Layers = [new Layer { Name = "Front", Visible = true, Cels = { new Cel { Frame = new Frame() } } }],
         });
         blank.Doc.ReferenceSheets.Add(emptySheet);
 

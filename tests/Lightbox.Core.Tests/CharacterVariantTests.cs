@@ -33,7 +33,7 @@ public sealed class CharacterVariantTests : IDisposable
     private static Doc Drawing(string? swatchId = null)
     {
         var doc = DocumentFactory.CreateDoc(100, 100, 12);
-        ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
+        ((Frame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
         {
             Tool = ToolKind.Brush,
             Color = "#000000",
@@ -325,7 +325,7 @@ public sealed class CharacterVariantTests : IDisposable
 
         var walk = ProjectFolders.DocumentsIn(target.Manifest, imported)[0];
         var doc = ProjectIo.LoadDocument(target, walk)!;
-        var stroke = ((PaintedFrame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0];
+        var stroke = ((Frame)doc.Scene.Layers[0].Cels[0].Frame!).Strokes[0];
         Assert.Equal(swatch.Id, stroke.SwatchId);
         Assert.Contains(target.Palettes.SelectMany(p => p.Swatches), s => s.Id == stroke.SwatchId);
     }

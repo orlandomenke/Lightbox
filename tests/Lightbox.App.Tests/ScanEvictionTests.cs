@@ -19,7 +19,7 @@ public class ScanEvictionTests
         var frames = new List<Frame>();
         for (var i = 0; i < n; i++)
         {
-            var f = new PaintedFrame();
+            var f = new Frame();
             f.Strokes.Add(new Stroke
             {
                 Tool = ToolKind.Brush,

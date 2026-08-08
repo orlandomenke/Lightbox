@@ -298,7 +298,7 @@ public sealed class RigOverlayPainterTests(ITestOutputHelper output) : BrushStat
         vm.SelectedRigMarkId = null;
         Dispatcher.UIThread.RunJobs();
 
-        var strokesBefore = ((Lightbox.Core.Documents.PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
+        var strokesBefore = ((Lightbox.Core.Documents.Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
 
         // Press where the anchor is, in view space.
         var at = canvas.DocToView(200, 150);
@@ -307,7 +307,7 @@ public sealed class RigOverlayPainterTests(ITestOutputHelper output) : BrushStat
         window.MouseUp(screen, Avalonia.Input.MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
 
-        var strokesAfter = ((Lightbox.Core.Documents.PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
+        var strokesAfter = ((Lightbox.Core.Documents.Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
         output.WriteLine($"rig mode: selected {vm.SelectedRigMarkId ?? "nothing"}, strokes {strokesBefore} → {strokesAfter}");
 
         // Asserted before the control below, because the control draws — and drawing
@@ -324,7 +324,7 @@ public sealed class RigOverlayPainterTests(ITestOutputHelper output) : BrushStat
         window.MouseDown(screen, Avalonia.Input.MouseButton.Left);
         window.MouseUp(screen, Avalonia.Input.MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
-        var strokesDrawing = ((Lightbox.Core.Documents.PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
+        var strokesDrawing = ((Lightbox.Core.Documents.Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
         output.WriteLine($"mode off: the same click left {strokesDrawing} stroke(s)");
 
         Assert.True(

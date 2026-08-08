@@ -21,10 +21,10 @@ public class GuideAndShapeTests : BrushStateIsolated
     private static MainViewModel Vm() => new(null) { SmoothStrokes = false };
 
     private static Stroke Last(MainViewModel vm) =>
-        ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1];
+        ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1];
 
     private static int Count(MainViewModel vm) =>
-        ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
+        ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count;
 
     private static void Near(double expected, double actual) =>
         Assert.True(Math.Abs(expected - actual) < 0.5, $"expected {expected}, got {actual}");

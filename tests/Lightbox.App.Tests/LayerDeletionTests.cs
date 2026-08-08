@@ -37,7 +37,7 @@ public class LayerDeletionTests
         var layer = vm.PaintLayer();
         Assert.NotEqual(oldId, layer.Id);
         Assert.NotNull(layer.Cels[0].Frame);
-        Assert.Empty(((PaintedFrame)layer.Cels[0].Frame!).Strokes);
+        Assert.Empty(((Frame)layer.Cels[0].Frame!).Strokes);
 
         vm.UndoCommand.Execute(null); // deletion is one undo step
         Assert.Equal(oldId, vm.PaintLayer().Id);
@@ -54,16 +54,16 @@ public class LayerDeletionTests
         vm.BeginStroke(30, 30, 1);
         vm.EndStroke();
         var layer = vm.PaintLayer();
-        Assert.Single(((PaintedFrame)layer.Cels[0].Frame!).Strokes);
-        Assert.Single(((PaintedFrame)layer.Cels[1].Frame!).Strokes);
+        Assert.Single(((Frame)layer.Cels[0].Frame!).Strokes);
+        Assert.Single(((Frame)layer.Cels[1].Frame!).Strokes);
 
         vm.ClearActiveLayerCommand.Execute(null);
 
         layer = vm.PaintLayer();
         Assert.NotNull(layer.Cels[0].Frame);              // cels stay keyed (timing intact)
         Assert.NotNull(layer.Cels[1].Frame);
-        Assert.Empty(((PaintedFrame)layer.Cels[0].Frame!).Strokes);
-        Assert.Empty(((PaintedFrame)layer.Cels[1].Frame!).Strokes);
+        Assert.Empty(((Frame)layer.Cels[0].Frame!).Strokes);
+        Assert.Empty(((Frame)layer.Cels[1].Frame!).Strokes);
 
         vm.UndoCommand.Execute(null);
         Assert.Single((vm.PaintedCel()).Strokes);

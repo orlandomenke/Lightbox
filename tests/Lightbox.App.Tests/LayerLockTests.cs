@@ -26,7 +26,7 @@ public class LayerLockTests
     }
 
     private static int StrokeCount(Layer layer) =>
-        ((PaintedFrame)layer.Cels[0].Frame!).Strokes.Count;
+        ((Frame)layer.Cels[0].Frame!).Strokes.Count;
 
     [AvaloniaFact]
     public void PaintingIsRefused_WithAReasonThatNamesTheLayer()
@@ -149,7 +149,7 @@ public class LayerLockTests
         vm.MoveStroke(40, 40, 1);
         vm.EndStroke();
 
-        var stroke = ((PaintedFrame)layer.Cels[0].Frame!).Strokes[^1];
+        var stroke = ((Frame)layer.Cels[0].Frame!).Strokes[^1];
         Assert.True(stroke.AlphaLocked);
 
         layer.AlphaLocked = false;

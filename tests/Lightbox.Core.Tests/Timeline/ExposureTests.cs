@@ -9,7 +9,7 @@ public class ExposureTests
     {
         var layer = new Layer { Kind = LayerKind.Vector };
         foreach (var k in keyed)
-            layer.Cels.Add(new Cel { Frame = k ? new VectorFrame() : null });
+            layer.Cels.Add(new Cel { Frame = k ? new Frame() : null });
         return layer;
     }
 

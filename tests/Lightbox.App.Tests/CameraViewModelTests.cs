@@ -194,7 +194,7 @@ public class CameraViewModelTests
             .Where(l => !l.IsBackground)
             .SelectMany(l => l.Cels)
             .Select(c => c.Frame)
-            .OfType<PaintedFrame>()
+            .OfType<Frame>()
             .Sum(f => f.Strokes.Count);
         Assert.True(painted > 0, "the stroke did not reach the record");
     }

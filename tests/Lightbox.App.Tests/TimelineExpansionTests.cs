@@ -116,7 +116,7 @@ public class FrameInsertionTests
     public void InsertOnVirtualCell_ExtendsTimeline_PaddingAllLayers()
     {
         var vm = new MainViewModel(null);
-        vm.AddVectorLayerCommand.Execute(null);
+        vm.AddPaintedLayerCommand.Execute(null);
 
         var virtualCell = vm.LayerRows[1].Cells[4]; // the layer under the new one, beyond frame 1
         Assert.True(virtualCell.IsVirtual);

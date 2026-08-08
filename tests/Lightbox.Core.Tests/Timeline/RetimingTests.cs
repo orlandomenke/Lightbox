@@ -20,7 +20,7 @@ public class RetimingTests
         {
             layer.Cels.Add(new Cel
             {
-                Frame = new PaintedFrame
+                Frame = new Frame
                 {
                     Strokes = [new Stroke { Label = $"d{i}", Points = [new StrokePoint(i, i, 1)] }],
                 },
@@ -35,7 +35,7 @@ public class RetimingTests
 
     private static List<string> Drawings(Layer layer) =>
         layer.Cels.Where(c => c.Frame is not null)
-            .Select(c => ((PaintedFrame)c.Frame!).Strokes[0].Label ?? "").ToList();
+            .Select(c => ((Frame)c.Frame!).Strokes[0].Label ?? "").ToList();
 
     [Fact]
     public void Stretch_HoldsEachDrawing_AndLosesNone()

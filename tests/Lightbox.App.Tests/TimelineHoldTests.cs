@@ -47,7 +47,7 @@ public sealed class TimelineHoldTests : BrushStateIsolated
 
         Draw(vm);
 
-        Assert.Empty(((PaintedFrame)layer.Cels[0].Frame!).Strokes);
+        Assert.Empty(((Frame)layer.Cels[0].Frame!).Strokes);
     }
 
     [AvaloniaFact]
@@ -64,7 +64,7 @@ public sealed class TimelineHoldTests : BrushStateIsolated
 
         vm.UndoCommand.Execute(null);
         Assert.NotNull(vm.PaintLayer().Cels[1].Frame);
-        Assert.Empty(((PaintedFrame)vm.PaintLayer().Cels[1].Frame!).Strokes);
+        Assert.Empty(((Frame)vm.PaintLayer().Cels[1].Frame!).Strokes);
 
         vm.UndoCommand.Execute(null);
         Assert.Null(vm.PaintLayer().Cels[1].Frame);
@@ -79,7 +79,7 @@ public sealed class TimelineHoldTests : BrushStateIsolated
         Draw(vm);
         Draw(vm);
 
-        Assert.Equal(2, ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count);
+        Assert.Equal(2, ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes.Count);
     }
 
     // ---- playback ------------------------------------------------------------------

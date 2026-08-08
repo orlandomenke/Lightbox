@@ -67,7 +67,7 @@ public class TemplateTests
     public void ANewDocumentFromATemplateIsACopyNotALink()
     {
         var template = Template();
-        template.Scene.Layers[0].Cels.Add(new Cel { Frame = new PaintedFrame { Strokes = { Ink("s1") } } });
+        template.Scene.Layers[0].Cels.Add(new Cel { Frame = new Frame { Strokes = { Ink("s1") } } });
 
         var copy = Templates.NewFromTemplate(template, "docref-1");
 
@@ -110,13 +110,13 @@ public class TemplateTests
         // TemplateId is a name, not a reference: the copy is complete on its own
         // and nothing about rendering it consults the template.
         var template = Template();
-        template.Scene.Layers[0].Cels.Add(new Cel { Frame = new PaintedFrame { Strokes = { Ink("s1") } } });
+        template.Scene.Layers[0].Cels.Add(new Cel { Frame = new Frame { Strokes = { Ink("s1") } } });
         var copy = Templates.NewFromTemplate(template, "docref-1");
 
         var reloaded = DocJson.Clone(copy);   // as if opened with no project at all
 
         Assert.Equal(2, reloaded.Scene.Layers.Count);
-        Assert.Single(((PaintedFrame)reloaded.Scene.Layers[0].Cels[0].Frame!).Strokes);
+        Assert.Single(((Frame)reloaded.Scene.Layers[0].Cels[0].Frame!).Strokes);
         Assert.Equal("docref-1", reloaded.TemplateId);
     }
 
@@ -188,7 +188,7 @@ public class TemplateTests
         var template = Template();
         var copy = Templates.NewFromTemplate(template, "t");
         var id = copy.Scene.Layers[1].Id;
-        copy.Scene.Layers[1].Cels.Add(new Cel { Frame = new PaintedFrame { Strokes = { Ink("mine") } } });
+        copy.Scene.Layers[1].Cels.Add(new Cel { Frame = new Frame { Strokes = { Ink("mine") } } });
         template.Scene.Layers[1].Name = "Rough (renamed)";
 
         var preview = Templates.Preview(copy, template);
@@ -231,10 +231,10 @@ public class TemplateTests
         var template = Template();
         template.Scene.Layers[1].Cels.Add(new Cel
         {
-            Frame = new PaintedFrame { Strokes = { Ink("a"), Ink("b") } },
+            Frame = new Frame { Strokes = { Ink("a"), Ink("b") } },
         });
         var copy = Templates.NewFromTemplate(template, "t");
-        var frame = (PaintedFrame)copy.Scene.Layers[1].Cels[0].Frame!;
+        var frame = (Frame)copy.Scene.Layers[1].Cels[0].Frame!;
         frame.Strokes.RemoveAt(0);
         frame.Strokes.Add(Ink("c"));
         template.Scene.Layers[1].Name = "Renamed";
@@ -250,9 +250,9 @@ public class TemplateTests
         // A layer whose art arrived as a baseline PNG has no stroke provenance
         // to compare. Treating it as untouched would let a pull walk over it.
         var template = Template();
-        template.Scene.Layers[1].Cels.Add(new Cel { Frame = new PaintedFrame() });
+        template.Scene.Layers[1].Cels.Add(new Cel { Frame = new Frame() });
         var copy = Templates.NewFromTemplate(template, "t");
-        ((PaintedFrame)copy.Scene.Layers[1].Cels[0].Frame!).PngBase64 = "aGVsbG8=";
+        ((Frame)copy.Scene.Layers[1].Cels[0].Frame!).PngBase64 = "aGVsbG8=";
         template.Scene.Layers[1].Name = "Renamed";
 
         Assert.True(Templates.Preview(copy, template).LayerChanges[0].DrawnOnSince);
@@ -269,13 +269,13 @@ public class TemplateTests
         var template = Template();
         var copy = Templates.NewFromTemplate(template, "t");
         var guides = new Layer { Name = "Construction", Locked = true };
-        guides.Cels.Add(new Cel { Frame = new PaintedFrame { Strokes = { Ink("cross") } } });
+        guides.Cels.Add(new Cel { Frame = new Frame { Strokes = { Ink("cross") } } });
         template.Scene.Layers.Add(guides);
 
         Templates.Apply(copy, template, new Templates.PullOptions());
 
         var landed = copy.Scene.Layers.Single(l => l.Name == "Construction");
-        Assert.Single(((PaintedFrame)landed.Cels[0].Frame!).Strokes);
+        Assert.Single(((Frame)landed.Cels[0].Frame!).Strokes);
         // Deep-copied: editing the template's copy must not reach the document.
         Assert.NotSame(guides.Cels[0].Frame, landed.Cels[0].Frame);
     }
@@ -285,13 +285,13 @@ public class TemplateTests
     {
         var template = Template();
         var copy = Templates.NewFromTemplate(template, "t");
-        copy.Scene.Layers[1].Cels.Add(new Cel { Frame = new PaintedFrame { Strokes = { Ink("mine") } } });
-        template.Scene.Layers[1].Cels.Add(new Cel { Frame = new PaintedFrame { Strokes = { Ink("theirs") } } });
+        copy.Scene.Layers[1].Cels.Add(new Cel { Frame = new Frame { Strokes = { Ink("mine") } } });
+        template.Scene.Layers[1].Cels.Add(new Cel { Frame = new Frame { Strokes = { Ink("theirs") } } });
 
         Templates.Apply(copy, template, new Templates.PullOptions(
             DrawnOnLayerIds: new HashSet<string> { copy.Scene.Layers[1].Id }));
 
-        var strokes = ((PaintedFrame)copy.Scene.Layers[1].Cels[0].Frame!).Strokes;
+        var strokes = ((Frame)copy.Scene.Layers[1].Cels[0].Frame!).Strokes;
         Assert.Equal("mine", Assert.Single(strokes).Id);
     }
 
@@ -302,8 +302,8 @@ public class TemplateTests
         // why Q11 and Q12 stayed separate mechanisms.
         var template = Template();
         var copy = Templates.NewFromTemplate(template, "t");
-        for (var i = 0; i < 4; i++) copy.Scene.Layers[1].Cels.Add(new Cel { Frame = new PaintedFrame() });
-        template.Scene.Layers[1].Cels.Add(new Cel { Frame = new PaintedFrame() });
+        for (var i = 0; i < 4; i++) copy.Scene.Layers[1].Cels.Add(new Cel { Frame = new Frame() });
+        template.Scene.Layers[1].Cels.Add(new Cel { Frame = new Frame() });
         template.Scene.FrameCount = 99;
         template.Scene.Layers[1].Name = "Renamed";
 

@@ -97,7 +97,7 @@ public sealed class FrameBitmapCache : IDisposable
         var key = string.Create(
             CultureInfo.InvariantCulture,
             $"{frame.Id}|{width}x{height}@{outputScale:0.####}");
-        return frame is PaintedFrame { HasPlacements: true }
+        return frame is Frame { HasPlacements: true }
             ? string.Create(CultureInfo.InvariantCulture, $"{key}#{celIndex}")
             : key;
     }
@@ -143,17 +143,15 @@ public sealed class FrameBitmapCache : IDisposable
 
     /// <summary>Whether anything on this frame reads the layers beneath it, live.</summary>
     private static bool SamplesLive(Frame frame) =>
-        frame is PaintedFrame p
+        frame is Frame p
         && p.Strokes.Any(s => s.Brush.SampleSource == SampleSource.AllLayersLive);
 
     private static SKBitmap Render(
         Frame frame, int width, int height, double outputScale, int celIndex, SKBitmap? backdrop) =>
-        frame switch
-        {
-            PaintedFrame p => FrameRasterizer.Materialize(p, width, height, outputScale, celIndex, backdrop),
-            VectorFrame v => FrameRasterizer.Rasterize(v.Strokes, width, height, outputScale),
-            _ => throw new InvalidOperationException($"Unknown frame type {frame.GetType().Name}"),
-        };
+        // Baseline-then-strokes, in one call. The vector arm used to skip
+        // straight to `Rasterize` because a `VectorFrame` had no baseline to
+        // consider; `Materialize` treats an absent one as nothing to draw.
+        FrameRasterizer.Materialize(frame, width, height, outputScale, celIndex, backdrop);
 
     /// <summary>
     /// The byte budget wins. It used to be gated behind the frame floor, so at

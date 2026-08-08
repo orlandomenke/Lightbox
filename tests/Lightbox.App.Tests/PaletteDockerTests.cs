@@ -43,7 +43,7 @@ public class PaletteDockerTests : BrushStateIsolated
     private static Stroke LastStroke(MainViewModel vm)
     {
         var layer = vm.Doc.Scene.Layers[vm.ActiveLayerIndex];
-        return ((PaintedFrame)layer.Cels[0].Frame!).Strokes[^1];
+        return ((Frame)layer.Cels[0].Frame!).Strokes[^1];
     }
 
     [AvaloniaFact]
@@ -280,7 +280,7 @@ public class PaletteDockerTests : BrushStateIsolated
 
         var reloaded = Lightbox.Core.Serialization.DocJson.Deserialize(vm.SerializeDocument());
         var swatch = Assert.Single(Assert.Single(reloaded.Palettes).Swatches);
-        var strokes = ((PaintedFrame)reloaded.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!).Strokes;
+        var strokes = ((Frame)reloaded.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!).Strokes;
 
         Assert.Equal(row.Id, swatch.Id);
         Assert.Equal(swatch.Id, strokes[^1].SwatchId);

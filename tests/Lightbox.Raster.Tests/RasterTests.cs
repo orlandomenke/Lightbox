@@ -177,7 +177,7 @@ public class PngCodecTests
             Points = [new(10, 10, 1)],
             Brush = new BrushSettings { Size = 8, Hardness = 1 },
         };
-        var frame = new PaintedFrame { Strokes = [stroke] };
+        var frame = new Frame { Strokes = [stroke] };
 
         // No baseline → pixels come from the stroke record alone.
         using var fromStrokes = FrameRasterizer.Materialize(frame, 32, 32);

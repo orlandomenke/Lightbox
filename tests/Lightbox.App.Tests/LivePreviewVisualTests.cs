@@ -38,7 +38,7 @@ public class LivePreviewVisualTests(ITestOutputHelper output) : BrushStateIsolat
         var scene = vm.Doc.Scene;
 
         var top = new Layer { Name = "Paint", Kind = LayerKind.Painted };
-        top.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        top.Cels.Add(new Cel { Frame = new Frame() });
         for (var i = 1; i < scene.Layers[^1].Cels.Count; i++) top.Cels.Add(new Cel());
         scene.Layers.Add(top);
         vm.ActiveLayerIndex = scene.Layers.Count - 1;

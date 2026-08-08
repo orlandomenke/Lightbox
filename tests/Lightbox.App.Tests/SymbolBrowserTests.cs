@@ -49,8 +49,8 @@ public class SymbolBrowserTests : IDisposable
         return vm;
     }
 
-    private static PaintedFrame FrameOf(MainViewModel vm) =>
-        (PaintedFrame)vm.Doc.Scene.Layers[^1].Cels[0].Frame!;
+    private static Frame FrameOf(MainViewModel vm) =>
+        (Frame)vm.Doc.Scene.Layers[^1].Cels[0].Frame!;
 
     private static Symbol Add(MainViewModel vm, string name, SymbolKind kind, params string[] tags)
     {
@@ -59,7 +59,7 @@ public class SymbolBrowserTests : IDisposable
             Name = name,
             Kind = kind,
             Tags = [.. tags],
-            Frames = [new PaintedFrame { Strokes = [Bar(40)] }],
+            Frames = [new Frame { Strokes = [Bar(40)] }],
         };
         vm.ProjectDocker.Project!.Symbols[symbol.Id] = symbol;
         vm.RefreshProjectResources();
@@ -101,7 +101,7 @@ public class SymbolBrowserTests : IDisposable
         // the same relay the project panel needed.
         var vm = new MainViewModel(null);
         var project = ProjectIo.Create("Knight", _root);
-        var sword = new Symbol { Name = "Sword", Frames = [new PaintedFrame { Strokes = [Bar(40)] }] };
+        var sword = new Symbol { Name = "Sword", Frames = [new Frame { Strokes = [Bar(40)] }] };
         project.Symbols[sword.Id] = sword;
 
         vm.ProjectDocker.Project = project;

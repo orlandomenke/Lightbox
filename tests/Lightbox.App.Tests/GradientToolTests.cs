@@ -22,7 +22,7 @@ public class GradientToolTests
     }
 
     private static List<Stroke> Strokes(MainViewModel vm) =>
-        ((PaintedFrame)vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!).Strokes;
+        ((Frame)vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!).Strokes;
 
     private static SKColor At(MainViewModel vm, int x, int y)
     {
@@ -188,7 +188,7 @@ public class GradientToolTests
         var reloaded = Lightbox.Core.Serialization.DocJson.Deserialize(vm.SerializeDocument());
         var back = Assert.Single(reloaded.Gradients).Value;
         var stroke = Assert.Single(
-            ((PaintedFrame)reloaded.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!).Strokes);
+            ((Frame)reloaded.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!).Strokes);
 
         Assert.Equal(gradient.Id, back.Id);
         Assert.Equal(back.Id, stroke.GradientId);

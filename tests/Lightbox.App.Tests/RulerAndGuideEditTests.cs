@@ -301,7 +301,7 @@ public class RulerAndGuideEditTests : BrushStateIsolated
         vm.BeginStroke(23, 17, 1);
         vm.EndStroke();
 
-        var stroke = ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1];
+        var stroke = ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1];
         Assert.Equal(20, stroke.Points[0].X, 1);
     }
 
@@ -580,7 +580,7 @@ public class RulerAndGuideEditTests : BrushStateIsolated
 
         vm.BeginStroke(23, 17, 1);
         vm.EndStroke();
-        var stroke = ((PaintedFrame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1];
+        var stroke = ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes[^1];
         Assert.Equal(23, stroke.Points[0].X, 1);
     }
 

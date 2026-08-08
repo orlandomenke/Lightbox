@@ -28,7 +28,7 @@ public class ReferenceSheetModelTests
         var doc = DocumentFactory.CreateDoc();
         var sheet = new ReferenceSheet { Name = "Hero" };
         sheet.Views.Add(ReferenceView.Create("side", 400, 300));
-        ((PaintedFrame)sheet.Views[0].Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
+        ((Frame)sheet.Views[0].Layers[0].Cels[0].Frame!).Strokes.Add(new Stroke
         {
             Points = [new(10, 10, 0.5), new(50, 50, 0.5)],
             Label = "back-line",
@@ -41,7 +41,7 @@ public class ReferenceSheetModelTests
         var view = Assert.Single(rSheet.Views);
         Assert.Equal("side", view.Name);
         Assert.Equal(400, view.Width);
-        var frame = Assert.IsType<PaintedFrame>(view.Layers[0].Cels[0].Frame);
+        var frame = Assert.IsType<Frame>(view.Layers[0].Cels[0].Frame);
         Assert.Equal("back-line", Assert.Single(frame.Strokes).Label);
 
         // Documents saved before character sheets existed load with none.
@@ -92,9 +92,9 @@ public class ReferenceTabTests
         vm.EndStroke();
 
         // The stroke is in the OWNING document's reference view.
-        var frame = (PaintedFrame)view.Layers[0].Cels[0].Frame!;
+        var frame = (Frame)view.Layers[0].Cels[0].Frame!;
         Assert.Single(frame.Strokes);
-        Assert.Single(((PaintedFrame)owner.Doc.ReferenceSheets[0].Views[0].Layers[0].Cels[0].Frame!).Strokes);
+        Assert.Single(((Frame)owner.Doc.ReferenceSheets[0].Views[0].Layers[0].Cels[0].Frame!).Strokes);
         Assert.True(owner.IsDirty);
         // B95. Both tabs show it, and this assertion used to say the opposite.
         // The reporter found the badge on the parent only: a sheet tab is a view
@@ -104,7 +104,7 @@ public class ReferenceTabTests
 
         // Undo inside the reference tab still routes to the owning document.
         vm.UndoCommand.Execute(null);
-        Assert.Empty(((PaintedFrame)owner.Doc.ReferenceSheets[0].Views[0].Layers[0].Cels[0].Frame!).Strokes);
+        Assert.Empty(((Frame)owner.Doc.ReferenceSheets[0].Views[0].Layers[0].Cels[0].Frame!).Strokes);
     }
 
     [AvaloniaFact]

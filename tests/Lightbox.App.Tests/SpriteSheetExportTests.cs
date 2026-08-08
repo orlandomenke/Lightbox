@@ -36,12 +36,12 @@ public class SpriteSheetExportTests : IDisposable
         doc.Scene.FrameCount = frames;
         var layer = doc.Scene.Layers.First(l => !l.IsBackground);
 
-        while (layer.Cels.Count < frames) layer.Cels.Add(new Cel { Frame = new PaintedFrame() });
+        while (layer.Cels.Count < frames) layer.Cels.Add(new Cel { Frame = new Frame() });
 
         for (var i = 0; i < frames; i++)
         {
             var cel = layer.Cels[i];
-            if (cel.Frame is not PaintedFrame p) continue;
+            if (cel.Frame is not Frame p) continue;
             double x = 40 + i * 12, top = 30 + i * 5;
             p.Strokes.Add(new Stroke
             {
@@ -525,7 +525,7 @@ public class SpriteSheetExportTests : IDisposable
         var layer = new Layer { Name = name };
         for (var i = 0; i < frames; i++)
         {
-            var frame = new PaintedFrame();
+            var frame = new Frame();
             frame.Strokes.Add(new Stroke
             {
                 Tool = ToolKind.Fill,
@@ -662,7 +662,7 @@ public class SpriteSheetExportTests : IDisposable
         var doc = Walking(4, paperColor: "#ffffff");
         var flash = AddFloodedLayer(doc, "Flash", 4);
         // Frame 2 is a small shape rather than a flood, so the layer is art.
-        if (flash.Cels[2].Frame is PaintedFrame p)
+        if (flash.Cels[2].Frame is Frame p)
         {
             p.Strokes.Clear();
             p.Strokes.Add(new Stroke

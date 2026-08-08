@@ -25,7 +25,7 @@ public class FillAndBackgroundBugTests : BrushStateIsolated
     };
 
     private static List<Stroke> Strokes(MainViewModel vm) =>
-        ((PaintedFrame)vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!).Strokes;
+        ((Frame)vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!).Strokes;
 
     /// <summary>What the active layer alone renders to — no paper underneath.</summary>
     private static SKColor LayerPixel(MainViewModel vm, int x, int y)
@@ -133,7 +133,7 @@ public class FillAndBackgroundBugTests : BrushStateIsolated
 
         // And it is the paper colour, not an empty layer that merely says so.
         using var bmp = FrameRasterizer.Rasterize(
-            ((PaintedFrame)paper.Cels[0].Frame!).Strokes, vm.Doc.Scene.Width, vm.Doc.Scene.Height);
+            ((Frame)paper.Cels[0].Frame!).Strokes, vm.Doc.Scene.Width, vm.Doc.Scene.Height);
         var pixel = bmp.GetPixel(vm.Doc.Scene.Width / 2, vm.Doc.Scene.Height / 2);
         Assert.Equal(255, pixel.Alpha);
         Assert.Equal(SKColors.White, pixel);

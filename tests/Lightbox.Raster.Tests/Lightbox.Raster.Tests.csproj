@@ -27,4 +27,13 @@
     <ProjectReference Include="..\..\src\Lightbox.Import\Lightbox.Import.csproj" />
   </ItemGroup>
 
+  <!--
+    Documents written by an older build, kept as evidence rather than as inputs.
+    They are never rewritten: the point of a fixture here is that nothing in this
+    repository can regenerate it, because the code that wrote it is gone.
+  -->
+  <ItemGroup>
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -139,7 +139,6 @@ public sealed partial class LayerRow : ObservableObject
     /// <summary>Staleness key: the exposed frame id the thumb was rendered from.</summary>
     internal string? ThumbFrameId;
 
-    public string KindLabel => Layer.Kind == LayerKind.Vector ? "V" : "R";
 
     /// <summary>Inside a layer folder (indented in the docker, eject button shown).</summary>
     public bool IsGrouped => Layer.GroupId is not null;
@@ -156,7 +155,6 @@ public sealed partial class LayerRow : ObservableObject
         OnionEnabled = layer.OnionEnabled;
         _lockedByFolder = _owner.IsLayerLockedByFolder(layer);
         _syncing = false;
-        OnPropertyChanged(nameof(KindLabel));
         OnPropertyChanged(nameof(IsGrouped));
     }
 

@@ -143,7 +143,7 @@ public static class SymbolGraph
                 .SelectMany(v => v.Layers)
                 .SelectMany(l => l.Cels)
                 .Select(c => c.Frame))
-            .OfType<PaintedFrame>();
+            .OfType<Frame>();
 
         var seen = new HashSet<string>();
         foreach (var frame in frames)

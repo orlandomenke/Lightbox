@@ -86,7 +86,7 @@ public class BackgroundLayerTests : BrushStateIsolated
         vm.MoveStroke(80, 60, 1);
         vm.EndStroke();
 
-        Assert.Single(((PaintedFrame)background.Cels[0].Frame!).Strokes); // just the paper fill
+        Assert.Single(((Frame)background.Cels[0].Frame!).Strokes); // just the paper fill
         Assert.Contains("locked", vm.AiStatus);
 
         vm.SetLayerLocked(background, false);
@@ -94,7 +94,7 @@ public class BackgroundLayerTests : BrushStateIsolated
         vm.MoveStroke(80, 60, 1);
         vm.EndStroke();
 
-        Assert.Equal(2, ((PaintedFrame)background.Cels[0].Frame!).Strokes.Count);
+        Assert.Equal(2, ((Frame)background.Cels[0].Frame!).Strokes.Count);
     }
 
     [AvaloniaFact]
@@ -140,7 +140,7 @@ public class BackgroundLayerTests : BrushStateIsolated
         // Invariant 1: the record is the document. A baked PNG baseline would
         // be pixels the record cannot regenerate.
         var vm = WithPaper("#336699");
-        var frame = (PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!; // the paper itself
+        var frame = (Frame)vm.Doc.Scene.Layers[0].Cels[0].Frame!; // the paper itself
 
         Assert.True(string.IsNullOrEmpty(frame.PngBase64));
         var fill = Assert.Single(frame.Strokes);

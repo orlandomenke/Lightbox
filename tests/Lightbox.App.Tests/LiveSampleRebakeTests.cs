@@ -48,15 +48,15 @@ public class LiveSampleRebakeTests : BrushStateIsolated
     };
 
     /// <summary>Two layers: something to smudge underneath, the smudge on top.</summary>
-    private static MainViewModel TwoLayers(out PaintedFrame under, out PaintedFrame over)
+    private static MainViewModel TwoLayers(out Frame under, out Frame over)
     {
         var vm = VmLayers.PaperVm();
         var scene = vm.Doc.Scene;
-        under = (PaintedFrame)scene.Layers[^1].Cels[0].Frame!;
+        under = (Frame)scene.Layers[^1].Cels[0].Frame!;
         under.Strokes.Add(Block("#20c040", 60));
 
         var top = new Layer { Name = "Top", Kind = LayerKind.Painted };
-        var frame = new PaintedFrame();
+        var frame = new Frame();
         top.Cels.Add(new Cel { Frame = frame });
         for (var i = 1; i < scene.Layers[^1].Cels.Count; i++) top.Cels.Add(new Cel());
         scene.Layers.Add(top);
@@ -79,7 +79,7 @@ public class LiveSampleRebakeTests : BrushStateIsolated
         Assert.Equal(1, vm.AppendExternalStrokes(vm.Doc.Scene.Layers[0].Id, 0, [stroke]));
     }
 
-    private static byte[] Composited(MainViewModel vm, PaintedFrame over, PaintedFrame under)
+    private static byte[] Composited(MainViewModel vm, Frame over, Frame under)
     {
         var scene = vm.Doc.Scene;
         using var beneath = FrameRasterizer.Materialize(under, scene.Width, scene.Height);
@@ -164,7 +164,7 @@ public class LiveSampleRebakeTests : BrushStateIsolated
         while (scene.Layers.Count > 1) scene.Layers.RemoveAt(scene.Layers.Count - 1);
         scene.Layers[0].Locked = false;
         vm.ActiveLayerIndex = 0;
-        var only = (PaintedFrame)scene.Layers[0].Cels[0].Frame!;
+        var only = (Frame)scene.Layers[0].Cels[0].Frame!;
         var smudge = LiveSmudge();
         smudge.Baked = new BakedSample { PngBase64 = "stale", X = 1, Y = 1 };
         only.Strokes.Add(smudge);
@@ -196,7 +196,7 @@ public class LiveSampleRebakeTests : BrushStateIsolated
         vm.MoveStroke(150, 60, 1);
         vm.EndStroke();
 
-        var painted = (PaintedFrame)vm.Doc.Scene.Layers[^1].Cels[0].Frame!;
+        var painted = (Frame)vm.Doc.Scene.Layers[^1].Cels[0].Frame!;
         var smudge = Assert.Single(painted.Strokes);
         Assert.Equal(SampleSource.AllLayersBaked, smudge.Brush.SampleSource);
         Assert.NotNull(smudge.Baked);
@@ -215,7 +215,7 @@ public class LiveSampleRebakeTests : BrushStateIsolated
         // Re-read through the document each time: an append is a snapshot undo
         // step, so undoing swaps the whole graph and a held reference goes
         // stale.
-        int Bottom() => ((PaintedFrame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Count;
+        int Bottom() => ((Frame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).Strokes.Count;
         var before = Bottom();
         EditUnderneath(vm, Block("#20c040", 62));
         Assert.Equal(before + 1, Bottom());
