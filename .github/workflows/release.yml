@@ -1,0 +1,130 @@
+name: release
+
+# Bundles are built when somebody asks for one, and not otherwise.
+#
+# This used to be a job inside `build.yml` that ran on every push with code in
+# it. That was a real cost — measured at 2 billed minutes a run, on top of 5 for
+# the suite — and it produced an artifact that expired in five days and had to
+# be pruned against a storage quota. Neither is what a download should be.
+#
+# Two ways in, and they produce different things on purpose:
+#
+#   push a `v*` tag       -> a GitHub Release with the bundle attached
+#   Run workflow (manual) -> a workflow artifact, no Release, no tag
+#
+# The split is deliberate. A Release is permanent and public and wants a version
+# behind it; "build me a bundle off this branch so I can try it" wants neither,
+# and making that mint a tag would fill the Releases page with noise.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+# Only the release job writes, and only when it is making a Release.
+permissions:
+  contents: write
+
+# A second tag push while the first is still building would race to create the
+# same Release. Unlike `build.yml` this does NOT cancel in progress: half of a
+# published Release is worse than a slow one.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  win-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      # Same keying as build.yml: this repo has no lock file, so `setup-dotnet`'s
+      # own `cache: true` cannot be used. Hashing the project set moves the key
+      # exactly when a dependency or a target framework does.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # The suite runs here too, and that is not redundant with `build.yml`.
+      # A tag can point at any commit, including one that never went through a
+      # pull request — so a Release must prove for itself that what it ships
+      # passes, rather than trusting that something once did.
+      - name: Test before shipping
+        run: dotnet test Lightbox.sln -c Release
+
+      # DebugType=embedded, not none: `none` ships no debug information at all,
+      # so a crash report names methods and no line numbers, which is half of
+      # what makes one actionable. Embedded survives single-file publishing and
+      # costs +0.4 MB on the executable, nothing once zipped.
+      - name: Publish the app (self-contained — no install, no admin)
+        run: >
+          dotnet publish src/Lightbox.App/Lightbox.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishTrimmed=false -p:DebugType=embedded
+          -o publish/win-x64
+
+      # Its own folder, because a self-contained executable only ever looks for
+      # its runtime beside itself — there is nothing left for the two publishes
+      # to share, so a subfolder is the tidier place for the server to carry its
+      # own copy.
+      - name: Publish the MCP server into its own folder
+        run: >
+          dotnet publish src/Lightbox.Mcp/Lightbox.Mcp.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishTrimmed=false -p:DebugType=embedded
+          -o publish/win-x64/mcp
+
+      - name: Name the bundle
+        id: name
+        shell: bash
+        run: |
+          # A tag names itself; a manual build is identified by branch and commit,
+          # which is what makes two of them off the same branch distinguishable.
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            LABEL="${GITHUB_REF_NAME}"
+          else
+            SAFE=$(printf '%s' "${GITHUB_REF_NAME}" | tr '/ _' '---' | tr -cd 'A-Za-z0-9.-')
+            LABEL="${SAFE}-${GITHUB_SHA::7}"
+          fi
+          echo "label=$LABEL" >> "$GITHUB_OUTPUT"
+          echo "zip=Lightbox-win-x64-${LABEL}.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Zip it
+        shell: bash
+        run: cd publish/win-x64 && zip -qr "../../${{ steps.name.outputs.zip }}" .
+
+      # ---- a tag becomes a Release -------------------------------------------
+      #
+      # `gh` rather than a third-party action: it is already how
+      # .github/scripts/prune-artifacts.sh talks to the API, it needs no pinning
+      # or supply-chain review, and `--generate-notes` writes the commit summary
+      # for free.
+      # `--prerelease` is unconditional, and that is not laziness: Lightbox is
+      # alpha, the document format still changes, and the README says so at the
+      # top. Marking a build "latest release" would contradict it. Drop this flag
+      # in the same change that drops the alpha banner, not before.
+      - name: Publish the Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${GITHUB_REF_NAME}"
+          "${{ steps.name.outputs.zip }}"
+          --title "Lightbox ${GITHUB_REF_NAME}"
+          --generate-notes
+          --prerelease
+
+      # ---- a manual run just hands back the zip -------------------------------
+      - name: Upload the bundle
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v5
+        with:
+          name: Lightbox-win-x64-${{ steps.name.outputs.label }}
+          path: ${{ steps.name.outputs.zip }}
+          retention-days: 14

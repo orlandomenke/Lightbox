@@ -15,9 +15,12 @@ name: build
 #
 # So: pushes are watched only on the default branch, which is where a merge
 # lands and the one place no PR event covers. Everything else is covered by the
-# PR. The cost is that a branch with no PR open builds no bundle — use the
-# **Run workflow** button, which `workflow_dispatch` keeps available and which
-# always builds.
+# PR. A branch with no PR open therefore runs nothing until one is opened, or
+# until somebody presses **Run workflow**.
+#
+# This workflow no longer produces a Windows bundle. That moved to release.yml,
+# which builds one on a `v*` tag or on request — see the comment at the top of
+# that file for why a per-push artifact was the wrong shape for a download.
 #
 # **A draft pull request builds nothing.** That is the remaining trigger and it
 # was the expensive one: `pull_request` fires on every push to an open PR, so a
@@ -52,8 +55,9 @@ concurrency:
 
 permissions:
   contents: read
-  # Deleting our own older artifacts. Nothing else here writes.
-  actions: write
+  # Nothing here writes. Building a bundle moved to release.yml, which is the
+  # only workflow that needs more than read — and it asks for contents: write
+  # only because a Release has to be created.
 
 jobs:
   # `changes` first, because `test` now asks it whether there is anything to
@@ -184,9 +188,11 @@ jobs:
       - name: The committed index describes this tree
         run: python3 scripts/codemap.py verify
 
-  # Is there anything in this push that could change the bundle? A Windows
-  # build of a Markdown edit is 105 MB of storage for a file nobody ships.
-  # Tests still run on everything — it is only the bundle that is skipped.
+  # Is there anything in this push that could need testing? A Release build and
+  # 2451 tests for a Markdown edit is four minutes spent on a file no test can
+  # read. The docs job still runs on everything, which is the point of it being
+  # separate — a documentation change is exactly when the derived contents list
+  # and the ledger ids need checking.
   changes:
     runs-on: ubuntu-latest
     # A draft builds nothing, and this is where that has to be said as well as on
@@ -207,8 +213,8 @@ jobs:
         run: |
           BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
           # A new branch, a force push or a first run has no usable base.
-          # Build in that case: skipping a bundle somebody wanted is a worse
-          # failure than storing one they did not.
+          # Test in that case: skipping a suite somebody needed is a worse
+          # failure than running one they did not.
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
              || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             echo "no usable base ref — building"
@@ -221,137 +227,7 @@ jobs:
           if printf '%s\n' "$CHANGED" | grep -qvE '^(docs/|\.claude/)|^[^/]*\.md$'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
-            echo "documentation only — skipping the Windows bundle"
+            echo "documentation only — skipping the test suite"
             echo "code=false" >> "$GITHUB_OUTPUT"
           fi
 
-  publish-win-x64:
-    runs-on: ubuntu-latest
-    needs: [test, changes]
-    # One condition now, and losing the second one is the point rather than an
-    # oversight.
-    #
-    # It used to also skip same-repo pull requests, because `push` and
-    # `pull_request` both fired and produced two bundles under different names —
-    # a PR's SHA is the merge commit, so neither replaced the other. Narrowing
-    # `push` to the default branch removes the duplicate at its source, and it
-    # turns that guard from redundant into **wrong**: a feature branch's only
-    # event is now the pull_request, so excluding it would mean no branch ever
-    # produced a bundle again. The README tells people to download
-    # `branch-<name>-…` artifacts, so that would have been a silent removal of a
-    # documented workflow.
-    #
-    # What remains is the documentation-only skip: a Windows build of a Markdown
-    # edit is 105 MB of quota for a file nobody ships.
-    if: >
-      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-      && (needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch')
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 10.0.x
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          # Keyed on the project files rather than a lock file, because this
-          # repo has none — `setup-dotnet`'s own `cache: true` needs a
-          # packages.lock.json and fails with "unable to cache dependencies"
-          # without one. Hashing the csproj set plus Directory.Build.props gets
-          # the same effect: the key moves exactly when a dependency or a target
-          # framework does.
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
-          # A partial hit still saves most of the download: the restore only
-          # fetches what changed rather than the whole graph.
-          restore-keys: nuget-${{ runner.os }}-
-      # DebugType=embedded, not none, and the difference is line numbers in a
-      # crash report. `none` ships no debug information at all, so a stack trace
-      # names methods and nothing else — which is exactly half of what makes a
-      # report actionable. `embedded` puts it inside the assembly rather than in
-      # a .pdb beside it, so it survives single-file publishing and adds no file
-      # to a bundle root that is deliberately four. Measured: +0.4 MB on the
-      # executable and nothing at all once zipped.
-      - name: Publish app (self-contained, no install/admin needed)
-        run: >
-          dotnet publish src/Lightbox.App/Lightbox.App.csproj
-          -c Release -r win-x64 --self-contained true
-          -p:PublishTrimmed=false -p:DebugType=embedded
-          -o publish/win-x64
-      # Back into `mcp/`, which reverses half of B32 — deliberately, and it cost
-      # far less than expected. B32 merged the two publishes into one folder so
-      # they could share a runtime, taking the bundle from 105 MB zipped to 74.
-      # Single-file publishing ends that sharing by construction: the app's
-      # runtime is inside Lightbox.App.exe now, and a self-contained executable
-      # only ever looked for its runtime beside itself, so there is nothing left
-      # in the folder for the server to share. It carries its own either way,
-      # and a subfolder is the tidier place for it to do that.
-      #
-      # Measured rather than estimated, because the estimate was wrong by an
-      # order of magnitude. The duplicated runtime was expected to put the
-      # download back at ~105 MB. It did not: dropping 105 MB of native pdbs
-      # (see Lightbox.App.csproj) in the same change nearly cancels it, and the
-      # real numbers are 216 -> 180 MB on disk and 74 -> 76 MB zipped. Two
-      # megabytes for a bundle root of four files and one folder.
-      - name: Publish MCP server into its own folder
-        run: >
-          dotnet publish src/Lightbox.Mcp/Lightbox.Mcp.csproj
-          -c Release -r win-x64 --self-contained true
-          -p:PublishTrimmed=false -p:DebugType=embedded
-          -o publish/win-x64/mcp
-      # The artifact (= downloaded zip) name says what kind of build this is:
-      #   release-main-…      build of main, for release-style testing
-      #   bugfix-<branch>-…   build of a fix/, bugfix/ or hotfix/ branch
-      #   branch-<branch>-…   any other feature/work branch
-      # plus the short commit SHA so builds of the same branch stay distinguishable.
-      - name: Artifact designation
-        id: designation
-        shell: bash
-        run: |
-          BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
-          case "$BRANCH" in
-            main)                    KIND="release" ;;
-            fix/*|bugfix/*|hotfix/*) KIND="bugfix" ;;
-            *)                       KIND="branch" ;;
-          esac
-          SAFE=$(printf '%s' "$BRANCH" | tr '/ _' '---' | tr -cd 'A-Za-z0-9.-')
-          echo "prefix=Lightbox-win-x64-${KIND}-${SAFE}-" >> "$GITHUB_OUTPUT"
-          echo "name=Lightbox-win-x64-${KIND}-${SAFE}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
-      # ---- keep the quota from filling ------------------------------------------
-      #
-      # One bundle is ~105 MB zipped, so `retention-days` alone cannot hold the
-      # line: retention is time-based and the accumulation here is per-push.
-      #
-      # It runs BEFORE the upload on purpose. Pruning afterwards deadlocks —
-      # once the quota is full the upload fails, and the step that would have
-      # freed the space never runs.
-      #
-      # The policy lives in .github/scripts/prune-artifacts.sh so the cleanup
-      # button runs exactly the same rules. HEADROOM_MB is the one thing only
-      # this caller wants: leave room for the bundle about to be uploaded.
-      - name: Prune older artifacts before uploading
-        continue-on-error: true       # never fail a build over housekeeping
-        env:
-          GH_TOKEN: ${{ github.token }}
-          KEEP: 3
-          STALE_DAYS: 7
-          # 400, not 1500. A Free personal account's whole artifact allowance
-          # is 500 MB; Pro is 2 GB. A budget above the ceiling never fires, so
-          # this is sized for the smaller plan — raise it to ~1500 on Pro.
-          BUDGET_MB: 400
-          HEADROOM_MB: 200
-        shell: bash
-        run: bash .github/scripts/prune-artifacts.sh
-
-      - uses: actions/upload-artifact@v5
-        with:
-          name: ${{ steps.designation.outputs.name }}
-          path: publish/win-x64
-          # Work builds are throwaway; only main's are worth keeping around.
-          #
-          # compression-level is left at its default deliberately. Measured on
-          # this bundle: 104.8 MB at level 6 against 104.4 MB at level 9,
-          # because it is already compressed DLLs and native libraries.
-          # Raising it costs CPU on every run to save 0.4%.
-          retention-days: ${{ github.ref_name == 'main' && 30 || 5 }}

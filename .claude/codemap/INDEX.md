@@ -1,6 +1,6 @@
 # Code index
 
-558 files · 148102 lines · 2931 tests.
+558 files · 148112 lines · 2931 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
