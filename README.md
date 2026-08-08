@@ -1,5 +1,20 @@
 # Lightbox
 
+> ### ⚠️ Alpha — not ready to rely on
+>
+> Lightbox is in **alpha** and under daily development by one person. It is
+> published so the work is readable, not because it is finished.
+>
+> - **No stability guarantee.** The document format still changes, and a file
+>   written today may not open in a later build. Do not put work you care about
+>   into it.
+> - **No support, and no release schedule.** Issues are read; nothing is
+>   promised.
+> - **Not accepting pull requests yet** — see [CONTRIBUTING.md](CONTRIBUTING.md)
+>   for why, and what to do instead.
+>
+> Licensed under **[GPL-3.0](LICENSE)**.
+
 An **AI-native, raster-first** art and animation application — in the spirit of Krita/Photoshop, built for hand-drawn frame-by-frame animation where inbetweens are near-indistinguishable from the original drawings.
 
 Built with **C# / .NET 10**, **Avalonia** (Windows · macOS · Linux), and **SkiaSharp**.
@@ -24,29 +39,29 @@ Built with **C# / .NET 10**, **Avalonia** (Windows · macOS · Linux), and **Ski
 
 ## Run on Windows — no admin rights needed
 
-Every **ready** pull request and every push to `main` builds a self-contained Windows bundle in CI. Two cases build nothing, and both have the same escape hatch — **Actions ▸ build ▸ Run workflow**, which always builds: a branch with **no PR open**, and a PR still marked **draft**.
-
-Drafts are deliberately quiet, because `pull_request` fires on *every* push to an open PR — merging main in twice and rebuilding the index costs a full suite each time. So open the PR as a draft while that is going on, and mark it ready when it is worth checking; marking it ready is itself a trigger.
-
-1. Repo → **Actions** tab → newest green `build` run → **Artifacts** → download `Lightbox-win-x64-…` (you must be signed in to GitHub).
+1. Go to **[Releases](../../releases)** and download `Lightbox-win-x64-….zip`.
 2. Unzip anywhere in your user profile, e.g. `%LOCALAPPDATA%\Lightbox`.
 3. Run `Lightbox.App.exe`. Nothing is installed, no .NET required, no admin.
 
-**How long a bundle lasts.** One is about 74 MB, so they are pruned rather than kept: a branch keeps its **3 newest**, `main`'s are kept 30 days and everyone else's 5, and any feature-branch bundle over a week old is deleted whatever branch it came from. A documentation-only push does not build one at all. If you need a bundle for a commit that has aged out, re-run the workflow from the Actions tab (**Run workflow**) — `workflow_dispatch` always builds.
+Releases are cut **on request** rather than on every push: pushing a `v*` tag
+builds one, and so does **Actions ▸ release ▸ Run workflow**, which can build a
+bundle from any branch. Ordinary pushes and pull requests run the tests and the
+document checks only.
 
-**If the storage quota fills anyway**, run **Actions ▸ cleanup artifacts ▸ Run workflow**. It prunes on its own without building anything, which matters because the build workflow's own prune cannot rescue a full quota — that prune runs beside an upload, and once the quota is full the upload fails first.
+That is a deliberate change from how this used to work. Every push once produced
+a throwaway CI artifact that expired in five days and had to be pruned to stay
+inside a storage quota; a tagged release is a versioned download with notes that
+does not evaporate, and it costs nothing when nobody asks for one.
 
-Both share one policy, in `.github/scripts/prune-artifacts.sh`, and it has three rules:
+> **The Run workflow button only appears when the workflow is on the default
+> branch.** `workflow_dispatch` is resolved from the default branch, so on a
+> feature branch there is nothing to click however correct the file is.
 
-1. **Keep the newest N per branch** (default 3), across every branch — not just the one being built.
-2. **Sweep feature-branch bundles older than N days** (default 7). Release and bugfix bundles are exempt; age alone is not a reason to take one somebody kept on purpose.
-3. **Hold total storage under a budget** (default 1500 MB), deleting oldest-first until it fits. This is the safety valve: rules 1 and 2 keep storage flat once it is sane, but only rule 3 can unblock a quota that is already full.
-
-Set **keep** to `0` to clear everything, or tick **dry run** to see the list first. Either way it writes what it found and freed to the run summary.
-
-> **The button only appears when this workflow is on the repository's default branch.** `workflow_dispatch` is resolved from the default branch, so on a feature branch there is nothing to click however correct the file is.
-
-GitHub recalculates usage every 6–12 hours, so a build started immediately after a cleanup may still be refused even though the space is genuinely free.
+Older per-build artifacts, from before releases existed, can still be pruned with
+**Actions ▸ cleanup artifacts ▸ Run workflow** — the policy lives in
+`.github/scripts/prune-artifacts.sh`. Set **keep** to `0` to clear everything, or
+tick **dry run** to see the list first. GitHub recalculates usage every 6–12
+hours, so freed space can take a while to register.
 
 **If SmartScreen blocks it** (and policy hides "Run anyway"): SmartScreen only screens files carrying the Mark-of-the-Web download tag — remove the tag and it never triggers. Any of these work without admin:
 
