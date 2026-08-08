@@ -54,7 +54,8 @@ public static class VideoExporter
     public static List<string> BuildArgs(
         VideoFormat format, int width, int height, int fps, string outputPath,
         string? audioPath = null, int audioOffsetFrames = 0, double audioVolume = 1.0,
-        int audioTrimStartFrames = 0, int? audioLengthFrames = null)
+        int audioTrimStartFrames = 0, int? audioLengthFrames = null,
+        int? quality = null)
     {
         var args = new List<string>
         {
@@ -102,14 +103,18 @@ public static class VideoExporter
                 // rescale the art.
                 args.AddRange([
                     "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "medium",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-crf", Math.Clamp(quality ?? 18, 0, 51).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "-preset", "medium",
                     "-movflags", "+faststart",
                 ]);
                 if (audioPath is not null) args.AddRange(["-c:a", "aac", "-b:a", "192k"]);
                 break;
             case VideoFormat.ProRes:
                 args.AddRange([
-                    "-c:v", "prores_ks", "-profile:v", "3", "-pix_fmt", "yuv422p10le", "-vendor", "apl0",
+                    "-c:v", "prores_ks",
+                    "-profile:v", Math.Clamp(quality ?? 3, 0, 5).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "-pix_fmt", "yuv422p10le", "-vendor", "apl0",
                 ]);
                 if (audioPath is not null) args.AddRange(["-c:a", "pcm_s16le"]);
                 break;
@@ -128,13 +133,26 @@ public static class VideoExporter
         format switch { VideoFormat.ProRes => "mov", _ => "mp4" };
 
     /// <summary>
-    /// Render and encode the whole timeline. Returns null on success or a
-    /// sentence saying why not. <paramref name="audioPath"/> is the resolved
-    /// sound file, already null when the track is muted or missing.
+    /// Render and encode the whole timeline at the document's own size and
+    /// rate — the settings-free path the menu used before there was a window
+    /// to choose in, kept because most exports want exactly this.
     /// </summary>
     public static string? Export(
         Doc doc, VideoFormat format, string outputPath,
-        string? audioPath = null, Action<int, int>? progress = null)
+        string? audioPath = null, Action<int, int>? progress = null) =>
+        Export(doc, VideoExportSettings.For(doc.Scene, format), outputPath, audioPath, progress);
+
+    /// <summary>
+    /// Render and encode the frames <paramref name="settings"/> asks for.
+    /// Returns null on success or a sentence saying why not — including when
+    /// the artist cancelled, because a half-written file needs saying out
+    /// loud. <paramref name="audioPath"/> is the resolved sound file, already
+    /// null when the track is muted, missing or switched off for this export.
+    /// </summary>
+    public static string? Export(
+        Doc doc, VideoExportSettings settings, string outputPath,
+        string? audioPath = null, Action<int, int>? progress = null,
+        CancellationToken cancel = default)
     {
         var ffmpeg = FindFfmpeg();
         if (ffmpeg is null)
@@ -143,13 +161,16 @@ public static class VideoExporter
         }
 
         var scene = doc.Scene;
-        var (width, height) = SequenceExporter.OutputSize(scene);
-        var fps = Math.Max(1, scene.Fps);
-        var track = scene.Audio;
+        var (width, height) = settings.OutputSize(scene);
+        var (fromFrame, toFrame) = settings.ClampedRange(scene);
+        var fps = Math.Max(1, settings.Fps);
+        var track = settings.IncludeAudio ? scene.Audio : null;
+        if (!settings.IncludeAudio) audioPath = null;
+        var audioOffset = settings.AudioOffsetFrames(scene);
         var args = BuildArgs(
-            format, width, height, fps, outputPath,
-            audioPath, track?.OffsetFrames ?? 0, track?.Volume ?? 1.0,
-            track?.TrimStartFrames ?? 0, track?.TrimLengthFrames);
+            format: settings.Format, width, height, fps, outputPath,
+            audioPath, audioOffset, track?.Volume ?? 1.0,
+            track?.TrimStartFrames ?? 0, track?.TrimLengthFrames, settings.Quality);
 
         var info = new ProcessStartInfo
         {
@@ -177,12 +198,15 @@ public static class VideoExporter
             process.BeginErrorReadLine();
 
             var buffer = new byte[width * height * 4];
+            var total = toFrame - fromFrame + 1;
+            var cancelled = false;
             using (var cache = new FrameBitmapCache())
             using (var stdin = process.StandardInput.BaseStream)
             {
-                for (var i = 0; i < scene.FrameCount; i++)
+                for (var i = fromFrame; i <= toFrame; i++)
                 {
-                    using var image = SequenceExporter.RenderFrame(doc, cache, i);
+                    if (cancel.IsCancellationRequested) { cancelled = true; break; }
+                    using var image = SequenceExporter.RenderFrame(doc, cache, i, settings.Scale, (width, height));
                     unsafe
                     {
                         fixed (byte* p = buffer)
@@ -195,11 +219,18 @@ public static class VideoExporter
                         }
                     }
                     stdin.Write(buffer, 0, buffer.Length);
-                    progress?.Invoke(i + 1, scene.FrameCount);
+                    progress?.Invoke(i - fromFrame + 1, total);
                 }
             }
 
             process.WaitForExit();
+            if (cancelled)
+            {
+                // Closing the pipe finishes whatever FFmpeg already had, so the
+                // file exists and is short. Saying so beats leaving the artist
+                // to discover it.
+                return $"Export cancelled — “{Path.GetFileName(outputPath)}” holds the frames rendered so far.";
+            }
             if (process.ExitCode != 0)
             {
                 var tail = stderr.ToString();
@@ -209,8 +240,13 @@ public static class VideoExporter
             }
             return null;
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception
+                                      or UnauthorizedAccessException or InvalidOperationException)
         {
+            // Every way starting or feeding FFmpeg can fail — a broken pipe, a
+            // binary that will not execute, a folder that will not take the
+            // file — comes back as a sentence rather than as an exception the
+            // caller has to guess at.
             return $"Video export failed: {ex.Message}";
         }
     }

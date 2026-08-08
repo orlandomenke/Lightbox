@@ -74,12 +74,14 @@ public static class SceneRenderer
 {
     public static SKImage Compose(
         int width, int height, IReadOnlyList<RenderPass> passes,
-        SKColor? background = null, SKMatrix? transform = null)
+        SKColor? background = null, SKMatrix? transform = null, double scale = 1.0)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var surface = SKSurface.Create(info)
             ?? throw new InvalidOperationException("Could not create compose surface.");
-        ComposeInto(surface, passes, background, clip: null, scale: 1.0, transform);
+        // A bigger render is a bigger surface and a canvas scale — invariant 7.
+        // The transform path has already folded the scale into its matrix.
+        ComposeInto(surface, passes, background, clip: null, scale, transform);
         return surface.Snapshot();
     }
 

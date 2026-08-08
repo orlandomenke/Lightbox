@@ -755,6 +755,16 @@ test reopens the bug.
   - Cause: `Stroke.Clone` copied nine properties and not `SwatchId` or `GradientId`, so a cloned stroke fell back to its literal colour. It is what `DocumentEditor.CloneFrame` and the inbetweener both use, so it reached cel copy, cel duplication, drag-with-copy and every AI inbetween.
   - Fix: copy them. The list is exhaustive now and says so, because a field added to a stroke and missed here does not fail — it goes quiet. Found while writing break-link, which needed the same copy. Cost: S
 
+### export
+
+- [x] **B146** `P2` `export` Exporting a video appeared to do nothing, because every answer it had went to a hidden row `evidence: VideoExportSettingsTests, TheWindowSaysTheEncoderIsMissingRatherThanFailingSilently, AMissingEncoderIsASentenceThatSaysWhatToDoInstead, EveryReasonAnExportCannotStartIsSaidBeforeTheEncoderRuns, TheWindowOpensOnTheWholeTimelineAtTheDocumentsOwnSize, TheRangeFieldsCountFromOneTheWayTheTimelineDoes, ChoosingProResRenamesTheFileSoTheStreamMatchesTheContainer, ARangeAtHalfSizeEncodesToTheSizeItPromised, RenderingBiggerScalesTheSurfaceAndNeverTheGeometry`
+  - Reported as *"saving a video now does nothing in the main menu. Not even feedback."* Repro: **File ▸ Export video…**, pick a filename, press Save — no progress, no file, no error, on a machine with no FFmpeg on PATH.
+  - Cause is two things that look like one. `OnExportVideoClicked` reported **every** outcome — "Rendering video…", the finished filename, and `"FFmpeg was not found — …"` — by setting `MainViewModel.AiStatus`. That property is bound in exactly one place, a `TextBlock` inside the AI bar, and the AI bar is `IsVisible="{Binding AiEnabled}"`. With assistance switched off the row is **absent**, so the one surface that could explain the failure was not on screen. The export was working exactly as written and saying so into the void.
+  - The second half is that there was nothing to adjust: the handler rendered the whole timeline at the document's size and the scene's rate, with the format inferred from the extension the artist happened to type. No range, no scale, no quality, no way to leave the sound out.
+  - Fix: a real `VideoExportWindow`. The encoder's absence is said **first**, above every setting, with what to do about it and the PNG-sequence route that works today; the render runs while the window is open, the progress bar moves per frame, and the closing sentence names the file, its size and what was in it. Settings are a `VideoExportSettings` record — format, scale, frame range, rate, quality, sound — so the numbers are testable without a window on screen, which is where the previous version had nothing at all.
+  - **The scale is a surface scale, never a geometry one** (invariant 7): `SequenceExporter.RenderFrame` takes it through to the compose canvas and the document is untouched, so a 200% render is the same mark larger rather than a re-seeded drawing. The declared size and the piped bytes are decided in one place, because a raw pipe that disagrees with `-s` by one pixel produces a green smear rather than an error.
+  - Cost: M
+
 ### layers
 
 - [x] **B136** `P1` `layers` Every document opened from disk starts on the locked paper layer, so drawing does nothing `evidence: ADocumentOpenedFromDiskOpensOnAPaintableLayer`
