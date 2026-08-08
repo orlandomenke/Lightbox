@@ -35,7 +35,18 @@ public static class AnimationSweeps
     /// </summary>
     private static Frame Drawing(int strokes, int seed) => Drawing(strokes, seed, W, H);
 
-    private static Frame Drawing(int strokes, int seed, int w, int h)
+    /// <param name="brush">
+    /// The mark being swept. Defaults to the 9 px line-art brush every existing
+    /// scenario was measured with, so adding the parameter changed no number.
+    /// </param>
+    /// <param name="span">
+    /// Distance between the eight sampled points, which sets stroke length. Paired
+    /// with <paramref name="brush"/>: a wider spacing needs a longer stroke to
+    /// reach the same dab count, and comparing two brushes at different dab counts
+    /// measures two things at once.
+    /// </param>
+    private static Frame Drawing(
+        int strokes, int seed, int w, int h, BrushSettings? brush = null, double span = 14)
     {
         var frame = new Frame();
         for (var s = 0; s < strokes; s++)
@@ -48,12 +59,19 @@ public static class AnimationSweeps
             var x = 60 + a % (uint)(w - 120);
             var y = 60 + b % (uint)(h - 120);
 
+            // The original literals were 14 across and 9 down. Both are now derived
+            // from `span` at that same 9:14 ratio, so the default reproduces every
+            // previously recorded sample exactly rather than approximately — a
+            // parameter added to a benchmark must not silently move its baseline.
+            var dx = span;
+            var dy = span * 9.0 / 14.0;
+
             var points = new List<StrokePoint>();
             for (var i = 0; i < 8; i++)
             {
                 points.Add(new StrokePoint(
-                    x + i * 14 + (a % 7) * i,
-                    y + i * 9 - (b % 5) * i,
+                    x + i * dx + (a % 7) * i,
+                    y + i * dy - (b % 5) * i,
                     0.4 + (i % 4) * 0.2));
             }
 
@@ -62,7 +80,8 @@ public static class AnimationSweeps
                 Tool = ToolKind.Brush,
                 Color = "#20202a",
                 Points = points,
-                Brush = new BrushSettings { Size = 9, Hardness = 0.7, Opacity = 1, Flow = 0.9, Spacing = 0.1 },
+                Brush = brush
+                    ?? new BrushSettings { Size = 9, Hardness = 0.7, Opacity = 1, Flow = 0.9, Spacing = 0.1 },
             });
         }
         return frame;
@@ -147,6 +166,7 @@ public static class AnimationSweeps
         yield return CanvasSize();
         yield return OnionDepth();
         yield return StrokesPerFrame();
+        yield return PaintingRebuild();
         yield return SceneLength();
         yield return Playback();
         yield return Scrubbing();
@@ -504,6 +524,76 @@ public static class AnimationSweeps
             },
             Note: "A cache miss, an undo, and every frame of an export pay this.");
     }
+
+    /// <summary>
+    /// The same rebuild, shaped like a painting rather than a frame of line art.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why a second scenario rather than more values on the first.</b>
+    /// <see cref="StrokesPerFrame"/> sweeps a 9 px line-art brush, which is the
+    /// right shape for the animation half of the application and the wrong one
+    /// for the painting half. It also stops at 800 strokes, because that is a busy
+    /// *drawing* — a painting worth finishing is an order of magnitude past it.
+    /// Both facts together hid a cost nobody had priced: B30 is filed on the
+    /// assumption that a cache miss is rare, which holds for one frame of a
+    /// sequence and not for the single image an artist returns to for a week.
+    /// </para>
+    /// <para>
+    /// <b>The two brushes are matched on dab count, deliberately, because the
+    /// obvious explanation is wrong.</b> Spacing is a fraction of brush size, so a
+    /// 60 px brush at 0.05 steps 3 px while a 9 px brush at 0.1 steps 0.9 px — the
+    /// big soft brush lays *fewer* dabs per unit length, not more. The stroke spans
+    /// below are chosen so both land near 110 dabs a stroke, which isolates the
+    /// thing that actually differs: each painterly dab covers about 44× the area.
+    /// Anyone reading a "painting is slower" row should be able to see that it is
+    /// fill rate rather than dab count, or they will optimise the wrong end.
+    /// </para>
+    /// <para>
+    /// Capped at 2000 rather than the 10 000 the design note quotes: at ~10 ms a
+    /// stroke, 10 000 is a two-minute sample, and the exponent is flat enough over
+    /// this range to extrapolate honestly. `docs/DESIGN-raster-checkpoint.md`
+    /// carries the larger measurement and says it was taken by hand.
+    /// </para>
+    /// </remarks>
+    private static Scenario PaintingRebuild()
+    {
+        Frame? frame = null;
+
+        return new Scenario(
+            "Rasterise a painting from its strokes",
+            "strokes",
+            [250, 500, 1000, 2000],
+            Cadence.PerAction,
+            Setup: n =>
+            {
+                frame = Painting(n, seed: 11);
+                return null;
+            },
+            Work: _ =>
+            {
+                using var bmp = FrameRasterizer.Rasterize(frame!.Strokes, W, H);
+            },
+            Note: "Opening a saved painting, and undoing past the top of the stack, pay this in full. "
+                + "Compare per-stroke cost against 'Rasterise a frame from its strokes': same dabs, "
+                + "44x the area each.")
+        {
+            // Three, not fifteen. A 2000-stroke painterly rebuild is ~20 s, so the
+            // default would make one row an eight-minute job for a p95 that adds
+            // nothing — the variance here is far below the effect being measured.
+            Iterations = 3,
+            Warmup = 1,
+        };
+    }
+
+    /// <summary>A painting-shaped drawing: large, soft, low-flow strokes that overlap.</summary>
+    private static Frame Painting(int strokes, int seed) => Drawing(
+        strokes,
+        seed,
+        W,
+        H,
+        new BrushSettings { Size = 60, Hardness = 0.3, Opacity = 0.8, Flow = 0.5, Spacing = 0.05 },
+        span: 40);
 
     // ---- how long can a scene get --------------------------------------------
 
