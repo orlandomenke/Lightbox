@@ -3296,6 +3296,42 @@ public partial class MainWindow : Window
         flyout.ShowAt(GraphEditorView, showAtPointer: true);
     }
 
+    /// <summary>
+    /// Right-clicking a clip bar (Q57): what can be done to a section, at the
+    /// playhead. A cut is offered only where one is possible — inside a
+    /// section rather than at its edge — and says so when it is not, because a
+    /// menu item that silently does nothing teaches an artist to distrust the
+    /// menu.
+    /// </summary>
+    private void OnClipMenu(Controls.ClipBar bar, bool isAudio, Avalonia.Point at)
+    {
+        var frame = _vm.CurrentFrameIndex;
+        var insideSection = frame > bar.Start && frame <= bar.End;
+        var flyout = new MenuFlyout { Placement = PlacementMode.Pointer };
+
+        var split = new MenuItem
+        {
+            Header = $"Split at frame {frame + 1}",
+            IsEnabled = insideSection,
+        };
+        split.Click += (_, _) =>
+        {
+            if (isAudio) _vm.SplitAudioAtPlayhead();
+            else _vm.SplitVideoAtPlayhead(bar.StripIndex);
+        };
+        flyout.Items.Add(split);
+
+        if (!insideSection)
+        {
+            flyout.Items.Add(new MenuItem
+            {
+                Header = "Move the playhead inside the clip to cut it",
+                IsEnabled = false,
+            });
+        }
+        flyout.ShowAt(TimelineTrackView, showAtPointer: true);
+    }
+
     // ---- the chrome is ours -------------------------------------------------
 
     /// <summary>

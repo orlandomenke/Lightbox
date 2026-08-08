@@ -431,6 +431,12 @@ public partial class MainViewModel
     internal string? ResolvedAudioPathForExport()
     {
         if (Scene.Audio is not { } track || track.Muted) return null;
+        // A split track's timing is no longer expressible as one offset and
+        // one trim (Q57), so the sections are assembled into a timeline-shaped
+        // WAV and that is what the encoder mixes. The alternative — one input
+        // per section with its own delay — is an FFmpeg filter graph that
+        // grows with every cut, for a file this size.
+        if (AssembledAudioForExport() is { } assembled) return assembled;
         if (track.Data is { } data)
         {
             try
@@ -481,7 +487,8 @@ public partial class MainViewModel
         // window of the source, at its own place. Crossing a cut or a gap
         // restarts the stream at the right sample — a straight run through
         // one section stays one uninterrupted play.
-        if (AudioSourcePositionAt(CurrentFrameIndex, clip) is not var (t, segmentIndex) || segmentIndex < 0)
+        var (t, segmentIndex) = AudioSourcePositionAt(CurrentFrameIndex, clip);
+        if (segmentIndex < 0)
         {
             StopAudio();
             return;
@@ -530,7 +537,8 @@ public partial class MainViewModel
     {
         if (IsPlaying || _switchingTabs) return;
         if (Scene.Audio is not { } track || track.Muted || AudioClipNow is not { } clip) return;
-        if (AudioSourcePositionAt(CurrentFrameIndex, clip) is not var (t, segmentIndex) || segmentIndex < 0) return;
+        var (t, segmentIndex) = AudioSourcePositionAt(CurrentFrameIndex, clip);
+        if (segmentIndex < 0) return;
         _audioPlayback.ScrubTick(clip, t, 1.0 / Math.Max(1, Scene.Fps), track.Volume);
     }
 
