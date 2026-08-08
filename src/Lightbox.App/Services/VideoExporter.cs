@@ -53,7 +53,8 @@ public static class VideoExporter
     /// </summary>
     public static List<string> BuildArgs(
         VideoFormat format, int width, int height, int fps, string outputPath,
-        string? audioPath = null, int audioOffsetFrames = 0, double audioVolume = 1.0)
+        string? audioPath = null, int audioOffsetFrames = 0, double audioVolume = 1.0,
+        int audioTrimStartFrames = 0, int? audioLengthFrames = null)
     {
         var args = new List<string>
         {
@@ -68,15 +69,23 @@ public static class VideoExporter
         if (audioPath is not null)
         {
             var offsetSeconds = audioOffsetFrames / (double)Math.Max(1, fps);
+            // The clip bar's in-trim (Q57) and a negative offset both consume
+            // the head of the source; they add.
+            var trimSeconds = Math.Max(0, audioTrimStartFrames) / (double)Math.Max(1, fps)
+                + (offsetSeconds < 0 ? -offsetSeconds : 0);
             if (offsetSeconds > 0)
             {
                 // The sound starts later than frame zero: delay the input.
                 args.AddRange(["-itsoffset", Seconds(offsetSeconds)]);
             }
-            else if (offsetSeconds < 0)
+            if (trimSeconds > 0)
             {
-                // A negative offset trims the lead-in instead.
-                args.AddRange(["-ss", Seconds(-offsetSeconds)]);
+                args.AddRange(["-ss", Seconds(trimSeconds)]);
+            }
+            if (audioLengthFrames is { } lengthFrames)
+            {
+                // The out-trim: only this much of the source plays.
+                args.AddRange(["-t", Seconds(lengthFrames / (double)Math.Max(1, fps))]);
             }
             args.AddRange(["-i", audioPath]);
             if (Math.Abs(audioVolume - 1.0) > 1e-9)
@@ -139,7 +148,8 @@ public static class VideoExporter
         var track = scene.Audio;
         var args = BuildArgs(
             format, width, height, fps, outputPath,
-            audioPath, track?.OffsetFrames ?? 0, track?.Volume ?? 1.0);
+            audioPath, track?.OffsetFrames ?? 0, track?.Volume ?? 1.0,
+            track?.TrimStartFrames ?? 0, track?.TrimLengthFrames);
 
         var info = new ProcessStartInfo
         {

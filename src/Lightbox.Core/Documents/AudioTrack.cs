@@ -28,6 +28,21 @@ public sealed class AudioTrack
     /// </summary>
     public int OffsetFrames { get; set; }
 
+    /// <summary>
+    /// Frames cut from the head of the source (Q57): the clip bar's in-trim.
+    /// The source is never edited — this is which part of it the timeline
+    /// uses. Zero is the default and writes; the field is cheap and the
+    /// timing it carries is not optional once a clip has been trimmed.
+    /// </summary>
+    public int TrimStartFrames { get; set; }
+
+    /// <summary>
+    /// How many source frames the timeline uses from
+    /// <see cref="TrimStartFrames"/>, or null for the rest of the clip —
+    /// the out-trim. Null is the default and writes no key.
+    /// </summary>
+    public int? TrimLengthFrames { get; set; }
+
     /// <summary>Playback gain, 0..1. Stored per document: a scratch track set quiet stays quiet.</summary>
     public double Volume { get; set; } = 1.0;
 

@@ -10210,9 +10210,125 @@ public sealed partial class MainViewModel : ObservableObject
     private void AfterReferenceChange()
     {
         NotifyReference();
+        OnPropertyChanged(nameof(TimelineVideoClips));
         PublishSnapshot();
         MarkDocumentEdited();
         ReferenceChanged?.Invoke();
+    }
+
+    // ---- video clip bars (Q57) --------------------------------------------------
+
+    /// <summary>
+    /// The footage clips the timeline shows as bars: every video strip with
+    /// at least one frame on the timeline. Image references stay out — their
+    /// timing is the sheet's business, and a bar for every sprite sheet
+    /// would bury the clips the feature exists for.
+    /// </summary>
+    public IReadOnlyList<Controls.ClipBar> TimelineVideoClips
+    {
+        get
+        {
+            if (Scene.References is not { Count: > 0 } strips) return [];
+            var clips = new List<Controls.ClipBar>();
+            for (var i = 0; i < strips.Count; i++)
+            {
+                var strip = strips[i];
+                if (strip.VideoPath is null) continue;
+                var first = strip.FirstAssignedSlot();
+                if (first < 0) continue;
+                clips.Add(new Controls.ClipBar(strip.Name, first, strip.LastAssignedSlot(), i));
+            }
+            return clips;
+        }
+    }
+
+    /// <summary>The clip bar's body drag: the whole strip slides along the timeline.</summary>
+    public void SlideVideoClip(int stripIndex, int deltaFrames)
+    {
+        if (deltaFrames == 0 || Scene.References is not { } strips
+            || stripIndex < 0 || stripIndex >= strips.Count) return;
+        var strip = strips[stripIndex];
+        strip.SlideSlots(deltaFrames);
+        GrowTimelineTo(strip.LastAssignedSlot() + 1);
+        AfterReferenceChange();
+        NotifyAudioSurface();   // the shared track surface redraws
+    }
+
+    /// <summary>
+    /// Drag a video clip's IN edge (Q57): +d hides d more leading frames of
+    /// the footage; −d brings hidden ones back. The frames themselves never
+    /// leave the strip — trimming is which of them the timeline shows.
+    /// </summary>
+    public void TrimVideoClipIn(int stripIndex, int deltaFrames)
+    {
+        if (deltaFrames == 0 || Scene.References is not { } strips
+            || stripIndex < 0 || stripIndex >= strips.Count) return;
+        var strip = strips[stripIndex];
+        var first = strip.FirstAssignedSlot();
+        var last = strip.LastAssignedSlot();
+        if (first < 0) return;
+
+        if (deltaFrames > 0)
+        {
+            // Hide leading frames, never the last one standing.
+            for (var i = first; i < Math.Min(first + deltaFrames, last); i++)
+            {
+                strip.Assign(i, -1);
+            }
+        }
+        else
+        {
+            // Bring hidden leading frames back, while both the timeline and
+            // the footage have room.
+            var cell = strip.Slots[first];
+            for (var step = 1; step <= -deltaFrames; step++)
+            {
+                var slot = first - step;
+                var earlier = cell - step;
+                if (slot < 0 || earlier < 0) break;
+                strip.Assign(slot, earlier);
+            }
+        }
+        AfterReferenceChange();
+        NotifyAudioSurface();
+    }
+
+    /// <summary>Drag a video clip's OUT edge: +d shows d more trailing frames, −d hides them.</summary>
+    public void TrimVideoClipOut(int stripIndex, int deltaFrames)
+    {
+        if (deltaFrames == 0 || Scene.References is not { } strips
+            || stripIndex < 0 || stripIndex >= strips.Count) return;
+        var strip = strips[stripIndex];
+        var first = strip.FirstAssignedSlot();
+        var last = strip.LastAssignedSlot();
+        if (last < 0) return;
+
+        if (deltaFrames < 0)
+        {
+            for (var i = last; i > Math.Max(last + deltaFrames, first); i--)
+            {
+                strip.Assign(i, -1);
+            }
+        }
+        else
+        {
+            var cell = strip.Slots[last];
+            for (var step = 1; step <= deltaFrames; step++)
+            {
+                var later = cell + step;
+                if (later >= strip.Cells.Count) break;
+                strip.Assign(last + step, later);
+            }
+            GrowTimelineTo(strip.LastAssignedSlot() + 1);
+        }
+        AfterReferenceChange();
+        NotifyAudioSurface();
+    }
+
+    private void GrowTimelineTo(int frameCount)
+    {
+        if (frameCount <= Scene.FrameCount) return;
+        _editor.Perform(doc => doc.Scene.FrameCount = Math.Max(doc.Scene.FrameCount, frameCount));
     }
 
     private void NotifyReference()
