@@ -138,6 +138,19 @@ not half your animation.
 If it says *every pass tiled* and playback is still slow, the drawing is not the
 cause and the report's other sections are where to look.
 
+### The section below it: drawings prepared ahead of the playhead
+
+While a sequence plays, Lightbox draws the frames that are *about* to come up on
+a second processor core, so the frame arrives already made rather than being
+made while you wait for it. You never see this working; you would only see it
+failing, as the first run through a scene being rougher than the ones after it.
+
+The report says how many were ready in time. **Over half is it working.** Under
+half means a single drawing takes longer to build than the gap between frames on
+this machine — usually a very dense drawing at a large canvas size — and the
+report says so in those words rather than leaving you to do the arithmetic.
+Lowering **Canvas quality**, or playing a shorter range, is what helps there.
+
 It names which parts of the drawing are done by your graphics card and which by
 the processor — and those are not the same question. The status strip says
 **GPU** when your card is putting finished frames on screen, which it usually is;

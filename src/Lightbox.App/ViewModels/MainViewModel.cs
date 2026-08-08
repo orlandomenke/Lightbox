@@ -82,11 +82,28 @@ public sealed partial class MainViewModel : ObservableObject
     /// <inheritdoc cref="TileFrames"/>
     internal long BitmapCacheBytes => _cache.CachedBytes;
 
+    /// <summary>
+    /// Rasterizes the frames playback is about to show, off the UI thread.
+    /// </summary>
+    /// <remarks>
+    /// Flushed from the same funnel that invalidates the caches, because a warm
+    /// is a render of the document as it was: the moment a frame changes,
+    /// anything in flight describes a document nobody is looking at. See
+    /// <see cref="FramePrewarmer"/> for why that is a generation counter rather
+    /// than a per-frame check — a warm is cheap to throw away and expensive to
+    /// get subtly wrong.
+    /// </remarks>
+    private readonly FramePrewarmer _prewarm = new();
+
+    /// <summary>Diagnostics for tests and the render report.</summary>
+    internal FramePrewarmer Prewarm => _prewarm;
+
     /// <summary>Every frame mutation goes through here, whichever cache holds it.</summary>
     private void InvalidateFrameRender(string frameId)
     {
         _cache.Invalidate(frameId);
         _tileFrames.Invalidate(frameId);
+        _prewarm.Flush();
     }
 
     /// <inheritdoc cref="InvalidateFrameRender"/>
@@ -94,6 +111,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _cache.Clear();
         _tileFrames.Clear();
+        _prewarm.Flush();
     }
 
     /// <summary>
@@ -113,6 +131,13 @@ public sealed partial class MainViewModel : ObservableObject
         // tiles cannot say evicts the frame's entry itself. Skipping this on
         // the bounded arm would leave playback-warmed tiles one stroke stale
         // — the next play would show the drawing without its newest line.
+        // A warm in flight was started from this frame's record as it stood a
+        // stroke ago. The bitmap arm below caches the frame either way, so a
+        // stale bitmap warm would be refused on arrival — but the tile arm
+        // returns without caching anything, and a stale tile warm would then
+        // install a version of the drawing missing its newest line. Flushing is
+        // free here: warms are only ever requested while playing.
+        _prewarm.Flush();
         _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
         if (UnboundedCanvasOn && TileFrameCache.CanTileFrame(target)) return;
         FrameRasterizer.Append(_cache.Get(target, Scene.Width, Scene.Height), stroke);
@@ -6473,10 +6498,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnPlaybackEndFrameChanged(int value) => RefreshRangeHighlights();
 
-    private int EffectiveStartFrame =>
+    internal int EffectiveStartFrame =>
         Math.Clamp(PlaybackStartFrame < 0 ? 0 : PlaybackStartFrame, 0, Math.Max(0, Scene.FrameCount - 1));
 
-    private int EffectiveEndFrame =>
+    internal int EffectiveEndFrame =>
         Math.Clamp(PlaybackEndFrame < 0 ? Scene.FrameCount - 1 : PlaybackEndFrame, EffectiveStartFrame, Math.Max(0, Scene.FrameCount - 1));
 
     [RelayCommand]
@@ -10436,6 +10461,13 @@ public sealed partial class MainViewModel : ObservableObject
     public void PublishSnapshot()
     {
         var scene = Scene;
+
+        // Take whatever the prewarmer finished since the last publish, BEFORE
+        // the pass list asks the caches for anything. Draining afterwards would
+        // install a frame one publish after the one that needed it, which is the
+        // whole of the benefit gone.
+        TakeWarmedFrames();
+
         var passes = new List<RenderPass>();
         // Tile-native passes are only legible to the unbounded compositor, so
         // the decision to build them must equal the decision to use it — a
@@ -10835,6 +10867,121 @@ public sealed partial class MainViewModel : ObservableObject
             // duplicate the whole buffer.
             image.Dispose();
         }
+
+        // Last, and after the frame is on its way to the screen: the worker
+        // starts on the frames after this one while the artist is looking at
+        // this one. Queued from here rather than from the playback tick so that
+        // the guess is refreshed by every publish that moves the playhead —
+        // scrubbing and stepping included, not only the timer.
+        RequestPlaybackPrewarm(tileNativeDoc, renderScale);
+    }
+
+    /// <summary>
+    /// Install whatever the prewarmer finished, or dispose it if the cache will
+    /// not have it.
+    /// </summary>
+    /// <remarks>
+    /// A cache refuses a warm when it already holds the frame, when the warm
+    /// does not fit inside the byte budget, or when the frame is one that is
+    /// never stored at all. All three are ordinary — speculative work is allowed
+    /// to be wasted — and every one of them ends in the pixels being freed here
+    /// rather than leaked.
+    /// </remarks>
+    private void TakeWarmedFrames() => _prewarm.Drain(warmed =>
+    {
+        var want = warmed.Request;
+        if (want.Want == WarmProduct.Tiles)
+        {
+            return warmed is { Store: { } store, Pyramid: { } pyramid }
+                && _tileFrames.InsertWarm(want.Frame, store, pyramid);
+        }
+        return warmed.Bitmap is { } bmp
+            && _cache.InsertWarm(want.Frame, want.Width, want.Height, 1.0, want.CelIndex, bmp);
+    });
+
+    /// <summary>
+    /// Queue the frames the playhead is about to reach, so the tick that shows
+    /// them does not have to rasterize them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Only while playing.</b> The prediction is only worth making when the
+    /// playhead is moving on its own: an artist drawing goes where they like,
+    /// and warming a guess about that would spend a core to fill the cache with
+    /// frames nobody asked for. Playback is the one time the next few frames are
+    /// known rather than guessed.
+    /// </para>
+    /// <para>
+    /// <b>The tile-or-bitmap decision is <see cref="TileFallback.Reason"/>, the
+    /// same call the publish makes.</b> Warming a frame as a bitmap that the
+    /// publish then wants as tiles is not wrong, but it is the whole cost paid
+    /// for nothing — and it is exactly the kind of divergence that appears when
+    /// two places restate one rule. One function, asked twice.
+    /// </para>
+    /// </remarks>
+    private void RequestPlaybackPrewarm(bool tileNativeDoc, double renderScale)
+    {
+        if (!IsPlaying) return;
+
+        var scene = Scene;
+        var last = Math.Max(0, scene.FrameCount - 1);
+        var ahead = FramePrewarmer.Upcoming(
+            CurrentFrameIndex, _playDirection,
+            EffectiveStartFrame, EffectiveEndFrame, LoopPlayback, FramePrewarmer.Lookahead);
+        if (ahead.Count == 0) return;
+
+        var level = TilePyramid.LevelFor(renderScale);
+        var jobs = new List<WarmRequest>();
+
+        // One drawing, one job. A held cel is the same frame at every exposure
+        // it covers, and the paper is one frame under the whole sequence — so
+        // without this the background alone is rendered once per position
+        // looked ahead, every publish, for a frame that never changes. Measured
+        // at six warms where four were wanted on a two-layer document, which is
+        // the smallest document there is.
+        var queued = new HashSet<string>();
+        foreach (var index in ahead)
+        {
+            var celIndex = Math.Clamp(index, 0, last);
+            foreach (var layer in scene.Layers)
+            {
+                if (!scene.IsLayerVisible(layer)) continue;
+                if (ExposureSheet.ExposedFrame(layer, celIndex) is not { } frame) continue;
+
+                // A frame that places a symbol renders differently at different
+                // exposures — a placed cycle advances with the sequence — and is
+                // cached per index for that reason. Every other frame is the same
+                // picture wherever it sits, which is what makes deduplicating by
+                // id alone correct for them and wrong for these.
+                var once = frame.HasPlacements ? $"{frame.Id}#{celIndex}" : frame.Id;
+                if (!queued.Add(once)) continue;
+
+                // No live effect can be in progress: playback abandons a stroke
+                // in flight, which is what makes this false rather than a guess.
+                var why = tileNativeDoc
+                    ? TileFallback.Reason(frame, scene.Camera is not null, true, liveEffectHere: false)
+                    : TileFallbackReason.NoViewport;
+
+                if (why == TileFallbackReason.None)
+                {
+                    if (_tileFrames.Holds(frame.Id)) continue;
+                    jobs.Add(new WarmRequest(
+                        frame, scene.Width, scene.Height, celIndex, WarmProduct.Tiles, level));
+                }
+                else
+                {
+                    if (!FrameBitmapCache.CanCache(frame)) continue;
+                    if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, celIndex)) continue;
+                    jobs.Add(new WarmRequest(
+                        frame, scene.Width, scene.Height, celIndex, WarmProduct.Bitmap));
+                }
+            }
+        }
+
+        // An empty list still supersedes: everything the playhead was going to
+        // need is already held, so anything still queued is a frame it has
+        // passed.
+        _prewarm.Request(jobs);
     }
 
     /// <summary>
