@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2930 tests, derived from the suite itself. Each line is a
+2931 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -756,14 +756,14 @@ regression even when every test still compiles.
 ## BackgroundColorTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Scene Background Round Trips And Tints The Snapshot — `:213`
-- Transparent Background Renders Transparent Pixels — `:231`
+- Scene Background Round Trips And Tints The Snapshot — `:246`
+- Transparent Background Renders Transparent Pixels — `:264`
 
 ## ColorWheelFidelityTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
 
-- Wheel Value Is Not Rewritten While Dragging — `:247`
-- Slider Channels Are Not Rewritten While Editing — `:266`
+- Wheel Value Is Not Rewritten While Dragging — `:280`
+- Slider Channels Are Not Rewritten While Editing — `:299`
 
 ## DocumentTabTests
 `tests/Lightbox.App.Tests/DocumentTabTests.cs`
@@ -774,8 +774,9 @@ regression even when every test still compiles.
 - Switching Tabs Keeps Each Document And Its Undo History — `:81`
 - Switching Tabs Does Not Mark Anything Dirty And Restores Playhead — `:107`
 - Close Tab Activates Neighbor And The Last Close Leaves Nothing Open — `:137`
-- Open Document Tab Uses File Name And Keeps Existing Tabs — `:157`
-- ADocument With No Layers Opens Rather Than Throwing — `:194`
+- ADocument Opened From Disk Opens On APaintable Layer — `:171`
+- Open Document Tab Uses File Name And Keeps Existing Tabs — `:190`
+- ADocument With No Layers Opens Rather Than Throwing — `:227`
 
 ## EngineApiTests
 `tests/Lightbox.App.Tests/EngineApiTests.cs`

@@ -700,6 +700,14 @@ test reopens the bug.
   - Cause: `Stroke.Clone` copied nine properties and not `SwatchId` or `GradientId`, so a cloned stroke fell back to its literal colour. It is what `DocumentEditor.CloneFrame` and the inbetweener both use, so it reached cel copy, cel duplication, drag-with-copy and every AI inbetween.
   - Fix: copy them. The list is exhaustive now and says so, because a field added to a stroke and missed here does not fail — it goes quiet. Found while writing break-link, which needed the same copy. Cost: S
 
+### layers
+
+- [x] **B136** `P1` `layers` Every document opened from disk starts on the locked paper layer, so drawing does nothing `evidence: ADocumentOpenedFromDiskOpensOnAPaintableLayer`
+  - Reported as "unable to draw on the last build — the cursor showed, no strokes appeared", and reproduced under Xvfb in one open-from-recents: the status strip says *Layer "Background" is locked — unlock it to draw on it* while every stroke bounces off the paper.
+  - `NewDocument` has landed past the paper since the Background layer existed ("Land on something paintable"); `OpenDocumentTab` — the funnel for recents, the start screen and File ▸ Open — never set `State.LayerIndex`, so it defaulted to 0, which on any saved document with paper is the one layer that refuses strokes. `ReplaceDocument` had the same door (`ActiveLayerIndex = 0`).
+  - P1 by reach: it is not an edge case, it is *opening your own work*. Masked for anyone who mostly created documents in-session and kept them open; found the day opening a saved file became the first thing the application asks you to do.
+  - The regression test walks the whole route — open, draw, look in the record — because asserting the index alone would stay green if a second gate ever ate the stroke.
+
 ### project
 
 - [x] **B114** `P1` `project` A character's animations are invisible to export and to scoped resources `evidence: CharacterDocumentsAreInTheProject, AWholeProjectExportIncludesCharacterAnimations, AFolderPaletteReachesACharactersAnimation`
