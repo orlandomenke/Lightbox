@@ -171,6 +171,9 @@ public static class AnimationSweeps
         yield return SceneLength();
         yield return Playback();
         yield return PlaybackCanvasSize();
+        yield return PlaybackThroughTiles();
+        yield return PlaybackSparse(tiles: false);
+        yield return PlaybackSparse(tiles: true);
         yield return Scrubbing();
     }
 
@@ -786,6 +789,187 @@ public static class AnimationSweeps
             Gauge = () => rig?.Cache.CachedBytes ?? 0,
             GaugeUnit = "cache MB",
         };
+    }
+
+    /// <summary>
+    /// The same playback workload as <see cref="PlaybackCanvasSize"/>, with the
+    /// frames held as sparse tiles instead of document-sized bitmaps — the
+    /// candidate fix (rung 3 of DESIGN-4k-playback-and-8k.md) measured before
+    /// it is wired in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Same scene, same second-pass measurement, same budget, so the two tables
+    /// read against each other row for row: any difference is the storage, not
+    /// the workload. Composited with <c>TileCompositor.Composite</c> straight
+    /// onto the target — the level-0 path, which is what playback at working
+    /// zoom would take.
+    /// </para>
+    /// <para>
+    /// <b>The workload is deliberately the tile store's worst case.</b>
+    /// <see cref="Drawing"/> scatters strokes uniformly across the canvas, so
+    /// almost every tile has ink and sparsity buys little; a real cel — a
+    /// character on empty paper — concentrates ink and does better. If tiles
+    /// win here they win everywhere, which is the comparison a gate change
+    /// needs.
+    /// </para>
+    /// </remarks>
+    private static Scenario PlaybackThroughTiles()
+    {
+        const int Frames = 24;
+        Scene? scene = null;
+        TileRig? rig = null;
+        var at = 0;
+
+        return new Scenario(
+            "Show the next frame during playback, frames held as tiles",
+            "canvas height (16:9)",
+            [720, 1080, 1440, 2160],
+            Cadence.WhilePlaying,
+            Setup: h =>
+            {
+                // Equal budgets or the row measures the budgets: the tile
+                // cache defaults to 256 MB against the frame cache's 512, and
+                // the first run of this scenario reported that difference as
+                // if it were the storage design.
+                Lightbox.App.Rendering.TileFrameCache.ByteBudget = FrameBitmapCache.ByteBudget;
+                var w = h * 16 / 9 / 2 * 2;
+                scene = SceneOf(3, Frames, 20, w, h);
+                rig = new TileRig(w, h);
+                for (var i = 0; i < Frames; i++) CompositeTiled(rig, scene, i);
+                at = 0;
+                return rig;
+            },
+            Work: _ => CompositeTiled(rig!, scene!, at++ % Frames),
+            Note: "Identical workload to the bitmap-cache row above — 3 layers, 24 frames, 20 strokes "
+                + "a cel, second pass, budgets equalised at 512 MB — so the delta is the storage. "
+                + "Uniformly scattered strokes are the tile store's worst case for sparsity.")
+        {
+            Gauge = () => rig?.Tiles.AllocatedBytes ?? 0,
+            GaugeUnit = "cache MB",
+        };
+    }
+
+    /// <summary>A tile cache and a surface, for the tiled playback sweep.</summary>
+    private sealed class TileRig(int w, int h) : IDisposable
+    {
+        public Lightbox.App.Rendering.TileFrameCache Tiles { get; } = new();
+
+        public Target Target { get; } = new(w, h);
+
+        public int Width { get; } = w;
+
+        public int Height { get; } = h;
+
+        public void Dispose()
+        {
+            Tiles.Dispose();
+            Target.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// A scene whose ink sits in the middle 40% of the frame — a character on
+    /// empty paper, which is what the median animation cel actually is. The
+    /// uniform <see cref="Drawing"/> spread is the tile store's worst case;
+    /// this is its ordinary one, and both get measured.
+    /// </summary>
+    private static Scene SparseSceneOf(int layers, int frames, int strokesPerFrame, int w, int h)
+    {
+        var scene = new Scene { Width = w, Height = h, FrameCount = frames };
+        scene.Layers.Clear();
+        int iw = w * 2 / 5, ih = h * 2 / 5, ox = (w - iw) / 2, oy = (h - ih) / 2;
+        for (var l = 0; l < layers; l++)
+        {
+            var layer = new Layer { Name = $"L{l + 1}" };
+            for (var f = 0; f < frames; f++)
+            {
+                var inked = Drawing(strokesPerFrame, (l + 1) * 97 + f, iw, ih);
+                foreach (var stroke in inked.Strokes)
+                {
+                    for (var i = 0; i < stroke.Points.Count; i++)
+                    {
+                        var p = stroke.Points[i];
+                        stroke.Points[i] = p with { X = p.X + ox, Y = p.Y + oy };
+                    }
+                }
+                layer.Cels.Add(new Cel { Frame = inked });
+            }
+            scene.Layers.Add(layer);
+        }
+        return scene;
+    }
+
+    /// <summary>
+    /// The decisive pair: a sparse scene — ink in the middle 40% of the frame,
+    /// which is the median animation cel — played through each store in turn.
+    /// One method, a flag, two rows, so the workloads cannot drift apart.
+    /// </summary>
+    /// <remarks>
+    /// This is the case rung 3 exists for. The scattered-ink rows bound the
+    /// worst case; these bound the ordinary one. Together they say what the
+    /// gate change buys an artist, not what it buys a benchmark.
+    /// </remarks>
+    private static Scenario PlaybackSparse(bool tiles)
+    {
+        const int Frames = 24;
+        Scene? scene = null;
+        Rig? bmpRig = null;
+        TileRig? tileRig = null;
+        var at = 0;
+
+        return new Scenario(
+            tiles
+                ? "Show the next frame during playback, sparse cels as tiles"
+                : "Show the next frame during playback, sparse cels as bitmaps",
+            "canvas height (16:9)",
+            [1080, 2160],
+            Cadence.WhilePlaying,
+            Setup: h =>
+            {
+                Lightbox.App.Rendering.TileFrameCache.ByteBudget = FrameBitmapCache.ByteBudget;
+                var w = h * 16 / 9 / 2 * 2;
+                scene = SparseSceneOf(3, Frames, 20, w, h);
+                if (tiles)
+                {
+                    tileRig = new TileRig(w, h);
+                    for (var i = 0; i < Frames; i++) CompositeTiled(tileRig, scene, i);
+                    at = 0;
+                    return tileRig;
+                }
+                bmpRig = new Rig(w, h);
+                for (var i = 0; i < Frames; i++) Composite(bmpRig.Target, scene, bmpRig.Cache, i);
+                at = 0;
+                return bmpRig;
+            },
+            Work: _ =>
+            {
+                if (tiles) CompositeTiled(tileRig!, scene!, at++ % Frames);
+                else Composite(bmpRig!.Target, scene!, bmpRig.Cache, at++ % Frames);
+            },
+            Note: "Ink confined to the middle 40% of the frame — a character on empty paper. "
+                + "Same scene, same budget (512 MB) as its sibling row; only the storage differs. "
+                + "Bitmaps pay for the paper, tiles pay for the ink.")
+        {
+            Gauge = () => tiles ? tileRig?.Tiles.AllocatedBytes ?? 0 : bmpRig?.Cache.CachedBytes ?? 0,
+            GaugeUnit = "cache MB",
+        };
+    }
+
+    /// <summary>Composite one frame of a scene from tiles, layer by layer.</summary>
+    private static void CompositeTiled(TileRig rig, Scene scene, int index)
+    {
+        var canvas = rig.Target.Surface.Canvas;
+        canvas.Clear(SKColors.White);
+        var viewport = SKRectI.Create(0, 0, rig.Width, rig.Height);
+        foreach (var layer in scene.Layers)
+        {
+            if (!layer.Visible) continue;
+            if (ExposureSheet.ExposedFrame(layer, index) is not { } frame) continue;
+            var (store, _) = rig.Tiles.Get(frame, rig.Width, rig.Height);
+            TileCompositor.Composite(canvas, store, viewport);
+        }
+        canvas.Flush();
     }
 
     // ---- scrubbing, which is what an artist actually does ---------------------
