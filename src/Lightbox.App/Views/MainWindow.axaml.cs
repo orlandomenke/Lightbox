@@ -35,6 +35,8 @@ public partial class MainWindow : Window
         // once, here — a per-move re-render would repaint the whole frame from its
         // strokes, which is exactly what invariant 6 forbids.
         Canvas.SelectedLinesDragged += (dx, dy) => _vm.MoveSelectedStrokes(dx, dy);
+        TimelineTrackView.KeyDragged += OnTrackKeyDragged;
+        GraphEditorView.KeyEdited += (series, from, to, value) => _vm.EditCameraKey(series, from, to, value);
         Canvas.SetPlacementProvider(_vm.GetCurrentFramePlacements);
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
@@ -3052,6 +3054,28 @@ public partial class MainWindow : Window
     {
         Patterns = ["*.lightbox.json"],
     };
+
+    /// <summary>
+    /// A dot on the track timeline was dragged to a new frame. Track 0 is the
+    /// camera when one exists (the projection puts it on top); everything
+    /// after maps onto LayerRows in the same order.
+    /// </summary>
+    private void OnTrackKeyDragged(int trackIndex, int fromFrame, int toFrame)
+    {
+        var hasCamera = _vm.HasCamera;
+        if (hasCamera && trackIndex == 0)
+        {
+            _vm.MoveCameraKey(fromFrame, toFrame);
+            return;
+        }
+        var rowIndex = trackIndex - (hasCamera ? 1 : 0);
+        if (rowIndex < 0 || rowIndex >= _vm.LayerRows.Count) return;
+        var row = _vm.LayerRows[rowIndex];
+        var from = row.Cells.FirstOrDefault(c => c.Index == fromFrame);
+        var to = row.Cells.FirstOrDefault(c => c.Index == toFrame);
+        if (from is null || to is null) return;
+        _vm.MoveCel(from, to, copy: false);
+    }
 
     // ---- the chrome is ours -------------------------------------------------
 

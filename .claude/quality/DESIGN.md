@@ -377,6 +377,13 @@ a click on every stroke — a worse bargain than the height it saves.
 **Content scrolls inside its docker**, so a docker with forty swatches is as
 tall as a docker with four until the artist grows it.
 
+**Track colours on the timeline.** Every track wears its own hue, cycling
+violet, blue, magenta, teal, green, gold — a row is findable by colour before
+it is read by name — and the camera always takes the orange, exactly as the
+reference draws it. The vocabulary lives in `TrackView.ColourOf`, the graph
+editor's series reuse the same hues for the same things, and a seventh track
+cycles rather than inventing a colour.
+
 ## Density that has to stay generous
 
 Do not shrink these to save space:

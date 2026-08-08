@@ -117,6 +117,11 @@ public sealed class DockLayout
         layout.Dock(DockPanelId.Color, DockSide.Right, 2);
         layout.Dock(DockPanelId.Sheets, DockSide.Right, 3);
         layout.Dock(DockPanelId.Timeline, DockSide.Bottom, 0);
+        // The timeline family shares the bottom slot as tabs, track view in
+        // front — the reference's Timeline | Xsheet | Graph Editor strip.
+        layout.JoinGroup(DockPanelId.Xsheet, DockPanelId.Timeline);
+        layout.JoinGroup(DockPanelId.GraphEditor, DockPanelId.Timeline);
+        layout.Activate(DockPanelId.Timeline);
         // Absent until asked for, the same rule the camera and the project
         // follow. A palette and a gradient are things an artist sets up
         // deliberately; empty, they are sidebar height the layers could use.

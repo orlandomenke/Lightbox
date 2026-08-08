@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.TransportBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    The transport, once. The track timeline and the X-sheet both carry it —
+    they are two views over one playback — and two hand-copied rows of seven
+    buttons is exactly the "second place to look" this codebase argues
+    against. DataContext flows in from the window, so the bindings are the
+    ones the timeline bar always had.
+  -->
+  <StackPanel Orientation="Horizontal" Spacing="10">
+    <StackPanel Orientation="Horizontal" Spacing="2">
+      <Button Content="⏮" Command="{Binding GoToStartFrameCommand}"
+              ToolTip.Tip="To start frame (the set start frame, else the first)" />
+      <Button Content="⏪" Command="{Binding PreviousKeyframeCommand}" ToolTip.Tip="Previous keyframe" />
+      <Button Content="◀" Command="{Binding PlayBackwardsCommand}" ToolTip.Tip="Play backwards" />
+      <Button Content="⏸" Command="{Binding PauseCommand}" ToolTip.Tip="Pause" />
+      <Button Content="▶" Command="{Binding PlayCommand}" ToolTip.Tip="Play (Space toggles)" />
+      <Button Content="⏩" Command="{Binding NextKeyframeCommand}" ToolTip.Tip="Next keyframe" />
+      <Button Content="⏭" Command="{Binding GoToEndFrameCommand}"
+              ToolTip.Tip="To end frame (the set end frame, else the last)" />
+    </StackPanel>
+    <ToggleButton Content="🔁" IsChecked="{Binding LoopPlayback}" Padding="6,2"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="Loop playback. Off plays once and stops on the last frame." />
+    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+      <TextBlock Text="fps" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
+                     FormatString="0" Width="48" VerticalAlignment="Center" />
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+      <TextBlock Text="Speed %" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
+                     FormatString="0" Width="50" VerticalAlignment="Center"
+                     ToolTip.Tip="Playback speed as a percentage of real time" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

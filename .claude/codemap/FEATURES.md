@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2948 tests, derived from the suite itself. Each line is a
+2965 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -675,25 +675,25 @@ regression even when every test still compiles.
 `tests/Lightbox.App.Tests/DockLayoutTests.cs`
 
 - The Default Layout Opens The Sidebar Panels And ATimeline — `:14`
-- Docking Into AStrip Puts The Panel At The Asked For Position — `:31`
-- Orders Are Always Contiguous From Zero — `:43`
-- Moving The Last Panel Out Of An Area Empties It — `:63`
-- Hiding APanel Keeps Where It Was So Showing It Puts It Back — `:76`
-- Panels Sharing ASlot Are One Group — `:89`
-- The One You Just Dropped Is The One Showing — `:108`
-- Exactly One Tab Shows Per Slot However The Layout Arrived — `:120`
-- APanel Is Still In Exactly One Place — `:135`
-- AGroup That Loses Its Last Member Stops Existing — `:153`
-- Hiding APanel Leaves Its Group Intact — `:168`
-- ASidebar Is Capped By Its Panels But An Uncapped Panel Removes The Ceiling — `:181`
-- The Timeline Is Not Draggable — `:195`
-- ALayout Round Trips Through Json — `:204`
-- ACorrupt Layout Falls Back Rather Than Throwing — `:220`
-- Cloning ALayout Keeps The Rulers And Guide Flags — `:230`
-- AClone Shares Nothing With The Original — `:250`
-- ALayout Saved Before Tabs Existed Still Loads — `:266`
-- Sizing ASlot Sizes Every Tab In It — `:312`
-- AStrip Is Sized By The Tabs Showing Not The Ones Hidden — `:328`
+- Docking Into AStrip Puts The Panel At The Asked For Position — `:35`
+- Orders Are Always Contiguous From Zero — `:47`
+- Moving The Last Panel Out Of An Area Empties It — `:73`
+- Hiding APanel Keeps Where It Was So Showing It Puts It Back — `:88`
+- Panels Sharing ASlot Are One Group — `:101`
+- The One You Just Dropped Is The One Showing — `:120`
+- Exactly One Tab Shows Per Slot However The Layout Arrived — `:132`
+- APanel Is Still In Exactly One Place — `:147`
+- AGroup That Loses Its Last Member Stops Existing — `:165`
+- Hiding APanel Leaves Its Group Intact — `:180`
+- ASidebar Is Capped By Its Panels But An Uncapped Panel Removes The Ceiling — `:193`
+- The Timeline Is Not Draggable — `:207`
+- ALayout Round Trips Through Json — `:216`
+- ACorrupt Layout Falls Back Rather Than Throwing — `:232`
+- Cloning ALayout Keeps The Rulers And Guide Flags — `:242`
+- AClone Shares Nothing With The Original — `:262`
+- ALayout Saved Before Tabs Existed Still Loads — `:278`
+- Sizing ASlot Sizes Every Tab In It — `:324`
+- AStrip Is Sized By The Tabs Showing Not The Ones Hidden — `:340`
 
 ## DockZoneTests
 `tests/Lightbox.App.Tests/DockZoneTests.cs`
@@ -2380,6 +2380,30 @@ regression even when every test still compiles.
 - Keyframe Navigation Skips Holds — `:73`
 - Range Selection Greys Out Cells Outside It — `:95`
 
+## GraphViewGeometryTests
+`tests/Lightbox.App.Tests/TimelineFamilyTests.cs`
+
+- Value And Pixel Are Inverses — `:157`
+- AFlat Series Still Gets ARange To Live In — `:166`
+- An All Na NSeries Does Not Poison The Range — `:174`
+
+## TimelineFamilyTests
+`tests/Lightbox.App.Tests/TimelineFamilyTests.cs`
+
+- The Family Shares The Bottom Slot With The Timeline In Front — `:27`
+- The Projection Puts The Camera On Top And Reads The Sheet — `:42`
+- AHold Reads As ABar Behind Its Dot — `:63`
+- Dragging ACamera Dot Retimes The Key — `:82`
+- The Graph Offers The Spacing Series Even Without ACamera — `:95`
+- Editing ACamera Key Through The Graph Writes The Channel It Names — `:106`
+
+## TrackViewGeometryTests
+`tests/Lightbox.App.Tests/TimelineFamilyTests.cs`
+
+- The Frame Under ADot Is The Frame The Dot Was Drawn At — `:127`
+- The Row Under ADot Is The Row It Was Drawn In — `:134`
+- The Camera Always Wears The Camera Colour — `:143`
+
 ## TimelineHoldTests
 `tests/Lightbox.App.Tests/TimelineHoldTests.cs`
 
@@ -2635,10 +2659,10 @@ regression even when every test still compiles.
 ## AutosaveSettingsTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
 
-- The Default Is Every Minute To The Recovery Copy Only — `:267`
-- Zero Turns Autosave Off — `:278`
-- An Absurd Interval Is Clamped Rather Than Honoured — `:286`
-- Settings Round Trip And Survive Corruption — `:295`
+- The Default Is Every Minute To The Recovery Copy Only — `:274`
+- Zero Turns Autosave Off — `:285`
+- An Absurd Interval Is Clamped Rather Than Honoured — `:293`
+- Settings Round Trip And Survive Corruption — `:302`
 
 ## WorkspaceStoreTests
 `tests/Lightbox.App.Tests/WorkspaceStoreTests.cs`
@@ -2646,20 +2670,20 @@ regression even when every test still compiles.
 - The Shipped Arrangements Tab The Colour Tools — `:15`
 - Tabbing Offers More Panels Without Spending More Height — `:30`
 - No Arrangement Tabs Two Panels An Artist Needs At Once — `:44`
-- Every Project Type Has ABuilt In Workspace — `:65`
-- The Built Ins Differ From Each Other — `:80`
-- Saving Under ANew Name Adds AWorkspace And Selects It — `:93`
-- Saving Over Your Own Workspace Replaces It — `:106`
-- Saving Over ABuilt In Forks It Instead — `:121`
-- Only Your Own Workspaces Can Be Deleted — `:137`
-- Deleting The Selected Workspace Selects Another — `:148`
-- AStore Round Trips And Gains Built Ins It Predates — `:160`
-- ACorrupt Store Falls Back Rather Than Throwing — `:178`
-- Applying AWorkspace Replaces The Layout And Clears The Star — `:188`
-- Reset Goes Back To What The Workspace Says — `:203`
-- Taking AProject Types Defaults Switches Workspace — `:220`
-- Only Saved Workspaces Offer ABin — `:233`
-- The Label Marks AWorkspace The User Has Since Rearranged — `:244`
+- Every Project Type Has ABuilt In Workspace — `:72`
+- The Built Ins Differ From Each Other — `:87`
+- Saving Under ANew Name Adds AWorkspace And Selects It — `:100`
+- Saving Over Your Own Workspace Replaces It — `:113`
+- Saving Over ABuilt In Forks It Instead — `:128`
+- Only Your Own Workspaces Can Be Deleted — `:144`
+- Deleting The Selected Workspace Selects Another — `:155`
+- AStore Round Trips And Gains Built Ins It Predates — `:167`
+- ACorrupt Store Falls Back Rather Than Throwing — `:185`
+- Applying AWorkspace Replaces The Layout And Clears The Star — `:195`
+- Reset Goes Back To What The Workspace Says — `:210`
+- Taking AProject Types Defaults Switches Workspace — `:227`
+- Only Saved Workspaces Offer ABin — `:240`
+- The Label Marks AWorkspace The User Has Since Rearranged — `:251`
 
 ## WorkspaceTests
 `tests/Lightbox.App.Tests/WorkspaceTests.cs`
@@ -3437,6 +3461,15 @@ regression even when every test still compiles.
 - No Sprites Is Not ACrash — `:174`
 - AZero Sized Sprite Is Given APixel Rather Than Disappearing — `:182`
 - ALong Sheet Stays Fast Enough To Export — `:194`
+
+## SpacingChartTests
+`tests/Lightbox.Core.Tests/SpacingChartTests.cs`
+
+- Even Spacing Measures Even — `:31`
+- An Ease Reads As Widening Spacing — `:46`
+- Holds Do Not Measure As Movement — `:61`
+- An Empty Drawing Is Skipped Rather Than Measured As Zero — `:75`
+- No Drawings Means No Chart — `:89`
 
 ## StripSlicerTests
 `tests/Lightbox.Core.Tests/StripSlicerTests.cs`

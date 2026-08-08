@@ -4533,6 +4533,14 @@ public sealed partial class MainViewModel : ObservableObject
     private void ToggleToolOptionsDocker() =>
         Workspace.SetVisible(Docking.DockPanelId.ToolOptions, !Workspace.ToolOptionsDockerVisible);
 
+    [RelayCommand]
+    private void ToggleXsheetDocker() =>
+        Workspace.SetVisible(Docking.DockPanelId.Xsheet, !Workspace.XsheetDockerVisible);
+
+    [RelayCommand]
+    private void ToggleGraphEditorDocker() =>
+        Workspace.SetVisible(Docking.DockPanelId.GraphEditor, !Workspace.GraphEditorDockerVisible);
+
     /// <summary>Which side the docker sidebar collapses to / sits on.</summary>
     [ObservableProperty]
     private bool _sidebarOnRight = true;
@@ -4601,6 +4609,9 @@ public sealed partial class MainViewModel : ObservableObject
         PruneStrokeSelection();   // and neither is a line picked on the old one
         foreach (var row in LayerRows) row.IsActive = row.SceneIndex == value;
         OnPropertyChanged(nameof(FrameCells));
+        OnPropertyChanged(nameof(TimelineTracks));
+        OnPropertyChanged(nameof(TimelineFrameCount));
+        OnPropertyChanged(nameof(GraphSeriesList));
         OnPropertyChanged(nameof(ActiveLayerOnion));
         NotifyActiveLayerCompositing();
         PublishSnapshot();
@@ -4621,6 +4632,130 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The active layer's timeline cells (topmost-first rows carry the rest).</summary>
     public ObservableCollection<FrameCell> FrameCells =>
         LayerRows[LayerRows.Count - 1 - Math.Clamp(ActiveLayerIndex, 0, LayerRows.Count - 1)].Cells;
+
+    /// <summary>How many frames the track timeline spans.</summary>
+    public int TimelineFrameCount => Scene.FrameCount;
+
+    /// <summary>
+    /// The graph editor's curves: the camera's framing when one exists, and
+    /// the measured spacing of the active layer's drawings — the chart the
+    /// stroke record makes possible (Q54). Same lifetime as
+    /// <see cref="TimelineTracks"/>: a fresh list on every relevant change.
+    /// </summary>
+    public IReadOnlyList<Lightbox.App.Controls.GraphSeries> GraphSeriesList
+    {
+        get
+        {
+            var list = new List<Lightbox.App.Controls.GraphSeries>();
+            var n = Scene.FrameCount;
+
+            if (Scene.Camera is { } camera)
+            {
+                var x = new double[n];
+                var y = new double[n];
+                var zoom = new double[n];
+                var rot = new double[n];
+                for (var f = 0; f < n; f++)
+                {
+                    var framing = CameraOps.At(camera, f, Scene.Width, Scene.Height);
+                    x[f] = framing.X;
+                    y[f] = framing.Y;
+                    zoom[f] = framing.Zoom;
+                    rot[f] = framing.RotationDeg;
+                }
+                var keys = CameraKeyFrames;
+                list.Add(new("Camera X", Avalonia.Media.Color.Parse("#FF9F45"), x, keys, Editable: true));
+                list.Add(new("Camera Y", Avalonia.Media.Color.Parse("#E8C55F"), y, keys, Editable: true));
+                list.Add(new("Zoom", Avalonia.Media.Color.Parse("#4FA3FF"), zoom, keys, Editable: true));
+                list.Add(new("Rotation", Avalonia.Media.Color.Parse("#E85FBE"), rot, keys, Editable: true));
+            }
+
+            var spacing = new double[n];
+            Array.Fill(spacing, double.NaN);
+            var spans = Lightbox.Core.Timeline.SpacingChart.Measure(ActiveLayer);
+            var spanFrames = new List<int>();
+            foreach (var span in spans)
+            {
+                if (span.Frame >= n) continue;
+                spacing[span.Frame] = span.Distance;
+                spanFrames.Add(span.Frame);
+            }
+            list.Add(new("Spacing (measured)", Avalonia.Media.Color.Parse("#2FD1B9"),
+                spacing, spanFrames, Editable: false));
+            return list;
+        }
+    }
+
+    /// <summary>
+    /// The graph editor's dot drag, applied: retime the key when the frame
+    /// changed (refusing an occupied destination), then write the dragged
+    /// value into whichever channel the series names.
+    /// </summary>
+    public void EditCameraKey(string series, int fromFrame, int toFrame, double value)
+    {
+        if (Scene.Camera is not { } camera) return;
+        if (CameraOps.KeyAt(camera, fromFrame) is not { } key) return;
+
+        if (toFrame != fromFrame && CameraOps.KeyAt(camera, toFrame) is null)
+        {
+            key.Frame = toFrame;
+        }
+        switch (series)
+        {
+            case "Camera X": key.X = value; break;
+            case "Camera Y": key.Y = value; break;
+            case "Zoom": key.Zoom = Math.Clamp(value, 0.05, 32); break;
+            case "Rotation": key.RotationDeg = value; break;
+            default: return;
+        }
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>
+    /// The exposure sheet and the camera, projected for the track timeline:
+    /// the camera on top (as the reference draws it), then the layers,
+    /// topmost first. A fresh list every read — assigning it is what tells
+    /// the TrackView to re-render, so it is raised wherever the cels or the
+    /// camera change.
+    /// </summary>
+    public IReadOnlyList<Lightbox.App.Controls.TrackRow> TimelineTracks
+    {
+        get
+        {
+            var tracks = new List<Lightbox.App.Controls.TrackRow>();
+            if (Scene.Camera is not null)
+            {
+                var frames = CameraKeyFrames;
+                tracks.Add(new Lightbox.App.Controls.TrackRow(
+                    "Camera", frames, frames, frames.Select(_ => false).ToList(), IsCamera: true));
+            }
+            foreach (var row in LayerRows)
+            {
+                var keys = new List<int>();
+                var holdEnds = new List<int>();
+                var breakdowns = new List<bool>();
+                for (var i = 0; i < row.Cells.Count; i++)
+                {
+                    var cell = row.Cells[i];
+                    if (!cell.IsKeyed || cell.IsVirtual) continue;
+                    keys.Add(cell.Index);
+                    breakdowns.Add(cell.IsBreakdown);
+                    // The hold runs until the next drawing (or the sheet's end).
+                    var end = cell.Index;
+                    for (var j = i + 1; j < row.Cells.Count; j++)
+                    {
+                        if (row.Cells[j].IsKeyed || row.Cells[j].IsVirtual) break;
+                        end = row.Cells[j].Index;
+                    }
+                    holdEnds.Add(end);
+                }
+                tracks.Add(new Lightbox.App.Controls.TrackRow(row.Name, keys, holdEnds, breakdowns, IsCamera: false));
+            }
+            return tracks;
+        }
+    }
 
     // ---- how big the timeline is ---------------------------------------------
 
@@ -8758,6 +8893,9 @@ public sealed partial class MainViewModel : ObservableObject
         }
         RebuildLayerPanel();
         OnPropertyChanged(nameof(FrameCells));
+        OnPropertyChanged(nameof(TimelineTracks));
+        OnPropertyChanged(nameof(TimelineFrameCount));
+        OnPropertyChanged(nameof(GraphSeriesList));
         RefreshRangeHighlights();
     }
 
@@ -10377,6 +10515,26 @@ public sealed partial class MainViewModel : ObservableObject
         _autosave.MarkDirty();
     }
 
+    /// <summary>
+    /// Retime a camera key — the track timeline's dot drag. Refuses an
+    /// occupied destination rather than clobbering a framing the artist
+    /// authored; the status line says why nothing moved.
+    /// </summary>
+    public void MoveCameraKey(int fromFrame, int toFrame)
+    {
+        if (Scene.Camera is not { } camera) return;
+        if (CameraOps.KeyAt(camera, fromFrame) is not { } key) return;
+        if (CameraOps.KeyAt(camera, toFrame) is not null)
+        {
+            AiStatus = "There is already a camera key on that frame.";
+            return;
+        }
+        key.Frame = toFrame;
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
     /// <summary>Remove the key at the playhead, if there is one.</summary>
     [RelayCommand]
     private void ClearCameraKey()
@@ -10496,6 +10654,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void NotifyCameraSurface()
     {
+        OnPropertyChanged(nameof(TimelineTracks));
+        OnPropertyChanged(nameof(GraphSeriesList));
         OnPropertyChanged(nameof(HasCamera));
         OnPropertyChanged(nameof(IsOnCameraKey));
         OnPropertyChanged(nameof(CameraKeyFrames));

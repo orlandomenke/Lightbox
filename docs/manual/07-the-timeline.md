@@ -1,7 +1,18 @@
 # The timeline
 
 
-## The timeline
+## The timeline family
+
+Three views over the same animation share the bottom panel as tabs, and
+nothing you do in one is invisible in another:
+
+| | |
+| --- | --- |
+| **Timeline** | One coloured track per layer: drawings are dots, holds are the bars behind them, the camera is its own orange track on top. **Drag a dot** to retime that drawing; click anywhere else to scrub. |
+| **X-sheet** | The exposure sheet — the grid described below, where cels are edited, exposed, re-timed and annotated. |
+| **Graph editor** | Value over time for the things that interpolate: the camera's position, zoom and rotation (drag a key dot — up and down for value, sideways to retime), and the **measured spacing** of your drawings — how far the ink actually moves between poses, the spacing chart read off the art itself. Even spacing is constant speed; widening is an ease; a spike is the drawing that pops. |
+
+## The X-sheet
 
 One row per layer, one cell per frame. Click a cell to go there; the current one
 is highlighted. A **keyed** cell holds a drawing; a **hold** repeats the drawing

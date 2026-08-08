@@ -45,7 +45,11 @@ public class WorkspaceStoreTests
     {
         // The rule stated as a guard rather than a comment. Layers and the
         // project tree are read while drawing, so tabbing either with anything
-        // trades a scroll for a click on every stroke.
+        // trades a scroll for a click on every stroke. The timeline family is
+        // the deliberate exception (Q54): the track view, the X-sheet and the
+        // graph editor are three views over ONE set of records, used
+        // alternately by construction.
+        DockPanelId[] family = [DockPanelId.Timeline, DockPanelId.Xsheet, DockPanelId.GraphEditor];
         foreach (var workspace in WorkspaceStore.Default().Workspaces)
         {
             foreach (var side in new[] { DockSide.Right, DockSide.Bottom })
@@ -55,7 +59,10 @@ public class WorkspaceStoreTests
                     if (slot.Count == 1) continue;
                     Assert.DoesNotContain(DockPanelId.Layers, slot);
                     Assert.DoesNotContain(DockPanelId.Project, slot);
-                    Assert.DoesNotContain(DockPanelId.Timeline, slot);
+                    if (slot.Contains(DockPanelId.Timeline))
+                    {
+                        Assert.All(slot, p => Assert.Contains(p, family));
+                    }
                 }
             }
         }

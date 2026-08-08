@@ -106,6 +106,18 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         set => SetVisible(DockPanelId.ToolOptions, value);
     }
 
+    public bool XsheetDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.Xsheet);
+        set => SetVisible(DockPanelId.Xsheet, value);
+    }
+
+    public bool GraphEditorDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.GraphEditor);
+        set => SetVisible(DockPanelId.GraphEditor, value);
+    }
+
     public bool LayersPanelVisible
     {
         get => _layout.IsVisible(DockPanelId.Layers);
@@ -248,6 +260,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         DockPanelId.Reference => nameof(ReferenceDockerVisible),
         DockPanelId.Symbols => nameof(SymbolsPanelVisible),
         DockPanelId.ToolOptions => nameof(ToolOptionsDockerVisible),
+        DockPanelId.Xsheet => nameof(XsheetDockerVisible),
+        DockPanelId.GraphEditor => nameof(GraphEditorDockerVisible),
         _ => nameof(TimelineVisible),
     };
 
