@@ -9,17 +9,26 @@ namespace Lightbox.App.Controls;
 /// between each pair.
 /// </summary>
 /// <remarks>
-/// Panels are sized in <b>pixels</b>, not proportions, with the last one taking
-/// the slack. Starred rows divided a sidebar evenly, so opening a fifth panel
-/// shrank all five until none was usable and no splitter could recover it —
-/// the whole point of a panel is gone once it is 40px tall. Pixel extents mean
-/// opening one more panel pushes the stack past the viewport and it scrolls,
-/// which is a far better failure than five useless panels.
-/// See <c>.claude/quality/DESIGN.md</c>.
-///
+/// <para>
+/// A vertical strip never scrolls — the owner's call, reversing the earlier
+/// pixel-extents-and-scroll design. Panels take <b>weighted star</b> rows
+/// (the saved extent is the weight), so opening another panel shrinks the
+/// others proportionally, scalable content like the colour wheel scales
+/// with its panel, and a docker's own bars stay visible because it is the
+/// docker's <em>content</em> that scrolls when squeezed (see the Docker
+/// template). The floor per row is the chrome, not the content, or five
+/// panels could not fit where four did.
+/// </para>
+/// <para>
+/// The bottom strip keeps pixel sizing across: its panels sit side by side
+/// and the timeline's width is not a proportion of its neighbours'.
+/// </para>
+/// <para>
 /// The strip owns no state. It is rebuilt from the layout whenever the layout
 /// changes, and it writes splitter drags back into the layout so a resize
-/// survives the next rebuild.
+/// survives the next rebuild — with star rows the pixels come back as
+/// weights, which preserves exactly the proportions the artist set.
+/// </para>
 /// </remarks>
 public class DockStrip : Grid
 {
@@ -52,26 +61,13 @@ public class DockStrip : Grid
             return;
         }
 
-        // The strip is inside a ScrollViewer, and a starred row inside one
-        // takes the VIEWPORT's height rather than the content's. Left alone
-        // that turns overflow into clipping: four panels asking for 900px in a
-        // 330px sidebar produced two visible panels and two flattened to
-        // nothing, with no scrollbar, because the star row had swallowed the
-        // whole viewport before the pixel rows were measured.
-        //
-        // Asking for the sum as a minimum makes the strip taller than the
-        // viewport when it has to be, so every panel keeps its size and the
-        // ScrollViewer does its job. When there is room to spare the star row
-        // still absorbs it.
-        var wanted = 0.0;
-        for (var i = 0; i < panels.Count; i++)
-        {
-            if (i > 0) wanted += SplitterSize;
-            var e = layout.Place(panels[i].PanelId).Extent;
-            wanted += e > 0 ? e : DockPanels.Of(panels[i].PanelId).DefaultExtent;
-        }
-        if (Vertical) { MinHeight = wanted; MinWidth = 0; }
-        else { MinWidth = wanted; MinHeight = 0; }
+        // A strip always fits the area it is given — this is what "a sidebar
+        // never scrolls" means, and the bottom strip follows the same rule so
+        // its bars can run their overflow arithmetic against a real width
+        // instead of a scrolled one. A minimum here would put the ▾ menu in
+        // the part of the bar nobody can see.
+        MinWidth = 0;
+        MinHeight = 0;
 
         for (var i = 0; i < panels.Count; i++)
         {
@@ -87,14 +83,26 @@ public class DockStrip : Grid
             var extent = layout.Place(panel.PanelId).Extent;
             if (extent <= 0) extent = info.DefaultExtent;
 
-            // The last panel absorbs the slack so a single-panel strip fills
-            // its area instead of leaving dead space under it.
-            var length = i == panels.Count - 1
-                ? new GridLength(1, GridUnitType.Star)
-                : new GridLength(extent, GridUnitType.Pixel);
-            AddSlot(panel, length, info.MinExtent);
+            // Weighted stars: the saved extent is the weight, so the panels
+            // keep their proportions while always fitting, and another panel
+            // arriving shrinks everyone proportionally.
+            var length = new GridLength(extent, GridUnitType.Star);
+            // The floor is the panel's CHROME when it shares a strip: bars
+            // stay visible however hard the strip is squeezed, and the
+            // squeeze lands on the content, which scrolls inside the panel.
+            // Alone there is nothing to share with, so no floor is needed.
+            var min = panels.Count > 1 ? ChromeFloor : 0;
+            AddSlot(panel, length, min);
         }
     }
+
+    /// <summary>
+    /// The least a docker sharing a sidebar may shrink to: its title strip,
+    /// its option bars and a sliver of content — enough that every bar stays
+    /// visible and reachable, which is the promise the no-scroll sidebar
+    /// makes. Content past this scrolls inside the docker.
+    /// </summary>
+    private const double ChromeFloor = 96;
 
     private void AddSlot(Control child, GridLength length, double min)
     {

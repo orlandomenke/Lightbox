@@ -57,6 +57,66 @@ does not evaporate, and it costs nothing when nobody asks for one.
 > branch.** `workflow_dispatch` is resolved from the default branch, so on a
 > feature branch there is nothing to click however correct the file is.
 
+### Version numbers
+
+The base version lives in **one place**, `<VersionPrefix>` in
+`Directory.Build.props`, and everything else is derived from it. Nothing
+increments it automatically — a number that moves on every build identifies
+nothing, and "the bug is in 0.4.7" stops being a sentence once 0.4.7 was one of
+forty builds that afternoon. It moves when you edit that line and cut a release.
+
+It names the version being worked **toward**, not the last one shipped: after
+releasing `v0.1.0` it becomes `0.2.0`, because untagged builds are stamped
+`-alpha.N` on top of it and semver puts a prerelease *before* the version it
+names. Left behind, every later build would claim to predate a release it
+actually comes after. The release run's summary page says this too, at the
+moment it matters.
+
+#### Cutting a release from the web interface
+
+The Releases page is the only place GitHub's interface offers to make a tag, so
+this is the route:
+
+1. **Releases ▸ Draft a new release**.
+2. **Choose a tag** → type `v0.2.0` → **Create new tag: v0.2.0 on publish**.
+   The leading `v` is the convention the workflow watches for; it is stripped
+   before the number reaches the build.
+3. Leave the title and notes blank if you want them written for you, or write
+   them — whatever you type is kept.
+4. Tick **Set as a pre-release** while Lightbox is alpha.
+5. **Publish release.**
+
+The Release appears immediately and **the zip does not** — publishing creates
+the tag, which starts the `release` workflow, which runs the full suite before
+it builds anything. Expect the bundle to attach itself roughly five minutes
+later. Watch it under **Actions ▸ release**.
+
+That ordering is why the workflow checks for an existing Release before making
+one: from the web interface the Release exists first, and from a `git push
+--tags` it does not.
+
+| How it was built | Version it carries | File you get |
+| --- | --- | --- |
+| tag `v0.2.0` | `0.2.0` | `Lightbox-win-x64-0.2.0.zip`, attached to a Release |
+| tag `v0.3.0-beta.1` | `0.3.0-beta.1` | ditto — semver already sorts a beta *before* `0.3.0`, so there is no separate "beta mode" to switch on |
+| **Run workflow** | `0.1.0-alpha.<run>` | `Lightbox-win-x64-0.1.0-alpha.17-my-branch-9f3c1ab.zip`, a 14-day artifact |
+
+An untagged build is deliberately a *prerelease* of whatever the props file
+currently says, so it can never be confused with the release it precedes, and
+two of them are ordered by run number. `<run>` above is the workflow run number,
+which is why two bundles built the same afternoon still sort.
+
+`0.x` is the alpha: in semver a leading zero already means "anything may
+change", which is why this starts at 0.1.0 rather than 0.0.1 — it leaves the
+patch digit free to mean a fix, as it does everywhere else. **1.0.0** is the
+first release that promises the document format will not move under you, and it
+lands in the same change that removes the alpha banner at the top of this file.
+
+The number is inside the executable too, not just on the zip: right-click ▸
+Properties on `Lightbox.App.exe`, and at the top of every crash report under
+**Help ▸ Open diagnostics folder**. It reads `0.1.0-alpha.17+9f3c1ab` — the
+version, then the exact commit it was built from.
+
 Older per-build artifacts, from before releases existed, can still be pruned with
 **Actions ▸ cleanup artifacts ▸ Run workflow** — the policy lives in
 `.github/scripts/prune-artifacts.sh`. Set **keep** to `0` to clear everything, or

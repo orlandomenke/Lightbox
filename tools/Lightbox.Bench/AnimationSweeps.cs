@@ -602,7 +602,7 @@ public static class AnimationSweeps
     /// <para>
     /// <c>DocumentEditor</c>'s own remark called this out — <em>"Snapshots are JSON
     /// clones — cheap at pencil-test scale"</em> — and it is right about the scale it
-    /// names. This scenario measures the scale past it. Filed as B138.
+    /// names. This scenario measures the scale past it. Filed as B142.
     /// </para>
     /// <para>
     /// Measured as pushed-per-action rather than as a stack: depth turns out not to

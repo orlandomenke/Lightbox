@@ -377,7 +377,11 @@
     <Setter Property="Stretch" Value="Fill" />
     <Setter Property="HorizontalAlignment" Value="Right" />
     <Setter Property="VerticalAlignment" Value="Bottom" />
-    <Setter Property="Margin" Value="0,0,1,1" />
+    <!-- The mark pins to the BUTTON's corner, not the content box: the
+         button pads its content 4px horizontally, so without the negative
+         margin the wedge floated toward the centre. -3 backs out the
+         padding and leaves the same 1px breath it has vertically. -->
+    <Setter Property="Margin" Value="0,0,-3,1" />
     <Setter Property="IsHitTestVisible" Value="False" />
   </Style>
 
@@ -389,8 +393,8 @@
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
     <Setter Property="Stretch" Value="Uniform" />
-    <Setter Property="Width" Value="16" />
-    <Setter Property="Height" Value="16" />
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
   </Style>
   <Style Selector="ToggleButton.tool:checked Path:not(.variantmark)">
     <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
@@ -536,7 +540,52 @@
     two voices. Leaving it to the accent is also what makes the next control
     nobody has styled yet come out right by default.
   -->
+  <!--
+    Caption buttons are FLAT — no rim light, no card: they are part of the
+    window's edge, not controls sitting on a surface. The close button's
+    hover is the one red in the chrome, because "this ends the session" is
+    the one meaning strong enough to earn it.
+  -->
+  <Style Selector="Button.caption">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.caption /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.caption:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+  </Style>
+  <Style Selector="Button.caption.close:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource CaptionCloseHoverBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+  </Style>
+
+  <!-- The docker's float button: ⧉ floats a docked panel, and on a floating
+       one the same button reads ⇱ and docks it back where it came from. -->
+  <Style Selector="controls|Docker /template/ Button#PART_Float">
+    <Setter Property="Content" Value="⧉" />
+    <Setter Property="ToolTip.Tip" Value="Float this panel in its own window" />
+  </Style>
+  <Style Selector="controls|Docker[IsFloating=True] /template/ Button#PART_Float">
+    <Setter Property="Content" Value="⇱" />
+    <Setter Property="ToolTip.Tip" Value="Dock this panel back where it came from" />
+  </Style>
+
   <Style Selector="ToggleSwitch">
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+
+  <!--
+    Every numeric field does arithmetic: type 50+10 or 128 / 2 and commit.
+    One style rather than ninety-six attributes, and any field added later
+    gets it without having heard of it. The behaviour lives in FieldMath;
+    this is only the registration.
+  -->
+  <Style Selector="NumericUpDown">
+    <Setter Property="(controls:FieldMath.Enabled)" Value="True" />
   </Style>
 </Styles>

@@ -37,6 +37,52 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # ---- what version is this? ---------------------------------------------
+      #
+      # Derived once, before anything expensive runs, and then used by both
+      # publishes and by the bundle's name — so the number in the executable's
+      # properties and the number on the file you downloaded cannot disagree.
+      #
+      #   tag v0.2.0        -> 0.2.0                 a release
+      #   tag v0.3.0-beta.1 -> 0.3.0-beta.1          a beta, ordered before 0.3.0
+      #                                              by semver itself; "beta" is
+      #                                              not a mode this workflow has
+      #                                              to know about
+      #   Run workflow      -> <VersionPrefix>-alpha.<run number>
+      #
+      # The base number lives in Directory.Build.props and is read from there
+      # rather than repeated here, because two copies of a version are one copy
+      # and one lie. Nothing writes it back: see the comment beside it for why
+      # an auto-incrementing version identifies nothing.
+      #
+      # First step on purpose. A malformed tag caught here costs a few seconds;
+      # caught by `dotnet publish` it costs the whole test run first, and caught
+      # by nobody it produces a Release named something no tool can parse.
+      - name: Work out the version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREFIX=$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' Directory.Build.props)
+          if [ -z "$PREFIX" ]; then
+            echo "::error file=Directory.Build.props::no <VersionPrefix> to build from"
+            exit 1
+          fi
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            if ! printf '%s' "$VERSION" \
+               | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+              echo "::error::tag ${GITHUB_REF_NAME} is not v<major>.<minor>.<patch>[-prerelease]"
+              exit 1
+            fi
+          else
+            VERSION="${PREFIX}-alpha.${GITHUB_RUN_NUMBER}"
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building Lightbox $VERSION"
+
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
@@ -62,11 +108,18 @@ jobs:
       # so a crash report names methods and no line numbers, which is half of
       # what makes one actionable. Embedded survives single-file publishing and
       # costs +0.4 MB on the executable, nothing once zipped.
+      #
+      # `-p:Version=` is what puts the number inside the binary — right-click ▸
+      # Properties on the .exe, and `DiagnosticLog.Build` in every crash report.
+      # The SDK appends `+<commit sha>` to the informational version by itself,
+      # so the stamp names both the version and the exact commit without either
+      # being spelled out twice.
       - name: Publish the app (self-contained — no install, no admin)
         run: >
           dotnet publish src/Lightbox.App/Lightbox.App.csproj
           -c Release -r win-x64 --self-contained true
           -p:PublishTrimmed=false -p:DebugType=embedded
+          -p:Version=${{ steps.version.outputs.version }}
           -o publish/win-x64
 
       # Its own folder, because a self-contained executable only ever looks for
@@ -78,19 +131,25 @@ jobs:
           dotnet publish src/Lightbox.Mcp/Lightbox.Mcp.csproj
           -c Release -r win-x64 --self-contained true
           -p:PublishTrimmed=false -p:DebugType=embedded
+          -p:Version=${{ steps.version.outputs.version }}
           -o publish/win-x64/mcp
 
       - name: Name the bundle
         id: name
         shell: bash
         run: |
-          # A tag names itself; a manual build is identified by branch and commit,
-          # which is what makes two of them off the same branch distinguishable.
+          set -euo pipefail
+          # Built from the version rather than beside it, so the filename and the
+          # executable's properties are the same number by construction.
+          VERSION="${{ steps.version.outputs.version }}"
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            LABEL="${GITHUB_REF_NAME}"
+            LABEL="$VERSION"
           else
+            # A manual bundle also carries where it came from: the version alone
+            # would make two builds of the same alpha off different branches
+            # indistinguishable in a downloads folder.
             SAFE=$(printf '%s' "${GITHUB_REF_NAME}" | tr '/ _' '---' | tr -cd 'A-Za-z0-9.-')
-            LABEL="${SAFE}-${GITHUB_SHA::7}"
+            LABEL="${VERSION}-${SAFE}-${GITHUB_SHA::7}"
           fi
           echo "label=$LABEL" >> "$GITHUB_OUTPUT"
           echo "zip=Lightbox-win-x64-${LABEL}.zip" >> "$GITHUB_OUTPUT"
@@ -105,20 +164,66 @@ jobs:
       # .github/scripts/prune-artifacts.sh talks to the API, it needs no pinning
       # or supply-chain review, and `--generate-notes` writes the commit summary
       # for free.
-      # `--prerelease` is unconditional, and that is not laziness: Lightbox is
-      # alpha, the document format still changes, and the README says so at the
-      # top. Marking a build "latest release" would contradict it. Drop this flag
-      # in the same change that drops the alpha banner, not before.
+      # The prerelease flag is unconditional, and that is not laziness: Lightbox
+      # is alpha, the document format still changes, and the README says so at
+      # the top. Marking a build "latest release" would contradict it. Drop this
+      # flag in the same change that drops the alpha banner, not before.
+      #
+      # **Two routes get here and only one of them can create anything.** Pushing
+      # a tag from a terminal arrives with no Release yet, so this makes one.
+      # Drafting a Release in the web UI is the opposite order: GitHub writes the
+      # tag and the Release together and *then* fires this workflow, so the
+      # Release already exists and `gh release create` fails outright — a
+      # published Release with no bundle attached and a red run beside it. That
+      # is the likelier route, not an edge case, since the UI is the only place
+      # GitHub offers to make a tag at all.
+      #
+      # So: create when absent, attach when present. When it is present the
+      # notes and the prerelease checkbox are left exactly as the person set
+      # them — they were typed deliberately, and overwriting hand-written notes
+      # with `--generate-notes` would be the worse failure of the two.
       - name: Publish the Release
         if: github.ref_type == 'tag'
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "${GITHUB_REF_NAME}"
-          "${{ steps.name.outputs.zip }}"
-          --title "Lightbox ${GITHUB_REF_NAME}"
-          --generate-notes
-          --prerelease
+        run: |
+          set -euo pipefail
+          ZIP="${{ steps.name.outputs.zip }}"
+
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists — attaching the bundle to it."
+            # --clobber so a re-run replaces the asset instead of failing on a
+            # name that is already taken.
+            gh release upload "${GITHUB_REF_NAME}" "$ZIP" --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" "$ZIP" \
+              --title "Lightbox ${{ steps.version.outputs.version }}" \
+              --generate-notes \
+              --prerelease
+          fi
+
+      # Said here because here is the moment it matters, and it is the one part
+      # of the scheme a person has to do by hand.
+      #
+      # VersionPrefix is the version being worked *toward*, not the last one
+      # shipped. Leave it at 0.1.0 after releasing v0.1.0 and every untagged
+      # build afterwards calls itself 0.1.0-alpha.N — which semver orders
+      # *before* the 0.1.0 that already shipped, so a bundle built from newer
+      # code claims to predate the release it comes after. That is precisely the
+      # ambiguity the version exists to remove, arriving by the back door.
+      - name: Remind whoever cut this to move the version on
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          {
+            echo "### Released \`${{ steps.version.outputs.version }}\` :tada:"
+            echo
+            echo "**Next: bump \`<VersionPrefix>\` in \`Directory.Build.props\`** to the version"
+            echo "you are now working toward — otherwise untagged builds keep calling themselves"
+            echo "\`${{ steps.version.outputs.version }}-alpha.N\`, which sorts *before* the release"
+            echo "you just cut rather than after it."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # ---- a manual run just hands back the zip -------------------------------
       - name: Upload the bundle

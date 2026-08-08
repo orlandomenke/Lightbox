@@ -15,17 +15,13 @@
         <ResourceInclude Source="avares://Lightbox.App/Styles/Theme.axaml" />
         <!-- The monoline icon geometry, replacing emoji glyph by glyph. -->
         <ResourceInclude Source="avares://Lightbox.App/Styles/Icons.axaml" />
+        <!-- The brand mark as vectors — its own file because the brand is
+             not the chrome; see the note inside. -->
+        <ResourceInclude Source="avares://Lightbox.App/Styles/Brand.axaml" />
       </ResourceDictionary.MergedDictionaries>
-    <!--
-      The splash colour, and the only place it is written down.
-
-      Deliberately a placeholder and deliberately loud: the splash is a flat
-      panel until a designed one replaces it, and this is the line that gets
-      swapped rather than a colour somebody has to go looking for. Not the
-      layer-group amber from MainWindow — sharing that literal would imply a
-      relationship between the two that does not exist.
-    -->
-      <SolidColorBrush x:Key="SplashBackgroundBrush" Color="#FF7A00" />
+      <!-- The splash's colours moved to Brand.axaml when the designed
+           splash replaced the orange placeholder — they are brand surfaces
+           now, not a placeholder waiting to be swapped. -->
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
@@ -123,6 +119,12 @@
                 <DockPanel>
                   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
                     <ContentPresenter Content="{TemplateBinding TitleBarExtra}" VerticalAlignment="Center" />
+                    <!-- Float out / dock back. One button, two meanings; the
+                         glyph and tooltip follow IsFloating (styles below the
+                         template), and the host answers the click because only
+                         it knows where "back" is. -->
+                    <Button x:Name="PART_Float" FontSize="11" Padding="6,2"
+                            IsVisible="{TemplateBinding CanFloat}" />
                     <Button Content="✕" FontSize="11" Padding="6,2"
                             Command="{TemplateBinding CloseCommand}"
                             IsVisible="{TemplateBinding CloseCommand, Converter={x:Static ObjectConverters.IsNotNull}}"
@@ -193,8 +195,14 @@
               </Border>
               <ContentPresenter DockPanel.Dock="Top" Content="{TemplateBinding TopBar}" />
               <ContentPresenter DockPanel.Dock="Bottom" Content="{TemplateBinding BottomBar}" />
-              <ContentPresenter Content="{TemplateBinding Content}"
-                                ContentTemplate="{TemplateBinding ContentTemplate}" />
+              <!-- The bars above and below are always visible; when the docker
+                   is squeezed it is the CONTENT that gives, scrolling inside
+                   its own panel. This is what lets a sidebar hold its dockers
+                   without ever scrolling as a whole. -->
+              <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ContentPresenter Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}" />
+              </ScrollViewer>
             </DockPanel>
           </Border>
         </ControlTemplate>

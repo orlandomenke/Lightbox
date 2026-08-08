@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260">
+  <defs>
+    <linearGradient id="seg0" gradientUnits="userSpaceOnUse" x1="100" y1="10" x2="8" y2="66"><stop offset="0" stop-color="#F9913C"/><stop offset="1" stop-color="#F25B55"/></linearGradient>
+    <linearGradient id="seg1" gradientUnits="userSpaceOnUse" x1="8" y1="66" x2="8" y2="194"><stop offset="0" stop-color="#F25B55"/><stop offset="1" stop-color="#C9359F"/></linearGradient>
+    <linearGradient id="seg2" gradientUnits="userSpaceOnUse" x1="8" y1="194" x2="100" y2="250"><stop offset="0" stop-color="#C9359F"/><stop offset="0.55" stop-color="#802AC5"/><stop offset="1" stop-color="#5A36E0"/></linearGradient>
+    <linearGradient id="seg3" gradientUnits="userSpaceOnUse" x1="100" y1="250" x2="192" y2="194"><stop offset="0" stop-color="#5A36E0"/><stop offset="1" stop-color="#4148F8"/></linearGradient>
+    <linearGradient id="seg4" gradientUnits="userSpaceOnUse" x1="192" y1="194" x2="192" y2="116"><stop offset="0" stop-color="#4148F8"/><stop offset="0.72" stop-color="#7A5CFF"/><stop offset="1" stop-color="#A98BFF"/></linearGradient>
+    <linearGradient id="face" gradientUnits="userSpaceOnUse" x1="189" y1="117" x2="105" y2="150"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#ECE8F4"/></linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="10"/></filter>
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="5"/></filter>
+    <radialGradient id="flare" gradientUnits="userSpaceOnUse" cx="189" cy="117" r="22"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="0.45" stop-color="#FFD9F0" stop-opacity="0.35"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+  </defs>
+  <g>
+    <path d="M100 10 L8 66 L41 84.6 L100 48.6 Z" fill="url(#seg0)"/>
+    <path d="M8 66 L8 194 L41 175.4 L41 84.6 Z" fill="url(#seg1)"/>
+    <path d="M8 194 L100 250 L100 211.4 L41 175.4 Z" fill="url(#seg2)"/>
+    <path d="M100 250 L192 194 L159 175.4 L100 211.4 Z" fill="url(#seg3)"/>
+    <path d="M192 194 L192 116 L159 150 L159 175.4 Z" fill="url(#seg4)"/>
+    <path d="M105 69 L189 117 L174 189 L105 150 Z" fill="#FFFFFF" opacity="0.45" filter="url(#glow)"/>
+    <path d="M98 78 L182 126 L167 198 L98 159 Z" fill="#0A0A18" opacity="0.75" filter="url(#shadow)"/>
+    <path d="M105 69 L189 117 L174 189 L105 150 Z" fill="url(#face)"/>
+    <circle cx="189" cy="117" r="22" fill="url(#flare)"/>
+  </g>
+</svg>

@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Lightbox.App.Views.SplashWindow"
         Title="Lightbox"
-        Width="420" Height="260"
+        Width="640" Height="400"
         CanResize="False"
         WindowDecorations="None"
         ShowInTaskbar="False"
@@ -10,9 +10,11 @@
         WindowStartupLocation="CenterScreen">
 
   <!--
-    What is on screen while the main window is being built.
+    What is on screen while the main window is being built. The designed
+    splash now, per the owner: the brand ground, the mark centred, the
+    wordmark and the payoff under it — the reference's splash panel.
 
-    Three of the properties above are decisions rather than defaults:
+    Three of the window properties above are decisions rather than defaults:
 
     * WindowDecorations="None" — Avalonia 12's name for this. It was
       SystemDecorations in 11 and does not compile here.
@@ -24,16 +26,48 @@
       splash would sit over a dialog nobody can dismiss. That failure looks
       exactly like a hang on first launch.
 
-    The backdrop border is redundant with the window's own background and
-    exists anyway — it is the seam the designed splash drops into, and it is
-    what a test can name without asserting against the Fluent window template.
+    Still NOTHING animated in here: building MainWindow blocks the UI thread,
+    so anything moving would stutter for the length of the load. A still
+    panel is invisible to that.
   -->
-  <Border x:Name="Backdrop" Background="{StaticResource SplashBackgroundBrush}">
-    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6">
-      <TextBlock Text="Lightbox" FontSize="34" FontWeight="Light"
-                 Foreground="#1b1b1b" HorizontalAlignment="Center" />
-      <TextBlock x:Name="Status" Text="Loading…" FontSize="13" Opacity="0.75"
-                 Foreground="#1b1b1b" HorizontalAlignment="Center" />
+  <Panel x:Name="Backdrop">
+    <Border x:Name="Ground" Background="{StaticResource BrandGroundBrush}" />
+    <!--
+      The background image slot. Hidden until the code-behind finds the
+      asset: ship art as Assets/splash-background.png and it fills the
+      window with the brand panel drawn over it; ship nothing and the
+      splash is the plain brand ground. The gradient scrim under the text
+      keeps the wordmark legible on any art.
+    -->
+    <Image x:Name="BackgroundImage" Stretch="UniformToFill" IsVisible="False" />
+    <Border x:Name="Scrim" IsVisible="False">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+          <GradientStop Offset="0" Color="#3326292F" />
+          <GradientStop Offset="1" Color="#CC26292F" />
+        </LinearGradientBrush>
+      </Border.Background>
+    </Border>
+
+    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="0">
+      <Image Source="{StaticResource BrandIconDrawing}" Width="110" Height="143"
+             HorizontalAlignment="Center" />
+      <Image Source="{StaticResource BrandWordmarkDrawing}" Width="330"
+             HorizontalAlignment="Center" Margin="0,26,0,0" />
+      <!-- The payoff, as the reference writes it: the two halves of the
+           product in the two accents, then the quiet line under it. -->
+      <TextBlock HorizontalAlignment="Center" Margin="0,20,0,0" FontSize="15">
+        <Run Text="Professional " Foreground="#FFFFFF" /><Run Text="Painting"
+             Foreground="{StaticResource BrandCoralBrush}" /><Run Text=" &amp; "
+             Foreground="#FFFFFF" /><Run Text="Animation"
+             Foreground="{StaticResource BrandVioletBrush}" />
+      </TextBlock>
+      <TextBlock Text="Built for Artists. Designed for Creativity."
+                 FontSize="11" Foreground="#9BA0AC"
+                 HorizontalAlignment="Center" Margin="0,6,0,0" />
     </StackPanel>
-  </Border>
+
+    <TextBlock x:Name="Status" Text="Loading…" FontSize="11" Foreground="#9BA0AC"
+               HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" />
+  </Panel>
 </Window>

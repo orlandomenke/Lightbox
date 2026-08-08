@@ -35,6 +35,10 @@ public partial class MainWindow : Window
         // once, here — a per-move re-render would repaint the whole frame from its
         // strokes, which is exactly what invariant 6 forbids.
         Canvas.SelectedLinesDragged += (dx, dy) => _vm.MoveSelectedStrokes(dx, dy);
+        TimelineTrackView.KeyDragged += OnTrackKeyDragged;
+        GraphEditorView.KeyEdited += (series, from, to, value) => _vm.EditCameraKey(series, from, to, value);
+        GraphEditorView.KeyAddRequested += frame => _vm.AddCameraKeyAt(frame);
+        GraphEditorView.KeyMenuRequested += OnGraphKeyMenu;
         Canvas.SetPlacementProvider(_vm.GetCurrentFramePlacements);
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
@@ -94,6 +98,9 @@ public partial class MainWindow : Window
         // keeps a sprite document free of camera UI.
         _vm.CameraChanged += () => Canvas.CameraFrame = _vm.CameraFrameCorners;
         Canvas.CameraFrame = _vm.CameraFrameCorners;
+        Canvas.CameraPanned += (dx, dy) => _vm.NudgeCamera(dx, dy);
+        Canvas.CameraZoomedBy += factor => _vm.ZoomCameraBy(factor);
+        Canvas.CameraRotatedBy += deg => _vm.RotateCameraBy(deg);
 
         LayersDocker.PointerEntered += (_, _) => _pointerInLayersDocker = true;
         LayersDocker.PointerExited += (_, _) => _pointerInLayersDocker = false;
@@ -316,6 +323,10 @@ public partial class MainWindow : Window
             // any other rearrangement.
             panel.TabPicked += (_, id) => _vm.Workspace.Activate(id);
             panel.PanelDragStarted += BeginPanelDrag;
+            // The float button follows movability: the timeline cannot leave
+            // the bottom, so it offers no way to try.
+            panel.CanFloat = DockPanels.Of(panel.PanelId).Movable;
+            panel.FloatToggleRequested += OnFloatToggle;
         }
         foreach (var strip in Strips())
         {
@@ -380,10 +391,19 @@ public partial class MainWindow : Window
                 // One call, not two assignments: between them the strip holds a
                 // new tab list against an old active id, and the docker used to
                 // read that as a click. See Docker.ShowTabs and B132.
-                panel.ShowTabs(usable.Count > 1 ? usable.Select(DockPanels.Of).ToList() : null, active);
+                //
+                // A slot of ONE also gets the list — the owner wants the tabbed
+                // header even when a docker stands alone, so every panel wears
+                // one treatment and dropping another onto it reads as joining
+                // tabs that are already there.
+                panel.ShowTabs(usable.Select(DockPanels.Of).ToList(), active);
                 panels.Add(panel);
             }
-            foreach (var panel in panels) Detach(panel);
+            foreach (var panel in panels)
+            {
+                Detach(panel);
+                panel.IsFloating = false;
+            }
             strip.Rebuild(panels, layout);
             // The cap comes from the panels actually shown, not from the ones
             // the layout lists: a project panel with no project is not in the
@@ -557,7 +577,9 @@ public partial class MainWindow : Window
                 break;
             default:
                 Collapse(BottomHost, BottomSplitter, occupied);
-                SizeRow(RootGrid.RowDefinitions[4], occupied, extent, cap);
+                // The bottom strip lives inside the centre column now, so the
+                // sidebars keep their full height beside it.
+                SizeRow(CentreColumn.RowDefinitions[2], occupied, extent, cap);
                 break;
         }
     }
@@ -1124,6 +1146,27 @@ public partial class MainWindow : Window
 
     // ---- floating panels -------------------------------------------------------
 
+    /// <summary>
+    /// The header's ⧉/⇱ button: float a docked panel from where it stands,
+    /// or dock a floating one back where it came from.
+    /// </summary>
+    private void OnFloatToggle(Docker panel)
+    {
+        var id = panel.PanelId;
+        if (_vm.Workspace.Layout.SideOf(id) == DockSide.Floating)
+        {
+            _vm.Workspace.Redock(id);
+            return;
+        }
+        // Float it where it already is, so the panel appears to pop out of
+        // the strip rather than teleporting somewhere new.
+        var at = panel.PointToScreen(default);
+        var info = DockPanels.Of(id);
+        _vm.Workspace.Float(
+            id, at.X + 24, at.Y + 24,
+            Math.Max(panel.Bounds.Width, 260), Math.Max(panel.Bounds.Height, Math.Max(240, info.DefaultExtent)));
+    }
+
     private void ShowFloating(DockPanelId id, Docker panel, DockLayout layout)
     {
         if (_floating.TryGetValue(id, out var open))
@@ -1132,6 +1175,7 @@ public partial class MainWindow : Window
             return;
         }
         Detach(panel);
+        panel.IsFloating = true;
         var window = new FloatingPanelWindow(panel, layout.Place(id));
         window.Dismissed += floated =>
         {
@@ -1884,6 +1928,24 @@ public partial class MainWindow : Window
         BrushPickerName.Text = _vm.SelectedBrushPreset?.Name ?? "Brush";
     }
 
+    private async void OnImportAudio(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Add audio",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("WAV audio") { Patterns = ["*.wav"], MimeTypes = ["audio/wav"] },
+            ],
+        });
+
+        if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path) return;
+        _vm.AiStatus = _vm.ImportAudio(path) is { } error
+            ? $"Audio import failed: {error}"
+            : $"Timing against “{Path.GetFileName(path)}”.";
+    }
+
     private async void OnImportTextureClicked(object? sender, RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -1942,10 +2004,28 @@ public partial class MainWindow : Window
             AllowMultiple = false,
             FileTypeFilter =
             [
+                new FilePickerFileType("Images and video")
+                {
+                    Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp",
+                                "*.mp4", "*.mov", "*.avi", "*.mkv", "*.webm"],
+                },
                 new FilePickerFileType("Images") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"] },
+                new FilePickerFileType("Video") { Patterns = ["*.mp4", "*.mov", "*.avi", "*.mkv", "*.webm"] },
             ],
         });
         if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path) return;
+
+        // Footage goes its own way (Q56): frames extracted at the scene's
+        // fps, referenced by path rather than embedded.
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        if (ext is ".mp4" or ".mov" or ".avi" or ".mkv" or ".webm")
+        {
+            _vm.AiStatus = "Reading the clip…";
+            var error = await _vm.ImportVideoReference(path);
+            _vm.AiStatus = error ?? $"Drawing against “{Path.GetFileName(path)}”.";
+            if (error is null) _vm.ReferenceDockerVisible = true;
+            return;
+        }
 
         // Everything becomes PNG on the way in. The document carries the image
         // itself rather than a path — a reference that broke when the file
@@ -2026,11 +2106,41 @@ public partial class MainWindow : Window
     /// Toolbar width decides its shape: two icon columns when narrow, one
     /// full-width column when widened, icon + tool name when wider still.
     /// </summary>
-    private void OnToolbarSizeChanged(object? sender, SizeChangedEventArgs e)
+    private void OnToolbarSizeChanged(object? sender, SizeChangedEventArgs e) =>
+        ReflowToolRail(e.NewSize.Width, e.NewSize.Height);
+
+    /// <summary>
+    /// The rail's column count follows the window (Q56): one column when the
+    /// window is tall enough to hold every tool in it, two as the ordinary
+    /// case, three when the window is short and the rail wide enough — and
+    /// the columns sit centred. Dragged past 150 px the rail becomes the
+    /// labelled single-column list it always was.
+    /// </summary>
+    private void ReflowToolRail(double width, double height)
     {
-        var width = e.NewSize.Width;
-        ToolButtons.ItemWidth = width < 96 ? 34 : Math.Max(40, width - 14);
-        Toolbar.Classes.Set("labels", width >= 150);
+        if (width <= 0 || height <= 0) return;
+
+        if (width >= 150)
+        {
+            Toolbar.Classes.Set("labels", true);
+            ToolButtons.ItemWidth = Math.Max(40, width - 14);
+            ToolButtons.Width = double.NaN;
+            return;
+        }
+        Toolbar.Classes.Set("labels", false);
+
+        const double tile = 34;
+        var visible = ToolButtons.Children.Count(c => c.IsVisible);
+        if (visible == 0) return;
+        var first = ToolButtons.Children.First(c => c.IsVisible);
+        var tileH = first.Bounds.Height > 1 ? first.Bounds.Height + 4 : 32;
+
+        var maxByWidth = Math.Clamp((int)((width - 8) / tile), 1, 3);
+        var cols = 1;
+        while (cols < maxByWidth && Math.Ceiling(visible / (double)cols) * tileH > height - 8) cols++;
+
+        ToolButtons.ItemWidth = tile;
+        ToolButtons.Width = cols * tile;
     }
 
     // Press-and-hold a tool button to list its variants (like Photoshop/Krita).
@@ -3019,6 +3129,91 @@ public partial class MainWindow : Window
         Patterns = ["*.lightbox.json"],
     };
 
+    /// <summary>
+    /// A dot on the track timeline was dragged to a new frame. Track 0 is the
+    /// camera when one exists (the projection puts it on top); everything
+    /// after maps onto LayerRows in the same order.
+    /// </summary>
+    private void OnTrackKeyDragged(int trackIndex, int fromFrame, int toFrame)
+    {
+        var hasCamera = _vm.HasCamera;
+        if (hasCamera && trackIndex == 0)
+        {
+            _vm.MoveCameraKey(fromFrame, toFrame);
+            return;
+        }
+        var rowIndex = trackIndex - (hasCamera ? 1 : 0);
+        if (rowIndex < 0 || rowIndex >= _vm.LayerRows.Count) return;
+        var row = _vm.LayerRows[rowIndex];
+        var from = row.Cells.FirstOrDefault(c => c.Index == fromFrame);
+        var to = row.Cells.FirstOrDefault(c => c.Index == toFrame);
+        if (from is null || to is null) return;
+        _vm.MoveCel(from, to, copy: false);
+    }
+
+    /// <summary>
+    /// The graph's key menu: how this key eases into the next, and removal.
+    /// Built in code because the flyout needs the frame it was asked about.
+    /// </summary>
+    private void OnGraphKeyMenu(string series, int frame, Avalonia.Point at)
+    {
+        var current = _vm.CameraKeyEaseAt(frame);
+        var flyout = new MenuFlyout { Placement = PlacementMode.Pointer };
+        foreach (var ease in (Lightbox.Core.Inbetween.Easing[])
+                 [Lightbox.Core.Inbetween.Easing.Linear, Lightbox.Core.Inbetween.Easing.EaseIn,
+                  Lightbox.Core.Inbetween.Easing.EaseOut, Lightbox.Core.Inbetween.Easing.EaseInOut])
+        {
+            var item = new MenuItem
+            {
+                Header = ease == current ? $"✓ {ease}" : ease.ToString(),
+            };
+            var chosen = ease;
+            item.Click += (_, _) => _vm.SetCameraKeyEase(frame, chosen);
+            flyout.Items.Add(item);
+        }
+        flyout.Items.Add(new Separator());
+        var remove = new MenuItem { Header = $"Remove key at {frame + 1}" };
+        remove.Click += (_, _) => _vm.RemoveCameraKeyAt(frame);
+        flyout.Items.Add(remove);
+        flyout.ShowAt(GraphEditorView, showAtPointer: true);
+    }
+
+    // ---- the chrome is ours -------------------------------------------------
+
+    /// <summary>
+    /// A press on the title bar's bare chrome moves the window. Presses that
+    /// land on the menu, a caption button or anything else interactive stay
+    /// with their control — the same walk the docker headers do.
+    /// </summary>
+    private void OnTitleBarPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        for (var node = e.Source as Visual; node is not null && !ReferenceEquals(node, TitleBar); node = node.GetVisualParent())
+        {
+            if (node is Button or Menu or MenuItem) return;
+        }
+        BeginMoveDrag(e);
+    }
+
+    private void OnTitleBarDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        for (var node = e.Source as Visual; node is not null && !ReferenceEquals(node, TitleBar); node = node.GetVisualParent())
+        {
+            if (node is Button or Menu or MenuItem) return;
+        }
+        ToggleMaximised();
+    }
+
+    private void OnMinimiseClicked(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void OnMaximiseClicked(object? sender, RoutedEventArgs e) => ToggleMaximised();
+
+    private void OnCloseClicked(object? sender, RoutedEventArgs e) => Close();
+
+    private void ToggleMaximised() =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+
     private async void OnNewClicked(object? sender, RoutedEventArgs e)
     {
         var settings = await new NewDocumentDialog().ShowDialog<NewDocumentSettings?>(this);
@@ -3892,8 +4087,45 @@ public partial class MainWindow : Window
         if (folders.Count == 0) return;
         var dir = folders[0].TryGetLocalPath();
         if (dir is null) return;
-        var written = await Task.Run(() => Services.SequenceExporter.ExportPngSequence(_vm.Doc, dir));
-        _vm.AiStatus = $"Exported {written.Count} PNG frame(s).";
+        var clip = _vm.ResolvedAudioPathForExport() is not null ? _vm.AudioClipNow : null;
+        var written = await Task.Run(() =>
+        {
+            var files = Services.SequenceExporter.ExportPngSequence(_vm.Doc, dir);
+            // The scratch track rides along as plain PCM, the one encoding
+            // every comp package reads (Q56).
+            if (clip is not null)
+            {
+                Services.VideoExporter.WriteWavPcm16(clip, Path.Combine(dir, "audio.wav"));
+            }
+            return files;
+        });
+        _vm.AiStatus = clip is null
+            ? $"Exported {written.Count} PNG frame(s)."
+            : $"Exported {written.Count} PNG frame(s) and audio.wav.";
+    }
+
+    private async void OnExportVideoClicked(object? sender, RoutedEventArgs e)
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export video",
+            SuggestedFileName = "animation",
+            DefaultExtension = "mp4",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("MP4 video (H.264)") { Patterns = ["*.mp4"] },
+                new FilePickerFileType("ProRes 422 (MOV)") { Patterns = ["*.mov"] },
+            ],
+        });
+        if (file?.TryGetLocalPath() is not { } path) return;
+
+        var format = Path.GetExtension(path).Equals(".mov", StringComparison.OrdinalIgnoreCase)
+            ? Services.VideoFormat.ProRes
+            : Services.VideoFormat.Mp4;
+        var audio = _vm.ResolvedAudioPathForExport();
+        _vm.AiStatus = "Rendering video…";
+        var error = await Task.Run(() => Services.VideoExporter.Export(_vm.Doc, format, path, audio));
+        _vm.AiStatus = error ?? $"Exported “{Path.GetFileName(path)}”.";
     }
 
     /// <summary>

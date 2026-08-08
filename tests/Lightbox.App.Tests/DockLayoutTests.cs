@@ -21,7 +21,11 @@ public class DockLayoutTests
         Assert.Equal(
             [DockPanelId.Project, DockPanelId.Layers, DockPanelId.Color, DockPanelId.Sheets],
             layout.PanelsIn(DockSide.Right));
-        Assert.Equal([DockPanelId.Timeline], layout.PanelsIn(DockSide.Bottom));
+        // The bottom is the timeline family (Q58): three views over one set
+        // of records, tabbed, the track view in front.
+        Assert.Equal(
+            [DockPanelId.Timeline, DockPanelId.Xsheet, DockPanelId.GraphEditor],
+            layout.PanelsIn(DockSide.Bottom));
         Assert.True(layout.IsEmpty(DockSide.Left));
         Assert.True(layout.IsEmpty(DockSide.Top));
         Assert.False(layout.IsVisible(DockPanelId.Palette));
@@ -43,8 +47,10 @@ public class DockLayoutTests
     public void OrdersAreAlwaysContiguousFromZero()
     {
         // Everything else relies on this: the drop resolver reads a panel's
-        // Order as its index, so one gap turns every later drop into an
-        // off-by-one.
+        // Order as its SLOT index, so one gap turns every later drop into an
+        // off-by-one. Panels tabbed into one slot share that slot's order —
+        // the timeline family does, by default — so contiguity is a property
+        // of slots, not of panels.
         var layout = DockLayout.Default();
         layout.Dock(DockPanelId.Palette, DockSide.Right, 5);
         layout.Dock(DockPanelId.Layers, DockSide.Left, 0);
@@ -52,10 +58,14 @@ public class DockLayoutTests
 
         foreach (var side in (DockSide[])[DockSide.Left, DockSide.Right, DockSide.Top, DockSide.Bottom])
         {
-            var panels = layout.PanelsIn(side);
-            Assert.Equal(
-                Enumerable.Range(0, panels.Count),
-                panels.Select(p => layout.Place(p).Order));
+            var slots = layout.SlotsIn(side);
+            for (var i = 0; i < slots.Count; i++)
+            {
+                foreach (var panel in slots[i])
+                {
+                    Assert.Equal(i, layout.Place(panel).Order);
+                }
+            }
         }
     }
 
@@ -63,13 +73,15 @@ public class DockLayoutTests
     public void MovingTheLastPanelOutOfAnAreaEmptiesIt()
     {
         // Which is what makes the area collapse — an empty gutter is worse
-        // than no gutter.
+        // than no gutter. A panel alone on a side is the honest case, now
+        // that the bottom starts as a family of three.
         var layout = DockLayout.Default();
-        Assert.False(layout.IsEmpty(DockSide.Bottom));
+        layout.Dock(DockPanelId.Palette, DockSide.Left, 0);
+        Assert.False(layout.IsEmpty(DockSide.Left));
 
-        layout.Dock(DockPanelId.Timeline, DockSide.Right, 0);
+        layout.Dock(DockPanelId.Palette, DockSide.Right, 0);
 
-        Assert.True(layout.IsEmpty(DockSide.Bottom));
+        Assert.True(layout.IsEmpty(DockSide.Left));
     }
 
     [Fact]

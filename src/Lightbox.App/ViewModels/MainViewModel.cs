@@ -732,6 +732,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _clock.Stop();
         IsPlaying = false;
+        StopAudio();
         _strokeBuilder.Cancel();
         ClearLiveEffectState();
         _editor.Changed -= OnDocumentChanged;
@@ -2184,6 +2185,12 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Lightbox.Raster.ReferenceStripRegistry.Register(
                 strips.Select(s => (s.Id, s.Png)));
+            // Video references carry no PNG — their pixels come back off the
+            // footage itself (Q56).
+            foreach (var strip in strips.Where(s => s.VideoPath is not null))
+            {
+                RegisterVideoReference(strip);
+            }
         }
     }
 
@@ -4697,6 +4704,24 @@ public sealed partial class MainViewModel : ObservableObject
     private void ToggleLayersPanel() =>
         Workspace.SetVisible(Docking.DockPanelId.Layers, !Workspace.LayersPanelVisible);
 
+    /// <summary>The toolbar's gear: always OPENS — a gear that closed the
+    /// panel you were looking at would read as a broken button.</summary>
+    [RelayCommand]
+    private void OpenToolOptions() =>
+        Workspace.SetVisible(Docking.DockPanelId.ToolOptions, true);
+
+    [RelayCommand]
+    private void ToggleToolOptionsDocker() =>
+        Workspace.SetVisible(Docking.DockPanelId.ToolOptions, !Workspace.ToolOptionsDockerVisible);
+
+    [RelayCommand]
+    private void ToggleXsheetDocker() =>
+        Workspace.SetVisible(Docking.DockPanelId.Xsheet, !Workspace.XsheetDockerVisible);
+
+    [RelayCommand]
+    private void ToggleGraphEditorDocker() =>
+        Workspace.SetVisible(Docking.DockPanelId.GraphEditor, !Workspace.GraphEditorDockerVisible);
+
     /// <summary>Which side the docker sidebar collapses to / sits on.</summary>
     [ObservableProperty]
     private bool _sidebarOnRight = true;
@@ -4753,6 +4778,9 @@ public sealed partial class MainViewModel : ObservableObject
         PruneStrokeSelection();   // and neither is a line picked on the old one
         foreach (var row in LayerRows) row.IsActive = row.SceneIndex == value;
         OnPropertyChanged(nameof(FrameCells));
+        OnPropertyChanged(nameof(TimelineTracks));
+        OnPropertyChanged(nameof(TimelineFrameCount));
+        OnPropertyChanged(nameof(GraphSeriesList));
         OnPropertyChanged(nameof(ActiveLayerOnion));
         NotifyActiveLayerCompositing();
         PublishSnapshot();
@@ -4773,6 +4801,186 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The active layer's timeline cells (topmost-first rows carry the rest).</summary>
     public ObservableCollection<FrameCell> FrameCells =>
         LayerRows[LayerRows.Count - 1 - Math.Clamp(ActiveLayerIndex, 0, LayerRows.Count - 1)].Cells;
+
+    /// <summary>How many frames the track timeline spans.</summary>
+    public int TimelineFrameCount => Scene.FrameCount;
+
+    /// <summary>
+    /// The graph editor's curves: the camera's framing when one exists, and
+    /// the measured spacing of the active layer's drawings — the chart the
+    /// stroke record makes possible (Q58). Same lifetime as
+    /// <see cref="TimelineTracks"/>: a fresh list on every relevant change.
+    /// </summary>
+    public IReadOnlyList<Lightbox.App.Controls.GraphSeries> GraphSeriesList
+    {
+        get
+        {
+            var list = new List<Lightbox.App.Controls.GraphSeries>();
+            var n = Scene.FrameCount;
+
+            if (Scene.Camera is { } camera)
+            {
+                var x = new double[n];
+                var y = new double[n];
+                var zoom = new double[n];
+                var rot = new double[n];
+                for (var f = 0; f < n; f++)
+                {
+                    var framing = CameraOps.At(camera, f, Scene.Width, Scene.Height);
+                    x[f] = framing.X;
+                    y[f] = framing.Y;
+                    zoom[f] = framing.Zoom;
+                    rot[f] = framing.RotationDeg;
+                }
+                var keys = CameraKeyFrames;
+                list.Add(new("Camera X", Avalonia.Media.Color.Parse("#FF9F45"), x, keys, Editable: true));
+                list.Add(new("Camera Y", Avalonia.Media.Color.Parse("#E8C55F"), y, keys, Editable: true));
+                list.Add(new("Zoom", Avalonia.Media.Color.Parse("#4FA3FF"), zoom, keys, Editable: true));
+                list.Add(new("Rotation", Avalonia.Media.Color.Parse("#E85FBE"), rot, keys, Editable: true));
+            }
+
+            var spacing = new double[n];
+            Array.Fill(spacing, double.NaN);
+            var spans = Lightbox.Core.Timeline.SpacingChart.Measure(ActiveLayer);
+            var spanFrames = new List<int>();
+            foreach (var span in spans)
+            {
+                if (span.Frame >= n) continue;
+                spacing[span.Frame] = span.Distance;
+                spanFrames.Add(span.Frame);
+            }
+            list.Add(new("Spacing (measured)", Avalonia.Media.Color.Parse("#2FD1B9"),
+                spacing, spanFrames, Editable: false));
+
+            // The intent laid over the measurement: the same travel,
+            // redistributed by the easing picked on the X-sheet bar. The gap
+            // between the hollow dots and the filled ones is the drawing
+            // that misses the ease.
+            var intended = new double[n];
+            Array.Fill(intended, double.NaN);
+            var wantFrames = new List<int>();
+            foreach (var span in Lightbox.Core.Timeline.SpacingChart.Intended(ActiveLayer, TweenEasing))
+            {
+                if (span.Frame >= n) continue;
+                intended[span.Frame] = span.Distance;
+                wantFrames.Add(span.Frame);
+            }
+            list.Add(new("Spacing (intended)", Avalonia.Media.Color.Parse("#8FE8DC"),
+                intended, wantFrames, Editable: false, Dashed: true));
+
+            SyncGraphLegend(list);
+            return list.Where(s => !_hiddenGraphSeries.Contains(s.Name)).ToList();
+        }
+    }
+
+    /// <summary>
+    /// Series the artist switched off in the graph's legend. By name, which
+    /// survives the projection rebuilding its lists on every change.
+    /// </summary>
+    private readonly HashSet<string> _hiddenGraphSeries = [];
+
+    /// <summary>The legend's rows — stable instances, synced by name.</summary>
+    public ObservableCollection<GraphLegendItem> GraphLegend { get; } = [];
+
+    internal void SetGraphSeriesShown(string name, bool shown)
+    {
+        if (shown ? _hiddenGraphSeries.Remove(name) : _hiddenGraphSeries.Add(name))
+        {
+            OnPropertyChanged(nameof(GraphSeriesList));
+        }
+    }
+
+    /// <summary>
+    /// Keep the legend's rows matching the series that exist, without
+    /// replacing instances — a toggle mid-click must not be swapped out from
+    /// under the pointer.
+    /// </summary>
+    private void SyncGraphLegend(IReadOnlyList<Lightbox.App.Controls.GraphSeries> all)
+    {
+        for (var i = GraphLegend.Count - 1; i >= 0; i--)
+        {
+            if (all.All(s => s.Name != GraphLegend[i].Name)) GraphLegend.RemoveAt(i);
+        }
+        foreach (var s in all)
+        {
+            if (GraphLegend.All(l => l.Name != s.Name))
+            {
+                GraphLegend.Add(new GraphLegendItem(this, s.Name,
+                    new Avalonia.Media.SolidColorBrush(s.Colour), !_hiddenGraphSeries.Contains(s.Name)));
+            }
+        }
+    }
+
+    /// <summary>
+    /// The graph editor's dot drag, applied: retime the key when the frame
+    /// changed (refusing an occupied destination), then write the dragged
+    /// value into whichever channel the series names.
+    /// </summary>
+    public void EditCameraKey(string series, int fromFrame, int toFrame, double value)
+    {
+        if (Scene.Camera is not { } camera) return;
+        if (CameraOps.KeyAt(camera, fromFrame) is not { } key) return;
+
+        if (toFrame != fromFrame && CameraOps.KeyAt(camera, toFrame) is null)
+        {
+            key.Frame = toFrame;
+        }
+        switch (series)
+        {
+            case "Camera X": key.X = value; break;
+            case "Camera Y": key.Y = value; break;
+            case "Zoom": key.Zoom = Math.Clamp(value, 0.05, 32); break;
+            case "Rotation": key.RotationDeg = value; break;
+            default: return;
+        }
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>
+    /// The exposure sheet and the camera, projected for the track timeline:
+    /// the camera on top (as the reference draws it), then the layers,
+    /// topmost first. A fresh list every read — assigning it is what tells
+    /// the TrackView to re-render, so it is raised wherever the cels or the
+    /// camera change.
+    /// </summary>
+    public IReadOnlyList<Lightbox.App.Controls.TrackRow> TimelineTracks
+    {
+        get
+        {
+            var tracks = new List<Lightbox.App.Controls.TrackRow>();
+            if (Scene.Camera is not null)
+            {
+                var frames = CameraKeyFrames;
+                tracks.Add(new Lightbox.App.Controls.TrackRow(
+                    "Camera", frames, frames, frames.Select(_ => false).ToList(), IsCamera: true));
+            }
+            foreach (var row in LayerRows)
+            {
+                var keys = new List<int>();
+                var holdEnds = new List<int>();
+                var breakdowns = new List<bool>();
+                for (var i = 0; i < row.Cells.Count; i++)
+                {
+                    var cell = row.Cells[i];
+                    if (!cell.IsKeyed || cell.IsVirtual) continue;
+                    keys.Add(cell.Index);
+                    breakdowns.Add(cell.IsBreakdown);
+                    // The hold runs until the next drawing (or the sheet's end).
+                    var end = cell.Index;
+                    for (var j = i + 1; j < row.Cells.Count; j++)
+                    {
+                        if (row.Cells[j].IsKeyed || row.Cells[j].IsVirtual) break;
+                        end = row.Cells[j].Index;
+                    }
+                    holdEnds.Add(end);
+                }
+                tracks.Add(new Lightbox.App.Controls.TrackRow(row.Name, keys, holdEnds, breakdowns, IsCamera: false));
+            }
+            return tracks;
+        }
+    }
 
     // ---- how big the timeline is ---------------------------------------------
 
@@ -4871,6 +5079,7 @@ public sealed partial class MainViewModel : ObservableObject
         // Which reference frame is showing, and therefore which cell the
         // alignment fields are editing, is a property of the playhead.
         NotifyReference();
+        ScrubAudioTick();
         PublishSnapshot();
     }
 
@@ -6266,6 +6475,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!IsPlaying) return;
         _clock.Stop();
         IsPlaying = false;
+        StopAudio();
         PublishSnapshot();
     }
 
@@ -6277,6 +6487,7 @@ public sealed partial class MainViewModel : ObservableObject
         ClearLiveEffectState();
         IsPlaying = true;
         _clock.Start(Scene.Fps, PlaybackSpeedPercent);
+        TickAudio();
         PublishSnapshot();
     }
 
@@ -6388,9 +6599,13 @@ public sealed partial class MainViewModel : ObservableObject
                 Pause();
                 return;
             }
+            // The loop wrapped: the sound cannot wrap with it, so it stops
+            // here and TickAudio restarts it at the range's start.
             next = next > end ? start : end;
+            StopAudio();
         }
         CurrentFrameIndex = Math.Clamp(next, 0, Math.Max(0, Scene.FrameCount - 1));
+        TickAudio();
     }
 
     // ---- playback range + frame insertion (timeline context menu) -----------
@@ -8906,6 +9121,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(TimelineExtent));
         OnPropertyChanged(nameof(MaxScrubFrame));
         OnPropertyChanged(nameof(Fps));
+        NotifyAudioSurface();
         NotifyActiveLayerCompositing();
         MarkersView = Scene.Markers.ToList();
         RefreshCelSelectionHighlights();
@@ -8973,6 +9189,9 @@ public sealed partial class MainViewModel : ObservableObject
         }
         RebuildLayerPanel();
         OnPropertyChanged(nameof(FrameCells));
+        OnPropertyChanged(nameof(TimelineTracks));
+        OnPropertyChanged(nameof(TimelineFrameCount));
+        OnPropertyChanged(nameof(GraphSeriesList));
         RefreshRangeHighlights();
     }
 
@@ -9465,6 +9684,95 @@ public sealed partial class MainViewModel : ObservableObject
         ActiveReferenceIndex = index;
         AfterReferenceChange();
         return strip;
+    }
+
+    /// <summary>
+    /// Footage to draw against (Q56): the clip's frames extracted at the
+    /// scene's fps and laid against the timeline like any reference. The
+    /// document keeps the path — relative when the file lives near it — and
+    /// the pixels are rebuilt from the footage on load. Returns null on
+    /// success or a sentence saying why not.
+    /// </summary>
+    public async Task<string?> ImportVideoReference(string path)
+    {
+        if (Services.VideoExporter.FindFfmpeg() is not { } ffmpeg)
+        {
+            return "FFmpeg was not found — reinstall Lightbox, or install FFmpeg and put it on PATH.";
+        }
+        // The extraction is an FFmpeg run — seconds, off the UI thread. The
+        // document edit below stays on it, like every other edit.
+        var fps = Math.Max(1, Scene.Fps);
+        var (extracted, error) = await Task.Run(() =>
+        {
+            var r = Services.VideoReferenceImporter.Extract(ffmpeg, path, fps, out var e);
+            return (r, e);
+        });
+        if (extracted is not { } result) return error ?? "The clip could not be read.";
+
+        var stored = path;
+        if (System.IO.Path.GetDirectoryName(SaveTargetTab?.FilePath) is { Length: > 0 } docDir)
+        {
+            var relative = System.IO.Path.GetRelativePath(docDir, path);
+            if (!relative.StartsWith("..", StringComparison.Ordinal)
+                && !System.IO.Path.IsPathRooted(relative))
+            {
+                stored = relative;
+            }
+        }
+
+        var strip = new ReferenceStrip
+        {
+            Name = System.IO.Path.GetFileNameWithoutExtension(path),
+            VideoPath = stored,
+            SheetWidth = result.Sheet.Width,
+            SheetHeight = result.Sheet.Height,
+            Cells = result.Cells,
+        };
+        strip.LayOutFrom(CurrentFrameIndex);
+        strip.Scale = FitScale(strip, Scene);
+        strip.CentreOn(Scene.Width, Scene.Height);
+
+        var index = 0;
+        _editor.Perform(doc =>
+        {
+            doc.Scene.References ??= [];
+            index = doc.Scene.References.Count;
+            doc.Scene.References.Add(strip);
+            if (strip.Slots.Count > doc.Scene.FrameCount)
+            {
+                doc.Scene.FrameCount = strip.Slots.Count;
+            }
+        });
+
+        Lightbox.Raster.ReferenceStripRegistry.Register(strip.Id, result.Sheet);
+        ActiveReferenceIndex = index;
+        AfterReferenceChange();
+        return null;
+    }
+
+    /// <summary>
+    /// Rebuild a loaded video reference's pixels from its footage. Quiet when
+    /// FFmpeg or the file is gone — drawing against nothing is the reference
+    /// system's standing answer to a source it cannot read.
+    /// </summary>
+    private void RegisterVideoReference(ReferenceStrip strip)
+    {
+        if (Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id) is not null) return;
+        if (Services.VideoExporter.FindFfmpeg() is not { } ffmpeg) return;
+
+        var resolved = strip.VideoPath!;
+        if (!System.IO.Path.IsPathRooted(resolved))
+        {
+            if (System.IO.Path.GetDirectoryName(SaveTargetTab?.FilePath) is not { Length: > 0 } docDir) return;
+            resolved = System.IO.Path.Combine(docDir, resolved);
+        }
+        if (!File.Exists(resolved)) return;
+
+        var extracted = Services.VideoReferenceImporter.Extract(ffmpeg, resolved, Math.Max(1, Scene.Fps), out _);
+        if (extracted is { } result)
+        {
+            Lightbox.Raster.ReferenceStripRegistry.Register(strip.Id, result.Sheet);
+        }
     }
 
     private static List<ReferenceCell> SliceSheet(SKBitmap sheet, SliceOptions options)
@@ -10738,6 +11046,64 @@ public sealed partial class MainViewModel : ObservableObject
         _autosave.MarkDirty();
     }
 
+    /// <summary>
+    /// Retime a camera key — the track timeline's dot drag. Refuses an
+    /// occupied destination rather than clobbering a framing the artist
+    /// authored; the status line says why nothing moved.
+    /// </summary>
+    public void MoveCameraKey(int fromFrame, int toFrame)
+    {
+        if (Scene.Camera is not { } camera) return;
+        if (CameraOps.KeyAt(camera, fromFrame) is not { } key) return;
+        if (CameraOps.KeyAt(camera, toFrame) is not null)
+        {
+            AiStatus = "There is already a camera key on that frame.";
+            return;
+        }
+        key.Frame = toFrame;
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>
+    /// Author a key at the given frame with the framing already interpolated
+    /// there — the graph's double-click. Keying what is already true changes
+    /// nothing visually, which is exactly what makes it safe to then drag.
+    /// </summary>
+    public void AddCameraKeyAt(int frame)
+    {
+        if (Scene.Camera is not { } camera) return;
+        if (CameraOps.KeyAt(camera, frame) is not null) return;
+        CameraOps.SetKey(camera, frame, CameraOps.At(camera, frame, Scene.Width, Scene.Height));
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>Remove the key at the given frame — the graph's key menu.</summary>
+    public void RemoveCameraKeyAt(int frame)
+    {
+        if (Scene.Camera is not { } camera) return;
+        if (!CameraOps.ClearKey(camera, frame)) return;
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
+    /// <summary>The easing a key runs into its successor with, for the menu's check mark.</summary>
+    public Easing? CameraKeyEaseAt(int frame) => CameraOps.KeyAt(Scene.Camera, frame)?.Ease;
+
+    /// <summary>Set how the key at the given frame eases into the next one.</summary>
+    public void SetCameraKeyEase(int frame, Easing ease)
+    {
+        if (CameraOps.KeyAt(Scene.Camera, frame) is not { } key || key.Ease == ease) return;
+        key.Ease = ease;
+        RefreshCamera();
+        NotifyCameraSurface();
+        _autosave.MarkDirty();
+    }
+
     /// <summary>Remove the key at the playhead, if there is one.</summary>
     [RelayCommand]
     private void ClearCameraKey()
@@ -10809,6 +11175,31 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// The canvas gizmo's three drags. Each goes through
+    /// <see cref="SetFraming"/>, so a drag keys the framing at the playhead
+    /// exactly as typing into the fields does — adjusting IS keying.
+    /// </summary>
+    public void NudgeCamera(double dx, double dy)
+    {
+        var now = FramingNow();
+        SetFraming(now with { X = now.X + dx, Y = now.Y + dy });
+    }
+
+    public void ZoomCameraBy(double factor)
+    {
+        if (!double.IsFinite(factor) || factor <= 0) return;
+        var now = FramingNow();
+        SetFraming(now with { Zoom = Math.Clamp(now.Zoom * factor, 0.05, 64) });
+    }
+
+    public void RotateCameraBy(double deltaDeg)
+    {
+        if (!double.IsFinite(deltaDeg)) return;
+        var now = FramingNow();
+        SetFraming(now with { RotationDeg = now.RotationDeg + deltaDeg });
+    }
+
+    /// <summary>
     /// Editing a framing field writes it straight to the key at the playhead,
     /// creating one if there is none. A framing you cannot see keyed is a
     /// framing you will lose by scrubbing away from it.
@@ -10857,6 +11248,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void NotifyCameraSurface()
     {
+        OnPropertyChanged(nameof(TimelineTracks));
+        OnPropertyChanged(nameof(GraphSeriesList));
         OnPropertyChanged(nameof(HasCamera));
         OnPropertyChanged(nameof(IsOnCameraKey));
         OnPropertyChanged(nameof(CameraKeyFrames));

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260">
+  <g>
+    <mask id="carve"><rect x="0" y="0" width="200" height="260" fill="white"/><path d="M100.028 60.9075 L194.947 115.148 L177.998 196.507 L100.028 152.438 Z" fill="black"/></mask>
+    <g mask="url(#carve)"><path d="M100 10 L8 66 L41 84.6 L100 48.6 Z" fill="#000000"/><path d="M8 66 L8 194 L41 175.4 L41 84.6 Z" fill="#000000"/><path d="M8 194 L100 250 L100 211.4 L41 175.4 Z" fill="#000000"/><path d="M100 250 L192 194 L159 175.4 L100 211.4 Z" fill="#000000"/><path d="M192 194 L192 116 L159 150 L159 175.4 Z" fill="#000000"/></g>
+    <path d="M105 69 L189 117 L174 189 L105 150 Z" fill="#000000"/>
+  </g>
+</svg>

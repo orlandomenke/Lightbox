@@ -5,5 +5,37 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!--
+      The one place the version number is written down.
+
+      It is the version being worked *toward*, not the last one shipped. Cut
+      v0.1.0 and this becomes 0.2.0 — because untagged builds are stamped
+      `<this>-alpha.<run>`, and semver puts a prerelease *before* the version it
+      names. Left at 0.1.0 after 0.1.0 shipped, every later build would claim to
+      predate a release it comes after, which is the exact ambiguity the version
+      exists to remove. The release workflow says so in its run summary, since
+      that is the moment it matters.
+
+      0.1.0 rather than 0.0.1: in semver a leading 0 already means "unstable,
+      anything may change", so the whole 0.x range is the alpha and the patch
+      digit is free to mean what it means everywhere else — a fix. Starting at
+      0.0.1 would spend the minor digit on nothing and leave no room to say
+      "this release added something" versus "this release fixed something".
+
+      It is NOT bumped by CI. A number that moves on every build identifies
+      nothing: "the bug is in 0.4.7" stops being a sentence once 0.4.7 was one
+      of forty builds that afternoon. A release version moves when a person cuts
+      a release, and release.yml takes the number from the tag rather than from
+      here; an untagged bundle is stamped `<this>-alpha.<run number>` so it
+      sorts before the release it precedes and can never be mistaken for it.
+
+      Betas need no machinery of their own — tag `v0.3.0-beta.1` and semver
+      already orders it before `v0.3.0`. 1.0.0 is the first release that
+      promises the document format will not move under you, and it arrives in
+      the same change that drops the alpha banner from README.md and the
+      unconditional prerelease flag from release.yml.
+    -->
+    <VersionPrefix>0.1.0</VersionPrefix>
   </PropertyGroup>
 </Project>

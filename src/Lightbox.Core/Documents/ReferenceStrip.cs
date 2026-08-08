@@ -94,8 +94,23 @@ public sealed class ReferenceStrip
 
     public string Name { get; set; } = "Reference";
 
-    /// <summary>The whole sheet, base64 PNG.</summary>
+    /// <summary>The whole sheet, base64 PNG. Empty for a video reference.</summary>
     public string Png { get; set; } = "";
+
+    /// <summary>
+    /// The footage this strip was cut from, or null for an ordinary image
+    /// sheet — and null writes no key, the usual rule.
+    /// </summary>
+    /// <remarks>
+    /// Video is the one reference that is referenced by path rather than
+    /// embedded (Q56): footage is megabytes per second, and embedding it
+    /// would turn every document that draws over a shot into a copy of the
+    /// shot. The extracted frames are rebuilt from the file on load; a
+    /// missing file degrades to drawing against nothing, exactly as a
+    /// corrupt embedded sheet already does. Relative paths resolve against
+    /// the document's directory, like <see cref="AudioTrack.Path"/>.
+    /// </remarks>
+    public string? VideoPath { get; set; }
 
     public int SheetWidth { get; set; }
 

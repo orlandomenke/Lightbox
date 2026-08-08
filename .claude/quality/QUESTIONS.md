@@ -1869,7 +1869,152 @@ app, and neither is a preference.
 
 </details>
 
-## Q56 · How does a painting stay cheap to reopen? — **answered: an in-document checkpoint, taken on save, off-thread**
+## Q58 · The timeline family: what are the Xsheet, the track Timeline and the Graph Editor in v1? — **answered, all recommendations taken, 2026-08-08**
+
+Raised when the owner asked for the reference's timeline (its strip reads
+*Timeline | Xsheet | Dope Sheet | Graph Editor*) plus "2 more dockers
+complimenting each other, xsheet (i presume this is what we have today), and
+graph editor", with field research requested (TVPaint, Toon Boom, OpenToonz,
+and the general dope-sheet/graph-editor vocabulary). Asked with the question
+prompt; all four answers took the recommendation.
+
+### The answers
+
+- **Xsheet = today's horizontal grid, re-hosted.** One row per layer, one cell
+  per frame, holds, timing presets — already an exposure sheet laid sideways,
+  and the owner presumed as much. A classic vertical sheet is a later
+  orientation toggle, not a second implementation. OpenToonz-style cell marks
+  and drag-fill cycles join the queue rather than v1.
+- **The track Timeline ships editable.** One track per layer, drawings as
+  dots, holds as bars, the camera as its own track, per-track colours as the
+  reference draws them — and the dots drag to retime from day one, because a
+  timeline you can see and not touch reads as broken.
+- **Graph editor v1 = camera curves + hold easing + the spacing graph.** The
+  conventional half is what the field has (transform curves with handles and
+  interpolation presets). The spacing graph is the differentiator no
+  competitor has: because the stroke record is the document, Lightbox can
+  MEASURE how far the drawings actually move between frames and plot the true
+  spacing of the animation — the pencil-era spacing chart, derived from the
+  art. The AI inbetweener fills toward it.
+- **Adopt next: audio + timing ladders.** An audio track with a waveform and
+  scrubbed playback is the single biggest gap against every competitor;
+  timing ladders (the chart on an extreme naming where the inbetweens sit)
+  are the classic tool nobody ships as a first-class object, and the natural
+  input to the inbetweener. Shift-and-trace and cycle drag-fill stay on the
+  list, unscheduled.
+
+### What did not need deciding
+
+The dope sheet. The reference names one, but a dope sheet is keyframes by row
+with timing and no values — between our Xsheet and the track view there is no
+job left for it to do. If one earns its way in later it is a view over the
+same records, not a fourth store.
+
+## Q59 · The audio track: which output backend, and where does the sound live? — **answered, both recommendations taken, 2026-08-08**
+
+Raised when the audio track (Q58's first "adopt next") came up in the queue.
+Playback needs a native audio output — .NET has none built in and Avalonia
+does not either — and a native dependency is exactly the kind of decision that
+goes to the owner before code. Asked with the question prompt.
+
+### The answers
+
+- **Output: OpenAL-soft through Silk.NET.OpenAL.** One small, LGPL,
+  ships-everywhere native library, bound by a .NET Foundation-maintained
+  wrapper. Decoding stays managed — WAV read by our own code, OGG via NVorbis
+  and MP3 via NLayer when they arrive — so the native surface is output-only.
+  The alternatives were waveform-without-playback (cheapest, but a silent
+  audio track misses the point: you animate to the sound, not the picture of
+  it) and SDL2 (battle-tested but a windowing/input/audio kitchen sink linked
+  for one function).
+- **Storage: reference by path, never embed.** The document stores a relative
+  path plus offset/volume/mute; waveform peaks cache separately. Documents
+  stay small, the source file stays editable in a DAW, and a missing file
+  degrades to a silent badge rather than an error. TVPaint and OpenToonz do
+  the same. Embedding would make the file self-contained at the cost of
+  megabytes per document and autosave churn on a blob that never changes.
+
+### What did not need deciding
+
+Optionality. Whichever way both questions went, the audio block is nullable
+and absent-until-used — a document without audio writes no keys, shows no
+audio UI, and pays nothing. That is the same rule the camera already proves.
+
+## Q56 · Video in and out: which engine, which formats, and what shape does footage take? — **answered, all recommendations taken, 2026-08-08**
+
+Raised when the owner asked for a render pipeline ("export our animations to
+(professional) video files") and, in the same breath, video to draw against
+("like gumball" — drawn characters over live footage). Both need a codec
+engine .NET does not have, so the dependency went to the owner before code,
+the same way Q59's audio backend did. Asked with the question prompt.
+
+### The answers
+
+- **Engine: a bundled FFmpeg binary, driven as a subprocess.** Frames pipe
+  in, the file comes out; an encoder crash cannot take the app down, the
+  LGPL boundary stays clean (a separate executable, not linked code), and
+  the same binary decodes footage for references. The installer pays ~25 MB.
+  The alternatives were system-FFmpeg-on-PATH (every artist pays a setup
+  step, support inherits every version) and FFmpeg.AutoGen bindings (fastest,
+  and a codec bug crashes the application in-process).
+- **Export v1: H.264 MP4, ProRes 422 MOV, and a numbered PNG sequence with a
+  WAV.** Review, editorial handoff and comp pipelines respectively, one
+  dialog. The scratch track muxes into all of them. DNxHR and WebM are
+  argument sets away when asked for.
+- **Footage: a reference layer, never a drawing layer.** Imported the way
+  references work today — under the drawing layers, mapped to the timeline
+  (video time follows scene fps, with an offset), referenced by path like
+  audio (Q59), and never exported. Extracting frames onto a raster layer was
+  rejected: it bloats the document with footage bytes and the frames would
+  export unless remembered and excluded.
+
+### Also decided in the same exchange (not video)
+
+The tool rail rearrange: buttons flow into **1–3 columns adaptively by
+window height**, horizontally centred — 2 columns the comfortable default,
+1 when the window is tall enough for a single column, 3 when it gets short.
+Every tool always visible, never scrolled.
+
+## Q57 · Clips get a storage choice and timing handles — **answered 2026-08-08, queued behind the design-round-3 PR**
+
+Raised when the owner queued the follow-up to Q56's video work: a choice
+between referencing footage and storing it in the file ("the former requires
+the user to have compositing software... I want to enable other users to also
+use this rudimentary"), the imported video visible in the timeline with
+handlers for timing, and — perhaps — cutting and rearranging sections of both
+audio and video. Asked with the question prompt.
+
+### The answers
+
+- **Two purposes, each with its own storage.** The owner's own words: "2
+  paths. One reference 2 small production." A **reference** import may embed
+  the extracted contact-sheet frames (reference quality, capped — the same
+  240-frame/480px extraction, stored the way image references already store),
+  or stay by-path as shipped. A **small-production** import embeds the
+  **original video bytes** — full fidelity, re-extractable, for the user whose
+  whole pipeline is Lightbox. The cost asymmetry is deliberate: a reference is
+  a drawing aid and pays reference prices; production footage is material and
+  pays material prices.
+- **Audio gets the same reference-or-embed choice** (recommendation taken).
+  Same rationale: a self-contained file survives being shared without the WAV
+  beside it. Reference stays the default; embedding warns past ~10 MB.
+- **Timing handles live in the Timeline docker** (recommendation taken).
+  Audio and video each get a clip bar in the track timeline: drag the body to
+  slide, drag an end to trim in/out. The X-sheet stays a drawing grid.
+- **Slide + trim this round; split-and-rearrange next** (recommendation
+  taken). The model is a segment list from day one so "split at playhead" and
+  reordering land later without a migration.
+
+### Answered in the same exchange
+
+**Small-production footage exports.** Asked whether embedded production
+footage stays draw-against-only, the owner answered "yeah also export for
+small production" — so the production path composites into the render
+pipeline's output, unlike references, which never reach an exported pixel.
+That difference is the line between the two paths: a reference is a drawing
+aid, production footage is material.
+
+## Q60 · How does a painting stay cheap to reopen? — **answered: an in-document checkpoint, taken on save, off-thread**
 
 **Answered 2026-08-08**, five decisions in two prompted pairs, after B30 was
 measured against a painting rather than a frame of line art and turned out to be
@@ -1890,7 +2035,7 @@ brush: the animation half's shape on both axes.
 | When one is taken | **On save, rendered on a background thread** | before the save completes (would stall Ctrl+S for a minute), or on idle (needs an idle notion that does not exist) |
 | What invalidates it | **Any edit it covers drops it**; next save makes a fresh one | several checkpoints at different depths — more of the fast path, much subtler invalidation |
 | The undo limit | **A memory budget with a step ceiling, not a flat count** | a flat 250 or 500 |
-| The clone stall found while measuring | **Filed as B138**, fixed on its own branch | folding it into B30, or fixing it here |
+| The clone stall found while measuring | **Filed as B142**, fixed on its own branch | folding it into B30, or fixing it here |
 
 ### The owner's constraints, which decided three of the five
 

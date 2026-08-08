@@ -34,6 +34,47 @@ public class OverflowBar : Panel
         set => SetValue(SpacingProperty, value);
     }
 
+    /// <summary>
+    /// What the overflow button says. Named per bar, because the button sits
+    /// beside other chrome and a bare ▾ reads as belonging to whichever
+    /// neighbour is on the right.
+    /// </summary>
+    public static readonly StyledProperty<string> MoreLabelProperty =
+        AvaloniaProperty.Register<OverflowBar, string>(nameof(MoreLabel), defaultValue: "More  ▾");
+
+    public string MoreLabel
+    {
+        get => GetValue(MoreLabelProperty);
+        set => SetValue(MoreLabelProperty, value);
+    }
+
+    /// <summary>
+    /// Where the overflow menu opens. A bar at the bottom of the window sends
+    /// it up; the default suits a bar above the canvas.
+    /// </summary>
+    public static readonly StyledProperty<PlacementMode> MenuPlacementProperty =
+        AvaloniaProperty.Register<OverflowBar, PlacementMode>(
+            nameof(MenuPlacement), defaultValue: PlacementMode.BottomEdgeAlignedRight);
+
+    public PlacementMode MenuPlacement
+    {
+        get => GetValue(MenuPlacementProperty);
+        set => SetValue(MenuPlacementProperty, value);
+    }
+
+    /// <summary>
+    /// Marks the one child that gives way before anything overflows: it is
+    /// squeezed from its natural width (its MaxWidth) down to its MinWidth
+    /// first, and only when it is at the floor does the bar start moving
+    /// items into the menu. The owner's rule for the timeline: "decrease the
+    /// slider first, then hide the option under a dropdown."
+    /// </summary>
+    public static readonly AttachedProperty<bool> FlexProperty =
+        AvaloniaProperty.RegisterAttached<OverflowBar, Control, bool>("Flex");
+
+    public static bool GetFlex(Control c) => c.GetValue(FlexProperty);
+    public static void SetFlex(Control c, bool value) => c.SetValue(FlexProperty, value);
+
     private readonly Button _more;
     private readonly StackPanel _overflowHost;
     private readonly List<Control> _overflowing = [];
@@ -49,18 +90,23 @@ public class OverflowBar : Panel
         flyout.Closed += (_, _) => MoveBack();
         _more = new Button
         {
-            // Named rather than a bare ▾. The bar's last control sits directly
-            // beside the workspace picker, and two adjacent chevrons read as a
-            // pair belonging to whichever is on the right — so the one that
-            // belongs to *this* bar says which bar it belongs to.
-            Content = "More tool options  ▾",
+            Content = MoreLabel,
             FontSize = 11,
             Flyout = flyout,
             VerticalAlignment = VerticalAlignment.Center,
             IsVisible = false,
         };
-        ToolTip.SetTip(_more, "The tool options that do not fit on the bar");
+        _more.Bind(ContentControl.ContentProperty, this.GetObservable(MoreLabelProperty));
+        ToolTip.SetTip(_more, "The controls that do not fit on the bar");
         Children.Add(_more);
+    }
+
+    static OverflowBar()
+    {
+        MenuPlacementProperty.Changed.AddClassHandler<OverflowBar>((bar, _) =>
+        {
+            if (bar._more.Flyout is Flyout f) f.Placement = bar.MenuPlacement;
+        });
     }
 
     /// <summary>Everything except the overflow button itself.</summary>
@@ -95,6 +141,42 @@ public class OverflowBar : Panel
         return shown;
     }
 
+    /// <summary>
+    /// The flexible variant: before anything is sent to the menu, the child
+    /// at <paramref name="flexIndex"/> is squeezed from its natural width
+    /// down to <paramref name="flexMin"/>. Only when that is not enough does
+    /// the ordinary split run, with the flexible child held at its floor.
+    /// </summary>
+    public static (int Shown, double FlexWidth) Split(
+        IReadOnlyList<double> widths, double available, double spacing, double moreWidth,
+        int flexIndex, double flexMin)
+    {
+        if (flexIndex < 0 || flexIndex >= widths.Count)
+        {
+            return (Split(widths, available, spacing, moreWidth), 0);
+        }
+
+        var natural = widths[flexIndex];
+        var total = widths.Sum() + spacing * (widths.Count - 1);
+        if (total <= available) return (widths.Count, natural);
+
+        var over = total - available;
+        var give = natural - flexMin;
+        if (give >= over) return (widths.Count, natural - over);
+
+        var squeezed = widths.ToArray();
+        squeezed[flexIndex] = flexMin;
+        return (Split(squeezed, available, spacing, moreWidth), flexMin);
+    }
+
+    /// <summary>
+    /// A flexible child's natural width is its MaxWidth when it names one —
+    /// a Slider has no intrinsic width, so the cap is what "unsqueezed"
+    /// means for it. Everything else is its measured desire.
+    /// </summary>
+    private static double NaturalWidth(Control c) =>
+        GetFlex(c) && !double.IsInfinity(c.MaxWidth) ? c.MaxWidth : c.DesiredSize.Width;
+
     protected override Size MeasureOverride(Size availableSize)
     {
         foreach (var child in Children) child.Measure(Size.Infinity);
@@ -102,7 +184,7 @@ public class OverflowBar : Panel
         var height = Children.Where(c => c.IsVisible).Select(c => c.DesiredSize.Height)
             .DefaultIfEmpty(0).Max();
         var visible = Items.Where(c => c.IsVisible).ToList();
-        var width = visible.Sum(c => c.DesiredSize.Width)
+        var width = visible.Sum(NaturalWidth)
             + Spacing * Math.Max(0, visible.Count - 1);
         // Ask for what the row wants, but never insist: the bar's job is to
         // fit whatever it is given.
@@ -114,10 +196,13 @@ public class OverflowBar : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         var visible = Items.Where(c => c.IsVisible).ToList();
-        var widths = visible.ConvertAll(c => c.DesiredSize.Width);
-        var shown = _menuOpen
-            ? visible.Count
-            : Split(widths, finalSize.Width, Spacing, _more.DesiredSize.Width);
+        var widths = visible.ConvertAll(NaturalWidth);
+        var flexIndex = visible.FindIndex(GetFlex);
+        var flexMin = flexIndex >= 0 ? Math.Max(visible[flexIndex].MinWidth, 40) : 0;
+        var (split, flexWidth) = Split(
+            widths, finalSize.Width, Spacing, _more.DesiredSize.Width, flexIndex, flexMin);
+        var shown = _menuOpen ? visible.Count : split;
+        if (flexIndex >= 0 && flexIndex < shown) widths[flexIndex] = flexWidth;
 
         var x = 0.0;
         for (var i = 0; i < visible.Count; i++)

@@ -141,6 +141,14 @@ public sealed class WorkspaceStore
     private static readonly DockPanelId[] Colour =
         [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient];
 
+    /// <summary>
+    /// The timeline family (Q58): the track view in front, the exposure sheet
+    /// and the graph editor tabbed behind it — three views over one set of
+    /// records, as the reference's strip draws them.
+    /// </summary>
+    private static readonly DockPanelId[] TimelineFamily =
+        [DockPanelId.Timeline, DockPanelId.Xsheet, DockPanelId.GraphEditor];
+
     public static WorkspaceStore Default()
     {
         var store = new WorkspaceStore();
@@ -155,13 +163,13 @@ public sealed class WorkspaceStore
             bottom: []));
         store.Workspaces.Add(Built("Animation", ProjectType.Animation,
             right: [[DockPanelId.Project], [DockPanelId.Layers], Colour],
-            bottom: [[DockPanelId.Timeline]]));
+            bottom: [TimelineFamily]));
         store.Workspaces.Add(Built("Game art", ProjectType.GameArt,
             right: [[DockPanelId.Project], [DockPanelId.Layers], [DockPanelId.Palette, DockPanelId.Color]],
-            bottom: [[DockPanelId.Timeline]]));
+            bottom: [TimelineFamily]));
         store.Workspaces.Add(Built("Storyboard", ProjectType.Storyboard,
             right: [[DockPanelId.Project], [DockPanelId.Sheets]],
-            bottom: [[DockPanelId.Timeline]]));
+            bottom: [TimelineFamily]));
         store.Workspaces.Add(Built("Comic", ProjectType.Comic,
             right: [[DockPanelId.Project], [DockPanelId.Layers], Colour, [DockPanelId.Sheets]],
             bottom: []));

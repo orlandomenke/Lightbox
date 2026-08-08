@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Lightbox
+GenericName=Painting and Animation
+Comment=Professional painting & frame-by-frame animation
+Exec=lightbox %F
+# Installed by name: the PNG ladder in docs/design/brand/appicon-*.png goes
+# to /usr/share/icons/hicolor/<size>x<size>/apps/lightbox.png (see
+# packaging/README.md), and the theme resolves this name against it.
+Icon=lightbox
+Terminal=false
+Categories=Graphics;2DGraphics;RasterGraphics;
+MimeType=image/png;image/jpeg;
+StartupWMClass=Lightbox.App

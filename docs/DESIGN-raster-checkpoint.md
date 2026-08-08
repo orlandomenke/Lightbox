@@ -2,7 +2,7 @@
 
 Status: **designed and decided, nothing built.** Opened 2026-08-08 after B30 was
 measured against a painting rather than a frame of line art; the five open
-decisions were answered the same day and are recorded in **Q56**. The decision to
+decisions were answered the same day and are recorded in **Q60**. The decision to
 design before implementing was deliberate: this adds a cache *inside* the artwork,
 and a cache that can be silently wrong is worse than one that is slow.
 
@@ -12,7 +12,7 @@ and a cache that can be silently wrong is worse than one that is slow.
 | When one is taken | **On save, rendered on a background thread** — the save returns first |
 | What invalidates it | **Any edit it covers drops it**; the next save makes a fresh one |
 | Undo limit | **A memory budget, not a step count** |
-| The clone stall found on the way | **Filed as B138**, fixed separately |
+| The clone stall found on the way | **Filed as B142**, fixed separately |
 
 ## The problem, measured
 
@@ -170,7 +170,7 @@ intersection is the whole differentiator and the whole bill.
   **pre-composited flattened image alongside the layer data** so other
   applications can preview it. That is a raster checkpoint, shipped since 1990.
   History states are deltas on the scratch disk and are **bounded** (default
-  around 50), which is Adobe reaching the same conclusion as Q56 about undo depth.
+  around 50), which is Adobe reaching the same conclusion as Q60 about undo depth.
 - **Krita.** Paint layers are tiled pixels with copy-on-write and a pool that
   swaps to disk; a `.kra` is essentially a zip of per-layer images; undo commands
   hold only the tiles they changed. It also has an instant-preview level-of-detail
@@ -191,7 +191,7 @@ intersection is the whole differentiator and the whole bill.
   smudge and the wet media read pixels back per dab, which on a GPU is a
   round-trip per dab.
 
-**The pattern that decided Q56's first question.** Every application offering
+**The pattern that decided Q60's first question.** Every application offering
 geometry-as-truth restricts mark quality on those layers, and every application
 that keeps full mark quality stores the pixels. Nobody makes replay fast — they
 stop replaying. The initial recommendation here was a sidecar cache, reasoning
@@ -250,11 +250,11 @@ theirs cannot be thrown away and re-derived. Same technique, opposite standing.
   (PSD and PSB) File Compatibility* is on — Adobe made the checkpoint a preference
   precisely because of the size cost. Worth copying: the in-document decision above
   should probably grow a setting rather than being unconditional, and that is a
-  smaller question than the one Q56 answered.
+  smaller question than the one Q60 answered.
 - **Photoshop's history is bounded at 50 by default and 1 000 at maximum**, and
   Adobe ties it directly to scratch-disk pressure — *"you can save scratch disk
   space and improve performance by limiting or reducing the number of history
-  states"*. The byte-budget framing Q56 chose is the same reasoning.
+  states"*. The byte-budget framing Q60 chose is the same reasoning.
 - **Blender Grease Pencil is not free either**, which weakens "the GPU solves it".
   Blender's own optimisation task records GP objects being *"several orders of
   magnitude slower than 3D meshes with the same complexity"*, because *"GP objects
@@ -271,7 +271,7 @@ application has studied and not shipped.
 
 ## The decisions
 
-Q56 carries the reasoning; this is what they mean for the build.
+Q60 carries the reasoning; this is what they mean for the build.
 
 ### The pixels live in the document
 
@@ -330,14 +330,14 @@ self-limits.
 separate, smaller piece of work than this design; it is named here so the number
 stops being invisible.
 
-### The stall found on the way is B138
+### The stall found on the way is B142
 
 Measuring undo turned up something worse than undo: `DocumentEditor.Perform`
 pushes `SnapshotStep(DocJson.Clone(Doc))`, so **every structural edit
 serialize-and-deserializes the entire document** — 615 ms warm and ~1.1 s cold at
 5 000 strokes, 72.5 MB allocated. Adding a layer to a painting freezes.
 
-Filed as **B138** rather than folded in here: B30 is pixel replay, this is record
+Filed as **B142** rather than folded in here: B30 is pixel replay, this is record
 cloning, and one fix does not touch the other. They compound, because a snapshot
 undo restores a whole document tree and then forces the rebuild B30 measures.
 

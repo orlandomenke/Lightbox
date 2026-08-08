@@ -108,6 +108,39 @@ public class Docker : ContentControl
     }
 
     /// <summary>
+    /// True while the panel lives in its own window. The host writes it; the
+    /// template reads it to swap the float button into a redock button.
+    /// </summary>
+    public static readonly StyledProperty<bool> IsFloatingProperty =
+        AvaloniaProperty.Register<Docker, bool>(nameof(IsFloating));
+
+    public bool IsFloating
+    {
+        get => GetValue(IsFloatingProperty);
+        set => SetValue(IsFloatingProperty, value);
+    }
+
+    /// <summary>
+    /// Whether the header offers the float button at all. The host sets it
+    /// from the panel catalogue — the timeline is not movable, so it is not
+    /// floatable either.
+    /// </summary>
+    public static readonly StyledProperty<bool> CanFloatProperty =
+        AvaloniaProperty.Register<Docker, bool>(nameof(CanFloat), true);
+
+    public bool CanFloat
+    {
+        get => GetValue(CanFloatProperty);
+        set => SetValue(CanFloatProperty, value);
+    }
+
+    /// <summary>
+    /// The float/redock button was clicked. What that means — float from
+    /// where, dock back to where — is the host's knowledge, not the docker's.
+    /// </summary>
+    public event Action<Docker>? FloatToggleRequested;
+
+    /// <summary>
     /// The header was picked up and pulled far enough to mean it. The host runs
     /// the drag from here; a docker does not know where the other docks are.
     /// </summary>
@@ -132,9 +165,45 @@ public class Docker : ContentControl
             header.PointerReleased += (_, _) => HeaderReleased();
         }
 
+        if (e.NameScope.Find<Button>("PART_Float") is { } floater)
+        {
+            floater.Click += (_, _) => FloatToggleRequested?.Invoke(this);
+        }
+
         if (_tabs is not null) _tabs.SelectionChanged -= OnTabPicked;
         _tabs = e.NameScope.Find<ListBox>("PART_Tabs");
-        if (_tabs is not null) _tabs.SelectionChanged += OnTabPicked;
+        if (_tabs is not null)
+        {
+            _tabs.SelectionChanged += OnTabPicked;
+            // The template can apply after the host has already written the
+            // tabs in, so the strip starts life with whatever is current.
+            SyncStripSelection();
+        }
+    }
+
+    /// <summary>
+    /// Point the strip's highlight at <see cref="ActiveTab"/>, in code.
+    /// </summary>
+    /// <remarks>
+    /// <b>B138: the template binding cannot do this job.</b> The template binds
+    /// <c>SelectedValue</c> to <see cref="ActiveTab"/>, and it worked exactly
+    /// once per docker: re-binding <see cref="Tabs"/> makes the ListBox clear
+    /// its own selection, and that write is a <em>local</em> value — which
+    /// outranks a template binding permanently in Avalonia. From then on the
+    /// active docker was visible while its tab sat unlit. A local value is
+    /// only beaten by another local value, so the sync lives here.
+    /// </remarks>
+    private void SyncStripSelection()
+    {
+        if (_tabs is null) return;
+        var current = Tabs?.FirstOrDefault(t => t.Id == ActiveTab);
+        if (!ReferenceEquals(_tabs.SelectedItem, current))
+        {
+            var was = _applying;
+            _applying = true;
+            try { _tabs.SelectedItem = current; }
+            finally { _applying = was; }
+        }
     }
 
     /// <summary>
@@ -212,6 +281,7 @@ public class Docker : ContentControl
         {
             Tabs = tabs;
             ActiveTab = active;
+            SyncStripSelection();
         }
         finally
         {
@@ -260,7 +330,10 @@ public class Docker : ContentControl
         _pressed = e.GetPosition(this);
     }
 
-    private bool LandedOnAControl(Visual? source)
+    // Internal for the tests: the lone-tab-is-a-grip rule below broke once
+    // (reported as a lone docker that could not be dragged) and pointer
+    // simulation is not reliable enough to guard it end to end.
+    internal bool LandedOnAControl(Visual? source)
     {
         for (var node = source; node is not null && !ReferenceEquals(node, this); node = node.GetVisualParent())
         {
@@ -268,7 +341,18 @@ public class Docker : ContentControl
             // to the header, looks exactly like a press on the grip, and tears
             // the panel out instead of switching tabs — the same trap the
             // ComboBox above was added for.
-            if (node is Button or ComboBox or ToggleButton or TextBox or Slider or CheckBox or ListBox)
+            //
+            // Except a strip of ONE: every docker wears a tab now, so for a
+            // lone panel the tab is most of the header — treating it as a
+            // control made the panel undraggable (reported: the timeline
+            // moved to a side could not be dragged back). A single tab has
+            // nothing to switch to; a press there is a grip.
+            if (node is ListBox)
+            {
+                if (Tabs is null || Tabs.Count() > 1) return true;
+                continue;
+            }
+            if (node is Button or ComboBox or ToggleButton or TextBox or Slider or CheckBox)
             {
                 return true;
             }

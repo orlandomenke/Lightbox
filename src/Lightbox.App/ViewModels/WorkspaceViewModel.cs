@@ -100,6 +100,24 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         set => SetVisible(DockPanelId.Symbols, value);
     }
 
+    public bool ToolOptionsDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.ToolOptions);
+        set => SetVisible(DockPanelId.ToolOptions, value);
+    }
+
+    public bool XsheetDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.Xsheet);
+        set => SetVisible(DockPanelId.Xsheet, value);
+    }
+
+    public bool GraphEditorDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.GraphEditor);
+        set => SetVisible(DockPanelId.GraphEditor, value);
+    }
+
     public bool LayersPanelVisible
     {
         get => _layout.IsVisible(DockPanelId.Layers);
@@ -241,6 +259,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         DockPanelId.Gradient => nameof(GradientDockerVisible),
         DockPanelId.Reference => nameof(ReferenceDockerVisible),
         DockPanelId.Symbols => nameof(SymbolsPanelVisible),
+        DockPanelId.ToolOptions => nameof(ToolOptionsDockerVisible),
+        DockPanelId.Xsheet => nameof(XsheetDockerVisible),
+        DockPanelId.GraphEditor => nameof(GraphEditorDockerVisible),
         _ => nameof(TimelineVisible),
     };
 
@@ -281,6 +302,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     public void Float(DockPanelId id, double x, double y, double w, double h) =>
         Mutate(l => l.Float(id, x, y, w, h));
+
+    public void Redock(DockPanelId id) => Mutate(l => l.Redock(id));
 
     /// <summary>Tab a panel together with another.</summary>
     public void JoinGroup(DockPanelId id, DockPanelId target) => Mutate(l => l.JoinGroup(id, target));
