@@ -1,5 +1,16 @@
 # Lightbox
 
+**Frame-by-frame animation and digital painting, where the drawing stays editable
+after you've drawn it.**
+
+Lightbox records the *geometry* of every brush stroke — not just the pixels it
+left behind. A frame is a list of strokes; the image is derived from them. That
+one decision is what lets a line be moved, recoloured or re-rendered at any
+resolution after the fact, and it is what lets an AI draw a genuine inbetween
+rather than a cross-fade.
+
+Built with **C# / .NET 10**, **Avalonia**, and **SkiaSharp**. GPL-3.0.
+
 > ### ⚠️ Alpha — not ready to rely on
 >
 > Lightbox is in **alpha** and under daily development by one person. It is
@@ -8,122 +19,239 @@
 > - **No stability guarantee.** The document format still changes, and a file
 >   written today may not open in a later build. Do not put work you care about
 >   into it.
+> - **Windows builds only.** The code targets Windows, macOS and Linux and has
+>   only ever been run on Windows. The other two are untested, not supported.
 > - **No support, and no release schedule.** Issues are read; nothing is
 >   promised.
 > - **Not accepting pull requests yet** — see [CONTRIBUTING.md](CONTRIBUTING.md)
 >   for why, and what to do instead.
->
-> Licensed under **[GPL-3.0](LICENSE)**.
 
-An **AI-native, raster-first** art and animation application — in the spirit of Krita/Photoshop, built for hand-drawn frame-by-frame animation where inbetweens are near-indistinguishable from the original drawings.
+---
 
-Built with **C# / .NET 10**, **Avalonia** (Windows · macOS · Linux), and **SkiaSharp**.
+## The bet
 
-## The core ideas
+Every drawing application makes one choice about what a finished mark *is*, and
+everything else follows from it.
 
-1. **AI-native document format.** A Lightbox document is plain JSON: scenes → layers → cels → frames → strokes. Every stroke is geometry (`points` with `x`/`y`/`pressure`) plus paint parameters (color, brush size/hardness/opacity). An LLM can read, reason about, and *write* artwork directly — no pixels-only opacity wall.
+**Paint applications store pixels.** Photoshop, Krita, TVPaint, Procreate. You
+get the full expressive range of a real brush engine — texture, wetness,
+granulation, pressure — and the moment the stroke lands, the geometry is gone.
+You cannot ask "where was that line" afterwards, because nothing knows.
 
-2. **Raster-first with stroke provenance.** You paint with a real raster brush onto raster layers, but the app silently records the stroke geometry behind every brush stroke. A painted frame = `baseline PNG + stroke record`, and strokes are never baked in.
+**Animation applications store vectors.** Harmony, Animate, Moho. The line stays
+editable forever, and the price is the mark: a vector line is an outline with a
+fill, so it cannot carry charcoal tooth or a wet edge. Every application in this
+family restricts brush quality on exactly the layers where geometry is the truth
+— Krita's vector layers don't get its brush engine; Illustrator rasterizes its
+expensive effects.
 
-3. **Inbetweens indistinguishable by construction.** Inbetween frames are computed on stroke *geometry* (match → resample → interpolate) and then **re-rendered through the exact same brush pipeline** that painted your keyframes. A generated frame is genuinely painted, not pixel-blended.
+**Lightbox stores both.** The stroke record is the document, and the pixels are
+produced from it by a real raster brush engine — the same one, every time. A
+line drawn with a simulated watercolour brush is still a line you can pick up
+and move.
 
-## Solution layout
+Four rules make that hold, and breaking any of them is treated as a defect here
+even when the tests pass:
 
-| Project | Purpose |
-|---|---|
-| `src/Lightbox.Core` | UI-agnostic core: document model, JSON serialization, geometry, the deterministic inbetween engine, exposure-sheet timeline, undo. Zero dependencies beyond the BCL. |
-| `src/Lightbox.Raster` | The paint pipeline: stamp-based `BrushEngine`, `FrameRasterizer` (strokes → pixels — the single source of rendering truth), PNG codec. |
-| `src/Lightbox.Ai` | Inbetween generation and text-to-strokes drawing behind a provider-agnostic `IAiArtist`: Claude, the OpenAI dialect (GPT, OpenRouter, any compatible endpoint), Ollama, or an MCP server of your own. |
-| `src/Lightbox.App` | The Avalonia desktop app: canvas, brush controls, timeline, onion skin, playback. |
-| `tests/*` | xunit suites for every layer, including pixel-level brush tests and headless UI tests. |
+| | |
+| --- | --- |
+| **The record is the document** | Everything that paints goes through one engine, so reopening a file re-renders it identically. |
+| **Nothing random ever renders** | Scatter, granulation and jitter are hashed from a dab's position, never from an RNG. Re-render a frame a hundred times and get the same pixels. |
+| **Pixel settings live on the stroke** | Changing a preference never repaints existing art. Come back to a scene after a month and it is as you left it. |
+| **Scale the surface, never the geometry** | Rendering at 2× is the same mark, sharper — not a different mark. |
 
-## Run on Windows — no admin rights needed
+Rule 2 is the one that matters most for animation and is the least obvious.
+Procedural brush variation seeded from a random number generator looks fine on
+one illustration and **boils** at 12 fps, because every frame re-rolls the
+texture. Seeding from geometry means a mark varies because of *where it is*,
+which is how real media varies — and it stays put between renders.
 
-1. Go to **[Releases](../../releases)** and download `Lightbox-win-x64-….zip`.
-2. Unzip anywhere in your user profile, e.g. `%LOCALAPPDATA%\Lightbox`.
-3. Run `Lightbox.App.exe`. Nothing is installed, no .NET required, no admin.
+---
 
-Releases are cut **on request** rather than on every push: pushing a `v*` tag
-builds one, and so does **Actions ▸ release ▸ Run workflow**, which can build a
-bundle from any branch. Ordinary pushes and pull requests run the tests and the
-document checks only.
+## How it compares
 
-That is a deliberate change from how this used to work. Every push once produced
-a throwaway CI artifact that expired in five days and had to be pruned to stay
-inside a storage quota; a tagged release is a versioned download with notes that
-does not evaporate, and it costs nothing when nobody asks for one.
+Honest version, including where the others are ahead.
 
-> **The Run workflow button only appears when the workflow is on the default
-> branch.** `workflow_dispatch` is resolved from the default branch, so on a
-> feature branch there is nothing to click however correct the file is.
+| | **Lightbox** | Photoshop | Krita | Harmony | TVPaint |
+| --- | --- | --- | --- | --- | --- |
+| A finished mark is… | strokes **and** pixels | pixels | pixels | vectors | pixels |
+| Full brush engine on editable art | ✅ | — | vector layers excluded | — | — |
+| Built for frame-by-frame | ✅ | timeline, not the focus | ✅ | ✅ | ✅ |
+| Onion skin per layer, keyed-only, falloff | ✅ | basic | ✅ | ✅ | ✅ |
+| Sprite sheets + collision + engine importers | ✅ five engines | — | — | — | — |
+| AI that returns **editable strokes** | ✅ | image-level generative | — | — | — |
+| Runs a local model, or none at all | ✅ | cloud | n/a | n/a | n/a |
+| Imports `.abr` / `.gbr` / `.gih` / `.kpp` brushes | ✅ | `.abr` | `.kpp`, `.gbr` | — | — |
+| Character rigging | ❌ symbols, no rig UI | — | — | ✅ best in class | limited |
+| Production tracking / review | ❌ | — | — | ✅ | ✅ |
+| Maturity | **alpha, one developer** | decades | mature | industry standard | industry standard |
+| Price | free, GPL-3.0 | subscription | free, GPL | $$$$ | $$$ |
 
-### Version numbers
+**Where the others win, plainly:** Harmony's rigging and studio pipeline are not
+close to matched here, and won't be soon. TVPaint and Harmony are what films
+actually ship on. Krita is a mature, free, excellent painting application with a
+decade of polish Lightbox does not have. If you need to deliver work this
+quarter, use one of those.
 
-The base version lives in **one place**, `<VersionPrefix>` in
-`Directory.Build.props`, and everything else is derived from it. Nothing
-increments it automatically — a number that moves on every build identifies
-nothing, and "the bug is in 0.4.7" stops being a sentence once 0.4.7 was one of
-forty builds that afternoon. It moves when you edit that line and cut a release.
+**What Lightbox is actually for:** the space between them. Hand-drawn animation
+where the marks matter, the assets need to reach a game engine, and the tedious
+frames could be filled by something other than your wrist.
 
-It names the version being worked **toward**, not the last one shipped: after
-releasing `v0.1.0` it becomes `0.2.0`, because untagged builds are stamped
-`-alpha.N` on top of it and semver puts a prerelease *before* the version it
-names. Left behind, every later build would claim to predate a release it
-actually comes after. The release run's summary page says this too, at the
-moment it matters.
+---
 
-#### Cutting a release from the web interface
+## What's in it today
 
-The Releases page is the only place GitHub's interface offers to make a tag, so
-this is the route:
+Everything below is built and reachable in the application. Anything not built
+is in the next section — this list does not include plans.
 
-1. **Releases ▸ Draft a new release**.
-2. **Choose a tag** → type `v0.2.0` → **Create new tag: v0.2.0 on publish**.
-   The leading `v` is the convention the workflow watches for; it is stripped
-   before the number reaches the build.
-3. Leave the title and notes blank if you want them written for you, or write
-   them — whatever you type is kept.
-4. Tick **Set as a pre-release** while Lightbox is alpha.
-5. **Publish release.**
+### Drawing
 
-The Release appears immediately and **the zip does not** — publishing creates
-the tag, which starts the `release` workflow, which runs the full suite before
-it builds anything. Expect the bundle to attach itself roughly five minutes
-later. Watch it under **Actions ▸ release**.
+- **Brush engine** with a full editor: size, hardness, flow, opacity, spacing,
+  scatter, wet edge, granulation, roundness, rotation, per-dab jitter
+- **Drawn pressure curves** — seven targets, not a gamma slider. Pressure drives
+  size, flow, hardness, scatter, roundness, and a smudge's colour rate and drag
+- **Brush tips**: eight built-ins generated from recipes, a procedural generator
+  (bristle, superellipse, polygon, spatter, halo, chisel, hatch, ring), and a
+  workshop that turns **scans into tips** with levels, crop and edge masking
+- **Import the brushes you already own** — Photoshop `.abr`, GIMP `.gbr`/`.gih`,
+  Krita `.kpp`, with per-file progress, cancel, and a library to tidy them
+- **Stabilization** — lazy mouse, weighted, predictive — as a *brush* setting, so
+  two brushes can steady the hand differently
+- **Simulated media** — watercolour, gouache, oil, ink — each with a fast
+  counterpart, and a cost badge on the picker so an expensive choice is a
+  knowing one
+- **Smudge, blend and mixer** brushes that sample all layers, live or frozen
+- **Textures** from the built-in papers or your own scans, anchored to the
+  document so two strokes crossing the same patch sit on the same tooth
+- Eraser variants, per-brush blend modes, tablet pressure
 
-That ordering is why the workflow checks for an existing Release before making
-one: from the web interface the Release exists first, and from a `git push
---tags` it does not.
+### Canvas, colour and structure
 
-| How it was built | Version it carries | File you get |
-| --- | --- | --- |
-| tag `v0.2.0` | `0.2.0` | `Lightbox-win-x64-0.2.0.zip`, attached to a Release |
-| tag `v0.3.0-beta.1` | `0.3.0-beta.1` | ditto — semver already sorts a beta *before* `0.3.0`, so there is no separate "beta mode" to switch on |
-| **Run workflow** | `0.1.0-alpha.<run>` | `Lightbox-win-x64-0.1.0-alpha.17-my-branch-9f3c1ab.zip`, a 14-day artifact |
+- Rotation, mirroring, per-document framing, canvas quality control
+- **Live palettes** — recolour a swatch and every stroke painted from it follows
+- Colour wheel with history, gradient editor and gradient tool
+- Perspective rulers, vanishing points, grid snapping, vector guides, rulers,
+  shape tools (shapes are ordinary strokes, so they carry a real brush)
+- Layers with blend modes, folders, lock and alpha lock
+- Selections, warp transform
+- **Pick a whole line** and move, delete or recolour it — one undo step each
 
-An untagged build is deliberately a *prerelease* of whatever the props file
-currently says, so it can never be confused with the release it precedes, and
-two of them are ordered by run number. `<run>` above is the workflow run number,
-which is why two bundles built the same afternoon still sort.
+### Animation
 
-`0.x` is the alpha: in semver a leading zero already means "anything may
-change", which is why this starts at 0.1.0 rather than 0.0.1 — it leaves the
-patch digit free to mean a fix, as it does everywhere else. **1.0.0** is the
-first release that promises the document format will not move under you, and it
-lands in the same change that removes the alpha banner at the top of this file.
+- Multi-layer timeline and **X-sheet**, scrubbing, playback speed, loop regions,
+  frame markers, animation notes
+- **Onion skin, fully built out** — on/off, depth, per-layer, colour-coded,
+  keys-only, per-frame falloff curve, light table, draw-over, ghost poses, and it
+  survives a restart and a workspace switch
+- **Deterministic inbetweening** — match, resample, interpolate on geometry, then
+  re-render through the same brush pipeline. A generated frame is genuinely
+  painted, not pixel-blended
+- **Symbols** — a live asset referenced by id, not a copy. Edit the sword once
+  and every animation holding it updates. Pose, expression, hand, face, prop, FX,
+  background and animation libraries, with tagging, search, versioning and a
+  project-wide dependency graph
+- **Timing presets** — save an exposure pattern and apply it to a range
+- **Camera** — keyframed pan, zoom and roll, preview, and export through it.
+  Optional and *absent* from a document that never asks for one
 
-The number is inside the executable too, not just on the zip: right-click ▸
-Properties on `Lightbox.App.exe`, and at the top of every crash report under
-**Help ▸ Open diagnostics folder**. It reads `0.1.0-alpha.17+9f3c1ab` — the
-version, then the exact commit it was built from.
+### Projects
 
-Older per-build artifacts, from before releases existed, can still be pruned with
-**Actions ▸ cleanup artifacts ▸ Run workflow** — the policy lives in
-`.github/scripts/prune-artifacts.sh`. Set **keep** to `0` to clear everything, or
-tick **dry run** to see the list first. GitHub recalculates usage every 6–12
-hours, so freed space can take a while to register.
+- The unit of work is bigger than a file: palettes, brushes, tips and references
+  are declared on a folder and resolved by walking up the tree
+- Project types (Illustration / Animation / Game Art / Storyboard / Comic /
+  Asset Library / Empty) that set **defaults, never availability** — every
+  feature is reachable in every project type
+- Convert a project between types with no artwork recreated
+- Dockable panels, per-workspace layouts, custom and context-aware shortcuts
+- Autosave, crash reports with the exact build, and recovery
 
-**If SmartScreen blocks it** (and policy hides "Run anyway"): SmartScreen only screens files carrying the Mark-of-the-Web download tag — remove the tag and it never triggers. Any of these work without admin:
+### Game export
+
+One-click, and further along than most of the application:
+
+- Sprite sheets with **consistent trimmed bounds across a sequence**, skyline
+  packing, atlas optimisation
+- Pivots (multi-frame, named), sockets, collision shapes, hitbox/hurtbox editor,
+  physics shapes
+- Frame events, animation events, tags and clips, frame durations
+- **Engine exporters** — Unity, Godot (with a GDScript importer), GameMaker,
+  Unreal Paper2D (with an in-editor Python importer), MonoGame and Raylib
+
+### AI
+
+Every AI feature here takes something **you** authored and does the tedious part
+of it. There is no prompt box that turns an idea into a drawing, and that is a
+statement about what this application is rather than a gap. Two more rules:
+
+- **A model never renders.** The AI produces strokes; the ordinary deterministic
+  pipeline draws them. Delete the AI's output and the render is byte-identical to
+  what the record alone produces.
+- **Everything it does is one Ctrl+Z from gone**, because it goes through the
+  same document editor and undo stack a menu item does.
+
+What exists:
+
+- **AI inbetweening** — for the cases straight interpolation gets wrong: arcs,
+  rotation, overlap
+- **Six providers behind one interface** — Claude, GPT, OpenRouter, Ollama, any
+  OpenAI-compatible endpoint, or an MCP server you supply. The settings page is
+  generated from the catalogue, so each shows only its own fields
+- **Runs entirely offline** with Ollama, or **switch AI off completely** — off
+  removes the AI bar rather than greying it, for a studio that wants it nowhere
+  near a shot
+- **A connection test that draws** rather than pings, and checks the inbetween
+  lands *between* the two keys — which is what catches a model that answers in
+  perfect JSON and cannot animate
+- **An MCP server**, so an agent works your open document directly: read the
+  scene, see a rendered frame, insert inbetweens, add strokes
+- A measured cost budget in the test suite, so a change that doubles what a
+  request costs fails at home rather than on a bill
+
+---
+
+## What it can't do yet
+
+The same list an honest reviewer would write.
+
+- **No rigging UI.** Symbols are reusable assets, not a bone hierarchy.
+- **Vector editing is one-way.** A stroke is stored as geometry and *carries* a
+  real brush, but there is no tool to drag its points afterwards. Designed, not
+  built.
+- **No plain "save as PNG/JPEG".** Export writes sheets and sequences for
+  engines; a single picture is not there yet.
+- **No PSD import or export.**
+- **No layer masks, clipping masks, adjustment layers or non-destructive
+  filters.**
+- **No symmetry or mirrored painting.**
+- **No tilt or stroke speed** in the record — a tablet's tilt is not read.
+- **Zooming magnifies pixels** rather than re-stamping the line, so a 400% view
+  is softer than the document could draw.
+- **A large painting is slow to reopen.** Rebuilding a frame from strokes is
+  linear in stroke count: a 10 000-stroke painting takes about 106 seconds. It's
+  the known cost of storing geometry as the truth, it's filed as B30, and the fix
+  is designed. *Drawing* is unaffected — stroke 8 000 costs what stroke 8 did.
+- **No collaboration or production tracking.**
+
+The full, candid list is [`BUGS.md`](.claude/quality/BUGS.md) — including what's
+broken and what was decided badly.
+
+---
+
+## Install (Windows, no admin needed)
+
+1. **[Releases](../../releases)** → download `Lightbox-win-x64-….zip`
+2. Unzip anywhere in your user profile, e.g. `%LOCALAPPDATA%\Lightbox`
+3. Run `Lightbox.App.exe` — nothing is installed, no .NET needed, no admin
+
+Releases are cut on request: publishing a `v*` tag builds one, and
+**Actions ▸ release ▸ Run workflow** builds a bundle from any branch without
+making a release.
+
+<details>
+<summary><b>If SmartScreen blocks it</b> (and "Run anyway" is hidden by policy)</summary>
+
+SmartScreen only screens files carrying the Mark-of-the-Web download tag —
+remove the tag and it never triggers. Any of these work without admin:
 
 ```powershell
 # A) Extract with tar (built into Windows 10+; writes no download tags)
@@ -132,143 +260,119 @@ tar -xf $env:USERPROFILE\Downloads\Lightbox-win-x64.zip -C $env:LOCALAPPDATA\Lig
 
 # B) Or unblock the zip BEFORE extracting with Explorer
 Unblock-File $env:USERPROFILE\Downloads\Lightbox-win-x64.zip
-#    (equivalent: right-click zip → Properties → Unblock → OK)
 
 # C) Or untag an already-extracted folder in place
 Get-ChildItem $env:LOCALAPPDATA\Lightbox -Recurse | Unblock-File
 ```
 
-If it still blocks with an "administrator" message instead of SmartScreen, that's AppLocker/WDAC app-control policy — build from source instead (locally built binaries carry no download tag; see below).
+Two helper scripts in `scripts/` automate this: `get-build.ps1` takes the newest
+zip from Downloads and unblocks + extracts it; `watch-builds.ps1` watches a
+folder and unblocks anything dropped in.
 
-**Automate it** — two helper scripts live in `scripts/` (copy them next to your Builds folder, or run them from the clone):
+If it blocks with an *administrator* message instead, that's AppLocker/WDAC app
+control — build from source instead; locally built binaries carry no download
+tag.
+</details>
 
-```powershell
-# One command per new build: newest Lightbox-win-x64-*.zip from Downloads →
-# unblocked + tar-extracted into a folder named after the zip.
-powershell -ExecutionPolicy Bypass -File scripts\get-build.ps1 -Dest C:\path\to\Builds
+<details>
+<summary><b>Version numbers</b></summary>
 
-# Or fully hands-off: watch the Builds folder and auto-unblock anything
-# copied or moved into it. Start it at logon via a shortcut in shell:startup:
-powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File scripts\watch-builds.ps1 -Folder C:\path\to\Builds
-```
+The base version is `<VersionPrefix>` in `Directory.Build.props`, and names the
+version being worked *toward*. Nothing increments it automatically.
 
-There is also a per-user Windows switch that stops download tags being written at all (`SaveZoneInformation=1` under `HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments`) — no admin needed, but it disables that safety net for *everything* you download, and corporate group policy often overrides it. The scripts above are the safer scope.
+| Built by | Version | File |
+| --- | --- | --- |
+| tag `v0.2.0` | `0.2.0` | attached to a Release |
+| tag `v0.3.0-beta.1` | `0.3.0-beta.1` | semver sorts a beta before `0.3.0` |
+| **Run workflow** | `0.1.0-alpha.N` | a 14-day artifact |
 
-Prefer building yourself? Install the .NET SDK per-user (no admin) with the official script — `dotnet-install.ps1 -Channel 10.0 -InstallDir $env:LOCALAPPDATA\dotnet` — then `dotnet run --project src/Lightbox.App` from the clone.
+The number is inside the executable too — right-click ▸ Properties, and at the
+top of every crash report. It reads `0.1.0-alpha.17+9f3c1ab`: the version, then
+the exact commit.
+</details>
 
-## Use Claude without an API key — the MCP server
+---
 
-If you have the **Claude Desktop app** (Pro is enough), your subscription can drive Lightbox directly — no API key. The bundle ships an MCP server (`Lightbox.Mcp.exe`, in the `mcp\` folder beside `Lightbox.App.exe`) that exposes Lightbox to Claude as tools: `get_scene`, `get_frame_strokes`, `render_frame` (Claude *sees* your drawing), `insert_inbetweens`, and `draw_strokes`. Everything Claude does arrives through the same validation and undo path as your own edits — one Ctrl+Z removes it.
+## Connect it to Claude
 
-Setup:
+Two independent directions, and it's worth knowing which one you want.
 
-1. Start Lightbox (it quietly opens a local, per-user pipe for the bridge; nothing on the network).
-2. In Claude Desktop: **Settings → Developer → Edit Config**, add (escaped backslashes, absolute path):
+**An agent drives Lightbox** (no API key — a Claude Desktop subscription is
+enough). The bundle ships `Lightbox.Mcp.exe` in the `mcp\` folder. Point Claude
+Desktop at it:
 
 ```json
 {
   "mcpServers": {
     "lightbox": {
-      "command": "C:\\Users\\you\\AppData\\Local\\Lightbox\\mcp\\Lightbox.Mcp.exe",
-      "args": []
+      "command": "C:\\Users\\you\\AppData\\Local\\Lightbox\\mcp\\Lightbox.Mcp.exe"
     }
   }
 }
 ```
 
-> **Upgrading?** The server lives in `mcp\` — and this path has now moved
-> twice, so check which one your config has rather than assuming:
->
-> - Pointing at `…\Lightbox\Lightbox.Mcp.exe` (the bundle root)? Add the `mcp\`.
->   That was the layout for one stretch of builds and is the one that changed.
-> - Pointing at `…\Lightbox\mcp\Lightbox.Mcp.exe` already? Nothing to do — the
->   oldest configs are correct again.
->
-> Being asked to edit this twice is a fair complaint, so here is the reason
-> plainly. It first moved *out* of `mcp\` because a self-contained executable
-> only finds its runtime beside itself, so a subfolder had to carry a second
-> copy of .NET — 105 MB down to 74 to remove it. It has now moved *back*
-> because the app ships as a single file: its runtime is inside
-> `Lightbox.App.exe`, so there is nothing in the folder left to share and the
-> server carries its own wherever it sits. What that bought is a bundle root of
-> four files instead of 266, for 2 MB of download — the duplicated runtime is
-> very nearly paid for by no longer shipping 105 MB of native debug symbols.
->
-> Claude Desktop does not report a bad `command` loudly: the server simply fails
-> to start and the Lightbox tools are missing.
+Start Lightbox first (it opens a local per-user pipe — nothing on the network),
+fully quit and reopen Claude Desktop, then ask it to work: `get_scene`,
+`render_frame` (Claude *sees* your drawing), `get_frame_strokes`,
+`insert_inbetweens`, `draw_strokes`. Every edit is one undo step.
 
-3. Fully quit Claude Desktop (from the tray) and reopen — servers load at startup.
-4. Draw two keyframes in Lightbox, then ask Claude something like:
-
-> You are a professional animation inbetweener connected to my drawing app. Call `get_scene`, then `render_frame` on both keyframes to see them, then `get_frame_strokes` for both. Draw 3 inbetweens and insert them with `insert_inbetweens` (aIndex = the first key). Follow arcs, preserve stroke labels, then `render_frame` your middle inbetween to check your work.
-
-Troubleshooting: if the server never appears, some MSIX installs of Claude Desktop read the config from `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json` instead of `%APPDATA%\Claude\` — put the same file in both. Tool errors like "Start Lightbox first" mean exactly that.
-
-## Choosing an AI provider
-
-**Edit ▸ Configure ▸ AI.** Lightbox is not tied to one service: pick from the dropdown and the fields change to what that service needs.
-
-| Provider | Needs | Notes |
-| --- | --- | --- |
-| Claude (Anthropic) | API key, model | The default, and what the prompts are tuned against. |
-| GPT (OpenAI) | API key, model | Strict JSON schema, so replies parse by construction. |
-| OpenRouter | API key, model | One key for many vendors' models. |
-| Ollama | Model | Local, no key, no network. `ollama pull qwen3` and pick it. |
-| Custom (OpenAI-compatible) | Endpoint, model | LM Studio, vLLM, llama.cpp's server, your own gateway. Key optional. |
-| Custom agent (MCP) | Command, tool | An MCP server you supply that owns the model. |
-
-**Use AI assistance** is on by default; turning it off removes the AI bar rather than greying it out, and leaves the provider fields usable so one can be set up and tested first.
-
-**Test connection** draws rather than pings, at one of two depths. *Quick* asks for one short line (seconds, a few hundred tokens). *Test with a drawing* adds a real inbetween between two keyframes and checks it lands **between** them — which is what catches a model that answers in perfect JSON and cannot inbetween. Both check the output is usable, not merely that it parsed. The verdict is green (usable), amber (connected, output not usable) or red (not connected). A progress bar and elapsed clock run alongside, and the test can be cancelled.
-
-Environment variables still work and are shown as placeholders where they apply: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `LIGHTBOX_OLLAMA_URL`. What you type wins over the environment, which wins over the default; only what you type is stored (in `Lightbox/ai.json` in your app-data folder). An existing `anthropicApiKey` or `ollamaModel` in the old settings file is migrated on first run.
-
-Local models produce noticeably weaker inbetweens than a frontier one — that path is for working offline and for testing the pipeline.
-
-### Bringing your own model over MCP
-
-The **Custom agent (MCP)** provider launches a server you name and calls one tool on it:
+**Lightbox calls out to a model** — **Edit ▸ Configure ▸ AI**, pick a provider,
+fill in what it asks for. Anything behind this contract works:
 
 ```
 tools/call { name: <tool>, arguments: { system, prompt, schema } }
 → { content: [{ type: "text", text: "<json matching schema>" }] }
 ```
 
-Anything behind that contract works. This is the opposite direction from Lightbox's own MCP server above — there an agent calls *in* and works the document directly; here Lightbox calls *out* for strokes. The two are independent.
+Local models produce noticeably weaker inbetweens than a frontier one; that path
+is for working offline and for testing the pipeline.
 
-## Building and running
+> **Upgrading and the server has vanished?** Check whether your config says
+> `…\Lightbox\Lightbox.Mcp.exe` or `…\Lightbox\mcp\Lightbox.Mcp.exe`. The path
+> moved out of `mcp\` and back again; the current answer is `mcp\`. Claude
+> Desktop fails silently on a bad `command` — the tools simply don't appear.
+
+---
+
+## Build from source
 
 ```sh
-dotnet build            # build everything
-dotnet test             # run all test suites (fully headless-safe)
-dotnet run --project src/Lightbox.App   # launch the app
+dotnet build                             # everything
+dotnet test                              # all suites, fully headless
+dotnet run --project src/Lightbox.App    # launch
 ```
 
 **One .NET version: the .NET 10 SDK.** Every project targets `net10.0`, so the
-SDK that builds the repo carries the runtime that runs it. This used to be two
-questions — the solution targeted `net8.0` while Avalonia 12's source generators
-needed the newer Roslyn only the 10.0 SDK ships, so a machine with one of them
-compiled or ran but not both. On Linux, SkiaSharp also needs `libfontconfig1`.
+SDK that builds the repo carries the runtime that runs it. On Linux, SkiaSharp
+also needs `libfontconfig1`. The easiest route to both is the devcontainer — open
+in GitHub Codespaces, or in VS Code with the Dev Containers extension.
 
-The easiest way to get both is the devcontainer — open the repo in GitHub
-Codespaces, or in VS Code with the Dev Containers extension, and
-`.devcontainer/devcontainer.json` provisions them. `dotnet test` needs no
-display; the UI suite drives Avalonia headlessly.
+| Project | What's in it |
+| --- | --- |
+| `src/Lightbox.Core` | Document model, JSON serialization, geometry, the deterministic inbetween engine, exposure sheet, undo. No rendering, no UI. |
+| `src/Lightbox.Raster` | `BrushEngine` — the only path to a pixel — flood fill, frame rasterization, tiling. |
+| `src/Lightbox.App` | The Avalonia application: canvas, dockers, view models, compositing. |
+| `src/Lightbox.Ai` | Providers behind one `IAiArtist`. |
+| `src/Lightbox.Mcp` | The MCP server an agent connects to. |
+| `src/Lightbox.Import` | Brush importers — `.abr`, `.gbr`, `.gih`, `.kpp`. |
+| `tests/*` | Four xunit suites, including pixel-level brush tests and headless UI tests. |
+| `tools/Lightbox.Bench` | Performance sweeps — scaling curves and cliffs, not just a ratchet. |
 
-## Using the MVP (Milestone 1)
+## Documentation
 
-- **Paint** with the mouse (pressure-ready pipeline; tablet support is the next milestone). Brush size, hardness, color, and eraser in the toolbar.
-- **Timeline** at the bottom: `＋ Frame` (blank), `⧉ Dup` (duplicate), `🗑` (delete), click a cell to jump. `●` = keyed cel, `—` = hold.
-- **Onion skin**: previous key tinted red, next key tinted blue.
-- **Playback**: `▶ / ⏸` or Space, loops at the scene fps (default 12).
-- **Inbetweens**: set the count and easing in the toolbar, then `＋ Inbetween` fills the gap between the current key and the next key with painted, interpolated frames. Undo (`Ctrl+Z`) if the spacing isn't right.
-- **AI (needs a provider)**: choose one in Edit ▸ Configure ▸ AI and the AI bar lights up. **✦ AI Inbetween** asks Claude to draw the inbetweens — useful where straight interpolation fails (arcs, rotation, overlap); **✦ AI Draw** paints strokes from a text prompt onto the current frame. Both return strokes in the document's own format and go through the same brush re-render as hand-painted frames, and both are one `Ctrl+Z` from gone.
-- **Layers**: the layer picker sits in the timeline bar — `＋P` adds a painted (raster) layer, `＋V` a vector layer, `👁` toggles visibility. Painting, inbetweening, and AI all operate on the active layer and respect its kind.
-- **Polish**: stroke smoothing on release (toggle), timeline thumbnails, onion-skin depth (1–3), fps control, `Export PNGs…` (numbered image sequence — feed it to ffmpeg for video), and a once-a-minute autosave (`Lightbox/autosave.lightbox.json` in your app-data folder — open it to recover after a crash).
-- **Save / Open**: `.lightbox.json` — the whole document, human- and LLM-readable.
+| | |
+| --- | --- |
+| [**User manual**](docs/MANUAL.md) | What the application does today, one file per section. Marks anything unbuilt as *Planned*. |
+| [**Roadmap**](.claude/quality/ROADMAP.md) | Six pillars and the drawing floor. **The checkboxes are derived from the code**, not asserted — delete a feature and its box un-ticks. |
+| [**Bugs**](.claude/quality/BUGS.md) | Every known defect, each naming the test that closes it. |
+| [**Open questions**](.claude/quality/QUESTIONS.md) | Decisions not yet made, and the reasoning behind the ones that were. |
+| [`docs/DESIGN-*.md`](docs/) | Design notes — the payload budget, performance, the brush tips, the infinite canvas. |
 
-## Roadmap
-- **M4 — pure-raster inbetweening**: ML frame interpolation (RIFE/FILM via ONNX Runtime) + Claude-vision correspondence for imported/flattened art with no stroke record.
-- **Post-MVP**: tablet pressure, advanced brush engine (textured dabs, JSON brush presets), multi-layer UI, fill/coloring, GIF/MP4 export, AI breakdown poses & timing charts.
+Those files are candid by design about what is broken and what was decided
+badly. That is deliberate: a ledger that flatters the project is worth nothing.
 
-See `MANUAL_TESTING.md` for the on-device checklist (this repo is developed in a headless environment; windowed behavior needs a manual pass).
+## Licence
+
+**GPL-3.0** — see [LICENSE](LICENSE). Pull requests are not being accepted while
+Lightbox is alpha; [CONTRIBUTING.md](CONTRIBUTING.md) explains why and what to do
+instead.
