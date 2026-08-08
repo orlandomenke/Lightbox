@@ -143,6 +143,62 @@ public sealed class Scene
 
     public int Height { get; set; } = 540;
 
+    /// <summary>
+    /// Where the paper's left edge sits in stroke coordinates. Null — and
+    /// absent from the file — until the canvas is grown or cropped on that
+    /// side, which is the ordinary case.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This field exists so that resizing the paper cannot change the
+    /// drawing.</b> Every dab dynamic is seeded from the IEEE-754 bits of a
+    /// dab's position through <c>Hash01</c>, so shifting every stroke right by
+    /// 200 px to make room on the left would re-roll scatter, size, flow,
+    /// roundness, rotation and all three colour jitters across the whole
+    /// document. The artist added paper; the drawing would come back with a
+    /// different grain. Q26 allows that for a line somebody deliberately
+    /// moved — it is not allowed for a change to the paper the line sits on.
+    /// </para>
+    /// <para>
+    /// So growing the canvas leftward moves the <em>origin</em> negative and
+    /// leaves every coordinate exactly as it was: the resize is O(1) whatever
+    /// the document holds, and the render is bit-identical outside the new
+    /// margin. <see cref="Left"/> and <see cref="Top"/> are what consumers
+    /// read; these two carry the null so the key stays out of a file that
+    /// never resized.
+    /// </para>
+    /// </remarks>
+    public int? OriginX { get; set; }
+
+    /// <inheritdoc cref="OriginX"/>
+    public int? OriginY { get; set; }
+
+    /// <summary>
+    /// The document rectangle's left edge in stroke coordinates — zero unless
+    /// the canvas was grown or cropped on the left.
+    /// </summary>
+    /// <remarks>
+    /// <b>Ignored by the serializer, and it has to be.</b> A public getter
+    /// beside a nullable field is a property as far as
+    /// <c>System.Text.Json</c> is concerned, and writing <c>"left": 0</c> on
+    /// every document would reintroduce under a second name exactly the key
+    /// <see cref="OriginX"/> is nullable to avoid.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int Left => OriginX ?? 0;
+
+    /// <inheritdoc cref="Left"/>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int Top => OriginY ?? 0;
+
+    /// <summary>One past the document's right edge, in stroke coordinates.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int Right => Left + Width;
+
+    /// <summary>One past the document's bottom edge, in stroke coordinates.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int Bottom => Top + Height;
+
     public int Fps { get; set; } = 12;
 
     public int FrameCount { get; set; } = 1;
@@ -197,7 +253,12 @@ public sealed class Scene
     /// </para>
     public List<int>? GhostFrames { get; set; }
 
-    /// <summary>Whether any frame is pinned.</summary>
+    /// <summary>
+    /// Whether any frame is pinned. Derived; never serialized — see
+    /// <see cref="HasReferences"/>, which got this right and which this one
+    /// was written next to.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool HasGhostFrames => GhostFrames is { Count: > 0 };
 
     /// <summary>

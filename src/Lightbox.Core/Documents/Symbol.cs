@@ -93,7 +93,11 @@ public sealed class Symbol
     /// </remarks>
     public int Version { get; set; } = 1;
 
-    /// <summary>How many frames a placement can offset into, at least one.</summary>
+    /// <summary>
+    /// How many frames a placement can offset into, at least one. Derived;
+    /// never serialized.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public int FrameCount => Math.Max(1, Frames.Count);
 }
 
