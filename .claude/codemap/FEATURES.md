@@ -3237,13 +3237,13 @@ regression even when every test still compiles.
 ## PublishLayoutTests
 `tests/Lightbox.Core.Tests/PublishLayoutTests.cs`
 
-- The Windows Bundle Is Published As ASingle File — `:73`
-- Native Libraries Are Not Self Extracted — `:87`
-- Native Debug Symbols Are Not Shipped — `:105`
-- Crash Reports Can Name The Line They Came From — `:116`
-- The Server Publishes Into Its Own Folder And The App Does Not — `:135`
-- The Documented Server Path Matches Where It Is Published — `:146`
-- The Manual Testing Checklist Names The Folder The Server Is In — `:159`
+- The Windows Bundle Is Published As ASingle File — `:83`
+- Native Libraries Are Not Self Extracted — `:97`
+- Native Debug Symbols Are Not Shipped — `:115`
+- Crash Reports Can Name The Line They Came From — `:126`
+- The Server Publishes Into Its Own Folder And The App Does Not — `:145`
+- The Documented Server Path Matches Where It Is Published — `:156`
+- The Manual Testing Checklist Names The Folder The Server Is In — `:169`
 
 ## ReferenceScopeTests
 `tests/Lightbox.Core.Tests/ReferenceScopeTests.cs`
