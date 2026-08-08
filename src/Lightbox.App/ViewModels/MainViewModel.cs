@@ -208,6 +208,20 @@ public sealed partial class MainViewModel : ObservableObject
     /// <inheritdoc cref="ReportDocWidth"/>
     internal double ReportComposeScale => ComposeScale;
 
+    /// <summary>
+    /// Why frames did not come from tiles, counted across the session.
+    /// </summary>
+    /// <remarks>
+    /// B144's tile path is worth 145 → 14 ms a frame at 1080p, and a frame that
+    /// falls back pays the old cost silently. This is what lets
+    /// <c>Help ▸ Write a render report</c> answer "why is my playback slow"
+    /// with the actual reason rather than with a guess about the machine.
+    /// </remarks>
+    private readonly TileFallbackTally _tileFallbacks = new();
+
+    /// <summary>The tally, for the render report and for tests.</summary>
+    internal TileFallbackTally ReportTileFallbacks => _tileFallbacks;
+
     /// <inheritdoc cref="ReportDocWidth"/>
     internal double ReportDisplayScale => _displayScale;
 
@@ -10426,9 +10440,14 @@ public sealed partial class MainViewModel : ObservableObject
         // is moving. No live stroke, transform or ghost pass exists during
         // playback, which is what keeps the two compositors' remaining
         // differences (live clip masks, bake folding) out of reach.
-        var tileNativeDoc = (UnboundedCanvasOn || IsPlaying)
-            && scene.Camera is null
-            && _pendingViewport is { Width: > 0, Height: > 0 };
+        // Whether tiles are on the table at all. The two *document* conditions —
+        // a camera, and a viewport to cull against — are asked through
+        // TileFallback so a report can name them; the mode check stays here
+        // because "not playing and not unbounded" is a choice rather than a
+        // frame the tiles could not say.
+        var tileModeOn = UnboundedCanvasOn || IsPlaying;
+        var haveViewport = _pendingViewport is { Width: > 0, Height: > 0 };
+        var tileNativeDoc = tileModeOn && scene.Camera is null && haveViewport;
 
         // Where the active layer's contribution begins and ends in the pass
         // list, so the layers that are NOT being drawn on can be folded into
@@ -10493,11 +10512,19 @@ public sealed partial class MainViewModel : ObservableObject
             SKBitmap? bmp = null;
             var liveEffectHere = _liveComposite is not null
                 && _strokeBuilder.IsActive && layer.Id == ActiveLayer.Id;
-            if (tileNativeDoc && !liveEffectHere && TileFrameCache.CanTileFrame(frame))
+            // One expression decides and explains (B144). While the tile mode is
+            // on, every frame it looks at is tallied — so a render report can say
+            // *why* a document is paying the old cost instead of leaving "it is
+            // slow" and "it never tiled" indistinguishable.
+            if (tileModeOn)
             {
-                tileFrame = frame;
+                var why = TileFallback.Reason(
+                    frame, scene.Camera is not null, haveViewport, liveEffectHere);
+                _tileFallbacks.Note(why);
+                if (why == TileFallbackReason.None) tileFrame = frame;
             }
-            else
+
+            if (tileFrame is null)
             {
                 bmp = _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex);
             }
