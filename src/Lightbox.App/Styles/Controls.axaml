@@ -543,4 +543,14 @@
   <Style Selector="ToggleSwitch">
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
   </Style>
+
+  <!--
+    Every numeric field does arithmetic: type 50+10 or 128 / 2 and commit.
+    One style rather than ninety-six attributes, and any field added later
+    gets it without having heard of it. The behaviour lives in FieldMath;
+    this is only the registration.
+  -->
+  <Style Selector="NumericUpDown">
+    <Setter Property="(controls:FieldMath.Enabled)" Value="True" />
+  </Style>
 </Styles>

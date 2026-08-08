@@ -103,6 +103,12 @@ Every numeric field can be **dragged sideways** to scrub its value. Hold
 **Shift** for fine, **Ctrl** for coarse. Click without dragging and you get a
 caret, as before.
 
+Every numeric field also does **arithmetic**: type `50+10`, `128/2` or
+`12 * 4` — spaces or not — and commit with Enter or by clicking away. The
+four operators, parentheses and decimals all work, and precedence is the
+usual one (`2+3*4` is 14). Anything the field cannot evaluate is refused the
+same way a typo is.
+
 **Shift + drag** on the canvas resizes the brush.
 
 #### Stabiliser

@@ -1,6 +1,6 @@
 # Code index
 
-558 files · 147580 lines · 2922 tests.
+560 files · 147867 lines · 2926 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -69,7 +69,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - SpriteSheetOptions:14, SpriteSheetResult:54, SpriteSheetExporter:103, SheetDocument:677, SheetFrame:683, SheetMeta:716, SheetTag:747, SheetEvent:761 …
 - `src/Lightbox.App/Services/UnityExporter.cs` (666 ln) · 15 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
-- `src/Lightbox.App/Styles/Controls.axaml` (546 ln) · **no tests**
+- `src/Lightbox.App/Styles/Controls.axaml` (556 ln) · **no tests**
 - `src/Lightbox.App/Views/BrushTipsWindow.axaml.cs` (496 ln) · 1 test files
   - TipScope:16, TipRow:29, BrushTipsWindow:62
 - `src/Lightbox.App/Services/BrushPresets.cs` (479 ln) · 9 test files
@@ -156,6 +156,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PerformanceMonitor:14
 - `src/Lightbox.App/Docking/DockZones.cs` (190 ln) · 1 test files
   - DockZones:67
+- `src/Lightbox.App/Controls/FieldMath.cs` (179 ln) · 1 test files
+  - FieldMath:32, Converter:156
 - `src/Lightbox.App/Controls/OverflowBar.cs` (178 ln) · 3 test files
   - OverflowBar:25
 - `src/Lightbox.App/Rendering/GuidePainter.cs` (177 ln) · 1 test files

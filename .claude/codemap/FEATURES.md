@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2922 tests, derived from the suite itself. Each line is a
+2926 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -851,6 +851,14 @@ regression even when every test still compiles.
 - ATarget That Cannot Hold Several Documents Refuses Rather Than Exporting The First — `:291`
 - ADocument That Cannot Be Read Is Named Rather Than Throwing — `:315`
 - The Confirmation Names What Has Drifted Since It Was Built — `:352`
+
+## FieldMathTests
+`tests/Lightbox.App.Tests/FieldMathTests.cs`
+
+- Expressions Evaluate — `:29`
+- What Cannot Be Evaluated Is Refused — `:43`
+- Typing ASum Into AField Commits The Result — `:49`
+- APlain Number Still Commits Exactly As Before — `:77`
 
 ## FieldShapeTests
 `tests/Lightbox.App.Tests/FieldShapeTests.cs`
