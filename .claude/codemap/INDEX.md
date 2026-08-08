@@ -1,6 +1,6 @@
 # Code index
 
-562 files · 148253 lines · 2936 tests.
+564 files · 148488 lines · 2939 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -53,7 +53,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - MainWindow:19, UnsavedChoice:3034
 - `src/Lightbox.App/Rendering/CanvasControl.cs` (4039 ln) · 14 test files
   - CanvasControl:28, CanvasToolMode:908, GridGesture:965, TxDrag:1178, DrawOp:3220
-- `src/Lightbox.App/Views/MainWindow.axaml` (3695 ln) · **no tests**
+- `src/Lightbox.App/Views/MainWindow.axaml` (3699 ln) · **no tests**
   - ApplyTagsButton, BackgroundSwatch, BottomHost, BottomSplitter, BottomStrip, BrushCategoryList, BrushFilterEmpty, BrushPageEffects …
 - `src/Lightbox.App/ViewModels/ProjectViewModel.cs` (2799 ln) · 12 test files
   - ProjectRow:21, ScopeMenuEntry:354, DeclarationRow:365, ProjectViewModel:392, PlannedArtifact:667, NewItemKind:1830
@@ -65,7 +65,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - ShortcutRow:13, ShortcutGroup:25, GridRow:40, FeatureToggleRow:97, AiFieldRow:164, ConfigureWindow:215
 - `src/Lightbox.App/ViewModels/PaletteDockerViewModel.cs` (816 ln) · 1 test files
   - SwatchRow:15, PaletteDockerViewModel:93
-- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (805 ln) · 108 test files
+- `src/Lightbox.App/Services/SpriteSheetExporter.cs` (805 ln) · 109 test files
   - SpriteSheetOptions:14, SpriteSheetResult:54, SpriteSheetExporter:103, SheetDocument:677, SheetFrame:683, SheetMeta:716, SheetTag:747, SheetEvent:761 …
 - `src/Lightbox.App/Services/UnityExporter.cs` (666 ln) · 15 test files
   - UnityExportOptions:13, UnityExportResult:26, UnityExporter:58, UnityBlock:67, UnitySprite:78, UnityCollider:104, UnityClip:116, UnityEvent:132 …
@@ -170,6 +170,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - PART_Clear, PART_Swatch
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln) · **no tests**
   - ColorField:29
+- `src/Lightbox.App/Controls/HueRing.cs` (169 ln) · 1 test files
+  - HueRing:14, HueRgb:148
 - `src/Lightbox.App/ViewModels/Tools.cs` (166 ln) · 24 test files
   - ToolId:4, CanvasQuality:75, TransformScope:88, TransformSampling:114, SelectVariant:127, HoldDrawing:146
 - `src/Lightbox.App/Rendering/RigOverlayPainter.cs` (152 ln) · 1 test files
@@ -477,7 +479,7 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - Pivot:7
 - `src/Lightbox.Core/Documents/Ids.cs` (14 ln) · 1 test files
   - Ids:3
-- `src/Lightbox.Core/Projects/FeatureConflictException.cs` (11 ln) · 108 indirect only
+- `src/Lightbox.Core/Projects/FeatureConflictException.cs` (11 ln) · 109 indirect only
   - FeatureConflictException:7
 
 ## Lightbox.Import

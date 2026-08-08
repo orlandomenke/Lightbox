@@ -1,6 +1,6 @@
 # Behaviour inventory
 
-2936 tests, derived from the suite itself. Each line is a
+2939 tests, derived from the suite itself. Each line is a
 promise the application currently keeps. Treat this as the regression
 contract: if a change makes one of these statements false, it is a
 regression even when every test still compiles.
@@ -1069,6 +1069,13 @@ regression even when every test still compiles.
 - AVanishing Point Is Marked Where Its Rays Meet — `:128`
 - AGrid Too Fine To Read Is Not Drawn At All — `:141`
 - AGrid Coarse Enough To Read Is Drawn — `:164`
+
+## HueRingTests
+`tests/Lightbox.App.Tests/HueRingTests.cs`
+
+- The Marker Sits Where The Hue Lives — `:21`
+- The Pointer And The Marker Are Inverses — `:33`
+- The Ring Writes Only The Hue — `:40`
 
 ## IpcTests
 `tests/Lightbox.App.Tests/IpcTests.cs`

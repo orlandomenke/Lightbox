@@ -2870,16 +2870,20 @@
                   disc; that redesign is its own piece of work and only the
                   size is taken here.)
                 -->
+                <!-- The reference's wheel: a hue RING with the SV square
+                     inside it. The square carries saturation and value, so
+                     the separate value slider the disc needed is gone. The
+                     square's side is the largest that fits the ring's inner
+                     circle (inner diameter over root two). -->
                 <Viewbox Stretch="Uniform" StretchDirection="Both" MinHeight="120" MaxHeight="190"
                          IsVisible="{Binding ColorPicker.IsWheelMode}">
-                  <Grid ColumnDefinitions="240,8,24" Height="240">
-                    <ColorSpectrum Grid.Column="0" Shape="Ring" Components="HueSaturation"
+                  <Panel Width="220" Height="220">
+                    <controls:HueRing HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}" RingWidth="16" />
+                    <ColorSpectrum Width="130" Height="130"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Shape="Box" Components="SaturationValue"
                                    HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}" />
-                    <ColorSlider Grid.Column="2" Orientation="Vertical"
-                                 ColorModel="Hsva" ColorComponent="Component3"
-                                 HsvColor="{Binding ColorPicker.WheelHsv, Mode=TwoWay}"
-                                 ToolTip.Tip="Value (brightness)" />
-                  </Grid>
+                  </Panel>
                 </Viewbox>
 
                   <!-- HSV sliders -->
