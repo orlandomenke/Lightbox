@@ -26,12 +26,20 @@ the timeline grows an **Audio** band: one bar per frame, tall where the sound
 is loud, so a beat or a syllable can be found by eye and a drawing timed onto
 it.
 
-The sound is **referenced, not embedded**: the document stores where the file
-is (relative to the document when it lives nearby, so a project folder moves
-as one thing) plus the offset, volume and mute you set. Keep editing it in
-your audio tool — the timeline reads the file as it is on disk. If the file
-goes missing the bar shows a *missing* badge and the track waits, silently,
-for it to come back; your timing is never lost with it.
+On import you choose **where the sound lives**:
+
+- **Reference the file** (the default): the document stores where the file is
+  (relative to the document when it lives nearby, so a project folder moves
+  as one thing). Keep editing it in your audio tool — the timeline reads the
+  file as it is on disk. If the file goes missing the bar shows a *missing*
+  badge and the track waits, silently, for it to come back; your timing is
+  never lost with it.
+- **Embed a copy**: the sound travels inside the document, which then
+  survives being shared without the WAV beside it — at the cost of carrying
+  those megabytes through every save. The dialog shows the size before you
+  choose.
+
+Either way the offset, volume and mute you set are part of the document.
 
 The bar's controls: **Mute**, **volume**, the **start frame** (negative trims
 a lead-in without editing the file), and **✕** to remove the track — the file

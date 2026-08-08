@@ -112,6 +112,26 @@ public sealed class ReferenceStrip
     /// </remarks>
     public string? VideoPath { get; set; }
 
+    /// <summary>
+    /// The footage itself, base64 of the original clip file, or null — the
+    /// small-production path (Q57). Where <see cref="VideoPath"/> keeps a
+    /// document light and <see cref="Png"/> keeps it merely self-contained,
+    /// this keeps the <em>material</em>: full fidelity, re-extractable, and
+    /// heavy, which is the artist's explicit choice at import. When set, the
+    /// frames are rebuilt from these bytes rather than from any file on disk.
+    /// </summary>
+    public string? VideoData { get; set; }
+
+    /// <summary>
+    /// Whether this strip composites into exports (Q57). False for every
+    /// reference — a reference never reaches an exported pixel, and that
+    /// promise predates this flag. True only for small-production footage,
+    /// where the clip IS part of the shot: it renders beneath the drawing
+    /// layers in the PNG sequence and the video export, exactly as it shows
+    /// on the canvas.
+    /// </summary>
+    public bool RendersInExport { get; set; }
+
     public int SheetWidth { get; set; }
 
     public int SheetHeight { get; set; }

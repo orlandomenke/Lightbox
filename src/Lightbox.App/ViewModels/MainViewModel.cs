@@ -2187,7 +2187,7 @@ public sealed partial class MainViewModel : ObservableObject
                 strips.Select(s => (s.Id, s.Png)));
             // Video references carry no PNG — their pixels come back off the
             // footage itself (Q56).
-            foreach (var strip in strips.Where(s => s.VideoPath is not null))
+            foreach (var strip in strips.Where(s => s.VideoPath is not null || s.VideoData is not null))
             {
                 RegisterVideoReference(strip);
             }
@@ -9693,7 +9693,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// the pixels are rebuilt from the footage on load. Returns null on
     /// success or a sentence saying why not.
     /// </summary>
-    public async Task<string?> ImportVideoReference(string path)
+    public async Task<string?> ImportVideoReference(
+        string path, Services.ClipStorage storage = Services.ClipStorage.ReferenceByPath)
     {
         if (Services.VideoExporter.FindFfmpeg() is not { } ffmpeg)
         {
@@ -9723,11 +9724,28 @@ public sealed partial class MainViewModel : ObservableObject
         var strip = new ReferenceStrip
         {
             Name = System.IO.Path.GetFileNameWithoutExtension(path),
-            VideoPath = stored,
             SheetWidth = result.Sheet.Width,
             SheetHeight = result.Sheet.Height,
             Cells = result.Cells,
         };
+        switch (storage)
+        {
+            case Services.ClipStorage.ReferenceByPath:
+                strip.VideoPath = stored;
+                break;
+            case Services.ClipStorage.ReferenceEmbedded:
+                // The contact sheet itself, stored the way image references
+                // store — self-contained, no path, no FFmpeg on reopen.
+                strip.Png = Lightbox.Raster.PngCodec.Encode(result.Sheet);
+                break;
+            case Services.ClipStorage.Production:
+                strip.VideoData = Convert.ToBase64String(File.ReadAllBytes(path));
+                strip.RendersInExport = true;
+                // Material, not a ghost: production footage shows and
+                // exports at full strength unless the artist dials it back.
+                strip.Opacity = 1.0;
+                break;
+        }
         strip.LayOutFrom(CurrentFrameIndex);
         strip.Scale = FitScale(strip, Scene);
         strip.CentreOn(Scene.Width, Scene.Height);
@@ -9760,11 +9778,33 @@ public sealed partial class MainViewModel : ObservableObject
         if (Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id) is not null) return;
         if (Services.VideoExporter.FindFfmpeg() is not { } ffmpeg) return;
 
-        var resolved = strip.VideoPath!;
-        if (!System.IO.Path.IsPathRooted(resolved))
+        string resolved;
+        if (strip.VideoData is { } data)
         {
-            if (System.IO.Path.GetDirectoryName(SaveTargetTab?.FilePath) is not { Length: > 0 } docDir) return;
-            resolved = System.IO.Path.Combine(docDir, resolved);
+            // Production footage (Q57): the clip travels in the document, so
+            // the extraction reads a temp copy of its own bytes.
+            resolved = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(), $"lightbox-footage-{strip.Id}.bin");
+            try
+            {
+                if (!File.Exists(resolved))
+                {
+                    File.WriteAllBytes(resolved, Convert.FromBase64String(data));
+                }
+            }
+            catch (Exception ex) when (ex is FormatException or IOException)
+            {
+                return;
+            }
+        }
+        else
+        {
+            resolved = strip.VideoPath!;
+            if (!System.IO.Path.IsPathRooted(resolved))
+            {
+                if (System.IO.Path.GetDirectoryName(SaveTargetTab?.FilePath) is not { Length: > 0 } docDir) return;
+                resolved = System.IO.Path.Combine(docDir, resolved);
+            }
         }
         if (!File.Exists(resolved)) return;
 

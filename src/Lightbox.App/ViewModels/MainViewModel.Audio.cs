@@ -178,6 +178,7 @@ public partial class MainViewModel
     }
 
     private string? _audioLoadedFrom;
+    private string? _audioLoadedData;   // reference identity of the embedded bytes the cache decoded
     private AudioClip? _audioClip;
     private float[]? _audioMono;
     private AudioPeaks.Peak[]? _audioPeaks;
@@ -187,13 +188,17 @@ public partial class MainViewModel
     /// Import a sound file onto the document. Returns null on success, or a
     /// sentence saying why not. Paths under the document's own folder are
     /// stored relative, so a project directory moves as one thing.
+    /// <paramref name="embed"/> stores the bytes in the document instead
+    /// (Q57) — the self-contained choice, made knowingly at import.
     /// </summary>
-    public string? ImportAudio(string path)
+    public string? ImportAudio(string path, bool embed = false)
     {
+        byte[] bytes;
         AudioClip clip;
         try
         {
-            clip = WavCodec.Decode(File.ReadAllBytes(path));
+            bytes = File.ReadAllBytes(path);
+            clip = WavCodec.Decode(bytes);
         }
         catch (FormatException ex)
         {
@@ -215,8 +220,11 @@ public partial class MainViewModel
             }
         }
 
-        Scene.Audio = new AudioTrack { Path = stored };
-        _audioLoadedFrom = path;
+        var track = new AudioTrack { Path = stored };
+        if (embed) track.Data = Convert.ToBase64String(bytes);
+        Scene.Audio = track;
+        _audioLoadedFrom = embed ? null : path;
+        _audioLoadedData = track.Data;
         _audioClip = clip;
         _audioMono = clip.MonoMixdown();
         _audioPeaks = null;
@@ -248,13 +256,31 @@ public partial class MainViewModel
             return;
         }
 
-        var resolved = ResolveAudioPath(track);
-        if (resolved == _audioLoadedFrom) return;
+        // Embedded bytes win over the path (Q57). Reference identity is the
+        // cache key: the base64 string only changes when the track does.
+        if (track.Data is { } data)
+        {
+            if (ReferenceEquals(data, _audioLoadedData) && _audioClip is not null) return;
+            DropAudioCache();
+            _audioLoadedData = data;
+            try
+            {
+                _audioClip = WavCodec.Decode(Convert.FromBase64String(data));
+                _audioMono = _audioClip.MonoMixdown();
+            }
+            catch (Exception ex) when (ex is FormatException or IOException)
+            {
+                _audioClip = null;
+                _audioMono = null;
+            }
+            return;
+        }
 
+        var resolved = ResolveAudioPath(track);
+        if (resolved == _audioLoadedFrom && _audioLoadedData is null) return;
+
+        DropAudioCache();
         _audioLoadedFrom = resolved;
-        _audioClip = null;
-        _audioMono = null;
-        _audioPeaks = null;
         if (resolved is null || !File.Exists(resolved)) return;
         try
         {
@@ -279,11 +305,28 @@ public partial class MainViewModel
 
     /// <summary>
     /// The sound file a video export should mux, or null when there is
-    /// nothing to hear — no track, muted, or the file is missing.
+    /// nothing to hear — no track, muted, or the file is missing. Embedded
+    /// audio (Q57) has no file, so its bytes are written to a temp WAV for
+    /// FFmpeg to read; the temp lives until process exit, which outlasts the
+    /// encode.
     /// </summary>
     internal string? ResolvedAudioPathForExport()
     {
         if (Scene.Audio is not { } track || track.Muted) return null;
+        if (track.Data is { } data)
+        {
+            try
+            {
+                var temp = System.IO.Path.Combine(
+                    System.IO.Path.GetTempPath(), $"lightbox-export-{Scene.Id}.wav");
+                File.WriteAllBytes(temp, Convert.FromBase64String(data));
+                return temp;
+            }
+            catch (Exception ex) when (ex is FormatException or IOException)
+            {
+                return null;
+            }
+        }
         var resolved = ResolveAudioPath(track);
         return resolved is not null && File.Exists(resolved) ? resolved : null;
     }
@@ -291,6 +334,7 @@ public partial class MainViewModel
     private void DropAudioCache()
     {
         _audioLoadedFrom = null;
+        _audioLoadedData = null;
         _audioClip = null;
         _audioMono = null;
         _audioPeaks = null;
