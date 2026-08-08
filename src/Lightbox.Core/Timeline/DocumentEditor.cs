@@ -8,8 +8,20 @@ namespace Lightbox.Core.Timeline;
 /// undo/redo. Callers mutate through methods here (or wrap ad-hoc edits in
 /// <see cref="Perform"/>) so every change is undoable.
 ///
-/// Snapshots are JSON clones — cheap at pencil-test scale; to be replaced by
-/// command deltas when heavy raster editing arrives (flagged in the plan).
+/// Two kinds of step, and the difference is the whole performance story.
+/// <see cref="PerformDelta"/> carries an apply/revert pair and touches nothing
+/// else — that is the path a stroke commit takes, at ~0.002 ms to push.
+/// <see cref="Perform"/> freezes the whole document, which is what a structural
+/// edit needs when its inverse is not expressible as a closure.
+///
+/// This remark used to read *"snapshots are JSON clones — cheap at pencil-test
+/// scale; to be replaced by command deltas when heavy raster editing arrives"*,
+/// and it was right about the scale it named. Heavy raster editing arrived and
+/// the snapshot became a one-second freeze on adding a layer (B142). The clone
+/// is gone — a snapshot is now compact UTF-8 held frozen until an undo asks for
+/// it — but the sentence's actual prediction still stands: the structural edits
+/// that <em>can</em> express an inverse should become deltas, and most of them
+/// can, because most touch one layer or one list rather than the document.
 /// </summary>
 public sealed class DocumentEditor
 {
@@ -79,7 +91,15 @@ public sealed class DocumentEditor
     /// a layer froze, and got worse the longer the painting went on.
     /// <para>
     /// <see cref="Doc.Clone"/> walks the graph instead. Same guarantee — nothing
-    /// shared with the live document — without the text.
+    /// shared with the live document — without the text. B142 was fixed twice in
+    /// parallel, and this is the survivor: the other fix froze the document to
+    /// UTF-8 bytes here and parsed them back lazily on the first undo, which cut
+    /// the edit to ~70 ms and moved the parse to Ctrl+Z. The clone is another
+    /// order of magnitude cheaper on the edit (5.8 ms at the same scale) and
+    /// leaves nothing for the undo to pay, so the laziness had nothing left to
+    /// defer. The freeze design's fidelity suite survives it —
+    /// <c>UndoSnapshotFidelityTests</c> compares whole serialized documents
+    /// across the round trip and does not care how the copy was made.
     /// </para>
     /// </remarks>
     public void Perform(Action<Doc> mutate)
@@ -162,7 +182,20 @@ public sealed class DocumentEditor
         Doc Apply(Doc doc);
     }
 
-    /// <summary>Classic whole-document snapshot: rollback/apply swap the doc instance.</summary>
+    /// <summary>
+    /// Whole-document snapshot: rollback/apply swap the document this step
+    /// leads away from for the one it leads back to.
+    /// </summary>
+    /// <remarks>
+    /// <b>The other side is a live clone, held as-is (B142).</b> A frozen-bytes
+    /// variant of this class existed briefly — serialize eagerly, parse lazily
+    /// on the first undo — built when taking the snapshot cost hundreds of
+    /// milliseconds and deferring the parse was worth a two-state object.
+    /// <see cref="Doc.Clone"/> made the snapshot cheaper than the serialize
+    /// half alone, so the step holds the document itself and undo pays
+    /// nothing. Swapping rather than copying is what makes redo exact: the
+    /// step always holds whichever document is not current.
+    /// </remarks>
     private sealed class SnapshotStep(Doc other) : IEditStep
     {
         private Doc _other = other;
