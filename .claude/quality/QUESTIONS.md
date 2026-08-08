@@ -2167,10 +2167,10 @@ of strokes the model reads fine). Derived state and content-with-provenance are 
 same bytes with opposite meanings, and conflating them was a category error the
 merge warning written that same morning is what made visible.
 
-## Q61 · Playback is 7 fps at 1080p and 3 fps at 4K — which half gets fixed? — **answered 2026-08-08: compositing, and ahead of the vector work**
+## Q62 · Playback is 7 fps at 1080p and 3 fps at 4K — which half gets fixed? — **answered 2026-08-08: compositing, and ahead of the vector work**
 
 Asked after an artist reported playback as unusable at 1080p and 4K, and a new
-bench scenario reproduced it. Filed as **B143**, with the measured split added to
+bench scenario reproduced it. Filed as **B144**, with the measured split added to
 **B29** and **B125**.
 
 ### What the measurement found, because it decided the question
@@ -2189,7 +2189,7 @@ three layers so every access is a cache hit — compositing with no rasterizatio
 it. Subtracting gives the rest.
 
 **Two causes, and which dominates flips with resolution.** At 1080p the frame cache
-is the majority (B143: a fixed 512 MB budget holds 64 of the 72 bitmaps the scene
+is the majority (B144: a fixed 512 MB budget holds 64 of the 72 bitmaps the scene
 needs). At 4K compositing is the majority (B29/B125: full-canvas CPU blits, `n^1.03`
 in area, already 2.6× over the playback budget on pure cache hits).
 
@@ -2214,7 +2214,7 @@ playback stays at 7 fps** even though a one-line budget change would have made i
 usable, and that is the trade being accepted knowingly: no half-fix, and the
 interim is worse than it needed to be.
 
-The cache half is not cancelled, only reordered — B143 stays open at P1, and it
+The cache half is not cancelled, only reordered — B144 stays open at P1, and it
 gets cheaper to justify once compositing is not the dominant term.
 
 ### The measurement gap, which is the part to carry forward
