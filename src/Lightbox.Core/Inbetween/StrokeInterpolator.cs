@@ -36,6 +36,14 @@ public static class StrokeInterpolator
                 Opacity = GeometryOps.Lerp(a.Brush.Opacity, b.Brush.Opacity, t),
                 Spacing = GeometryOps.Lerp(a.Brush.Spacing, b.Brush.Spacing, t),
             },
+            // No Path, and that is a decision rather than an omission. An
+            // inbetween is generated geometry: it is resampled to a fixed count
+            // and lerped point by point, so there are no authored nodes to carry
+            // and no correspondence between A's nodes and B's that would say
+            // where they went. Carrying either end's path would describe a line
+            // that is not this one — StrokePath's invariant, and the case where
+            // dropping is the only honest answer. Fitting one on demand is what
+            // makes the result editable.
             Points = points,
             Label = a.Label ?? b.Label,
         };
