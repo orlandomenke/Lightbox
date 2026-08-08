@@ -4490,14 +4490,17 @@ public partial class MainWindow : Window
             Avalonia.Threading.DispatcherPriority.Background);
 
     /// <summary>Act on what the start screen was answered with.</summary>
+    /// <remarks>
+    /// The screen used to carry a "Don't show this again" checkbox, from the
+    /// days when it sat over an already-open blank document and skipping it
+    /// cost nothing. The application now starts empty, so the screen *is* the
+    /// question — opting out of it here would opt into staring at an empty
+    /// workspace on every launch. The preference survives as
+    /// <c>ShowStartScreen</c> under Edit, where turning it off is a deliberate
+    /// choice rather than a checkbox ticked on the way past.
+    /// </remarks>
     public async Task ApplyStartChoiceAsync(StartChoice choice)
     {
-        if (choice.DontShowAgain && _vm.Settings.ShowStartScreen)
-        {
-            _vm.Settings.ShowStartScreen = false;
-            _vm.Settings.Save();
-        }
-
         if (choice.Document is { } document)
         {
             _vm.NewDocument(document, choice.ReuseBlank);

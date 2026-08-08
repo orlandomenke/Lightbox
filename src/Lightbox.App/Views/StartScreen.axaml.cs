@@ -25,9 +25,6 @@ public sealed record StartChoice
     /// <summary>True when the artist asked to be shown a picker rather than a path.</summary>
     public bool Browse { get; init; }
 
-    /// <summary>Whether to stop offering this screen.</summary>
-    public bool DontShowAgain { get; init; }
-
     /// <summary>
     /// Apply <see cref="Document"/> to the blank document already open rather
     /// than adding a tab.
@@ -77,7 +74,7 @@ public partial class StartScreen : Window
         // leave the caller waiting for an answer that never comes.
         Closing += (_, _) =>
         {
-            if (!_closing) Answer = StartChoice.Nothing with { DontShowAgain = DontShowBox.IsChecked == true };
+            if (!_closing) Answer = StartChoice.Nothing;
         };
     }
 
@@ -87,12 +84,10 @@ public partial class StartScreen : Window
     /// </summary>
     public StartChoice Answer { get; private set; } = StartChoice.Nothing;
 
-    private bool DontShow => DontShowBox.IsChecked == true;
-
     private void Finish(StartChoice choice)
     {
         _closing = true;
-        Answer = choice with { DontShowAgain = DontShow };
+        Answer = choice;
         Close();
     }
 
