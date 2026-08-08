@@ -181,4 +181,36 @@ public class ReleaseVersionTests(ITestOutputHelper output)
         // And a tag drops the `v`: `v0.2.0` is a ref name, `0.2.0` is a version.
         Assert.Contains("${GITHUB_REF_NAME#v}", yaml);
     }
+
+    /// <summary>
+    /// A Release drafted in the web UI still gets its bundle.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two routes to a tag arrive in opposite orders. A tag pushed from a
+    /// terminal has no Release behind it, so the workflow makes one. The web UI
+    /// writes the tag and the Release <em>together</em> and only then fires the
+    /// workflow — so the Release already exists, and a bare
+    /// <c>gh release create</c> fails on it. What that leaves behind is the bad
+    /// part: a Release published to the world with no download attached, beside
+    /// a red run nobody is watching.
+    /// </para>
+    /// <para>
+    /// It is also the likelier route rather than the exotic one, because the
+    /// Releases page is the only place GitHub's interface offers to create a tag
+    /// at all. This is a text check, which is weak, but the failure it guards is
+    /// invisible until a real release is cut — and by then it has already
+    /// happened in public.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ReleasingFromTheWebUiAttachesTheBundleRatherThanFailing()
+    {
+        var publishing = ReleaseSteps().SingleOrDefault(s => s.Contains("gh release"));
+        Assert.True(publishing is not null, "release.yml no longer publishes a Release");
+
+        Assert.Contains("gh release view", publishing!);   // does one already exist?
+        Assert.Contains("gh release upload", publishing!); // then just add the zip
+        Assert.Contains("gh release create", publishing!); // otherwise make it
+    }
 }
