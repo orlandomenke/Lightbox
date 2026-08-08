@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 639.84 380.898">
+  <g transform="translate(219.92 20)">
+    <mask id="carve"><rect x="0" y="0" width="200" height="260" fill="white"/><path d="M100.028 60.9075 L194.947 115.148 L177.998 196.507 L100.028 152.438 Z" fill="black"/></mask>
+    <g mask="url(#carve)"><path d="M100 10 L8 66 L41 84.6 L100 48.6 Z" fill="#000000"/><path d="M8 66 L8 194 L41 175.4 L41 84.6 Z" fill="#000000"/><path d="M8 194 L100 250 L100 211.4 L41 175.4 Z" fill="#000000"/><path d="M100 250 L192 194 L159 175.4 L100 211.4 Z" fill="#000000"/><path d="M192 194 L192 116 L159 150 L159 175.4 Z" fill="#000000"/></g>
+    <path d="M105 69 L189 117 L174 189 L105 150 Z" fill="#000000"/>
+  </g>
+  <g transform="translate(20 320) scale(1.13606)">
+      <g transform="translate(0 0)"><path d="M2 0 V34 H44" fill="none" stroke="#000000" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(64 0)"><path d="M2 0 V36" fill="none" stroke="#000000" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(88 0)"><path d="M56 2 H12 Q2 2 2 12 V24 Q2 34 12 34 H56 M56 18 H36" fill="none" stroke="#000000" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(164 0)"><path d="M2 0 V36 M54 0 V36 M2 18 H54" fill="none" stroke="#000000" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(240 0)"><path d="M0 2 H56 M28 9 V36" fill="none" stroke="#000000" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(316 0)"><path d="M2 0 V36 M2 2 H46 Q52 2 52 8 V12 Q52 18 46 18 H2 M2 18 H46 Q52 18 52 24 V28 Q52 34 46 34 H2" fill="none" stroke="#000000" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(390 0)"><path d="M14 2 H44 Q58 2 58 14 V22 Q58 34 44 34 H14 Q2 34 2 22 V14 Q2 2 14 2 Z" fill="none" stroke="#000000" stroke-width="4.0" stroke-linecap="butt" stroke-linejoin="miter"/></g>
+      <g transform="translate(470 0)"><path d="M0 0 L7.6 0 L58 36 L50.4 36 Z M50.4 0 L58 0 L7.6 36 L0 36 Z" fill="#000000"/></g>
+  </g>
+</svg>
