@@ -19,7 +19,6 @@ namespace Lightbox.Raster.Tests;
 /// </remarks>
 public class StrokePickerTests(ITestOutputHelper output)
 {
-    private static readonly SKImageInfo Info = new(1000, 1000, SKColorType.Rgba8888, SKAlphaType.Premul);
 
     private static Stroke Line(
         double x0, double y0, double x1, double y1,
@@ -45,7 +44,7 @@ public class StrokePickerTests(ITestOutputHelper output)
         Brush = new BrushSettings { Size = 1, Hardness = 1, Opacity = 1, Flow = 1, Spacing = 0.2 },
     };
 
-    private static StrokeIndex IndexOf(IReadOnlyList<Stroke> strokes) => StrokeIndex.Of(strokes, Info);
+    private static StrokeIndex IndexOf(IReadOnlyList<Stroke> strokes) => StrokeIndex.Of(strokes);
 
     // ---- the two rules -------------------------------------------------------
 
@@ -288,5 +287,26 @@ public class StrokePickerTests(ITestOutputHelper output)
         output.WriteLine($"index offers [{string.Join(", ", indexSays)}], picker returns {pickerSays?.ToString() ?? "nothing"}");
         Assert.Single(indexSays);
         Assert.Null(pickerSays);
+    }
+
+    /// <summary>
+    /// B134: a stroke lying entirely outside the document — at y=700 in a
+    /// 960×540 world, exactly how the bug was found — is still under the
+    /// cursor when the cursor is on it. Where a stroke <em>is</em> does not
+    /// depend on where the paper ends; on an unbounded canvas, art beyond the
+    /// nominal frame is the point.
+    /// </summary>
+    [Fact]
+    public void AStrokeOutsideTheDocumentIsStillPickable()
+    {
+        List<Stroke> strokes = [Line(100, 700, 300, 700)];
+        var index = IndexOf(strokes);
+
+        var clicked = StrokePicker.TopmostAt(strokes, index, 200, 700, tolerance: 2);
+        var caught = StrokePicker.Within(strokes, index, new SKRect(50, 650, 350, 750));
+
+        output.WriteLine($"click returns {clicked?.ToString() ?? "nothing"}, marquee catches {caught.Count}");
+        Assert.Equal(0, clicked);
+        Assert.Equal([0], caught);
     }
 }

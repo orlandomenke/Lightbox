@@ -1,6 +1,6 @@
 # Code index
 
-563 files · 149150 lines · 2944 tests.
+563 files · 149233 lines · 2946 tests.
 
 Read this before searching. Each entry lists the types a file declares and
 the line they start on, so you can open the exact region instead of the
@@ -162,10 +162,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - GuidePainter:27
 - `src/Lightbox.App/Controls/CanvasOverlayBar.cs` (176 ln) · 3 test files
   - CanvasOverlayBar:28
-- `src/Lightbox.App/ViewModels/MainViewModel.StrokeSelection.cs` (176 ln) · **no tests**
-  - MainViewModel:26
 - `src/Lightbox.App/Styles/ColorPicker.axaml` (174 ln) · **no tests**
   - PART_Clear, PART_Swatch
+- `src/Lightbox.App/ViewModels/MainViewModel.StrokeSelection.cs` (174 ln) · **no tests**
+  - MainViewModel:26
 - `src/Lightbox.App/ViewModels/Tools.cs` (172 ln) · 24 test files
   - ToolId:4, CanvasQuality:75, TransformScope:94, TransformSampling:120, SelectVariant:133, HoldDrawing:152
 - `src/Lightbox.App/Controls/ColorField.cs` (171 ln) · **no tests**
@@ -500,8 +500,8 @@ whole file. `codemap.py find <term>` answers targeted questions.
 
 ## Lightbox.Raster
 
-- `src/Lightbox.Raster/BrushEngine.cs` (2275 ln) · 31 test files
-  - BrushEngine:25, DabShape:1458
+- `src/Lightbox.Raster/BrushEngine.cs` (2302 ln) · 31 test files
+  - BrushEngine:25, DabShape:1485
 - `src/Lightbox.Raster/Media/FluidLattice.cs` (1083 ln) · 3 test files
   - FluidLattice:59
 - `src/Lightbox.Raster/FloodFill.cs` (433 ln) · 2 test files
@@ -526,10 +526,10 @@ whole file. `codemap.py find <term>` answers targeted questions.
   - StrokePicker:57
 - `src/Lightbox.Raster/TileStore.cs` (231 ln) · 5 test files
   - TileStore:37
+- `src/Lightbox.Raster/StrokeIndex.cs` (158 ln) · 2 test files
+  - StrokeIndex:37
 - `src/Lightbox.Raster/TileCompositor.cs` (153 ln) · 2 test files
   - TileCompositor:52
-- `src/Lightbox.Raster/StrokeIndex.cs` (151 ln) · 2 test files
-  - StrokeIndex:37
 - `src/Lightbox.Raster/BrushTipOutline.cs` (150 ln) · 1 test files
   - BrushTipOutline:42
 - `src/Lightbox.Raster/TilePyramid.cs` (145 ln) · 1 test files

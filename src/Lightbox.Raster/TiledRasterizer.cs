@@ -101,7 +101,7 @@ public static class TiledRasterizer
     private static void RasterizeByTile(
         TileStore store, IReadOnlyList<Stroke> strokes, SKImageInfo info, SKRectI? region)
     {
-        var index = StrokeIndex.Of(strokes, info, store.Grid);
+        var index = StrokeIndex.Of(strokes, store.Grid);
         var area = region ?? SKRectI.Create(0, 0, info.Width, info.Height);
         if (area.Width <= 0 || area.Height <= 0) return;
 
