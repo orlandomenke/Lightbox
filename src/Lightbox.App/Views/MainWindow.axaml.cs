@@ -35,6 +35,19 @@ public partial class MainWindow : Window
         // once, here — a per-move re-render would repaint the whole frame from its
         // strokes, which is exactly what invariant 6 forbids.
         Canvas.SelectedLinesDragged += (dx, dy) => _vm.MoveSelectedStrokes(dx, dy);
+        // Reshaping one line (vector phase 2). The canvas owns the gesture and
+        // nothing else: every decision — what was grabbed, where it may go, when
+        // it becomes an undo step — is the view model's, so all of it is
+        // reachable by a test with no window attached.
+        Canvas.SetPathEditEntry(_vm.BeginPathEditAt);
+        Canvas.SetPathEditHandlers(
+            _vm.GrabPathPart,
+            _vm.DragPathPart,
+            () => _vm.CommitPathEdit());
+        // One subscription for both halves, because they are one fact: the nodes
+        // the overlay draws must be the nodes the hit test will find. B147 is the
+        // cost of a canvas keeping a copy that something forgets to refresh.
+        _vm.PathEditChanged += PublishPathNodes;
         TimelineTrackView.KeyDragged += OnTrackKeyDragged;
         // The clip bars (Q57): body slides, edges trim; the view model owns
         // what that does to the record.
@@ -797,6 +810,33 @@ public partial class MainWindow : Window
     /// diagnostic that reaches across the app to collect itself is a diagnostic
     /// that breaks when any of them move.
     /// </remarks>
+    /// <summary>
+    /// Hand the canvas the nodes to draw, or nothing when isolation ends.
+    /// </summary>
+    /// <remarks>
+    /// Derived from the session on every change rather than kept in step by
+    /// hand. The session is the single source — the overlay is a view of it, and
+    /// the hit test the artist's pointer meets is the session's own, so the two
+    /// cannot disagree about where a node is.
+    /// </remarks>
+    private void PublishPathNodes()
+    {
+        if (_vm.PathEdit is not { } session)
+        {
+            Canvas.SetPathNodes(null);
+            return;
+        }
+
+        var glyphs = new List<Rendering.CanvasControl.PathNodeGlyph>(session.NodeCount);
+        for (var i = 0; i < session.Path.Nodes.Count; i++)
+        {
+            var n = session.Path.Nodes[i];
+            glyphs.Add(new Rendering.CanvasControl.PathNodeGlyph(
+                n.X, n.Y, n.InX, n.InY, n.OutX, n.OutY, n.Corner, session.IsNodeSelected(i)));
+        }
+        Canvas.SetPathNodes(glyphs);
+    }
+
     private Services.RenderReport.Facts RenderFacts()
     {
         var totals = Canvas.PresentedFrameTotals;
@@ -2207,6 +2247,7 @@ public partial class MainWindow : Window
             // picking a placement, guide or anchor has been unreachable. The
             // black arrow is what that code was always for.
             ToolId.Arrow => Rendering.CanvasControl.CanvasToolMode.Select,
+            ToolId.DirectSelect => Rendering.CanvasControl.CanvasToolMode.PathEdit,
             ToolId.Select => _vm.ActiveSelectVariant switch
             {
                 SelectVariant.Polygon => Rendering.CanvasControl.CanvasToolMode.SelectPolygon,
@@ -2942,6 +2983,18 @@ public partial class MainWindow : Window
             }
         }
 
+        // Isolation owns Escape and Enter for the same reason, and above the
+        // shortcut switch for the same reason: a mode you cannot leave with the
+        // key everybody tries first is a mode you are stuck in. Both keys mean
+        // "done" here rather than "keep" and "discard" — every node drag was
+        // already its own undo step, so there is nothing left to discard.
+        if (_vm.PathEditActive && e.Key is Key.Escape or Key.Enter)
+        {
+            _vm.EndPathEdit();
+            e.Handled = true;
+            return;
+        }
+
         switch (_shortcuts.IdFor(e, CurrentShortcutContext()))
         {
             case "file.save":
@@ -3092,6 +3145,9 @@ public partial class MainWindow : Window
                 break;
             case "tool.arrow":
                 _vm.SelectToolCommand.Execute(ToolId.Arrow);
+                break;
+            case "tool.directselect":
+                _vm.SelectToolCommand.Execute(ToolId.DirectSelect);
                 break;
             case "lines.delete":
                 _vm.DeleteSelectedLinesCommand.Execute(null);

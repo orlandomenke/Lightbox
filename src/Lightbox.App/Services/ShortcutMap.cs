@@ -66,6 +66,11 @@ public sealed class ShortcutMap
             // so the pair stays adjacent in the hand even though the letters do
             // not match Adobe's exactly.
             new("tool.arrow", "Arrow (select lines, guides, symbols)", "Tools", G(Key.A)),
+            // Illustrator's white arrow is A, which the black one above already
+            // has here and which the manual has documented since it shipped.
+            // N for node is free and mnemonic; the letters matter less than the
+            // binding being findable and reboundable, which is what this map is.
+            new("tool.directselect", "Direct select (reshape a line's points)", "Tools", G(Key.N)),
             // What the arrow can then do. Registered rather than wired straight
             // to the key handler, because a command that is not in here cannot be
             // found, searched or rebound — which is the failure this whole map
