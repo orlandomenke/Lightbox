@@ -76,6 +76,34 @@ public sealed class FrameBitmapCache : IDisposable
     /// <summary>Bytes of frame bitmaps currently held.</summary>
     public long CachedBytes { get; private set; }
 
+    /// <summary>
+    /// Lookups served from memory, lookups that had to render, and entries
+    /// thrown out — for the render report.
+    /// </summary>
+    /// <remarks>
+    /// <b>A miss here is a full frame replayed from its stroke record</b>, which
+    /// is the most expensive thing that can happen on a path that runs per
+    /// frame. B152 turned on a claim about exactly this ratio and could not
+    /// prove it, because the machine that showed the symptom is not the machine
+    /// the suite runs on. These three numbers are how the next report answers it
+    /// instead of narrowing it.
+    /// </remarks>
+    public long Hits { get; private set; }
+
+    /// <inheritdoc cref="Hits"/>
+    public long Misses { get; private set; }
+
+    /// <inheritdoc cref="Hits"/>
+    public long Evictions { get; private set; }
+
+    /// <summary>Forget the counters without touching the pixels.</summary>
+    public void ResetCounters()
+    {
+        Hits = 0;
+        Misses = 0;
+        Evictions = 0;
+    }
+
     public int CachedFrames => _lru.Count;
 
     /// <summary>
@@ -127,11 +155,13 @@ public sealed class FrameBitmapCache : IDisposable
         var key = KeyOf(frame, width, height, outputScale, celIndex);
         if (_map.TryGetValue(key, out var node))
         {
+            Hits++;
             _lru.Remove(node);
             _lru.AddFirst(node);
             return node.Value.Bmp;
         }
 
+        Misses++;
         var bmp = Render(frame, width, height, outputScale, celIndex, backdrop);
         var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp));
         _map[key] = newNode;
@@ -294,6 +324,7 @@ public sealed class FrameBitmapCache : IDisposable
 
     private void RemoveNode(LinkedListNode<Entry> node)
     {
+        Evictions++;
         _map.Remove(node.Value.Key);
         _lru.Remove(node);
         CachedBytes -= BytesOf(node.Value.Bmp);

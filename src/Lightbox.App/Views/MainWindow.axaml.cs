@@ -910,7 +910,12 @@ public partial class MainWindow : Window
             _vm.ReportTileFallbacks,
             _vm.Prewarm,
             _vm.PlaybackPacing,
-            Canvas.PresentWait);
+            Canvas.PresentWait,
+            _vm.TickProfile.Snapshot(),
+            _vm.TickProfile.Ticks,
+            _vm.FrameCacheTraffic,
+            _vm.SceneShape,
+            Canvas.AnimationFrames);
     }
 
     /// <summary>
