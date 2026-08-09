@@ -64,6 +64,11 @@ public class ComposeCostScalesWithAreaTests(ITestOutputHelper output)
             vm.EndStroke();
         }
         vm.CurrentFrameIndex = 0;
+        // Explicit: LoopPlayback is persisted in AppSettings and shared across
+        // every view model in the run, so a test that turns it off elsewhere
+        // would stop this one measuring anything at all — which is exactly how
+        // this measured 0.00 ms on CI once.
+        vm.LoopPlayback = true;
         return vm;
     }
 

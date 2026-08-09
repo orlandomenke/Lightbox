@@ -52,6 +52,10 @@ public class DroppedFramesAreNotRenderedTests(ITestOutputHelper output)
             vm.EndStroke();
         }
         vm.CurrentFrameIndex = 0;
+        // Explicit, because LoopPlayback is backed by AppSettings — a file on
+        // disk shared by every view model in the run. Inheriting it makes these
+        // tests depend on whatever ran before them.
+        vm.LoopPlayback = true;
         return vm;
     }
 
@@ -131,17 +135,34 @@ public class DroppedFramesAreNotRenderedTests(ITestOutputHelper output)
     /// would have ended it was one of the skipped ones — otherwise catching up
     /// could run the playhead off the end of an unlooped range.
     /// </summary>
+    /// <remarks>
+    /// <b>The restore is load-bearing, and CI proved it.</b> <c>LoopPlayback</c>
+    /// is backed by <c>AppSettings</c>, whose setter calls <c>Save()</c> — a file
+    /// on disk that every later <c>MainViewModel</c> loads. Without the
+    /// <c>finally</c>, this test turned looping off for the whole run, and
+    /// <c>ComposeCostScalesWithAreaTests</c> then paused after its warm-up and
+    /// measured a 1920×1080 composite at <b>0.00 ms</b>. Green locally on one
+    /// ordering, red on another: the worst kind of failure to leave lying about.
+    /// </remarks>
     [AvaloniaFact]
     public void CatchingUpStillHonoursTheEndOfAnUnloopedRange()
     {
         var vm = Animated(frames: 4);
-        vm.LoopPlayback = false;
-        vm.CurrentFrameIndex = 0;
-        vm.IsPlaying = true;
+        var before = vm.LoopPlayback;
+        try
+        {
+            vm.LoopPlayback = false;
+            vm.CurrentFrameIndex = 0;
+            vm.IsPlaying = true;
 
-        vm.HandlePlaybackTickForTests(4);
+            vm.HandlePlaybackTickForTests(4);
 
-        Assert.False(vm.IsPlaying, "playback ran past the end of an unlooped range while catching up");
-        Assert.True(vm.CurrentFrameIndex <= 3, $"playhead landed on {vm.CurrentFrameIndex}");
+            Assert.False(vm.IsPlaying, "playback ran past the end of an unlooped range while catching up");
+            Assert.True(vm.CurrentFrameIndex <= 3, $"playhead landed on {vm.CurrentFrameIndex}");
+        }
+        finally
+        {
+            vm.LoopPlayback = before;
+        }
     }
 }
