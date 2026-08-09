@@ -1243,6 +1243,15 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B155** `P2` `ui` The whole docker header is the drag grip, except the tabs — which is backwards `evidence: LoneDockerDragTests, APressOnATabIsAGrip_HoweverManyTabsThereAre, APressOnTheBareHeaderIsNotAGrip, WithNoTabsAtAllTheTitleIsTheGrip, TheCloseButtonIsStillNotAGrip`
+  - Repro: press the empty part of any docker's header — the space to the right of the tabs, before the float and close buttons — and drag. The panel tears out. Now press the tab itself and drag: with two or more tabs, nothing happens.
+  - Cause: the grip was defined by exclusion. `Docker.LandedOnAControl` walked up from the press looking for something interactive and treated *everything else* as grip, with the tab strip explicitly on the do-not-drag list so a click would switch tabs. So the largest drag target in a docker was the header's empty space, which exists to give the title room to breathe.
+  - **It is backwards rather than merely wrong, which is what makes it worth a P2 on a working feature.** Every docking UI an artist arrives with — VS Code, Visual Studio, Blender, Photoshop — moves a panel by its *tab*. A header whose blank space is draggable and whose tab is not inverts the one gesture they already know, and the failure is silent both ways: the tab does nothing, and the blank space does something they did not ask for.
+  - Fix: define the grip positively — `LandedOnTheGrip` returns true for the tab strip and for the plain title a docker wears when it has none, false for anything interactive, false for everything else. `PART_Title` is named in the template because no type test separates it from another `TextBlock` somebody puts in the title bar. Cost: S
+  - **Dragging a tab that is not showing needs no code**, which is worth writing down because it looks like it should: a `ListBoxItem` selects on pointer-press, so the tab is already the active one by the time the pointer has travelled the 6px that counts as a drag.
+  - **The header stays hit-testable and stays the drop target.** Dropping *onto* a header still tabs into that slot — this changes what a press picks up, not what a release lands on.
+  - **It also deletes B139 rather than sitting beside it.** That bug was the exception this rule needed: a lone docker is nearly all tab, so excluding the strip left nothing to hold and the timeline moved to a side could not be dragged back. With the tab as the grip, one tab and five behave identically and the exception has nowhere to live. Both cases stay asserted so the old symptom cannot come back by another route.
+
 - [x] **B154** `P2` `ui` The tool rail opens far wider than the tools in it, and can only be dragged narrower `evidence: ToolRailWidthTests, TheRailIsNoWiderThanTheColumnsItChose, TheRailWidensWhenTheWindowIsShortEnoughToNeedTwoColumns, TheRailGrowsAsWellAsShrinks_WithNothingDockedBesideIt, ADraggedWidthSurvivesTheWindowChangingShape, TheRailWillNotEatTheCanvas`
   - Repro: open the app on any ordinarily tall window. The rail shows one column of 34px tools inside an 88px column — **54px of dead space, 27 down each side**, printed by `TheRailIsNoWiderThanTheColumnsItChose` against the old build. Then drag its splitter: narrower works, wider does nothing.
   - **Two defects reported as one, and they only sound related.** The width and the drag fail for completely different reasons; what joins them is that the rail is the one column in `WorkArea` whose width nobody can influence.
@@ -1264,11 +1273,12 @@ test reopens the bug.
   - Fix: `Padding="6,0"` on the `NumericUpDown` density rule — the control's own property is the one thing the template binding reads from. Vertical centring then has room to do its job.
   - Cost: S
 
-- [x] **B139** `P2` `ui` A lone docker cannot be dragged to another edge `evidence: LoneDockerDragTests, APressOnALoneTabIsAGrip, APressOnARealTabStripStaysAControl`
+- [x] **B139** `P2` `ui` A lone docker cannot be dragged to another edge `evidence: LoneDockerDragTests, APressOnATabIsAGrip_HoweverManyTabsThereAre`
   - Repro: move the timeline to a side, then try to drag it back — nothing grips. Any docker alone in its slot has the same problem once every slot wears a tab strip.
   - Cause: the header's do-not-drag list includes the tab ListBox, correctly — clicking a tab must switch tabs, not tear the group out. But a slot of one shows a tab too now, and that tab is most of the header, so the rule ate the grip. A single tab has nothing to switch to.
   - Fix: in `Docker.LandedOnAControl`, a strip of one is walked past — a press there is a grip. Two or more tabs keep the old rule.
   - Cost: S
+  - **Superseded by B155, and the exception is gone rather than relocated.** The fix above was an exception carved into a rule that turned out to be inverted; with the tab as the grip, a lone docker is draggable for the same reason every other docker is, and there is no strip-of-one case left in the code. The symptom stays guarded — `APressOnATabIsAGrip_HoweverManyTabsThereAre` runs at one tab as well as four — so this cannot come back by another route. The anchors moved because the tests were renamed with the rule; the behaviour they check is the same behaviour.
 
 - [x] **B138** `P2` `ui` The tab highlight and the docker showing disagree after a switch `evidence: TabSwitchCrashTests, TheHighlightedTabIsTheDockerThatIsShowing`
   - Repro: tab two panels together and switch between them a few times — the active docker is visible while its tab sits unlit (reported as "the inactive has the highlight"; the strip's real state is *no* selection, which leaves whatever visual state the eye lands on looking wrong).
