@@ -1,19 +1,65 @@
 using System.Text.Json;
 using Avalonia.Input;
+using Lightbox.App.Docking;
 
 namespace Lightbox.App.Services;
 
-/// <summary>Where a shortcut is active: everywhere, or only while the pointer is over that area.</summary>
+/// <summary>
+/// Where a shortcut is active.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Two kinds of place, not a list of areas.</b> The old form named the
+/// timeline and the layers docker individually, which meant a docker could only
+/// own a binding if somebody had thought to add an enum member and a hover flag
+/// for it — so eleven of the twelve dockers could not have one at all, and the
+/// twelfth worked by hand-wiring. <see cref="Panel"/> carries the
+/// <see cref="DockPanelId"/> instead, so every docker can own bindings and a new
+/// docker needs nothing here.
+/// </para>
+/// <para>
+/// <b><see cref="Canvas"/> is not "the drawing surface".</b> It is everywhere
+/// that is not inside a docker — the canvas, the top bar, the tool rail, the
+/// menu. That is what makes a general shortcut work in all of them, and it is
+/// why the fallback below is written as it is.
+/// </para>
+/// </remarks>
 public enum ShortcutContext
 {
+    /// <summary>Everywhere, unless the place you are in overrides it.</summary>
     Global,
+
+    /// <summary>Anywhere outside a docker: the canvas, the bars, the rail, the menu.</summary>
     Canvas,
-    Timeline,
-    LayersDocker,
+
+    /// <summary>One docker, named by <see cref="ShortcutDefinition.Panel"/>.</summary>
+    Panel,
+}
+
+/// <summary>
+/// The place a key press happened, as the resolver needs it.
+/// </summary>
+/// <remarks>
+/// A pair rather than a widened enum because the two halves answer different
+/// questions — <em>what kind of place</em> and <em>which one</em> — and folding
+/// them together is what produced an enum that had to grow per docker.
+/// </remarks>
+public readonly record struct ShortcutScope(ShortcutContext Context, DockPanelId Panel = default)
+{
+    /// <summary>Outside every docker: canvas, bars, rail, menu.</summary>
+    public static readonly ShortcutScope Canvas = new(ShortcutContext.Canvas);
+
+    /// <summary>Nowhere in particular — only general bindings apply.</summary>
+    public static readonly ShortcutScope General = new(ShortcutContext.Global);
+
+    public static ShortcutScope In(DockPanelId panel) => new(ShortcutContext.Panel, panel);
 }
 
 /// <summary>One rebindable command: what it's called, where it lives, what triggers it.</summary>
-public sealed class ShortcutDefinition(string id, string name, string category, KeyGesture? @default, ShortcutContext context = ShortcutContext.Global)
+public sealed class ShortcutDefinition(
+    string id, string name, string category, KeyGesture? @default,
+    ShortcutContext context = ShortcutContext.Global,
+    DockPanelId panel = default)
 {
     public string Id { get; } = id;
 
@@ -24,6 +70,12 @@ public sealed class ShortcutDefinition(string id, string name, string category, 
 
     /// <summary>Where this binding fires — the same key can mean different things per area.</summary>
     public ShortcutContext Context { get; } = context;
+
+    /// <summary>Which docker, when <see cref="Context"/> is <see cref="ShortcutContext.Panel"/>.</summary>
+    public DockPanelId Panel { get; } = panel;
+
+    /// <summary>This binding's place, as the resolver compares them.</summary>
+    public ShortcutScope Scope => new(Context, Panel);
 
     public KeyGesture? Default { get; } = @default;
 
@@ -61,6 +113,10 @@ public sealed class ShortcutMap
             new("tool.gradient", "Gradient", "Tools", G(Key.G)),
             new("tool.select", "Select / next variant", "Tools", G(Key.S)),
             new("tool.move", "Move (drawing and guides)", "Tools", G(Key.V)),
+            // The only tool that had no key at all. U is Photoshop's shape tool
+            // and was free here — the shape *variant* stays a tool option, like
+            // the select tool's, so one letter covers all four.
+            new("tool.shape", "Shape (line, rectangle, ellipse, polygon)", "Tools", G(Key.U)),
             // Illustrator's black arrow is V, which Move already has here and
             // has had for longer. A is Illustrator's other pointer and is free,
             // so the pair stays adjacent in the hand even though the letters do
@@ -128,26 +184,35 @@ public sealed class ShortcutMap
             new("canvas.resetView", "Reset view", "Canvas", G(Key.D0)),
 
             new("timeline.playPause", "Play / pause", "Timeline", G(Key.Space)),
-            new("timeline.prevFrame", "Previous frame (scrub)", "Timeline", G(Key.Left), ShortcutContext.Timeline),
-            new("timeline.nextFrame", "Next frame (scrub)", "Timeline", G(Key.Right), ShortcutContext.Timeline),
+            new("timeline.prevFrame", "Previous frame (scrub)", "Timeline", G(Key.Left), ShortcutContext.Panel, DockPanelId.Timeline),
+            new("timeline.nextFrame", "Next frame (scrub)", "Timeline", G(Key.Right), ShortcutContext.Panel, DockPanelId.Timeline),
             new("timeline.prevKey", "Flip to previous key", "Timeline", G(Key.D1)),
             new("timeline.nextKey", "Flip to next key", "Timeline", G(Key.D2)),
             new("timeline.copyCel", "Copy cel", "Timeline", G(Key.C, KeyModifiers.Control)),
             new("timeline.cutCel", "Cut cel", "Timeline", G(Key.X, KeyModifiers.Control)),
             new("timeline.pasteCel", "Paste cel", "Timeline", G(Key.V, KeyModifiers.Control)),
 
-            new("docker.deleteLayer", "Delete layer", "Dockers", G(Key.Delete), ShortcutContext.LayersDocker),
-            new("docker.clearLayer", "Blank layer content", "Dockers", G(Key.Back), ShortcutContext.LayersDocker),
+            new("docker.deleteLayer", "Delete layer", "Dockers", G(Key.Delete), ShortcutContext.Panel, DockPanelId.Layers),
+            new("docker.clearLayer", "Blank layer content", "Dockers", G(Key.Back), ShortcutContext.Panel, DockPanelId.Layers),
 
             // Context twins: the same key does area-appropriate things.
-            new("canvas.pickColor", "Color picker tool (canvas)", "Tools", G(Key.I), ShortcutContext.Canvas),
-            new("timeline.insertKey", "Insert keyframe at playhead (timeline)", "Timeline", G(Key.I), ShortcutContext.Timeline),
+            // General, not canvas-scoped. Scoped, it did nothing over any docker —
+            // and the rule this map is built on says a general binding reaches
+            // every docker that has no answer of its own. The timeline has one
+            // (insertKey, below), so I still means "insert a key" there and
+            // "eyedropper" everywhere else, which is the whole scheme in one pair.
+            //
+            // The id keeps the `canvas.` prefix it shipped with. Renaming it to
+            // `tool.picker` would read better and would silently drop the rebind
+            // of anyone who had changed it, because shortcuts.json is keyed by id.
+            new("canvas.pickColor", "Color picker tool", "Tools", G(Key.I)),
+            new("timeline.insertKey", "Insert keyframe at playhead (timeline)", "Timeline", G(Key.I), ShortcutContext.Panel, DockPanelId.Timeline),
             new("canvas.nudgeLeft", "Nudge selection left", "Canvas", G(Key.Left), ShortcutContext.Canvas),
             new("canvas.nudgeRight", "Nudge selection right", "Canvas", G(Key.Right), ShortcutContext.Canvas),
             new("canvas.nudgeUp", "Nudge selection up", "Canvas", G(Key.Up), ShortcutContext.Canvas),
             new("canvas.nudgeDown", "Nudge selection down", "Canvas", G(Key.Down), ShortcutContext.Canvas),
-            new("docker.layerAbove", "Select the layer above", "Dockers", G(Key.Up), ShortcutContext.LayersDocker),
-            new("docker.layerBelow", "Select the layer below", "Dockers", G(Key.Down), ShortcutContext.LayersDocker),
+            new("docker.layerAbove", "Select the layer above", "Dockers", G(Key.Up), ShortcutContext.Panel, DockPanelId.Layers),
+            new("docker.layerBelow", "Select the layer below", "Dockers", G(Key.Down), ShortcutContext.Panel, DockPanelId.Layers),
 
             // Registered rather than written onto the menu items, which is where Ctrl+S
             // lived and why it could not be rebound — and why nobody noticed that Save as
@@ -183,33 +248,55 @@ public sealed class ShortcutMap
     /// The command a key event triggers in the given context, or null. A
     /// context-specific binding beats a global one for the same keys.
     /// </summary>
-    public string? IdFor(KeyEventArgs e, ShortcutContext context = ShortcutContext.Global)
+    /// <summary>
+    /// The command a key press means, in the place it happened.
+    /// </summary>
+    /// <remarks>
+    /// <b>The place wins if it has an answer; otherwise the general binding
+    /// does.</b> That one sentence is the whole scheme, and it is what makes
+    /// <c>I</c> insert a keyframe over the timeline and pick a colour
+    /// everywhere else — including over every docker that has no <c>I</c> of its
+    /// own, which is the case the old form could not express because a docker
+    /// had to be named in an enum before it could have bindings at all.
+    /// </remarks>
+    public string? IdFor(KeyEventArgs e, ShortcutScope scope)
     {
-        ShortcutDefinition? global = null;
+        ShortcutDefinition? general = null;
         foreach (var d in _definitions)
         {
             if (d.Current is not { } g || g.Key != e.Key || g.KeyModifiers != e.KeyModifiers) continue;
-            if (d.Context == context) return d.Id;
-            if (d.Context == ShortcutContext.Global) global ??= d;
+            if (d.Scope == scope) return d.Id;
+            if (d.Context == ShortcutContext.Global) general ??= d;
         }
-        return global?.Id;
+        return general?.Id;
     }
+
+    /// <inheritdoc cref="IdFor(KeyEventArgs, ShortcutScope)"/>
+    public string? IdFor(KeyEventArgs e) => IdFor(e, ShortcutScope.General);
 
     public ShortcutDefinition? Find(string id) => _definitions.FirstOrDefault(d => d.Id == id);
 
     /// <summary>
-    /// The OTHER command already bound to this gesture whose context overlaps
-    /// (same area, or either is global) — bindings in disjoint areas coexist.
+    /// The OTHER command already bound to this gesture in the SAME scope —
+    /// the case <see cref="IdFor(KeyEventArgs, ShortcutScope)"/> cannot resolve,
+    /// because both are reachable from one place with nothing to separate them.
     /// </summary>
+    /// <remarks>
+    /// A general binding and a scoped one sharing a gesture are deliberately
+    /// <i>not</i> a conflict: the resolver picks the more specific, so the
+    /// scoped command wins in its own area and the general one applies
+    /// everywhere else. That is the whole rule this map is built on — general
+    /// <c>I</c> is the eyedropper, and over the timeline it is insert-key — so
+    /// reporting it as something to resolve would ask an artist to undo the
+    /// design. Only an unresolvable tie is a conflict.
+    /// </remarks>
     public ShortcutDefinition? ConflictWith(string id, KeyGesture gesture)
     {
         if (Find(id) is not { } self) return null;
         return _definitions.FirstOrDefault(d =>
             d.Id != id
             && d.Current is { } g && g.Key == gesture.Key && g.KeyModifiers == gesture.KeyModifiers
-            && (d.Context == self.Context
-                || d.Context == ShortcutContext.Global
-                || self.Context == ShortcutContext.Global));
+            && d.Scope == self.Scope);
     }
 
     /// <summary>Bind a gesture (stealing it from a conflicting command must be the CALLER's explicit choice).</summary>

@@ -3,8 +3,18 @@
 ## Keyboard
 
 Every shortcut is editable in **Edit → Configure…**, which is searchable.
-Shortcuts are context-aware: the same key can mean different things over the
-canvas, the timeline and the Layers panel.
+
+**Where the pointer is decides what a key does.** Most shortcuts are general and
+work everywhere — B is the brush whether you are over the canvas, a toolbar or a
+panel. A panel may claim a key for itself, and then it wins **in that panel** and
+the general one still applies everywhere else: `I` inserts a keyframe over the
+timeline and reaches for the eyedropper anywhere else. A panel counts as yours
+when the pointer is over it, or when it has the keyboard focus.
+
+That is why the two are not a clash to resolve, and Configure will not offer to
+resolve one — a general key and a panel key can share a gesture on purpose. Two
+*general* commands on one gesture is the case with no answer, and that is what it
+warns about.
 
 | Key | Action |
 | --- | --- |
@@ -13,12 +23,14 @@ canvas, the timeline and the Layers panel.
 | N | White arrow — reshape an isolated line's points |
 | P | Pen — draw a line by placing its points |
 | W | Width — make a line heavier or lighter |
+| U | Shape — line, rectangle, ellipse, polygon |
 | Double-click | Go inside a line to reshape it; Esc to come back out |
 | Backspace | Take the last point back off, while drawing with the pen |
 | Enter / Esc | Finish the pen line (neither discards it — Ctrl+Z does) |
 | Delete | Delete the selected lines |
 | Arrows | Nudge the selected lines a pixel, ten with Shift (Arrow tool only) |
-| Ctrl (hold) | Pick a colour |
+| Ctrl (hold) | Borrow the eyedropper; let go and your tool comes back |
+| I | Eyedropper — anywhere except the timeline, where it inserts a key |
 | Ctrl+Z / Ctrl+Y | Undo, redo |
 | Ctrl+T | Transform |
 | Ctrl+A / Ctrl+D / Ctrl+Shift+I | Select all, deselect, invert |
