@@ -14,10 +14,25 @@ public enum PathPart
 
     /// <summary>The handle shaping the segment leaving it.</summary>
     Out,
+
+    /// <summary>
+    /// The curve itself, between this node and the next one.
+    /// </summary>
+    /// <remarks>
+    /// Last in the enum and last in the hit test, because everything else sits
+    /// <em>on</em> the curve: a node is always within grabbing distance of the
+    /// line through it, so a segment that won would make the nodes unclickable.
+    /// </remarks>
+    Segment,
 }
 
 /// <summary>What is under the pointer, in path terms.</summary>
-public readonly record struct PathHit(int Node, PathPart Part)
+/// <param name="T">
+/// How far along a <see cref="PathPart.Segment"/> the pointer landed, 0 at
+/// <see cref="Node"/> and 1 at the next one. Meaningless for the other parts,
+/// which are places rather than positions along something.
+/// </param>
+public readonly record struct PathHit(int Node, PathPart Part, double T = 0)
 {
     public static readonly PathHit Miss = new(-1, PathPart.None);
 
@@ -171,7 +186,16 @@ public sealed class PathEditSession
         {
             Consider(i, PathPart.Node, Path.Nodes[i].X, Path.Nodes[i].Y);
         }
-        return best;
+        if (best.IsHit) return best;
+
+        // The curve itself, last. Every node sits on the line through it, so a
+        // segment tested any earlier would swallow the clicks meant for nodes and
+        // handles — and a tool where you cannot reliably grab a point is not
+        // improved by also being able to grab the line.
+        var landing = SegmentDrag.Nearest(Path, x, y, tolerance);
+        return landing.IsHit
+            ? new PathHit(landing.Segment, PathPart.Segment, landing.T)
+            : PathHit.Miss;
 
         void Consider(int index, PathPart part, double px, double py)
         {
@@ -280,6 +304,34 @@ public sealed class PathEditSession
         }
 
         Path.Nodes[index] = node;
+        Dirty = true;
+        return true;
+    }
+
+    /// <summary>
+    /// Pull the curve between two nodes, without selecting either of them.
+    /// </summary>
+    /// <remarks>
+    /// <b>The nodes do not move — only the handles that govern the segment
+    /// do.</b> That is what separates this from dragging a node and it is the
+    /// whole reason an artist reaches for it: the shape either side of the bit
+    /// you are pulling stays exactly where it was put. A smooth endpoint is the
+    /// one exception, and it is not really one: its far handle swings to stay in
+    /// line, because that is what smooth means, and a node that kinked the moment
+    /// you pulled the line next to it would be worse.
+    /// </remarks>
+    public bool PinchSegment(int segment, double t, double dx, double dy)
+    {
+        if (segment < 0 || segment >= Path.Nodes.Count) return false;
+        if (dx == 0 && dy == 0) return false;
+
+        var nextIndex = (segment + 1) % Path.Nodes.Count;
+        if (nextIndex == segment) return false;
+        if (!Path.Closed && nextIndex <= segment) return false;
+
+        var (a, b) = SegmentDrag.Pinch(Path.Nodes[segment], Path.Nodes[nextIndex], t, dx, dy);
+        Path.Nodes[segment] = a;
+        Path.Nodes[nextIndex] = b;
         Dirty = true;
         return true;
     }

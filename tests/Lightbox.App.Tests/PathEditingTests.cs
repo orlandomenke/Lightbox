@@ -238,6 +238,146 @@ public class PathEditingTests(ITestOutputHelper output)
         Assert.True(vm.PathEditActive);
     }
 
+    // ---- pinching a segment (phase 4) ------------------------------------------
+
+    /// <summary>
+    /// Nodes and handles are both <em>on</em> the curve, so a segment that won
+    /// the hit test would make them unclickable. Last in the enum, last in the
+    /// test, and asserted rather than assumed.
+    /// </summary>
+    [AvaloniaFact]
+    public void ANodeStillWinsOverTheCurveItSitsOn()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+        var node = vm.PathEdit!.Path.Nodes[1];
+
+        var hit = vm.PathEditHitTest(node.X, node.Y, tolerance: 6);
+
+        Assert.Equal(PathPart.Node, hit.Part);
+    }
+
+    [AvaloniaFact]
+    public void AClickOnTheCurveBetweenNodesGrabsTheSegment()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+        var path = vm.PathEdit!.Path;
+        var (x, y) = Lightbox.Core.Geometry.PathFlattener.PointOn(path.Nodes[0], path.Nodes[1], 0.5);
+
+        var hit = vm.GrabPathPart(x, y, tolerance: 6);
+        output.WriteLine($"grabbed the curve at ({x:F2}, {y:F2}) -> segment {hit.Node}, t {hit.T:F3}");
+
+        Assert.Equal(PathPart.Segment, hit.Part);
+        Assert.Equal(0, hit.Node);
+        Assert.InRange(hit.T, 0.3, 0.7);
+
+        // And it selects nothing: the gesture is "put the line here", so an
+        // artist can pull a segment without losing the points they had picked.
+        Assert.Empty(vm.PathEdit.SelectedNodes);
+    }
+
+    /// <summary>
+    /// <b>The promise of the gesture, through the real drag path.</b> The line
+    /// arrives where it was pulled and the nodes either side stay exactly where
+    /// they were put — which is what separates this from dragging a node, and
+    /// the reason an artist reaches for it.
+    /// </summary>
+    [AvaloniaFact]
+    public void PullingTheCurveMovesItWithoutMovingTheNodes()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+        var path = vm.PathEdit!.Path;
+        var (before, after) = (path.Nodes[0], path.Nodes[1]);
+        var (x, y) = Lightbox.Core.Geometry.PathFlattener.PointOn(before, after, 0.5);
+
+        var grab = vm.GrabPathPart(x, y, tolerance: 6);
+        for (var i = 0; i < 20; i++) vm.DragPathPart(grab, x, y + i + 1, 0, 1);
+        Assert.True(vm.CommitPathEdit());
+
+        var moved = Lightbox.Core.Geometry.PathFlattener.PointOn(
+            vm.PathEdit.Path.Nodes[0], vm.PathEdit.Path.Nodes[1], grab.T);
+        output.WriteLine($"curve at t={grab.T:F3}: ({x:F2}, {y:F2}) -> ({moved.X:F2}, {moved.Y:F2})");
+
+        Assert.Equal(y + 20, moved.Y, 3);
+        Assert.Equal(before.X, vm.PathEdit.Path.Nodes[0].X, 6);
+        Assert.Equal(before.Y, vm.PathEdit.Path.Nodes[0].Y, 6);
+        Assert.Equal(after.X, vm.PathEdit.Path.Nodes[1].X, 6);
+        Assert.Equal(after.Y, vm.PathEdit.Path.Nodes[1].Y, 6);
+    }
+
+    /// <summary>
+    /// A pinch writes through the same one committer as every other edit, so
+    /// <see cref="StrokePath"/>'s invariant holds here without a second rule to
+    /// remember.
+    /// </summary>
+    [AvaloniaFact]
+    public void APinchLeavesThePathAndThePointsAgreeing()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+        var path = vm.PathEdit!.Path;
+        var (x, y) = Lightbox.Core.Geometry.PathFlattener.PointOn(path.Nodes[0], path.Nodes[1], 0.5);
+
+        var grab = vm.GrabPathPart(x, y, tolerance: 6);
+        vm.DragPathPart(grab, x, y + 25, 0, 25);
+        Assert.True(vm.CommitPathEdit());
+
+        var stroke = StrokeOf(vm, line.Id);
+        var reflattened = Lightbox.Core.Geometry.PathFlattener.Flatten(stroke.Path!);
+        var weighted = Lightbox.Core.Geometry.PressureProfile.Of(reflattened);
+        Assert.NotNull(weighted);
+        Assert.Equal(stroke.Points.Count, reflattened.Count);
+
+        var worst = 0.0;
+        for (var i = 0; i < reflattened.Count; i++)
+        {
+            worst = Math.Max(worst, Math.Abs(reflattened[i].X - stroke.Points[i].X));
+            worst = Math.Max(worst, Math.Abs(reflattened[i].Y - stroke.Points[i].Y));
+        }
+        output.WriteLine($"path and points differ by at most {worst:F4} px after a pinch");
+        Assert.True(worst < 1e-9, $"path and points disagree by {worst} px");
+    }
+
+    /// <summary>
+    /// A drag is one undo step whatever it was dragging — the transform
+    /// session's rule, and a pinch is hundreds of pointer moves like any other.
+    /// </summary>
+    [AvaloniaFact]
+    public void APinchIsOneUndoStepAndUndoingItRestoresTheLineExactly()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        var original = line.Points.Select(p => (p.X, p.Y, p.Pressure)).ToList();
+        vm.BeginPathEdit(line.Id);
+        var path = vm.PathEdit!.Path;
+        var (x, y) = Lightbox.Core.Geometry.PathFlattener.PointOn(path.Nodes[0], path.Nodes[1], 0.5);
+
+        var grab = vm.GrabPathPart(x, y, tolerance: 6);
+        for (var i = 0; i < 30; i++) vm.DragPathPart(grab, x, y + i + 1, 0, 1);
+        vm.CommitPathEdit();
+        Assert.NotEqual(original[0].Y + 0, StrokeOf(vm, line.Id).Points.Max(p => p.Y));
+
+        vm.UndoCommand.Execute(null);
+
+        var back = StrokeOf(vm, line.Id).Points;
+        Assert.Equal(original.Count, back.Count);
+        for (var i = 0; i < back.Count; i++)
+        {
+            // Bit-exact, not close: every dab dynamic is seeded from the bits of
+            // a coordinate, so a line restored to visibly the right place with
+            // recomputed numbers comes back with a different grain.
+            Assert.Equal(original[i].X, back[i].X);
+            Assert.Equal(original[i].Y, back[i].Y);
+            Assert.Equal(original[i].Pressure, back[i].Pressure);
+        }
+    }
+
     // ---- editing --------------------------------------------------------------
 
     /// <summary>

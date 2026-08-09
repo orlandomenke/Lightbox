@@ -113,6 +113,7 @@ something a hand can work with.
 
 | | |
 | --- | --- |
+| **Drag the line itself**, between two points | Pulls the curve to where you put it. The points either side do not move — this bends the line rather than shifting it, and it is usually the one you want. |
 | **Drag a point** | Moves it, and the line follows. |
 | **Click a point** | Selects it, and shows its **handles** — the two arms that decide how the line curves through it. Drag an arm to bend the curve. |
 | **Square points are corners**, round ones are smooth | On a smooth point the two arms stay in line, so the curve runs through without a kink. On a corner they are independent. |
@@ -121,6 +122,13 @@ something a hand can work with.
 | **Click empty canvas** | Lets the points go, without leaving the mode. |
 
 Each drag is **one undo step**, however far you pushed the point around.
+
+**Pulling the line is worth trying before anything else.** Most of the time what
+you want is *this bit of the line should be over there*, and reaching for that
+directly is quicker than working out which point governs it and which way its
+arms need to go. It works on a straight run too — drag the middle of a straight
+line and it bends, which is how you turn a corner-to-corner segment into a curve
+without adding anything.
 
 **The white arrow (N)** is the same thing as a tool rather than a gesture — for
 when you are already inside a line and want to keep reshaping. It does nothing
