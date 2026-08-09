@@ -98,6 +98,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Diagnostics for tests and the render report.</summary>
     internal FramePrewarmer Prewarm => _prewarm;
 
+    /// <summary>How well the frame clock kept time on the last run of playback (B150).</summary>
+    internal PlaybackClock.Pacing PlaybackPacing => _clock.Stats;
+
     /// <summary>Every frame mutation goes through here, whichever cache holds it.</summary>
     private void InvalidateFrameRender(string frameId)
     {

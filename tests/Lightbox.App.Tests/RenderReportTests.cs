@@ -51,9 +51,11 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         bool hasPresented = true,
         int? maxTexture = 8192,
         int docWidth = 1920,
-        int docHeight = 1080) =>
+        int docHeight = 1080,
+        PlaybackClock.Pacing? pacing = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
-            docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented);
+            docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
+            Pacing: pacing);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the
@@ -146,6 +148,49 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         Assert.Contains(DiagnosticLog.Build, text);
         Assert.Contains("1920 x 1080", text);
         Assert.Contains("presentation backend", text);
+    }
+
+    /// <summary>
+    /// <b>The section that separates the two halves of "playback stutters"
+    /// (B150).</b> Every other measurement here is how long a frame took to
+    /// *make*; this one is whether the tick that asked for it arrived when it
+    /// was due. They are different axes, and only the second can make a
+    /// near-empty scene stutter on a fast machine — so the report has to be able
+    /// to tell an artist which one they are looking at.
+    /// </summary>
+    [Fact]
+    public void TheReportSaysWhetherTheFrameClockWasDeliveredOnTime()
+    {
+        Setup();
+
+        string Section(PlaybackClock.Pacing? pacing)
+        {
+            RenderReport.ResetForTests();
+            var text = File.ReadAllText(RenderReport.WriteStartup(Facts(pacing: pacing))!);
+            var start = text.IndexOf("was the frame clock on time", StringComparison.Ordinal);
+            Assert.True(start >= 0, "the pacing section is missing from the report");
+            return text[start..];
+        }
+
+        var never = Section(null);
+        var onTime = Section(new PlaybackClock.Pacing(120, 3, 0, 0, 0.4, 2.1));
+        var late = Section(new PlaybackClock.Pacing(120, 110, 14, 2, 31.5, 92.0));
+        output.WriteLine(late);
+
+        // Not run is distinct from run-and-fine, for the reason the durable-frame
+        // line exists: an absent measurement reads as "nothing was wrong".
+        Assert.Contains("PLAYED", never);
+
+        Assert.Contains("delivered on time", onTime);
+        Assert.DoesNotContain("LATE", onTime);
+
+        Assert.Contains("LATE", late);
+        Assert.Contains("31.5", late);
+        Assert.Contains("92", late);
+        Assert.Contains("14", late);
+        // The one instruction that turns the number into a diagnosis, because the
+        // difference between the two conditions is the finding.
+        Assert.Contains("moving it", late);
     }
 
     /// <summary>Once per run, so a report is not rewritten on every repaint.</summary>
