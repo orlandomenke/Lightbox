@@ -234,6 +234,19 @@ public sealed class CanvasControl : Control
             _presented.GpuSurfaceRequestFailed);
 
     /// <summary>
+    /// How long published frames waited to be drawn, for the render report.
+    /// </summary>
+    /// <remarks>
+    /// B150's other half. The clock's own stats say whether the tick arrived on
+    /// time; this says whether the frame it asked for reached the screen — and a
+    /// report carrying only the first reads clean on a machine where the second
+    /// is the problem.
+    /// </remarks>
+    internal PresentLatency.Stats PresentWait => _presentWait.Snapshot;
+
+    private readonly PresentLatency _presentWait = new();
+
+    /// <summary>
     /// Run something that needs the compositor's Skia context, on the render
     /// thread, at the next frame.
     /// </summary>
@@ -1869,6 +1882,8 @@ public sealed class CanvasControl : Control
         // after a publish (mouse released and held still), the dispatcher may
         // never wake to paint it — the stroke only appeared on the NEXT event.
         // An animation-frame request forces a compositor frame regardless.
+        _presentWait.Published(snapshot.Seq);
+
         if (!_framePending && TopLevel.GetTopLevel(this) is { } top)
         {
             _framePending = true;
@@ -3586,6 +3601,12 @@ public sealed class CanvasControl : Control
 
     private void NoteRendered(long seq)
     {
+        // Before the early return below, which is about keeping the high-water
+        // mark monotonic. A frame that arrived out of order was still drawn, and
+        // dropping it here would flatter the average by counting only the
+        // frames that behaved.
+        _presentWait.Rendered(seq);
+
         long current;
         do
         {

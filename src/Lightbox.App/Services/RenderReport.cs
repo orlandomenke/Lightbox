@@ -63,7 +63,8 @@ internal static class RenderReport
         bool DurableFrameHasPresented = false,
         Rendering.TileFallbackTally? TileFallbacks = null,
         Services.FramePrewarmer? Prewarm = null,
-        Services.PlaybackClock.Pacing? Pacing = null);
+        Services.PlaybackClock.Pacing? Pacing = null,
+        Rendering.PresentLatency.Stats? PresentWait = null);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -204,6 +205,14 @@ internal static class RenderReport
     private static void AppendPacing(StringBuilder sb, PlaybackClock.Pacing? pacing)
     {
         sb.AppendLine("-- was the frame clock on time (B150) ------------------------");
+        // Printed whether or not the clock has run, and printed always rather
+        // than only when overridden: a run must never be attributable to a
+        // setting it did not have, and "no line" is indistinguishable from "the
+        // line I expected" when somebody is comparing two reports.
+        sb.AppendLine($"clock priority            {PlaybackClock.Priority}"
+            + (PlaybackClock.Priority == Avalonia.Threading.DispatcherPriority.Render
+                ? ""
+                : "   (LIGHTBOX_CLOCK_PRIORITY is set — this is NOT the shipped default)"));
         if (pacing is not { Ticks: > 0 } stats)
         {
             sb.AppendLine("frame clock               not run yet — this needs the scene PLAYED first");
@@ -235,6 +244,49 @@ internal static class RenderReport
               + "     whatever the frames cost to draw. Worth capturing this twice: once\n"
               + "     with the pointer still and once while moving it. A large difference\n"
               + "     means the tick is competing with input rather than with rendering.");
+
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// How long a published frame waited before anything drew it (B150).
+    /// </summary>
+    /// <remarks>
+    /// <b>The section that tells the two candidate causes apart.</b> The one
+    /// above says whether the tick arrived on time; this says whether the frame
+    /// it asked for reached the screen. Even publishes with uneven presents mean
+    /// the clock is innocent and something downstream is only being pumped when
+    /// the dispatcher happens to wake — which is what "smooth while I move the
+    /// mouse, stuttery when I stop" looks like from inside the application.
+    /// </remarks>
+    private static void AppendPresentWait(StringBuilder sb, Rendering.PresentLatency.Stats? wait)
+    {
+        sb.AppendLine("-- did the frames reach the screen (B150) --------------------");
+        if (wait is not { Presented: > 0 } stats)
+        {
+            sb.AppendLine("frames drawn              none yet — this needs the scene PLAYED first");
+            sb.AppendLine();
+            return;
+        }
+
+        sb.AppendLine($"frames published and drawn {stats.Presented}");
+        sb.AppendLine($"  mean wait to be drawn    {stats.MeanMs:0.##} ms");
+        sb.AppendLine($"  worst wait               {stats.WorstMs:0.##} ms");
+        sb.AppendLine($"replaced before drawing    {stats.Superseded}");
+
+        sb.AppendLine();
+        // The threshold is a frame of a 60 Hz screen. Below it the compositor is
+        // picking work up on its next tick, which is as fast as anything can go;
+        // well above it, frames are being published and then sitting.
+        sb.AppendLine(stats.MeanMs < 17
+            ? "  >> Frames are reaching the screen promptly. Combined with the section\n"
+              + "     above, that rules the front end out: if playback still looks uneven,\n"
+              + "     the cost is in making the frames rather than in showing them."
+            : "  >> Frames are being published and then WAITING. That is a different\n"
+              + "     fault from a late clock and needs a different fix. Capture this\n"
+              + "     twice — pointer still, then pointer moving. If the wait collapses\n"
+              + "     while the pointer moves, the compositor is only being woken by\n"
+              + "     input, and playback is riding on that rather than on its own clock.");
 
         sb.AppendLine();
     }
@@ -420,6 +472,7 @@ internal static class RenderReport
         AppendTilePath(sb, facts.TileFallbacks);
         AppendPrewarm(sb, facts.Prewarm);
         AppendPacing(sb, facts.Pacing);
+        AppendPresentWait(sb, facts.PresentWait);
 
         sb.AppendLine("-- what is being drawn ---------------------------------------");
         sb.AppendLine($"document                  {facts.DocWidth} x {facts.DocHeight}");
