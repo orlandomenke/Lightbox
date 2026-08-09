@@ -484,6 +484,13 @@ public sealed partial class MainViewModel : ObservableObject
         _editor = new DocumentEditor(StartupDoc());
         _activeLayerIndex = FirstPaintableLayer(_editor.Doc);
         _editor.Changed += OnDocumentChanged;
+        // B147: the canvas holds its own copy of the selected outlines, and only
+        // OnStrokeSelectionChanged refreshes it. Every path that reaches the
+        // manager directly — picking a guide, a symbol or a reference box, all of
+        // which call ClearAllSelections — used to leave that copy behind, still
+        // drawn. Subscribing here makes the manager the single source: whatever
+        // changes the selection, the outlines follow.
+        _selectionManager.SelectionChanged += OnStrokeSelectionChanged;
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
         _snapTolerance = Settings.SnapTolerance;
@@ -3672,6 +3679,14 @@ public sealed partial class MainViewModel : ObservableObject
         NotifyBrushProperties();
         OnPropertyChanged(nameof(LazyRadiusForCursor));
         CancelPolygonInProgress();
+
+        // B147: leaving the arrow lets the lines go. A stroke selection is only
+        // reachable from the arrow — nothing else moves, recolours or deletes it
+        // — so a highlight that outlives the tool is drawn state pointing at a
+        // capability the artist no longer has. Every other modal thing here
+        // behaves the same way (the polygon above it, the transform session),
+        // which is why this is one line rather than a mode.
+        if (value != ToolId.Arrow) ClearStrokeSelection();
     }
 
     [RelayCommand]

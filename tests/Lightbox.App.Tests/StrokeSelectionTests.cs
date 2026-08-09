@@ -467,6 +467,106 @@ public class StrokeSelectionTests
         Assert.NotNull(entry.Default);
     }
 
+    // ---- the highlight the canvas draws (B147) -------------------------------
+
+    /// <summary>
+    /// The canvas keeps its own copy of the outlines, so what matters is not
+    /// whether the selection emptied but whether it was <em>told</em>.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the shape of B147 and the reason it survived the existing
+    /// tests.</b> Every assertion above reads <c>SelectedStrokeIds</c>, which
+    /// was always correct — the set really did empty. What did not happen was
+    /// the notification, so <c>CanvasControl._selectedLines</c> kept the
+    /// outlines and kept drawing them. A test that asserts on the model's state
+    /// cannot see a bug that lives in whether the view heard about it, so these
+    /// capture the event instead.
+    /// </remarks>
+    private static List<int?> OutlineCountsFrom(MainViewModel vm)
+    {
+        var seen = new List<int?>();
+        vm.SelectedLinesChanged += lines => seen.Add(lines?.Count);
+        return seen;
+    }
+
+    [AvaloniaFact]
+    public void ClickingEmptyCanvasTellsTheCanvasToDropTheHighlight()
+    {
+        var vm = WithStrokes(Line(200, 300, 400, 300));
+        Assert.True(vm.PickStrokeAt(300, 300, tolerance: 2));
+
+        var seen = OutlineCountsFrom(vm);
+        vm.PickStrokeAt(50, 50, tolerance: 2);
+
+        Assert.Contains(null, seen);
+        Assert.Empty(vm.Selection.SelectedStrokeIds);
+    }
+
+    /// <summary>
+    /// Leaving the arrow lets the lines go. A stroke selection is reachable from
+    /// no other tool, so a highlight that outlives the arrow is drawn state
+    /// pointing at a capability the artist no longer has.
+    /// </summary>
+    [AvaloniaFact]
+    public void SwitchingAwayFromTheArrowDropsTheHighlight()
+    {
+        var vm = WithStrokes(Line(200, 300, 400, 300));
+        vm.ActiveTool = ToolId.Arrow;
+        Assert.True(vm.PickStrokeAt(300, 300, tolerance: 2));
+
+        var seen = OutlineCountsFrom(vm);
+        vm.ActiveTool = ToolId.Brush;
+
+        Assert.Contains(null, seen);
+        Assert.Empty(vm.Selection.SelectedStrokeIds);
+        Assert.Equal("", vm.StrokeSelectionSummary);
+    }
+
+    /// <summary>
+    /// Selecting something that is not a line clears the lines, and the canvas
+    /// hears about that too.
+    /// </summary>
+    /// <remarks>
+    /// This is the path that actually broke. <c>SelectionManager.SelectGuide</c>
+    /// — and every sibling of it, for placements, reference boxes, anchors and
+    /// collision shapes — calls <c>ClearAllSelections</c> and then raises only
+    /// its own event, which the window had wired to <c>InvalidateVisual</c>. So
+    /// the canvas faithfully repainted a highlight nothing had refreshed. The
+    /// fix routes the manager's event to the same place the view model's own
+    /// calls went, which is why picking chrome is what this test picks.
+    /// </remarks>
+    [AvaloniaFact]
+    public void SelectingSomethingElseAlsoDropsTheHighlight()
+    {
+        var vm = WithStrokes(Line(200, 300, 400, 300));
+        Assert.True(vm.PickStrokeAt(300, 300, tolerance: 2));
+
+        var seen = OutlineCountsFrom(vm);
+        // Straight at the manager, which is what the canvas's chrome hit-tests
+        // do — they never go through the view model at all.
+        vm.Selection.SelectGuide(0);
+
+        Assert.Contains(null, seen);
+        Assert.Empty(vm.Selection.SelectedStrokeIds);
+    }
+
+    /// <summary>
+    /// One change, one notification. The view model used to raise its own
+    /// alongside the manager's, and the fix must not leave both in place: a
+    /// selection change that repaints the canvas twice is the shape invariant 6
+    /// exists to catch, and it hides in code that looks correct.
+    /// </summary>
+    [AvaloniaFact]
+    public void PickingALineNotifiesExactlyOnce()
+    {
+        var vm = WithStrokes(Line(200, 300, 400, 300));
+        var seen = OutlineCountsFrom(vm);
+
+        Assert.True(vm.PickStrokeAt(300, 300, tolerance: 2));
+
+        Assert.Equal([1], seen);
+    }
+
     private static List<Stroke> StrokesOfCurrentFrame(MainViewModel vm) =>
         vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame?.Strokes ?? [];
 }
