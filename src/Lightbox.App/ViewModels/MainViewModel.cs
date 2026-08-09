@@ -4799,10 +4799,17 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>What the frame cache is currently evicting by. Test seam.</summary>
     internal FrameBitmapCache.EvictionOrder FrameCacheEviction => _cache.Eviction;
 
-    partial void OnIsPlayingChanged(bool value) =>
+    partial void OnIsPlayingChanged(bool value)
+    {
         _cache.Eviction = value
             ? FrameBitmapCache.EvictionOrder.MostRecent
             : FrameBitmapCache.EvictionOrder.LeastRecent;
+
+        // B152: the layer thumbnails were skipped for the whole run, so they are
+        // showing whatever frame playback started on. Catching up once on the
+        // stop costs one sweep; catching up per tick cost the frame rate.
+        if (!value) RefreshLayerThumbs();
+    }
 
     [ObservableProperty]
     private int _activeLayerIndex;
@@ -5238,7 +5245,15 @@ public sealed partial class MainViewModel : ObservableObject
         // arrow having stopped working.
         PruneStrokeSelection();
         RefreshCellHighlights();
-        RefreshLayerThumbs();
+
+        // B152: NOT while playing. The exposed frame changes on every tick, so
+        // the id check below always misses and every tick rasterized a full
+        // 1920x1080 frame per layer — from the stroke record, because the
+        // compositor is reading TILES during playback and never fills this
+        // cache — to make a 44x26 picture nobody is looking at. Measured at
+        // 159 ms of mean tick lateness on a 16-core machine. OnIsPlayingChanged
+        // catches them up when playback stops.
+        if (!IsPlaying) RefreshLayerThumbs();
         RefreshCamera();
         // Whether THIS frame is pinned changes with the playhead, and the pin
         // button has to say which way it will go.
@@ -9445,6 +9460,18 @@ public sealed partial class MainViewModel : ObservableObject
     /// Also called on playhead moves, where only rows whose exposed frame
     /// actually changed re-render.
     /// </summary>
+    /// <summary>
+    /// How many layer thumbnails have actually been rasterized, for the budget
+    /// test (B152).
+    /// </summary>
+    /// <remarks>
+    /// A count rather than a stopwatch, for B151's reason: the property is not
+    /// "this got faster" but "this does not happen per tick", which is exact and
+    /// cannot go flaky. Each one is a full-resolution frame render behind it, so
+    /// the count is a fair proxy for the cost as well as for the rule.
+    /// </remarks>
+    internal int LayerThumbRenders { get; private set; }
+
     private void RefreshLayerThumbs()
     {
         foreach (var row in LayerRows)
@@ -9464,6 +9491,7 @@ public sealed partial class MainViewModel : ObservableObject
             var bmp = ThumbSource(frame, CurrentFrameIndex);
             row.Thumb = ThumbnailRenderer.RenderChecker(bmp, 44, 26);
             row.ThumbFrameId = frame.Id;
+            LayerThumbRenders++;
         }
     }
 
