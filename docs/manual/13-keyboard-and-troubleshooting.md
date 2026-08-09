@@ -175,6 +175,37 @@ between the two is itself the finding — it means the playhead is competing wit
 your pointer rather than with the drawing, which is a different fix from anything
 in the sections above.
 
+### And the one after that: did the frames reach the screen
+
+There are two ways playback can be uneven and they need different fixes, so
+there are two sections. The one above asks whether the *request* for a frame
+arrived on time. This asks whether the frame then got drawn.
+
+**Mean wait to be drawn** is the number. Under about 17 ms — one frame of a
+60 Hz screen — the picture is going up as fast as anything can put it there.
+Much above that, frames are being made and then sitting, which is a different
+fault from a late clock and reads exactly the same from your chair.
+
+The two sections together settle it:
+
+| Clock | Frames | What it means |
+| --- | --- | --- |
+| on time | prompt | The front end is fine. If playback still looks uneven, the cost is in *making* the frames — the two sections above this one. |
+| late | prompt | The playhead is being held up before it asks for anything. |
+| on time | waiting | The frames are made and not shown. Capture it again while moving the pointer: if the wait collapses, the screen is only being refreshed when you move the mouse. |
+
+There is also a line naming the **clock priority** the run used. It normally
+reads `Render` and you can ignore it; it exists so that a report captured with
+the diagnostic override below can never be mistaken for an ordinary one.
+
+### Trying the fix off and on
+
+If you are chasing this with us, `LIGHTBOX_CLOCK_PRIORITY=Background` starts
+Lightbox with the old, slower playhead scheduling deliberately put back. Running
+the same build twice — once normally, once with that set — is worth far more
+than comparing two different builds, because it changes exactly one thing.
+Anything unrecognised, including a typo, is simply the normal setting.
+
 It names which parts of the drawing are done by your graphics card and which by
 the processor — and those are not the same question. The status strip says
 **GPU** when your card is putting finished frames on screen, which it usually is;
