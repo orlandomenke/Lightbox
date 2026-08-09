@@ -1370,6 +1370,27 @@
                   <TextBlock Text="Arrow" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
+              <!-- The white arrow. A hollow glyph beside the black one's solid
+                   glyph, which is the pairing every vector application uses and
+                   the only way the two read as a pair rather than as two
+                   unrelated pointers. Phase 2 shipped the tool with a key and no
+                   button, so it was findable only by knowing it existed. -->
+              <ToggleButton Classes="tool" IsChecked="{Binding IsDirectSelectTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.DirectSelect}"
+                            ToolTip.Tip="Direct select (N) — reshape one line by its points. Double-click a line with the arrow to go inside it, drag its points and handles, Esc to finish.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="➢" FontSize="15" />
+                  <TextBlock Text="Points" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsPenTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Pen}"
+                            ToolTip.Tip="Pen (P) — click to place a corner, click and drag to curve it. Shift constrains to 45°, Alt breaks a handle pair, clicking the first point closes the line. Enter finishes, Backspace takes a point back.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Path Data="{StaticResource IconPen}" />
+                  <TextBlock Text="Pen" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
               <ToggleButton x:Name="SelectToolButton" Classes="tool" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Select}"
                             ToolTip.Tip="Select (S — press again to switch variant; hold for the list)">

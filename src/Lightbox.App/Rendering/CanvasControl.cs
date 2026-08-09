@@ -983,6 +983,17 @@ public sealed class CanvasControl : Control
         /// state, which is the ambiguity the vector design exists to avoid.
         /// </remarks>
         PathEdit,
+
+        /// <summary>
+        /// The pen: every press places a node rather than starting a mark.
+        /// </summary>
+        /// <remarks>
+        /// A press and a drag mean one gesture here — place a node, then curve
+        /// it — so the paint path's begin/move/end cannot be reused with a flag.
+        /// The tool that looks most like the brush is the one that shares least
+        /// with it.
+        /// </remarks>
+        Pen,
     }
 
     public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
@@ -1182,6 +1193,51 @@ public sealed class CanvasControl : Control
 
     private ViewModels.PathHit _pathGrab = ViewModels.PathHit.Miss;
     private (double X, double Y)? _pathDragLast;
+
+    /// <summary>Press: place a node, or close the path. Returns whether it took.</summary>
+    private Func<double, double, double, bool, bool, bool>? _penPress;
+
+    /// <summary>Drag after that press: curve the node just placed.</summary>
+    private Action<double, double, bool, bool>? _penDrag;
+
+    /// <summary>Release: the node keeps its curve.</summary>
+    private Action? _penRelease;
+
+    /// <summary>Move with no button down: the segment not placed yet.</summary>
+    private Action<double, double, bool>? _penHover;
+
+    public void SetPenHandlers(
+        Func<double, double, double, bool, bool, bool>? press,
+        Action<double, double, bool, bool>? drag,
+        Action? release,
+        Action<double, double, bool>? hover)
+    {
+        _penPress = press;
+        _penDrag = drag;
+        _penRelease = release;
+        _penHover = hover;
+    }
+
+    private bool _penShaping;
+
+    /// <summary>
+    /// The path being drawn, in document space, as a polyline.
+    /// </summary>
+    /// <remarks>
+    /// <b>Chrome, not paint.</b> The shape tool stamps its preview with the real
+    /// brush, which is right for one drag; a pen session lasts as long as it
+    /// takes to place a dozen nodes, and re-stamping the whole path into the
+    /// full-canvas scratch on every pointer move is what invariant 6 forbids.
+    /// A traced line costs a path per redraw and says everything the artist
+    /// needs while placing — the brush arrives at the commit.
+    /// </remarks>
+    private IReadOnlyList<Core.Documents.StrokePoint>? _penPreview;
+
+    public void SetPenPreview(IReadOnlyList<Core.Documents.StrokePoint>? points)
+    {
+        _penPreview = points is { Count: > 1 } ? points : null;
+        InvalidateVisual();
+    }
 
     /// <summary>
     /// The nodes to draw, in document space, and which are selected.
@@ -1871,7 +1927,7 @@ public sealed class CanvasControl : Control
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
-            _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes));
+            _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview));
     }
 
     /// <summary>
@@ -2482,6 +2538,16 @@ public sealed class CanvasControl : Control
                     }
                     e.Handled = true;
                     return;
+                case CanvasToolMode.Pen:
+                    // Captured whether or not the press took, so a press over a
+                    // locked layer cannot leave the pointer half-grabbed.
+                    e.Pointer.Capture(this);
+                    _penShaping = _penPress?.Invoke(
+                        x, y, DocTolerance(GrabPixels),
+                        e.KeyModifiers.HasFlag(KeyModifiers.Shift),
+                        e.KeyModifiers.HasFlag(KeyModifiers.Alt)) ?? false;
+                    e.Handled = true;
+                    return;
                 case CanvasToolMode.PathEdit:
                     e.Pointer.Capture(this);
                     _pathGrab = _grabPathPart?.Invoke(
@@ -2862,6 +2928,26 @@ public sealed class CanvasControl : Control
                 return;
             }
 
+            // drawing a path?
+            if (ToolMode == CanvasToolMode.Pen)
+            {
+                var (px, py) = ViewToDoc(e.GetPosition(this));
+                var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                if (_penShaping)
+                {
+                    _penDrag?.Invoke(px, py, shift, e.KeyModifiers.HasFlag(KeyModifiers.Alt));
+                }
+                else
+                {
+                    // The rubber band, which is the whole reason a pen is
+                    // predictable: you see the curve the next click will make
+                    // before you commit to it.
+                    _penHover?.Invoke(px, py, shift);
+                }
+                e.Handled = true;
+                return;
+            }
+
             // reshaping a node or a handle?
             if (_pathGrab.IsHit && _pathDragLast is { } pathFrom)
             {
@@ -3091,6 +3177,17 @@ public sealed class CanvasControl : Control
                 sx, sy,
                 e.KeyModifiers.HasFlag(KeyModifiers.Alt),
                 e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+            e.Handled = true;
+            return;
+        }
+        if (ToolMode == CanvasToolMode.Pen)
+        {
+            // Unconditional, not guarded on whether the press took: a press that
+            // was refused still captured the pointer, and a capture nothing
+            // releases is a canvas that has stopped responding.
+            _penShaping = false;
+            e.Pointer.Capture(null);
+            _penRelease?.Invoke();
             e.Handled = true;
             return;
         }
@@ -3470,7 +3567,8 @@ public sealed class CanvasControl : Control
         IReadOnlyList<SelectedLine>? selectedLines = null,
         SKRect? lineMarquee = null,
         SKPoint lineDrag = default,
-        IReadOnlyList<PathNodeGlyph>? pathNodes = null) : ICustomDrawOperation
+        IReadOnlyList<PathNodeGlyph>? pathNodes = null,
+        IReadOnlyList<Core.Documents.StrokePoint>? penPreview = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -3888,10 +3986,55 @@ public sealed class CanvasControl : Control
             }
         }
 
+        /// <summary>
+        /// The path the pen has drawn so far, traced rather than painted.
+        /// </summary>
+        /// <remarks>
+        /// <b>Deliberately not the brush.</b> Seeing the real mark would mean
+        /// stamping the whole path into the scratch surface on every pointer
+        /// move, for as long as the artist takes to place their nodes — the cost
+        /// invariant 6 exists to refuse. What a pen actually needs shown is the
+        /// <em>shape</em>, and the shape is what a traced line is.
+        /// </remarks>
+        private void DrawPenPreview(SKCanvas canvas)
+        {
+            if (penPreview is not { Count: > 1 } points) return;
+
+            var scale = Math.Max(0.01f, view.Scale);
+            using var path = new SKPath();
+            path.MoveTo((float)points[0].X, (float)points[0].Y);
+            for (var i = 1; i < points.Count; i++)
+            {
+                path.LineTo((float)points[i].X, (float)points[i].Y);
+            }
+
+            // Two passes: a pale wide one so the line reads over dark artwork,
+            // and the blue the nodes are drawn in over it. The same trick the
+            // marching ants use, for the same reason — an overlay that vanishes
+            // against half the drawings is an overlay you cannot trust.
+            using var halo = new SKPaint
+            {
+                Color = SKColors.White.WithAlpha(160),
+                StrokeWidth = 3f / scale,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+            };
+            using var line = new SKPaint
+            {
+                Color = SKColors.DeepSkyBlue,
+                StrokeWidth = 1.25f / scale,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+            };
+            canvas.DrawPath(path, halo);
+            canvas.DrawPath(path, line);
+        }
+
         private void DrawObjectSelections(SKCanvas canvas)
         {
             DrawSelectedLines(canvas);
             DrawLineMarquee(canvas);
+            DrawPenPreview(canvas);
             DrawPathNodes(canvas);
             if (selectionManager is null || !selectionManager.HasSelection) return;
 

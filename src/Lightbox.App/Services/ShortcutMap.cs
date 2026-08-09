@@ -71,6 +71,10 @@ public sealed class ShortcutMap
             // N for node is free and mnemonic; the letters matter less than the
             // binding being findable and reboundable, which is what this map is.
             new("tool.directselect", "Direct select (reshape a line's points)", "Tools", G(Key.N)),
+            // P, which is the one letter in the vector set that does match every
+            // other application — nothing here had claimed it, so there was no
+            // reason to spend an artist's muscle memory.
+            new("tool.pen", "Pen (draw a line by its points)", "Tools", G(Key.P)),
             // What the arrow can then do. Registered rather than wired straight
             // to the key handler, because a command that is not in here cannot be
             // found, searched or rebound — which is the failure this whole map
