@@ -1,7 +1,8 @@
 # Vector tooling: making the lines you already drew editable
 
 Status: **agreed design; phase 0 landed except rotate and scale, phases 1 and 2
-landed 2026-08-08, phases 3–4 not started.** Decisions Q47–Q53, answered 2026-08-07.
+landed 2026-08-08, phase 3 landed 2026-08-09, phase 4 not started.** Decisions
+Q47–Q53, answered 2026-08-07.
 Unblocked by Q26, which has been answered since the same day and which two other
 documents still describe as open — see *Corrections* at the end.
 
@@ -201,6 +202,32 @@ like a tolerance bug.
 exist and are **orphaned** — `SyncCanvasToolMode` never assigns that mode, so
 none of it is reachable. Phase 0 revives it rather than writing a parallel one.
 
+## What phase 3 learned
+
+The pen is the first tool here that **creates** a path, which breaks this
+document's own title — the rest of it is about lines you already drew. Two
+things fell out of that, neither predicted:
+
+- **A live preview a pen can afford is not the preview a shape tool uses.** The
+  shape tool stamps the real brush into the scratch surface on every pointer
+  move, which is right for a gesture that lasts one drag and is exactly wrong for
+  one that lasts a dozen clicks: a full-canvas clear and re-stamp per move, for
+  as long as the artist is thinking. So the pen traces the flattened path as
+  chrome and stamps the brush once, at the commit. **The general form is worth
+  keeping: the cost of a preview is set by how long the gesture lives, not by how
+  much work one frame of it is.**
+- **Escape had to mean the opposite of what the neighbouring tool does.** The
+  polygon selection cancels on Escape, and copying that would have thrown away a
+  minute of placed nodes on the key everybody presses to mean "I'm done". The
+  line is whether the thing in progress is *artwork*: a selection is not, a path
+  of twelve nodes is. Both Enter and Escape finish and keep, and losing it is
+  `Ctrl+Z` — which works because the whole path is one undo step.
+
+A third thing was found rather than learned, and it belongs to phase 2: the node
+overlay is drawn whatever the tool is, so leaving isolation for the brush left
+glyphs on screen over a line nothing could reshape any more. B147's exact shape,
+one tool along. Both arrows keep the session now and everything else ends it.
+
 ## Phases
 
 One branch, one objective.
@@ -212,7 +239,7 @@ One branch, one objective.
 | **—** | `fix/project/B132-one-frame-class` | Not a phase. `PaintedFrame` + `VectorFrame` → one `Frame` with a nullable baseline and nullable placements; the Raster/Vector picker and the R/V badge removed. **A record and format change**: closes B132, completes Q52's UI half, and drops `kind` and empty `pngBase64` from the file |
 | **1** | *landed* | `StrokePath`, `PathNode`, `Stroke.Path`, `PathFlattener`, `CurveFitter` (Schneider), the agreement invariant obeyed at all three callers that map points. **No UI**, as specified. A 121-point arc fits to 4 nodes and flattens back within 1.2 px |
 | **2** | *landed* | `PathEditSession`, isolation, the white arrow, the node overlay — plus `PressureProfile`, which the design did not predict and the roadmap item's own wording requires. The white arrow is `N`, not `A`: `A` is this application's black arrow and has been documented as such |
-| **3** | `feat/canvas/pen-tool` | The pen and its four modifiers |
+| **3** | *landed* | The pen and its four modifiers, plus its icon and `P`. `PenSession` authors a `StrokePath` and the view model writes one ordinary stroke from it — the preview is a traced overlay rather than a stamped one, because a pen session outlasts a drag |
 | **4** | `feat/canvas/line-correction` | Pinch, width, simplify, cut, join |
 
 **Named so scope cannot drift into them:** cross-frame reshaping (needs the

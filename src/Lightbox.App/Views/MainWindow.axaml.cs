@@ -48,6 +48,15 @@ public partial class MainWindow : Window
         // the overlay draws must be the nodes the hit test will find. B147 is the
         // cost of a canvas keeping a copy that something forgets to refresh.
         _vm.PathEditChanged += PublishPathNodes;
+        // The pen (vector phase 3). Same division as above: the canvas turns
+        // pointer events into document coordinates and modifier flags, and every
+        // decision about what those mean lives in the view model.
+        Canvas.SetPenHandlers(
+            _vm.PenPress,
+            _vm.PenDrag,
+            _vm.PenRelease,
+            _vm.PenHover);
+        _vm.PenChanged += PublishPenPath;
         TimelineTrackView.KeyDragged += OnTrackKeyDragged;
         // The clip bars (Q57): body slides, edges trim; the view model owns
         // what that does to the record.
@@ -833,6 +842,44 @@ public partial class MainWindow : Window
             var n = session.Path.Nodes[i];
             glyphs.Add(new Rendering.CanvasControl.PathNodeGlyph(
                 n.X, n.Y, n.InX, n.InY, n.OutX, n.OutY, n.Corner, session.IsNodeSelected(i)));
+        }
+        Canvas.SetPathNodes(glyphs);
+    }
+
+    /// <summary>
+    /// Hand the pen's path to the canvas: the traced shape and its nodes.
+    /// </summary>
+    /// <remarks>
+    /// <b>Through the same node channel as isolation</b>, because they are the
+    /// same overlay and only one can be live at a time — the pen finishes its
+    /// path when the tool changes, and isolation ends the same way. Two
+    /// independent node lists would mean deciding which wins, which is a
+    /// question with no answer that would show up on screen as both.
+    /// <para>
+    /// The node the pointer is shaping carries the handles, so it is the one
+    /// marked selected — that is exactly the rule <c>DrawPathNodes</c> uses, and
+    /// making it the <em>last</em> node rather than the shaped one would draw
+    /// handles for a node nobody is holding.
+    /// </para>
+    /// </remarks>
+    private void PublishPenPath()
+    {
+        if (_vm.Pen is not { NodeCount: > 0 } session)
+        {
+            Canvas.SetPenPreview(null);
+            if (!_vm.PathEditActive) Canvas.SetPathNodes(null);
+            return;
+        }
+
+        Canvas.SetPenPreview(session.Preview());
+
+        var live = session.Shaping >= 0 ? session.Shaping : session.NodeCount - 1;
+        var glyphs = new List<Rendering.CanvasControl.PathNodeGlyph>(session.NodeCount);
+        for (var i = 0; i < session.Path.Nodes.Count; i++)
+        {
+            var n = session.Path.Nodes[i];
+            glyphs.Add(new Rendering.CanvasControl.PathNodeGlyph(
+                n.X, n.Y, n.InX, n.InY, n.OutX, n.OutY, n.Corner, i == live));
         }
         Canvas.SetPathNodes(glyphs);
     }
@@ -2248,6 +2295,7 @@ public partial class MainWindow : Window
             // black arrow is what that code was always for.
             ToolId.Arrow => Rendering.CanvasControl.CanvasToolMode.Select,
             ToolId.DirectSelect => Rendering.CanvasControl.CanvasToolMode.PathEdit,
+            ToolId.Pen => Rendering.CanvasControl.CanvasToolMode.Pen,
             ToolId.Select => _vm.ActiveSelectVariant switch
             {
                 SelectVariant.Polygon => Rendering.CanvasControl.CanvasToolMode.SelectPolygon,
@@ -2995,6 +3043,28 @@ public partial class MainWindow : Window
             return;
         }
 
+        // A pen path in progress owns the same two keys, and Backspace as well.
+        // Above the shortcut switch for isolation's reason and one more: Delete
+        // is `lines.delete` down there, and a pen halfway through a path is the
+        // one moment where that key plainly means "take the last point off".
+        if (_vm.PenActive)
+        {
+            if (e.Key is Key.Escape or Key.Enter)
+            {
+                // Both mean "done", and neither discards — see FinishPen. What
+                // was drawn is one undo step, so Ctrl+Z is the way to lose it.
+                _vm.FinishPen();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key is Key.Back or Key.Delete)
+            {
+                _vm.RemoveLastPenNode();
+                e.Handled = true;
+                return;
+            }
+        }
+
         switch (_shortcuts.IdFor(e, CurrentShortcutContext()))
         {
             case "file.save":
@@ -3148,6 +3218,9 @@ public partial class MainWindow : Window
                 break;
             case "tool.directselect":
                 _vm.SelectToolCommand.Execute(ToolId.DirectSelect);
+                break;
+            case "tool.pen":
+                _vm.SelectToolCommand.Execute(ToolId.Pen);
                 break;
             case "lines.delete":
                 _vm.DeleteSelectedLinesCommand.Execute(null);

@@ -34,6 +34,14 @@
   <StreamGeometry x:Key="IconPicker">M0,0 M24,24 M19.9,4.1 C21,5.2 21,6.9 19.9,8 L17.6,10.3 L13.7,6.4 L16,4.1 C17.1,3 18.8,3 19.9,4.1 Z M12.6,7.5 L16.5,11.4 L8.3,19.6 C7.5,20.4 6.3,20.8 5.2,20.6 L3.8,21.4 L2.6,20.2 L3.4,18.8 C3.2,17.7 3.6,16.5 4.4,15.7 Z</StreamGeometry>
   <StreamGeometry x:Key="IconGradient">M0,0 M24,24 M4.5,5 H19.5 V19 H4.5 Z M19.5,5 L4.5,19</StreamGeometry>
   <StreamGeometry x:Key="IconMove">M0,0 M24,24 M12,2.8 V21.2 M2.8,12 H21.2 M12,2.8 L9.6,5.2 M12,2.8 L14.4,5.2 M12,21.2 L9.6,18.8 M12,21.2 L14.4,18.8 M2.8,12 L5.2,9.6 M2.8,12 L5.2,14.4 M21.2,12 L18.8,9.6 M21.2,12 L18.8,14.4</StreamGeometry>
+  <!--
+    The pen: a nib on the same diagonal the other tools point along, with the
+    slit and the ink hole that make it read as a nib rather than as an arrow at
+    16px. Drawn along an axis from the back edge to the tip so the two long
+    sides converge symmetrically — a hand-placed quadrilateral looks bent at
+    this size and there is no way to un-see it once noticed.
+  -->
+  <StreamGeometry x:Key="IconPen">M0,0 M24,24 M17.8,2.8 L21.2,6.2 L11.4,14.8 L6.1,17.9 L9.3,12.6 Z M6.1,17.9 L10.3,13.7 M14.5,8.4 a1.1,1.1 0 1 0 0.01,0</StreamGeometry>
 
   <!-- Everyday verbs. -->
   <StreamGeometry x:Key="IconClose">M0,0 M24,24 M6.5,6.5 L17.5,17.5 M17.5,6.5 L6.5,17.5</StreamGeometry>
