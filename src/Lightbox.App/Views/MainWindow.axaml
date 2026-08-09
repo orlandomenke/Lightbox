@@ -1264,9 +1264,16 @@
 
       <Grid x:Name="WorkArea" Grid.Row="2">
         <Grid.ColumnDefinitions>
-          <!-- 88: two centred 34px tool columns fit with the border and
-               margins paid (Q56). 76 held exactly one. -->
-          <ColumnDefinition Width="88" MinWidth="40" MaxWidth="220" />
+          <!-- Auto, not a number. It was 88 — chosen so two centred 34px
+               columns fit with the border and margins paid — and then Q56 made
+               the column COUNT follow the window height, so on any ordinarily
+               tall window the rail laid out one 34px column inside 88px and
+               showed 27px of dead space down each side. A width that has to be
+               guessed for a layout that is decided at runtime is a width that
+               will be wrong; the content is measurable, so measure it.
+               A drag replaces this with pixels and ReflowToolRail then keeps
+               its hands off — see there. -->
+          <ColumnDefinition Width="Auto" MinWidth="40" MaxWidth="220" />
           <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="Auto" />
@@ -1431,7 +1438,11 @@
           </ScrollViewer>
         </Border>
 
-        <GridSplitter Grid.Column="1" Width="5" ResizeDirection="Columns" />
+        <!-- RailSplitter, not GridSplitter: the column to its right is the left
+             dock strip, which is 0px with nothing docked there, so a stock
+             splitter had nothing to take width from and the rail could only
+             ever shrink. See RailSplitter. -->
+        <controls:RailSplitter Grid.Column="1" Width="5" ResizeDirection="Columns" />
 
         <!-- No ScrollViewer: a sidebar never scrolls. Its dockers share the
              height proportionally and their content scrolls inside them. -->
