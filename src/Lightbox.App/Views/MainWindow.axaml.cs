@@ -157,9 +157,25 @@ public partial class MainWindow : Window
         // shortcut scope and silently lose its bindings.
         AddHandler(
             PointerMovedEvent,
-            (_, e) => _hoveredElement = e.Source as Visual,
+            (_, e) =>
+            {
+                _hoveredElement = e.Source as Visual;
+                // Everything that is NOT the canvas. The canvas counts itself in
+                // its own handler, because the question the two counters answer
+                // is whether a frame reaching the screen depends on the canvas's
+                // own invalidate — and the reported symptom is that moving over
+                // a docker does not help. See InputPulse.
+                if (!IsInsideCanvas(_hoveredElement)) Rendering.InputPulse.Elsewhere();
+            },
             Avalonia.Interactivity.RoutingStrategies.Tunnel);
         PointerExited += (_, _) => _hoveredElement = null;
+
+        bool IsInsideCanvas(Visual? from)
+        {
+            for (var v = from; v is not null; v = v.GetVisualParent())
+                if (ReferenceEquals(v, Canvas)) return true;
+            return false;
+        }
         Canvas.PickClicked += _vm.PickColorAt;
         Canvas.GradientDragStarted += _vm.BeginGradient;
         Canvas.GradientDragMoved += _vm.MoveGradient;

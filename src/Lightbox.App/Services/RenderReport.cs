@@ -264,6 +264,100 @@ internal static class RenderReport
     /// the dispatcher happens to wake — which is what "smooth while I move the
     /// mouse, stuttery when I stop" looks like from inside the application.
     /// </remarks>
+    /// <summary>
+    /// The wait to be drawn, split by what arrived while the frame was waiting.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the section that answers the report the last three fixes could
+    /// not.</b> Playback is smooth while the pointer moves over the canvas,
+    /// stuttery when it is still, and — the fact that kills every theory built
+    /// so far — no better when the pointer moves over a docker instead.
+    /// </para>
+    /// <para>
+    /// "Something wakes the dispatcher" predicts the docker helps. It does not.
+    /// The one thing the canvas does that a docker cannot is invalidate the
+    /// canvas, from its own pointer handler. So these three rows are the
+    /// experiment: if <c>quiet</c> is slow and <c>on the canvas</c> is fast
+    /// while <c>elsewhere</c> stays slow, the frame is waiting for an invalidate
+    /// it should never have needed, and that is the bug — stated as a
+    /// measurement rather than as a theory about dispatcher priorities.
+    /// </para>
+    /// </remarks>
+    private static void AppendPresentWaitByInput(StringBuilder sb, Rendering.PresentLatency.Stats stats)
+    {
+        if (stats.ByCohort is not { Count: 3 } cohorts) return;
+
+        sb.AppendLine();
+        sb.AppendLine("  the same wait, split by what arrived while the frame waited:");
+        foreach (var c in cohorts)
+        {
+            var label = c.Which switch
+            {
+                Rendering.PresentLatency.Cohort.Quiet => "nothing (pointer still)",
+                Rendering.PresentLatency.Cohort.InputElsewhere => "input, not on canvas",
+                _ => "input ON THE CANVAS",
+            };
+            sb.AppendLine(c.Count == 0
+                ? $"    {label,-24} none"
+                : $"    {label,-24} {c.Count,4} frames   mean {c.MeanMs,7:0.##} ms   worst {c.WorstMs,7:0.##} ms");
+        }
+
+        var quiet = cohorts[(int)Rendering.PresentLatency.Cohort.Quiet];
+        var elsewhere = cohorts[(int)Rendering.PresentLatency.Cohort.InputElsewhere];
+        var canvas = cohorts[(int)Rendering.PresentLatency.Cohort.InputOnCanvas];
+
+        sb.AppendLine();
+        if (quiet.Count == 0 && canvas.Count > 0)
+        {
+            sb.AppendLine("  >> Every frame was drawn with the pointer moving over the canvas, so");
+            sb.AppendLine("     this says nothing yet. Play the scene again with the pointer STILL");
+            sb.AppendLine("     and off the canvas, then write the report — that is the case the");
+            sb.AppendLine("     rows above exist to price.");
+            return;
+        }
+        if (quiet.Count == 0)
+        {
+            sb.AppendLine("  >> No frame was drawn with input quiet, so there is nothing to compare.");
+            return;
+        }
+        if (canvas.Count == 0)
+        {
+            sb.AppendLine("  >> No frame was drawn while the pointer moved over the canvas, so the");
+            sb.AppendLine("     comparison this section exists for is not in this capture. Play once");
+            sb.AppendLine("     with the pointer moving over the canvas and write the report again.");
+            return;
+        }
+
+        // A frame of a 60 Hz screen, the same threshold the section above uses.
+        var canvasHelps = quiet.MeanMs > canvas.MeanMs * 2 && quiet.MeanMs > 17;
+        var elsewhereHelps = elsewhere.Count > 0 && quiet.MeanMs > elsewhere.MeanMs * 2;
+
+        if (canvasHelps && !elsewhereHelps)
+        {
+            sb.AppendLine("  >> CONFIRMED, and this is the fault: frames wait until the CANVAS is");
+            sb.AppendLine("     invalidated, and only its own pointer handler does that. Input");
+            sb.AppendLine("     elsewhere does not help, so this is not the dispatcher being asleep");
+            sb.AppendLine("     — the publish's own invalidate is not producing a render, and the");
+            sb.AppendLine("     pointer handler's identical call is. Fix the publish path; do not");
+            sb.AppendLine("     add another way to poke the compositor.");
+        }
+        else if (canvasHelps && elsewhereHelps)
+        {
+            sb.AppendLine("  >> Any input helps, not just the canvas — so the loop is genuinely idle");
+            sb.AppendLine("     between frames and the wake is the problem rather than the invalidate.");
+            sb.AppendLine("     That is the opposite conclusion from the row above it, and it points");
+            sb.AppendLine("     at the clock's dispatcher priority rather than at the canvas.");
+        }
+        else
+        {
+            sb.AppendLine("  >> Input makes no difference to how long a frame waits, so whatever is");
+            sb.AppendLine("     uneven about playback is NOT the frame reaching the screen. Read the");
+            sb.AppendLine("     tick breakdown below: a phase that costs most of the frame period");
+            sb.AppendLine("     makes playback uneven with every number in this section healthy.");
+        }
+    }
+
     private static void AppendPresentWait(StringBuilder sb, Facts facts)
     {
         var wait = facts.PresentWait;
@@ -279,6 +373,8 @@ internal static class RenderReport
         sb.AppendLine($"  mean wait to be drawn    {stats.MeanMs:0.##} ms");
         sb.AppendLine($"  worst wait               {stats.WorstMs:0.##} ms");
         sb.AppendLine($"replaced before drawing    {stats.Superseded}");
+
+        AppendPresentWaitByInput(sb, stats);
 
         sb.AppendLine();
         sb.AppendLine(

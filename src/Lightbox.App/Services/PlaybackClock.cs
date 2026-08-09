@@ -93,13 +93,32 @@ public sealed class PlaybackClock
     /// of the frame that is already due.
     /// </para>
     /// <para>
-    /// <b><see cref="DispatcherPriority.Render"/> is the accurate description
-    /// rather than merely a higher number.</b> This tick decides which frame gets
-    /// drawn and its handler publishes into the render path synchronously, so it
-    /// belongs with the render cycle. It does sit above input, which is a real
-    /// trade and an acceptable one: at 12–24 ticks a second the transport button
-    /// loses nothing anybody can feel, and playback losing to a stream of pointer
-    /// events is the symptom this exists to remove.
+    /// <b>B150 then overshot, and <see cref="DispatcherPriority.Render"/> is the
+    /// one band this must not be in.</b> The argument for it was that the tick
+    /// "belongs with the render cycle" — which is true of what it <em>does</em>
+    /// and exactly wrong about where it should <em>queue</em>, because Avalonia
+    /// commits a frame to the screen at that same priority. Equal priority is
+    /// FIFO, and the tick re-arms itself from inside its own handler while
+    /// already overdue (the report has never once shown a tick arriving on
+    /// time), so the next tick queues ahead of the commit that the previous tick
+    /// asked for. The clock competes with the thing whose job is to show the
+    /// frame the clock just produced.
+    /// </para>
+    /// <para>
+    /// <b>The ordering follows from which lateness is absorbed.</b> A late tick
+    /// is absorbed by design — that is what <see cref="Pace"/> is, and the whole
+    /// first half of these remarks is about it. A late <em>commit</em> is
+    /// absorbed by nothing: it is the stutter, directly. So the commit must
+    /// outrank the clock, which means the clock has to sit below
+    /// <c>Render</c> — not above it, and not level with it.
+    /// </para>
+    /// <para>
+    /// <see cref="DispatcherPriority.Input"/> is where it lands. Still far above
+    /// the <c>Background</c> band B150 rescued it from, and now behind the
+    /// commit. Sharing a band with input means a hard stream of pointer events
+    /// can delay a tick — and that is the trade this makes knowingly, because
+    /// <see cref="Pace"/> takes that lateness out of the following interval and
+    /// nothing takes it out of a frame that never got drawn.
     /// </para>
     /// </remarks>
     public static readonly DispatcherPriority Priority = PriorityFromEnvironment();
@@ -132,9 +151,14 @@ public sealed class PlaybackClock
         {
             "background" => DispatcherPriority.Background,
             "input" => DispatcherPriority.Input,
+            // Between Input and Render. Here so the four bands either side of the
+            // choice can all be tried from one binary: if Input is late enough to
+            // be felt but Render brings the stutter back, this is the answer and
+            // there would otherwise be no way to find that out.
+            "loaded" => DispatcherPriority.Loaded,
             "normal" => DispatcherPriority.Normal,
             "render" => DispatcherPriority.Render,
-            _ => DispatcherPriority.Render,
+            _ => DispatcherPriority.Input,
         };
     }
 
