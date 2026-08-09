@@ -272,6 +272,14 @@ Two lines to read first:
 A phase that says **never ran** is doing what it should: some work is deliberately
 skipped while frames are flipping, because nobody can read it at speed.
 
+Under the phases are two more lines, and they are the ones to read first:
+**drawing it to the screen**, and **tick + draw**. Compositing a frame and
+putting it on screen are separate jobs, and only the first happens inside the
+tick — so the phases above can all look affordable while the frame period is
+already spent. The report adds them for you and says what share of the budget
+the total is, because that sum is the number that decides whether playback can
+keep time, and neither half means much alone.
+
 ### Trying the fix off and on
 
 If you are chasing this with us, `LIGHTBOX_CLOCK_PRIORITY` starts Lightbox with

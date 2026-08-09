@@ -946,7 +946,10 @@ public partial class MainWindow : Window
             _vm.TickProfile.Ticks,
             _vm.FrameCacheTraffic,
             _vm.SceneShape,
-            Canvas.AnimationFrames);
+            Canvas.AnimationFrames,
+            // The work the tick breakdown cannot see: drawing the composited
+            // frame to the screen happens outside the tick entirely (B161).
+            _vm.Performance.FrameMs);
     }
 
     /// <summary>
