@@ -61,12 +61,13 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         int tickCount = 0,
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? frameCache = null,
         (int Frames, int Layers, int Strokes, double Fps)? scene = null,
-        (long Requested, long Delivered)? animationFrames = null) =>
+        (long Requested, long Delivered)? animationFrames = null,
+        double renderMedianMs = 0) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
             docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
             Pacing: pacing, PresentWait: presentWait,
             TickPhases: tickPhases, TickCount: tickCount, FrameCache: frameCache, Scene: scene,
-            AnimationFrames: animationFrames);
+            AnimationFrames: animationFrames, RenderMedianMs: renderMedianMs);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the

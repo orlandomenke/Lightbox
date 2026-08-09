@@ -69,7 +69,8 @@ internal static class RenderReport
         int TickCount = 0,
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? FrameCache = null,
         (int Frames, int Layers, int Strokes, double Fps)? Scene = null,
-        (long Requested, long Delivered)? AnimationFrames = null);
+        (long Requested, long Delivered)? AnimationFrames = null,
+        double RenderMedianMs = 0);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -284,6 +285,62 @@ internal static class RenderReport
     /// measurement rather than as a theory about dispatcher priorities.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Drawing the finished frame to the screen, which the tick breakdown above
+    /// cannot see because it happens outside the tick.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B161. This number has been measured all along and printed only when the
+    /// durable frame was on — which B130 turned off by default</b>, so in every
+    /// report from a real machine it was collected and thrown away. The section
+    /// that carried it is guarded on <c>Presents &gt; 0</c>, a counter only the
+    /// durable path increments, so the whole block vanished along with it.
+    /// </para>
+    /// <para>
+    /// <b>It is not a minor omission, and <c>PerformanceMonitor.FrameMs</c> says
+    /// so in its own summary</b>: <i>"on a large document it is usually the larger
+    /// of the two … reporting headroom from compositing alone said smooth while
+    /// the canvas ran at 34 fps."</i> That is precisely what this report has been
+    /// doing — showing the composite, which is inside the tick, and staying silent
+    /// about the draw, which is not. Four captures showed a tick comfortably
+    /// inside its budget alongside a clock 200 ms late, and the arithmetic could
+    /// not be closed because half of it was missing.
+    /// </para>
+    /// </remarks>
+    private static void AppendWorkOutsideTheTick(StringBuilder sb, Facts facts, double tickMs)
+    {
+        if (facts.RenderMedianMs <= 0) return;
+
+        var render = facts.RenderMedianMs;
+        sb.AppendLine();
+        sb.AppendLine($"  drawing it to the screen  {render,7:0.##} ms/frame   << OUTSIDE the tick above");
+        sb.AppendLine($"  {"tick + draw",-22} {tickMs + render,7:0.##} ms   — this is what the budget has to cover");
+
+        if (facts.Scene is not { Fps: > 0 } scene) return;
+
+        var period = 1000.0 / scene.Fps;
+        var share = 100.0 * (tickMs + render) / period;
+        sb.AppendLine();
+        sb.AppendLine($"  >> {share:0}% of the {period:0.#} ms budget at {scene.Fps:0.##} fps.");
+        if (share >= 90)
+        {
+            sb.AppendLine("     There is no headroom. The clock cannot be on time however it is");
+            sb.AppendLine("     prioritised, and the dropped frames above are the consequence —");
+            sb.AppendLine("     whichever of the two numbers is the larger is the one to attack.");
+        }
+        else if (share >= 60)
+        {
+            sb.AppendLine("     Tight. Any hitch spends the remainder, which is what an uneven");
+            sb.AppendLine("     period looks like from a chair even though the average fits.");
+        }
+        else
+        {
+            sb.AppendLine("     Comfortable. If the clock is still late with this much headroom,");
+            sb.AppendLine("     the time is going somewhere neither of these two numbers covers.");
+        }
+    }
+
     private static void AppendPresentWaitByInput(StringBuilder sb, Rendering.PresentLatency.Stats stats)
     {
         if (stats.ByCohort is not { Count: 3 } cohorts) return;
@@ -484,6 +541,8 @@ internal static class RenderReport
                 + $"   worst {phase.WorstMs,7:0.##} ms   ({phase.Calls} of {facts.TickCount} ticks)");
         }
         sb.AppendLine($"  {"ALL PHASES",-22} {total / facts.TickCount,7:0.##} ms/tick");
+
+        AppendWorkOutsideTheTick(sb, facts, total / facts.TickCount);
 
         sb.AppendLine();
         var worstPhase = phases.Where(p => p.Calls > 0).OrderByDescending(p => p.TotalMs).FirstOrDefault();
