@@ -21,8 +21,15 @@ public static class FrameRasterizer
     /// scale, so the dab dynamics land identically (see
     /// <see cref="BrushEngine.StampStroke"/>).
     /// </param>
+    /// <param name="origin">
+    /// Where the paper's top-left corner sits in stroke coordinates —
+    /// <see cref="Scene.Left"/> and <see cref="Scene.Top"/>, which are non-zero
+    /// only once the canvas has been grown or cropped on that side. Default is
+    /// the ordinary document whose rectangle starts at zero.
+    /// </param>
     public static SKBitmap Rasterize(
-        IReadOnlyList<Stroke> strokes, int width, int height, double outputScale = 1.0)
+        IReadOnlyList<Stroke> strokes, int width, int height, double outputScale = 1.0,
+        SKPointI origin = default)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         var bitmap = new SKBitmap(Scaled(info, outputScale));
@@ -30,7 +37,8 @@ public static class FrameRasterizer
         canvas.Clear(SKColors.Transparent);
         foreach (var stroke in strokes)
         {
-            BrushEngine.StampStroke(canvas, stroke, info, bitmap, outputScale: outputScale);
+            BrushEngine.StampStroke(
+                canvas, stroke, info, bitmap, outputScale: outputScale, origin: origin);
         }
         canvas.Flush();
         return bitmap;
