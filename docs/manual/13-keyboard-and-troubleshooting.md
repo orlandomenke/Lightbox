@@ -74,6 +74,8 @@ outweighing the drawing itself.
 | | |
 | --- | --- |
 | **Display** | Matches the screen — full detail zoomed in, less zoomed out. The default. |
+| **Full** | Twice what the screen shows, up to the document's own resolution. Sharpest — the extra detail smooths stroke edges — and it no longer pays for pixels your monitor cannot display: zoomed out on a big document it costs a fraction of what it used to, and at 100% zoom and closer it is the document's own resolution, as it always was. |
+| **Half** | Half of what the screen shows. Softer while you work, fastest. |
 
 Between about 70% and 100%, Lightbox quietly composites the **whole** document
 rather than the slightly smaller size that was asked for. That is not a rounding
@@ -82,8 +84,6 @@ about two and a half times as much per pixel as copying it straight. Just below
 full size the resampling costs more than the pixels it saves, so the smaller
 setting would be slower as well as softer. Further out it pays properly and is
 used.
-| **Full** | Twice what the screen shows, up to the document's own resolution. Sharpest — the extra detail smooths stroke edges — and it no longer pays for pixels your monitor cannot display: zoomed out on a big document it costs a fraction of what it used to, and at 100% zoom and closer it is the document's own resolution, as it always was. |
-| **Half** | Half of what the screen shows. Softer while you work, fastest. |
 
 It only changes what you see while working. **The drawing, the exports and the
 thumbnails are always full resolution**, whatever this is set to.
