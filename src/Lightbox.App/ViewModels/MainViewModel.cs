@@ -1881,6 +1881,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     internal void CommitSwatchEdit()
     {
+        // Owed before the early returns below, because the sweep the run skipped
+        // is owed whether or not the colour ended up different from where it
+        // started. A drag out and back to the same colour still invalidated
+        // every thumbnail on the way past.
+        var owedSweep = _swatchRepaint is { Repaints: > 1 };
+        _swatchRepaint = null;
+        if (owedSweep) RefreshThumbnails();
+
         if (_pendingSwatchEdit is not { } pending) return;
         _pendingSwatchEdit = null;
         if (PaletteRegistry.ResolveSwatch(pending.Id)?.Color is not { } after) return;
@@ -1932,31 +1940,108 @@ public sealed partial class MainViewModel : ObservableObject
     /// cannot have moved, and a palette used on one layer must not cost a
     /// whole-document re-render on every pointer event of a wheel drag.
     /// </summary>
+    /// <summary>
+    /// Which frames a swatch actually reaches, worked out once per run of edits.
+    /// </summary>
+    /// <remarks>
+    /// <b>B151.</b> The answer cannot change while the wheel is being dragged —
+    /// recolouring a swatch does not change which strokes reference it, and
+    /// nothing can draw during the drag — so the scan belongs to the run rather
+    /// than to the event. Cleared by <see cref="CommitSwatchEdit"/>, which is
+    /// what every boundary that could invalidate it already goes through, and by
+    /// <see cref="OnDocumentChanged"/> for the structural edits that do not.
+    /// </remarks>
+    private (string SwatchId, List<Frame> Frames, int Repaints)? _swatchRepaint;
+
     private void RepaintForSwatch(string swatchId)
     {
-        // B102. Every open document, not just the active one. A shared palette
-        // is precisely what a *set* of documents paint from — that is the whole
-        // feature — so two of a character's animations being open at once is the
-        // ordinary case rather than the edge, and repainting only the focused
-        // tab leaves the other showing the old colour from cache.
-        //
-        // Still only the frames that hold a stroke referencing the swatch:
-        // walking the stroke record stays far cheaper than re-rendering frames
-        // whose pixels cannot have moved, and a wheel drag does this per event.
+        var scope = _swatchRepaint is { } cached && cached.SwatchId == swatchId
+            ? cached
+            : (SwatchId: swatchId, Frames: FramesUsing(swatchId), Repaints: 0);
+
+        scope.Repaints++;
+        _swatchRepaint = scope;
+
+        foreach (var frame in scope.Frames)
+        {
+            InvalidateFrameRender(frame.Id);
+            _dirtyThumbIds.Add(frame.Id);
+        }
+        InvalidateWholeCanvas();
+        _composeRing.InvalidateAll();
+
+        // The first repaint of a run lands immediately, so a one-shot recolour —
+        // a swatch typed into, a palette applied — is as synchronous as it ever
+        // was. Everything after it is a pointer event in a drag, and a drag wants
+        // a repaint per *displayed frame* rather than per event: publishing sixty
+        // times to show sixty times is the shape invariant 6 forbids, and the
+        // coalescing post is what the shape tool's own live drag already uses.
+        if (scope.Repaints == 1)
+        {
+            PublishSnapshot();
+            RefreshThumbnails();
+        }
+        else
+        {
+            // No thumbnail sweep mid-drag: nobody reads a thumbnail while the
+            // wheel is moving, and the sweep walks every cell of every row. The
+            // ids are still marked dirty, so the one CommitSwatchEdit runs at the
+            // end repaints exactly what changed.
+            RequestSnapshot();
+        }
+    }
+
+    /// <summary>
+    /// Every frame holding a stroke painted with this swatch, across every open
+    /// document.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B102. Every open document, not just the active one.</b> A shared
+    /// palette is precisely what a <em>set</em> of documents paint from — that is
+    /// the whole feature — so two of a character's animations being open at once
+    /// is the ordinary case rather than the edge, and repainting only the focused
+    /// tab leaves the other showing the old colour from cache.
+    /// </para>
+    /// <para>
+    /// Still only the frames that hold a stroke referencing the swatch: walking
+    /// the stroke record stays far cheaper than re-rendering frames whose pixels
+    /// cannot have moved. What B151 changed is <em>how often</em> — this is a
+    /// scan of every stroke in every open document, and it used to run on every
+    /// pointer event of a wheel drag.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// How many times the swatch scan has run, for the budget test.
+    /// </summary>
+    /// <remarks>
+    /// <b>A count rather than a stopwatch, because the property is countable.</b>
+    /// B151 is not "this got faster", it is "this happens once per drag instead
+    /// of once per pointer event" — and a test that asserts the second is exact,
+    /// instant and cannot be flaky, where a timing test on the same behaviour
+    /// would be all three of the opposite. The performance test beside it still
+    /// measures the end-to-end cost, because a count cannot see a scan that got
+    /// slower.
+    /// </remarks>
+    internal int SwatchScans { get; private set; }
+
+    private List<Frame> FramesUsing(string swatchId)
+    {
+        SwatchScans++;
+        var frames = new List<Frame>();
+        var seen = new HashSet<string>();
         foreach (var layer in Tabs.SelectMany(t => t.Doc.Scene.Layers))
         {
             foreach (var cel in layer.Cels)
             {
-                if (cel.Frame is not { } frame) continue;
+                // A held cel names the same frame as the one it holds, so without
+                // this a ten-frame hold invalidates the same render ten times.
+                if (cel.Frame is not { } frame || !seen.Add(frame.Id)) continue;
                 if (!StrokesOf(frame).Any(s => s.SwatchId == swatchId)) continue;
-                InvalidateFrameRender(frame.Id);
-                _dirtyThumbIds.Add(frame.Id);
+                frames.Add(frame);
             }
         }
-        InvalidateWholeCanvas();
-        _composeRing.InvalidateAll();
-        PublishSnapshot();
-        RefreshThumbnails();
+        return frames;
     }
 
     // ---- projects -----------------------------------------------------------
@@ -9190,6 +9275,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void OnDocumentChanged()
     {
+        // B151: the swatch's frame list describes a tree that just moved. An undo
+        // or a structural edit can add, remove or replace the frames it names, and
+        // a stale list would repaint the wrong ones — or, worse, none of them.
+        _swatchRepaint = null;
+
         if (_committingScopedEdit)
         {
             MarkDocumentEdited();
