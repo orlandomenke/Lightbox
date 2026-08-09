@@ -813,7 +813,8 @@ public partial class MainWindow : Window
             _vm.ReportComposeScale,
             Rendering.CanvasControl.DurableFrameEnabled,
             totals.Presents > 0,
-            _vm.ReportTileFallbacks);
+            _vm.ReportTileFallbacks,
+            _vm.Prewarm);
     }
 
     /// <summary>
@@ -4220,28 +4221,22 @@ public partial class MainWindow : Window
             : $"Exported {written.Count} PNG frame(s) and audio.wav.";
     }
 
+    /// <summary>
+    /// <c>File ▸ Export video…</c> — the settings window owns the whole
+    /// render (B146). It used to be a save picker whose every answer, the
+    /// missing encoder included, went to the AI bar; that row is hidden
+    /// whenever assistance is off, so the export looked like it did nothing.
+    /// </summary>
     private async void OnExportVideoClicked(object? sender, RoutedEventArgs e)
     {
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Export video",
-            SuggestedFileName = "animation",
-            DefaultExtension = "mp4",
-            FileTypeChoices =
-            [
-                new FilePickerFileType("MP4 video (H.264)") { Patterns = ["*.mp4"] },
-                new FilePickerFileType("ProRes 422 (MOV)") { Patterns = ["*.mov"] },
-            ],
-        });
-        if (file?.TryGetLocalPath() is not { } path) return;
-
-        var format = Path.GetExtension(path).Equals(".mov", StringComparison.OrdinalIgnoreCase)
-            ? Services.VideoFormat.ProRes
-            : Services.VideoFormat.Mp4;
-        var audio = _vm.ResolvedAudioPathForExport();
-        _vm.AiStatus = "Rendering video…";
-        var error = await Task.Run(() => Services.VideoExporter.Export(_vm.Doc, format, path, audio));
-        _vm.AiStatus = error ?? $"Exported “{Path.GetFileName(path)}”.";
+        var dialog = new VideoExportWindow(
+            _vm.Doc,
+            () => _vm.ResolvedAudioPathForExport(),
+            _vm.ActiveTab?.Title ?? "animation");
+        await dialog.ShowDialog(this);
+        // Echoed into the status strip as well, for the artist who has closed
+        // the window and wants to know what happened.
+        if (dialog.Reported is { Length: > 0 } said) _vm.AiStatus = said;
     }
 
     /// <summary>

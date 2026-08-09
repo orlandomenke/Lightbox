@@ -19,6 +19,29 @@ public sealed class Stroke
 
     public List<StrokePoint> Points { get; set; } = [];
 
+    /// <summary>
+    /// The authored nodes and handles this stroke was shaped with, or null for a
+    /// stroke that was simply drawn.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Absent unless used, and that is a property rather than a preference.</b>
+    /// A hand-drawn stroke writes no <c>path</c> key; clearing a path removes the
+    /// key again. Every stroke of every document would otherwise carry an empty
+    /// object, which is the medium block's mistake repeated
+    /// (<c>CLAUDE.md</c> → *"Optional has two halves"*), so
+    /// <c>AHandDrawnStrokeSerializesNoPathKey</c> ships beside it.
+    /// </para>
+    /// <para>
+    /// <b><see cref="Points"/> stays the truth.</b> The renderer, the index, the
+    /// contour tracer, the transform and the AI wire format never look here. A
+    /// path is re-flattened into points whenever it is edited, and any operation
+    /// that maps points must map this too or drop it —
+    /// see <see cref="StrokePath"/> for the whole of that argument.
+    /// </para>
+    /// </remarks>
+    public StrokePath? Path { get; set; }
+
     /// <summary>Inner contours of a <see cref="ToolKind.Fill"/> stroke (even-odd holes); null otherwise.</summary>
     public List<List<StrokePoint>>? Holes { get; set; }
 
@@ -141,6 +164,10 @@ public sealed class Stroke
         copy.Brush = Brush.Clone();
         copy.Points = [.. Points];
         copy.Holes = Holes?.Select(h => new List<StrokePoint>(h)).ToList();
+        // Deep, like the points beside it: a shared path would let reshaping one
+        // copy of a duplicated cel silently reshape the other, and the two would
+        // then disagree with their own points.
+        copy.Path = Path?.Clone();
         return copy;
     }
 }

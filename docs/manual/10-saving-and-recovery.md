@@ -6,12 +6,40 @@
 | **Save as…** — Ctrl+Shift+S | Picks a new path. |
 | **Export document…** | Writes a standalone `.lightbox.json` with every referenced swatch, gradient, brush tip and clip region **inlined**. |
 | **Export PNGs…** | Every frame as a numbered PNG, into a folder you pick — with the scratch track beside them as `audio.wav` when there is one. |
-| **Export video…** | The whole timeline as a video file: **MP4** (H.264) for review and sharing, or **ProRes 422** in MOV for editorial handoff — pick by the file type in the save dialog. The scratch track is muxed in, with its offset and volume honoured; production footage composites beneath the drawings. With a camera, the video is what the camera saw. |
+| **Export video…** | Opens the [export window](#exporting-a-video) — format, size, frame range, rate, quality and sound, then the render itself. |
 | **Export for a game engine…** | Sprite sheet, sidecar, and optionally the Unity importer. |
 
 Both keys can be rebound like any other — they are in **Edit ▸ Configure ▸
 Shortcuts** under *File*, and the menu shows whatever you set them to rather
 than the factory key.
+
+## Exporting a video
+
+**File ▸ Export video…** opens a window that holds the settings, the
+destination and the render itself. It stays open while the frames encode: the
+bar moves per frame, **Export** turns into **Stop**, and the sentence at the
+bottom names the finished file and its size. A failure stays on screen until
+you have read it.
+
+| Setting | What it decides |
+| --- | --- |
+| **Format** | **MP4** (H.264) plays anywhere and is the one to send for review. **ProRes 422** in MOV is what an editor wants: much bigger files, no generation loss. Changing this renames the file so the stream and the container agree. |
+| **Quality** | H.264: *High* is visually lossless, *Standard* is a review copy, *Small* is a quick look. ProRes: the profile, 422 HQ by default. |
+| **Size** | 25 % to 200 % of the document — or of the camera's output size, when the scene has a camera. A larger render draws the strokes onto a larger surface rather than enlarging pixels, so 200 % is genuinely sharper. Sides are rounded to even numbers, which H.264 requires. |
+| **Frames** | The whole timeline, or a range. The numbers are the frame numbers on the timeline, and both ends are included. |
+| **Frame rate** | Defaults to the scene's. Changing it does not resample: the same frames play back faster or slower. |
+| **Sound** | Muxes the scratch track, with its offset, trim and volume honoured. Off — and unavailable — when the document has no sound or the track is muted. Rendering a range starts the sound where the range starts. |
+
+Production footage composites beneath the drawings, exactly as it does on the
+canvas; a plain reference never reaches an exported pixel. With a camera, the
+video is what the camera saw.
+
+**If the window opens with a warning across the top, no video can be written**:
+the encoder Lightbox drives, FFmpeg, was not found. The packaged application
+ships a copy beside itself, so this normally means a development build or a
+broken install — put an `ffmpeg` on your PATH and reopen the window.
+**Export PNGs…** works regardless, and every compositing package will encode
+the sequence.
 
 ## Nothing leaves the app until the drawing is on disk
 

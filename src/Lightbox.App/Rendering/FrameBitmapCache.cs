@@ -146,6 +146,81 @@ public sealed class FrameBitmapCache : IDisposable
         frame is Frame p
         && p.Strokes.Any(s => s.Brush.SampleSource == SampleSource.AllLayersLive);
 
+    /// <summary>
+    /// Whether a render of this frame at this exact size and scale is already
+    /// held — the question a prewarmer asks before spending a thread on it.
+    /// </summary>
+    public bool Holds(Frame frame, int width, int height, double outputScale, int celIndex) =>
+        _map.ContainsKey(KeyOf(frame, width, height, outputScale, celIndex));
+
+    /// <summary>
+    /// Whether this frame can be stored at all. False for a frame that samples
+    /// the layers beneath it live: <see cref="Get"/> deliberately drops those,
+    /// so rendering one ahead of time would be work thrown away twice.
+    /// </summary>
+    public static bool CanCache(Frame frame) => !SamplesLive(frame);
+
+    /// <summary>
+    /// Rasterize a frame without touching the cache, so it can be done on a
+    /// background thread and handed back through <see cref="InsertWarm"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Safe off the UI thread because rendering is a pure function of the
+    /// stroke record</b> — invariant 2 forbids an RNG anywhere in it, so the
+    /// same strokes produce the same pixels on any thread, in any order, at any
+    /// time. That is not a happy accident of this cache; it is the property the
+    /// whole document model is built on, and it is what makes prewarming a
+    /// scheduling change rather than a rendering one. The registries a stroke
+    /// resolves against (tips, textures, clip regions) are
+    /// <see cref="System.Collections.Concurrent.ConcurrentDictionary{TKey,TValue}"/>,
+    /// so reads race with nothing.
+    /// </remarks>
+    public static SKBitmap RenderDetached(
+        Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0) =>
+        Render(frame, width, height, outputScale, celIndex, backdrop: null);
+
+    /// <summary>
+    /// Take ownership of a bitmap rendered elsewhere, or refuse it. False means
+    /// the caller still owns it and must dispose it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two rules, and both exist because speculative work must never cost
+    /// real work.</b>
+    /// </para>
+    /// <para>
+    /// <b>It never evicts.</b> An ordinary <see cref="Get"/> miss may throw
+    /// something out to make room, because the caller needs the frame it asked
+    /// for. A prewarm needs nothing — so if it does not fit, it is dropped. The
+    /// alternative is worse than useless during playback: eviction is
+    /// <see cref="EvictionOrder.MostRecent"/> there, whose victim is the
+    /// neighbour of the newest entry, so a warm that evicted would throw out the
+    /// frame currently on screen to make room for one that is not.
+    /// </para>
+    /// <para>
+    /// <b>It enters at the tail, not the head.</b> The head is where
+    /// <see cref="Get"/> puts what was just used, and under
+    /// <see cref="EvictionOrder.MostRecent"/> the victim is chosen from there.
+    /// A warm at the head would displace the playhead's own frame into the line
+    /// of fire on the very next miss.
+    /// </para>
+    /// </remarks>
+    public bool InsertWarm(
+        Frame frame, int width, int height, double outputScale, int celIndex, SKBitmap bmp)
+    {
+        if (!CanCache(frame)) return false;
+        var key = KeyOf(frame, width, height, outputScale, celIndex);
+        if (_map.ContainsKey(key)) return false;
+
+        var bytes = BytesOf(bmp);
+        if (_lru.Count >= MaxFrames || CachedBytes + bytes > ByteBudget) return false;
+
+        var node = _lru.AddLast(new Entry(key, frame.Id, bmp));
+        _map[key] = node;
+        CachedBytes += bytes;
+        return true;
+    }
+
     private static SKBitmap Render(
         Frame frame, int width, int height, double outputScale, int celIndex, SKBitmap? backdrop) =>
         // Baseline-then-strokes, in one call. The vector arm used to skip
