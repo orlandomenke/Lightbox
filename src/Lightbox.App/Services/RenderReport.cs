@@ -62,7 +62,8 @@ internal static class RenderReport
         bool DurableFrameEnabled = false,
         bool DurableFrameHasPresented = false,
         Rendering.TileFallbackTally? TileFallbacks = null,
-        Services.FramePrewarmer? Prewarm = null);
+        Services.FramePrewarmer? Prewarm = null,
+        Services.PlaybackClock.Pacing? Pacing = null);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -177,6 +178,63 @@ internal static class RenderReport
             : "     Most warms arrived after the tick had already drawn the frame, so a\n"
               + "     second core is repeating the UI thread's work. That means a frame\n"
               + "     costs more to rasterize than the scene's frame period allows.");
+
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Whether the frame clock was actually delivered on time (B150).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The number that separates the two halves of "playback stutters".</b>
+    /// Every other section here measures how long a frame took to *make*. This
+    /// one measures whether the tick that asked for it arrived when it was due —
+    /// a completely different failure, on a completely different axis, and the
+    /// only one that can make a near-empty scene stutter on a fast machine.
+    /// </para>
+    /// <para>
+    /// It is printed rather than judged from inside, because
+    /// <see cref="PlaybackClock.Pace"/> is built to absorb lateness: it shortens
+    /// the next interval and drops frames to stay in time, so a clock delivered
+    /// 40 ms late and one delivered on the nose leave the playhead in the same
+    /// place. The lateness is the only place the difference exists.
+    /// </para>
+    /// </remarks>
+    private static void AppendPacing(StringBuilder sb, PlaybackClock.Pacing? pacing)
+    {
+        sb.AppendLine("-- was the frame clock on time (B150) ------------------------");
+        if (pacing is not { Ticks: > 0 } stats)
+        {
+            sb.AppendLine("frame clock               not run yet — this needs the scene PLAYED first");
+            sb.AppendLine();
+            return;
+        }
+
+        var lateShare = 100.0 * stats.LateTicks / stats.Ticks;
+        sb.AppendLine($"ticks that advanced       {stats.Ticks}");
+        sb.AppendLine($"  arrived late            {stats.LateTicks}  ({lateShare:0.#}%)");
+        sb.AppendLine($"  mean lateness           {stats.MeanLatenessMs:0.##} ms");
+        sb.AppendLine($"  worst lateness          {stats.WorstLatenessMs:0.##} ms");
+        sb.AppendLine($"frames dropped to keep up {stats.DroppedFrames}");
+        if (stats.Resyncs > 0)
+        {
+            sb.AppendLine($"  gave up and re-based    {stats.Resyncs}  (a stall longer than {PlaybackClock.MaxCatchUpFrames} frames)");
+        }
+
+        sb.AppendLine();
+        // A millisecond or two of lateness is the operating system's scheduling
+        // quantum and is not a defect. What matters is whether it is a large
+        // fraction of the frame period, which is what makes the period wander —
+        // and a wandering period is what the eye reads as stutter, even at a
+        // frame rate that averages out correctly.
+        sb.AppendLine(stats.MeanLatenessMs < 4
+            ? "  >> The clock is being delivered on time. If playback still looks uneven,\n"
+              + "     the cost is in making the frames — see the two sections above."
+            : "  >> The clock is being delivered LATE, so the frame period is wandering\n"
+              + "     whatever the frames cost to draw. Worth capturing this twice: once\n"
+              + "     with the pointer still and once while moving it. A large difference\n"
+              + "     means the tick is competing with input rather than with rendering.");
 
         sb.AppendLine();
     }
@@ -361,6 +419,7 @@ internal static class RenderReport
 
         AppendTilePath(sb, facts.TileFallbacks);
         AppendPrewarm(sb, facts.Prewarm);
+        AppendPacing(sb, facts.Pacing);
 
         sb.AppendLine("-- what is being drawn ---------------------------------------");
         sb.AppendLine($"document                  {facts.DocWidth} x {facts.DocHeight}");

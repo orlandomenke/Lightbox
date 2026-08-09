@@ -185,4 +185,90 @@ public class PlaybackPacingTests(ITestOutputHelper output)
         var expected = 1000.0 / (fps * speed / 100.0);
         Assert.Equal(expected, PlaybackClock.IntervalFor(fps, speed).TotalMilliseconds, 3);
     }
+
+    // ---- was the clock delivered on time (B150) --------------------------------
+
+    /// <summary>
+    /// <b>The measurement B150 was missing, and the reason the bug could be
+    /// reported and not found.</b> <see cref="PlaybackClock.Pace"/> is built to
+    /// absorb lateness — it shortens the next interval and drops frames — so a
+    /// clock delivered 40 ms late leaves the playhead in exactly the same place
+    /// as one delivered on the nose. The lateness is the only place the
+    /// difference exists, so it has to be kept rather than inferred.
+    /// </summary>
+    [Fact]
+    public void LatenessIsRecordedEvenThoughPacingAbsorbsIt()
+    {
+        var tally = new PlaybackClock.PacingTally();
+        tally.Record(0, 1);
+        tally.Record(40, 1);
+        tally.Record(20, 1);
+
+        var stats = tally.Snapshot;
+        output.WriteLine($"{stats.Ticks} ticks, {stats.LateTicks} late, mean {stats.MeanLatenessMs:0.##} ms, worst {stats.WorstLatenessMs:0.##} ms");
+
+        Assert.Equal(3, stats.Ticks);
+        Assert.Equal(2, stats.LateTicks);
+        Assert.Equal(20, stats.MeanLatenessMs, 3);
+        Assert.Equal(40, stats.WorstLatenessMs, 3);
+    }
+
+    /// <summary>
+    /// A tick that advances four frames did one frame's job and skipped three.
+    /// Counting all four as dropped would report a machine keeping up perfectly
+    /// as dropping every frame.
+    /// </summary>
+    [Fact]
+    public void OnlyTheFramesPastTheFirstCountAsDropped()
+    {
+        var tally = new PlaybackClock.PacingTally();
+        tally.Record(0, 1);
+        tally.Record(90, 2);
+
+        Assert.Equal(1, tally.Snapshot.DroppedFrames);
+    }
+
+    [Fact]
+    public void HittingTheCatchUpCapIsCountedSeparatelyFromBeingLate()
+    {
+        var tally = new PlaybackClock.PacingTally();
+        tally.Record(500, PlaybackClock.MaxCatchUpFrames);
+
+        var stats = tally.Snapshot;
+        Assert.Equal(1, stats.Resyncs);
+        Assert.Equal(PlaybackClock.MaxCatchUpFrames - 1, stats.DroppedFrames);
+    }
+
+    /// <summary>
+    /// An early tick waits out the rest of the period rather than advancing, so
+    /// it is not a tick at all as far as this is concerned — folding it in would
+    /// dilute the mean with ticks that did nothing.
+    /// </summary>
+    [Fact]
+    public void ATickThatDidNotAdvanceIsNotCounted()
+    {
+        var tally = new PlaybackClock.PacingTally();
+        tally.Record(-30, 0);
+
+        Assert.Equal(0, tally.Snapshot.Ticks);
+        Assert.Equal(0, tally.Snapshot.MeanLatenessMs);
+    }
+
+    /// <summary>
+    /// <b>B150's fix, pinned.</b> A bare <c>new DispatcherTimer()</c> runs at
+    /// <c>Background</c> — documented as "processed after other non-idle
+    /// operations have completed", the lowest foreground band there is — which
+    /// puts a frame that is already due behind every layout, binding and post
+    /// the application has queued. This is a decision-pin rather than a proof:
+    /// it fails if somebody reverts to the default, which is the failure that
+    /// happened.
+    /// </summary>
+    [Fact]
+    public void TheFrameClockDoesNotRunAtTheLowestForegroundPriority()
+    {
+        Assert.NotEqual(Avalonia.Threading.DispatcherPriority.Background, PlaybackClock.Priority);
+        Assert.True(
+            PlaybackClock.Priority > Avalonia.Threading.DispatcherPriority.Background,
+            $"the frame clock runs at {PlaybackClock.Priority}, at or below Background");
+    }
 }

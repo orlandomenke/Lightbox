@@ -153,6 +153,24 @@ this machine — usually a very dense drawing at a large canvas size — and the
 report says so in those words rather than leaving you to do the arithmetic.
 Lowering **Canvas quality**, or playing a shorter range, is what helps there.
 
+### And the one below that: was the clock on time
+
+Every other measurement in the report is about how long a frame took to **make**.
+This one is about something else entirely — whether the tick that asked for it
+turned up when it was supposed to. They are different problems, and only this one
+can make an almost empty scene stutter on a fast machine.
+
+The line to read is **mean lateness**. A millisecond or two is your operating
+system's normal scheduling and is not a fault. Much more than that and the gap
+between frames is wandering however cheap the frames are — and a wandering gap is
+what the eye reads as stutter, even when the frame rate averages out correctly.
+
+**If it says the clock is arriving late, capture the report twice**: once with
+the pointer sitting still, and once while you keep moving it. A big difference
+between the two is itself the finding — it means the playhead is competing with
+your pointer rather than with the drawing, which is a different fix from anything
+in the sections above.
+
 It names which parts of the drawing are done by your graphics card and which by
 the processor — and those are not the same question. The status strip says
 **GPU** when your card is putting finished frames on screen, which it usually is;

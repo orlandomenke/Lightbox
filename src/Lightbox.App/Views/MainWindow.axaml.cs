@@ -854,7 +854,8 @@ public partial class MainWindow : Window
             Rendering.CanvasControl.DurableFrameEnabled,
             totals.Presents > 0,
             _vm.ReportTileFallbacks,
-            _vm.Prewarm);
+            _vm.Prewarm,
+            _vm.PlaybackPacing);
     }
 
     /// <summary>

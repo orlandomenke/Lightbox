@@ -52,6 +52,17 @@ namespace Lightbox.App.Services;
 /// measuring the harness. The defects above are structural — read off the code
 /// rather than inferred from a number.
 /// </para>
+/// <para>
+/// <b>B150 added the third structural defect and the measurement that was
+/// missing with it.</b> The timer ran at the dispatcher's <em>lowest foreground
+/// priority</em> — see <see cref="Priority"/> — so a frame already due was served
+/// after everything else the application had queued. And because
+/// <see cref="Pace"/> absorbs lateness by design, nothing anywhere said how late
+/// the ticks were arriving: a clock being delivered on time and one being
+/// delivered 40 ms late look identical from the playhead's side, which is why
+/// the symptom could be reported and not found. <see cref="Stats"/> is that
+/// number, printed in <c>Help ▸ Write a render report</c>.
+/// </para>
 /// </remarks>
 public sealed class PlaybackClock
 {
@@ -68,11 +79,38 @@ public sealed class PlaybackClock
     /// </remarks>
     public const int MaxCatchUpFrames = 4;
 
-    private readonly DispatcherTimer _timer = new();
+    /// <summary>
+    /// The dispatcher band the frame clock runs in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Named, because the default was wrong and silently so (B150).</b> A bare
+    /// <c>new DispatcherTimer()</c> runs at <see cref="DispatcherPriority.Background"/>,
+    /// documented as <em>"processed after other non-idle operations have
+    /// completed"</em> — the lowest foreground band there is. That is the wrong
+    /// place for a clock whose entire job is to be on time: every queued layout,
+    /// data binding, render and ordinary post in the application is served ahead
+    /// of the frame that is already due.
+    /// </para>
+    /// <para>
+    /// <b><see cref="DispatcherPriority.Render"/> is the accurate description
+    /// rather than merely a higher number.</b> This tick decides which frame gets
+    /// drawn and its handler publishes into the render path synchronously, so it
+    /// belongs with the render cycle. It does sit above input, which is a real
+    /// trade and an acceptable one: at 12–24 ticks a second the transport button
+    /// loses nothing anybody can feel, and playback losing to a stream of pointer
+    /// events is the symptom this exists to remove.
+    /// </para>
+    /// </remarks>
+    public static readonly DispatcherPriority Priority = DispatcherPriority.Render;
+
+    private readonly DispatcherTimer _timer = new(Priority);
     private readonly Stopwatch _elapsed = new();
 
     private TimeSpan _frameDuration = TimeSpan.FromSeconds(1.0 / 12);
     private TimeSpan _nextFrameDue;
+
+    private PacingTally _tally;
 
     /// <summary>
     /// Raised when the playhead should advance, carrying how many frames.
@@ -102,7 +140,84 @@ public sealed class PlaybackClock
         _elapsed.Restart();
         _nextFrameDue = _frameDuration;
         _timer.Interval = _frameDuration;
+        _tally = default;
         _timer.Start();
+    }
+
+    /// <summary>
+    /// How well the clock actually kept time, for the render report.
+    /// </summary>
+    /// <param name="Ticks">Ticks that advanced the playhead.</param>
+    /// <param name="LateTicks">Of those, how many arrived after the frame was due.</param>
+    /// <param name="DroppedFrames">Frames skipped to stay in time.</param>
+    /// <param name="Resyncs">Times the catch-up cap was hit and the clock re-based on now.</param>
+    /// <param name="MeanLatenessMs">Average lateness across every advancing tick.</param>
+    /// <param name="WorstLatenessMs">The worst single one.</param>
+    public readonly record struct Pacing(
+        int Ticks, int LateTicks, int DroppedFrames, int Resyncs,
+        double MeanLatenessMs, double WorstLatenessMs);
+
+    /// <summary>
+    /// What the last run of playback actually did, as opposed to what it asked
+    /// for.
+    /// </summary>
+    /// <remarks>
+    /// <b>Recorded because the interesting failure is invisible from inside.</b>
+    /// <see cref="Pace"/> absorbs a late tick by shortening the next interval and
+    /// by dropping frames, which is right and is also why a clock that is being
+    /// delivered late looks, from the playhead's side, exactly like one that is
+    /// not. The lateness is the only place the difference shows, and it is
+    /// per-machine — so it is measured on the artist's and printed, rather than
+    /// argued about.
+    /// </remarks>
+    public Pacing Stats => _tally.Snapshot;
+
+    /// <summary>
+    /// The running totals behind <see cref="Stats"/>.
+    /// </summary>
+    /// <remarks>
+    /// A separate value rather than six fields on the clock, so the accounting
+    /// is reachable by a test without a dispatcher — the same reason
+    /// <see cref="Pace"/> is pure. A tally that can only be exercised by running
+    /// a real timer would be tested by the harness rather than by the suite,
+    /// which is exactly what this file's own header says not to do.
+    /// </remarks>
+    internal struct PacingTally
+    {
+        private int _ticks;
+        private int _lateTicks;
+        private int _droppedFrames;
+        private int _resyncs;
+        private double _latenessTotalMs;
+        private double _worstLatenessMs;
+
+        /// <summary>Fold in one tick that advanced the playhead.</summary>
+        /// <param name="lateMs">
+        /// How late the tick was against the due time it answered. Never
+        /// negative: a tick that fires early waits out the rest of the period
+        /// rather than advancing, so it never reaches here.
+        /// </param>
+        public void Record(double lateMs, int frames)
+        {
+            if (frames <= 0) return;
+            lateMs = Math.Max(0, lateMs);
+
+            _ticks++;
+            _latenessTotalMs += lateMs;
+            if (lateMs > _worstLatenessMs) _worstLatenessMs = lateMs;
+            if (lateMs > 0) _lateTicks++;
+
+            // One frame is the tick doing its job; everything past it was
+            // skipped to stay in time, which is the cost of being late rather
+            // than a second kind of tick.
+            _droppedFrames += frames - 1;
+            if (frames >= MaxCatchUpFrames) _resyncs++;
+        }
+
+        public readonly Pacing Snapshot => new(
+            _ticks, _lateTicks, _droppedFrames, _resyncs,
+            _ticks == 0 ? 0 : _latenessTotalMs / _ticks,
+            _worstLatenessMs);
     }
 
     public static TimeSpan IntervalFor(int fps, int speedPercent) =>
@@ -116,7 +231,13 @@ public sealed class PlaybackClock
 
     private void OnTimer()
     {
-        var plan = Pace(_elapsed.Elapsed, _nextFrameDue, _frameDuration);
+        var elapsed = _elapsed.Elapsed;
+        var plan = Pace(elapsed, _nextFrameDue, _frameDuration);
+
+        // Lateness is measured against the due time this tick was answering, so
+        // it has to be read before the plan moves it on.
+        _tally.Record((elapsed - _nextFrameDue).TotalMilliseconds, plan.Frames);
+
         _nextFrameDue = plan.NextFrameDue;
 
         // Re-arm BEFORE the handler runs. The handler recomposites and publishes
