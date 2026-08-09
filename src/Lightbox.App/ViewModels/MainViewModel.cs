@@ -251,12 +251,55 @@ public sealed partial class MainViewModel : ObservableObject
     /// step is a cache miss rather than a wrong-sized hit.
     /// </para>
     /// </remarks>
-    private double ComposeScale => CanvasQuality switch
+    private double ComposeScale => WorthScaling(CanvasQuality switch
     {
         CanvasQuality.Full => Math.Clamp(_displayScale * 2.0, 0.125, 1.0),
         CanvasQuality.Half => Math.Clamp(_displayScale * 0.5, 0.125, 1.0),
         _ => Math.Clamp(_displayScale, 0.125, 1.0),
-    };
+    });
+
+    /// <summary>
+    /// Above this, compositing smaller costs more than compositing everything.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A scaled composite is about 2.5× the per-pixel cost of an unscaled
+    /// one, and that changes the arithmetic completely (B160).</b> Measured at a
+    /// fixed 1920×1080 document, varying only this scale:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>scale 1.0 — 2.07 Mpx, 34.00 ms/tick, <b>16.4 ms/Mpx</b></item>
+    /// <item>scale 0.75 — 1.17 Mpx, <b>45.92 ms/tick</b>, 39.4 ms/Mpx</item>
+    /// <item>scale 0.625 — 0.81 Mpx, 33.00 ms/tick, 40.7 ms/Mpx</item>
+    /// <item>scale 0.5 — 0.52 Mpx, 20.85 ms/tick, 40.2 ms/Mpx</item>
+    /// </list>
+    /// <para>
+    /// At 1.0 the layer blit is a straight copy; below it every tile is drawn
+    /// through a scale transform and resampled. The filter is already
+    /// <see cref="SKFilterMode.Linear"/> — the cheapest sensible choice, and
+    /// <c>SceneRenderer.Downscale</c> says why — so this is not a bad sampler,
+    /// it is what interpolation costs.
+    /// </para>
+    /// <para>
+    /// <b>So scaling down to 0.75 composites 44% fewer pixels and takes 35%
+    /// longer.</b> Cost is <c>40·s²</c> against <c>16.4</c> for the whole
+    /// document, which cross over at <c>s = √(16.4/40) ≈ 0.64</c>. Anything
+    /// above that is strictly worse than not scaling at all, so it rounds up to
+    /// 1.0 and takes the cheap path. Below it, scaling genuinely pays: 0.5 is
+    /// 21 ms against 34.
+    /// </para>
+    /// <para>
+    /// <b>0.7 rather than 0.64</b>, because the ratio is a measurement on one
+    /// machine and the penalty is asymmetric: rounding up too eagerly costs a
+    /// few milliseconds and sharper pixels, rounding up too late costs more than
+    /// the feature saves. Nothing here changes what is drawn — only how many
+    /// pixels it is drawn into, which invariant 5 already makes view-only.
+    /// </para>
+    /// </remarks>
+    internal const double ScalingStopsPaying = 0.7;
+
+    private static double WorthScaling(double scale) =>
+        scale > ScalingStopsPaying ? 1.0 : scale;
 
     /// <summary>
     /// The numbers the render report needs, named for that use so nobody mistakes
