@@ -151,10 +151,15 @@ public partial class MainWindow : Window
         Canvas.CameraZoomedBy += factor => _vm.ZoomCameraBy(factor);
         Canvas.CameraRotatedBy += deg => _vm.RotateCameraBy(deg);
 
-        LayersDocker.PointerEntered += (_, _) => _pointerInLayersDocker = true;
-        LayersDocker.PointerExited += (_, _) => _pointerInLayersDocker = false;
-        TimelineDocker.PointerEntered += (_, _) => _pointerInTimeline = true;
-        TimelineDocker.PointerExited += (_, _) => _pointerInTimeline = false;
+        // One handler on the window instead of a pair per docker. Tunnelling, so
+        // it sees the move even when a child marks it handled — a docker whose
+        // content swallows pointer events would otherwise be invisible to the
+        // shortcut scope and silently lose its bindings.
+        AddHandler(
+            PointerMovedEvent,
+            (_, e) => _hoveredElement = e.Source as Visual,
+            Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        PointerExited += (_, _) => _hoveredElement = null;
         Canvas.PickClicked += _vm.PickColorAt;
         Canvas.GradientDragStarted += _vm.BeginGradient;
         Canvas.GradientDragMoved += _vm.MoveGradient;
@@ -1347,13 +1352,55 @@ public partial class MainWindow : Window
 
     // Shortcut contexts follow the pointer: the same key can mean different
     // things over the canvas, the timeline, or the Layers docker.
-    private bool _pointerInLayersDocker;
-    private bool _pointerInTimeline;
 
-    private Services.ShortcutContext CurrentShortcutContext() =>
-        _pointerInLayersDocker ? Services.ShortcutContext.LayersDocker
-        : _pointerInTimeline ? Services.ShortcutContext.Timeline
-        : Services.ShortcutContext.Canvas;
+    /// <summary>
+    /// Which docker the key press belongs to, or the canvas scope when none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Derived by walking the tree, not by a flag per docker.</b> The old
+    /// form kept a bool for the layers docker and another for the timeline, set
+    /// from hand-wired <c>PointerEntered</c> handlers — so a docker could only
+    /// own a binding if somebody had added a third bool, and eleven of the twelve
+    /// never got one. Asking the element which <see cref="Controls.Docker"/>
+    /// contains it works for every docker, including ones that do not exist yet.
+    /// </para>
+    /// <para>
+    /// <b>Hover beats focus, and that is a choice.</b> Focus is sticky and
+    /// invisible: leave it in the timeline, move the pointer to the colour
+    /// docker, and a focus-first rule would have the same key do two different
+    /// things with nothing on screen explaining why. The pointer is where the
+    /// artist is looking. Focus is the fallback for the keyboard-only case,
+    /// where there is no pointer to consult.
+    /// </para>
+    /// <para>
+    /// <b>A docker's scope is its visible tab</b>, not the docker's own id: a
+    /// tabbed docker showing the palette is the palette as far as a key press is
+    /// concerned, whatever is behind it.
+    /// </para>
+    /// </remarks>
+    private Services.ShortcutScope CurrentShortcutScope()
+    {
+        if (PanelUnder(_hoveredElement) is { } hovered) return Services.ShortcutScope.In(hovered);
+        if (PanelUnder(FocusManager?.GetFocusedElement() as Visual) is { } focused)
+        {
+            return Services.ShortcutScope.In(focused);
+        }
+        return Services.ShortcutScope.Canvas;
+    }
+
+    /// <summary>The visible panel of the docker containing this element, if any.</summary>
+    private static Docking.DockPanelId? PanelUnder(Visual? from)
+    {
+        for (var v = from; v is not null; v = v.GetVisualParent())
+        {
+            if (v is Controls.Docker docker) return docker.ActiveTab;
+        }
+        return null;
+    }
+
+    /// <summary>What the pointer is over, for <see cref="CurrentShortcutScope"/>.</summary>
+    private Visual? _hoveredElement;
 
     /// <summary>Clicking anywhere on a layer-docker row makes that layer active.</summary>
     private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)
@@ -3080,7 +3127,7 @@ public partial class MainWindow : Window
             }
         }
 
-        switch (_shortcuts.IdFor(e, CurrentShortcutContext()))
+        switch (_shortcuts.IdFor(e, CurrentShortcutScope()))
         {
             case "file.save":
                 // Deliberately the same path as the menu item rather than _vm.Save(): a
