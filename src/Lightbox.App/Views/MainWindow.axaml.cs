@@ -2394,11 +2394,32 @@ public partial class MainWindow : Window
     /// the columns sit centred. Dragged past 150 px the rail becomes the
     /// labelled single-column list it always was.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two modes, told apart by whether the column is still <c>Auto</c>.</b>
+    /// Until the rail is dragged it sizes itself: the column count comes from
+    /// the height alone and the column then measures to exactly that many
+    /// tiles. Deriving the count from the width as well would be circular now
+    /// that the width follows the count — and the fixed 88px that used to break
+    /// the circle is what left a one-column rail sitting in the middle of 27px
+    /// of nothing down each side.
+    /// </para>
+    /// <para>
+    /// A drag writes pixels into the column, and from then on the artist's
+    /// width is the input and the count follows it, exactly as before. That is
+    /// also the only way to reach the three-column and labelled layouts, which
+    /// is what the manual has always said: three columns need the rail
+    /// <i>dragged</i> wide enough.
+    /// </para>
+    /// </remarks>
     private void ReflowToolRail(double width, double height)
     {
-        if (width <= 0 || height <= 0) return;
+        if (height <= 0) return;
 
-        if (width >= 150)
+        var chosen = !WorkArea.ColumnDefinitions[0].Width.IsAuto;
+        if (chosen && width <= 0) return;
+
+        if (chosen && width >= 150)
         {
             Toolbar.Classes.Set("labels", true);
             ToolButtons.ItemWidth = Math.Max(40, width - 14);
@@ -2413,9 +2434,11 @@ public partial class MainWindow : Window
         var first = ToolButtons.Children.First(c => c.IsVisible);
         var tileH = first.Bounds.Height > 1 ? first.Bounds.Height + 4 : 32;
 
-        var maxByWidth = Math.Clamp((int)((width - 8) / tile), 1, 3);
+        // Self-sizing stops at two. A third column is worth the canvas it costs
+        // only when somebody has asked for it, and asking is the drag.
+        var most = chosen ? Math.Clamp((int)((width - 8) / tile), 1, 3) : 2;
         var cols = 1;
-        while (cols < maxByWidth && Math.Ceiling(visible / (double)cols) * tileH > height - 8) cols++;
+        while (cols < most && Math.Ceiling(visible / (double)cols) * tileH > height - 8) cols++;
 
         ToolButtons.ItemWidth = tile;
         ToolButtons.Width = cols * tile;

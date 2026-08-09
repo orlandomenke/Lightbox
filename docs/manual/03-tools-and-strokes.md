@@ -7,10 +7,15 @@ Down the left: **Brush** (B), **Eraser** (E), **Fill**, **Picker**,
 **Gradient**, **Arrow** (A), **Points** (N), **Pen** (P), **Width** (W), **Shape** (U), **Select** (S). Press Select again to cycle its
 variants, or hold it for the list: Freehand, Polygon, Box, Circle, Magic wand.
 
-The rail arranges itself: two centred columns ordinarily, one when the window
-is tall enough to hold every tool in a single column, three when it is short
-and the rail has been dragged wide enough. Drag the rail past ~150&nbsp;px and
-it becomes a single labelled list.
+**The rail arranges itself, and takes only the width it is using.** One centred
+column when the window is tall enough to hold every tool in one, two when it is
+not — and the rail is exactly as wide as the columns it chose, rather than a
+fixed width with space around it.
+
+Drag its edge to overrule that. A width you set is yours and stays put when the
+window changes shape, and it is also the way to the two layouts the rail will
+not choose for itself: **three columns**, worth the canvas it costs only when
+you have asked for it, and past ~150&nbsp;px a **single labelled list**.
 
 **Hold Ctrl to borrow the eyedropper.** The tool actually changes while you
 hold it — the rail highlights, the cursor changes — and letting go puts your
