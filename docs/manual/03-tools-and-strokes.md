@@ -4,7 +4,7 @@
 ## Tools
 
 Down the left: **Brush** (B), **Eraser** (E), **Fill**, **Picker**,
-**Gradient**, **Arrow** (A), **Select** (S). Press Select again to cycle its
+**Gradient**, **Arrow** (A), **Points** (N), **Pen** (P), **Width** (W), **Select** (S). Press Select again to cycle its
 variants, or hold it for the list: Freehand, Polygon, Box, Circle, Magic wand.
 
 The rail arranges itself: two centred columns ordinarily, one when the window
@@ -122,6 +122,22 @@ something a hand can work with.
 | **Click empty canvas** | Lets the points go, without leaving the mode. |
 
 Each drag is **one undo step**, however far you pushed the point around.
+
+### Making a line heavier or lighter
+
+**The Width tool (W)** changes how thick a line is along its length. Go into a
+line the usual way — double-click it with the Arrow — then drag away from the
+line to fatten it there, or back towards it to thin it. The change is local: it
+spreads a short way either side of where you are pointing and leaves the rest of
+the line as you drew it.
+
+It is the same number your pen pressure writes, so a line you drew with a taper
+and a line you widened by hand are the same kind of thing afterwards. A line
+drawn with the **pen**, which had no pressure at all, starts out even and can be
+given a taper this way.
+
+The whole drag is **one undo step**, and undoing it puts every original pressure
+back exactly.
 
 **Pulling the line is worth trying before anything else.** Most of the time what
 you want is *this bit of the line should be over there*, and reaching for that

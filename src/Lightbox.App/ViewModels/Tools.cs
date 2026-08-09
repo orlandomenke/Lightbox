@@ -88,6 +88,27 @@ public enum ToolId
     /// </remarks>
     Pen,
 
+    /// <summary>
+    /// The width tool: drag away from a line to fatten it, towards it to thin it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Illustrator's Width tool, and it is the same thing here for a reason worth
+    /// stating plainly: <b>its "width points" are Lightbox's per-point pressure
+    /// under another name.</b> A Lightbox stroke is already a centreline with a
+    /// width at every point, so there is nothing to add to the record — this
+    /// tool edits a number the format has carried since the first stroke.
+    /// </para>
+    /// <para>
+    /// A separate tool rather than a modifier on the white arrow, for Q53's
+    /// reason: it does a different kind of thing (weight, not geometry) and one
+    /// gesture that means two things depending on a held key is the ambiguity the
+    /// vector design exists to avoid. It shares the isolation session, so
+    /// reaching for it inside a line you are already reshaping just works.
+    /// </para>
+    /// </remarks>
+    Width,
+
     /// <summary>Eyedropper: click the canvas to pick the color under the cursor.</summary>
     Picker,
 

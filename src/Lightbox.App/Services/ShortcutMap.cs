@@ -75,6 +75,9 @@ public sealed class ShortcutMap
             // other application — nothing here had claimed it, so there was no
             // reason to spend an artist's muscle memory.
             new("tool.pen", "Pen (draw a line by its points)", "Tools", G(Key.P)),
+            // W for width, and free like P was. Illustrator puts this on Shift+W
+            // because W is its own Blend tool; nothing here wanted the letter.
+            new("tool.width", "Width (make a line heavier or lighter)", "Tools", G(Key.W)),
             // What the arrow can then do. Registered rather than wired straight
             // to the key handler, because a command that is not in here cannot be
             // found, searched or rebound — which is the failure this whole map

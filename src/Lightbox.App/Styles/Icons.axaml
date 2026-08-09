@@ -42,6 +42,13 @@
     this size and there is no way to un-see it once noticed.
   -->
   <StreamGeometry x:Key="IconPen">M0,0 M24,24 M17.8,2.8 L21.2,6.2 L11.4,14.8 L6.1,17.9 L9.3,12.6 Z M6.1,17.9 L10.3,13.7 M14.5,8.4 a1.1,1.1 0 1 0 0.01,0</StreamGeometry>
+  <!--
+    Width: a line that swells and thins along its length, with the two arrows
+    that say which way a drag takes it. The lens shape is the whole idea in one
+    glyph — a centreline with a width at every point, which is what a Lightbox
+    stroke has always been.
+  -->
+  <StreamGeometry x:Key="IconWidth">M0,0 M24,24 M3.5,12 C8,7 16,7 20.5,12 C16,17 8,17 3.5,12 Z M12,4.2 V6.6 M12,4.2 L10.4,5.8 M12,4.2 L13.6,5.8 M12,19.8 V17.4 M12,19.8 L10.4,18.2 M12,19.8 L13.6,18.2</StreamGeometry>
 
   <!-- Everyday verbs. -->
   <StreamGeometry x:Key="IconClose">M0,0 M24,24 M6.5,6.5 L17.5,17.5 M17.5,6.5 L6.5,17.5</StreamGeometry>

@@ -1391,6 +1391,14 @@
                   <TextBlock Text="Pen" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
+              <ToggleButton Classes="tool" IsChecked="{Binding IsWidthTool, Mode=OneWay}"
+                            Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Width}"
+                            ToolTip.Tip="Width (W) — drag away from a line to make it heavier, back towards it to make it lighter. Works inside a line you have gone into with the arrow.">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Path Data="{StaticResource IconWidth}" />
+                  <TextBlock Text="Width" Classes="toolname" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
               <ToggleButton x:Name="SelectToolButton" Classes="tool" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" IsChecked="{Binding IsSelectTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Select}"
                             ToolTip.Tip="Select (S — press again to switch variant; hold for the list)">
