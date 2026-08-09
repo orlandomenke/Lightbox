@@ -641,7 +641,7 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
     // ---- the window itself, which is the half no view-model test reaches ---------------------
 
     /// <summary>
-    /// B162: opening the project manager crashed, and every test above it passed.
+    /// B163: opening the project manager crashed, and every test above it passed.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -670,7 +670,7 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
 }
 
 /// <summary>
-/// The same failure as B162, asked of every window rather than of one.
+/// The same failure as B163, asked of every window rather than of one.
 /// </summary>
 /// <remarks>
 /// A static field initialiser that throws is invisible until somebody opens that

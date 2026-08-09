@@ -87,7 +87,7 @@ public partial class ProjectWindow : Window
     /// It was <c>CreateStringApplicationFormat</c>, which is the cross-application
     /// one, and Avalonia validates those identifiers: a <c>/</c> is rejected, so
     /// <c>"lightbox/status-card"</c> threw out of this field initialiser and took
-    /// the whole window's type initialiser with it (B162). The name loses its
+    /// the whole window's type initialiser with it (B163). The name loses its
     /// slash as well as its constructor, so a later move back to an application
     /// format cannot resurrect the crash.
     /// </para>
