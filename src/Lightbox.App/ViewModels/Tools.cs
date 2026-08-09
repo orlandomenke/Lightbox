@@ -64,6 +64,30 @@ public enum ToolId
     /// </remarks>
     DirectSelect,
 
+    /// <summary>
+    /// The pen: places nodes and draws the curve between them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Click for a corner, click and drag for a curve, click the first node to
+    /// close. The third of the vector tools and the only one that starts from
+    /// nothing — the arrows both need a line to already exist.
+    /// </para>
+    /// <para>
+    /// <b>What it makes is an ordinary stroke.</b> Not a shape, not a vector
+    /// object: the same record the brush writes, with its points flattened from
+    /// the path and the path kept alongside them. So a pen line erases, fills
+    /// against, inbetweens and exports exactly like a drawn one, and the white
+    /// arrow opens the nodes the pen authored rather than a fit of them.
+    /// </para>
+    /// <para>
+    /// A pen line has no pressure variation, because nothing was pressing. That
+    /// is the honest result rather than a gap — it is what a pen is for, and the
+    /// brush's own dynamics still apply along it.
+    /// </para>
+    /// </remarks>
+    Pen,
+
     /// <summary>Eyedropper: click the canvas to pick the color under the cursor.</summary>
     Picker,
 

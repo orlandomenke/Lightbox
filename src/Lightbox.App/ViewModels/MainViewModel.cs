@@ -3575,6 +3575,8 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsShapeTool))]
     [NotifyPropertyChangedFor(nameof(IsPaintTool))]
     [NotifyPropertyChangedFor(nameof(IsArrowTool))]
+    [NotifyPropertyChangedFor(nameof(IsDirectSelectTool))]
+    [NotifyPropertyChangedFor(nameof(IsPenTool))]
     private ToolId _activeTool = ToolId.Brush;
 
     [ObservableProperty]
@@ -3600,6 +3602,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>The black arrow — picks things (lines, guides, symbols) rather than an area of pixels.</summary>
     public bool IsArrowTool => ActiveTool == ToolId.Arrow;
+
+    /// <summary>The white arrow — nodes and handles on one isolated line.</summary>
+    public bool IsDirectSelectTool => ActiveTool == ToolId.DirectSelect;
+
+    /// <summary>The pen — places nodes and draws the curve between them.</summary>
+    public bool IsPenTool => ActiveTool == ToolId.Pen;
 
     public bool IsEraserTool => ActiveTool == ToolId.Eraser;
 
@@ -3690,6 +3698,18 @@ public sealed partial class MainViewModel : ObservableObject
         // behaves the same way (the polygon above it, the transform session),
         // which is why this is one line rather than a mode.
         if (value != ToolId.Arrow) ClearStrokeSelection();
+
+        // The pen keeps what it drew rather than dropping it, which is the same
+        // answer Escape gets and for the same reason: reaching for another tool
+        // mid-path is not a request to throw a minute of authoring away.
+        if (value != ToolId.Pen) FinishPen();
+
+        // B147's shape one tool along, and phase 2 shipped it: the node overlay
+        // is drawn whatever the tool is, so leaving isolation for the brush left
+        // glyphs on screen over a line nothing could reshape any more. Both
+        // arrows keep the session — you enter it by double-clicking with the
+        // black one and work it with the white one — and everything else ends it.
+        if (value is not (ToolId.Arrow or ToolId.DirectSelect)) EndPathEdit();
     }
 
     [RelayCommand]

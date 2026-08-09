@@ -133,6 +133,38 @@ jobs and blurring them is how a click starts meaning two things.
 > is the **grain**, for the same reason moving a line does not: the texture
 > comes from where the mark is on the canvas.
 
+### Drawing a line with the pen
+
+**The pen (P) draws a line by placing its points instead of by hand.** Click to
+put a corner down; click *and drag* to put a curved point down, pulling its
+handles out as you go. The line follows the pointer as you move, so you can see
+the curve the next click is going to make before you commit to it.
+
+| | |
+| --- | --- |
+| **Click** | A corner point. |
+| **Click and drag** | A smooth point — the drag pulls its handles out. |
+| **Alt while dragging** | Only the outgoing handle, leaving the point a corner: a curve that arrives straight and leaves bent. |
+| **Shift** | Constrains to 45°, so horizontals, verticals and diagonals are exact. |
+| **Click the first point** | Closes the line, and finishes it. |
+| **Backspace** | Takes the last point back off. |
+| **Enter or Esc** | Finishes the line. |
+
+**Neither Enter nor Esc throws the line away.** Both mean *done*, and so does
+reaching for another tool — a path you have spent a minute placing is artwork,
+not a gesture in progress. If you did not want it, **Ctrl+Z**: the whole line is
+one undo step however many points went into it.
+
+**What the pen makes is an ordinary line.** Not a shape and not a separate kind
+of object — the same thing the brush makes, with the same brush settings, which
+means it erases, fills against, exports and inbetweens exactly like a drawn one.
+The white arrow opens the points *you* placed rather than working them out
+afterwards.
+
+A pen line has no pressure variation, because nothing was pressing. That is what
+it is for — a clean, even line. If you want weight in it, reshape it afterwards
+or draw it by hand.
+
 ## What a stroke is
 
 **A frame is a list of strokes; the pixels are derived.** Nothing paints except
