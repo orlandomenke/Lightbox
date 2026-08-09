@@ -99,27 +99,59 @@ They sample layers and frames, which remain CPU-side. If that turns out to be
 wrong for any one of them, that call site is the thing to redesign — not the
 compositor.
 
+## The third crux, found while scoping stage 1: pass bitmaps are cache-owned
+
+Stage 1 sends a pass list to the render thread. Every pass bitmap comes from
+`_cache.Get(...)` — `FrameBitmapCache` — and **eviction disposes it**
+(`FrameBitmapCache.cs:331`, `node.Value.Bmp.Dispose()`).
+
+Today that is safe by construction: the composite is synchronous on the UI
+thread while the cache still holds the bitmap, and only the *finished* image
+crosses to the render thread, whose lifetime `CanvasControl._retired` manages.
+
+Send the passes instead and that guarantee is gone. A frame-cache eviction
+between publish and render frees pixels Skia is about to read — a
+**use-after-free in native code**, which is B130's exact signature: no managed
+stack, an empty crash log, and "Lightbox dies as soon as I touch anything".
+
+So stage 1 is not plumbing. It needs a lifetime protocol, and there are three
+candidates:
+
+- **Pin what is published.** The cache refuses to evict entries a live pass list
+  references. Cheapest, and it lets a stalled render pin the cache.
+- **Extend retirement to passes.** `_retired` already solves this exact hazard
+  for the composed image; passes would follow the same rule — freed only once a
+  newer snapshot has been drawn.
+- **Publish immutable snapshots.** Passes carry their own references rather than
+  borrowing the cache's. Safest, and costs a copy — which is the thing the whole
+  change exists to avoid.
+
+The second reuses machinery that already exists for this failure and is the one
+to cost first. Whichever wins, **it lands before any pass crosses a thread**,
+not after a crash report.
+
 ## Staging
 
 Each stage is independently landable and independently revertable, which matters
 because the bandwidth question above is unanswered until stage 2 runs on real
 hardware.
 
-1. **Pass list to the render thread.** `RenderSnapshot` grows a pass-list form
+1. **A lifetime protocol for published passes**, per the crux above. Nothing
+   crosses a thread until this exists.
+2. **Pass list to the render thread.** `RenderSnapshot` grows a pass-list form
    beside its image; the canvas composites CPU-side from passes inside the draw
    op. No GPU yet, no behaviour change, and the render must stay pixel-identical
-   — this stage is pure motion and is where the plumbing risk lives
-   (`PresentLatency`, retired-image disposal, and the durable frame all assume an
-   `SKImage` today).
-2. **GPU surface, CPU-uploaded passes.** Composite into a GPU surface from the
+   — `PresentLatency`, retired-image disposal and the durable frame all assume an
+   `SKImage` today.
+3. **GPU surface, CPU-uploaded passes.** Composite into a GPU surface from the
    lease, uploading pass bitmaps per frame. Almost certainly *slower* than today
    on some hardware — the point is to measure the upload, which is the number the
    whole design rests on.
-3. **Resident layer textures.** Cache uploaded tiles, invalidated by the drawing
+4. **Resident layer textures.** Cache uploaded tiles, invalidated by the drawing
    rather than the playhead. This is where the win actually arrives.
-4. **Retire the display-side `ComposeRing`** once nothing reads a composed image.
+5. **Retire the display-side `ComposeRing`** once nothing reads a composed image.
 
-Stage 2 is a gate. If the upload dominates on an integrated GPU, stage 3's
+Stage 3 is a gate. If the upload dominates on an integrated GPU, stage 4's
 invalidation design is what has to carry it, and the estimate for the whole
 changes.
 
