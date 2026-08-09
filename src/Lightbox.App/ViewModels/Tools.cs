@@ -37,6 +37,33 @@ public enum ToolId
     /// </remarks>
     Arrow,
 
+    /// <summary>
+    /// The white arrow: reshapes one isolated line, point by point.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Illustrator's Direct Selection, and the second half of the pair the black
+    /// arrow starts. It touches nodes and handles rather than whole strokes,
+    /// which is why it is a separate tool and not a mode of the black one — Q53
+    /// again: one tool, one kind of thing, and no modifier to remember.
+    /// </para>
+    /// <para>
+    /// <b>Its key is not Illustrator's.</b> The design table says <c>A</c>, which
+    /// this application gave the black arrow before the pair existed and which
+    /// the manual has documented since. Moving it would break a binding artists
+    /// already have for a letter that only matches Adobe if you also moved
+    /// Select off <c>V</c>. <c>N</c> for node is free, mnemonic, and rebindable
+    /// like everything else — the point of <c>ShortcutMap</c> is that the default
+    /// is a default.
+    /// </para>
+    /// <para>
+    /// Reaching for it with nothing isolated does nothing destructive: it says
+    /// what to do — double-click a line — rather than silently behaving like the
+    /// black arrow, which would be the two tools blurring back into one.
+    /// </para>
+    /// </remarks>
+    DirectSelect,
+
     /// <summary>Eyedropper: click the canvas to pick the color under the cursor.</summary>
     Picker,
 

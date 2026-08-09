@@ -972,6 +972,17 @@ public sealed class CanvasControl : Control
         Shape,
         Move,
         Select,
+
+        /// <summary>
+        /// The white arrow: nodes and handles on the one isolated stroke.
+        /// </summary>
+        /// <remarks>
+        /// Distinct from <see cref="Select"/> rather than a flag on it, because
+        /// what a press means is entirely different — a node, not a stroke — and
+        /// folding the two would make one gesture mean two things depending on
+        /// state, which is the ambiguity the vector design exists to avoid.
+        /// </remarks>
+        PathEdit,
     }
 
     public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
@@ -1133,6 +1144,69 @@ public sealed class CanvasControl : Control
     /// <summary>Hand the canvas the question it asks on a black-arrow press.</summary>
     public void SetLinePicker(Func<double, double, double, bool, bool, bool>? pick) =>
         _pickLine = pick;
+
+    // ---- reshaping one line (phase 2) ----------------------------------------
+
+    /// <summary>
+    /// Double-clicked a line with the black arrow: go into it. Returns whether
+    /// something was there.
+    /// </summary>
+    /// <remarks>
+    /// A delegate that answers rather than an event that does not, for the same
+    /// reason the line picker is one: the canvas has to know whether the press
+    /// became an isolation or is still a selection.
+    /// </remarks>
+    private Func<double, double, double, bool>? _enterPathEdit;
+
+    public void SetPathEditEntry(Func<double, double, double, bool>? enter) =>
+        _enterPathEdit = enter;
+
+    /// <summary>Grab a node or handle. Returns what was taken, or a miss.</summary>
+    private Func<double, double, double, bool, ViewModels.PathHit>? _grabPathPart;
+
+    /// <summary>Drag it — live, view-only, no document write.</summary>
+    private Action<ViewModels.PathHit, double, double, double, double, bool>? _dragPathPart;
+
+    /// <summary>Let go: one undo step for the whole drag.</summary>
+    private Action? _commitPathEdit;
+
+    public void SetPathEditHandlers(
+        Func<double, double, double, bool, ViewModels.PathHit>? grab,
+        Action<ViewModels.PathHit, double, double, double, double, bool>? drag,
+        Action? commit)
+    {
+        _grabPathPart = grab;
+        _dragPathPart = drag;
+        _commitPathEdit = commit;
+    }
+
+    private ViewModels.PathHit _pathGrab = ViewModels.PathHit.Miss;
+    private (double X, double Y)? _pathDragLast;
+
+    /// <summary>
+    /// The nodes to draw, in document space, and which are selected.
+    /// </summary>
+    /// <remarks>
+    /// Handed over on change rather than polled, like the selected-line
+    /// outlines: rebuilding this per pointer move would be work proportional to
+    /// the path inside a move handler. It is small — a fitted line is a handful
+    /// of nodes — but the rule is the rule, and B147 is what happens when a
+    /// canvas's private copy stops being refreshed.
+    /// </remarks>
+    private IReadOnlyList<PathNodeGlyph>? _pathNodes;
+
+    /// <summary>One node as the overlay needs it: where it is and what it is.</summary>
+    public readonly record struct PathNodeGlyph(
+        double X, double Y,
+        double InX, double InY,
+        double OutX, double OutY,
+        bool Corner, bool Selected);
+
+    public void SetPathNodes(IReadOnlyList<PathNodeGlyph>? nodes)
+    {
+        _pathNodes = nodes is { Count: > 0 } ? nodes : null;
+        InvalidateVisual();
+    }
 
     /// <summary>
     /// A marquee dragged with the arrow: the rect in document space, and
@@ -1797,7 +1871,7 @@ public sealed class CanvasControl : Control
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
-            _selectedLines, LineMarqueeRect(), LineDragOffset()));
+            _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes));
     }
 
     /// <summary>
@@ -2408,11 +2482,30 @@ public sealed class CanvasControl : Control
                     }
                     e.Handled = true;
                     return;
+                case CanvasToolMode.PathEdit:
+                    e.Pointer.Capture(this);
+                    _pathGrab = _grabPathPart?.Invoke(
+                        x, y, DocTolerance(GrabPixels),
+                        e.KeyModifiers.HasFlag(KeyModifiers.Shift)) ?? ViewModels.PathHit.Miss;
+                    _pathDragLast = _pathGrab.IsHit ? (x, y) : null;
+                    e.Handled = true;
+                    return;
                 case CanvasToolMode.Select:
                     if (_selectionManager is not null)
                     {
                         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
                         var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+
+                        // Double-click goes into the line rather than selecting
+                        // it again. Illustrator's gesture, and safe for the
+                        // reason Q53 gives: reaching into geometry is never
+                        // something a single click can do by accident.
+                        if (e.ClickCount >= 2 && _enterPathEdit is not null
+                            && _enterPathEdit(x, y, DocTolerance(GrabPixels)))
+                        {
+                            e.Handled = true;
+                            return;
+                        }
 
                         // Try placements first
                         if (_getPlacementsForSelection is not null)
@@ -2769,6 +2862,20 @@ public sealed class CanvasControl : Control
                 return;
             }
 
+            // reshaping a node or a handle?
+            if (_pathGrab.IsHit && _pathDragLast is { } pathFrom)
+            {
+                var (px, py) = ViewToDoc(e.GetPosition(this));
+                _pathDragLast = (px, py);
+                _dragPathPart?.Invoke(
+                    _pathGrab, px, py, px - pathFrom.X, py - pathFrom.Y,
+                    // Alt breaks a smooth node's handle pair, Illustrator's
+                    // modifier, so the muscle memory transfers.
+                    e.KeyModifiers.HasFlag(KeyModifiers.Alt));
+                e.Handled = true;
+                return;
+            }
+
             // selection shape in progress?
             if (_dragShape.Count > 0 && ToolMode == CanvasToolMode.SelectFreehand)
             {
@@ -2984,6 +3091,18 @@ public sealed class CanvasControl : Control
                 sx, sy,
                 e.KeyModifiers.HasFlag(KeyModifiers.Alt),
                 e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+            e.Handled = true;
+            return;
+        }
+        if (_pathGrab.IsHit)
+        {
+            // One undo step for the whole drag, however many pointer moves it
+            // took — the transform session's rule, and the reason the live edit
+            // never touched the document.
+            _pathGrab = ViewModels.PathHit.Miss;
+            _pathDragLast = null;
+            e.Pointer.Capture(null);
+            _commitPathEdit?.Invoke();
             e.Handled = true;
             return;
         }
@@ -3350,7 +3469,8 @@ public sealed class CanvasControl : Control
         Action<GRContext?>? gpuWork = null,
         IReadOnlyList<SelectedLine>? selectedLines = null,
         SKRect? lineMarquee = null,
-        SKPoint lineDrag = default) : ICustomDrawOperation
+        SKPoint lineDrag = default,
+        IReadOnlyList<PathNodeGlyph>? pathNodes = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -3673,10 +3793,106 @@ public sealed class CanvasControl : Control
             if (dragging) canvas.Restore();
         }
 
+        /// <summary>
+        /// The node overlay: handles behind, nodes in front, everything sized in
+        /// screen pixels rather than document ones.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Every dimension is divided by the view scale</b>, which is what
+        /// makes a node the same size to grab at 25% and at 800%. The overlay is
+        /// drawn inside the document transform so its coordinates need no
+        /// conversion; only its <em>thicknesses</em> do. Getting this backwards
+        /// gives handles that vanish when you zoom out to see the shape — which
+        /// is exactly when you need them.
+        /// </para>
+        /// <para>
+        /// <b>Corners are squares and smooth nodes are circles</b>, which is the
+        /// convention every vector tool shares and is worth matching rather than
+        /// inventing: it is the only way to see, without clicking, whether a
+        /// point will kink when you drag its handle.
+        /// </para>
+        /// <para>
+        /// <b>Handles are drawn only for selected nodes</b>, matching the hit
+        /// test exactly — an overlay that showed a handle nothing could grab, or
+        /// hid one that could be, would make the tool feel unreliable in a way
+        /// that is very hard to report.
+        /// </para>
+        /// </remarks>
+        private void DrawPathNodes(SKCanvas canvas)
+        {
+            if (pathNodes is null || pathNodes.Count == 0) return;
+
+            var scale = Math.Max(0.01f, view.Scale);
+            var nodeRadius = 4f / scale;
+            var handleRadius = 3f / scale;
+
+            using var stem = new SKPaint
+            {
+                Color = SKColors.DeepSkyBlue.WithAlpha(200),
+                StrokeWidth = 1f / scale,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+            };
+            using var outline = new SKPaint
+            {
+                Color = SKColors.DeepSkyBlue,
+                StrokeWidth = 1.5f / scale,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+            };
+            using var hollow = new SKPaint
+            {
+                Color = SKColors.White,
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true,
+            };
+            using var filled = new SKPaint
+            {
+                Color = SKColors.DeepSkyBlue,
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true,
+            };
+
+            // Handles first, so a stem never draws over the node it belongs to.
+            foreach (var n in pathNodes)
+            {
+                if (!n.Selected) continue;
+                foreach (var (hx, hy) in new[] { (n.InX, n.InY), (n.OutX, n.OutY) })
+                {
+                    if (hx == 0 && hy == 0) continue;
+                    var ax = (float)(n.X + hx);
+                    var ay = (float)(n.Y + hy);
+                    canvas.DrawLine((float)n.X, (float)n.Y, ax, ay, stem);
+                    canvas.DrawCircle(ax, ay, handleRadius, hollow);
+                    canvas.DrawCircle(ax, ay, handleRadius, outline);
+                }
+            }
+
+            foreach (var n in pathNodes)
+            {
+                var x = (float)n.X;
+                var y = (float)n.Y;
+                var body = n.Selected ? filled : hollow;
+                if (n.Corner)
+                {
+                    var box = new SKRect(x - nodeRadius, y - nodeRadius, x + nodeRadius, y + nodeRadius);
+                    canvas.DrawRect(box, body);
+                    canvas.DrawRect(box, outline);
+                }
+                else
+                {
+                    canvas.DrawCircle(x, y, nodeRadius, body);
+                    canvas.DrawCircle(x, y, nodeRadius, outline);
+                }
+            }
+        }
+
         private void DrawObjectSelections(SKCanvas canvas)
         {
             DrawSelectedLines(canvas);
             DrawLineMarquee(canvas);
+            DrawPathNodes(canvas);
             if (selectionManager is null || !selectionManager.HasSelection) return;
 
             var scale = view.Scale;

@@ -72,6 +72,13 @@ public partial class MainViewModel
             ? null
             : StrokePicker.TopmostAt(strokes, IndexOf(strokes), x, y, tolerance);
 
+        // Isolation locks everything else, and this is where that is true rather
+        // than merely drawn. A click that landed on another line inside a session
+        // does nothing at all — not "selects it and looks odd", nothing — which
+        // is the promise the mode makes and the reason it is safe to reach into
+        // geometry while it is on.
+        if (hit is { } isolated && !RespondsToPicking(strokes[isolated].Id)) return false;
+
         if (hit is not { } position)
         {
             // Only an unmodified click means "let go". Shift-clicking empty

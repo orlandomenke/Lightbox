@@ -10,6 +10,8 @@ canvas, the timeline and the Layers panel.
 | --- | --- |
 | B / E / S | Brush, Eraser, Select (press again to cycle variants) |
 | A | Arrow — select whole lines, guides, symbols |
+| N | White arrow — reshape an isolated line's points |
+| Double-click | Go inside a line to reshape it; Esc to come back out |
 | Delete | Delete the selected lines |
 | Arrows | Nudge the selected lines a pixel, ten with Shift (Arrow tool only) |
 | Ctrl (hold) | Pick a colour |

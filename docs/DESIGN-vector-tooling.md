@@ -1,7 +1,7 @@
 # Vector tooling: making the lines you already drew editable
 
-Status: **agreed design; phase 0 landed except rotate and scale, phase 1 landed
-2026-08-08, phases 2–4 not started.** Decisions Q47–Q53, answered 2026-08-07.
+Status: **agreed design; phase 0 landed except rotate and scale, phases 1 and 2
+landed 2026-08-08, phases 3–4 not started.** Decisions Q47–Q53, answered 2026-08-07.
 Unblocked by Q26, which has been answered since the same day and which two other
 documents still describe as open — see *Corrections* at the end.
 
@@ -13,6 +13,16 @@ before phase 2 builds on them:
   fitting is an *authoring* step and wants a handful of nodes a hand can work
   with (1.5 px). A fit tight enough to be invisible puts a node on every wobble,
   which is a path nobody can edit — the tool would appear to work and be useless.
+- **Reshaping loses the line's weight unless something carries it, and phase 2
+  had to add that.** A drawn stroke has a pressure at every one of its hundreds
+  of points; a fit keeps only the pressures at the handful of places its nodes
+  landed, so re-flattening turns a confident taper into three straight ramps.
+  Measured on an ordinary tapered arc: the peak drops from 1.00 to **0.89** on
+  the first node drag. `PressureProfile` re-applies the original weight by
+  normalised arc length, so it stretches with the edit instead of being
+  resampled away. This is not a nicety — the roadmap item is worded *"a drawn
+  line can be re-shaped **and keeps the mark it was drawn with**"*, and pressure
+  is the part of the mark an animator notices first.
 - **Flatten had to be uniform rather than recursive-adaptive, and pressure is
   why.** De Casteljau subdivision is the textbook answer and it loses the curve
   parameter as it goes, so pressure would have to be carried through the
@@ -201,7 +211,7 @@ One branch, one objective.
 | **0** | *landed, partly* | Picker, selection, arrow, move, delete and recolour shipped (PRs #74, #75). **Rotate and scale did not**, and neither did the route this row specifies: no `TransformScope` can mean *"these strokes inside this cel"*, so move/delete/recolour went through `DocumentEditor.PerformDelta` instead of the transform session. Finishing phase 0 means adding that scope, and it is a separate objective |
 | **—** | `fix/project/B132-one-frame-class` | Not a phase. `PaintedFrame` + `VectorFrame` → one `Frame` with a nullable baseline and nullable placements; the Raster/Vector picker and the R/V badge removed. **A record and format change**: closes B132, completes Q52's UI half, and drops `kind` and empty `pngBase64` from the file |
 | **1** | *landed* | `StrokePath`, `PathNode`, `Stroke.Path`, `PathFlattener`, `CurveFitter` (Schneider), the agreement invariant obeyed at all three callers that map points. **No UI**, as specified. A 121-point arc fits to 4 nodes and flattens back within 1.2 px |
-| **2** | `feat/canvas/path-editing` | `PathEditSession`, isolation, the white arrow, the node overlay. Closes `ROADMAP.md:158` and ships Q26's manual line |
+| **2** | *landed* | `PathEditSession`, isolation, the white arrow, the node overlay — plus `PressureProfile`, which the design did not predict and the roadmap item's own wording requires. The white arrow is `N`, not `A`: `A` is this application's black arrow and has been documented as such |
 | **3** | `feat/canvas/pen-tool` | The pen and its four modifiers |
 | **4** | `feat/canvas/line-correction` | Pinch, width, simplify, cut, join |
 

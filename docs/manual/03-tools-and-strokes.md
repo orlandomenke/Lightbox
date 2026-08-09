@@ -89,6 +89,44 @@ Everything is one undo step per action, however many lines are selected.
 *Planned:* scaling and rotating what you picked, and a box with handles to do it
 with.
 
+### Reshaping a line
+
+**Double-click a line to go inside it.** The line gets a row of points along it
+and everything else on the canvas stops responding — click another line while
+you are in here and nothing happens, deliberately. **Esc** when you are done.
+
+Why a mode rather than a held key: reaching into a drawing and moving its
+geometry is not something that should ever happen by accident, and a modifier is
+something you have to remember *not* to be holding.
+
+**The points come from the line you drew.** You do not have to have planned for
+this — any line, drawn at any time, gets its points worked out when you first
+double-click it. A long stroke usually comes back as a handful of points rather
+than the hundreds you actually drew, because a point every wobble is not
+something a hand can work with.
+
+| | |
+| --- | --- |
+| **Drag a point** | Moves it, and the line follows. |
+| **Click a point** | Selects it, and shows its **handles** — the two arms that decide how the line curves through it. Drag an arm to bend the curve. |
+| **Square points are corners**, round ones are smooth | On a smooth point the two arms stay in line, so the curve runs through without a kink. On a corner they are independent. |
+| **Alt-drag an arm** | Breaks the pair, turning a smooth point into a corner. |
+| **Shift-click** | Adds a point to what you have got; dragging then moves them together. |
+| **Click empty canvas** | Lets the points go, without leaving the mode. |
+
+Each drag is **one undo step**, however far you pushed the point around.
+
+**The white arrow (N)** is the same thing as a tool rather than a gesture — for
+when you are already inside a line and want to keep reshaping. It does nothing
+until a line is isolated, which is on purpose: it and the Arrow do different
+jobs and blurring them is how a click starts meaning two things.
+
+> **Reshaping keeps the weight you drew with.** A line that tapers at the ends
+> still tapers after you have moved its points about — the pressure spreads
+> along the new shape rather than being flattened out. What it does *not* keep
+> is the **grain**, for the same reason moving a line does not: the texture
+> comes from where the mark is on the canvas.
+
 ## What a stroke is
 
 **A frame is a list of strokes; the pixels are derived.** Nothing paints except
