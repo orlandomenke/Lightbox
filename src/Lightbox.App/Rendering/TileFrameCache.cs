@@ -82,16 +82,66 @@ public sealed class TileFrameCache : IDisposable
             return (node.Value.Entry.Store, node.Value.Entry.Pyramid);
         }
 
-        var store = new TileStore();
-        var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        TiledRasterizer.Rasterize(store, StrokesOf(frame), info);
-        var entry = new Entry(store, new TilePyramid(store));
+        var (store, pyramid) = RenderDetached(frame, width, height);
+        var entry = new Entry(store, pyramid);
 
         var fresh = _lru.AddFirst((frame.Id, entry));
         _map[frame.Id] = fresh;
         AllocatedBytes += store.AllocatedBytes;
         Evict();
         return (entry.Store, entry.Pyramid);
+    }
+
+    /// <summary>Whether this frame's tiles are already held.</summary>
+    public bool Holds(string frameId) => _map.ContainsKey(frameId);
+
+    /// <summary>
+    /// Build a frame's tiles without touching the cache, so it can be done on a
+    /// background thread and handed back through <see cref="InsertWarm"/>.
+    /// </summary>
+    /// <param name="level">
+    /// A mip level to build while we are off the UI thread. The pyramid is lazy
+    /// by design, which means the first zoomed-out publish of a frame pays for
+    /// the downscale — on the tick, in front of the artist. Warming the level
+    /// the compositor is going to ask for moves that cost to the worker too;
+    /// passing 0 leaves the pyramid untouched.
+    /// </param>
+    /// <remarks>
+    /// Safe off the UI thread for the same reason as
+    /// <see cref="FrameBitmapCache.RenderDetached"/>: a tile is rebuilt from
+    /// the stroke record, and invariant 2 makes that a pure function. The
+    /// returned pair is owned by the caller until a cache takes it.
+    /// </remarks>
+    public static (TileStore Store, TilePyramid Pyramid) RenderDetached(
+        Frame frame, int width, int height, int level = 0)
+    {
+        var store = new TileStore();
+        var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        TiledRasterizer.Rasterize(store, StrokesOf(frame), info);
+        var pyramid = new TilePyramid(store);
+        if (level > 0) pyramid.Level(level);
+        return (store, pyramid);
+    }
+
+    /// <summary>
+    /// Take ownership of tiles built elsewhere, or refuse them. False means the
+    /// caller still owns the pair and must dispose it.
+    /// </summary>
+    /// <remarks>
+    /// Never evicts, and enters at the tail — see
+    /// <see cref="FrameBitmapCache.InsertWarm"/> for the argument. It is the
+    /// same one: a prewarm that displaced a real entry would be spending the
+    /// artist's frame to save its own.
+    /// </remarks>
+    public bool InsertWarm(Frame frame, TileStore store, TilePyramid pyramid)
+    {
+        if (_map.ContainsKey(frame.Id)) return false;
+        if (AllocatedBytes + store.AllocatedBytes > ByteBudget) return false;
+
+        var node = _lru.AddLast((frame.Id, new Entry(store, pyramid)));
+        _map[frame.Id] = node;
+        AllocatedBytes += store.AllocatedBytes;
+        return true;
     }
 
     /// <summary>

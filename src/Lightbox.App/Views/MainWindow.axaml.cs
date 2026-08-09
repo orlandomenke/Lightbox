@@ -813,7 +813,8 @@ public partial class MainWindow : Window
             _vm.ReportComposeScale,
             Rendering.CanvasControl.DurableFrameEnabled,
             totals.Presents > 0,
-            _vm.ReportTileFallbacks);
+            _vm.ReportTileFallbacks,
+            _vm.Prewarm);
     }
 
     /// <summary>

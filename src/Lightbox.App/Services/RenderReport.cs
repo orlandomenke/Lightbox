@@ -61,7 +61,8 @@ internal static class RenderReport
         double ComposeScale,
         bool DurableFrameEnabled = false,
         bool DurableFrameHasPresented = false,
-        Rendering.TileFallbackTally? TileFallbacks = null);
+        Rendering.TileFallbackTally? TileFallbacks = null,
+        Services.FramePrewarmer? Prewarm = null);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -123,6 +124,59 @@ internal static class RenderReport
         sb.AppendLine("     A pass that falls back pays a full-frame bitmap — roughly 137 ms at");
         sb.AppendLine("     1080p against an 83 ms budget, where a tiled one costs about 14 ms.");
         sb.AppendLine("     This is a property of the DOCUMENT, not of the graphics card.");
+
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Whether rasterizing ahead of the playhead is winning its race.
+    /// </summary>
+    /// <remarks>
+    /// <b>One number decides it, and it is the ratio rather than either half.</b>
+    /// A warm is refused, almost always, because the tick got to the frame
+    /// first — which means the worker is slower than the frame period and is
+    /// rendering, on a second core, exactly what the UI thread renders anyway.
+    /// So "installed 40, refused 2" is the feature working and "installed 2,
+    /// refused 40" is a machine on which it cannot, and the two are
+    /// indistinguishable from a total. Printed rather than derived by whoever
+    /// reads the report, because a report that needs arithmetic to be understood
+    /// gets read wrong (see the durable-frame line above, which cost exactly
+    /// that).
+    /// </remarks>
+    private static void AppendPrewarm(StringBuilder sb, FramePrewarmer? prewarm)
+    {
+        sb.AppendLine("-- rasterizing ahead of the playhead (B148) -------------------");
+        if (prewarm is null || prewarm.Rendered == 0)
+        {
+            sb.AppendLine("frames warmed             none yet — warming only happens while PLAYING");
+            sb.AppendLine();
+            return;
+        }
+
+        var offered = prewarm.Installed + prewarm.Refused;
+        sb.AppendLine($"rendered off-thread       {prewarm.Rendered}");
+        sb.AppendLine($"  taken into a cache      {prewarm.Installed}");
+        sb.AppendLine($"  arrived too late        {prewarm.Refused}");
+        sb.AppendLine($"  document changed first  {prewarm.Superseded}");
+        if (prewarm.Failed > 0)
+        {
+            sb.AppendLine($"  failed to render        {prewarm.Failed}  (rendered on the tick instead)");
+        }
+
+        if (offered == 0)
+        {
+            sb.AppendLine();
+            return;
+        }
+
+        var won = 100.0 * prewarm.Installed / offered;
+        sb.AppendLine();
+        sb.AppendLine($"  >> {won:0.#}% of warmed frames were ready before the playhead reached them.");
+        sb.AppendLine(won >= 50
+            ? "     Rasterization is off the tick, which is what it is for."
+            : "     Most warms arrived after the tick had already drawn the frame, so a\n"
+              + "     second core is repeating the UI thread's work. That means a frame\n"
+              + "     costs more to rasterize than the scene's frame period allows.");
 
         sb.AppendLine();
     }
@@ -306,6 +360,7 @@ internal static class RenderReport
         sb.AppendLine();
 
         AppendTilePath(sb, facts.TileFallbacks);
+        AppendPrewarm(sb, facts.Prewarm);
 
         sb.AppendLine("-- what is being drawn ---------------------------------------");
         sb.AppendLine($"document                  {facts.DocWidth} x {facts.DocHeight}");
