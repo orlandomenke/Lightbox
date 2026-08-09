@@ -114,7 +114,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// how many layers is precisely the difference between a cache that holds
     /// the scene and one that thrashes.
     /// </remarks>
-    internal (int Frames, int Layers, int Strokes) SceneShape
+    internal (int Frames, int Layers, int Strokes, double Fps) SceneShape
     {
         get
         {
@@ -128,7 +128,13 @@ public sealed partial class MainViewModel : ObservableObject
                     if (cel.Frame is { } frame && seen.Add(frame.Id)) strokes += frame.Strokes.Count;
                 }
             }
-            return (scene.FrameCount, scene.Layers.Count, strokes);
+            // The rate actually being played, not the scene's nominal one: the
+            // speed percentage is what the clock was started with, so it is what
+            // decides the frame period every tick is measured against. Reporting
+            // 12 fps for a scene playing at half speed would make the budget in
+            // the report twice as generous as the real one.
+            var rate = scene.Fps * PlaybackSpeedPercent / 100.0;
+            return (scene.FrameCount, scene.Layers.Count, strokes, rate);
         }
     }
 
@@ -5344,11 +5350,29 @@ public sealed partial class MainViewModel : ObservableObject
         {
             ScrubAudioTick();
         }
-        using (Profile(profiling, Services.TickProfile.Phase.Publish))
+        // No scope around this one: PublishSnapshot times its own two halves as
+        // siblings (Compose and Handoff), and a scope here would be their sum
+        // counted a second time in ALL PHASES. The flag is how the method knows
+        // it is on a playback tick and should measure at all — it is called on
+        // every stroke too, where none of this applies.
+        _profilingTick = profiling;
+        try
         {
             PublishSnapshot();
         }
+        finally
+        {
+            _profilingTick = false;
+        }
     }
+
+    /// <summary>
+    /// True while a playback tick is running, so <c>PublishSnapshot</c> knows to
+    /// time itself. It publishes on every stroke as well, and a report that
+    /// folded drawing into the playback numbers would be measuring the wrong
+    /// thing entirely.
+    /// </summary>
+    private bool _profilingTick;
 
     /// <summary>Where a playback tick's time went, for the render report.</summary>
     private readonly Services.TickProfile _tickProfile = new();
@@ -11047,6 +11071,7 @@ public sealed partial class MainViewModel : ObservableObject
         var seq = ++_publishSeq;
         var background = SceneRenderer.BackgroundOf(scene);
         var sw = System.Diagnostics.Stopwatch.StartNew();
+        var composeScope = Profile(_profilingTick, Services.TickProfile.Phase.Compose);
         SKRectI? usedClip = null;
 
         // Which document rectangle the finished image actually covers. Null means
@@ -11099,12 +11124,18 @@ public sealed partial class MainViewModel : ObservableObject
             }, renderScale, cameraView);
         }
         sw.Stop();
+        composeScope?.Dispose();
         if (Environment.GetEnvironmentVariable("LIGHTBOX_PERFTRACE") is not null)
         {
             Console.Error.WriteLine($"[publish] dirty={dirty} clip={usedClip} passes={passes.Count} {sw.Elapsed.TotalMilliseconds:0.0}ms");
         }
         Performance.RecordPublish(sw.Elapsed.TotalMilliseconds);
         LastPublishClip = usedClip;
+        // Everything from here is the handoff: the snapshot swap, the retired
+        // images being disposed, and the invalidate. Timed apart from the
+        // composite above because one number for both is what sent B156 after
+        // the wrong half.
+        using var handoffScope = Profile(_profilingTick, Services.TickProfile.Phase.Handoff);
         if (SnapshotChanged is { } handler)
         {
             // ALWAYS the full document size, whatever the compositor did. The canvas
