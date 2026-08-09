@@ -52,10 +52,11 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         int? maxTexture = 8192,
         int docWidth = 1920,
         int docHeight = 1080,
-        PlaybackClock.Pacing? pacing = null) =>
+        PlaybackClock.Pacing? pacing = null,
+        Lightbox.App.Rendering.PresentLatency.Stats? presentWait = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
             docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
-            Pacing: pacing);
+            Pacing: pacing, PresentWait: presentWait);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the
@@ -191,6 +192,60 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         // The one instruction that turns the number into a diagnosis, because the
         // difference between the two conditions is the finding.
         Assert.Contains("moving it", late);
+    }
+
+    /// <summary>
+    /// <b>The section that tells B150's two candidate causes apart.</b> The
+    /// pacing section says whether the tick arrived on time; this says whether
+    /// the frame it asked for reached the screen. A report carrying only the
+    /// first reads clean on a machine where the second is the problem, which is
+    /// the failure this pair exists to remove.
+    /// </summary>
+    [Fact]
+    public void TheReportSaysWhetherFramesReachedTheScreenOrSatWaiting()
+    {
+        Setup();
+
+        string Section(Lightbox.App.Rendering.PresentLatency.Stats? wait)
+        {
+            RenderReport.ResetForTests();
+            var text = File.ReadAllText(RenderReport.WriteStartup(Facts(presentWait: wait))!);
+            var start = text.IndexOf("did the frames reach the screen", StringComparison.Ordinal);
+            Assert.True(start >= 0, "the present-wait section is missing from the report");
+            return text[start..];
+        }
+
+        var never = Section(null);
+        var prompt = Section(new Lightbox.App.Rendering.PresentLatency.Stats(240, 1, 3.2, 11.0));
+        var waiting = Section(new Lightbox.App.Rendering.PresentLatency.Stats(240, 40, 48.5, 130.0));
+        output.WriteLine(waiting);
+
+        Assert.Contains("PLAYED", never);
+        Assert.Contains("promptly", prompt);
+        Assert.DoesNotContain("WAITING", prompt);
+
+        Assert.Contains("WAITING", waiting);
+        Assert.Contains("48.5", waiting);
+        Assert.Contains("40", waiting);
+        // The instruction that turns the number into a diagnosis.
+        Assert.Contains("pointer moving", waiting);
+    }
+
+    /// <summary>
+    /// A run must never be attributable to a setting it did not have. The
+    /// override exists to be typed at a command prompt while chasing a stutter,
+    /// so which band was actually used has to be in the file that gets sent back
+    /// — and printed always, because an absent line is indistinguishable from
+    /// the expected one when two reports are being compared.
+    /// </summary>
+    [Fact]
+    public void TheReportNamesTheClockPriorityItActuallyRanAt()
+    {
+        Setup();
+        var text = File.ReadAllText(RenderReport.WriteStartup(Facts())!);
+
+        Assert.Contains("clock priority", text);
+        Assert.Contains(PlaybackClock.Priority.ToString(), text);
     }
 
     /// <summary>Once per run, so a report is not rewritten on every repaint.</summary>
