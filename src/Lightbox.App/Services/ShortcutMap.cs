@@ -78,6 +78,11 @@ public sealed class ShortcutMap
             // W for width, and free like P was. Illustrator puts this on Shift+W
             // because W is its own Blend tool; nothing here wanted the letter.
             new("tool.width", "Width (make a line heavier or lighter)", "Tools", G(Key.W)),
+            // No default gesture, like lines.recolour above and for the same
+            // reason: the sensible letters are taken, the button in the arrow's
+            // options is the way in, and being here is what lets an artist bind
+            // it to whatever they have free.
+            new("lines.simplify", "Simplify the isolated line", "Tools", null),
             // What the arrow can then do. Registered rather than wired straight
             // to the key handler, because a command that is not in here cannot be
             // found, searched or rebound — which is the failure this whole map

@@ -1,8 +1,8 @@
 # Vector tooling: making the lines you already drew editable
 
 Status: **agreed design; phase 0 landed except rotate and scale, phases 1 and 2
-landed 2026-08-08, phases 3, 4a (pinch) and 4b (width) landed
-2026-08-09; simplify and cut/join not started.** Decisions Q47–Q53, answered 2026-08-07.
+landed 2026-08-08, phases 3, 4a (pinch), 4b (width) and 4c
+(simplify) landed 2026-08-09; cut and join not started.** Decisions Q47–Q53, answered 2026-08-07.
 Unblocked by Q26, which has been answered since the same day and which two other
 documents still describe as open — see *Corrections* at the end.
 
@@ -255,7 +255,7 @@ needs an "and", it is two branches*. So:
 | --- | --- | --- |
 | **4a** | *landed* `feat/canvas/pinch-a-segment` | Drag the curve between two nodes. `SegmentDrag` in Core, because the interesting part is arithmetic |
 | **4b** | *landed* `feat/canvas/line-width` | Illustrator's Width tool over the `Pressure` array — editing `PressureProfile` rather than the flattened points, because the flatten regenerates those on every commit. Resamples **up and never down**, so a drawn taper is not coarsened by the tool being picked up |
-| **4c** | `feat/canvas/simplify-a-line` | `CurveFitter.Fit` at a larger tolerance, with the node count shown live. The fitter already takes the parameter |
+| **4c** | *landed* `feat/canvas/simplify-a-line` | `CurveFitter.Fit` at a larger tolerance — of the **flattened current path**, not the drawn points, or a reshape would be silently undone by a button labelled *simplify*. The count is reported per press; a live slider would sit on the same primitive and is not built |
 | **4d** | `feat/canvas/cut-and-join` | The only one that changes how many strokes a frame holds, which is why it is last and alone |
 
 **Named so scope cannot drift into them:** cross-frame reshaping (needs the

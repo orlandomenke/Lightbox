@@ -3235,6 +3235,9 @@ public partial class MainWindow : Window
             case "tool.width":
                 _vm.SelectToolCommand.Execute(ToolId.Width);
                 break;
+            case "lines.simplify":
+                _vm.SimplifyLineCommand.Execute(null);
+                break;
             case "lines.delete":
                 _vm.DeleteSelectedLinesCommand.Execute(null);
                 break;
