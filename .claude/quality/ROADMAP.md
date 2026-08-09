@@ -255,6 +255,13 @@ surface across a laptop's sixteen threads is a genuine 3–4×, and it is the sa
 axis as the GPU with a worse constant — so every line of it is deleted when B125
 lands. It is the reserve if GPU compositing is ever ruled out, and nothing else.
 
+That is a rejection of parallel *compositing*, not of parallelism. Wherever work
+is CPU-bound, staying there, and genuinely independent, threads remain the
+answer — rebuilding a document from its stroke record (B30) and export, whose
+frames are independent by construction, are both open candidates. Stroke replay
+is sequential *within* a frame because each mark blends onto the last, so the
+axis there is frames rather than strokes.
+
 **GPU compositing is display-only, and export stays on the CPU.** That is what
 makes it safe rather than a rewrite of the renderer: the stroke record is the
 document (invariant 1) and export runs through `FrameRasterizer`, so GPU blend
