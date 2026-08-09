@@ -1,8 +1,8 @@
 # Vector tooling: making the lines you already drew editable
 
 Status: **agreed design; phase 0 landed except rotate and scale, phases 1 and 2
-landed 2026-08-08, phase 3 landed 2026-08-09, phase 4 not started.** Decisions
-Q47–Q53, answered 2026-08-07.
+landed 2026-08-08, phase 3 and phase 4a (pinch) landed 2026-08-09; phase 4's
+other three parts not started.** Decisions Q47–Q53, answered 2026-08-07.
 Unblocked by Q26, which has been answered since the same day and which two other
 documents still describe as open — see *Corrections* at the end.
 
@@ -240,7 +240,23 @@ One branch, one objective.
 | **1** | *landed* | `StrokePath`, `PathNode`, `Stroke.Path`, `PathFlattener`, `CurveFitter` (Schneider), the agreement invariant obeyed at all three callers that map points. **No UI**, as specified. A 121-point arc fits to 4 nodes and flattens back within 1.2 px |
 | **2** | *landed* | `PathEditSession`, isolation, the white arrow, the node overlay — plus `PressureProfile`, which the design did not predict and the roadmap item's own wording requires. The white arrow is `N`, not `A`: `A` is this application's black arrow and has been documented as such |
 | **3** | *landed* | The pen and its four modifiers, plus its icon and `P`. `PenSession` authors a `StrokePath` and the view model writes one ordinary stroke from it — the preview is a traced overlay rather than a stamped one, because a pen session outlasts a drag |
-| **4** | `feat/canvas/line-correction` | Pinch, width, simplify, cut, join |
+| **4** | *splitting; pinch landed 2026-08-09 as* `feat/canvas/pinch-a-segment` | Pinch, width, simplify, cut, join — **four branches rather than one**, see below |
+
+**Phase 4 is four objectives wearing one number.** The row above was written as
+a set because CSP presents it as one — *Correct line* — and that is a fair
+description of what an artist reaches for, not of what gets built. Pinching a
+segment is a solve over two control points; width is the pressure array and
+nothing else; simplify is the fitter with its tolerance turned up; cut and join
+change how many strokes exist. They share a session and share nothing else, and
+`CLAUDE.md`'s test applies unchanged — *if the sentence describing the branch
+needs an "and", it is two branches*. So:
+
+| | Branch | What |
+| --- | --- | --- |
+| **4a** | *landed* `feat/canvas/pinch-a-segment` | Drag the curve between two nodes. `SegmentDrag` in Core, because the interesting part is arithmetic |
+| **4b** | `feat/canvas/line-width` | Illustrator's Width tool over the `Pressure` array — which means editing `PressureProfile`, not the flattened points, or the invariant re-flattens the edit away |
+| **4c** | `feat/canvas/simplify-a-line` | `CurveFitter.Fit` at a larger tolerance, with the node count shown live. The fitter already takes the parameter |
+| **4d** | `feat/canvas/cut-and-join` | The only one that changes how many strokes a frame holds, which is why it is last and alone |
 
 **Named so scope cannot drift into them:** cross-frame reshaping (needs the
 correspondence work the inbetweener's verifier depends on); SVG export

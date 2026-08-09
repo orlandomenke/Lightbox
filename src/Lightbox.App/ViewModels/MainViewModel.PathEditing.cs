@@ -154,6 +154,16 @@ public partial class MainViewModel
             return PathHit.Miss;
         }
 
+        // Grabbing the curve selects nothing. That is the point of it — the
+        // gesture is "put the line here", and leaving the node selection alone
+        // means an artist can pull a segment straight without losing the points
+        // they had picked either side of it.
+        if (hit.Part == PathPart.Segment)
+        {
+            PathEditChanged?.Invoke();
+            return hit;
+        }
+
         if (hit.Part == PathPart.Node && !_pathEdit.IsNodeSelected(hit.Node))
         {
             _pathEdit.SelectNode(hit.Node, additive);
@@ -180,7 +190,16 @@ public partial class MainViewModel
     {
         if (_pathEdit is null || !grabbed.IsHit) return;
 
-        if (grabbed.Part == PathPart.Node)
+        if (grabbed.Part == PathPart.Segment)
+        {
+            // The parameter is the one recorded at the grab, not one re-derived
+            // from where the pointer is now. Re-finding it every move would let
+            // the grip slide along the curve as the shape changed underneath it,
+            // so a straight pull would drift towards whichever end was moving
+            // less — and the line would come away from the pointer.
+            _pathEdit.PinchSegment(grabbed.Node, grabbed.T, dx, dy);
+        }
+        else if (grabbed.Part == PathPart.Node)
         {
             // Every selected node, so a multi-node drag moves the shape rather
             // than one point of it.
