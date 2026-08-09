@@ -3809,6 +3809,19 @@ public sealed partial class MainViewModel : ObservableObject
         // The bound sliders edit the active tool's brush configuration.
         NotifyBrushProperties();
         OnPropertyChanged(nameof(LazyRadiusForCursor));
+
+        // A borrow is not a decision — see MainViewModel.Momentary.cs. Everything
+        // below is about an artist choosing to leave a tool, and holding Ctrl is
+        // not that. The two lines above are display, which a borrow does want:
+        // the picker's cursor is the whole reason the borrow is legible.
+        //
+        // Everything that throws modal work away lives below this line, the
+        // half-drawn lasso included. It was above it, which was harmless only
+        // because the Select tool is not borrowable — and "harmless because of
+        // a fact recorded somewhere else" is what makes adding a row to the
+        // table a thing to reason about instead of a thing to do.
+        if (_suppressToolSideEffects) return;
+
         CancelPolygonInProgress();
 
         // B147: leaving the arrow lets the lines go. A stroke selection is only

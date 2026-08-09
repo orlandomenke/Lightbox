@@ -243,6 +243,31 @@ public class SelectionTests
         Assert.True(vm.HasSelection);
     }
 
+    /// <summary>
+    /// Picking up another tool abandons the half-drawn lasso, the same way it
+    /// finishes a pen path and drops a line selection — a shape you can no
+    /// longer close is drawn state pointing at a capability you no longer have.
+    /// </summary>
+    /// <remarks>
+    /// Pinned because the line that does it sits beside the guard that makes a
+    /// <em>borrowed</em> tool skip all of this (see
+    /// <c>MainViewModel.Momentary.cs</c>), and which side of that guard it falls
+    /// on is not visible from here.
+    /// </remarks>
+    [AvaloniaFact]
+    public void PolygonSelection_IsAbandonedWhenTheToolChanges()
+    {
+        var vm = new MainViewModel(null) { ActiveTool = ToolId.Select };
+        vm.AddPolygonVertex(10, 10);
+        vm.AddPolygonVertex(90, 10);
+        Assert.Equal(2, vm.PolygonInProgress.Count);
+
+        vm.ActiveTool = ToolId.Brush;
+
+        Assert.Empty(vm.PolygonInProgress);
+        Assert.False(vm.HasSelection);
+    }
+
     [AvaloniaFact]
     public void PaintOutsideTheSelection_LeavesNoVisiblePixels()
     {

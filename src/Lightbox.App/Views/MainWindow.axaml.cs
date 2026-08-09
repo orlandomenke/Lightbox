@@ -337,6 +337,16 @@ public partial class MainWindow : Window
         _shortcuts.Load();
         ShowSaveGestures();
         KeyDown += OnKeyDown;
+        // The release edge, so a borrowed tool comes back. Tunnelling, because a
+        // focused control that swallows the key-up would otherwise leave the
+        // modifier stuck down and the artist holding an eyedropper they let go
+        // of — the failure mode that makes a momentary tool worse than none.
+        AddHandler(
+            KeyUpEvent,
+            (_, e) => _vm.ApplyHeldModifiers(e.KeyModifiers),
+            Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        // And a window that loses focus mid-hold never sees the key-up at all.
+        Deactivated += (_, _) => _vm.ApplyHeldModifiers(Avalonia.Input.KeyModifiers.None);
         RecentMenu.SubmenuOpened += (_, _) => RefreshRecentMenu();
         ConvertProjectMenu.SubmenuOpened += (_, _) => RefreshConvertMenu();
         TemplatesMenu.SubmenuOpened += (_, _) => RefreshTemplatesMenu();
@@ -3127,6 +3137,11 @@ public partial class MainWindow : Window
             }
         }
 
+        // Both edges go through one call: a press and a release are the same
+        // question — what should the tool be now — and answering it in two
+        // handlers is how a modifier gets stuck down when a key-up goes missing.
+        _vm.ApplyHeldModifiers(e.KeyModifiers);
+
         switch (_shortcuts.IdFor(e, CurrentShortcutScope()))
         {
             case "file.save":
@@ -3283,6 +3298,9 @@ public partial class MainWindow : Window
                 break;
             case "tool.pen":
                 _vm.SelectToolCommand.Execute(ToolId.Pen);
+                break;
+            case "tool.shape":
+                _vm.SelectToolCommand.Execute(ToolId.Shape);
                 break;
             case "tool.width":
                 _vm.SelectToolCommand.Execute(ToolId.Width);

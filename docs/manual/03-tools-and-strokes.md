@@ -4,7 +4,7 @@
 ## Tools
 
 Down the left: **Brush** (B), **Eraser** (E), **Fill**, **Picker**,
-**Gradient**, **Arrow** (A), **Points** (N), **Pen** (P), **Width** (W), **Select** (S). Press Select again to cycle its
+**Gradient**, **Arrow** (A), **Points** (N), **Pen** (P), **Width** (W), **Shape** (U), **Select** (S). Press Select again to cycle its
 variants, or hold it for the list: Freehand, Polygon, Box, Circle, Magic wand.
 
 The rail arranges itself: two centred columns ordinarily, one when the window
@@ -12,7 +12,17 @@ is tall enough to hold every tool in a single column, three when it is short
 and the rail has been dragged wide enough. Drag the rail past ~150&nbsp;px and
 it becomes a single labelled list.
 
-Hold **Ctrl** at any time to pick a colour off the canvas without changing tool.
+**Hold Ctrl to borrow the eyedropper.** The tool actually changes while you
+hold it — the rail highlights, the cursor changes — and letting go puts your
+brush back exactly where it was. The colour you want is nearly always already on
+the canvas, and going to fetch it is what breaks the stroke you were about to
+make.
+
+It works from the Brush, Eraser, Fill, Shape and Gradient. It does **not** work
+from the Pen or either arrow, and that is deliberate: those have work in flight
+— a path you are still placing, a line you are inside — and borrowing a tool
+must never be the thing that finishes it. Move keeps Ctrl for its own "drag the
+whole layer".
 
 ### Arrow and Select are not the same tool
 

@@ -17,7 +17,10 @@ public class ContextShortcutTests
 
         Assert.Equal("canvas.pickColor", map.IdFor(e, ShortcutScope.Canvas));
         Assert.Equal("timeline.insertKey", map.IdFor(e, ShortcutScope.In(DockPanelId.Timeline)));
-        Assert.Null(map.IdFor(e, ShortcutScope.In(DockPanelId.Layers))); // no binding, no global fallback for I
+        // The picker is general, so a docker with no I of its own gets it. That
+        // is the asked-for behaviour: I inserts a key over the timeline and
+        // reaches for the eyedropper everywhere else.
+        Assert.Equal("canvas.pickColor", map.IdFor(e, ShortcutScope.In(DockPanelId.Layers)));
     }
 
     [Fact]
@@ -43,10 +46,11 @@ public class ContextShortcutTests
     public void Conflicts_OnlyCountWhenContextsOverlap()
     {
         var map = new ShortcutMap();
-        // canvas-I vs timeline-I coexist: assigning I to the canvas picker is no conflict with the timeline one
+        // The general picker and the timeline's insert-key coexist on I: the
+        // resolver takes the more specific, so there is nothing to resolve.
         Assert.Null(map.ConflictWith("canvas.pickColor", new KeyGesture(Key.I)));
-        // but a GLOBAL command trying to take I clashes with both context bindings
-        Assert.NotNull(map.ConflictWith("tool.brush", new KeyGesture(Key.I)));
+        // A SECOND general command taking I is the tie nothing can break.
+        Assert.Equal("canvas.pickColor", map.ConflictWith("tool.brush", new KeyGesture(Key.I))?.Id);
     }
 }
 
@@ -250,17 +254,24 @@ public class LayerFolderTests
     public void ADockerWithNoBindingOfItsOwnStillGetsTheGeneralOne(DockPanelId panel)
     {
         var map = new ShortcutMap();
-        var i = new KeyEventArgs { Key = Key.I, KeyModifiers = KeyModifiers.None };
 
-        // I is bound on the canvas and on the timeline, and neither is general —
-        // so over any other docker it must fall through to nothing rather than
-        // silently borrowing one of them.
-        Assert.Null(map.IdFor(i, ShortcutScope.In(panel)));
+        // Delete is bound on the canvas (lines.delete) and in the layers docker
+        // (docker.deleteLayer), and neither is general — so over any other
+        // docker it must fall through to nothing rather than silently borrowing
+        // one of them. A scoped binding stays in its scope.
+        var del = new KeyEventArgs { Key = Key.Delete, KeyModifiers = KeyModifiers.None };
+        Assert.Null(map.IdFor(del, ShortcutScope.In(panel)));
 
         // A general binding, however, reaches every docker. That is the half of
         // the rule an artist notices: B is the brush wherever they are.
         var b = new KeyEventArgs { Key = Key.B, KeyModifiers = KeyModifiers.None };
         Assert.Equal("tool.brush", map.IdFor(b, ShortcutScope.In(panel)));
+
+        // And the case that named this test: I is general, so a docker with no
+        // I of its own gets the eyedropper — which is the behaviour that was
+        // asked for, and the reason canvas.pickColor is no longer canvas-scoped.
+        var i = new KeyEventArgs { Key = Key.I, KeyModifiers = KeyModifiers.None };
+        Assert.Equal("canvas.pickColor", map.IdFor(i, ShortcutScope.In(panel)));
     }
 
     /// <summary>
@@ -279,8 +290,30 @@ public class LayerFolderTests
         // be in two places.
         Assert.Null(map.ConflictWith("docker.deleteLayer", i));
 
-        // But a general command taking I would shadow it everywhere.
-        Assert.NotNull(map.ConflictWith("tool.brush", i));
+        // Nor does it clash with the general I: the resolver takes the more
+        // specific, so insert-key wins over the timeline and the eyedropper
+        // applies everywhere else. That is a resolution, not a collision.
+        Assert.Null(map.ConflictWith("timeline.insertKey", i));
+
+        // Two GENERAL commands on one gesture is the tie nothing can break, and
+        // that is what a conflict means.
+        Assert.Equal("canvas.pickColor", map.ConflictWith("tool.brush", i)?.Id);
+    }
+
+    /// <summary>
+    /// The resolution the conflict rule leans on, pinned from the artist's
+    /// side: the same key, two answers, and which one you get depends only on
+    /// where the pointer is.
+    /// </summary>
+    [Fact]
+    public void AScopedBindingShadowsTheGeneralOneInItsOwnAreaAndNowhereElse()
+    {
+        var map = new ShortcutMap();
+        var i = new KeyEventArgs { Key = Key.I, KeyModifiers = KeyModifiers.None };
+
+        Assert.Equal("timeline.insertKey", map.IdFor(i, ShortcutScope.In(DockPanelId.Timeline)));
+        Assert.Equal("canvas.pickColor", map.IdFor(i, ShortcutScope.In(DockPanelId.Layers)));
+        Assert.Equal("canvas.pickColor", map.IdFor(i, ShortcutScope.Canvas));
     }
 
     /// <summary>

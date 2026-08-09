@@ -113,6 +113,10 @@ public sealed class ShortcutMap
             new("tool.gradient", "Gradient", "Tools", G(Key.G)),
             new("tool.select", "Select / next variant", "Tools", G(Key.S)),
             new("tool.move", "Move (drawing and guides)", "Tools", G(Key.V)),
+            // The only tool that had no key at all. U is Photoshop's shape tool
+            // and was free here — the shape *variant* stays a tool option, like
+            // the select tool's, so one letter covers all four.
+            new("tool.shape", "Shape (line, rectangle, ellipse, polygon)", "Tools", G(Key.U)),
             // Illustrator's black arrow is V, which Move already has here and
             // has had for longer. A is Illustrator's other pointer and is free,
             // so the pair stays adjacent in the hand even though the letters do
@@ -192,7 +196,16 @@ public sealed class ShortcutMap
             new("docker.clearLayer", "Blank layer content", "Dockers", G(Key.Back), ShortcutContext.Panel, DockPanelId.Layers),
 
             // Context twins: the same key does area-appropriate things.
-            new("canvas.pickColor", "Color picker tool (canvas)", "Tools", G(Key.I), ShortcutContext.Canvas),
+            // General, not canvas-scoped. Scoped, it did nothing over any docker —
+            // and the rule this map is built on says a general binding reaches
+            // every docker that has no answer of its own. The timeline has one
+            // (insertKey, below), so I still means "insert a key" there and
+            // "eyedropper" everywhere else, which is the whole scheme in one pair.
+            //
+            // The id keeps the `canvas.` prefix it shipped with. Renaming it to
+            // `tool.picker` would read better and would silently drop the rebind
+            // of anyone who had changed it, because shortcuts.json is keyed by id.
+            new("canvas.pickColor", "Color picker tool", "Tools", G(Key.I)),
             new("timeline.insertKey", "Insert keyframe at playhead (timeline)", "Timeline", G(Key.I), ShortcutContext.Panel, DockPanelId.Timeline),
             new("canvas.nudgeLeft", "Nudge selection left", "Canvas", G(Key.Left), ShortcutContext.Canvas),
             new("canvas.nudgeRight", "Nudge selection right", "Canvas", G(Key.Right), ShortcutContext.Canvas),
@@ -264,22 +277,26 @@ public sealed class ShortcutMap
     public ShortcutDefinition? Find(string id) => _definitions.FirstOrDefault(d => d.Id == id);
 
     /// <summary>
-    /// The OTHER command already bound to this gesture whose context overlaps
-    /// (same area, or either is global) — bindings in disjoint areas coexist.
+    /// The OTHER command already bound to this gesture in the SAME scope —
+    /// the case <see cref="IdFor(KeyEventArgs, ShortcutScope)"/> cannot resolve,
+    /// because both are reachable from one place with nothing to separate them.
     /// </summary>
+    /// <remarks>
+    /// A general binding and a scoped one sharing a gesture are deliberately
+    /// <i>not</i> a conflict: the resolver picks the more specific, so the
+    /// scoped command wins in its own area and the general one applies
+    /// everywhere else. That is the whole rule this map is built on — general
+    /// <c>I</c> is the eyedropper, and over the timeline it is insert-key — so
+    /// reporting it as something to resolve would ask an artist to undo the
+    /// design. Only an unresolvable tie is a conflict.
+    /// </remarks>
     public ShortcutDefinition? ConflictWith(string id, KeyGesture gesture)
     {
         if (Find(id) is not { } self) return null;
         return _definitions.FirstOrDefault(d =>
             d.Id != id
             && d.Current is { } g && g.Key == gesture.Key && g.KeyModifiers == gesture.KeyModifiers
-            // Two bindings clash when they can both be reached from the same
-            // place. Different dockers cannot, which is the point of scoping
-            // them — so `I` over the timeline and `I` over the colour docker are
-            // two commands rather than a conflict to resolve.
-            && (d.Scope == self.Scope
-                || d.Context == ShortcutContext.Global
-                || self.Context == ShortcutContext.Global));
+            && d.Scope == self.Scope);
     }
 
     /// <summary>Bind a gesture (stealing it from a conflicting command must be the CALLER's explicit choice).</summary>
