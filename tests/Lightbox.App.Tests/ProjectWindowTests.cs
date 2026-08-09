@@ -1,4 +1,8 @@
+using System.Runtime.CompilerServices;
+using Avalonia.Controls;
+using Avalonia.Headless.XUnit;
 using Lightbox.App.ViewModels;
+using Lightbox.App.Views;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
 
@@ -632,5 +636,77 @@ public sealed class ProjectWindowTests(ITestOutputHelper output)
         Assert.Contains("3 unassigned", vm.Summary);
         // Absent rather than zero, so the footer reads as facts.
         Assert.DoesNotContain("Draft", vm.Summary);
+    }
+
+    // ---- the window itself, which is the half no view-model test reaches ---------------------
+
+    /// <summary>
+    /// B162: opening the project manager crashed, and every test above it passed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The split that makes this file cheap — drive the view model, never make a
+    /// window — left the window with no test at all, so a bad static field
+    /// initialiser (<c>DataFormat.CreateStringApplicationFormat("lightbox/status-card")</c>,
+    /// whose identifier Avalonia rejects) shipped as a <c>TypeInitializationException</c>
+    /// on the first click of Project.
+    /// </para>
+    /// <para>
+    /// A type initialiser throws <em>once</em> and is then cached, so this has to
+    /// be the construction that happens first in the process — which it is, being
+    /// the only test here that touches the type.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheWindowOpens()
+    {
+        var project = ProjectIo.Create("Production", "/nowhere.lbproj");
+        Add(project, "walk", null);
+
+        var window = new ProjectWindow(project);
+
+        Assert.NotNull(window.DataContext);
+    }
+}
+
+/// <summary>
+/// The same failure as B162, asked of every window rather than of one.
+/// </summary>
+/// <remarks>
+/// A static field initialiser that throws is invisible until somebody opens that
+/// window: nothing references the type at startup, the compiler is happy, and the
+/// crash is a <c>TypeInitializationException</c> from a click. Running every
+/// window's class constructor costs milliseconds and needs no UI thread, so the
+/// next one is caught by a suite nobody had to remember to extend.
+/// </remarks>
+public sealed class WindowInitialiserTests(ITestOutputHelper output)
+{
+    [Fact]
+    public void EveryWindowsStaticInitialiserRuns()
+    {
+        var windows = typeof(ProjectWindow).Assembly
+            .GetTypes()
+            .Where(t => t is { IsAbstract: false, IsGenericTypeDefinition: false }
+                        && typeof(Window).IsAssignableFrom(t))
+            .OrderBy(t => t.FullName, StringComparer.Ordinal)
+            .ToList();
+
+        output.WriteLine($"{windows.Count} windows: {string.Join(", ", windows.Select(t => t.Name))}");
+        Assert.NotEmpty(windows);
+
+        var broken = new List<string>();
+        foreach (var window in windows)
+        {
+            try
+            {
+                RuntimeHelpers.RunClassConstructor(window.TypeHandle);
+            }
+            catch (Exception ex)
+            {
+                broken.Add($"{window.Name}: {(ex.InnerException ?? ex).Message}");
+            }
+        }
+
+        Assert.Empty(broken);
     }
 }

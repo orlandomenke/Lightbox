@@ -897,6 +897,25 @@ test reopens the bug.
 
 ### project
 
+- [x] **B162** `P1` `project` The project manager cannot be opened at all: clicking Project crashes the application `evidence: TheWindowOpens, EveryWindowsStaticInitialiserRuns`
+  - Reported from a Windows build with two crash logs, five seconds apart — `ui-thread` then `unhandled`, which is one click producing a handled report and then the rethrow taking the process down. `0.1.0-alpha.12`, `runtime 10.0.10`.
+  - The whole of it is one identifier:
+
+    ```
+    System.TypeInitializationException: The type initializer for
+      'Lightbox.App.Views.ProjectWindow' threw an exception.
+     ---> System.ArgumentException: Invalid application identifier (Parameter 'identifier')
+       at Avalonia.Input.DataFormat.CreateApplicationFormat[T](String identifier)
+       at Lightbox.App.Views.ProjectWindow..cctor()  ProjectWindow.axaml.cs:79
+    ```
+
+  - `CreateStringApplicationFormat` is the **cross-application** format, so Avalonia validates the identifier against what a platform clipboard will accept, and `"lightbox/status-card"` fails on the slash. Probed rather than guessed, against Avalonia 12.1.1: `-` and `.` are accepted, `/`, `_`, `:`, a space and the empty string are all rejected. Nothing in the message says which character, which is why the probe was worth two minutes.
+  - **The card drag never needed a cross-application format.** The drop handler reads the `_draggedCard` field and never unpacks the payload; the comment beside the call already said *"the object is never leaving this window"* and *"the same call the project docker's row drag uses"* — and the docker's is `CreateInProcessFormat`, as are all six other drags in the application. So the fix is one word, and it makes the comment true: this was the only caller of the application variant anywhere in `src/`.
+  - **P1 because a whole surface was unreachable**, not because of what it damaged. Nothing is corrupted and no work is lost — but Q41's window is the only place bulk status edits, tag edits and the export scope summary live, and the single click that opens it took the application down with it. It cannot be worked around.
+  - **Why every test passed.** `ProjectWindowTests` drives `ProjectWindowViewModel` and deliberately never constructs a window — the split that makes 38 tests cheap. A static field initialiser is not reached by any of them, so the crash lived in the only part of the file the suite is structurally blind to. That is the shape `CLAUDE.md` points at when it says the hotspots list is full of XAML with no test beside it.
+  - So the regression test is in two halves. `TheWindowOpens` constructs this window, which is the direct guard. `EveryWindowsStaticInitialiserRuns` runs the class constructor of all **15** windows in the assembly by reflection — it needs no UI thread and costs milliseconds, and it means the next window that ships a throwing static field is caught by a suite nobody had to remember to extend. Both were confirmed to fail against the unfixed line before the fix went back in.
+  - Fix: `DataFormat.CreateInProcessFormat<string>("lightbox-status-card")`. The name loses the slash as well as the constructor, so moving back to an application format later cannot resurrect this. Cost: S
+
 - [x] **B114** `P1` `project` A character's animations are invisible to export and to scoped resources `evidence: CharacterDocumentsAreInTheProject, AWholeProjectExportIncludesCharacterAnimations, AFolderPaletteReachesACharactersAnimation`
   - Measured, not reasoned about. A project with one character owning `walk`, plus one loose `background` filed in a folder that declares a palette:
 
