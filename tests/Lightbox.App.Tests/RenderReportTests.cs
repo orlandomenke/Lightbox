@@ -43,7 +43,10 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         try { Directory.Delete(_dir, recursive: true); } catch { /* a temp dir is not worth failing over */ }
     }
 
-    private static RenderReport.Facts Facts(
+    // Internal rather than private: PresentWaitByInputTests builds the same
+    // report to read one section of it, and a second copy of this list of
+    // defaults would drift from this one on the first field added.
+    internal static RenderReport.Facts Facts(
         bool onGpu = false,
         bool gpuFailed = false,
         string backend = "CPU (software)",

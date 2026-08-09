@@ -204,10 +204,31 @@ The two sections together settle it:
 | --- | --- | --- |
 | on time | prompt | The front end is fine. If playback still looks uneven, the cost is in *making* the frames — the two sections above this one. |
 | late | prompt | The playhead is being held up before it asks for anything. |
-| on time | waiting | The frames are made and not shown. Capture it again while moving the pointer: if the wait collapses, the screen is only being refreshed when you move the mouse. |
+| on time | waiting | The frames are made and not shown. The split below says why. |
+
+#### The split: what was happening while the frame waited
+
+Under those numbers the same wait appears three more times, sorted by what
+arrived while the frame was sitting there: **nothing**, **input somewhere that
+is not the canvas**, and **input on the canvas**.
+
+You do not have to interpret it — the report says which of the three findings it
+saw. But the reason it is worth capturing properly is worth knowing, because the
+three answers point at completely different faults:
+
+| What the rows show | What it means |
+| --- | --- |
+| Only *on the canvas* is fast | Frames are waiting for the canvas to be repainted, and only your pointer moving over it does that. The playback path is not getting frames drawn on its own. |
+| *Any* input is fast | The application is genuinely idle between frames and any event at all revives it — a different fault, and a different fix. |
+| All three the same | How long a frame waits has nothing to do with input, so the unevenness is in *making* the frames. Read the tick breakdown below. |
+
+**Capture it with the pointer still, and off the canvas**, for at least a few
+seconds of playback. A report captured entirely while you moved the mouse has no
+"nothing" row to compare against, and says so rather than pretending to a
+verdict.
 
 There is also a line naming the **clock priority** the run used. It normally
-reads `Render` and you can ignore it; it exists so that a report captured with
+reads `Input` and you can ignore it; it exists so that a report captured with
 the diagnostic override below can never be mistaken for an ordinary one.
 
 ### And below those: where the tick's time went
@@ -245,11 +266,19 @@ skipped while frames are flipping, because nobody can read it at speed.
 
 ### Trying the fix off and on
 
-If you are chasing this with us, `LIGHTBOX_CLOCK_PRIORITY=Background` starts
-Lightbox with the old, slower playhead scheduling deliberately put back. Running
-the same build twice — once normally, once with that set — is worth far more
-than comparing two different builds, because it changes exactly one thing.
-Anything unrecognised, including a typo, is simply the normal setting.
+If you are chasing this with us, `LIGHTBOX_CLOCK_PRIORITY` starts Lightbox with
+the playhead scheduled differently, without changing anything else. Running the
+same build twice — once normally, once with that set — is worth far more than
+comparing two different builds, because it changes exactly one thing. Anything
+unrecognised, including a typo, is simply the normal setting, and the report
+always names the one it actually used.
+
+| Value | What it does |
+| --- | --- |
+| `Background` | The original scheduling, deliberately put back. The playhead waits behind everything else the application has queued. |
+| `Input` | The normal setting. The playhead waits behind the work that puts frames on screen, which is the point. |
+| `Loaded` | A step above normal. Worth trying if playback feels late but steady. |
+| `Render` | Level with the work that puts frames on screen. This was the setting before, and it is the one to try if you want to see the stutter come back. |
 
 It names which parts of the drawing are done by your graphics card and which by
 the processor — and those are not the same question. The status strip says

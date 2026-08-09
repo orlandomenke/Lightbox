@@ -110,6 +110,7 @@ public class PresentLatencyTests(ITestOutputHelper output)
     [InlineData("Background", "Background")]
     [InlineData("background", "Background")]
     [InlineData("  Input  ", "Input")]
+    [InlineData("Loaded", "Loaded")]
     [InlineData("Render", "Render")]
     public void TheClockPriorityCanBeOverriddenForOneSession(string value, string expected)
     {
@@ -142,8 +143,43 @@ public class PresentLatencyTests(ITestOutputHelper output)
         {
             Environment.SetEnvironmentVariable("LIGHTBOX_CLOCK_PRIORITY", value);
             Assert.Equal(
-                Avalonia.Threading.DispatcherPriority.Render,
+                Avalonia.Threading.DispatcherPriority.Input,
                 PlaybackClock.PriorityFromEnvironment());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("LIGHTBOX_CLOCK_PRIORITY", before);
+        }
+    }
+
+    /// <summary>
+    /// <b>The property the default is chosen for, rather than the value it
+    /// happens to be.</b> The clock must queue BELOW the band Avalonia commits
+    /// frames in, because a late tick is absorbed by <c>Pace</c> and a late
+    /// commit is the stutter itself.
+    /// </summary>
+    /// <remarks>
+    /// Asserted as an ordering because that is the argument. B150 moved the
+    /// clock up from <c>Background</c> — correctly — and kept going to
+    /// <c>Render</c>, which is level with the commit, so an overdue tick queues
+    /// ahead of the commit the previous tick asked for. A test that only said
+    /// <c>== Input</c> would be satisfied by the next person moving it back and
+    /// changing the number here.
+    /// </remarks>
+    [Fact]
+    public void TheClockQueuesBelowTheBandFramesAreCommittedIn()
+    {
+        var before = Environment.GetEnvironmentVariable("LIGHTBOX_CLOCK_PRIORITY");
+        try
+        {
+            Environment.SetEnvironmentVariable("LIGHTBOX_CLOCK_PRIORITY", null);
+            var clock = PlaybackClock.PriorityFromEnvironment();
+
+            Assert.True(clock < Avalonia.Threading.DispatcherPriority.Render,
+                $"the clock runs at {clock}, at or above the priority frames are committed at — "
+                + "an overdue tick will queue ahead of the commit it asked for");
+            Assert.True(clock > Avalonia.Threading.DispatcherPriority.Background,
+                $"the clock runs at {clock}, back in the band B150 rescued it from");
         }
         finally
         {
@@ -163,7 +199,7 @@ public class PresentLatencyTests(ITestOutputHelper output)
         {
             Environment.SetEnvironmentVariable("LIGHTBOX_CLOCK_PRIORITY", null);
             Assert.Equal(
-                Avalonia.Threading.DispatcherPriority.Render,
+                Avalonia.Threading.DispatcherPriority.Input,
                 PlaybackClock.PriorityFromEnvironment());
         }
         finally

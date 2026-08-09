@@ -2827,6 +2827,13 @@ public sealed class CanvasControl : Control
             _hoverPoint = e.GetPosition(this);
             // The brush cursor must follow the pointer no matter what state
             // we're in — repaints coalesce, so this is cheap.
+            //
+            // It is also, as far as anything can tell, the whole reason playback
+            // looks smooth while the pointer moves HERE and nowhere else: this
+            // is the only InvalidateVisual in the application that a docker
+            // cannot cause. Counted so the report can say whether a frame's wait
+            // to be drawn depends on it — see InputPulse.
+            InputPulse.OnCanvas();
             InvalidateVisual();
 
             if (_movingGuides)
