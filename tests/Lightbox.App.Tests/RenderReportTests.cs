@@ -53,10 +53,15 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         int docWidth = 1920,
         int docHeight = 1080,
         PlaybackClock.Pacing? pacing = null,
-        Lightbox.App.Rendering.PresentLatency.Stats? presentWait = null) =>
+        Lightbox.App.Rendering.PresentLatency.Stats? presentWait = null,
+        IReadOnlyList<TickProfile.PhaseStats>? tickPhases = null,
+        int tickCount = 0,
+        (long Hits, long Misses, long Evictions, long Bytes, long Budget)? frameCache = null,
+        (int Frames, int Layers, int Strokes)? scene = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
             docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
-            Pacing: pacing, PresentWait: presentWait);
+            Pacing: pacing, PresentWait: presentWait,
+            TickPhases: tickPhases, TickCount: tickCount, FrameCache: frameCache, Scene: scene);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the
@@ -246,6 +251,56 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
 
         Assert.Contains("clock priority", text);
         Assert.Contains(PlaybackClock.Priority.ToString(), text);
+    }
+
+    /// <summary>
+    /// <b>The section that turns a localisation into a diagnosis.</b> The two
+    /// before it establish that the clock is late and the frames arrive
+    /// promptly, which narrows the cost to the tick handler and then stops. This
+    /// has to name the phase, in milliseconds, on the machine that has the
+    /// problem — the step B152 had to guess at and could not prove.
+    /// </summary>
+    [Fact]
+    public void TheReportSaysWhichPartOfTheTickSpentTheTime()
+    {
+        Setup();
+
+        var phases = new List<TickProfile.PhaseStats>
+        {
+            new(TickProfile.Phase.Thumbnails, 0, 0, 0),
+            new(TickProfile.Phase.Highlights, 120, 24, 0.6),
+            new(TickProfile.Phase.Bookkeeping, 120, 12, 0.4),
+            new(TickProfile.Phase.Audio, 120, 6, 0.3),
+            new(TickProfile.Phase.Publish, 120, 1800, 41.2),
+        };
+
+        var text = File.ReadAllText(RenderReport.WriteStartup(Facts(
+            tickPhases: phases,
+            tickCount: 120,
+            frameCache: (Hits: 300, Misses: 900, Evictions: 850, Bytes: 500L * 1024 * 1024, Budget: 512L * 1024 * 1024),
+            scene: (Frames: 90, Layers: 3, Strokes: 4200)))!);
+        var section = text[text.IndexOf("where the tick's time went", StringComparison.Ordinal)..];
+        output.WriteLine(section);
+
+        // The scene's shape, because it decides whether the cache can hold it —
+        // and it is the fact the first symptomatic report was missing.
+        Assert.Contains("90 frames, 3 layers", section);
+
+        // A miss is a full frame replayed from its record, so the ratio is the
+        // number that matters rather than the raw counts.
+        Assert.Contains("75%", section);
+        Assert.Contains("thrown out              850", section);
+
+        // A phase that never ran is named rather than omitted: that is what
+        // B152's fix looks like from here, and a missing line reads as a phase
+        // nobody measured.
+        Assert.Contains("Thumbnails", section);
+        Assert.Contains("never ran", section);
+
+        // And the dominant phase is called out, so the reader does not have to
+        // do the arithmetic that the durable-frame line once cost us.
+        Assert.Contains("most of itself in Publish", section);
+        Assert.Contains("15 ms/tick", section);
     }
 
     /// <summary>Once per run, so a report is not rewritten on every repaint.</summary>

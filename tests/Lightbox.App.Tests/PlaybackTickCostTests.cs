@@ -165,4 +165,69 @@ public class PlaybackTickCostTests(ITestOutputHelper output) : BrushStateIsolate
 
         Assert.True(median < 40, $"a playback tick cost {median:F2} ms at the median");
     }
+
+    /// <summary>
+    /// The breakdown has to describe the run the artist just watched, not an
+    /// average of every run since the app opened — a cold first pass blended
+    /// with warm later ones is exactly the distinction B148 exists to make.
+    /// </summary>
+    [AvaloniaFact]
+    public void StartingPlaybackForgetsThePreviousRunsMeasurements()
+    {
+        var vm = Animated();
+        vm.IsPlaying = true;
+        for (var i = 0; i < 10; i++) vm.StepPlayback();
+        Assert.True(vm.TickProfile.Ticks >= 10);
+        vm.IsPlaying = false;
+
+        vm.IsPlaying = true;
+        for (var i = 0; i < 3; i++) vm.StepPlayback();
+
+        output.WriteLine($"second run measured {vm.TickProfile.Ticks} tick(s)");
+        Assert.Equal(3, vm.TickProfile.Ticks);
+    }
+
+    /// <summary>
+    /// Scrubbing runs the same handler and has no frame budget, so counting it
+    /// as playback would make every number in the report a blend of two
+    /// different questions.
+    /// </summary>
+    [AvaloniaFact]
+    public void ScrubbingIsNotCountedAsPlayback()
+    {
+        var vm = Animated();
+        vm.IsPlaying = true;
+        vm.IsPlaying = false;
+
+        vm.CurrentFrameIndex = 2;
+        vm.CurrentFrameIndex = 5;
+
+        Assert.Equal(0, vm.TickProfile.Ticks);
+    }
+
+    /// <summary>
+    /// B152's fix, seen from the report: the phase is named and reads as never
+    /// having run, rather than quietly disappearing.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheBreakdownShowsTheThumbnailPhaseNotRunningDuringPlayback()
+    {
+        var vm = Animated();
+        vm.IsPlaying = true;
+        for (var i = 0; i < 12; i++) vm.StepPlayback();
+
+        var phases = vm.TickProfile.Snapshot();
+        var thumbs = phases.Single(p => p.Phase == Lightbox.App.Services.TickProfile.Phase.Thumbnails);
+        var publish = phases.Single(p => p.Phase == Lightbox.App.Services.TickProfile.Phase.Publish);
+        output.WriteLine(
+            $"thumbnails {thumbs.TotalMs:F2} ms over {thumbs.Calls} call(s); "
+            + $"publish {publish.TotalMs:F2} ms over {publish.Calls}");
+
+        // Not merely zero milliseconds: zero *calls*, so the report can say
+        // "never ran" rather than "0 ms over 12 of 12 ticks", which is true and
+        // says nothing.
+        Assert.Equal(0, thumbs.Calls);
+        Assert.Equal(0, thumbs.TotalMs);
+        Assert.True(publish.Calls > 0, "publish was not measured at all");
+    }
 }

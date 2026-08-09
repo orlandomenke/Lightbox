@@ -101,6 +101,37 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>How well the frame clock kept time on the last run of playback (B150).</summary>
     internal PlaybackClock.Pacing PlaybackPacing => _clock.Stats;
 
+    /// <summary>Frame-cache behaviour over the last run of playback.</summary>
+    internal (long Hits, long Misses, long Evictions, long Bytes, long Budget) FrameCacheTraffic =>
+        (_cache.Hits, _cache.Misses, _cache.Evictions, _cache.CachedBytes, FrameBitmapCache.ByteBudget);
+
+    /// <summary>
+    /// The shape of the scene, which is what decides whether it fits the cache.
+    /// </summary>
+    /// <remarks>
+    /// Reported because the first report to show the symptom said the canvas was
+    /// 1920x1080 and nothing else — and at 8.3 MB a frame, how many frames and
+    /// how many layers is precisely the difference between a cache that holds
+    /// the scene and one that thrashes.
+    /// </remarks>
+    internal (int Frames, int Layers, int Strokes) SceneShape
+    {
+        get
+        {
+            var scene = Scene;
+            var strokes = 0;
+            var seen = new HashSet<string>();
+            foreach (var layer in scene.Layers)
+            {
+                foreach (var cel in layer.Cels)
+                {
+                    if (cel.Frame is { } frame && seen.Add(frame.Id)) strokes += frame.Strokes.Count;
+                }
+            }
+            return (scene.FrameCount, scene.Layers.Count, strokes);
+        }
+    }
+
     /// <summary>Every frame mutation goes through here, whichever cache holds it.</summary>
     private void InvalidateFrameRender(string frameId)
     {
@@ -4805,6 +4836,16 @@ public sealed partial class MainViewModel : ObservableObject
             ? FrameBitmapCache.EvictionOrder.MostRecent
             : FrameBitmapCache.EvictionOrder.LeastRecent;
 
+        // Cleared at the START of a run rather than the end, so a report always
+        // describes the last thing the artist actually watched. Accumulating
+        // across runs would average a cold first pass with warm later ones,
+        // which is exactly the distinction B148 exists to make.
+        if (value)
+        {
+            _tickProfile.Reset();
+            _cache.ResetCounters();
+        }
+
         // B152: the layer thumbnails were skipped for the whole run, so they are
         // showing whatever frame playback started on. Catching up once on the
         // stop costs one sweep; catching up per tick cost the frame rate.
@@ -5240,11 +5281,21 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentFrameIndexChanged(int value)
     {
         _lastStrokeEnd = null;   // and it stops being true on another drawing
+
+        // Only while playing: the same path serves scrubbing, and blending a
+        // budgeted path with an unbudgeted one makes every number mean nothing.
+        var profiling = IsPlaying;
+        if (profiling) _tickProfile.Tick();
+
         // A line selected on another drawing is not on this one. Left alone the
         // count keeps reporting lines nothing can show, which reads as the
         // arrow having stopped working.
         PruneStrokeSelection();
-        RefreshCellHighlights();
+
+        using (Profile(profiling, Services.TickProfile.Phase.Highlights))
+        {
+            RefreshCellHighlights();
+        }
 
         // B152: NOT while playing. The exposed frame changes on every tick, so
         // the id check below always misses and every tick rasterized a full
@@ -5253,18 +5304,54 @@ public sealed partial class MainViewModel : ObservableObject
         // cache — to make a 44x26 picture nobody is looking at. Measured at
         // 159 ms of mean tick lateness on a 16-core machine. OnIsPlayingChanged
         // catches them up when playback stops.
-        if (!IsPlaying) RefreshLayerThumbs();
-        RefreshCamera();
-        // Whether THIS frame is pinned changes with the playhead, and the pin
-        // button has to say which way it will go.
-        OnPropertyChanged(nameof(CurrentFrameIsGhost));
-        OnPropertyChanged(nameof(GhostPinLabel));
-        // Which reference frame is showing, and therefore which cell the
-        // alignment fields are editing, is a property of the playhead.
-        NotifyReference();
-        ScrubAudioTick();
-        PublishSnapshot();
+        // The scope sits INSIDE the guard, not around it. Around it, the phase
+        // logs a zero-length call on every tick and the report says "0 ms over
+        // 336 of 336 ticks" — which is true, unreadable, and indistinguishable
+        // from a phase that ran and was cheap. Inside it, the phase genuinely
+        // never runs and the report says so, which is the finding.
+        if (!IsPlaying)
+        {
+            using (Profile(profiling, Services.TickProfile.Phase.Thumbnails))
+            {
+                RefreshLayerThumbs();
+            }
+        }
+        using (Profile(profiling, Services.TickProfile.Phase.Bookkeeping))
+        {
+            RefreshCamera();
+            // Whether THIS frame is pinned changes with the playhead, and the pin
+            // button has to say which way it will go.
+            OnPropertyChanged(nameof(CurrentFrameIsGhost));
+            OnPropertyChanged(nameof(GhostPinLabel));
+            // Which reference frame is showing, and therefore which cell the
+            // alignment fields are editing, is a property of the playhead.
+            NotifyReference();
+        }
+        using (Profile(profiling, Services.TickProfile.Phase.Audio))
+        {
+            ScrubAudioTick();
+        }
+        using (Profile(profiling, Services.TickProfile.Phase.Publish))
+        {
+            PublishSnapshot();
+        }
     }
+
+    /// <summary>Where a playback tick's time went, for the render report.</summary>
+    private readonly Services.TickProfile _tickProfile = new();
+
+    internal Services.TickProfile TickProfile => _tickProfile;
+
+    /// <summary>
+    /// Time a phase, or do nothing at all when this is not a playback tick.
+    /// </summary>
+    /// <remarks>
+    /// A nullable scope rather than a branch at each call site: the alternative
+    /// is an <c>if</c> around every phase, and the one somebody forgets is the
+    /// one that then reports a scrub as playback.
+    /// </remarks>
+    private Services.TickProfile.Scope? Profile(bool on, Services.TickProfile.Phase phase) =>
+        on ? _tickProfile.Measure(phase) : null;
 
 
     // ---- painting -----------------------------------------------------------

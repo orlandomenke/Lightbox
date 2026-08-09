@@ -64,7 +64,11 @@ internal static class RenderReport
         Rendering.TileFallbackTally? TileFallbacks = null,
         Services.FramePrewarmer? Prewarm = null,
         Services.PlaybackClock.Pacing? Pacing = null,
-        Rendering.PresentLatency.Stats? PresentWait = null);
+        Rendering.PresentLatency.Stats? PresentWait = null,
+        IReadOnlyList<TickProfile.PhaseStats>? TickPhases = null,
+        int TickCount = 0,
+        (long Hits, long Misses, long Evictions, long Bytes, long Budget)? FrameCache = null,
+        (int Frames, int Layers, int Strokes)? Scene = null);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -292,6 +296,79 @@ internal static class RenderReport
     }
 
     /// <summary>
+    /// Where a playback tick's time actually went.
+    /// </summary>
+    /// <remarks>
+    /// <b>The section that turns a localisation into a diagnosis.</b> The two
+    /// above establish that the clock is late and that frames reach the screen
+    /// promptly, which narrows the cost to the tick handler and stops. This says
+    /// which part of the handler, in milliseconds, on the machine that has the
+    /// problem — which is the step that B152 had to guess at and could not prove.
+    /// </remarks>
+    private static void AppendTickBreakdown(StringBuilder sb, Facts facts)
+    {
+        sb.AppendLine("-- where the tick's time went --------------------------------");
+
+        if (facts.Scene is { } shape)
+        {
+            // Printed even when nothing played: how many frames and layers there
+            // are decides whether the cache below can hold the scene, and it is
+            // the fact the first symptomatic report was missing.
+            sb.AppendLine($"scene                     {shape.Frames} frames, {shape.Layers} layers, {shape.Strokes} strokes");
+        }
+
+        if (facts.FrameCache is { } cache)
+        {
+            var lookups = cache.Hits + cache.Misses;
+            var missShare = lookups == 0 ? 0 : 100.0 * cache.Misses / lookups;
+            sb.AppendLine($"frame cache               {cache.Bytes / (1024 * 1024)} MB held of {cache.Budget / (1024 * 1024)} MB");
+            sb.AppendLine($"  served from memory      {cache.Hits}");
+            sb.AppendLine($"  had to render           {cache.Misses}  ({missShare:0.#}%)");
+            sb.AppendLine($"  thrown out              {cache.Evictions}");
+        }
+
+        if (facts.TickPhases is not { Count: > 0 } phases || facts.TickCount == 0)
+        {
+            sb.AppendLine("tick breakdown            none yet — this needs the scene PLAYED first");
+            sb.AppendLine();
+            return;
+        }
+
+        sb.AppendLine($"playback ticks            {facts.TickCount}");
+        var total = 0.0;
+        foreach (var phase in phases)
+        {
+            if (phase.Calls == 0)
+            {
+                // Named rather than omitted: a phase that ran zero times is a
+                // finding — it is what B152's fix looks like from here — and an
+                // absent line reads as a phase nobody measured.
+                sb.AppendLine($"  {phase.Phase,-22} never ran");
+                continue;
+            }
+            total += phase.TotalMs;
+            sb.AppendLine(
+                $"  {phase.Phase,-22} {phase.TotalMs / facts.TickCount,7:0.##} ms/tick"
+                + $"   worst {phase.WorstMs,7:0.##} ms   ({phase.Calls} of {facts.TickCount} ticks)");
+        }
+        sb.AppendLine($"  {"ALL PHASES",-22} {total / facts.TickCount,7:0.##} ms/tick");
+
+        sb.AppendLine();
+        var worstPhase = phases.Where(p => p.Calls > 0).OrderByDescending(p => p.TotalMs).FirstOrDefault();
+        if (worstPhase.Calls > 0)
+        {
+            sb.AppendLine(
+                $"  >> The tick spends most of itself in {worstPhase.Phase}"
+                + $" ({worstPhase.TotalMs / facts.TickCount:0.##} ms/tick).");
+            sb.AppendLine("     Compare that with the frame period for this scene's fps: anything");
+            sb.AppendLine("     approaching it makes the clock late whatever else is true, and the");
+            sb.AppendLine("     lateness above is the consequence rather than a separate fault.");
+        }
+
+        sb.AppendLine();
+    }
+
+    /// <summary>
     /// Why the durable frame is or is not on the GPU, in words rather than a
     /// boolean.
     /// </summary>
@@ -473,6 +550,7 @@ internal static class RenderReport
         AppendPrewarm(sb, facts.Prewarm);
         AppendPacing(sb, facts.Pacing);
         AppendPresentWait(sb, facts.PresentWait);
+        AppendTickBreakdown(sb, facts);
 
         sb.AppendLine("-- what is being drawn ---------------------------------------");
         sb.AppendLine($"document                  {facts.DocWidth} x {facts.DocHeight}");

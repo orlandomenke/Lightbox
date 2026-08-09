@@ -198,6 +198,39 @@ There is also a line naming the **clock priority** the run used. It normally
 reads `Render` and you can ignore it; it exists so that a report captured with
 the diagnostic override below can never be mistaken for an ordinary one.
 
+### And below those: where the tick's time went
+
+The two sections above narrow the problem down; this one names it. While a
+sequence plays, Lightbox times each part of the work it does per frame and
+reports them side by side:
+
+```
+scene                     90 frames, 3 layers, 4200 strokes
+frame cache               500 MB held of 512 MB
+  served from memory      300
+  had to render           900  (75%)
+  thrown out              850
+playback ticks            120
+  Thumbnails             never ran
+  Highlights                0.2 ms/tick   worst    0.6 ms   (120 of 120 ticks)
+  Publish                  15 ms/tick   worst   41.2 ms   (120 of 120 ticks)
+```
+
+Two lines to read first:
+
+- **had to render** — a frame that is not in memory has to be rebuilt from every
+  stroke on it, which is the most expensive thing that happens per frame. A high
+  percentage next to a **frame cache** that is close to full means your scene is
+  bigger than the memory set aside for it, and the app is re-drawing frames it
+  had already drawn. Fewer frames in the range you are looping, or a smaller
+  canvas, is what helps.
+- **ms/tick against your frame period** — 83 ms at 12 fps, 42 at 24. Any single
+  phase approaching that makes the clock late whatever else is true, and the
+  lateness reported above it is the consequence rather than a second fault.
+
+A phase that says **never ran** is doing what it should: some work is deliberately
+skipped while frames are flipping, because nobody can read it at speed.
+
 ### Trying the fix off and on
 
 If you are chasing this with us, `LIGHTBOX_CLOCK_PRIORITY=Background` starts
