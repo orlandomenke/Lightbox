@@ -633,6 +633,22 @@ test reopens the bug.
 
 ### canvas
 
+- [x] **B160** `P1` `canvas` A scaled composite costs 2.5× per pixel, so compositing *smaller* can cost more than compositing everything `evidence: ComposeScaleCostTests, AScaleThatWouldCostMoreThanNotScalingRoundsUp, CompositingJustUnderFullSizeIsNotCheaperThanCompositingAllOfIt`
+  - **The third answer to one question, so the method matters more than the number.** B156 blamed the composite; B157 retracted it on four field captures where a *smaller* compose surface cost more; B158 "corrected" the retraction with a controlled measurement. **B158's measurement was clean and controlled on the wrong variable** — it varied the *document size* with the compose scale pinned at 1.0, so it only ever exercised the unscaled path, found it perfectly linear at 16 ms/Mpx, and concluded the field data was session noise. The captures differed in **compose scale**, which that experiment held constant.
+  - Holding the document at 1920×1080 and varying only the compose scale — the thing that actually differed:
+
+    | compose scale | Mpx | ms/tick | ms/Mpx |
+    | --- | --- | --- | --- |
+    | 1.0 | 2.07 | 34.00 | **16.4** |
+    | 0.75 | 1.17 | **45.92** | 39.4 |
+    | 0.625 | 0.81 | 33.00 | 40.7 |
+    | 0.5 | 0.52 | 20.85 | 40.2 |
+
+  - **0.75 composites 44% fewer pixels and takes 35% longer.** That is the field observation reproduced exactly, after being dismissed twice. The owner's own capture at `Display` quality — 0.81 Mpx, **40.33 ms** — is the same result on their machine, and it arrived *because I advised them to switch to `Display`*, which moved them off the cheap path onto the dear one. **The advice made it worse**, and it was given with more confidence than a single controlled experiment could carry.
+  - Cause, and it is not a bad sampler: at 1.0 the layer blit is a straight copy; below it every tile is drawn through `canvas.Scale` and interpolated. The filter is already `SKFilterMode.Linear` — the cheapest sensible choice, with `SceneRenderer.Downscale` explaining why — so this is simply what interpolation costs.
+  - Fix: cost is `40·s²` against `16.4` for the whole document, crossing over at `s = √(16.4/40) ≈ 0.64`. `ComposeScale` now rounds anything above **0.7** up to 1.0 and takes the cheap path; below it, scaling genuinely pays (0.5 is 21 ms against 34). Threshold above the crossover rather than on it because the ratio is one machine's measurement and the penalty is asymmetric. Nothing about what is drawn changes — only how many pixels it is drawn into, which invariant 5 already makes view-only. Cost: S
+  - **What this does not do is make 12 fps.** The owner's capture still shows the tick at 40.91 ms against an 83.3 ms budget with **100% of ticks late by a mean of 197 ms and 488 frames dropped** — which remains the reported symptom, since dropped frames are exactly the playhead "skipping to random frames". A 40 ms tick inside an 83 ms period should not produce that, so B158's real finding stands and is now the whole question: **something outside the tick is spending the rest of the UI thread.** `CanvasControl.Render` is still unmeasured.
+
 - [x] **B158** `P1` `canvas` The composite is 40% of a 12 fps frame, so it cannot be why every tick is 50–170 ms late `evidence: ComposeCostScalesWithAreaTests, TheCompositeGrowsWithTheSurfaceAndTheHandoffDoesNot`
   - **First, a correction: B157's retraction was wrong, and B156's original attribution was right.** Measured properly — one process, one scene, three sizes, forty ticks each, warmed — the composite is **linear in area at ~16 ms per megapixel**: 8.56 ms at 960×540, 33.90 ms at 1920×1080, 76.43 ms at 2880×1620. The handoff B157 split out is **0.07 ms**, which is what made the split worth doing even though its conclusion was wrong: it is the thing that proves the cost is not there.
   - **Why I talked myself out of it.** Four captures showed the run with the *smallest* compose surface spending the most time in the phase, and "a cost that does not fall when the surface nearly halves is not paid per pixel" is sound reasoning about numbers that could not carry it. Those four came from three sessions with wildly different stalling — the 1440×810 run reported **56 dropped frames and three clock re-bases** against 4 drops and one re-base in the run beside it, over 76 ticks with a 55.82 ms worst. That is a machine having a bad minute. **Comparing means across sessions with uncontrolled stalls is exactly the trap `docs/DESIGN-performance.md` records**, and I walked into it while quoting it.
