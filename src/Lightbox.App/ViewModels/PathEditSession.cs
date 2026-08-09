@@ -385,6 +385,84 @@ public sealed class PathEditSession
         return true;
     }
 
+    // ---- simplify (phase 4c) ---------------------------------------------------
+
+    /// <summary>
+    /// How much looser each step of Simplify is than the one before it.
+    /// </summary>
+    /// <remarks>
+    /// Doubling, because node count falls roughly with the square root of the
+    /// tolerance and anything gentler makes the first two presses look like they
+    /// did nothing. An artist reaching for this wants visibly fewer points, not
+    /// a percentage.
+    /// </remarks>
+    public const double SimplifyStep = 2.0;
+
+    /// <summary>
+    /// The tolerance the path was last refitted at, in document pixels.
+    /// </summary>
+    /// <remarks>
+    /// Kept so repeated presses keep coarsening rather than re-fitting the same
+    /// shape at the same tolerance and reporting no change. It starts at the
+    /// fitter's own default, which is where a freshly opened session's nodes
+    /// came from.
+    /// </remarks>
+    public double SimplifyTolerance { get; private set; } = CurveFitter.Tolerance;
+
+    /// <summary>
+    /// Refit the line through fewer nodes. Returns false when there was nothing
+    /// to save.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is <see cref="CurveFitter"/> with its tolerance turned up, and
+    /// nothing else</b> — the fitter's own summary said as much before this
+    /// existed. What is not obvious is <em>what</em> gets refitted: the
+    /// <b>flattened current path</b>, not the original drawn points. By the time
+    /// somebody simplifies, the line may have been reshaped, pinched and
+    /// re-weighted, and going back to the drawn points would silently undo all
+    /// of it under a button labelled "simplify".
+    /// </para>
+    /// <para>
+    /// <b>The weight survives, because it is not part of the geometry.</b>
+    /// <see cref="Weight"/> is a function of normalised arc length, so a path
+    /// with fewer nodes covering the same line reads the same taper off it —
+    /// which is what stops this from also meaning "flatten the pressure".
+    /// </para>
+    /// </remarks>
+    public bool Simplify(double? tolerance = null)
+    {
+        var target = tolerance ?? SimplifyTolerance * SimplifyStep;
+        if (target <= 0) return false;
+
+        var points = PathFlattener.Flatten(Path);
+        if (points.Count < 2) return false;
+
+        var refitted = CurveFitter.Fit(points, target, Path.Closed);
+        if (refitted is not { IsUsable: true }) return false;
+
+        // A refit that saved nothing is not worth an undo step, and reporting
+        // the same node count twice reads as the button being broken. The
+        // tolerance still moves on, so the next press tries a looser one rather
+        // than the same one again.
+        if (refitted.Nodes.Count >= Path.Nodes.Count && tolerance is null)
+        {
+            SimplifyTolerance = target;
+            return false;
+        }
+
+        Path.Nodes.Clear();
+        Path.Nodes.AddRange(refitted.Nodes);
+        Path.Closed = refitted.Closed;
+        SimplifyTolerance = target;
+        // The nodes an artist had picked are gone — the refit produced different
+        // ones — so a selection kept across it would name points that no longer
+        // mean what was selected.
+        ClearNodeSelection();
+        Dirty = true;
+        return true;
+    }
+
     // ---- width along the line --------------------------------------------------
 
     /// <summary>

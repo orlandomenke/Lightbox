@@ -123,6 +123,19 @@ something a hand can work with.
 
 Each drag is **one undo step**, however far you pushed the point around.
 
+### Fewer points
+
+**Simplify** — in the Arrow's options while you are inside a line — refits the
+line through fewer points and tells you how many are left: *"Simplified: 31
+points to 12."* Press it again and it goes further. Each press is its own undo
+step, so one too many costs a single **Ctrl+Z** rather than the whole line.
+
+It refits **the line as it is now**, not the line you originally drew, so
+reshaping first and simplifying afterwards keeps the reshape. It also keeps the
+weight: fewer points describing the same line still carry the same taper.
+
+A shape that genuinely needs the points it has says so rather than doing nothing.
+
 ### Making a line heavier or lighter
 
 **The Width tool (W)** changes how thick a line is along its length. Go into a

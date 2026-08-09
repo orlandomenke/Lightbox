@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.Input;
 using Lightbox.Core.Documents;
 
 namespace Lightbox.App.ViewModels;
@@ -341,6 +342,40 @@ public partial class MainViewModel
     /// this application that turns a distance into a value does the same.
     /// </remarks>
     private double? _widthGrabDistance;
+
+    // ---- simplify (phase 4c) ---------------------------------------------------
+
+    /// <summary>
+    /// Refit the isolated line through fewer points, and say how many are left.
+    /// </summary>
+    /// <remarks>
+    /// <b>The count is the feature as much as the refit is.</b> "Simplify" with
+    /// no number is a button an artist presses and then squints at the canvas to
+    /// find out what it did; the design asks for a live count for that reason.
+    /// Pressing again loosens further, so the control is the repetition rather
+    /// than a value to choose up front — and each press is its own undo step, so
+    /// one too many costs one Ctrl+Z rather than the whole line.
+    /// </remarks>
+    [RelayCommand]
+    public void SimplifyLine()
+    {
+        if (_pathEdit is not { } session) return;
+
+        var before = session.NodeCount;
+        if (!session.Simplify())
+        {
+            AiStatus = $"Cannot simplify further — {before} points is as few as this shape takes.";
+            return;
+        }
+
+        if (!CommitPathEdit())
+        {
+            session.Revert();
+            return;
+        }
+        AiStatus = $"Simplified: {before} points to {session.NodeCount}.";
+        PathEditChanged?.Invoke();
+    }
 
     /// <summary>Make the selected nodes corners, or smooth them.</summary>
     public bool SetSelectedNodesCorner(bool corner)

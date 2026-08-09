@@ -378,6 +378,163 @@ public class PathEditingTests(ITestOutputHelper output)
         }
     }
 
+    // ---- simplify (phase 4c) ---------------------------------------------------
+
+    /// <summary>
+    /// <b>The fitter with its tolerance turned up, and the count is the feature
+    /// as much as the refit is.</b> "Simplify" with no number is a button an
+    /// artist presses and then squints at the canvas to find out what it did.
+    /// </summary>
+    [AvaloniaFact]
+    public void SimplifyingLeavesFewerPointsAndSaysHowMany()
+    {
+        // A wobbly line, so there is something to take out. A clean arc already
+        // fits in four nodes and would make this test pass for the wrong reason.
+        var points = new List<StrokePoint>();
+        for (var i = 0; i <= 200; i++)
+        {
+            var t = i / 200.0;
+            points.Add(new StrokePoint(
+                100 + 300 * t,
+                200 + 60 * Math.Sin(t * Math.PI * 3) + 3 * Math.Sin(t * 90),
+                1));
+        }
+        var line = new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = "#000000",
+            Points = points,
+            Brush = new BrushSettings { Size = 10, Opacity = 1, Flow = 1, Spacing = 0.2 },
+        };
+
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+        var before = vm.PathEdit!.NodeCount;
+
+        vm.SimplifyLineCommand.Execute(null);
+        var after = vm.PathEdit!.NodeCount;
+        output.WriteLine($"{before} points -> {after};  status: {vm.AiStatus}");
+
+        Assert.True(after < before, $"simplify left {after} of {before}");
+        Assert.Contains(before.ToString(), vm.AiStatus);
+        Assert.Contains(after.ToString(), vm.AiStatus);
+    }
+
+    /// <summary>
+    /// Each press is its own undo step, so one too many costs one Ctrl+Z rather
+    /// than the whole line — and the undo restores the drawn points exactly.
+    /// </summary>
+    [AvaloniaFact]
+    public void EachSimplifyIsItsOwnUndoStep()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        var original = line.Points.Select(p => (p.X, p.Y)).ToList();
+        vm.BeginPathEdit(line.Id);
+
+        vm.SimplifyLineCommand.Execute(null);
+        var afterOne = StrokeOf(vm, line.Id).Points.Count;
+        vm.SimplifyLineCommand.Execute(null);
+        output.WriteLine($"after one press {afterOne} points, after two {StrokeOf(vm, line.Id).Points.Count}");
+
+        vm.UndoCommand.Execute(null);
+        vm.UndoCommand.Execute(null);
+
+        var back = StrokeOf(vm, line.Id).Points;
+        Assert.Equal(original.Count, back.Count);
+        for (var i = 0; i < back.Count; i++)
+        {
+            Assert.Equal(original[i].X, back[i].X);
+            Assert.Equal(original[i].Y, back[i].Y);
+        }
+    }
+
+    /// <summary>
+    /// A shape that cannot be described with fewer nodes says so rather than
+    /// silently doing nothing, and does not spend an undo step on it.
+    /// </summary>
+    [AvaloniaFact]
+    public void AShapeThatCannotBeSimplifiedFurtherSaysSo()
+    {
+        var straight = new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = "#000000",
+            Points = [.. Enumerable.Range(0, 40).Select(i => new StrokePoint(100 + i * 6, 200, 1))],
+            Brush = new BrushSettings { Size = 10, Opacity = 1, Flow = 1, Spacing = 0.2 },
+        };
+        var vm = WithStrokes(straight);
+        vm.BeginPathEdit(straight.Id);
+        Assert.Equal(2, vm.PathEdit!.NodeCount);
+
+        vm.SimplifyLineCommand.Execute(null);
+
+        output.WriteLine(vm.AiStatus);
+        Assert.Contains("Cannot simplify", vm.AiStatus);
+        Assert.Equal(2, vm.PathEdit!.NodeCount);
+        Assert.Null(StrokeOf(vm, straight.Id).Path);
+    }
+
+    /// <summary>
+    /// <b>Simplify must not also mean "flatten the pressure".</b> The weight is
+    /// a function of arc length rather than of node count, so a path with fewer
+    /// nodes covering the same line reads the same taper off it.
+    /// </summary>
+    [AvaloniaFact]
+    public void SimplifyingKeepsTheWeightTheLineWasDrawnWith()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        var peak = line.Points.Max(p => p.Pressure);
+        vm.BeginPathEdit(line.Id);
+
+        vm.SimplifyLineCommand.Execute(null);
+
+        var after = StrokeOf(vm, line.Id).Points.Max(p => p.Pressure);
+        output.WriteLine($"peak pressure {peak:F3} before, {after:F3} after");
+        Assert.Equal(peak, after, 2);
+    }
+
+    /// <summary>
+    /// Refits the line as it is now, not the points it was drawn from — by the
+    /// time somebody simplifies, the line may have been reshaped, and going back
+    /// to the drawn points would silently undo that under a button labelled
+    /// "simplify".
+    /// </summary>
+    [AvaloniaFact]
+    public void SimplifyingRefitsTheLineAsItIsNowRatherThanAsItWasDrawn()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+
+        // Move a node a long way, commit, then simplify.
+        var node = vm.PathEdit!.Path.Nodes[1];
+        var grab = vm.GrabPathPart(node.X, node.Y, tolerance: 6);
+        vm.DragPathPart(grab, node.X, node.Y - 120, 0, -120);
+        vm.CommitPathEdit();
+        var movedTo = vm.PathEdit!.Path.Nodes[1].Y;
+
+        vm.SimplifyLineCommand.Execute(null);
+
+        var top = StrokeOf(vm, line.Id).Points.Min(p => p.Y);
+        output.WriteLine($"node dragged to y {movedTo:F1}; after simplify the line still reaches y {top:F1}");
+        Assert.True(top < node.Y - 60, $"the reshape was undone by the simplify (top {top}, node was {node.Y})");
+    }
+
+    [AvaloniaFact]
+    public void SimplifyIsRegisteredSoItCanBeBound()
+    {
+        var map = new Lightbox.App.Services.ShortcutMap();
+        var entry = map.Definitions.SingleOrDefault(d => d.Id == "lines.simplify");
+
+        Assert.NotNull(entry);
+        Assert.Equal("Tools", entry!.Category);
+        // Unbound by default is allowed and is not an oversight — the sensible
+        // letters are taken. Being in the registry is what makes it bindable.
+        Assert.Null(entry.Default);
+    }
+
     // ---- width along the line (phase 4b) ---------------------------------------
 
     /// <summary>
