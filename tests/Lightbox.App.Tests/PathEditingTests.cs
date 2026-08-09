@@ -378,6 +378,174 @@ public class PathEditingTests(ITestOutputHelper output)
         }
     }
 
+    // ---- width along the line (phase 4b) ---------------------------------------
+
+    /// <summary>
+    /// <b>Illustrator's Width tool over an array the format has always had.</b>
+    /// A Lightbox stroke is a centreline with a width at every point, so the
+    /// tool edits a number that is already there rather than adding one — and
+    /// what it must edit is the <em>weight</em>, because the flatten regenerates
+    /// the points on every commit and would throw away anything written into
+    /// them.
+    /// </summary>
+    [AvaloniaFact]
+    public void DraggingOffTheLineMakesItHeavierAndTowardsItLighter()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+        var session = vm.PathEdit!;
+
+        // A place on the line that is not already at full weight, or the clamp
+        // would be what the test measured.
+        var points = Lightbox.Core.Geometry.PathFlattener.Flatten(session.Path);
+        var grabbed = points[points.Count / 6];
+        var at = vm.GrabWidthAt(grabbed.X, grabbed.Y, tolerance: 8);
+        Assert.True(at >= 0, "the line could not be grabbed");
+
+        var before = session.Weight!.At(at);
+        vm.DragWidth(at, grabbed.X, grabbed.Y - 30);
+        var after = session.Weight!.At(at);
+        output.WriteLine($"weight at {at:F3}: {before:F3} -> {after:F3}");
+
+        Assert.True(after > before, $"dragging off the line did not fatten it ({before} -> {after})");
+    }
+
+    /// <summary>
+    /// Measured against where the press landed rather than against the line, so
+    /// grabbing from a few pixels away does not jump the weight before the hand
+    /// has moved.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheWeightDoesNotJumpWhenTheLineIsGrabbedFromASmallDistance()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+        var session = vm.PathEdit!;
+
+        var points = Lightbox.Core.Geometry.PathFlattener.Flatten(session.Path);
+        var grabbed = points[points.Count / 3];
+        var at = vm.GrabWidthAt(grabbed.X, grabbed.Y + 5, tolerance: 8);
+        Assert.True(at >= 0);
+
+        var before = (session.Weight ?? Lightbox.Core.Geometry.PressureProfile.Uniform()).At(at);
+        vm.DragWidth(at, grabbed.X, grabbed.Y + 5);
+
+        Assert.Equal(before, session.Weight!.At(at), 6);
+    }
+
+    /// <summary>
+    /// A width drag is hundreds of pointer moves and one undo step, and undoing
+    /// it restores the original pressures bit for bit — a recomputed undo would
+    /// bring the line back with a different grain.
+    /// </summary>
+    [AvaloniaFact]
+    public void AWidthDragIsOneUndoStepAndRestoresTheOriginalWeight()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        var original = line.Points.Select(p => p.Pressure).ToList();
+        vm.BeginPathEdit(line.Id);
+
+        var points = Lightbox.Core.Geometry.PathFlattener.Flatten(vm.PathEdit!.Path);
+        var grabbed = points[points.Count / 4];
+        var at = vm.GrabWidthAt(grabbed.X, grabbed.Y, tolerance: 8);
+        for (var i = 1; i <= 20; i++) vm.DragWidth(at, grabbed.X, grabbed.Y - i);
+        Assert.True(vm.EndWidthDrag());
+
+        var fattened = StrokeOf(vm, line.Id).Points.Max(p => p.Pressure);
+        output.WriteLine($"peak pressure after the drag {fattened:F3}, originally {original.Max():F3}");
+
+        vm.UndoCommand.Execute(null);
+        var back = StrokeOf(vm, line.Id).Points;
+        Assert.Equal(original.Count, back.Count);
+        for (var i = 0; i < back.Count; i++) Assert.Equal(original[i], back[i].Pressure);
+    }
+
+    /// <summary>
+    /// A pen line was never pressed, so there is no profile to read. Starting it
+    /// flat at full weight makes the first drag an edit rather than a jump from
+    /// nothing.
+    /// </summary>
+    [AvaloniaFact]
+    public void AnAuthoredLineWithNoPressureCanStillBeGivenWidth()
+    {
+        var line = new Stroke
+        {
+            Tool = ToolKind.Brush,
+            Color = "#000000",
+            Brush = new BrushSettings { Size = 10, Opacity = 1, Flow = 1, Spacing = 0.2 },
+            Path = new StrokePath
+            {
+                Nodes = [PathNode.At(100, 200), PathNode.At(400, 200)],
+            },
+        };
+        line.Points = Lightbox.Core.Geometry.PathFlattener.Flatten(line.Path);
+
+        var vm = WithStrokes(line);
+        vm.BeginPathEdit(line.Id);
+        // A two-point authored line does have a profile — a flat one, read off
+        // its own points. What it does not have is anywhere to put a local
+        // change, which is what the resample-up is for.
+        Assert.Equal(2, vm.PathEdit!.Weight!.SampleCount);
+
+        var at = vm.GrabWidthAt(250, 200, tolerance: 8);
+        Assert.True(at >= 0);
+        for (var i = 1; i <= 15; i++) vm.DragWidth(at, 250, 200 - i);
+        Assert.True(vm.EndWidthDrag());
+
+        var pressures = StrokeOf(vm, line.Id).Points.Select(p => p.Pressure).ToList();
+        output.WriteLine($"authored line pressures now {pressures.Min():F3}..{pressures.Max():F3}");
+        // The ends are untouched at full weight and the middle was pushed up
+        // against the clamp, so what shows is the *ends* having been left alone
+        // — an edit that leaked would have moved them.
+        Assert.Equal(1.0, pressures[0], 3);
+        Assert.Equal(1.0, pressures[^1], 3);
+    }
+
+    /// <summary>
+    /// The width tool's key is in the one registry the shortcut editor reads,
+    /// and does not shadow anything already bound.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheWidthToolHasABindableShortcutThatCollidesWithNothing()
+    {
+        var map = new Lightbox.App.Services.ShortcutMap();
+        var entry = map.Definitions.SingleOrDefault(d => d.Id == "tool.width");
+
+        Assert.NotNull(entry);
+        Assert.Equal("Tools", entry!.Category);
+        Assert.NotNull(entry.Default);
+
+        var clashes = map.Definitions
+            .Where(d => d.Id != entry.Id && d.Default is { } g
+                && g.Key == entry.Default!.Key && g.KeyModifiers == entry.Default.KeyModifiers)
+            .Select(d => d.Id)
+            .ToList();
+        Assert.True(clashes.Count == 0, $"tool.width collides with {string.Join(", ", clashes)}");
+    }
+
+    /// <summary>
+    /// The width tool works inside the isolation session, so reaching for it
+    /// from the white arrow must not throw the session away — the same pairing
+    /// rule B149 established for the two arrows.
+    /// </summary>
+    [AvaloniaFact]
+    public void ReachingForTheWidthToolKeepsTheIsolationSession()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.Arrow;
+        Assert.True(vm.BeginPathEdit(line.Id));
+
+        vm.ActiveTool = ToolId.Width;
+        Assert.True(vm.PathEditActive);
+
+        vm.ActiveTool = ToolId.Brush;
+        Assert.False(vm.PathEditActive);
+    }
+
     // ---- editing --------------------------------------------------------------
 
     /// <summary>

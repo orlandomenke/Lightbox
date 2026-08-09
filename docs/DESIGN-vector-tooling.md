@@ -1,8 +1,8 @@
 # Vector tooling: making the lines you already drew editable
 
 Status: **agreed design; phase 0 landed except rotate and scale, phases 1 and 2
-landed 2026-08-08, phase 3 and phase 4a (pinch) landed 2026-08-09; phase 4's
-other three parts not started.** Decisions Q47–Q53, answered 2026-08-07.
+landed 2026-08-08, phases 3, 4a (pinch) and 4b (width) landed
+2026-08-09; simplify and cut/join not started.** Decisions Q47–Q53, answered 2026-08-07.
 Unblocked by Q26, which has been answered since the same day and which two other
 documents still describe as open — see *Corrections* at the end.
 
@@ -254,7 +254,7 @@ needs an "and", it is two branches*. So:
 | | Branch | What |
 | --- | --- | --- |
 | **4a** | *landed* `feat/canvas/pinch-a-segment` | Drag the curve between two nodes. `SegmentDrag` in Core, because the interesting part is arithmetic |
-| **4b** | `feat/canvas/line-width` | Illustrator's Width tool over the `Pressure` array — which means editing `PressureProfile`, not the flattened points, or the invariant re-flattens the edit away |
+| **4b** | *landed* `feat/canvas/line-width` | Illustrator's Width tool over the `Pressure` array — editing `PressureProfile` rather than the flattened points, because the flatten regenerates those on every commit. Resamples **up and never down**, so a drawn taper is not coarsened by the tool being picked up |
 | **4c** | `feat/canvas/simplify-a-line` | `CurveFitter.Fit` at a larger tolerance, with the node count shown live. The fitter already takes the parameter |
 | **4d** | `feat/canvas/cut-and-join` | The only one that changes how many strokes a frame holds, which is why it is last and alone |
 

@@ -57,6 +57,13 @@ public partial class MainWindow : Window
             _vm.PenRelease,
             _vm.PenHover);
         _vm.PenChanged += PublishPenPath;
+        // The width tool (vector phase 4b). Same split again: the canvas turns
+        // pointer events into document coordinates, and what they mean is the
+        // view model's.
+        Canvas.SetWidthHandlers(
+            _vm.GrabWidthAt,
+            _vm.DragWidth,
+            () => _vm.EndWidthDrag());
         TimelineTrackView.KeyDragged += OnTrackKeyDragged;
         // The clip bars (Q57): body slides, edges trim; the view model owns
         // what that does to the record.
@@ -2298,6 +2305,7 @@ public partial class MainWindow : Window
             ToolId.Arrow => Rendering.CanvasControl.CanvasToolMode.Select,
             ToolId.DirectSelect => Rendering.CanvasControl.CanvasToolMode.PathEdit,
             ToolId.Pen => Rendering.CanvasControl.CanvasToolMode.Pen,
+            ToolId.Width => Rendering.CanvasControl.CanvasToolMode.Width,
             ToolId.Select => _vm.ActiveSelectVariant switch
             {
                 SelectVariant.Polygon => Rendering.CanvasControl.CanvasToolMode.SelectPolygon,
@@ -3223,6 +3231,9 @@ public partial class MainWindow : Window
                 break;
             case "tool.pen":
                 _vm.SelectToolCommand.Execute(ToolId.Pen);
+                break;
+            case "tool.width":
+                _vm.SelectToolCommand.Execute(ToolId.Width);
                 break;
             case "lines.delete":
                 _vm.DeleteSelectedLinesCommand.Execute(null);

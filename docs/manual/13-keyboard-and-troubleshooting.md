@@ -12,6 +12,7 @@ canvas, the timeline and the Layers panel.
 | A | Arrow — select whole lines, guides, symbols |
 | N | White arrow — reshape an isolated line's points |
 | P | Pen — draw a line by placing its points |
+| W | Width — make a line heavier or lighter |
 | Double-click | Go inside a line to reshape it; Esc to come back out |
 | Backspace | Take the last point back off, while drawing with the pen |
 | Enter / Esc | Finish the pen line (neither discards it — Ctrl+Z does) |

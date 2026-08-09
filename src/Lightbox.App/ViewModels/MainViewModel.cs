@@ -3662,6 +3662,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsArrowTool))]
     [NotifyPropertyChangedFor(nameof(IsDirectSelectTool))]
     [NotifyPropertyChangedFor(nameof(IsPenTool))]
+    [NotifyPropertyChangedFor(nameof(IsWidthTool))]
     private ToolId _activeTool = ToolId.Brush;
 
     [ObservableProperty]
@@ -3693,6 +3694,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>The pen — places nodes and draws the curve between them.</summary>
     public bool IsPenTool => ActiveTool == ToolId.Pen;
+
+    /// <summary>The width tool — drag off a line to fatten it, towards it to thin it.</summary>
+    public bool IsWidthTool => ActiveTool == ToolId.Width;
 
     public bool IsEraserTool => ActiveTool == ToolId.Eraser;
 
@@ -3794,7 +3798,7 @@ public sealed partial class MainViewModel : ObservableObject
         // glyphs on screen over a line nothing could reshape any more. Both
         // arrows keep the session — you enter it by double-clicking with the
         // black one and work it with the white one — and everything else ends it.
-        if (value is not (ToolId.Arrow or ToolId.DirectSelect)) EndPathEdit();
+        if (value is not (ToolId.Arrow or ToolId.DirectSelect or ToolId.Width)) EndPathEdit();
     }
 
     [RelayCommand]

@@ -265,14 +265,82 @@ public partial class MainViewModel
         // The session's Original becomes what was just committed, so a later
         // Escape restores this rather than the state the session opened in —
         // the committed edit is history's now, not the session's to take back.
-        session.Original.Nodes.Clear();
-        session.Original.Nodes.AddRange(afterPath.Nodes);
-        session.Original.Closed = afterPath.Closed;
+        // Keep takes the weight with it, or a width edit would survive a commit
+        // and then be un-done by an Escape that never named it.
+        session.Keep(afterPath);
 
         AfterStrokeEdit(frameId);
         PathEditChanged?.Invoke();
         return true;
     }
+
+    // ---- width along the line (phase 4b) ---------------------------------------
+
+    /// <summary>
+    /// Take hold of the line to change its weight. Returns where along it, or -1.
+    /// </summary>
+    /// <remarks>
+    /// The width tool grabs the <em>line</em> rather than a node, so the grab is
+    /// a position along it rather than a part of it — and it is recorded once,
+    /// at the press, for the reason the pinch records its parameter once: a grip
+    /// re-derived every move slides along the curve as the shape changes under
+    /// it.
+    /// </remarks>
+    public double GrabWidthAt(double x, double y, double tolerance)
+    {
+        if (_pathEdit is not { } session) return -1;
+        var (at, distance) = session.AlongAt(x, y);
+        if (distance > tolerance) return -1;
+
+        // Captured here rather than on the first move. Taking it from the first
+        // drag instead makes the reference the position the pointer had already
+        // moved to, so the first millimetre of every drag does nothing and the
+        // gesture starts late.
+        _widthGrabDistance = distance;
+        return at;
+    }
+
+    /// <summary>
+    /// Make the line heavier or lighter, from how far the pointer has moved off
+    /// it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Distance from the line, not a signed side.</b> Dragging out from either
+    /// side fattens and dragging back in thins, because a Lightbox stroke is a
+    /// centreline with one width — there is no left and right to give different
+    /// weights to, and pretending otherwise would put a control in the artist's
+    /// hand that the record cannot hold.
+    /// </remarks>
+    public void DragWidth(double at, double x, double y)
+    {
+        if (_pathEdit is not { } session || at < 0) return;
+
+        var points = Lightbox.Core.Geometry.PathFlattener.Flatten(session.Path);
+        if (points.Count < 2) return;
+
+        var (_, distance) = session.AlongAt(x, y);
+        var reference = _widthGrabDistance ??= distance;
+        if (session.AdjustWidthAt(at, distance - reference)) PathEditChanged?.Invoke();
+        _widthGrabDistance = distance;
+    }
+
+    /// <summary>Let go: the whole drag becomes one undo step.</summary>
+    public bool EndWidthDrag()
+    {
+        _widthGrabDistance = null;
+        return CommitPathEdit();
+    }
+
+    /// <summary>
+    /// How far the pointer was from the line when the drag began.
+    /// </summary>
+    /// <remarks>
+    /// The change is measured against where the press landed rather than against
+    /// the line itself, so grabbing a line from ten pixels away does not jump its
+    /// weight by ten pixels' worth before the hand has moved. Every gesture in
+    /// this application that turns a distance into a value does the same.
+    /// </remarks>
+    private double? _widthGrabDistance;
 
     /// <summary>Make the selected nodes corners, or smooth them.</summary>
     public bool SetSelectedNodesCorner(bool corner)

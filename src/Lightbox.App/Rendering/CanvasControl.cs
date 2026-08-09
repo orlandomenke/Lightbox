@@ -1007,6 +1007,17 @@ public sealed class CanvasControl : Control
         /// with it.
         /// </remarks>
         Pen,
+
+        /// <summary>
+        /// The width tool: a press grabs the line, a drag changes its weight.
+        /// </summary>
+        /// <remarks>
+        /// Shares the isolation session with <see cref="PathEdit"/> and not its
+        /// gesture: what a press means here is a position along the line rather
+        /// than a node or a handle, so folding the two would put the ambiguity
+        /// back that separate tools exist to remove.
+        /// </remarks>
+        Width,
     }
 
     public static readonly StyledProperty<CanvasToolMode> ToolModeProperty =
@@ -1232,6 +1243,28 @@ public sealed class CanvasControl : Control
     }
 
     private bool _penShaping;
+
+    /// <summary>Press: take hold of the line. Returns where along it, or -1.</summary>
+    private Func<double, double, double, double>? _grabWidth;
+
+    /// <summary>Drag: the weight follows how far the pointer is off the line.</summary>
+    private Action<double, double, double>? _dragWidth;
+
+    /// <summary>Release: one undo step for the whole drag.</summary>
+    private Action? _endWidth;
+
+    public void SetWidthHandlers(
+        Func<double, double, double, double>? grab,
+        Action<double, double, double>? drag,
+        Action? end)
+    {
+        _grabWidth = grab;
+        _dragWidth = drag;
+        _endWidth = end;
+    }
+
+    /// <summary>Where along the line the width drag has hold, or -1.</summary>
+    private double _widthGrab = -1;
 
     /// <summary>
     /// The path being drawn, in document space, as a polyline.
@@ -2553,6 +2586,11 @@ public sealed class CanvasControl : Control
                     }
                     e.Handled = true;
                     return;
+                case CanvasToolMode.Width:
+                    e.Pointer.Capture(this);
+                    _widthGrab = _grabWidth?.Invoke(x, y, DocTolerance(GrabPixels)) ?? -1;
+                    e.Handled = true;
+                    return;
                 case CanvasToolMode.Pen:
                     // Captured whether or not the press took, so a press over a
                     // locked layer cannot leave the pointer half-grabbed.
@@ -2943,6 +2981,15 @@ public sealed class CanvasControl : Control
                 return;
             }
 
+            // changing a line's weight?
+            if (ToolMode == CanvasToolMode.Width && _widthGrab >= 0)
+            {
+                var (wx, wy) = ViewToDoc(e.GetPosition(this));
+                _dragWidth?.Invoke(_widthGrab, wx, wy);
+                e.Handled = true;
+                return;
+            }
+
             // drawing a path?
             if (ToolMode == CanvasToolMode.Pen)
             {
@@ -3192,6 +3239,14 @@ public sealed class CanvasControl : Control
                 sx, sy,
                 e.KeyModifiers.HasFlag(KeyModifiers.Alt),
                 e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+            e.Handled = true;
+            return;
+        }
+        if (ToolMode == CanvasToolMode.Width)
+        {
+            _widthGrab = -1;
+            e.Pointer.Capture(null);
+            _endWidth?.Invoke();
             e.Handled = true;
             return;
         }
