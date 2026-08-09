@@ -217,6 +217,18 @@ public partial class MainWindow : Window
                 RefreshReferenceBoxes();
             }
         };
+        // B164: while the transport runs, the canvas keeps a compositor frame on
+        // request so the loop ticks at display rate instead of at the scene's
+        // frame rate. Driven from here because the canvas does not know about
+        // playback and should not — it only knows whether to keep asking.
+        _vm.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainViewModel.IsPlaying))
+            {
+                Canvas.KeepPresenting = _vm.IsPlaying;
+            }
+        };
+
         _vm.ReferenceChanged += RefreshReferenceBoxes;
         _vm.GuidesChanged += RefreshGuides;
 

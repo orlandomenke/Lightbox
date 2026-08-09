@@ -1884,16 +1884,94 @@ public sealed class CanvasControl : Control
         // An animation-frame request forces a compositor frame regardless.
         _presentWait.Published(snapshot.Seq);
 
-        if (TopLevel.GetTopLevel(this) is { } top)
-        {
-            _frameRequests++;
-            top.RequestAnimationFrame(_ =>
-            {
-                _frameCallbacks++;
-                InvalidateVisual();
-            });
-        }
+        if (_keepPresenting) PumpPresentLoop();
+        else RequestOneFrame();
         return true;
+    }
+
+    private void RequestOneFrame()
+    {
+        if (TopLevel.GetTopLevel(this) is not { } top) return;
+        _frameRequests++;
+        top.RequestAnimationFrame(_ =>
+        {
+            _frameCallbacks++;
+            InvalidateVisual();
+        });
+    }
+
+    /// <summary>
+    /// While true, keep a compositor frame permanently on request — the state
+    /// playback needs and could not have.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B164, and the reported symptom is a direct consequence: playback is
+    /// smooth only while the pointer moves over the canvas.</b> A frame was asked
+    /// for once per publish, so during playback the compositor ran <em>at the
+    /// scene's frame rate and in lock-step with it</em> — twelve times a second,
+    /// each tick triggered by the publish it was meant to show. Nothing was
+    /// running between them, so every wobble in when a publish landed went
+    /// straight to the screen with nothing to absorb it.
+    /// </para>
+    /// <para>
+    /// <b>Moving the pointer fixed it by accident.</b> Pointer motion invalidates
+    /// the canvas at pointer rate, which keeps the compositor ticking at display
+    /// rate; a published frame is then picked up within a vsync instead of
+    /// waiting for the next publish to drag the compositor awake.
+    /// </para>
+    /// <para>
+    /// <b>The owner's own experiment is what makes this the answer rather than
+    /// another theory, because it is the one fact every earlier hypothesis got
+    /// wrong.</b> Mashing Ctrl, mashing Space and switching tools quickly all
+    /// smooth playback; <em>holding a key down does not</em>. Held keys repeat at
+    /// about 30 a second, so events are arriving in quantity — what they do not do
+    /// is change anything visible. Everything in the working list repaints some
+    /// control; everything in the failing list does not. "Input wakes the loop"
+    /// cannot survive that pair, and "the compositor is only ticking when
+    /// something invalidates" explains both halves and the docker case with it.
+    /// </para>
+    /// <para>
+    /// So while the transport is running, the loop re-arms itself from inside its
+    /// own callback and the compositor ticks at display rate the way it does under
+    /// the pointer. <see cref="_presentLoopRunning"/> keeps exactly one request in
+    /// flight, so a publish arriving mid-loop joins it rather than doubling it.
+    /// When it stops, the last callback simply does not re-arm — there is no timer
+    /// to cancel and nothing spins while the artist is drawing.
+    /// </para>
+    /// </remarks>
+    public bool KeepPresenting
+    {
+        get => _keepPresenting;
+        set
+        {
+            if (_keepPresenting == value) return;
+            _keepPresenting = value;
+            if (value) PumpPresentLoop();
+        }
+    }
+
+    private bool _keepPresenting;
+
+    /// <summary>One request in flight at a time. See <see cref="KeepPresenting"/>.</summary>
+    private bool _presentLoopRunning;
+
+    private void PumpPresentLoop()
+    {
+        if (_presentLoopRunning || !_keepPresenting) return;
+        if (TopLevel.GetTopLevel(this) is not { } top) return;
+
+        _presentLoopRunning = true;
+        _frameRequests++;
+        top.RequestAnimationFrame(_ =>
+        {
+            _frameCallbacks++;
+            _presentLoopRunning = false;
+            InvalidateVisual();
+            // Re-arm from inside the callback: that is what makes it a loop
+            // rather than a single wake, and it stops the moment playback does.
+            PumpPresentLoop();
+        });
     }
 
     /// <summary>
