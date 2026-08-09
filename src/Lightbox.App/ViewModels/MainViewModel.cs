@@ -5393,6 +5393,11 @@ public sealed partial class MainViewModel : ObservableObject
         {
             ScrubAudioTick();
         }
+        // A frame the clock has already dropped is not composited: the pixels
+        // would be replaced before anything drew them, and making them is what
+        // turned "catch up" into the reason it was behind (B162).
+        if (_skippingFrame) return;
+
         // No scope around this one: PublishSnapshot times its own two halves as
         // siblings (Compose and Handoff), and a scope here would be their sum
         // counted a second time in ALL PHASES. The flag is how the method knows
@@ -9446,10 +9451,66 @@ public sealed partial class MainViewModel : ObservableObject
     /// as a loop rather than an index jump so a wrap, a range end and the audio
     /// resync all happen exactly as they do at speed.
     /// </remarks>
+    /// <summary>
+    /// Advance the playhead by the frames this tick owes, compositing only the
+    /// one that will actually be seen.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B162. This loop rendered every frame it had just decided to skip, so
+    /// dropping frames to keep up cost four times as much as keeping them.</b>
+    /// <c>PlaybackClock.Pace</c> returns a frame count — 1 normally, up to
+    /// <c>MaxCatchUpFrames</c> when the tick is late — and "drop 3 to catch up"
+    /// was implemented as three full <c>StepPlayback</c> calls, each of which
+    /// writes <c>CurrentFrameIndex</c> and therefore runs a whole publish.
+    /// </para>
+    /// <para>
+    /// <b>It is a feedback loop, not a constant overhead, which is why it ran
+    /// away.</b> A tick that is late asks for more frames; more frames cost
+    /// proportionally more; the extra cost makes the next tick later still. The
+    /// capture that found it: <b>178 ticks advanced the playhead and 568
+    /// composites came out of them</b> — 3.2 per tick — with mean lateness
+    /// climbing to 232 ms and <b>104 occasions where the clock gave up and
+    /// re-based</b>, on a five-frame scene.
+    /// </para>
+    /// <para>
+    /// <b>It also made the report lie in the reader's favour</b>, which is why
+    /// four rounds of captures looked survivable. The tick breakdown divides by
+    /// profiled ticks — one per <c>StepPlayback</c> — so it reported 38 ms
+    /// against an 83 ms budget and called it comfortable, when a single timer
+    /// fire was doing 3.2 of them: <b>138 ms of an 83.3 ms period, 165%.</b> The
+    /// per-tick number was true and the per-<em>frame-period</em> number, which
+    /// is the one that decides whether a clock can keep time, was never shown.
+    /// </para>
+    /// <para>
+    /// A skipped frame still moves the playhead, still wraps the loop, still
+    /// stops at the end of a range and still tracks audio — everything except
+    /// the composite, which is the one part nobody was ever going to see.
+    /// </para>
+    /// </remarks>
+    // The clock's own handler, reachable by the tests: the catch-up path is
+    // driven by a real DispatcherTimer being late, which the headless harness
+    // cannot produce — the same reason PlaybackClock's docs give for testing
+    // Pace as pure arithmetic rather than through a timer.
+    internal void HandlePlaybackTickForTests(int frames) => OnPlaybackTick(frames);
+
     private void OnPlaybackTick(int frames)
     {
-        for (var i = 0; i < frames && IsPlaying; i++) StepPlayback();
+        for (var i = 0; i < frames - 1 && IsPlaying; i++)
+        {
+            _skippingFrame = true;
+            try { StepPlayback(); }
+            finally { _skippingFrame = false; }
+        }
+        if (IsPlaying) StepPlayback();
     }
+
+    /// <summary>
+    /// True while stepping through a frame the clock has already decided to
+    /// drop. See <see cref="OnPlaybackTick"/> — the playhead moves, the pixels
+    /// are not made.
+    /// </summary>
+    private bool _skippingFrame;
 
     /// <summary>
     /// Set while committing an edit whose visible effect the caller already
