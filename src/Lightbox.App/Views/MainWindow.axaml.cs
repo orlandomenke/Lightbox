@@ -914,7 +914,8 @@ public partial class MainWindow : Window
             _vm.TickProfile.Snapshot(),
             _vm.TickProfile.Ticks,
             _vm.FrameCacheTraffic,
-            _vm.SceneShape);
+            _vm.SceneShape,
+            Canvas.AnimationFrames);
     }
 
     /// <summary>

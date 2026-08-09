@@ -68,7 +68,8 @@ internal static class RenderReport
         IReadOnlyList<TickProfile.PhaseStats>? TickPhases = null,
         int TickCount = 0,
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? FrameCache = null,
-        (int Frames, int Layers, int Strokes)? Scene = null);
+        (int Frames, int Layers, int Strokes)? Scene = null,
+        (long Requested, long Delivered)? AnimationFrames = null);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -263,8 +264,9 @@ internal static class RenderReport
     /// the dispatcher happens to wake — which is what "smooth while I move the
     /// mouse, stuttery when I stop" looks like from inside the application.
     /// </remarks>
-    private static void AppendPresentWait(StringBuilder sb, Rendering.PresentLatency.Stats? wait)
+    private static void AppendPresentWait(StringBuilder sb, Facts facts)
     {
+        var wait = facts.PresentWait;
         sb.AppendLine("-- did the frames reach the screen (B150) --------------------");
         if (wait is not { Presented: > 0 } stats)
         {
@@ -278,6 +280,14 @@ internal static class RenderReport
         sb.AppendLine($"  worst wait               {stats.WorstMs:0.##} ms");
         sb.AppendLine($"replaced before drawing    {stats.Superseded}");
 
+        sb.AppendLine();
+        sb.AppendLine(
+            wait is { } w && facts.AnimationFrames is { } frames
+                ? $"compositor wake-ups       asked {frames.Requested}, arrived {frames.Delivered}"
+                  + (frames.Requested > 0 && frames.Delivered < frames.Requested * 0.9
+                      ? "   << the compositor is NOT waking on request"
+                      : "")
+                : "compositor wake-ups       not measured");
         sb.AppendLine();
         // The threshold is a frame of a 60 Hz screen. Below it the compositor is
         // picking work up on its next tick, which is as fast as anything can go;
@@ -549,7 +559,7 @@ internal static class RenderReport
         AppendTilePath(sb, facts.TileFallbacks);
         AppendPrewarm(sb, facts.Prewarm);
         AppendPacing(sb, facts.Pacing);
-        AppendPresentWait(sb, facts.PresentWait);
+        AppendPresentWait(sb, facts);
         AppendTickBreakdown(sb, facts);
 
         sb.AppendLine("-- what is being drawn ---------------------------------------");

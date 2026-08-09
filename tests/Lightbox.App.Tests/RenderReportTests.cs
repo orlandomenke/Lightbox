@@ -57,11 +57,13 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         IReadOnlyList<TickProfile.PhaseStats>? tickPhases = null,
         int tickCount = 0,
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? frameCache = null,
-        (int Frames, int Layers, int Strokes)? scene = null) =>
+        (int Frames, int Layers, int Strokes)? scene = null,
+        (long Requested, long Delivered)? animationFrames = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
             docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
             Pacing: pacing, PresentWait: presentWait,
-            TickPhases: tickPhases, TickCount: tickCount, FrameCache: frameCache, Scene: scene);
+            TickPhases: tickPhases, TickCount: tickCount, FrameCache: frameCache, Scene: scene,
+            AnimationFrames: animationFrames);
 
     /// <summary>
     /// The four states behind one boolean, and the reason this test exists: the
@@ -301,6 +303,41 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         // do the arithmetic that the durable-frame line once cost us.
         Assert.Contains("most of itself in Publish", section);
         Assert.Contains("15 ms/tick", section);
+    }
+
+    /// <summary>
+    /// <b>The two numbers that decide between the last two explanations for
+    /// playback riding on pointer movement (B153).</b> If wake-ups asked and
+    /// arrived track each other, the compositor is ticking and the fault is
+    /// upstream of it. If requests climb and callbacks do not, the compositor is
+    /// genuinely asleep when input is quiet — a different fix, and worth knowing
+    /// before building one.
+    /// </summary>
+    [Fact]
+    public void TheReportSaysWhetherTheCompositorIsWakingWhenAsked()
+    {
+        Setup();
+
+        string Line((long Requested, long Delivered)? frames)
+        {
+            RenderReport.ResetForTests();
+            var text = File.ReadAllText(RenderReport.WriteStartup(Facts(
+                presentWait: new Lightbox.App.Rendering.PresentLatency.Stats(200, 10, 40, 120),
+                animationFrames: frames))!);
+            var line = text.Split('\n').First(l => l.Contains("compositor wake-ups"));
+            output.WriteLine(line.Trim());
+            return line;
+        }
+
+        var healthy = Line((Requested: 300, Delivered: 298));
+        var asleep = Line((Requested: 300, Delivered: 12));
+        var absent = Line(null);
+
+        Assert.DoesNotContain("NOT waking", healthy);
+        Assert.Contains("NOT waking", asleep);
+        // Not measured is distinct from measured-and-fine, for the reason the
+        // durable-frame line exists: an absent number reads as "nothing wrong".
+        Assert.Contains("not measured", absent);
     }
 
     /// <summary>Once per run, so a report is not rewritten on every repaint.</summary>

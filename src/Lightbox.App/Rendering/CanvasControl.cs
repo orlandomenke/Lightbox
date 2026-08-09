@@ -1884,19 +1884,51 @@ public sealed class CanvasControl : Control
         // An animation-frame request forces a compositor frame regardless.
         _presentWait.Published(snapshot.Seq);
 
-        if (!_framePending && TopLevel.GetTopLevel(this) is { } top)
+        if (TopLevel.GetTopLevel(this) is { } top)
         {
-            _framePending = true;
+            _frameRequests++;
             top.RequestAnimationFrame(_ =>
             {
-                _framePending = false;
+                _frameCallbacks++;
                 InvalidateVisual();
             });
         }
         return true;
     }
 
-    private bool _framePending;
+    /// <summary>
+    /// Animation frames asked for, and callbacks that came back (B153).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>These two numbers decide between the only two explanations left</b> for
+    /// playback riding on pointer movement. If they track each other, the
+    /// compositor is ticking and the wake is arriving, so the fault is upstream.
+    /// If requests climb and callbacks do not, the compositor is genuinely
+    /// asleep when input is quiet, and no amount of asking politely will wake it
+    /// — which is a different fix and worth knowing before building one.
+    /// </para>
+    /// <para>
+    /// <b>The latch this replaced was a real defect on its own.</b> A
+    /// <c>_framePending</c> flag was set before the request and cleared only
+    /// inside the callback, so a <em>single</em> callback that never arrived
+    /// left it true for the rest of the session and every later publish skipped
+    /// asking. One dropped frame disabled the mitigation permanently, and moving
+    /// the pointer hid it by waking the loop another way — which is exactly the
+    /// symptom reported. Requesting unconditionally costs one one-shot callback
+    /// per publish, a dozen or two a second, and cannot latch.
+    /// </para>
+    /// </remarks>
+    internal (long Requested, long Delivered) AnimationFrames => (_frameRequests, _frameCallbacks);
+
+    internal void ResetAnimationFrameCounters()
+    {
+        _frameRequests = 0;
+        _frameCallbacks = 0;
+    }
+
+    private long _frameRequests;
+    private long _frameCallbacks;
 
     public override void Render(DrawingContext context)
     {
