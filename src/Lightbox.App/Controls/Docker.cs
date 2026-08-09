@@ -152,6 +152,7 @@ public class Docker : ContentControl
 
     private ListBox? _tabs;
     private Border? _header;
+    private TextBlock? _title;
 
     protected override void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
     {
@@ -169,6 +170,11 @@ public class Docker : ContentControl
         {
             floater.Click += (_, _) => FloatToggleRequested?.Invoke(this);
         }
+
+        // The title a docker shows when it has no tab strip. Held because it is
+        // the grip in that case, and there is no type test that separates it
+        // from any other TextBlock somebody puts in the title bar.
+        _title = e.NameScope.Find<TextBlock>("PART_Title");
 
         if (_tabs is not null) _tabs.SelectionChanged -= OnTabPicked;
         _tabs = e.NameScope.Find<ListBox>("PART_Tabs");
@@ -318,44 +324,60 @@ public class Docker : ContentControl
     internal void HeaderPressed(PointerPressedEventArgs e)
     {
         if (!DockPanels.Of(PanelId).Movable) return;
-        // A press that landed on a control in the header belongs to that
-        // control. Only bare chrome is grip.
-        //
-        // Checking the source's type is not enough: a ComboBox's template is
-        // made of Borders, so a press on the switcher looked exactly like a
-        // press on the header, and the drag it started captured the pointer
-        // and killed the popup before it could be clicked. Walk up instead,
-        // and stop at anything interactive.
-        if (LandedOnAControl(e.Source as Visual)) return;
+        if (!LandedOnTheGrip(e.Source as Visual)) return;
         _pressed = e.GetPosition(this);
     }
 
-    // Internal for the tests: the lone-tab-is-a-grip rule below broke once
-    // (reported as a lone docker that could not be dragged) and pointer
-    // simulation is not reliable enough to guard it end to end.
-    internal bool LandedOnAControl(Visual? source)
+    /// <summary>
+    /// Whether a press belongs to the drag grip — which is the <b>tab</b>,
+    /// and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This used to be the other way round, and the other way round was
+    /// wrong.</b> The whole header was grip and the tab strip was the one
+    /// thing excluded from it, which is backwards from every docking UI an
+    /// artist has used: you move a panel by picking up its tab. It also made
+    /// the header's empty space — the part that exists to give the title room
+    /// to breathe — the largest interactive target in the docker, so a press
+    /// meant to focus a panel tore it out instead.
+    /// </para>
+    /// <para>
+    /// Inverting it also deletes a special case rather than adding one. The
+    /// old rule needed "except a strip of ONE, where the tab IS the grip",
+    /// because a lone docker is nearly all tab and excluding it left nothing
+    /// to hold (B139, reported as a timeline that could not be dragged back).
+    /// With the tab as the grip, one tab and five behave the same way and the
+    /// exception has nowhere to live.
+    /// </para>
+    /// <para>
+    /// <b>Dragging a tab that is not showing drags the right panel anyway</b>,
+    /// without a line here: a <c>ListBoxItem</c> selects on pointer-press, so
+    /// the tab is already active by the time the pointer has travelled far
+    /// enough to count as a drag.
+    /// </para>
+    /// <para>
+    /// Walking up rather than checking the source's type, which is the half of
+    /// the old rule worth keeping: a <c>ComboBox</c>'s template is made of
+    /// <c>Border</c>s, so a press on a switcher in the title bar looked exactly
+    /// like a press on chrome, and the drag it started captured the pointer and
+    /// killed the popup before it could be clicked. A control in the header
+    /// still owns its own press — it is simply no longer the only thing that
+    /// does.
+    /// </para>
+    /// </remarks>
+    // Internal for the tests: pointer simulation is not reliable enough here to
+    // guard this end to end, and the rule has now been reported broken twice.
+    internal bool LandedOnTheGrip(Visual? source)
     {
         for (var node = source; node is not null && !ReferenceEquals(node, this); node = node.GetVisualParent())
         {
-            // ListBox is the tab strip. Without it here, clicking a tab walks up
-            // to the header, looks exactly like a press on the grip, and tears
-            // the panel out instead of switching tabs — the same trap the
-            // ComboBox above was added for.
-            //
-            // Except a strip of ONE: every docker wears a tab now, so for a
-            // lone panel the tab is most of the header — treating it as a
-            // control made the panel undraggable (reported: the timeline
-            // moved to a side could not be dragged back). A single tab has
-            // nothing to switch to; a press there is a grip.
-            if (node is ListBox)
-            {
-                if (Tabs is null || Tabs.Count() > 1) return true;
-                continue;
-            }
-            if (node is Button or ComboBox or ToggleButton or TextBox or Slider or CheckBox)
-            {
-                return true;
-            }
+            if (node is Button or ComboBox or ToggleButton or TextBox or Slider or CheckBox) return false;
+            // The tab strip, and the plain title a docker wears when it has no
+            // tabs at all. Both are "the name of this panel", which is the
+            // thing you pick a panel up by.
+            if (node is ListBox) return true;
+            if (ReferenceEquals(node, _title)) return true;
         }
         return false;
     }
