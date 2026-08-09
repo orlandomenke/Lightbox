@@ -76,6 +76,106 @@ public sealed class FrameBitmapCache : IDisposable
     /// <summary>Bytes of frame bitmaps currently held.</summary>
     public long CachedBytes { get; private set; }
 
+    // ---- pinning: deferred disposal for bitmaps that have left the cache ----
+
+    /// <summary>
+    /// Bitmaps somebody is still reading, and the ones already evicted whose
+    /// disposal is waiting on that.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The gate on B125 stage 2.</b> Compositing is about to stop happening
+    /// on the UI thread: the view model will publish a <em>pass list</em> and the
+    /// canvas will composite from it on the render thread. Every pass bitmap
+    /// comes out of this cache, and <see cref="RemoveNode"/> disposes on
+    /// eviction — so a cache eviction between publish and render would free
+    /// pixels Skia is about to read.
+    /// </para>
+    /// <para>
+    /// <b>That failure has already happened once here and it is worth naming.</b>
+    /// B130 was exactly this shape one level up: a snapshot disposed while the
+    /// compositor still held it, an access violation inside
+    /// <c>sk_canvas_draw_image_rect</c>, and because it is a <em>native</em>
+    /// crash the reporter's three managed channels never saw it — the log was
+    /// empty and it presented as "Lightbox dies as soon as I touch anything".
+    /// </para>
+    /// <para>
+    /// So a pinned bitmap is never disposed while it is pinned. Eviction still
+    /// removes it from the cache immediately — the budget must still be
+    /// enforceable — and the disposal is deferred to the last
+    /// <see cref="Unpin"/>. This is the same protocol
+    /// <c>CanvasControl._retired</c> already runs for the composed image, which
+    /// is why it is the one to reuse rather than inventing a second.
+    /// </para>
+    /// <para>
+    /// Counted rather than a flag: one bitmap can be in two published pass lists
+    /// at once — the same cel exposed on two layers, or a publish overlapping
+    /// the one before it — and a flag would free it on the first release while
+    /// the second reader was still going.
+    /// </para>
+    /// </remarks>
+    private readonly Dictionary<SKBitmap, int> _pins = [];
+
+    private readonly HashSet<SKBitmap> _awaitingUnpin = [];
+
+    /// <summary>
+    /// Bytes held by bitmaps that have left the cache and cannot be freed yet.
+    /// </summary>
+    /// <remarks>
+    /// Reported rather than hidden inside <see cref="CachedBytes"/>: they are
+    /// not cache contents and counting them there would make the budget look
+    /// breached, but they are real memory and a report that omitted them would
+    /// understate what the application is holding.
+    /// </remarks>
+    public long AwaitingUnpinBytes { get; private set; }
+
+    /// <summary>How many distinct bitmaps are pinned. For tests and the report.</summary>
+    public int PinnedCount => _pins.Count;
+
+    /// <summary>
+    /// Hold a bitmap against disposal. Every call needs a matching
+    /// <see cref="Unpin"/>; see the remarks on <see cref="_pins"/>.
+    /// </summary>
+    public void Pin(SKBitmap bmp)
+    {
+        _pins[bmp] = _pins.TryGetValue(bmp, out var n) ? n + 1 : 1;
+    }
+
+    /// <summary>
+    /// Release one hold, disposing the bitmap if the cache has already let go of
+    /// it and this was the last reader.
+    /// </summary>
+    public void Unpin(SKBitmap bmp)
+    {
+        if (!_pins.TryGetValue(bmp, out var n)) return;
+        if (n > 1)
+        {
+            _pins[bmp] = n - 1;
+            return;
+        }
+
+        _pins.Remove(bmp);
+        if (!_awaitingUnpin.Remove(bmp)) return;
+
+        // The cache gave this up while it was pinned; nobody is reading it now.
+        AwaitingUnpinBytes -= BytesOf(bmp);
+        bmp.Dispose();
+    }
+
+    /// <summary>
+    /// Dispose now, or hand to <see cref="_awaitingUnpin"/> if somebody is
+    /// reading it. The single place a cached bitmap is freed.
+    /// </summary>
+    private void DisposeOrDefer(SKBitmap bmp)
+    {
+        if (_pins.ContainsKey(bmp))
+        {
+            if (_awaitingUnpin.Add(bmp)) AwaitingUnpinBytes += BytesOf(bmp);
+            return;
+        }
+        bmp.Dispose();
+    }
+
     /// <summary>
     /// Lookups served from memory, lookups that had to render, and entries
     /// thrown out — for the render report.
@@ -316,7 +416,11 @@ public sealed class FrameBitmapCache : IDisposable
 
     public void Clear()
     {
-        foreach (var entry in _lru) entry.Bmp.Dispose();
+        // Deferring here too, not just on eviction: closing a document while a
+        // published pass list is still in flight is the same use-after-free with
+        // a different trigger, and the more likely one — a document close tears
+        // the cache down in one go.
+        foreach (var entry in _lru) DisposeOrDefer(entry.Bmp);
         _lru.Clear();
         _map.Clear();
         CachedBytes = 0;
@@ -328,7 +432,7 @@ public sealed class FrameBitmapCache : IDisposable
         _map.Remove(node.Value.Key);
         _lru.Remove(node);
         CachedBytes -= BytesOf(node.Value.Bmp);
-        node.Value.Bmp.Dispose();
+        DisposeOrDefer(node.Value.Bmp);
     }
 
     public void Dispose() => Clear();
