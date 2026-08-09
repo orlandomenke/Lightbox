@@ -902,7 +902,8 @@ public partial class MainWindow : Window
             totals.Presents > 0,
             _vm.ReportTileFallbacks,
             _vm.Prewarm,
-            _vm.PlaybackPacing);
+            _vm.PlaybackPacing,
+            Canvas.PresentWait);
     }
 
     /// <summary>

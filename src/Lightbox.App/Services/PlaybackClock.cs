@@ -102,7 +102,41 @@ public sealed class PlaybackClock
     /// events is the symptom this exists to remove.
     /// </para>
     /// </remarks>
-    public static readonly DispatcherPriority Priority = DispatcherPriority.Render;
+    public static readonly DispatcherPriority Priority = PriorityFromEnvironment();
+
+    /// <summary>
+    /// The band this build actually runs in, overridable for one session.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b><c>LIGHTBOX_CLOCK_PRIORITY=Background</c> puts the defect back, on
+    /// purpose.</b> B150's fix is a hypothesis about a symptom nobody can
+    /// reproduce off the reporter's machine, and "I installed a new build and it
+    /// feels better" is not evidence — a new build changes a dozen things and a
+    /// hand is a poor stopwatch. This makes the one variable switchable inside a
+    /// single binary and a single session, which is the difference between an
+    /// impression and a comparison.
+    /// </para>
+    /// <para>
+    /// An unrecognised value is the default rather than a failure: this exists to
+    /// be typed at a command prompt by somebody chasing a stutter, and a typo
+    /// that stops the application starting would be a worse bug than the one it
+    /// is diagnosing. What it chose is printed in the render report, so a run can
+    /// never be attributed to a setting it did not have.
+    /// </para>
+    /// </remarks>
+    internal static DispatcherPriority PriorityFromEnvironment()
+    {
+        var asked = Environment.GetEnvironmentVariable("LIGHTBOX_CLOCK_PRIORITY");
+        return asked?.Trim().ToLowerInvariant() switch
+        {
+            "background" => DispatcherPriority.Background,
+            "input" => DispatcherPriority.Input,
+            "normal" => DispatcherPriority.Normal,
+            "render" => DispatcherPriority.Render,
+            _ => DispatcherPriority.Render,
+        };
+    }
 
     private readonly DispatcherTimer _timer = new(Priority);
     private readonly Stopwatch _elapsed = new();
