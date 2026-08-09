@@ -145,7 +145,7 @@ internal static class RenderReport
     /// </remarks>
     private static void AppendPrewarm(StringBuilder sb, FramePrewarmer? prewarm)
     {
-        sb.AppendLine("-- rasterizing ahead of the playhead (B146) -------------------");
+        sb.AppendLine("-- rasterizing ahead of the playhead (B148) -------------------");
         if (prewarm is null || prewarm.Rendered == 0)
         {
             sb.AppendLine("frames warmed             none yet — warming only happens while PLAYING");
