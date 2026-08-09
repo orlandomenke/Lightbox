@@ -92,8 +92,11 @@ public partial class MainViewModel
         // layer is locked when you actually reach for something on it.
         if (!CanEdit(ActiveLayer, "select lines on it")) return false;
 
+        // No OnStrokeSelectionChanged() here: the manager raises its own event
+        // and the constructor routes it to that method (B147). Calling it as
+        // well would notify twice, and — worse — would make this the pattern,
+        // which is exactly how the paths that never called it got missed.
         Selection.SelectStrokeWithModifiers(strokes[position].Id, shift, alt);
-        OnStrokeSelectionChanged();
         return true;
     }
 
@@ -113,7 +116,6 @@ public partial class MainViewModel
         if (caught.Count > 0 && !CanEdit(ActiveLayer, "select lines on it")) return 0;
 
         Selection.SelectStrokes(caught.Select(i => strokes[i].Id), add);
-        OnStrokeSelectionChanged();
         return Selection.SelectedStrokeIds.Count;
     }
 
@@ -122,7 +124,6 @@ public partial class MainViewModel
     {
         if (Selection.SelectedStrokeIds.Count == 0) return;
         Selection.SelectStrokes([]);
-        OnStrokeSelectionChanged();
     }
 
     /// <summary>
@@ -138,7 +139,6 @@ public partial class MainViewModel
     {
         if (Selection.SelectedStrokeIds.Count == 0) return;
         Selection.RetainStrokes(PickableStrokes().Select(s => s.Id).ToHashSet());
-        OnStrokeSelectionChanged();
     }
 
     /// <summary>
