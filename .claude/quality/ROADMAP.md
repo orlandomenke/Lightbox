@@ -228,6 +228,40 @@ available in every project, defaulted for the ones that need it.
 
 ### Layers and compositing
 
+**Compositing cost has two axes and they multiply: canvas *area* and *layer
+count*.** Worth stating here rather than only in the ledger, because it decides
+which performance work is on the critical path for everything above — infinite
+canvas, 4K and 8K, and a character rig with ten layers are all the same
+question asked three ways.
+
+The measurement, from `AnimationSweeps.CanvasSize` with every access a cache hit
+so it prices compositing alone: **linear in area (`n^1.03`), and 1344% of the
+playback budget at 8K for a *three*-layer frame.** Both axes therefore have to be
+answered, and answering one does not soften the other:
+
+| Axis | Answer | State |
+| --- | --- | --- |
+| Canvas area | GPU compositing, display-only | B125, not started — **mandatory** |
+| Layer count | Do not recomposite unchanged layers | B165, not started — **mandatory** |
+| Pixels actually served | Tiles, and the compose-scale clamp | B144, B160 — built |
+
+**Why both.** A 20× GPU win takes 8K/three-layer from 1344% to 67% of budget:
+viable, barely. The same frame at ten layers is **224% after the GPU**, because
+the GPU divides the area term and leaves the layer term alone. Ten layers is an
+ordinary rig, not a stress test.
+
+**Parallel CPU compositing is deliberately not on that list.** Banding the
+surface across a laptop's sixteen threads is a genuine 3–4×, and it is the same
+axis as the GPU with a worse constant — so every line of it is deleted when B125
+lands. It is the reserve if GPU compositing is ever ruled out, and nothing else.
+
+**GPU compositing is display-only, and export stays on the CPU.** That is what
+makes it safe rather than a rewrite of the renderer: the stroke record is the
+document (invariant 1) and export runs through `FrameRasterizer`, so GPU blend
+rounding cannot reach saved art. The two paths staying separate *is* the
+constraint — `RuntimeDeterminismTests` going red means it was broken, not that
+the test needs relaxing.
+
 - [?] Layer masks
 - [?] Clipping masks
 - [?] Adjustment layers
