@@ -68,7 +68,7 @@ internal static class RenderReport
         IReadOnlyList<TickProfile.PhaseStats>? TickPhases = null,
         int TickCount = 0,
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? FrameCache = null,
-        (int Frames, int Layers, int Strokes)? Scene = null,
+        (int Frames, int Layers, int Strokes, double Fps)? Scene = null,
         (long Requested, long Delivered)? AnimationFrames = null);
 
     /// <summary>
@@ -316,6 +316,22 @@ internal static class RenderReport
             sb.AppendLine("     rows above exist to price.");
             return;
         }
+        // A cohort this small is one stall, not a trend. Learned from a capture
+        // that announced "any input helps" off FOUR quiet frames whose mean was
+        // dragged to 73 ms by a single 163 ms outlier, while the three captures
+        // beside it — with 31, 52 and 53 quiet frames — all said the opposite.
+        // A verdict that turns on a handful of frames is worse than no verdict,
+        // because it reads exactly like the ones that mean something.
+        const int Enough = 12;
+
+        if (quiet.Count is > 0 and < Enough || canvas.Count is > 0 and < Enough)
+        {
+            sb.AppendLine($"  >> Too few frames in one of these rows to mean anything (under {Enough}).");
+            sb.AppendLine("     One stall moves a mean this small by tens of milliseconds. Play for");
+            sb.AppendLine("     longer in each condition before reading anything into the split.");
+            return;
+        }
+
         if (quiet.Count == 0)
         {
             sb.AppendLine("  >> No frame was drawn with input quiet, so there is nothing to compare.");
@@ -421,6 +437,16 @@ internal static class RenderReport
             // are decides whether the cache below can hold the scene, and it is
             // the fact the first symptomatic report was missing.
             sb.AppendLine($"scene                     {shape.Frames} frames, {shape.Layers} layers, {shape.Strokes} strokes");
+            // The number every other line in this section is meant to be read
+            // against, and it was missing: the tick breakdown below says "compare
+            // that with the frame period for this scene's fps" and then did not
+            // print the fps or the period, so the one comparison the report asks
+            // for was the one it made you do from memory.
+            if (shape.Fps > 0)
+            {
+                sb.AppendLine($"playing at                {shape.Fps:0.##} fps"
+                              + $"  — a frame every {1000.0 / shape.Fps:0.#} ms, and that is the budget below");
+            }
         }
 
         if (facts.FrameCache is { } cache)

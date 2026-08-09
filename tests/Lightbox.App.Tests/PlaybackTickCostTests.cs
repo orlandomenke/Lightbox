@@ -218,10 +218,16 @@ public class PlaybackTickCostTests(ITestOutputHelper output) : BrushStateIsolate
 
         var phases = vm.TickProfile.Snapshot();
         var thumbs = phases.Single(p => p.Phase == Lightbox.App.Services.TickProfile.Phase.Thumbnails);
-        var publish = phases.Single(p => p.Phase == Lightbox.App.Services.TickProfile.Phase.Publish);
+        // Publish is two phases now (B157): the composite, and handing the
+        // finished frame to the canvas. Summed here because this test is about
+        // thumbnails not running, and it only needs "publishing did happen".
+        var compose = phases.Single(p => p.Phase == Lightbox.App.Services.TickProfile.Phase.Compose);
+        var handoff = phases.Single(p => p.Phase == Lightbox.App.Services.TickProfile.Phase.Handoff);
         output.WriteLine(
             $"thumbnails {thumbs.TotalMs:F2} ms over {thumbs.Calls} call(s); "
-            + $"publish {publish.TotalMs:F2} ms over {publish.Calls}");
+            + $"compose {compose.TotalMs:F2} ms over {compose.Calls}; "
+            + $"handoff {handoff.TotalMs:F2} ms over {handoff.Calls}");
+        var publish = compose;
 
         // Not merely zero milliseconds: zero *calls*, so the report can say
         // "never ran" rather than "0 ms over 12 of 12 ticks", which is true and

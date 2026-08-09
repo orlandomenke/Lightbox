@@ -50,8 +50,32 @@ internal sealed class TickProfile
         /// <summary>Keeping the scratch track in step.</summary>
         Audio,
 
-        /// <summary>Compositing the frame and handing it to the canvas.</summary>
-        Publish,
+        /// <summary>Compositing the frame.</summary>
+        Compose,
+
+        /// <summary>
+        /// Handing the finished frame to the canvas — the snapshot swap, the
+        /// retired-image disposal, and the invalidate.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Split from <see cref="Compose"/> because one number for both was
+        /// hiding which of them costs the frame (B157).</b> They were measured
+        /// together as "Publish", the report showed ~35 ms/tick, and that got
+        /// attributed to the CPU composite at 1080p on the strength of B125 and
+        /// B144 saying compositing is expensive at that size.
+        /// </para>
+        /// <para>
+        /// <b>Four captures on one machine refuted it.</b> A run at a 1440×810
+        /// compose surface — 1.8× less area than the 1920×1080 runs beside it —
+        /// spent <em>more</em> time here, 40.22 ms against 34.83/36.64/35.52. A
+        /// cost that does not fall when the surface shrinks by nearly half is
+        /// not paid per pixel, so whatever dominates this phase is not the
+        /// composite. Two phases rather than one is what makes the next report
+        /// able to say which.
+        /// </para>
+        /// </remarks>
+        Handoff,
     }
 
     private static readonly int Count = Enum.GetValues<Phase>().Length;

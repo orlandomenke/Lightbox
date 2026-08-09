@@ -60,7 +60,7 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
         IReadOnlyList<TickProfile.PhaseStats>? tickPhases = null,
         int tickCount = 0,
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? frameCache = null,
-        (int Frames, int Layers, int Strokes)? scene = null,
+        (int Frames, int Layers, int Strokes, double Fps)? scene = null,
         (long Requested, long Delivered)? animationFrames = null) =>
         new(backend, backend != "GPU", onGpu, gpuFailed, maxTexture,
             docWidth, docHeight, 1.0, "Full", 1.0, durableEnabled, hasPresented,
@@ -276,14 +276,17 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
             new(TickProfile.Phase.Highlights, 120, 24, 0.6),
             new(TickProfile.Phase.Bookkeeping, 120, 12, 0.4),
             new(TickProfile.Phase.Audio, 120, 6, 0.3),
-            new(TickProfile.Phase.Publish, 120, 1800, 41.2),
+            // Deliberately lopsided: the whole point of splitting Publish
+            // (B157) is that the report can name WHICH half spent the tick.
+            new(TickProfile.Phase.Compose, 120, 600, 9.2),
+            new(TickProfile.Phase.Handoff, 120, 1200, 22.0),
         };
 
         var text = File.ReadAllText(RenderReport.WriteStartup(Facts(
             tickPhases: phases,
             tickCount: 120,
             frameCache: (Hits: 300, Misses: 900, Evictions: 850, Bytes: 500L * 1024 * 1024, Budget: 512L * 1024 * 1024),
-            scene: (Frames: 90, Layers: 3, Strokes: 4200)))!);
+            scene: (Frames: 90, Layers: 3, Strokes: 4200, Fps: 12.0)))!);
         var section = text[text.IndexOf("where the tick's time went", StringComparison.Ordinal)..];
         output.WriteLine(section);
 
@@ -304,8 +307,11 @@ public class RenderReportTests(ITestOutputHelper output) : IDisposable
 
         // And the dominant phase is called out, so the reader does not have to
         // do the arithmetic that the durable-frame line once cost us.
-        Assert.Contains("most of itself in Publish", section);
-        Assert.Contains("15 ms/tick", section);
+        Assert.Contains("most of itself in Handoff", section);
+        Assert.Contains("10 ms/tick", section);
+        // And the half that did NOT spend it is still on the page, because
+        // "compositing is cheap here" is half the finding.
+        Assert.Contains("Compose", section);
     }
 
     /// <summary>

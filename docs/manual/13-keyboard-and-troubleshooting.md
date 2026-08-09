@@ -223,9 +223,9 @@ three answers point at completely different faults:
 | All three the same | How long a frame waits has nothing to do with input, so the unevenness is in *making* the frames. Read the tick breakdown below. |
 
 **Capture it with the pointer still, and off the canvas**, for at least a few
-seconds of playback. A report captured entirely while you moved the mouse has no
-"nothing" row to compare against, and says so rather than pretending to a
-verdict.
+seconds of playback — and give each condition a good run. A row with only a
+handful of frames in it is one stall rather than a trend, and the report refuses
+to draw a conclusion from it rather than pretending to a verdict.
 
 There is also a line naming the **clock priority** the run used. It normally
 reads `Input` and you can ignore it; it exists so that a report captured with
