@@ -154,7 +154,14 @@ jobs:
           echo "label=$LABEL" >> "$GITHUB_OUTPUT"
           echo "zip=Lightbox-win-x64-${LABEL}.zip" >> "$GITHUB_OUTPUT"
 
+      # Only for a Release, and that asymmetry is the whole fix. `gh release
+      # upload` attaches a file as-is, so a tag needs a zip made here. But
+      # `actions/upload-artifact` **always** zips whatever it is given, so
+      # handing it a zip produced a zip inside a zip: download, extract, find
+      # another archive, extract that, and only then the application. Two steps
+      # for every dev build, and neither of them ours to remove afterwards.
       - name: Zip it
+        if: github.ref_type == 'tag'
         shell: bash
         run: cd publish/win-x64 && zip -qr "../../${{ steps.name.outputs.zip }}" .
 
@@ -225,11 +232,19 @@ jobs:
             echo "you just cut rather than after it."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # ---- a manual run just hands back the zip -------------------------------
+      # ---- a manual run hands back the folder, and GitHub does the zipping ----
+      #
+      # `path:` is the publish directory rather than a zip of it. The action
+      # compresses what it is given and there is no way to opt out, so this is
+      # the only arrangement that produces exactly one archive: download,
+      # extract, run Lightbox.exe. The artifact's NAME still carries the version,
+      # the branch and the commit, so two dev builds of the same alpha are still
+      # tellable apart in a downloads folder — which is what the zip's filename
+      # used to do.
       - name: Upload the bundle
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v5
         with:
           name: Lightbox-win-x64-${{ steps.name.outputs.label }}
-          path: ${{ steps.name.outputs.zip }}
+          path: publish/win-x64
           retention-days: 14
