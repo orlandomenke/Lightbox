@@ -115,7 +115,13 @@ public partial class MainViewModel
         // Snapshotted before the closure runs, so undo has the exact bits back.
         var before = moving.ToDictionary(
             s => s.Id,
-            s => (Points: s.Points.ToList(), Holes: s.Holes?.Select(h => h.ToList()).ToList()));
+            s => (
+                Points: s.Points.ToList(),
+                Holes: s.Holes?.Select(h => h.ToList()).ToList(),
+                // Snapshotted alongside, or an undo would put the points back and
+                // leave the nodes where the move left them — a path and its points
+                // disagreeing, which is the one state StrokePath forbids.
+                Path: s.Path?.Clone()));
         var ids = before.Keys.ToList();
 
         _editor.PerformDelta(
@@ -130,6 +136,7 @@ public partial class MainViewModel
                     if (!before.TryGetValue(stroke.Id, out var original)) continue;
                     stroke.Points = [.. original.Points];
                     stroke.Holes = original.Holes?.Select(h => h.ToList()).ToList();
+                    stroke.Path = original.Path?.Clone();
                 }
             },
             affectedFrameId: frameId);
@@ -284,6 +291,19 @@ public partial class MainViewModel
         stroke.Holes = stroke.Holes?
             .Select(hole => hole.Select(p => Shift(p, dx, dy)).ToList())
             .ToList();
+
+        // The authored path moves with the points or it is a lie about where the
+        // line is (see StrokePath's invariant). A translation is the easy case:
+        // handles are offsets from their node, so moving the node moves them and
+        // nothing about the curve's shape changes.
+        if (stroke.Path is { } path)
+        {
+            for (var i = 0; i < path.Nodes.Count; i++)
+            {
+                var n = path.Nodes[i];
+                path.Nodes[i] = n with { X = n.X + dx, Y = n.Y + dy };
+            }
+        }
     }
 
     private static StrokePoint Shift(StrokePoint p, double dx, double dy) =>

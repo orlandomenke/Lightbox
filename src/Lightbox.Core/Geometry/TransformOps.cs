@@ -92,9 +92,70 @@ public static class TransformOps
         {
             foreach (var hole in stroke.Holes) MapPoints(hole, map);
         }
+        MapPath(stroke, map);
         if (Math.Abs(sizeScale - 1) > 1e-9)
         {
             stroke.Brush.Size = Math.Clamp(stroke.Brush.Size * sizeScale, 0.1, 2000);
+        }
+    }
+
+    /// <summary>
+    /// Carry an authored path through the same transform as its points, or drop
+    /// it where that cannot be done exactly.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b><see cref="StrokePath"/>'s invariant, and this is its first caller.</b>
+    /// A stroke's path and its points must never disagree — so a transform either
+    /// moves the nodes with the points or removes the path. Leaving a stale path
+    /// behind would be the worst outcome available: nothing renders differently,
+    /// so nothing looks wrong, until the artist reshapes a node and the line jumps
+    /// back to where it used to be.
+    /// </para>
+    /// <para>
+    /// <b>Handles are mapped as differences, not as points.</b> A handle is an
+    /// offset from its node, so it is transformed by mapping the control point and
+    /// subtracting the mapped node — which is the same thing as applying the
+    /// linear part of the map and is correct for a perspective one too, where
+    /// applying the map to the offset directly would translate it as well.
+    /// </para>
+    /// <para>
+    /// <b>The one case that drops.</b> A non-invertible or degenerate map can
+    /// collapse a node and its control point onto the same place, which turns a
+    /// curve into a corner without the artist asking. That is a real change to the
+    /// authored geometry rather than a move of it, so the path goes and the points
+    /// — which are the truth — stand alone. A later fit brings it back.
+    /// </para>
+    /// </remarks>
+    private static void MapPath(Stroke stroke, PointMap map)
+    {
+        if (stroke.Path is not { IsUsable: true } path) return;
+
+        var nodes = path.Nodes;
+        for (var i = 0; i < nodes.Count; i++)
+        {
+            var n = nodes[i];
+            var (x, y) = map(n.X, n.Y);
+            var (inX, inY) = map(n.X + n.InX, n.Y + n.InY);
+            var (outX, outY) = map(n.X + n.OutX, n.Y + n.OutY);
+
+            if (!double.IsFinite(x) || !double.IsFinite(y)
+                || !double.IsFinite(inX) || !double.IsFinite(inY)
+                || !double.IsFinite(outX) || !double.IsFinite(outY))
+            {
+                stroke.Path = null;
+                return;
+            }
+
+            nodes[i] = n with
+            {
+                X = x,
+                Y = y,
+                InX = inX - x,
+                InY = inY - y,
+                OutX = outX - x,
+                OutY = outY - y,
+            };
         }
     }
 
