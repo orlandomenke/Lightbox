@@ -10832,70 +10832,29 @@ public sealed partial class MainViewModel : ObservableObject
         // renderer full detail makes it rescale 8.3 M pixels on every frame —
         // ~29 ms, which is the whole stutter budget before anything is drawn.
         var renderScale = ComposeScale;
-        // Looking through the camera reframes the canvas, so the surface is
-        // the camera's output rather than the document. Without one — the
-        // ordinary case and every asset document — nothing here changes.
         var cameraView = CameraViewTransform(renderScale);
-        var viewWidth = cameraView is null ? scene.Width : scene.Camera!.OutputWidth;
-        var viewHeight = cameraView is null ? scene.Height : scene.Camera!.OutputHeight;
-
-        // Check if unbounded canvas is EXPLICITLY enabled (not just by default).
-        // The tiled rendering path is not yet optimized for performance, so we only use it
-        // when an artist has explicitly opted in via the document features override.
-        // TODO: Optimize TileStore.FromBitmap or render directly to tiles to make this faster.
-        // A camera defers to the camera path: the unbounded compositor maps the
-        // viewport itself, and two things that both map the view disagree.
-        var useUnboundedPath = tileNativeDoc
-            && cameraView is null
-            && _pendingViewport is { Width: > 0, Height: > 0 };
 
         // What changed since the last publish. Null means "everything", which is
         // what a frame change, a layer edit or a view change produces.
         //
-        // Read BEFORE the culling decision on purpose: whether culling is worth
-        // taking depends entirely on this, per B121 below.
+        // Read BEFORE the routing decision on purpose: whether culling is worth
+        // taking depends entirely on this, per B121 in ComposePlan.
         var dirty = _dirtyIsWholeCanvas ? null : _pendingDirty;
         _pendingDirty = null;
         _dirtyIsWholeCanvas = false;
 
-        // B82: compose only the visible rectangle, so the cost is proportional to
-        // what the artist can see rather than to the whole document.
-        //
-        // Three conditions, every one of them learned by breaking it:
-        //
-        //  * The rectangle is CLAMPED to the document. A zoomed-out view reports a
-        //    viewport far larger than the canvas — {-480,-450,1921,1440} for a
-        //    960×540 document at 50% — and an unclamped rectangle is both a source
-        //    rect off the end of the layer bitmap and a surface bigger than the
-        //    full-document one it was meant to be cheaper than.
-        //  * Culling only pays when the clamped rectangle is actually SMALLER.
-        //  * **Only on a whole-canvas publish (B121).** This is the one that
-        //    mattered. `ComposeViewportCulled` builds a fresh surface, so it has
-        //    to fill all of it — it cannot honour a dirty region the way
-        //    `ComposeRing` does. Culling an incremental publish therefore turns a
-        //    dab-sized repaint into a viewport-sized one: measured at 1 232 px
-        //    against 134 400 px for the same dab, a 109× enlargement, and 0.26 ms
-        //    against 76 ms on a 4K document. Since a small dirty region is already
-        //    area-independent, culling can only ever lose there. It wins on the
-        //    publishes that would repaint everything anyway, which is exactly the
-        //    frame change B29 is about.
-        var composeViewport = ClampToDocument(_pendingViewport, (int)viewWidth, (int)viewHeight);
-        var useViewportCulling = cameraView is null
-            && dirty is null
-            && composeViewport is { } vpTest
-            && (long)vpTest.Width * vpTest.Height < (long)viewWidth * (int)viewHeight;
-        if (!useViewportCulling) composeViewport = null;
+        // Which compositor, on what surface, covering what (B166). Arithmetic on
+        // six numbers, and the three conditions in it were each learned by
+        // breaking them — so it lives where it can be asserted on directly
+        // rather than only through a composed image.
+        var plan = ComposePlan.For(
+            scene.Width, scene.Height,
+            cameraView is null ? null : new SKSizeI(scene.Camera!.OutputWidth, scene.Camera!.OutputHeight),
+            _pendingViewport, dirty, tileNativeDoc, renderScale);
+        var viewWidth = plan.ViewWidth;
+        var viewHeight = plan.ViewHeight;
+        var info = plan.Info;
 
-        // Determine surface size: viewport-sized if culling, document-sized otherwise
-        var (surfaceWidth, surfaceHeight) = composeViewport is { } vpCull
-            ? ((int)Math.Ceiling(vpCull.Width * renderScale), (int)Math.Ceiling(vpCull.Height * renderScale))
-            : ((int)Math.Ceiling(viewWidth * renderScale), (int)Math.Ceiling(viewHeight * renderScale));
-
-        var info = new SKImageInfo(
-            Math.Max(1, surfaceWidth),
-            Math.Max(1, surfaceHeight),
-            SKColorType.Rgba8888,
-            SKAlphaType.Premul);
         var seq = ++_publishSeq;
         var background = SceneRenderer.BackgroundOf(scene);
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -10908,14 +10867,14 @@ public sealed partial class MainViewModel : ObservableObject
         SKRectI? imageCovers = null;
 
         SKImage image;
-        if (useUnboundedPath)
+        if (plan.Route == ComposeRoute.Unbounded)
         {
             // Unbounded canvas: use tiled compositing for only visible viewport
             image = ComposeUnboundedSnapshot(scene, passes, background, renderScale, cameraView, seq);
             usedClip = _pendingViewport;
             imageCovers = _pendingViewport;
         }
-        else if (useViewportCulling && composeViewport is { } cullRect)
+        else if (plan.CullRect is { } cullRect)
         {
             // B82: bounded canvas, culled to the clamped visible rectangle.
             image = ComposeViewportCulled(passes, background, renderScale, info, cullRect);
@@ -11356,25 +11315,13 @@ public sealed partial class MainViewModel : ObservableObject
     /// rectangle anything may composite from. Clamping is what makes the
     /// rectangle usable as a source rect and as a surface size.
     /// </remarks>
-    private static SKRectI? ClampToDocument(SKRectI? viewport, int docWidth, int docHeight)
-    {
-        if (viewport is not { } vp) return null;
-        if (docWidth <= 0 || docHeight <= 0) return null;
-        var left = Math.Clamp(vp.Left, 0, docWidth);
-        var top = Math.Clamp(vp.Top, 0, docHeight);
-        var right = Math.Clamp(vp.Right, 0, docWidth);
-        var bottom = Math.Clamp(vp.Bottom, 0, docHeight);
-        if (right - left <= 0 || bottom - top <= 0) return null;
-        return new SKRectI(left, top, right, bottom);
-    }
-
     /// <summary>
     /// B82: compose only the visible rectangle of a bounded canvas, so the cost
     /// is proportional to what the artist can see rather than to the document.
     /// </summary>
     /// <remarks>
     /// <paramref name="viewport"/> must already be clamped to the document — see
-    /// <see cref="ClampToDocument"/>. The surface covers exactly that rectangle,
+    /// <see cref="ComposePlan.ClampToDocument"/>. The surface covers exactly that
     /// so the painter draws the result into the same rectangle in document space
     /// and the pointer mapping never has to know this happened.
     /// </remarks>
