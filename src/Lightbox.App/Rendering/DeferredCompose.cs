@@ -64,9 +64,25 @@ public readonly record struct DeferredCompose(
     /// Perform it. On the render thread, with the context from the lease when
     /// there is one.
     /// </summary>
-    public SKImage Compose(GRContext? gpu, out bool gpuBacked)
+    public SKImage Compose(GRContext? gpu, out bool gpuBacked) => Compose(gpu, null, out gpuBacked);
+
+    /// <inheritdoc cref="Compose(GRContext?, out bool)"/>
+    /// <param name="textures">
+    /// Resident layer textures (B125 stage 5), or null to upload nothing and
+    /// draw the CPU bitmaps directly. **Consulted only when the surface is
+    /// actually GPU-backed**: on the CPU path a texture would be a pointless
+    /// round trip, and — more importantly — stage 3b promised these pixels are
+    /// byte-identical to what the publisher produced, so the CPU path must not
+    /// acquire a second implementation.
+    /// </param>
+    public SKImage Compose(GRContext? gpu, LayerTextureCache? textures, out bool gpuBacked)
     {
         using var surface = GpuComposite.CreateSurface(gpu, Info, out gpuBacked);
+        // Residency is a GPU-only optimisation, and the condition is deliberately
+        // `gpuBacked` rather than `gpu is not null`: an allocation the driver
+        // refused falls back to a CPU surface, and drawing textures onto that
+        // would read back across the bus every pass.
+        var resident = gpuBacked && gpu is not null ? textures : null;
         var canvas = surface.Canvas;
         canvas.Clear(Background);
 
@@ -93,7 +109,14 @@ public readonly record struct DeferredCompose(
             // Only the visible sub-rectangle is read, which is where the saving is:
             // src and dst are the same rectangle in document space, so no scaling
             // beyond RenderScale and no resampling of the parts nobody can see.
-            canvas.DrawBitmap(pass.Bitmap, visible, visible, paint);
+            if (resident?.Resident(gpu!, pass.Bitmap) is { } texture)
+            {
+                canvas.DrawImage(texture, visible, visible, Sampling, paint);
+            }
+            else
+            {
+                canvas.DrawBitmap(pass.Bitmap, visible, visible, paint);
+            }
 
             if (pass.Overlay is { } overlay)
             {
@@ -110,4 +133,11 @@ public readonly record struct DeferredCompose(
         canvas.Flush();
         return surface.Snapshot();
     }
+
+    /// <summary>
+    /// Linear, matching what the canvas already uses for the finished frame. The
+    /// bitmap path's default is the same, so a resident texture and a fresh
+    /// upload resample identically.
+    /// </summary>
+    private static readonly SKSamplingOptions Sampling = new(SKFilterMode.Linear);
 }
