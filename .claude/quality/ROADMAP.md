@@ -140,17 +140,18 @@ not to rebuild. What is missing is everything that *makes* a tip.
   - **Built: the mapping, and it is wired.** `CanvasCursor.For(tool, target)` is pure — a tool and five booleans in, a cursor kind out — so it is tested with no window, which matters because synthetic input through Xvfb is unreliable here and a decision buried in the canvas control would have shipped unguarded. `MainViewModel.PointerIntent` binds onto `CanvasControl.PointerIntent`, the only writer of `Cursor` outside the guide hover, and `RefreshPointerIntent` exists because `Layer.Visible` and `Layer.Locked` are plain properties on a model that notifies nothing — hiding the layer you are drawing on would otherwise leave the pointer still promising a stroke.
   - **`CanvasTarget` names every field for the obstacle** (`LayerHidden`, not `LayerVisible`) so its zero value is an ordinary paintable place. That is correctness, not style: a record struct's primary-constructor defaults do not run for `new CanvasTarget()`, so the permissive spelling refused every tool everywhere while reading, in source, as though it allowed them. Caught by its own test rather than by review, which is why the test is still there.
   - **Three things remain, and the anchors say so rather than the prose alone.** *Modifiers* are in this item's own sentence and are not read at all yet. *Two of the five facts are assumed* — inside the selection, and paint under an alpha-locked brush — because both need a hover position the view model is not told about; they sit at their permissive default, so the cursor under-reports rather than lying, which is the right way round for a refusal. And the refusal *sentence* has nowhere to go: `PointerRefusal` returns it and nothing shows it, because there is no status line and inventing one to carry a string is a bigger decision than this change.
-- [~] Resize canvas and resize image `evidence: CanvasResize, ImageResize, ResizeAnchor, IPixelResampler, CanvasResizeTests, ImageResizeTests, NotOneCoordinateInTheDocumentMoves, GrowingToTheLeftMovesTheOriginRatherThanTheDrawing, GrowingAndCroppingByTheSameOddAmountReturnsToWhereItStarted, ADocumentThatNeverResizedWritesNoOriginKeys, DoublingTheImageDoublesTheGeometryAndTheBrush, EveryCoordinateOnTheSceneIsAccountedFor, ResizeDialog, ResizeDialogTests`
+- [~] Resize canvas and resize image `evidence: CanvasResize, ImageResize, ResizeAnchor, IPixelResampler, CanvasResizeTests, ImageResizeTests, NotOneCoordinateInTheDocumentMoves, GrowingToTheLeftMovesTheOriginRatherThanTheDrawing, GrowingAndCroppingByTheSameOddAmountReturnsToWhereItStarted, ADocumentThatNeverResizedWritesNoOriginKeys, DoublingTheImageDoublesTheGeometryAndTheBrush, EveryCoordinateOnTheSceneIsAccountedFor, DocumentOriginTests, GrowingThePaperMovesNoInkAndReRollsNoJitter, AStrokeInTheNewPaperIsDrawnRatherThanClippedAway, ResizeDialog, ResizeDialogTests`
   - Resize canvas expands the image with the value added to the x or y. It keeps the DPI and all other canvas related configurations. The content on the canvas stays put. The user wants to be able to select; all direction, down, to either side or up. There should be a preview.
   - Resize image scales the entire image and changes the dpi of the docment if any is given. and we can optionally constrain the proportions.
   - For both we can We can chose to resize only x, y or by default link the two so it scales uniformly. And after confirming resize or rescale the canvas is resets to the viewport.
   - **The two operations differ in what they are allowed to do to the mark, and that is the whole design** (Q61). Every dab dynamic is seeded from the bits of a dab's position through `Hash01`, so moving a coordinate changes the mark it carries. Resizing the *paper* therefore moves nothing: `Scene.OriginX`/`OriginY` shift instead, the document rectangle becomes `[Left, Right) × [Top, Bottom)`, and the render is bit-identical outside the new margin. Rescaling the *artwork* multiplies every coordinate and the brush sizes with them, and the grain re-rolls — which is allowed, because the artist asked for different art. *Changes the art, the mark may change; changes the paper, it must not.*
   - **Built: the two operations and the record.** `CanvasResize` is anchor arithmetic over three fields (and `Half` truncating rather than flooring, so growing and cropping by the same odd amount are exact inverses rather than drifting a pixel a round trip). `ImageResize` is an exhaustive visitor over every coordinate in the document — strokes, holes, brush size and texture scale, clip contours and feather, guides and their spacing, camera keys, pivot, symbol placements, per-frame anchors and collision boxes, reference offsets — with `EveryCoordinateOnTheSceneIsAccountedFor` reflecting over `Scene` so a coordinate added later and not handled fails a test instead of landing in the wrong place. `IPixelResampler` is how it stays honest about the two payloads that are pixels rather than instructions.
-  - **What remains is the origin's cost, and it lands in the hottest file in the repository.** The document rectangle is no longer `(0, 0, W, H)`, so every conversion from a document coordinate to a pixel in a layer bitmap has to subtract the origin. The shape of the change, established by doing it and then backing it out rather than by reading the file:
-    - **Drawing is nearly free, because one translate covers it.** Hand `StampStroke` a target canvas already translated into document-device space and every dab lands at its recorded coordinate — `InDocumentSpace` has always translated by an arbitrary device origin, and `StampPaint`'s scratch already composites at `dev.Left/dev.Top`. What needs saying is the rectangle: `SegmentBounds` and `RangeBounds` clamp to `(0, 0, W, H)` and must clamp to the document rect, or a canvas grown leftward throws away the half of every stroke that sits in the new paper. `StampFill` and `StampGradient` each carry one full-canvas rect, and `StampFill` composites at a hardcoded `(0, 0)`.
-    - **Raw pixel access is the real work, because it bypasses the canvas transform.** A layer bitmap's pixel (0,0) is document `(Left, Top)`, so anything reaching for pixels directly needs the conversion: alpha lock's `DrawImage(existing, -dev.Left, -dev.Top)`, `MediumSimulator`'s two reads, the blur's `ExtractSubset` and its full-document `whole` rect, and `BakeSample`.
-    - **`LerpDab` is the awkward one and the reason this is not mechanical.** It reads *and writes* the layer through raw pixel spans, then composites the patch through `target.DrawImage(image, left, top)` — so it straddles both spaces at once, and its `RoundnessAt(brush, pos, …)` seed must stay a *document* coordinate while its span indexing must be a *surface* one. Splitting those two uses of `pos` is the fiddly part; getting it wrong re-grains every smudge, which no test would currently notice.
-    - The guard worth having is one property test rather than a dozen unit tests: render a document at origin zero, render the same strokes in a document grown leftward, and assert the overlapping region is bit-identical. That fails for any site got wrong, which is the point — and it wants a smudge and a blur in the fixture, not just a paint stroke.
+  - **Built: the origin through the raster path.** `BrushEngine.StampStroke` and `FrameRasterizer.Rasterize` take an `origin`, defaulting to `(0,0)` so every caller that has never resized is untouched — and `RuntimeDeterminismTests` still matches its .NET 8 fingerprint, which is what proves that claim rather than asserting it. Two coordinate spaces are now named on `ToSurface`: **document**, which a stroke records and every `Hash01` seed must receive, and **surface**, a pixel in a bitmap whose (0,0) is the document's top-left. The canvas transform converts for everything that draws; raw pixel access converts by hand.
+    - **The clamp was the sharp edge, exactly as predicted.** `SegmentBounds` and `RangeBounds` now clamp to `[Left, Right) × [Top, Bottom)`. Clamping to the surface instead is a bug that ships green — it discards only the half of a stroke sitting in newly-added paper, which no comparison of the region two documents *share* can see. Hence `AStrokeInTheNewPaperIsDrawnRatherThanClippedAway`, which is the one test that looks at the margin instead.
+    - **The finding that was not in the plan: the effects that seed from a rect, not from a dab.** `ApplyGranulation` anchors a tiled noise shader to the stroke's rect and `ApplyTexture` passes its corner into `PaperField.Fill`. So `SegmentBounds` has to keep returning *document* coordinates — handing those two a surface rect leaves the mark where it is and slides the paper underneath it. That is invariant 2 broken in the one way that looks like nothing, and no per-dab assertion would catch it.
+    - **`LerpDab` split as expected, and `DabShape` was the part underneath it.** The span indexing is a surface coordinate, the `Hash01` seed is a document one. `DabShape` was seeding rotation jitter from its *device* centre, so it now takes the document position separately — which also fixes a latent invariant-7 break: a tipped effect dab re-rolled its rotation at any output scale other than 1, since device and document only coincide there.
+    - **The guard is `DocumentOriginTests`**: the same strokes rendered into flush paper and into paper grown left and up, with the shared region required to be bit-identical. Its fixture is chosen to reach the sites that differ — jittery paint, granulation, paper texture, a **tipped** smudge, a blur, a fill. Tipped on purpose: `DabShape` is inert without one, so a tipless smudge silently guarded nothing. Each of the three sites above was mutated back in turn and the test caught all three.
+  - What remains is the view: the canvas control, the fill and pick paths, and `TiledRasterizer`, which still refuses effect brushes (B60 — the mechanism it needs now exists, the tiling itself is not switched on).
   - Then the dialog: anchor grid, linked-by-default x and y, PPI beside the pixel size on the image side, preview, one undo step through `DocumentEditor.Perform`, fit-to-view after confirming, and both commands in `ShortcutMap` so they can be rebound.
 
 ### Film-scale line quality
@@ -229,6 +230,47 @@ available in every project, defaulted for the ones that need it.
 - [x] Rulers and guide editing `evidence: RulerStrip, TickStep, DraggingOutOfTheTopRulerLeavesAHorizontalGuide, LettingGoBackOnTheRulerThrowsTheGuideAway, AGuideIsMovedByGrabbingItOnTheCanvas, TheRulersAreAbsentUntilAskedFor`
 
 ### Layers and compositing
+
+**Compositing cost has two axes and they multiply: canvas *area* and *layer
+count*.** Worth stating here rather than only in the ledger, because it decides
+which performance work is on the critical path for everything above — infinite
+canvas, 4K and 8K, and a character rig with ten layers are all the same
+question asked three ways.
+
+The measurement, from `AnimationSweeps.CanvasSize` with every access a cache hit
+so it prices compositing alone: **linear in area (`n^1.03`), and 1344% of the
+playback budget at 8K for a *three*-layer frame.** Both axes therefore have to be
+answered, and answering one does not soften the other:
+
+| Axis | Answer | State |
+| --- | --- | --- |
+| Canvas area | GPU compositing, display-only | B125, not started — **mandatory** |
+| Layer count | Do not recomposite unchanged layers | B165, not started — **mandatory** |
+| Pixels actually served | Tiles, and the compose-scale clamp | B144, B160 — built |
+
+**Why both.** A 20× GPU win takes 8K/three-layer from 1344% to 67% of budget:
+viable, barely. The same frame at ten layers is **224% after the GPU**, because
+the GPU divides the area term and leaves the layer term alone. Ten layers is an
+ordinary rig, not a stress test.
+
+**Parallel CPU compositing is deliberately not on that list.** Banding the
+surface across a laptop's sixteen threads is a genuine 3–4×, and it is the same
+axis as the GPU with a worse constant — so every line of it is deleted when B125
+lands. It is the reserve if GPU compositing is ever ruled out, and nothing else.
+
+That is a rejection of parallel *compositing*, not of parallelism. Wherever work
+is CPU-bound, staying there, and genuinely independent, threads remain the
+answer — rebuilding a document from its stroke record (B30) and export, whose
+frames are independent by construction, are both open candidates. Stroke replay
+is sequential *within* a frame because each mark blends onto the last, so the
+axis there is frames rather than strokes.
+
+**GPU compositing is display-only, and export stays on the CPU.** That is what
+makes it safe rather than a rewrite of the renderer: the stroke record is the
+document (invariant 1) and export runs through `FrameRasterizer`, so GPU blend
+rounding cannot reach saved art. The two paths staying separate *is* the
+constraint — `RuntimeDeterminismTests` going red means it was broken, not that
+the test needs relaxing.
 
 - [?] Layer masks
 - [?] Clipping masks

@@ -185,6 +185,7 @@ session start when it is stale.
 | What does the app do, from the artist's side? | `python3 scripts/manual.py find X`, then read that one section |
 | What is this supposed to *look* like? | read `docs/design/ui-reference.png`, then `.claude/quality/DESIGN.md` — the image is the source, the file is the rules read off it |
 | What does an AI request cost? | read `docs/DESIGN-ai-payload.md` — do not re-derive it |
+| Why is compositing on the CPU, and what would move it? | read `docs/DESIGN-gpu-compositing.md` — B125's design note, decisions included |
 | What should I pick up next? | `python3 scripts/roadmap.py next` |
 
 Rebuild by hand with `python3 scripts/codemap.py build` after large changes.
