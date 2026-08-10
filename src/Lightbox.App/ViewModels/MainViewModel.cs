@@ -11400,9 +11400,18 @@ public sealed partial class MainViewModel : ObservableObject
                     FloorDiv(viewport.Top, step),
                     Math.Max(1, viewport.Width / step + 2),
                     Math.Max(1, viewport.Height / step + 2));
-                using var flat = Lightbox.Raster.TileCompositor.CompositeToBitmap(
-                    pyramid.Level(level), lvp);
-                using var view = SKImage.FromBitmap(flat);
+                // B167 phase 1: flattening the visible tiles is one of the two
+                // costs inside Compose and they were a single number. Playback
+                // takes this route, so the split decides which of B167's later
+                // phases is the feature and which is plumbing.
+                SKBitmap flat;
+                using (Profile(_profilingTick, Services.TickProfile.Phase.TileFlatten))
+                {
+                    flat = Lightbox.Raster.TileCompositor.CompositeToBitmap(
+                        pyramid.Level(level), lvp);
+                }
+                using var flatOwned = flat;
+                using var view = SKImage.FromBitmap(flatOwned);
                 if (view is not null)
                 {
                     canvas.Save();
