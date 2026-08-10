@@ -73,7 +73,8 @@ internal static class RenderReport
         double RenderMedianMs = 0,
         (int Hits, int Misses, long Bytes)? TextureResidency = null,
         bool GpuCompositeOptedIn = false,
-        int FramesReused = 0);
+        int FramesReused = 0,
+        (int Hits, int Misses, int Evictions, long Bytes, long Budget)? FlattenCache = null);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -641,6 +642,21 @@ internal static class RenderReport
             sb.AppendLine($"  served from memory      {cache.Hits}");
             sb.AppendLine($"  had to render           {cache.Misses}  ({missShare:0.#}%)");
             sb.AppendLine($"  thrown out              {cache.Evictions}");
+        }
+
+        // B167 phase 2. Printed beside the frame cache because they answer the
+        // same question about different work, and printed even when it never hits
+        // — a cache reading 0% is a finding, and an absent line reads as a cache
+        // nobody measured. That distinction is what the tile-flatten phase line
+        // above was missing for a whole round of reports.
+        if (facts.FlattenCache is { } flats && flats.Hits + flats.Misses > 0)
+        {
+            var lookups = flats.Hits + flats.Misses;
+            var hitShare = 100.0 * flats.Hits / lookups;
+            sb.AppendLine($"flattened tiles           {flats.Bytes / (1024 * 1024)} MB held of {flats.Budget / (1024 * 1024)} MB");
+            sb.AppendLine($"  reused a flatten        {flats.Hits}  ({hitShare:0.#}%)");
+            sb.AppendLine($"  had to flatten          {flats.Misses}");
+            sb.AppendLine($"  thrown out              {flats.Evictions}");
         }
 
         if (facts.TickPhases is not { Count: > 0 } phases || facts.TickCount == 0)

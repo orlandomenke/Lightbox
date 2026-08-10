@@ -71,6 +71,21 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private readonly TileFrameCache _tileFrames = new();
 
+    /// <summary>
+    /// Flattened viewport bitmaps derived from <see cref="_tileFrames"/>
+    /// (B167 phase 2).
+    /// </summary>
+    /// <remarks>
+    /// <b>Not on the invalidation funnel, and that is deliberate rather than an
+    /// omission.</b> Its keys carry <see cref="TileFrameCache.StampOf"/>, which
+    /// changes whenever a frame's tiles do — so a stale entry cannot be found by
+    /// a lookup and ages out of its own LRU. Adding it to the funnel as well
+    /// would be a second answer to a question the key already answers, which is
+    /// how two mechanisms come to disagree. It is cleared with the document,
+    /// where the point is releasing memory rather than correctness.
+    /// </remarks>
+    private readonly TileFlattenCache _tileFlats = new();
+
     /// <summary>Whether this document opted into the unbounded canvas.</summary>
     private bool UnboundedCanvasOn =>
         Doc?.Features?.TryGetValue(
@@ -78,6 +93,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Diagnostics for tests and the render report.</summary>
     internal TileFrameCache TileFrames => _tileFrames;
+
+    /// <inheritdoc cref="TileFrames"/>
+    internal TileFlattenCache TileFlats => _tileFlats;
 
     /// <inheritdoc cref="TileFrames"/>
     internal long BitmapCacheBytes => _cache.CachedBytes;
@@ -110,6 +128,11 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Frame-cache behaviour over the last run of playback.</summary>
     internal (long Hits, long Misses, long Evictions, long Bytes, long Budget) FrameCacheTraffic =>
         (_cache.Hits, _cache.Misses, _cache.Evictions, _cache.CachedBytes, FrameBitmapCache.ByteBudget);
+
+    /// <summary>Flatten-cache behaviour over the last run of playback (B167 phase 2).</summary>
+    internal (int Hits, int Misses, int Evictions, long Bytes, long Budget) FlattenCacheTraffic =>
+        (_tileFlats.Hits, _tileFlats.Misses, _tileFlats.Evictions,
+         _tileFlats.CachedBytes, TileFlattenCache.ByteBudget);
 
     /// <summary>
     /// The shape of the scene, which is what decides whether it fits the cache.
@@ -157,6 +180,12 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _cache.Clear();
         _tileFrames.Clear();
+        // Correctness does not need this — every flatten key carries the stamp of
+        // tiles that no longer exist, so none of them can be found again. It is
+        // here because "the whole document changed" is the moment those bytes are
+        // certainly dead, and waiting for an LRU to notice would hold a document's
+        // worth of viewports across a document switch.
+        _tileFlats.Clear();
         _prewarm.Flush();
     }
 
@@ -10950,13 +10979,25 @@ public sealed partial class MainViewModel : ObservableObject
         for (var i = 0; i < passes.Count; i++)
         {
             if (passes[i].Bitmap is not { } bmp) continue;
+            // Both caches, because a pass list mixes their bitmaps: layer rasters
+            // belong to the frame cache and flattened tiles to the flatten cache
+            // (B167 phase 2). Asking which owns a given bitmap would be a third
+            // answer to a question two caches already answer for themselves — and
+            // a pin on a cache that does not own it is a dictionary entry the
+            // matching unpin takes straight back out, which is the same way a
+            // live scratch bitmap has always passed through here.
             _cache.Pin(bmp);
+            _tileFlats.Pin(bmp);
             held.Add(bmp);
         }
 
         return () =>
         {
-            for (var i = 0; i < held.Count; i++) _cache.Unpin(held[i]);
+            for (var i = 0; i < held.Count; i++)
+            {
+                _cache.Unpin(held[i]);
+                _tileFlats.Unpin(held[i]);
+            }
         };
     }
 
@@ -11125,9 +11166,9 @@ public sealed partial class MainViewModel : ObservableObject
             //
             // Tile passes are flattened into bitmap passes first (B167 phase 3),
             // which is what makes the composite below a pure function of bitmaps
-            // and therefore movable to the render thread. The flattened bitmaps
-            // are freshly allocated rather than borrowed from a cache, so they
-            // are disposed here rather than unpinned.
+            // and therefore movable to the render thread. A flattened bitmap is
+            // now usually borrowed from the flatten cache (B167 phase 2) and
+            // unpinned; only one the cache refused is owned here and disposed.
             // B167 phase 3b: describe it rather than do it. Flattening still
             // happens here — it needs the tile cache — but the blending, which
             // phase 1 measured at roughly two thirds of Compose, moves to the
@@ -11390,15 +11431,27 @@ public sealed partial class MainViewModel : ObservableObject
     /// already carries across a thread with a lifetime protocol that works.
     /// </para>
     /// <para>
-    /// <b>The flattening still happens here, on the UI thread, exactly as before.</b>
-    /// Phase 1 measured it at 30–35% of Compose; this moves the other two thirds,
-    /// and caching the flatten is a separate phase with its own staleness risk.
+    /// <b>The flattening still happens here, on the UI thread.</b> Phase 1
+    /// measured it at 30–35% of Compose; phase 3b moved the other two thirds to
+    /// the render thread.
     /// </para>
     /// <para>
-    /// <b>These bitmaps are owned, not borrowed</b> — <c>CompositeToBitmap</c>
-    /// allocates a new one each time. So they are disposed rather than unpinned,
-    /// which is the opposite of every other pass in a published list and the one
-    /// thing to get right when this crosses a thread.
+    /// <b>B167 phase 2: most flattens are now looked up rather than done.</b> The
+    /// inputs are the frame's tiles, the pyramid level and the level-space
+    /// rectangle, and all three are identical from one playback frame to the next
+    /// for a layer that holds — so <see cref="TileFlattenCache"/> keys on exactly
+    /// those. B165 measured the share of layer draws that repeat a drawing at 26%
+    /// at two layers and 59% at ten, and that is the share of this work that
+    /// disappears.
+    /// </para>
+    /// <para>
+    /// <b>So a flattened bitmap is now usually borrowed, and the two cases must
+    /// not be confused.</b> A cached one is pinned and unpinned — disposing it
+    /// would free pixels another live snapshot is still reading, which is B130.
+    /// One the cache refused (a viewport larger than the whole budget) is owned
+    /// exactly as every flatten was before this phase, and disposed with the
+    /// snapshot. Leaking that one is a viewport-sized bitmap per frame of
+    /// playback, so neither mistake is quiet.
     /// </para>
     /// </remarks>
     private List<RenderPass> FlattenTilePasses(
@@ -11427,13 +11480,23 @@ public sealed partial class MainViewModel : ObservableObject
                 Math.Max(1, viewport.Width / step + 2),
                 Math.Max(1, viewport.Height / step + 2));
 
-            SKBitmap flat;
-            using (Profile(_profilingTick, Services.TickProfile.Phase.TileFlatten))
+            // The stamp is what makes a hit safe: it changes whenever this
+            // frame's tiles do, so a cached flatten can only match pixels that
+            // are still current. See TileFrameCache.StampOf.
+            var stamp = _tileFrames.StampOf(tileSrc.Id);
+            var flat = _tileFlats.Get(tileSrc.Id, stamp, level, lvp);
+            if (flat is null)
             {
-                flat = Lightbox.Raster.TileCompositor.CompositeToBitmap(
-                    pyramid.Level(level), lvp);
+                using (Profile(_profilingTick, Services.TickProfile.Phase.TileFlatten))
+                {
+                    flat = Lightbox.Raster.TileCompositor.CompositeToBitmap(
+                        pyramid.Level(level), lvp);
+                }
+                // Refused means the cache could never hold it — a viewport larger
+                // than the whole budget — and then this publish owns it, exactly
+                // as every publish did before phase 2.
+                if (!_tileFlats.Insert(tileSrc.Id, stamp, level, lvp, flat)) owned.Add(flat);
             }
-            owned.Add(flat);
 
             // Translate then scale, which is what the canvas did around the draw.
             var placement = SKMatrix.CreateScaleTranslation(

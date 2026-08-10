@@ -82,14 +82,12 @@ phases 4–5 are the feature and phase 3 is plumbing; if blending is, the revers
 
 *Risk: none. Nothing changes but the report.*
 
-### Phase 2 — Cache the flattened bitmap
+### Phase 2 — Cache the flattened bitmap — **landed**
 
 `CompositeToBitmap` runs on every publish for every pass. Its inputs are the
 frame, the pyramid level and the level-space viewport rectangle — all of which
 are **identical from one playback frame to the next for any layer that holds**.
-Cache the result keyed on exactly those three, with `BitmapVersion` joining the
-key for the same reason `LayerStackBake` needs it: a stroke commit stamps into a
-cached bitmap in place, so an instance survives its pixels changing.
+`TileFlattenCache` keys on exactly those three plus a version.
 
 This is a CPU-only win and needs no threading change. It is also the same shape
 as B165's held-run fold, so the expected hit rate is B165's measured share of
@@ -101,6 +99,46 @@ memory problem B144 built tiles to avoid. LRU inside a byte budget, reported.
 *Risk: stale pixels, mitigated by the version key and by a test that changes a
 layer under a cached flatten and asserts the composite followed — the same test
 B165's entry demanded, one level down.*
+
+#### What the plan got wrong, and it was the version key
+
+The plan said `BitmapVersion`, by analogy with `LayerStackBake`. **There is no
+bitmap here to carry one.** A tile-native pass has a `TileStore` and a
+`TilePyramid`, and the two obvious substitutes both fail:
+
+- **The frame id** is what `Append` leaves unchanged while stamping a committed
+  stroke into the tiles in place — the exact trap `BitmapVersion` exists to
+  close, so using it alone reintroduces the bug the plan was guarding against.
+- **The `TilePyramid` instance**, which `Append` *does* replace, is disposed at
+  the moment it is replaced. Keying on it means holding a reference to a
+  disposed object to compare against.
+
+So `TileFrameCache.StampOf` is the version: a single ever-increasing counter,
+issued fresh whenever a frame's tiles are built or mutated. **A per-frame
+counter restarting at zero is the version of this that is subtly wrong and worth
+writing down** — invalidate a changed frame, let `Get` rebuild it, and the
+counter is back at zero, matching a flatten cached before the change whose
+pixels are now wrong. A counter that only goes up cannot collide with anything
+it has already issued.
+
+`AStrokeCommittedUnderACachedFlattenStillReachesTheScreen` is the test the plan
+demanded, and it bites: replacing the stamp with a constant makes the second
+stroke never reach the screen.
+
+#### The lifetime change nobody asked for, which is where B130 lives
+
+Before this phase a flattened bitmap was allocated per publish and owned by
+nobody — disposed with the snapshot, safe by construction. A **cached** one is
+borrowed by every snapshot that got it, and evicting it while the render thread
+is mid-draw frees pixels Skia is about to read: an access violation in native
+code, no managed stack, an empty crash log. So `TileFlattenCache` runs the same
+counted pin protocol as `FrameBitmapCache`, and `PinPasses` pins against both
+caches because a pass list now mixes their bitmaps.
+
+The one case that stays owned is a flatten the cache **refused** — a viewport
+larger than the whole budget. Refusing is a real outcome rather than a failure:
+caching it would evict everything on every publish, which is worse than not
+caching at all.
 
 ### Phase 3 — Move the tiled composite into the draw op
 

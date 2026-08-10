@@ -964,7 +964,8 @@ public partial class MainWindow : Window
             _vm.Performance.FrameMs,
             Canvas.TextureResidency,
             Rendering.GpuComposite.OptedIn,
-            _vm.FramesReused);
+            _vm.FramesReused,
+            _vm.FlattenCacheTraffic);
     }
 
     /// <summary>
