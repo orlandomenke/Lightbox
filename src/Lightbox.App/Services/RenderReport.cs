@@ -675,9 +675,14 @@ internal static class RenderReport
             }
             if (!nested) total += phase.TotalMs;
             var label = nested ? "  of it, " + phase.Phase : phase.Phase.ToString();
-            sb.AppendLine(
-                $"  {label,-22} {phase.TotalMs / facts.TickCount,7:0.##} ms/tick"
-                + $"   worst {phase.WorstMs,7:0.##} ms   ({phase.Calls} of {facts.TickCount} ticks)");
+            // A nested phase runs once per PASS, not once per tick, so "816 of
+            // 300 ticks" reads as nonsense and its worst — which is per call —
+            // sits below its mean, which is per tick. Both were true and the line
+            // said neither. Own units, said out loud.
+            var counts = nested
+                ? $"({phase.Calls} calls, worst one {phase.WorstMs:0.##} ms)"
+                : $"worst {phase.WorstMs,7:0.##} ms   ({phase.Calls} of {facts.TickCount} ticks)";
+            sb.AppendLine($"  {label,-22} {phase.TotalMs / facts.TickCount,7:0.##} ms/tick   {counts}");
         }
         sb.AppendLine($"  {"ALL PHASES",-22} {total / facts.TickCount,7:0.##} ms/tick");
         // Phase 1's whole product: which half of the tiled composite costs the
