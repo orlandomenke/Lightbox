@@ -52,6 +52,20 @@ using Xunit;
 // parallelism was never overlapping the *work*. The only thing it overlapped
 // was session creation, which is the race.
 //
+// THE THEORY WAS WRONG (2026-08-10)
+//
+// B93 recurred with this in place: CharacterSheetFileTests at 1 ms, the same
+// stack, on PR #153. Collection parallelism is therefore not the mechanism —
+// sessions can still be created concurrently with it off, so whatever races is
+// inside Avalonia's harness lifecycle rather than in how this suite schedules
+// classes.
+//
+// This line stays anyway, and that is a decision rather than inertia. Nine CI
+// runs since it landed: eight green, one red. The four-in-five failure rate
+// that prompted it has not returned. Both samples are small, so the honest
+// claim is "the rate looks much better and the bug is not fixed" — and a rate
+// that is genuinely lower is worth keeping at a cost measured to be nothing.
+//
 // HONESTY ABOUT WHAT THIS IS
 //
 // **A hypothesis with a mechanism and no measured cost, not a proven fix.**
