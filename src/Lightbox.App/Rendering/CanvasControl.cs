@@ -71,6 +71,16 @@ public sealed class CanvasControl : Control
             LazyRadiusProperty,
         ];
         AffectsRender<CanvasControl>(RepaintOnChange);
+
+        // The intent decides the platform cursor, and nothing else does — a
+        // second writer of Cursor is how the pointer ends up disagreeing with
+        // what the tool will actually do.
+        PointerIntentProperty.Changed.AddClassHandler<CanvasControl, CanvasCursorKind>(
+            (control, e) =>
+            {
+                if (control._overGuide) return;
+                control.Cursor = CursorFor(e.NewValue.GetValueOrDefault());
+            });
     }
 
     /// <summary>Current tool size in document units — drives the brush-shape cursor.</summary>
@@ -905,8 +915,52 @@ public sealed class CanvasControl : Control
         var over = GuideDragEnabled && GuideAt(view) is not null;
         if (over == _overGuide) return;
         _overGuide = over;
-        Cursor = over ? GuideCursor : DrawingCursor;
+        Cursor = over ? GuideCursor : CursorFor(PointerIntent);
     }
+
+    /// <summary>
+    /// What the pointer is currently saying the tool will do — decided by
+    /// <see cref="CanvasCursor"/> and set from the view model.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A property rather than a decision made here, so the cursor and whatever
+    /// else reports the same fact cannot disagree. The control's job is the last
+    /// step only: turning a name into a platform cursor.
+    /// </para>
+    /// <para>
+    /// Platform cursors for now, which is what the roadmap allows — the mechanism
+    /// is the part that was missing, and custom artwork can replace this mapping
+    /// without anything above it changing.
+    /// </para>
+    /// </remarks>
+    public static readonly StyledProperty<CanvasCursorKind> PointerIntentProperty =
+        AvaloniaProperty.Register<CanvasControl, CanvasCursorKind>(nameof(PointerIntent));
+
+    public CanvasCursorKind PointerIntent
+    {
+        get => GetValue(PointerIntentProperty);
+        set => SetValue(PointerIntentProperty, value);
+    }
+
+    /// <summary>The platform cursor for an intent.</summary>
+    /// <remarks>
+    /// <b>Paint keeps <c>None</c> on purpose:</b> the brush cursor is drawn by
+    /// the render op at the brush's real size and shape, and showing an arrow as
+    /// well would put two pointers on the canvas.
+    /// </remarks>
+    internal static Cursor CursorFor(CanvasCursorKind intent) => intent switch
+    {
+        CanvasCursorKind.Paint => DrawingCursor,
+        CanvasCursorKind.Forbidden => ForbiddenCursor,
+        CanvasCursorKind.Pick or CanvasCursorKind.Fill or CanvasCursorKind.Precise => PreciseCursor,
+        CanvasCursorKind.Move => GuideCursor,
+        _ => ArrowCursor,
+    };
+
+    private static readonly Cursor ForbiddenCursor = new(StandardCursorType.No);
+    private static readonly Cursor PreciseCursor = new(StandardCursorType.Cross);
+    private static readonly Cursor ArrowCursor = new(StandardCursorType.Arrow);
 
     /// <summary>The box being drawn by hand right now, in document coordinates.</summary>
     private SKRect? _newBox;

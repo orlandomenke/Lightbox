@@ -270,6 +270,28 @@ facets with the tops of the stamps showing on the outside of the bend.
 Corners you meant are kept: turn sharply enough and the stroke stays sharp
 there, so a drawn rectangle has square corners and a flick still has a point.
 
+## The pointer tells you what the tool will do
+
+The pointer changes with the tool, so you can tell what is armed without looking
+away from the drawing. The brush and the eraser show their real size and shape as
+a ring; the eyedropper, the fill and the shape tools show a crosshair; the move
+tool shows arrows; the two selection arrows show a pointer.
+
+**If the pointer shows a "no" symbol, the tool will not do anything where you
+are** — that is the point of it. It means one of:
+
+- the layer is **hidden**. Turn its eye back on in the Layers panel.
+- the layer is **locked**. Unlock it with the padlock.
+
+Before, these did nothing and said nothing, which is hard to tell apart from the
+application being broken. Now you find out before you commit to a stroke rather
+than after.
+
+*Planned:* the pointer does not yet refuse for the two cases that depend on
+exactly where you are — outside a selection, or on an alpha-locked layer with no
+paint under the brush. Those still fail silently for now, and the pointer stays
+optimistic rather than guessing.
+
 ---
 
 ## Shapes

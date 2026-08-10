@@ -3727,6 +3727,8 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsEraser))]
     [NotifyPropertyChangedFor(nameof(ShowsEffectOptions))]
+    [NotifyPropertyChangedFor(nameof(PointerIntent))]
+    [NotifyPropertyChangedFor(nameof(PointerRefusal))]
     [NotifyPropertyChangedFor(nameof(IsBrushTool))]
     [NotifyPropertyChangedFor(nameof(IsEraserTool))]
     [NotifyPropertyChangedFor(nameof(IsFillTool))]
@@ -3765,6 +3767,59 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsWandVariant => ActiveSelectVariant == SelectVariant.Wand;
 
     public bool IsBrushTool => ActiveTool == ToolId.Brush;
+
+    /// <summary>
+    /// What the pointer should say the active tool will do over the active
+    /// layer — bound straight onto the canvas control.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The decision itself is <see cref="Rendering.CanvasCursor"/>, which is
+    /// pure and tested without a window; this only gathers the facts. Keeping
+    /// the gathering here and the rule there is what stops the canvas control
+    /// and anything else that reports the same refusal from drifting apart.
+    /// </para>
+    /// <para>
+    /// <b>Two of the five facts are still assumed, and they are the two that
+    /// vary per pixel rather than per layer:</b> whether the pointer is inside
+    /// the selection and whether there is paint under it for an alpha-locked
+    /// layer. Both need a hover position the view model is not told about yet,
+    /// so they are left at their permissive default — the cursor under-reports
+    /// rather than lying, which is the right way round for a refusal.
+    /// </para>
+    /// </remarks>
+    public Rendering.CanvasCursorKind PointerIntent =>
+        Rendering.CanvasCursor.For(ActiveTool, CurrentTarget);
+
+    /// <summary>Why the active tool would do nothing here, or null.</summary>
+    /// <remarks>
+    /// Nothing shows this yet: the application has no status line, and inventing
+    /// one to carry a sentence is a bigger decision than this change. The
+    /// pointer already refuses, which is the half an artist notices; this is the
+    /// half that says why, and it is ready for the surface that will hold it.
+    /// </remarks>
+    public string? PointerRefusal => Rendering.CanvasCursor.Refusal(ActiveTool, CurrentTarget);
+
+    private Rendering.CanvasTarget CurrentTarget => new(
+        LayerHidden: !ActiveLayer.Visible,
+        LayerLocked: ActiveLayer.Locked,
+        AlphaLocked: ActiveLayer.AlphaLocked);
+
+    /// <summary>
+    /// Re-ask the mapping, because something it reads has changed underneath it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Needed because a layer's flags are plain properties on a document
+    /// model that raises nothing.</b> `Layer.Visible` and `Layer.Locked` are set
+    /// through the editor so they undo correctly, and neither notifies — so
+    /// hiding the layer you are drawing on would otherwise leave the pointer
+    /// still promising a stroke until you happened to switch tools.
+    /// </remarks>
+    public void RefreshPointerIntent()
+    {
+        OnPropertyChanged(nameof(PointerIntent));
+        OnPropertyChanged(nameof(PointerRefusal));
+    }
 
     /// <summary>The black arrow — picks things (lines, guides, symbols) rather than an area of pixels.</summary>
     public bool IsArrowTool => ActiveTool == ToolId.Arrow;
@@ -3837,14 +3892,14 @@ public sealed partial class MainViewModel : ObservableObject
     public void InsertKeyframeAtPlayhead() =>
         _editor.SetKeyAt(ActiveLayer.Id, CurrentFrameIndex, FrameRole.Key);
 
-    public string SelectVariantGlyph => ActiveSelectVariant switch
-    {
-        SelectVariant.Polygon => "⬠",
-        SelectVariant.Box => "▭",
-        SelectVariant.Ellipse => "◯",
-        SelectVariant.Wand => "🪄",
-        _ => "◌",
-    };
+    /// <summary>The tool button's icon, so it says which selection it will make.</summary>
+    /// <remarks>
+    /// The wand variant used to be U+1FA84, an emoji: full colour beside eleven
+    /// monoline glyphs on the platforms that had the character, and an empty box
+    /// on the ones that did not.
+    /// </remarks>
+    public Avalonia.Media.Geometry? SelectVariantGlyph =>
+        Rendering.IconSet.Resolve(Rendering.IconSet.ForSelect(ActiveSelectVariant));
 
     /// <summary>Compat view of the tool (old XAML/tests): eraser vs everything else painting as brush.</summary>
     public bool IsEraser
@@ -5060,6 +5115,8 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(TimelineFrameCount));
         OnPropertyChanged(nameof(GraphSeriesList));
         OnPropertyChanged(nameof(ActiveLayerOnion));
+        // A different layer can refuse the tool the last one accepted.
+        RefreshPointerIntent();
         NotifyActiveLayerCompositing();
         PublishSnapshot();
     }
@@ -6005,13 +6062,14 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsPolygonShape => ActiveShape == ShapeKind.Polygon;
 
     /// <summary>The tool button's icon, so it says which shape is loaded.</summary>
-    public string ShapeGlyph => ActiveShape switch
-    {
-        ShapeKind.Line => "╱",
-        ShapeKind.Ellipse => "◯",
-        ShapeKind.Polygon => "⬠",
-        _ => "▭",
-    };
+    /// <remarks>
+    /// A geometry from <see cref="Rendering.IconSet"/> rather than the box-drawing
+    /// characters this used to return. Those were the system font's idea of a
+    /// rectangle sitting next to eight hand-drawn monoline glyphs, at whatever
+    /// weight and baseline that font happened to have.
+    /// </remarks>
+    public Avalonia.Media.Geometry? ShapeGlyph =>
+        Rendering.IconSet.Resolve(Rendering.IconSet.ForShape(ActiveShape));
 
     /// <summary>Pick a shape, and make the shape tool active while you are at it.</summary>
     /// <remarks>
@@ -8827,6 +8885,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void ToggleActiveLayerVisible()
     {
         _editor.Perform(_ => ActiveLayer.Visible = !ActiveLayer.Visible);
+        RefreshPointerIntent();
     }
 
     /// <summary>Clicking a cel selects both the frame and the layer it belongs to.</summary>
