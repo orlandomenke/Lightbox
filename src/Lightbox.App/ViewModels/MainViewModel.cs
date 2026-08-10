@@ -11094,8 +11094,25 @@ public sealed partial class MainViewModel : ObservableObject
         DeferredCompose? deferred = null;
         if (plan.Route == ComposeRoute.Unbounded)
         {
-            // Unbounded canvas: use tiled compositing for only visible viewport
-            image = ComposeUnboundedSnapshot(scene, passes, background, renderScale, cameraView, seq);
+            // Unbounded canvas: use tiled compositing for only visible viewport.
+            //
+            // Tile passes are flattened into bitmap passes first (B167 phase 3),
+            // which is what makes the composite below a pure function of bitmaps
+            // and therefore movable to the render thread. The flattened bitmaps
+            // are freshly allocated rather than borrowed from a cache, so they
+            // are disposed here rather than unpinned.
+            var flatOwned = new List<SKBitmap>();
+            try
+            {
+                var flatPasses = FlattenTilePasses(
+                    passes, scene, _pendingViewport!.Value, renderScale, flatOwned);
+                image = ComposeUnboundedSnapshot(
+                    scene, flatPasses, background, renderScale, cameraView, seq);
+            }
+            finally
+            {
+                foreach (var bmp in flatOwned) bmp.Dispose();
+            }
             usedClip = imageCovers;
         }
         else if (plan.CullRect is { } cullRect)
@@ -11333,6 +11350,75 @@ public sealed partial class MainViewModel : ObservableObject
     /// silently dropped.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Turn tile-native passes into ordinary bitmap passes with a placement
+    /// matrix, flattening their visible tiles here (B167 phase 3).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is what dissolves the blocker rather than confronting it.</b> The
+    /// tiled composite is the one playback takes and the one that has to move to
+    /// the render thread — but it reads <c>_tileFrames</c>, which the view model
+    /// owns and the draw op cannot reach. Flattening first turns every tile pass
+    /// into a bitmap pass, and a bitmap pass is something the deferred compositor
+    /// already carries across a thread with a lifetime protocol that works.
+    /// </para>
+    /// <para>
+    /// <b>The flattening still happens here, on the UI thread, exactly as before.</b>
+    /// Phase 1 measured it at 30–35% of Compose; this moves the other two thirds,
+    /// and caching the flatten is a separate phase with its own staleness risk.
+    /// </para>
+    /// <para>
+    /// <b>These bitmaps are owned, not borrowed</b> — <c>CompositeToBitmap</c>
+    /// allocates a new one each time. So they are disposed rather than unpinned,
+    /// which is the opposite of every other pass in a published list and the one
+    /// thing to get right when this crosses a thread.
+    /// </para>
+    /// </remarks>
+    private List<RenderPass> FlattenTilePasses(
+        List<RenderPass> passes, Scene scene, SKRectI viewport, double renderScale,
+        List<SKBitmap> owned)
+    {
+        List<RenderPass>? flattened = null;
+        for (var i = 0; i < passes.Count; i++)
+        {
+            if (passes[i].SourceFrame is not { } tileSrc) continue;
+
+            flattened ??= [.. passes];
+            // A tile-native pass: composite the visible tiles 1:1 at the pyramid
+            // level nearest the screen's resolution, then place that one image in
+            // document space — the outer transform does the rest. The residual
+            // resample is a single ≤2× downscale of one image, so deep zoom-outs
+            // get box-mip quality instead of skip-sampling shimmer, and the
+            // intermediate is bounded by the surface however many document pixels
+            // the viewport spans.
+            var (_, pyramid) = _tileFrames.Get(tileSrc, scene.Width, scene.Height);
+            var level = Lightbox.Raster.TilePyramid.LevelFor(renderScale);
+            var step = Lightbox.Raster.TilePyramid.StepOf(level);
+            var lvp = SKRectI.Create(
+                FloorDiv(viewport.Left, step),
+                FloorDiv(viewport.Top, step),
+                Math.Max(1, viewport.Width / step + 2),
+                Math.Max(1, viewport.Height / step + 2));
+
+            SKBitmap flat;
+            using (Profile(_profilingTick, Services.TickProfile.Phase.TileFlatten))
+            {
+                flat = Lightbox.Raster.TileCompositor.CompositeToBitmap(
+                    pyramid.Level(level), lvp);
+            }
+            owned.Add(flat);
+
+            // Translate then scale, which is what the canvas did around the draw.
+            var placement = SKMatrix.CreateScaleTranslation(
+                step, step, lvp.Left * step, lvp.Top * step);
+            var p = passes[i];
+            flattened[i] = new RenderPass(
+                flat, p.Tint, p.Opacity, p.Blend, p.Overlay, placement);
+        }
+        return flattened ?? passes;
+    }
+
     private SKImage ComposeUnboundedSnapshot(
         Lightbox.Core.Documents.Scene scene,
         List<RenderPass> passes,
@@ -11383,43 +11469,19 @@ public sealed partial class MainViewModel : ObservableObject
             if (needsIsolation) canvas.SaveLayer(paint);
             var contentPaint = needsIsolation ? null : paint;
 
-            if (pass.SourceFrame is { } tileSrc)
+            if (pass.SourceFrame is not null)
             {
-                // A tile-native pass: composite the visible tiles 1:1 at the
-                // pyramid level nearest the screen's resolution, then place
-                // that one image in document space — the outer transform does
-                // the rest. The residual resample is a single ≤2× downscale of
-                // one image, so deep zoom-outs get box-mip quality instead of
-                // skip-sampling shimmer, and the intermediate is bounded by
-                // the surface however many document pixels the viewport spans.
-                var (_, pyramid) = _tileFrames.Get(tileSrc, scene.Width, scene.Height);
-                var level = Lightbox.Raster.TilePyramid.LevelFor(renderScale);
-                var step = Lightbox.Raster.TilePyramid.StepOf(level);
-                var lvp = SKRectI.Create(
-                    FloorDiv(viewport.Left, step),
-                    FloorDiv(viewport.Top, step),
-                    Math.Max(1, viewport.Width / step + 2),
-                    Math.Max(1, viewport.Height / step + 2));
-                // B167 phase 1: flattening the visible tiles is one of the two
-                // costs inside Compose and they were a single number. Playback
-                // takes this route, so the split decides which of B167's later
-                // phases is the feature and which is plumbing.
-                SKBitmap flat;
-                using (Profile(_profilingTick, Services.TickProfile.Phase.TileFlatten))
-                {
-                    flat = Lightbox.Raster.TileCompositor.CompositeToBitmap(
-                        pyramid.Level(level), lvp);
-                }
-                using var flatOwned = flat;
-                using var view = SKImage.FromBitmap(flatOwned);
-                if (view is not null)
-                {
-                    canvas.Save();
-                    canvas.Translate(lvp.Left * step, lvp.Top * step);
-                    canvas.Scale(step);
-                    canvas.DrawImage(view, 0, 0, Linear, contentPaint);
-                    canvas.Restore();
-                }
+                // Pre-resolved before the composite (B167 phase 3): a tile-native
+                // pass is flattened into a bitmap with a placement matrix by
+                // FlattenTilePasses, so nothing here needs the tile cache. That is
+                // what lets this whole body move to the render thread — the cache
+                // lives on the view model and the draw op cannot reach it.
+                //
+                // Reaching here means something published a tile pass without
+                // going through that step. Skipping is what the bounded
+                // compositor already does with one, so it stays a vanished layer
+                // rather than a crash — but it should not happen.
+                continue;
             }
             else if (pass.Matrix is { } m)
             {
