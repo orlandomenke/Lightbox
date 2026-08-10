@@ -88,6 +88,37 @@ used.
 It only changes what you see while working. **The drawing, the exports and the
 thumbnails are always full resolution**, whatever this is set to.
 
+### Blending layers on the graphics card
+
+*Experimental, and off, because it is not yet known to be faster.*
+
+**Edit → Configure → Performance → Use the graphics card to blend layers.**
+
+Stacking layers together is arithmetic over every pixel, and a graphics card is
+built for exactly that. The catch is that the layer images live in ordinary
+memory and have to reach the card before it can do anything with them. On a
+laptop with shared graphics memory — which is most laptops — that transfer
+competes with the drawing you are already doing, so it can easily cost more
+than it saves.
+
+So this is a switch to *try*, not a setting to turn on and forget. The honest
+answer for your machine is:
+
+1. Turn it on.
+2. Zoom in far enough that the canvas edges are off screen — that is the only
+   view it currently applies to. A fit-to-window view composites the old way.
+3. Play a scene back for a few seconds.
+4. **Help → Write a render report**, and look for *resident layer textures*.
+
+The report says how many layer draws avoided a transfer. It also says when the
+answer is "nothing happened", which is the case the checkbox cannot tell you
+about on its own — a machine presenting in software has no card to blend on,
+and the hint under the checkbox says so before you spend time on it.
+
+Nothing you save is affected either way. Exports, thumbnails and the file on
+disk are produced by the processor whatever this is set to, so a picture that
+came out of the graphics card is never the picture that gets written down.
+
 ### When the app changes it for you
 
 If the canvas cannot keep up, Lightbox turns the quality down to Half once and

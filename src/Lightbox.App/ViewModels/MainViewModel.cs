@@ -583,6 +583,10 @@ public sealed partial class MainViewModel : ObservableObject
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
         _snapTolerance = Settings.SnapTolerance;
+        // Mirror it where the render thread can see it (B125): the draw op has no
+        // route to the view model, and an environment variable still forces it on
+        // for headless runs.
+        Rendering.GpuComposite.SettingEnabled = Settings.GpuCompositing;
         if (Enum.TryParse<CanvasQuality>(Settings.CanvasQuality, out var storedQuality))
         {
             _canvasQuality = storedQuality;
@@ -2149,6 +2153,33 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Preferences that are not about pixels — see <see cref="AppSettings"/>.</summary>
     public AppSettings Settings { get; private set; } = new();
+
+    /// <summary>
+    /// Composite layers on the GPU rather than the CPU (B125, experimental).
+    /// </summary>
+    /// <remarks>
+    /// Goes through here rather than the settings object directly, so the render
+    /// thread's mirror and the persisted value cannot drift apart — and so the
+    /// canvas repaints immediately instead of on the next thing that happens to
+    /// dirty it.
+    /// </remarks>
+    public bool GpuCompositing
+    {
+        get => Settings.GpuCompositing;
+        set
+        {
+            if (Settings.GpuCompositing == value) return;
+            Settings.GpuCompositing = value;
+            Rendering.GpuComposite.SettingEnabled = value;
+            Settings.Save();
+            OnPropertyChanged();
+            // The composite path changed under the canvas, so what is on screen
+            // was produced by the other one. Republish rather than wait.
+            InvalidateWholeCanvas();
+            PublishSnapshot();
+        }
+    }
+
 
     /// <summary>Minutes between autosaves; 0 turns it off. Persists immediately.</summary>
     public double AutosaveMinutes

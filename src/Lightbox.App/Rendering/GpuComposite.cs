@@ -60,16 +60,48 @@ internal static class GpuComposite
         RefusedTooLarge = 0;
     }
 
-    private static bool? _optedIn;
+    private static bool? _override;
 
+    private static bool ForcedByEnvironment =>
+        Environment.GetEnvironmentVariable(OptInVariable) is "1" or "true" or "TRUE";
+
+    /// <summary>
+    /// Whether this session composites on the GPU.
+    /// </summary>
+    /// <remarks>
+    /// <b>The setting is the switch and the environment variable is an override,
+    /// not the other way round.</b> It began as an environment variable on the
+    /// B130 precedent — nobody should find an unmeasured GPU path by accident —
+    /// and became a setting when the person who has to run the measurement asked
+    /// for one, which is the right reason to move it. The variable stays for
+    /// headless and scripted runs, where there is no window to tick a box in.
+    /// <para>
+    /// Read fresh rather than cached: the toggle takes effect on the next frame,
+    /// because a restart between "switch it on" and "see the number" is exactly
+    /// the friction that stops a measurement from happening.
+    /// </para>
+    /// </remarks>
     internal static bool OptedIn =>
-        _optedIn ??= Environment.GetEnvironmentVariable(OptInVariable) is "1" or "true" or "TRUE";
+        _override ?? (ForcedByEnvironment || SettingEnabled);
 
-    /// <summary>For tests: force the opt-in on or off, or null to read the environment.</summary>
+    /// <summary>
+    /// Mirrors <c>AppSettings.GpuCompositing</c>, written when settings load and
+    /// when the toggle moves.
+    /// </summary>
+    /// <remarks>
+    /// A mirror rather than a read, because this is consulted from the render
+    /// thread inside the draw op and the settings object lives on the view model.
+    /// A bool written on the UI thread and read on the render thread is the one
+    /// shape of sharing that needs no synchronisation — a torn read of a bool
+    /// does not exist, and being one frame stale after a toggle is invisible.
+    /// </remarks>
+    internal static bool SettingEnabled { get; set; }
+
+    /// <summary>For tests: force the opt-in on or off, or null to read the real answer.</summary>
     internal static bool? OptInOverride
     {
-        get => _optedIn;
-        set => _optedIn = value;
+        get => _override;
+        set => _override = value;
     }
 
     /// <summary>

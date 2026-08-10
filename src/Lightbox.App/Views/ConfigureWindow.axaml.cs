@@ -633,8 +633,52 @@ public partial class ConfigureWindow : Window
         QualityBox.SelectedItem = _vm.CanvasQuality;
         UndoDepthBox.Value = _vm.UndoDepth;
         CacheBudgetBox.Value = _vm.FrameCacheBudgetMb;
+        GpuCompositeBox.IsChecked = _vm.GpuCompositing;
         _loadingPerformance = false;
+        RefreshGpuCompositeHint();
         RefreshMeasured();
+    }
+
+    private void OnGpuCompositeChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingPerformance || _vm is null) return;
+        _vm.GpuCompositing = GpuCompositeBox.IsChecked == true;
+        RefreshGpuCompositeHint();
+        RefreshMeasured();
+    }
+
+    /// <summary>
+    /// Say what will actually happen, rather than only what was asked for.
+    /// </summary>
+    /// <remarks>
+    /// <b>The status bar reading "GPU" and meaning only that Avalonia can blit
+    /// misled the owner once already</b>, and B125's entry records it as part of
+    /// the bug rather than incidental to it. So this distinguishes three states
+    /// the checkbox alone cannot: asked for and running, asked for and refused
+    /// because the machine has no graphics context, and asked for but not
+    /// reached because nothing takes the GPU route in the current view.
+    /// </remarks>
+    private void RefreshGpuCompositeHint()
+    {
+        if (_vm is null) return;
+        if (GpuCompositeBox.IsChecked != true)
+        {
+            GpuCompositeHint.Text = "Layers are blended on the processor.";
+            return;
+        }
+
+        if (Rendering.CanvasControl.SoftwareRendering == true)
+        {
+            GpuCompositeHint.Text =
+                "This machine is presenting in software, so there is no graphics card to "
+                + "blend on and the processor will keep doing it. Nothing will change.";
+            return;
+        }
+
+        GpuCompositeHint.Text =
+            "On. Only takes effect when the canvas is zoomed in past the edges of the "
+            + "document — a fit-to-window view composites the whole canvas the old way. "
+            + "Play a scene back, then Help ▸ Write a render report to see what it did.";
     }
 
     private void RefreshMeasured()
