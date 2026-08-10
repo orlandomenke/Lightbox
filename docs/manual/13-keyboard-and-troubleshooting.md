@@ -282,6 +282,10 @@ frame cache               500 MB held of 512 MB
   served from memory      300
   had to render           900  (75%)
   thrown out              850
+flattened tiles           64 MB held of 128 MB
+  reused a flatten        420  (58%)
+  had to flatten          300
+  thrown out              12
 playback ticks            120
   Thumbnails             never ran
   Highlights                0.2 ms/tick   worst    0.6 ms   (120 of 120 ticks)
@@ -305,6 +309,13 @@ Two lines to read first:
   *Frame cache* overrides it in either direction: raise it if you have memory
   spare and long scenes, lower it if something else on the machine needs the
   room.
+- **reused a flatten** — while a sequence plays, most drawings are not changing:
+  a layer on 2s shows the same drawing two frames running, and a background may
+  not change all scene. Lightbox keeps the assembled picture of a drawing so it
+  only has to be put together once, and this is how often that worked. A high
+  percentage is the normal, healthy case and needs nothing from you. A low one
+  usually means the view is moving — panning or zooming while playing changes
+  what has to be assembled every single frame, so nothing can be reused.
 - **ms/tick against your frame period** — 83 ms at 12 fps, 42 at 24. Any single
   phase approaching that makes the clock late whatever else is true, and the
   lateness reported above it is the consequence rather than a second fault.

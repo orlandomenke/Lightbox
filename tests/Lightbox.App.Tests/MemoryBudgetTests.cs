@@ -42,18 +42,20 @@ public class MemoryBudgetTests(ITestOutputHelper output)
         var frames = Math.Clamp(MemoryBudget.MinimumSpecBytes / 8, 256 * Mb, 4 * Gb);
         var tiles = Math.Clamp(MemoryBudget.MinimumSpecBytes / 32, 128 * Mb, 2 * Gb);
         var textures = Math.Clamp(MemoryBudget.MinimumSpecBytes / 16, 64 * Mb, 1 * Gb);
-        var total = frames + tiles + textures;
+        var flats = Math.Clamp(MemoryBudget.MinimumSpecBytes / 64, 64 * Mb, 512 * Mb);
+        var total = frames + tiles + textures + flats;
 
         output.WriteLine($"on the 8 GB minimum spec: frames {frames / Mb} MB, tiles {tiles / Mb} MB, " +
-                         $"textures {textures / Mb} MB — {total / Mb} MB of " +
+                         $"textures {textures / Mb} MB, flattens {flats / Mb} MB — {total / Mb} MB of " +
                          $"{MemoryBudget.MinimumSpecBytes / Mb} MB");
         output.WriteLine($"available on this machine: {MemoryBudget.Available / Mb} MB");
 
-        // All three at once is the worst case rather than the usual one — the
-        // bitmap and tile caches hold the same frames by two routes, and the
-        // textures only fill with GPU compositing switched on. But the worst case
-        // is what a minimum-spec machine has to survive, and it must leave room
-        // for the document, the undo history and the operating system.
+        // All four at once is the worst case rather than the usual one — the
+        // bitmap and tile caches hold the same frames by two routes, the flattens
+        // are derived from the tiles, and the textures only fill with GPU
+        // compositing switched on. But the worst case is what a minimum-spec
+        // machine has to survive, and it must leave room for the document, the
+        // undo history and the operating system.
         Assert.True(total < MemoryBudget.MinimumSpecBytes / 4,
             $"the caches would claim {total / Mb} MB of the {MemoryBudget.MinimumSpecBytes / Mb} MB " +
             "minimum spec between them, which is more than a quarter");
@@ -113,11 +115,16 @@ public class MemoryBudgetTests(ITestOutputHelper output)
         var textures = MemoryBudget.LayerTextures();
 
         var tiles = MemoryBudget.TileCache();
+        var flats = MemoryBudget.FlattenCache();
 
         output.WriteLine($"frame cache {frames / Mb} MB, tiles {tiles / Mb} MB, " +
-                         $"layer textures {textures / Mb} MB");
+                         $"flattens {flats / Mb} MB, layer textures {textures / Mb} MB");
         Assert.InRange(frames, 256 * Mb, 4 * Gb);
         Assert.InRange(tiles, 128 * Mb, 2 * Gb);
+        Assert.InRange(flats, 64 * Mb, 512 * Mb);
+        // The cheapest miss gets the smallest budget: a flatten miss composites
+        // tiles already in memory, where a frame-cache miss replays a whole frame.
+        Assert.True(flats <= tiles);
         Assert.InRange(textures, 64 * Mb, 1 * Gb);
         // Textures are meaner than frames on purpose: on integrated graphics they
         // are the same memory the compositor is already competing for.

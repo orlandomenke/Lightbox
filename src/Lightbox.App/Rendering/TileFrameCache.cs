@@ -49,7 +49,48 @@ public sealed class TileFrameCache : IDisposable
     /// </remarks>
     public static long ByteBudget { get; set; } = Services.MemoryBudget.TileCache();
 
-    private sealed record Entry(TileStore Store, TilePyramid Pyramid);
+    private sealed record Entry(TileStore Store, TilePyramid Pyramid, long Stamp);
+
+    /// <summary>
+    /// Ever-increasing, and <b>static on purpose</b>: a stamp must be unique
+    /// across every cache instance in the process, because a downstream cache
+    /// keyed on one outlives any single <see cref="TileFrameCache"/>.
+    /// </summary>
+    private static long _stamps;
+
+    /// <summary>
+    /// A number identifying this frame's tiles <em>as they currently stand</em>,
+    /// or 0 when they are not held. Anything derived from the tiles keys on it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B167 phase 2 needs a version, and neither obvious candidate works.</b>
+    /// Frame id alone is wrong because <see cref="Append"/> stamps a committed
+    /// stroke into the tiles <em>in place</em> — the same trap
+    /// <see cref="LayerStackBake"/> documents one level up, where an instance
+    /// survives its pixels changing. And the <see cref="TilePyramid"/> instance,
+    /// which <see cref="Append"/> does replace, is disposed when it is replaced:
+    /// keying on it would mean holding a reference to a disposed object to
+    /// compare against.
+    /// </para>
+    /// <para>
+    /// <b>A per-frame counter restarting at zero is the version of this that is
+    /// subtly wrong</b>, and it is worth writing down because it looks right.
+    /// Invalidate a changed frame, let <see cref="Get"/> rebuild it, and a
+    /// per-entry counter is back at zero — matching a derived entry cached
+    /// before the change, whose pixels are now wrong. A single counter that only
+    /// ever goes up cannot collide with anything it has already issued, so a
+    /// stale derived entry simply never matches and ages out of its own LRU.
+    /// </para>
+    /// <para>
+    /// <b>An eviction and a rebuild from the same record return a new stamp for
+    /// pixels that are identical</b>, which costs one re-flatten and is the safe
+    /// direction. Making it cheaper would mean hashing the strokes, which costs
+    /// more than the flatten it saves.
+    /// </para>
+    /// </remarks>
+    public long StampOf(string frameId) =>
+        _map.TryGetValue(frameId, out var node) ? node.Value.Entry.Stamp : 0;
 
     private readonly Dictionary<string, LinkedListNode<(string Id, Entry Entry)>> _map = [];
     private readonly LinkedList<(string Id, Entry Entry)> _lru = [];
@@ -88,7 +129,7 @@ public sealed class TileFrameCache : IDisposable
         }
 
         var (store, pyramid) = RenderDetached(frame, width, height);
-        var entry = new Entry(store, pyramid);
+        var entry = new Entry(store, pyramid, ++_stamps);
 
         var fresh = _lru.AddFirst((frame.Id, entry));
         _map[frame.Id] = fresh;
@@ -143,7 +184,7 @@ public sealed class TileFrameCache : IDisposable
         if (_map.ContainsKey(frame.Id)) return false;
         if (AllocatedBytes + store.AllocatedBytes > ByteBudget) return false;
 
-        var node = _lru.AddLast((frame.Id, new Entry(store, pyramid)));
+        var node = _lru.AddLast((frame.Id, new Entry(store, pyramid, ++_stamps)));
         _map[frame.Id] = node;
         AllocatedBytes += store.AllocatedBytes;
         return true;
@@ -175,7 +216,9 @@ public sealed class TileFrameCache : IDisposable
         // patch. Levels are lazy, so this costs nothing until a zoomed-out
         // publish next asks for one.
         entry.Pyramid.Dispose();
-        var replaced = new Entry(entry.Store, new TilePyramid(entry.Store));
+        // A new stamp, because the tiles under it just changed. Anything derived
+        // from them (B167 phase 2's flattened bitmaps) stops matching here.
+        var replaced = new Entry(entry.Store, new TilePyramid(entry.Store), ++_stamps);
         node.Value = (frame.Id, replaced);
         Evict();
     }

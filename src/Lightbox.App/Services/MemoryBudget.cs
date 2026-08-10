@@ -138,6 +138,27 @@ internal static class MemoryBudget
         Share(1.0 / 32, 128L * 1024 * 1024, 2L * 1024 * 1024 * 1024);
 
     /// <summary>
+    /// Flattened viewport bitmaps for the tiled route (B167 phase 2).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A sixty-fourth — the meanest share, and on the merits rather than to
+    /// make the sum fit.</b> What a miss costs is what sizes a cache, and this is
+    /// the cheapest miss of the four: one composite of tiles that are already in
+    /// memory. A frame-cache miss, at the other end, replays a whole frame from
+    /// its stroke record, which is the most expensive thing that happens per
+    /// frame — so that one gets an eighth and this one gets an eighth of that.
+    /// </para>
+    /// <para>
+    /// The floor is 64 MB, which holds a handful of FullHD viewports — enough for
+    /// the held layers of one playback frame, which is the working set that makes
+    /// the cache worth having at all.
+    /// </para>
+    /// </remarks>
+    internal static long FlattenCache() =>
+        Share(1.0 / 64, 64L * 1024 * 1024, 512L * 1024 * 1024);
+
+    /// <summary>
     /// Layer rasters kept resident on the graphics card (B125 stage 5).
     /// </summary>
     /// <remarks>
