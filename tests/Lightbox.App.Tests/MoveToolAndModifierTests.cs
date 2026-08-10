@@ -369,7 +369,11 @@ public class MoveToolAndModifierTests : BrushStateIsolated
 
         Assert.Equal(ShapeKind.Ellipse, vm.ActiveShape);
         Assert.Equal(ToolId.Shape, vm.ActiveTool);
-        Assert.Equal("◯", vm.ShapeGlyph);
+        // The button's icon follows the choice. It was the character U+25EF
+        // until the shape variants got drawn glyphs of their own.
+        Assert.Equal(Lightbox.App.Rendering.IconSet.Resolve(
+            Lightbox.App.Rendering.IconSet.ShapeEllipse), vm.ShapeGlyph);
+        Assert.NotNull(vm.ShapeGlyph);
     }
 
     [AvaloniaFact]

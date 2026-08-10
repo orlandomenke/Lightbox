@@ -1338,7 +1338,7 @@
                 <Panel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                   <StackPanel Orientation="Horizontal" Spacing="6"
                               HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding ShapeGlyph}" FontSize="15" />
+                    <Path Data="{Binding ShapeGlyph}" />
                     <TextBlock Text="Shape" Classes="toolname" VerticalAlignment="Center" />
                   </StackPanel>
                   <Path Classes="variantmark" />
@@ -1373,7 +1373,7 @@
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Arrow}"
                             ToolTip.Tip="Arrow (A) — click to select a whole line, a guide, a placed symbol or a rig anchor. Shift adds. Selects things, not areas of pixels.">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="➤" FontSize="15" />
+                  <Path Data="{StaticResource IconArrow}" />
                   <TextBlock Text="Arrow" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
@@ -1386,7 +1386,7 @@
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.DirectSelect}"
                             ToolTip.Tip="Direct select (N) — reshape one line by its points. Double-click a line with the arrow to go inside it, drag its points and handles, Esc to finish.">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="➢" FontSize="15" />
+                  <Path Data="{StaticResource IconPoints}" />
                   <TextBlock Text="Points" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
@@ -1412,7 +1412,7 @@
                 <Panel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                   <StackPanel Orientation="Horizontal" Spacing="6"
                               HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding SelectVariantGlyph}" FontSize="15" />
+                    <Path Data="{Binding SelectVariantGlyph}" />
                     <TextBlock Text="Select" Classes="toolname" VerticalAlignment="Center" />
                   </StackPanel>
                   <Path Classes="variantmark" />
@@ -1466,6 +1466,7 @@
 
         <Panel x:Name="CanvasHost" Grid.Row="0">
           <render:CanvasControl x:Name="Canvas" BrushCursorSize="{Binding BrushCursorDiameter}" LazyRadius="{Binding LazyRadiusForCursor}"
+                                PointerIntent="{Binding PointerIntent}"
                                 BrushCursorTipId="{Binding BrushCursorTipId}"
                                 BrushCursorRoundness="{Binding BrushCursorRoundness}"
                                 BrushCursorAngle="{Binding BrushCursorAngle}" />
