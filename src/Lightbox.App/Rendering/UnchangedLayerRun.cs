@@ -143,6 +143,35 @@ internal static class UnchangedLayerRun
     }
 
     /// <summary>
+    /// Whether every visible layer exposes the same drawing at both playhead
+    /// positions.
+    /// </summary>
+    /// <remarks>
+    /// <b>Deliberately not <see cref="Depth"/> compared against
+    /// <see cref="VisibleLayers"/>, and the difference is a real one.</b> Depth
+    /// stops at a blend that reads what is beneath it, because such a layer
+    /// cannot be pre-folded — associativity is what licenses folding. Nothing
+    /// about that applies to asking whether the picture changed: a held Multiply
+    /// shadow is exactly as unchanged as a held SrcOver one. Reusing Depth here
+    /// would quietly exclude every document with a Multiply layer near the bottom
+    /// from a saving it is fully entitled to.
+    /// </remarks>
+    internal static bool NothingExposedChanged(Scene scene, int fromFrame, int toFrame)
+    {
+        foreach (var layer in scene.Layers)
+        {
+            if (!scene.IsLayerVisible(layer)) continue;
+            if (!ReferenceEquals(
+                    ExposureSheet.ExposedFrame(layer, fromFrame),
+                    ExposureSheet.ExposedFrame(layer, toFrame)))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
     /// How many visible layers the compositor would blend at a playhead position.
     /// </summary>
     internal static int VisibleLayers(Scene scene)
