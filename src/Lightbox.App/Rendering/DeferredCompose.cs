@@ -64,7 +64,8 @@ public readonly record struct DeferredCompose(
     SKColor Background,
     double RenderScale,
     SKImageInfo Info,
-    SKRectI Viewport)
+    SKRectI Viewport,
+    bool Tiled = false)
 {
     /// <summary>
     /// Perform it. On the render thread, with the context from the lease when
@@ -83,6 +84,18 @@ public readonly record struct DeferredCompose(
     /// </param>
     public SKImage Compose(GRContext? gpu, LayerTextureCache? textures, out bool gpuBacked)
     {
+        if (Tiled)
+        {
+            // The route playback takes (B167 phase 3b). Its geometry is not this
+            // one's — passes draw clamped to the viewport, references carry their
+            // own matrix, and tile passes have already been flattened into
+            // matrix'd bitmaps by the publisher. Kept as a separate body rather
+            // than merged into the one below, because merging two compose bodies
+            // is where pixels drift and nothing would say so.
+            return SceneRenderer.ComposeUnbounded(
+                Passes, Background, RenderScale, Viewport, gpu, textures, out gpuBacked);
+        }
+
         using var surface = GpuComposite.CreateSurface(gpu, Info, out gpuBacked);
         // Residency is a GPU-only optimisation, and the condition is deliberately
         // `gpuBacked` rather than `gpu is not null`: an allocation the driver

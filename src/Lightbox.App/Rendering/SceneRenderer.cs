@@ -344,4 +344,183 @@ public static class SceneRenderer
     /// Multiply and a layer's Multiply have to be the same thing.
     /// </summary>
     public static SKBlendMode ToSkia(LayerBlendMode mode) => BlendModes.ToSkia(mode);
+
+    /// <summary>Linear sampling, as the view model used for these draws.</summary>
+    private static readonly SKSamplingOptions Linear = new(SKFilterMode.Linear);
+
+    /// <summary>
+    /// Composite a viewport's worth of passes — the route playback takes
+    /// (B167 phase 3b).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Moved here from the view model unchanged.</b> It had already become a
+    /// pure function of its arguments: phase 3a took the tile branch out, and
+    /// with it the last read of <c>_tileFrames</c>, so nothing was left that
+    /// belonged to a view model. <c>scene</c>, <c>seq</c> and <c>cameraView</c>
+    /// were parameters it no longer used at all.
+    /// </para>
+    /// <para>
+    /// <b>Being here is what lets the draw op call it</b>, which is the whole of
+    /// phase 3b: playback's composite now happens on the render thread, where the
+    /// graphics context is, instead of on the UI thread. Phase 1 measured the
+    /// blending it does at roughly two thirds of Compose — 42.7 ms/tick at 1080p
+    /// and 54.6 ms at 4K — which is why this route rather than the culled one.
+    /// </para>
+    /// <para>
+    /// <b>The GPU surface and resident textures come free with the move (phase 4).</b>
+    /// Both are the same machinery the culled route already used, and both are
+    /// off unless the artist has switched GPU compositing on.
+    /// </para>
+    /// </remarks>
+    internal static SKImage ComposeUnbounded(
+        IReadOnlyList<RenderPass> passes,
+        SKColor background,
+        double renderScale,
+        SKRectI viewport,
+        GRContext? gpu,
+        LayerTextureCache? textures,
+        out bool gpuBacked)
+    {
+        var info = new SKImageInfo(
+            Math.Max(1, (int)Math.Ceiling(viewport.Width * renderScale)),
+            Math.Max(1, (int)Math.Ceiling(viewport.Height * renderScale)),
+            SKColorType.Rgba8888,
+            SKAlphaType.Premul);
+
+        using var surface = GpuComposite.CreateSurface(gpu, info, out gpuBacked);
+        // Residency is GPU-only and the condition is gpuBacked rather than "there
+        // is a context": a refused allocation falls back to a CPU surface, and
+        // drawing textures onto that would read back across the bus every pass.
+        var resident = gpuBacked && gpu is not null ? textures : null;
+        var canvas = surface.Canvas;
+        canvas.Clear(background);
+
+        // Document space under the viewport: everything below draws in
+        // document coordinates and lands where the artist is looking.
+        canvas.Save();
+        canvas.Scale((float)renderScale);
+        canvas.Translate(-viewport.Left, -viewport.Top);
+
+        foreach (var pass in passes)
+        {
+            if (pass.Bitmap is null && pass.SourceFrame is null) continue;
+
+            var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
+            using var paint = new SKPaint
+            {
+                Color = SKColors.White.WithAlpha(alpha),
+                BlendMode = pass.Blend,
+            };
+            if (pass.Tint is { } tint)
+            {
+                paint.ColorFilter = SKColorFilter.CreateBlendMode(tint, SKBlendMode.SrcIn);
+            }
+
+            // Mirrors SceneRenderer.DrawPass: an eraser overlay or a
+            // translucent/blended layer combines with its own layer before
+            // meeting the stack.
+            var needsIsolation = pass.Overlay is { Erases: true }
+                || alpha != 255
+                || pass.Blend != SKBlendMode.SrcOver;
+            if (needsIsolation) canvas.SaveLayer(paint);
+            var contentPaint = needsIsolation ? null : paint;
+
+            if (pass.SourceFrame is not null)
+            {
+                // Pre-resolved before the composite (B167 phase 3): a tile-native
+                // pass is flattened into a bitmap with a placement matrix by
+                // FlattenTilePasses, so nothing here needs the tile cache. That is
+                // what lets this whole body move to the render thread — the cache
+                // lives on the view model and the draw op cannot reach it.
+                //
+                // Reaching here means something published a tile pass without
+                // going through that step. Skipping is what the bounded
+                // compositor already does with one, so it stays a vanished layer
+                // rather than a crash — but it should not happen.
+                continue;
+            }
+            else if (pass.Matrix is { } m)
+            {
+                // A positioned pass — a reference strip. Its matrix nests
+                // inside the viewport transform, exactly as it nests inside
+                // the scene transform on the bounded path.
+                canvas.Save();
+                canvas.Concat(m);
+                DrawWhole(canvas, pass, contentPaint);
+                canvas.Restore();
+            }
+            else if (pass.Source is not null)
+            {
+                DrawWhole(canvas, pass, contentPaint);
+            }
+            else
+            {
+                // The ordinary layer: draw only the part the viewport can
+                // see. The source rectangle is clamped to the bitmap — the
+                // viewport of an unbounded canvas extends past every edge of
+                // the nominal document, and a source rect off the bitmap is
+                // undefined rather than transparent.
+                var src = SKRectI.Intersect(
+                    viewport, SKRectI.Create(0, 0, pass.Bitmap!.Width, pass.Bitmap.Height));
+                if (src.Width > 0 && src.Height > 0)
+                {
+                    var dst = SKRect.Create(src.Left, src.Top, src.Width, src.Height);
+                    if (resident?.Resident(gpu!, pass.Bitmap) is { } texture)
+                    {
+                        canvas.DrawImage(texture, src, dst, Linear, contentPaint);
+                    }
+                    else
+                    {
+                        using var img = SKImage.FromBitmap(pass.Bitmap);
+                        if (img is not null) canvas.DrawImage(img, src, dst, Linear, contentPaint);
+                    }
+                }
+            }
+
+            if (pass.Overlay is { } overlay)
+            {
+                using var strokePaint = new SKPaint
+                {
+                    Color = SKColors.White.WithAlpha(
+                        (byte)Math.Round(Math.Clamp(overlay.Opacity, 0, 1) * 255)),
+                    BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+                };
+                var src = SKRectI.Intersect(
+                    viewport,
+                    SKRectI.Create(0, 0, overlay.Scratch.Width, overlay.Scratch.Height));
+                if (src.Width > 0 && src.Height > 0)
+                {
+                    using var scratch = SKImage.FromBitmap(overlay.Scratch);
+                    if (scratch is not null)
+                    {
+                        canvas.DrawImage(
+                            scratch, src,
+                            SKRect.Create(src.Left, src.Top, src.Width, src.Height),
+                            Linear, strokePaint);
+                    }
+                }
+            }
+
+            if (needsIsolation) canvas.Restore();
+        }
+
+        canvas.Restore();
+        canvas.Flush();
+        return surface.Snapshot();
+    }
+    private static void DrawWhole(SKCanvas canvas, RenderPass pass, SKPaint? paint)
+    {
+        using var img = SKImage.FromBitmap(pass.Bitmap);
+        if (img is null) return;
+        if (pass.Source is { } window)
+        {
+            canvas.DrawImage(
+                img, window, SKRect.Create(window.Width, window.Height), Linear, paint);
+        }
+        else
+        {
+            canvas.DrawImage(img, 0, 0, Linear, paint);
+        }
+    }
 }
