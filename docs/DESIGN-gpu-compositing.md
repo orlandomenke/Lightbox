@@ -138,20 +138,29 @@ hardware.
 
 1. **A lifetime protocol for published passes**, per the crux above. Nothing
    crosses a thread until this exists.
-2. **Pass list to the render thread.** `RenderSnapshot` grows a pass-list form
+2. **The pixel-identity harness.** `ComposeIdentityTests.Bytes` composes a pass
+   list and reads the pixels out; the inversion is measured against it. Built
+   before the plumbing on purpose — "looks the same" is not a claim this project
+   accepts, and nothing could assert on a composite while B156–B164 were being
+   diagnosed from field captures. It already carries three properties: the
+   composite is deterministic, a clipped compose matches an unclipped one inside
+   the clip, and **a full compose into a dirty surface matches a fresh one** —
+   the stale-buffer hazard `PublishSnapshot` describes and admits it never
+   tested.
+3. **Pass list to the render thread.** `RenderSnapshot` grows a pass-list form
    beside its image; the canvas composites CPU-side from passes inside the draw
    op. No GPU yet, no behaviour change, and the render must stay pixel-identical
    — `PresentLatency`, retired-image disposal and the durable frame all assume an
    `SKImage` today.
-3. **GPU surface, CPU-uploaded passes.** Composite into a GPU surface from the
+4. **GPU surface, CPU-uploaded passes.** Composite into a GPU surface from the
    lease, uploading pass bitmaps per frame. Almost certainly *slower* than today
    on some hardware — the point is to measure the upload, which is the number the
    whole design rests on.
-4. **Resident layer textures.** Cache uploaded tiles, invalidated by the drawing
+5. **Resident layer textures.** Cache uploaded tiles, invalidated by the drawing
    rather than the playhead. This is where the win actually arrives.
-5. **Retire the display-side `ComposeRing`** once nothing reads a composed image.
+6. **Retire the display-side `ComposeRing`** once nothing reads a composed image.
 
-Stage 3 is a gate. If the upload dominates on an integrated GPU, stage 4's
+Stage 4 is a gate. If the upload dominates on an integrated GPU, stage 5's
 invalidation design is what has to carry it, and the estimate for the whole
 changes.
 
