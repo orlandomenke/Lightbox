@@ -147,7 +147,10 @@ hardware.
    the clip, and **a full compose into a dirty surface matches a fresh one** —
    the stale-buffer hazard `PublishSnapshot` describes and admits it never
    tested.
-3. **Pass list to the render thread.** `RenderSnapshot` grows a pass-list form
+3. **Pass list to the render thread.** The pass builder is now a unit
+   (`ScenePassBuilder`, B166's first seam) rather than 230 lines inside
+   `PublishSnapshot`, which is what makes this stage's diff readable against the
+   concern. `RenderSnapshot` grows a pass-list form
    beside its image; the canvas composites CPU-side from passes inside the draw
    op. No GPU yet, no behaviour change, and the render must stay pixel-identical
    — `PresentLatency`, retired-image disposal and the durable frame all assume an
