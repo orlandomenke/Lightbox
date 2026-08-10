@@ -83,6 +83,12 @@ public sealed partial class MainViewModel : ObservableObject
     internal long BitmapCacheBytes => _cache.CachedBytes;
 
     /// <summary>
+    /// How many cached bitmaps published snapshots are currently holding
+    /// (B125 stage 3). Zero when nothing is in flight.
+    /// </summary>
+    internal int PinnedPassBitmaps => _cache.PinnedCount;
+
+    /// <summary>
     /// Rasterizes the frames playback is about to show, off the UI thread.
     /// </summary>
     /// <remarks>
@@ -10770,6 +10776,52 @@ public sealed partial class MainViewModel : ObservableObject
 
     private Func<Frame, ScenePassBuilder.TransformSplit?>? _passTransformSplit;
 
+    /// <summary>
+    /// Hold every cached bitmap a published pass list borrows, and give back the
+    /// release that lets go of them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The lifetime protocol B125 stage 1 built and nothing had yet used.</b>
+    /// A pass carries an <see cref="SKBitmap"/> the frame cache owns, and cache
+    /// eviction disposes it. While the composite was synchronous on this thread
+    /// that was safe by construction — only the finished image crossed, and
+    /// <c>CanvasControl._retired</c> managed its lifetime. A published pass list
+    /// outlives the call, so an eviction between publish and render would free
+    /// pixels Skia is about to read: a use-after-free in native code, which is
+    /// B130's exact signature — no managed stack, an empty crash log, and
+    /// "Lightbox dies as soon as I touch anything".
+    /// </para>
+    /// <para>
+    /// <b>Counted rather than flagged</b>, because one bitmap can be in two live
+    /// pass lists at once — the same cel exposed on two layers, or a publish
+    /// overlapping the one before it — and a boolean would free it on the first
+    /// release while the second reader was still going.
+    /// </para>
+    /// <para>
+    /// Bitmaps the cache does not own (the live scratch, a bake) pass through
+    /// harmlessly: a pin the cache never evicts is a dictionary entry that the
+    /// release takes straight back out.
+    /// </para>
+    /// </remarks>
+    private Action PinPasses(List<RenderPass> passes)
+    {
+        // One list per publish, sized to the passes rather than grown. A publish
+        // runs per pointer event while drawing, so this is on the drawing path.
+        var held = new List<SKBitmap>(passes.Count);
+        for (var i = 0; i < passes.Count; i++)
+        {
+            if (passes[i].Bitmap is not { } bmp) continue;
+            _cache.Pin(bmp);
+            held.Add(bmp);
+        }
+
+        return () =>
+        {
+            for (var i = 0; i < held.Count; i++) _cache.Unpin(held[i]);
+        };
+    }
+
     /// <summary>Composite the scene for the current playhead and hand it to the view.</summary>
     public void PublishSnapshot()
     {
@@ -10935,7 +10987,8 @@ public sealed partial class MainViewModel : ObservableObject
             handler(new RenderSnapshot(
                 image, (int)viewWidth, (int)viewHeight, seq, imageCovers,
                 SnapshotGeometry.ChangedInImageSpace(
-                    usedClip, imageCovers, renderScale, throughCamera: cameraView is not null)));
+                    usedClip, imageCovers, renderScale, throughCamera: cameraView is not null),
+                passes, PinPasses(passes)));
         }
         else
         {
