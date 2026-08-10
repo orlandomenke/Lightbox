@@ -10861,25 +10861,23 @@ public sealed partial class MainViewModel : ObservableObject
         var composeScope = Profile(_profilingTick, Services.TickProfile.Phase.Compose);
         SKRectI? usedClip = null;
 
-        // Which document rectangle the finished image actually covers. Null means
-        // the whole document — the painter needs this to place the image, and it
-        // is a property of the image rather than of what the canvas asked for.
-        SKRectI? imageCovers = null;
+        // Which document rectangle the finished image actually covers. Decided by
+        // the route rather than set in each branch, so it cannot disagree with the
+        // surface it describes.
+        var imageCovers = plan.ImageCovers;
 
         SKImage image;
         if (plan.Route == ComposeRoute.Unbounded)
         {
             // Unbounded canvas: use tiled compositing for only visible viewport
             image = ComposeUnboundedSnapshot(scene, passes, background, renderScale, cameraView, seq);
-            usedClip = _pendingViewport;
-            imageCovers = _pendingViewport;
+            usedClip = imageCovers;
         }
         else if (plan.CullRect is { } cullRect)
         {
             // B82: bounded canvas, culled to the clamped visible rectangle.
             image = ComposeViewportCulled(passes, background, renderScale, info, cullRect);
             usedClip = cullRect;
-            imageCovers = cullRect;
             // This publish went around the ring, so every buffer in it now holds
             // an older frame than the artist is looking at. ComposeRing decides
             // what to repaint from its own staleness, so a buffer that believes
@@ -10936,7 +10934,8 @@ public sealed partial class MainViewModel : ObservableObject
             // is what every uncalled path produces.
             handler(new RenderSnapshot(
                 image, (int)viewWidth, (int)viewHeight, seq, imageCovers,
-                ChangedInImageSpace(usedClip, imageCovers, renderScale, cameraView)));
+                SnapshotGeometry.ChangedInImageSpace(
+                    usedClip, imageCovers, renderScale, throughCamera: cameraView is not null)));
         }
         else
         {
@@ -11266,55 +11265,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     private static int FloorDiv(int a, int b) => a >= 0 ? a / b : (a - b + 1) / b;
 
-    /// <summary>
-    /// Convert the document rectangle a publish repainted into the image's own
-    /// pixel space, for <see cref="PresentedFrame"/> to patch (B122).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Two transforms and one refusal. The rectangle is offset by whatever the
-    /// image covers — a culled image starts at the viewport's corner rather than
-    /// the document's — and then scaled by <paramref name="renderScale"/>, since
-    /// the surface may be smaller than the document. It is grown by a pixel on
-    /// every side afterwards, because the composite's own edges are antialiased
-    /// and a patch that is exact to the rectangle can leave a seam.
-    /// </para>
-    /// <para>
-    /// The refusal is the important part: <b>under a camera this returns null</b>.
-    /// A camera maps the document through an arbitrary matrix, so a document
-    /// rectangle is not an axis-aligned image rectangle at all, and a wrong
-    /// rectangle here would show stale pixels rather than merely cost a repaint.
-    /// Null is always safe — it means "repaint everything" — so anything this
-    /// function is not certain about must return it.
-    /// </para>
-    /// </remarks>
-    private static SKRectI? ChangedInImageSpace(
-        SKRectI? changedInDoc, SKRectI? imageCovers, double renderScale, SKMatrix44? cameraView)
-    {
-        if (cameraView is not null) return null;
-        if (changedInDoc is not { } doc) return null;
-        if (!double.IsFinite(renderScale) || renderScale <= 0) return null;
-
-        var offsetX = imageCovers?.Left ?? 0;
-        var offsetY = imageCovers?.Top ?? 0;
-        var left = (int)Math.Floor((doc.Left - offsetX) * renderScale) - 1;
-        var top = (int)Math.Floor((doc.Top - offsetY) * renderScale) - 1;
-        var right = (int)Math.Ceiling((doc.Right - offsetX) * renderScale) + 1;
-        var bottom = (int)Math.Ceiling((doc.Bottom - offsetY) * renderScale) + 1;
-        if (right <= left || bottom <= top) return null;
-        return new SKRectI(left, top, right, bottom);
-    }
-
-    /// <summary>
-    /// Intersect a reported viewport with the document, or null when there is no
-    /// viewport or nothing of it overlaps the canvas.
-    /// </summary>
-    /// <remarks>
-    /// A zoomed-out view reports a rectangle far larger than the document — the
-    /// canvas corners map outside the canvas, which is correct and is not a
-    /// rectangle anything may composite from. Clamping is what makes the
-    /// rectangle usable as a source rect and as a surface size.
-    /// </remarks>
     /// <summary>
     /// B82: compose only the visible rectangle of a bounded canvas, so the cost
     /// is proportional to what the artist can see rather than to the document.

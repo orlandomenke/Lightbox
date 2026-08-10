@@ -58,12 +58,22 @@ internal enum ComposeRoute
 /// off its mark (<c>CursorAlignmentTests</c> measures how far).
 /// </param>
 /// <param name="ViewHeight">As <paramref name="ViewWidth"/>.</param>
+/// <param name="ImageCovers">
+/// Which document rectangle the finished image actually covers, or null for the
+/// whole document. A property of the image rather than of what the canvas asked
+/// for — the painter needs it to place the result, and
+/// <see cref="SnapshotGeometry.ChangedInImageSpace"/> needs it to offset the
+/// patch rectangle. Derived here because it is decided by the route: the raw
+/// viewport when unbounded, the clamped rectangle when culled, and nothing at
+/// all when the ring composes the whole document.
+/// </param>
 internal readonly record struct ComposePlan(
     ComposeRoute Route,
     SKImageInfo Info,
     SKRectI? CullRect,
     int ViewWidth,
-    int ViewHeight)
+    int ViewHeight,
+    SKRectI? ImageCovers)
 {
     /// <summary>
     /// Decide the route and the surface.
@@ -143,7 +153,18 @@ internal readonly record struct ComposePlan(
             : culled ? ComposeRoute.ViewportCulled
             : ComposeRoute.Ring;
 
-        return new ComposePlan(route, info, culled ? clamped : null, viewWidth, viewHeight);
+        // The unbounded compositor maps the RAW viewport itself rather than the
+        // clamped one — its canvas has no edges to clamp against, which is the
+        // whole point of it.
+        var covers = route switch
+        {
+            ComposeRoute.Unbounded => viewport,
+            ComposeRoute.ViewportCulled => clamped,
+            _ => null,
+        };
+
+        return new ComposePlan(
+            route, info, culled ? clamped : null, viewWidth, viewHeight, covers);
     }
 
     /// <summary>
