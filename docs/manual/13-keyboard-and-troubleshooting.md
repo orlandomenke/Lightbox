@@ -296,6 +296,15 @@ Two lines to read first:
   bigger than the memory set aside for it, and the app is re-drawing frames it
   had already drawn. Fewer frames in the range you are looping, or a smaller
   canvas, is what helps.
+
+  **The size the cache is allowed to reach depends on your machine**, so the
+  number after *of* will not match the example above — Lightbox takes a share of
+  the memory you actually have rather than a figure fixed in advance, which is
+  why the same scene can play smoothly on one computer and re-render on another
+  with no setting different between them. Edit ▸ Configure ▸ Performance ▸
+  *Frame cache* overrides it in either direction: raise it if you have memory
+  spare and long scenes, lower it if something else on the machine needs the
+  room.
 - **ms/tick against your frame period** — 83 ms at 12 fps, 42 at 24. Any single
   phase approaching that makes the clock late whatever else is true, and the
   lateness reported above it is the consequence rather than a second fault.

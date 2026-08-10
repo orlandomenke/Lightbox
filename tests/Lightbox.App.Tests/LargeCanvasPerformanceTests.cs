@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
+using Lightbox.App.Rendering;
 using Lightbox.App.ViewModels;
 
 namespace Lightbox.App.Tests;
@@ -267,24 +268,53 @@ public class LargeCanvasPerformanceTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// The frame cache is bounded by <em>bytes</em>, not by a frame count.
+    /// </summary>
+    /// <remarks>
+    /// <b>This asserted <c>&lt; 900 MB</c> against a budget that was hardcoded at
+    /// 512 MB, and derived budgets broke it.</b> The number was never the point —
+    /// on a large machine the budget is now 4 GB, 24 4K frames fit inside it, and
+    /// nothing is evicted because nothing needs to be. That is the cache working.
+    /// So the budget is pinned for the duration and the assertion made against
+    /// the budget rather than against a constant: what this proves is that
+    /// twenty-four 4K frames (800 MB if a count-based cache held them all) stay
+    /// inside whatever ceiling they were given.
+    /// </remarks>
     [AvaloniaFact]
     public void FourK_FrameCache_StaysWithinItsMemoryBudget()
     {
-        var vm = Vm4K();
-        // Fill enough frames that a count-based cache would balloon: 24 4K
-        // frames would be 800 MB.
-        for (var i = 0; i < 24; i++)
+        var previous = FrameBitmapCache.ByteBudget;
+        FrameBitmapCache.ByteBudget = 512L * 1024 * 1024;
+        try
         {
-            vm.AddFrameCommand.Execute(null);
-            vm.BeginStroke(200 + i * 8, 200, 1);
-            vm.MoveStroke(260 + i * 8, 260, 1);
-            vm.EndStroke();
+            var vm = Vm4K();
+            // Fill enough frames that a count-based cache would balloon: 24 4K
+            // frames would be 800 MB.
+            for (var i = 0; i < 24; i++)
+            {
+                vm.AddFrameCommand.Execute(null);
+                vm.BeginStroke(200 + i * 8, 200, 1);
+                vm.MoveStroke(260 + i * 8, 260, 1);
+                vm.EndStroke();
+            }
+            Pump();
+            Assert.Contains("MB images", vm.MemoryLabel);
+            var mb = double.Parse(vm.MemoryLabel.Split(' ')[0]);
+            var budgetMb = FrameBitmapCache.ByteBudget / (1024.0 * 1024);
+            output.WriteLine($"{vm.DocumentSizeLabel} | {vm.DocumentContentLabel} | {vm.MemoryLabel} " +
+                             $"| budget {budgetMb:0} MB");
+
+            // Headroom over the budget, not a bare constant: the label counts the
+            // live document's layers as well as the cache, so it sits above the
+            // ceiling by a document's worth rather than exactly on it.
+            Assert.True(mb < budgetMb * 1.75,
+                $"4K frame cache grew to {mb} MB against a {budgetMb:0} MB budget");
         }
-        Pump();
-        Assert.Contains("MB images", vm.MemoryLabel);
-        var mb = double.Parse(vm.MemoryLabel.Split(' ')[0]);
-        output.WriteLine($"{vm.DocumentSizeLabel} | {vm.DocumentContentLabel} | {vm.MemoryLabel}");
-        Assert.True(mb < 900, $"4K frame cache grew to {mb} MB (budget 900)");
+        finally
+        {
+            FrameBitmapCache.ByteBudget = previous;
+        }
     }
 
     [AvaloniaFact]
