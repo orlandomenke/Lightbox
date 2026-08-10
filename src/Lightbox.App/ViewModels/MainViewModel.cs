@@ -10961,9 +10961,35 @@ public sealed partial class MainViewModel : ObservableObject
         // where the pass list changes every frame and a bake could never be
         // reused before it was stale. Downstream (the ring, the culled path,
         // the unbounded path) sees a shorter list of the same pixels.
+        // Both folds are asked every publish, even the one that will decline.
+        // Each owns a "was I serving a bake last time" flag, and skipping the call
+        // leaves that flag stale — so stopping playback could miss a fold
+        // transition, and a missed transition is folded and unfolded pixels mixed
+        // on one surface by a dirty-region patch. Declining is cheap; not asking
+        // is not.
         passes = _stackBake.Fold(
             passes, activeStart, activeEnd, scene.Width, scene.Height, hold: IsPlaying,
             out var foldTransitioned);
+
+        // B165. During playback the not-being-drawn-on segment changes every
+        // frame, so Fold above gives up — but the layers holding still for the
+        // whole range do not, and folding those is one blend instead of however
+        // many there are. A five-frame two-layer capture showed 1 138 layer passes
+        // over 568 ticks: a held BG plate, a colour hold and a locked prop
+        // re-blended twelve times a second to produce pixels already on screen.
+        //
+        // The count comes from the exposure sheet rather than from the passes,
+        // because they are two different questions: which layers hold still over
+        // time is a property of the document, and whether a run may be pre-folded
+        // at all is a property of their blends, which the bake checks itself.
+        // Zero when not playing, which is how the held segment gets reset.
+        var heldRun = IsPlaying
+            ? UnchangedLayerRun.HeldPrefix(scene, EffectiveStartFrame, EffectiveEndFrame)
+            : 0;
+        passes = _stackBake.FoldHeldRun(
+            passes, heldRun, scene.Width, scene.Height, out var heldTransitioned);
+        foldTransitioned |= heldTransitioned;
+
         // A fold transition repaints everything once (see the out parameter's
         // remarks): folded and unfolded pixels can differ by an LSB, and a
         // dirty-region patch must never mix the two on one surface.
