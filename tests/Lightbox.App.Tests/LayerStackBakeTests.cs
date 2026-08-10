@@ -61,8 +61,9 @@ public sealed class LayerStackBakeTests(ITestOutputHelper output) : BrushStateIs
         SKBitmap? grabbed = null;
         void Capture(RenderSnapshot s)
         {
-            var bmp = new SKBitmap(s.Image.Width, s.Image.Height);
-            s.Image.ReadPixels(bmp.Info, bmp.GetPixels(), bmp.RowBytes, 0, 0);
+            using var img = s.Materialise(null);
+            var bmp = new SKBitmap(img.Width, img.Height);
+            img.ReadPixels(bmp.Info, bmp.GetPixels(), bmp.RowBytes, 0, 0);
             grabbed = bmp;
         }
         vm.SnapshotChanged += Capture;

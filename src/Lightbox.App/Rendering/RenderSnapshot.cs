@@ -22,16 +22,110 @@ namespace Lightbox.App.Rendering;
 /// (ordinary case when compose surface is full document size).
 /// </summary>
 public sealed class RenderSnapshot(
-    SKImage image,
+    SKImage? image,
     int docWidth,
     int docHeight,
     long seq = 0,
     SKRectI? docViewport = null,
     SKRectI? changedInImage = null,
     IReadOnlyList<RenderPass>? passes = null,
-    Action? release = null) : IDisposable
+    Action? release = null,
+    DeferredCompose? deferred = null) : IDisposable
 {
-    public SKImage Image { get; } = image;
+    private SKImage? _image = image;
+    private readonly Lock _gate = new();
+    private bool _disposed;
+
+    /// <summary>Whether this snapshot has been freed.</summary>
+    /// <remarks>
+    /// <b>Tracked explicitly rather than inferred from a null image</b>, because
+    /// since stage 3b null means two different things — "freed" and "not composed
+    /// yet" — and the one place that has to tell them apart is
+    /// <c>CanvasControl.HeldImagesAlive</c>, the guard that exists because B130
+    /// drew a snapshot the canvas had already freed. Conflating them would make
+    /// that guard read "alive" for a dangling frame.
+    /// </remarks>
+    public bool IsDisposed
+    {
+        get { lock (_gate) return _disposed; }
+    }
+
+    /// <summary>
+    /// The composed frame, or null when it has not been composed yet.
+    /// </summary>
+    /// <remarks>
+    /// <b>Nullable since B125 stage 3b.</b> A snapshot may describe a composite
+    /// rather than carry one — see <see cref="Deferred"/> — in which case the
+    /// pixels do not exist until <see cref="Materialise"/> runs on the render
+    /// thread. Consumers that only need to know whether there is anything to
+    /// free, or to draw, must handle null rather than assume a frame.
+    /// </remarks>
+    public SKImage? Image
+    {
+        get { lock (_gate) return _image; }
+    }
+
+    /// <summary>
+    /// The composite the publisher described and did not perform.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The inversion B125 stage 3b makes.</b> The publisher composited on the
+    /// UI thread and handed over a finished image; the graphics context exists
+    /// only inside the draw op, on the render thread. So the work moves to where
+    /// the context is, and this is the description that travels instead of the
+    /// pixels.
+    /// </para>
+    /// <para>
+    /// Set on the culled route only — the one that already built a fresh surface
+    /// every publish, so nothing is lost by building it elsewhere. See
+    /// <see cref="DeferredCompose"/> for why the other two routes stay put.
+    /// </para>
+    /// </remarks>
+    public DeferredCompose? Deferred { get; } = deferred;
+
+    /// <summary>Whether this composite has run on a GPU-backed surface.</summary>
+    public bool GpuBacked { get; private set; }
+
+    /// <summary>
+    /// The frame, composing it first if the publisher left that to us.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Called from the draw op, which is the whole point</b> — that is where
+    /// the lease's <c>GRContext</c> lives, and passing it here is how a composite
+    /// becomes GPU-backed at all (B125 stage 4).
+    /// </para>
+    /// <para>
+    /// Composed once and kept: a snapshot may be drawn several times before a
+    /// newer one replaces it (a resize, a view change, a compositor repaint), and
+    /// recomposing per draw would turn one publish into many composites.
+    /// </para>
+    /// <para>
+    /// The lock is not for the common case, where only the render thread touches
+    /// this. It is for the seam with <see cref="Dispose"/>, which the UI thread
+    /// calls from the retirement queue: the queue only frees snapshots older than
+    /// the last one rendered, so the two should never meet — and "should never"
+    /// on a path whose failure mode is a native access violation is worth a
+    /// lock rather than a comment.
+    /// </para>
+    /// </remarks>
+    public SKImage Materialise(GRContext? gpu)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_image is not null) return _image;
+            if (Deferred is not { } work)
+            {
+                throw new InvalidOperationException(
+                    "This snapshot has neither an image nor a composite to perform.");
+            }
+            _image = work.Compose(gpu, out var onGpu);
+            GpuBacked = onGpu;
+            return _image;
+        }
+    }
 
     /// <summary>
     /// The passes this snapshot was composed from, when the publisher sent them
@@ -79,7 +173,13 @@ public sealed class RenderSnapshot(
     /// </remarks>
     public void Dispose()
     {
-        Image.Dispose();
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _image?.Dispose();
+            _image = null;
+        }
         Interlocked.Exchange(ref _release, null)?.Invoke();
     }
 

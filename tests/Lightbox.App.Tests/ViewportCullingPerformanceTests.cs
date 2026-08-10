@@ -148,7 +148,10 @@ public class ViewportCullingPerformanceTests(ITestOutputHelper output) : BrushSt
 
         Assert.NotNull(latest);
         output.WriteLine($"document {latest!.DocWidth}x{latest.DocHeight}");
-        output.WriteLine($"published image {latest.Image.Width}x{latest.Image.Height} covering {latest.DocViewport}");
+        // Composed here rather than at publish time since B125 stage 3b — the
+        // culled route hands over a description and the canvas performs it.
+        using var composed = latest.Materialise(null);
+        output.WriteLine($"published image {composed.Width}x{composed.Height} covering {latest.DocViewport}");
 
         // The window reaches past the document, so what comes back is the
         // intersection — that clamp is the point of ClampToDocument, not a
@@ -158,7 +161,7 @@ public class ViewportCullingPerformanceTests(ITestOutputHelper output) : BrushSt
         output.WriteLine($"expected the clamped window {expected}");
 
         Assert.Equal(expected, latest.DocViewport);
-        Assert.True(latest.Image.Width < latest.DocWidth,
+        Assert.True(composed.Width < latest.DocWidth,
             "a whole-canvas publish with a small viewport still composed the whole document — "
             + "B121's gate went too far and switched B82 off");
     }
@@ -230,7 +233,11 @@ public class ViewportCullingPerformanceTests(ITestOutputHelper output) : BrushSt
 
         Assert.NotNull(latest);
         var snap = latest!;
-        using var bmp = SKBitmap.FromImage(snap.Image);
+        // B125 stage 3b: the culled route hands over a description of the
+        // composite rather than the pixels, so it is performed here — on the
+        // CPU, since a test has no lease to take a GRContext from.
+        using var composed = snap.Materialise(null);
+        using var bmp = SKBitmap.FromImage(composed);
         Assert.NotNull(bmp);
 
         var originX = snap.DocViewport?.Left ?? 0;

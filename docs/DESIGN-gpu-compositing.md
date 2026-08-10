@@ -165,6 +165,17 @@ hardware.
    op. No GPU yet, no behaviour change, and the render must stay pixel-identical
    — `PresentLatency`, retired-image disposal and the durable frame all assume an
    `SKImage` today.
+   **3b landed on the culled route only, and the reason is a constraint rather
+   than caution.** Of the three compositors, only the culled one already built a
+   fresh surface every publish and filled all of it — so nothing whatever is lost
+   by building it on the render thread instead. The **ring** exists to reuse three
+   buffers and repaint a dirty region, and B121 measured what losing that costs
+   (a dab-sized repaint becoming a viewport-sized one, 1 232 px against
+   134 400 px); moving it before moving its buffers *is* that regression, so it
+   waits for stage 6. The **unbounded** path reads tile caches the view model
+   owns. The culled route is also the one that matters most here: it is what runs
+   on a whole-canvas publish while zoomed in, which is a frame change at 4K.
+
 4. **GPU surface, CPU-uploaded passes.** Composite into a GPU surface from the
    lease, uploading pass bitmaps per frame. Almost certainly *slower* than today
    on some hardware — the point is to measure the upload, which is the number the

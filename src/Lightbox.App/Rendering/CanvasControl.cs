@@ -3764,8 +3764,18 @@ public sealed class CanvasControl : Control
     /// Tests only.
     /// </summary>
     internal bool HeldImagesAlive =>
-        (_snapshot is null || _snapshot.Image.Handle != IntPtr.Zero)
-        && _retired.All(r => r.Image.Handle != IntPtr.Zero);
+        // A null image is a snapshot whose composite has not been performed yet
+        // (B125 stage 3b) — nothing has been freed, so nothing is dangling.
+        (_snapshot is null || Alive(_snapshot)) && _retired.All(Alive);
+
+    /// <summary>
+    /// Whether a held snapshot is safe to draw. A snapshot with no image is safe
+    /// when it has not been composed yet (B125 stage 3b) and unsafe when it was
+    /// freed — null alone cannot tell those apart, which is why
+    /// <see cref="RenderSnapshot.IsDisposed"/> exists.
+    /// </summary>
+    private static bool Alive(RenderSnapshot s) =>
+        !s.IsDisposed && (s.Image is not { } img || img.Handle != IntPtr.Zero);
 
     /// <summary>How many frames are queued behind the one on screen. Tests only.</summary>
     internal int RetiredCount => _retired.Count;
@@ -3892,9 +3902,16 @@ public sealed class CanvasControl : Control
             // lifetime `_retired` already manages. `LIGHTBOX_DURABLE_FRAME=1` opts
             // back in for measuring the fix, and it is deliberately an environment
             // variable rather than a setting — nobody should find this by accident.
+            // B125 stage 3b: the composite may not have happened yet. Materialise
+            // here — inside the draw op, on the render thread — because this is
+            // where the lease's GRContext is, and handing it over is the only way
+            // a composite can be GPU-backed at all (stage 4). A snapshot that
+            // already carries an image returns it unchanged, which is every route
+            // except the culled one.
+            var composed = snapshot.Materialise(lease.GrContext);
             var artwork = presented is null || !DurableFrameEnabled
-                ? snapshot.Image
-                : presented.Present(lease.GrContext, snapshot.Image, snapshot.ChangedInImage, snapshot.Seq);
+                ? composed
+                : presented.Present(lease.GrContext, composed, snapshot.ChangedInImage, snapshot.Seq);
 
             // Queued work that needs the context (the render report's upload
             // probe). After the frame's own drawing, and wrapped, because a
