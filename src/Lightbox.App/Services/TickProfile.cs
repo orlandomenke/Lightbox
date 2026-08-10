@@ -54,6 +54,34 @@ internal sealed class TickProfile
         Compose,
 
         /// <summary>
+        /// Flattening a frame's visible tiles into one bitmap, inside
+        /// <see cref="Compose"/> (B167 phase 1).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Split out because the tiled path is where playback's time goes and
+        /// nothing could say which half of it.</b> Playback takes the tiled
+        /// compositor — <c>tileModeOn = UnboundedCanvasOn || IsPlaying</c> — and
+        /// the owner's 4K reports put Compose at 49.5 ms/tick on Display quality
+        /// and 60.4 ms on Full, 66% and 84% of the frame budget. Inside that,
+        /// <c>TileCompositor.CompositeToBitmap</c> flattens the visible tiles and
+        /// then the result is blended, and the two were one number.
+        /// </para>
+        /// <para>
+        /// <b>This is the same mistake one level down from the one it exists to
+        /// avoid repeating.</b> B125 spent five stages moving the *culled* route
+        /// to the GPU, which playback never takes, and the report is what
+        /// eventually said so. Optimising the wrong half of the tiled path would
+        /// be that again — so the split lands before any of B167's other phases.
+        /// </para>
+        /// <para>
+        /// Nested inside <see cref="Compose"/> rather than beside it, so the two
+        /// do not have to sum to it and neither is misread as the whole.
+        /// </para>
+        /// </remarks>
+        TileFlatten,
+
+        /// <summary>
         /// Handing the finished frame to the canvas — the snapshot swap, the
         /// retired-image disposal, and the invalidate.
         /// </summary>

@@ -659,20 +659,45 @@ internal static class RenderReport
         var total = 0.0;
         foreach (var phase in phases)
         {
+            // A nested phase is measured INSIDE another one, so adding it to the
+            // total would count its time twice and make ALL PHASES exceed the
+            // tick it is meant to describe. Printed indented, under the phase it
+            // breaks down, and left out of the sum (B167 phase 1).
+            var nested = phase.Phase is TickProfile.Phase.TileFlatten;
             if (phase.Calls == 0)
             {
+                if (nested) continue;
                 // Named rather than omitted: a phase that ran zero times is a
                 // finding — it is what B152's fix looks like from here — and an
                 // absent line reads as a phase nobody measured.
                 sb.AppendLine($"  {phase.Phase,-22} never ran");
                 continue;
             }
-            total += phase.TotalMs;
+            if (!nested) total += phase.TotalMs;
+            var label = nested ? "  of it, " + phase.Phase : phase.Phase.ToString();
             sb.AppendLine(
-                $"  {phase.Phase,-22} {phase.TotalMs / facts.TickCount,7:0.##} ms/tick"
+                $"  {label,-22} {phase.TotalMs / facts.TickCount,7:0.##} ms/tick"
                 + $"   worst {phase.WorstMs,7:0.##} ms   ({phase.Calls} of {facts.TickCount} ticks)");
         }
         sb.AppendLine($"  {"ALL PHASES",-22} {total / facts.TickCount,7:0.##} ms/tick");
+        // Phase 1's whole product: which half of the tiled composite costs the
+        // frame. Said here rather than left to subtraction, because the reader
+        // who needs it is deciding what to optimise next.
+        if (phases.FirstOrDefault(p => p.Phase == TickProfile.Phase.TileFlatten) is { Calls: > 0 } flat
+            && phases.FirstOrDefault(p => p.Phase == TickProfile.Phase.Compose) is { TotalMs: > 0 } comp)
+        {
+            var share = flat.TotalMs / comp.TotalMs;
+            sb.AppendLine();
+            sb.AppendLine($"  >> Flattening tiles is {share * 100:0}% of Compose, blending is the rest.");
+            sb.AppendLine(share > 0.6
+                ? "     Flattening dominates: caching the flattened bitmap (B167 phase 2) is\n"
+                  + "     the win, and moving the blend to the card would barely register."
+                : share < 0.3
+                    ? "     Blending dominates: getting the composite onto the card (B167\n"
+                      + "     phases 3-4) is the win, and caching the flatten would barely register."
+                    : "     Neither dominates, so both halves of B167 are worth having and\n"
+                      + "     neither alone will fix playback.");
+        }
 
         AppendWorkOutsideTheTick(sb, facts, total / facts.TickCount);
 
