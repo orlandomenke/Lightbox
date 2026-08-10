@@ -42,7 +42,12 @@ public sealed class TileFrameCache : IDisposable
     /// pyramid's lazy levels add at most a third on top (¼ + ¹⁄₁₆ + …), which
     /// the budget deliberately rounds into rather than tracks.
     /// </summary>
-    public static long ByteBudget { get; set; } = 256L * 1024 * 1024;
+    /// <remarks>
+    /// Derived from the machine rather than fixed at 256 MB — see
+    /// <see cref="Services.MemoryBudget"/> for why a constant chosen on one
+    /// laptop is the wrong default for a tool meant to run in production.
+    /// </remarks>
+    public static long ByteBudget { get; set; } = Services.MemoryBudget.TileCache();
 
     private sealed record Entry(TileStore Store, TilePyramid Pyramid);
 

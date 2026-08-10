@@ -80,7 +80,7 @@ public sealed class LayerTextureCache : IDisposable
     /// falling back to CPU, so the failure mode is "no faster" rather than
     /// "broken".
     /// </remarks>
-    internal long BudgetBytes { get; set; } = 192L * 1024 * 1024;
+    internal long BudgetBytes { get; set; } = Services.MemoryBudget.LayerTextures();
 
     internal long ResidentBytes { get; private set; }
 

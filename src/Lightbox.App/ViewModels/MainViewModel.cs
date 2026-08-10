@@ -11969,12 +11969,29 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Ceiling for cached frame bitmaps, in megabytes.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The artist's setting stays the final word</b> — the derivation in
+    /// <see cref="Services.MemoryBudget"/> decides the <em>default</em>, which is
+    /// the part that was wrong.
+    /// </para>
+    /// <para>
+    /// <b>Its floor is deliberately below the derived one</b> and that is not an
+    /// inconsistency. The derived floor is what a minimum-spec machine needs for
+    /// the cache to be worth having; this floor is how far somebody may go when
+    /// they have decided they would rather have the memory — which is what the
+    /// Configure page's own text offers ("lowering it frees memory on a large
+    /// canvas"). The ceiling is shared, because above it the cache is holding
+    /// bytes it will never spend whoever asked for them.
+    /// </para>
+    /// </remarks>
     public int FrameCacheBudgetMb
     {
         get => (int)(FrameBitmapCache.ByteBudget / (1024 * 1024));
         set
         {
-            var clamped = Math.Clamp(value, 64, 4096);
+            var clamped = Math.Clamp(
+                value, 64, (int)(Services.MemoryBudget.FrameCacheCeilingBytes / (1024 * 1024)));
             if (FrameCacheBudgetMb == clamped) return;
             FrameBitmapCache.ByteBudget = clamped * 1024L * 1024L;
             OnPropertyChanged();

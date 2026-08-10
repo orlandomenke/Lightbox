@@ -17,7 +17,7 @@ public sealed class FrameBitmapCache : IDisposable
     /// nothing at 960×540 (100 MB) and 3 GB at 4K. Small documents therefore
     /// keep a deep cache while large ones stay within a sane footprint.
     /// </summary>
-    public static long ByteBudget { get; set; } = 512L * 1024 * 1024;
+    public static long ByteBudget { get; set; } = Services.MemoryBudget.FrameCache();
 
     /// <summary>
     /// Keep at least this many where the budget allows, so onion skin does not
