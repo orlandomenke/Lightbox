@@ -452,6 +452,61 @@ internal static class RenderReport
     /// unused feature.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Where layer compositing actually happened this session.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This line said "CPU raster (always — see B125)" and became false the day
+    /// stage 4 landed.</b> It was printed unconditionally while the very next
+    /// section of the same report showed resident GPU textures — which is exactly
+    /// the failure B125's entry already records about the status bar reading "GPU"
+    /// and meaning only that Avalonia can blit. A hardcoded claim about a thing
+    /// that has since become configurable is worse than no line at all: it is
+    /// read, believed and acted on.
+    /// </para>
+    /// <para>
+    /// So it counts instead of asserting. The counts also answer the question the
+    /// first real reports raised and nothing in the file could: <b>the GPU path
+    /// only runs on the culled route, and playback does not take it</b> — playback
+    /// takes the tiled unbounded compositor. A report showing thousands of tiled
+    /// layer passes and a few dozen GPU composites is that, and it is not
+    /// something a reader should have to infer.
+    /// </para>
+    /// </remarks>
+    private static void AppendCompositor(StringBuilder sb, Facts facts)
+    {
+        var gpu = Rendering.GpuComposite.GpuComposites;
+        var cpu = Rendering.GpuComposite.CpuComposites;
+
+        if (!facts.GpuCompositeOptedIn)
+        {
+            sb.AppendLine("compositing               CPU raster (GPU compositing is off)");
+            sb.AppendLine("  Configure > Performance > Use the graphics card to blend layers.");
+            return;
+        }
+
+        sb.AppendLine($"compositing               GPU asked for: {gpu} on the card, {cpu} on the processor");
+        if (gpu == 0)
+        {
+            sb.AppendLine("  !! nothing composited on the card. Only the culled route goes to the");
+            sb.AppendLine("     GPU today, and it needs the view zoomed in past the document edges");
+            sb.AppendLine("     on a whole-canvas publish. Playback takes the tiled compositor");
+            sb.AppendLine("     instead, which is still CPU — see the tile path section above.");
+            return;
+        }
+        if (Rendering.GpuComposite.RefusedAllocations > 0)
+        {
+            sb.AppendLine(
+                $"  !! {Rendering.GpuComposite.RefusedAllocations} GPU surface(s) refused and fell back to the processor.");
+        }
+        if (Rendering.GpuComposite.RefusedTooLarge > 0)
+        {
+            sb.AppendLine(
+                $"  !! {Rendering.GpuComposite.RefusedTooLarge} composite(s) were larger than this card's textures.");
+        }
+    }
+
     private static void AppendTextureResidency(StringBuilder sb, Facts facts)
     {
         if (!facts.GpuCompositeOptedIn) return;
@@ -474,10 +529,11 @@ internal static class RenderReport
         sb.AppendLine($"uploads avoided           {r.Hits} of {total} layer draws ({rate * 100:0.0}%)");
         sb.AppendLine($"resident                  {r.Bytes / (1024.0 * 1024.0):0.0} MB");
         sb.AppendLine();
-        sb.AppendLine("  Expect roughly 26% on a two-layer scene, 51% on six layers and 59%");
-        sb.AppendLine("  on ten — the share of layer draws that repeat a drawing, measured");
-        sb.AppendLine("  from the exposure sheet in B165. Much lower means textures are being");
-        sb.AppendLine("  invalidated by something other than the artist drawing.");
+        sb.AppendLine("  This counts only layer draws that went through the GPU path at all —");
+        sb.AppendLine("  the culled route. Compare it with the tile path's layer-pass count");
+        sb.AppendLine("  above: if that is thousands and this is dozens, almost nothing is");
+        sb.AppendLine("  being composited on the card, and the hit rate here is about a handful");
+        sb.AppendLine("  of publishes rather than about playback.");
         sb.AppendLine();
     }
 
@@ -784,7 +840,7 @@ internal static class RenderReport
                 ? $"  !! the compose surface's {widest} px exceeds it — a GPU surface cannot be made"
                 : $"  the compose surface's widest side is {widest} px, so the limit is not a factor");
         }
-        sb.AppendLine("compositing               CPU raster (always — see B125)");
+        AppendCompositor(sb, facts);
         sb.AppendLine();
 
         AppendTilePath(sb, facts.TileFallbacks);

@@ -173,8 +173,15 @@ hardware.
    (a dab-sized repaint becoming a viewport-sized one, 1 232 px against
    134 400 px); moving it before moving its buffers *is* that regression, so it
    waits for stage 6. The **unbounded** path reads tile caches the view model
-   owns. The culled route is also the one that matters most here: it is what runs
-   on a whole-canvas publish while zoomed in, which is a frame change at 4K.
+   owns.
+
+   **The claim that the culled route "matters most" was wrong, and the first real
+   reports (2026-08-10) say so.** A playing document takes the *unbounded* tiled
+   compositor — `tileModeOn = UnboundedCanvasOn || IsPlaying` — so the culled
+   route, and everything from stage 3b onward with it, applies to a route playback
+   never takes. The reports show 1756 tiled layer passes against 68 layer draws
+   through the texture cache. Reaching playback needs the tile route moved, which
+   is a bigger piece because the tile caches live on the view model.
 
 4. **GPU surface, CPU-uploaded passes.** Composite into a GPU surface from the
    lease, uploading pass bitmaps per frame. Almost certainly *slower* than today

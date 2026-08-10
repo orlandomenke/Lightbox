@@ -54,10 +54,18 @@ internal static class GpuComposite
     /// <summary>Times a document was too large for the context's textures.</summary>
     internal static int RefusedTooLarge { get; private set; }
 
+    /// <summary>Composites that ran on a GPU surface.</summary>
+    internal static int GpuComposites { get; private set; }
+
+    /// <summary>Composites that ran on a CPU surface.</summary>
+    internal static int CpuComposites { get; private set; }
+
     internal static void ResetCounters()
     {
         RefusedAllocations = 0;
         RefusedTooLarge = 0;
+        GpuComposites = 0;
+        CpuComposites = 0;
     }
 
     private static bool? _override;
@@ -140,12 +148,14 @@ internal static class GpuComposite
             if (surface is not null)
             {
                 gpuBacked = true;
+                GpuComposites++;
                 return surface;
             }
             RefusedAllocations++;
         }
 
         gpuBacked = false;
+        CpuComposites++;
         return SKSurface.Create(info)
             ?? throw new InvalidOperationException("Failed to create render surface");
     }
