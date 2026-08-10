@@ -75,6 +75,74 @@ internal static class UnchangedLayerRun
     }
 
     /// <summary>
+    /// How many layers from the bottom show the same drawing at <em>every</em>
+    /// position in a range.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The run that can actually be baked, as opposed to the one that happens
+    /// to be unchanged right now.</b> <see cref="Depth"/> compares two adjacent
+    /// frames, and on 2s its answer alternates — the whole stack on a hold, just
+    /// the paper on a key. A bake keyed on that would be rebuilt every frame,
+    /// which is the cost it exists to avoid; <see cref="LayerStackBake"/> requires
+    /// a key to repeat before it pays for a bake precisely because of this.
+    /// </para>
+    /// <para>
+    /// This is the durable prefix instead: the layers holding still for the whole
+    /// range — the paper, a BG plate, a locked prop, a colour hold. Its key is the
+    /// same on every frame of playback, so the bake is built once and reused.
+    /// </para>
+    /// <para>
+    /// <b>It captures less than <see cref="BlendsOverRange"/> reports</b>, and the
+    /// difference is worth naming rather than quietly ignoring: that figure
+    /// includes the hold frames where nothing at all moved, which is a whole-frame
+    /// reuse rather than a layer fold and needs its own mechanism. See
+    /// <see cref="BakeableSaving"/> for what this half is worth on its own.
+    /// </para>
+    /// </remarks>
+    internal static int HeldPrefix(Scene scene, int firstFrame, int lastFrame)
+    {
+        if (lastFrame < firstFrame) return 0;
+
+        var depth = 0;
+        foreach (var layer in scene.Layers)
+        {
+            if (!scene.IsLayerVisible(layer)) continue;
+            if (SceneRenderer.ToSkia(layer.BlendMode) != SKBlendMode.SrcOver) break;
+
+            var first = ExposureSheet.ExposedFrame(layer, firstFrame);
+            var holds = true;
+            for (var i = firstFrame + 1; i <= lastFrame; i++)
+            {
+                if (ReferenceEquals(ExposureSheet.ExposedFrame(layer, i), first)) continue;
+                holds = false;
+                break;
+            }
+            if (!holds) break;
+
+            depth++;
+        }
+        return depth;
+    }
+
+    /// <summary>
+    /// What folding the held prefix alone saves — the part a bake can actually
+    /// deliver, as distinct from the ceiling <see cref="BlendsOverRange"/> reports.
+    /// </summary>
+    internal static (int Today, int Folded, double Saved) BakeableSaving(
+        Scene scene, int firstFrame, int lastFrame)
+    {
+        var layers = VisibleLayers(scene);
+        var frames = lastFrame - firstFrame;
+        if (layers == 0 || frames <= 0) return (0, 0, 0);
+
+        var prefix = HeldPrefix(scene, firstFrame, lastFrame);
+        var today = layers * frames;
+        var folded = prefix > 1 ? (layers - prefix + 1) * frames : today;
+        return (today, folded, today == 0 ? 0 : 1.0 - ((double)folded / today));
+    }
+
+    /// <summary>
     /// How many visible layers the compositor would blend at a playhead position.
     /// </summary>
     internal static int VisibleLayers(Scene scene)
