@@ -217,10 +217,18 @@ internal static class RenderReport
         // than only when overridden: a run must never be attributable to a
         // setting it did not have, and "no line" is indistinguishable from "the
         // line I expected" when somebody is comparing two reports.
+        // Ask the environment whether it was overridden, rather than inferring it
+        // from the band that came out. This compared against Render and went on
+        // doing so after B156-B164 moved the shipped default to Input — so every
+        // ordinary run was told a variable was set that nobody had set, and the
+        // owner went looking for how to unset it. Second lie in this file of the
+        // same shape as "compositing CPU raster (always)": a claim that was true
+        // when written and became false when the thing it described changed.
+        var overridden = Environment.GetEnvironmentVariable("LIGHTBOX_CLOCK_PRIORITY");
         sb.AppendLine($"clock priority            {PlaybackClock.Priority}"
-            + (PlaybackClock.Priority == Avalonia.Threading.DispatcherPriority.Render
-                ? ""
-                : "   (LIGHTBOX_CLOCK_PRIORITY is set — this is NOT the shipped default)"));
+            + (string.IsNullOrWhiteSpace(overridden)
+                ? "   (the shipped default)"
+                : $"   (LIGHTBOX_CLOCK_PRIORITY={overridden.Trim()} — this is NOT the shipped default)"));
         if (pacing is not { Ticks: > 0 } stats)
         {
             sb.AppendLine("frame clock               not run yet — this needs the scene PLAYED first");
