@@ -150,7 +150,17 @@ hardware.
 3. **Pass list to the render thread.** The pass builder is now a unit
    (`ScenePassBuilder`, B166's first seam) rather than 230 lines inside
    `PublishSnapshot`, which is what makes this stage's diff readable against the
-   concern. `RenderSnapshot` grows a pass-list form
+   concern.
+
+   **Split in two, because the lifetime has to be real before the compositing
+   moves.** Stage 1 built the pin protocol and *nothing called it* — a tested
+   mechanism nobody invokes is indistinguishable from a working one right up
+   until the crash it exists to prevent. So **3a** publishes the pass list on
+   the snapshot and wires the borrow: `PublishSnapshot` pins every cached
+   bitmap a pass carries, `RenderSnapshot.Dispose` releases them, and the three
+   places the retirement queue frees a snapshot all route through it. No pixels
+   change; the image is still composed on the UI thread. **3b** is then the
+   inversion itself: `RenderSnapshot` grows a pass-list form
    beside its image; the canvas composites CPU-side from passes inside the draw
    op. No GPU yet, no behaviour change, and the render must stay pixel-identical
    — `PresentLatency`, retired-image disposal and the durable frame all assume an

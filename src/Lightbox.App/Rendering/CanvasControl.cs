@@ -1835,7 +1835,7 @@ public sealed class CanvasControl : Control
             // B122: this frame's change never reaches the durable presentation
             // surface, so it has to be owed or those pixels stay stale.
             _presented.Skipped(snapshot.ChangedInImage);
-            snapshot.Image.Dispose();
+            snapshot.Dispose();
             return false;
         }
 
@@ -1865,7 +1865,7 @@ public sealed class CanvasControl : Control
                && _retired.Peek() is { } stale
                && stale.Seq < rendered)
         {
-            _retired.Dequeue().Image.Dispose();
+            _retired.Dequeue().Dispose();
         }
         // Hard cap, but never at the cost of freeing something in flight: an
         // image the render thread has not finished with must survive however
@@ -1875,7 +1875,7 @@ public sealed class CanvasControl : Control
                && _retired.Peek() is { } spare
                && spare.Seq < rendered)
         {
-            _retired.Dequeue().Image.Dispose();
+            _retired.Dequeue().Dispose();
         }
         InvalidateVisual();
         // InvalidateVisual alone is not enough: when input goes quiet right
