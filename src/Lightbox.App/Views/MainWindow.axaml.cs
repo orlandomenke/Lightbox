@@ -963,7 +963,8 @@ public partial class MainWindow : Window
             // frame to the screen happens outside the tick entirely (B161).
             _vm.Performance.FrameMs,
             Canvas.TextureResidency,
-            Rendering.GpuComposite.OptedIn);
+            Rendering.GpuComposite.OptedIn,
+            _vm.FramesReused);
     }
 
     /// <summary>
