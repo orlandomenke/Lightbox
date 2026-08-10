@@ -30,9 +30,15 @@ namespace Lightbox.App.Rendering;
 /// stays until those move.</item>
 /// </list>
 /// <para>
-/// The culled route is also the one that matters most for the GPU: it is what
-/// runs on a whole-canvas publish while zoomed in, which is a frame change at
-/// 4K — exactly the case B125 exists for.
+/// <b>The culled route was described here as "the one that matters most", and
+/// the first real render reports refuted that (2026-08-10).</b> A playing
+/// document takes the <em>unbounded</em> compositor, because
+/// <c>tileModeOn = UnboundedCanvasOn || IsPlaying</c> — so this route, and
+/// everything B125 built on it, applies to a path playback never takes. The
+/// reports showed 1756 tiled layer passes against 68 layer draws through the
+/// texture cache. It is still the right route to have moved first, because it
+/// was the one that could move without relocating the tile caches; it is simply
+/// not the one that reaches playback.
 /// </para>
 /// <para>
 /// <b>The pixels must not change.</b> This composes exactly what
