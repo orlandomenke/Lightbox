@@ -64,7 +64,7 @@ public class SnapshotRetirementTests : BrushStateIsolated
         // Nothing ever reported a completed render, so not one accepted frame
         // may have been freed. A disposed SKImage has a zero handle, and
         // drawing one is the crash.
-        var dead = accepted.Count(s => s.Image.Handle == IntPtr.Zero);
+        var dead = accepted.Count(s => s.IsDisposed);
         Assert.True(dead == 0,
             $"{dead} of {accepted.Count} accepted frames were freed while still unrendered");
         // And the queue is bounded rather than growing without limit: the
@@ -101,7 +101,7 @@ public class SnapshotRetirementTests : BrushStateIsolated
         Assert.True(handed.Count > 8, $"only {handed.Count} snapshots");
         Assert.True(canvas.HeldImagesAlive, "a held image was freed even though it was rendered in order");
         // Everything but the most recent few should be gone.
-        var alive = handed.Count(s => s.Image.Handle != IntPtr.Zero);
+        var alive = handed.Count(s => !s.IsDisposed);
         Assert.True(alive <= 6, $"{alive} of {handed.Count} images are still held after being rendered");
     }
 }

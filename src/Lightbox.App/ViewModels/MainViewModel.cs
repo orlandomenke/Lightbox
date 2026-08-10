@@ -10977,7 +10977,8 @@ public sealed partial class MainViewModel : ObservableObject
         // surface it describes.
         var imageCovers = plan.ImageCovers;
 
-        SKImage image;
+        SKImage? image;
+        DeferredCompose? deferred = null;
         if (plan.Route == ComposeRoute.Unbounded)
         {
             // Unbounded canvas: use tiled compositing for only visible viewport
@@ -10987,7 +10988,13 @@ public sealed partial class MainViewModel : ObservableObject
         else if (plan.CullRect is { } cullRect)
         {
             // B82: bounded canvas, culled to the clamped visible rectangle.
-            image = ComposeViewportCulled(passes, background, renderScale, info, cullRect);
+            // B125 stage 3b: describe it rather than do it. The culled route is
+            // the one that can move — it already built a fresh surface every
+            // publish and filled all of it, so nothing is lost by building it on
+            // the render thread instead, where the graphics context is. The ring
+            // and the unbounded path stay here; see DeferredCompose for why.
+            deferred = new DeferredCompose(passes, background, renderScale, info, cullRect);
+            image = null;
             usedClip = cullRect;
             // This publish went around the ring, so every buffer in it now holds
             // an older frame than the artist is looking at. ComposeRing decides
@@ -11047,14 +11054,16 @@ public sealed partial class MainViewModel : ObservableObject
                 image, (int)viewWidth, (int)viewHeight, seq, imageCovers,
                 SnapshotGeometry.ChangedInImageSpace(
                     usedClip, imageCovers, renderScale, throughCamera: cameraView is not null),
-                passes, PinPasses(passes)));
+                passes, PinPasses(passes), deferred));
         }
         else
         {
             // No canvas attached (headless or IPC-only): nobody would ever
             // free this image, and a live snapshot makes the next repaint
-            // duplicate the whole buffer.
-            image.Dispose();
+            // duplicate the whole buffer. A deferred composite needs no
+            // disposal at all — it was never performed, which is the cheapest
+            // this path has ever been.
+            image?.Dispose();
         }
 
         // Last, and after the frame is on its way to the screen: the worker

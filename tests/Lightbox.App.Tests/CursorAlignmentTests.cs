@@ -240,7 +240,11 @@ public class CursorAlignmentTests(ITestOutputHelper output)
 
         Assert.NotNull(latest);
         var snap = latest!;
-        using var bmp = SKBitmap.FromImage(snap.Image);
+        // B125 stage 3b: the culled route hands over a description of the
+        // composite rather than the pixels, so it is performed here — on the
+        // CPU, since a test has no lease to take a GRContext from.
+        using var composed = snap.Materialise(null);
+        using var bmp = SKBitmap.FromImage(composed);
         Assert.NotNull(bmp);
 
         // Where did the ink actually land? Centroid of everything dark.
@@ -319,7 +323,8 @@ public class CursorAlignmentTests(ITestOutputHelper output)
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         vm.PublishSnapshot();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-        using var full = SKBitmap.FromImage(latest!.Image);
+        using var fullImage = latest!.Materialise(null);
+        using var full = SKBitmap.FromImage(fullImage);
         var fullCovers = latest!.DocViewport;
 
         // A viewport strictly inside the document, so culling actually engages.
@@ -328,7 +333,8 @@ public class CursorAlignmentTests(ITestOutputHelper output)
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         vm.PublishSnapshot();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-        using var culled = SKBitmap.FromImage(latest!.Image);
+        using var culledImage = latest!.Materialise(null);
+        using var culled = SKBitmap.FromImage(culledImage);
         var culledCovers = latest!.DocViewport;
 
         output.WriteLine($"full   image {full!.Width}×{full.Height}  covers {fullCovers}");

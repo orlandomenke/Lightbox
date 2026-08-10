@@ -427,8 +427,9 @@ public class UnboundedCanvasPixelTests : BrushStateIsolated
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             vm.PublishSnapshot();
             Assert.NotNull(latest);
-            var bmp = new SKBitmap(latest!.Image.Width, latest.Image.Height);
-            latest.Image.ReadPixels(bmp.Info, bmp.GetPixels(), bmp.RowBytes, 0, 0);
+            using var img = latest!.Materialise(null);
+            var bmp = new SKBitmap(img.Width, img.Height);
+            img.ReadPixels(bmp.Info, bmp.GetPixels(), bmp.RowBytes, 0, 0);
             return bmp;
         }
 

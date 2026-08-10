@@ -106,10 +106,13 @@ public class PublishedPassLifetimeTests(ITestOutputHelper output)
     public void ASnapshotWithNoPassesStillDisposesItsImage()
     {
         var snapshot = Snapshot();
+        var image = snapshot.Image!;
 
         snapshot.Dispose();
 
-        Assert.Equal(nint.Zero, snapshot.Image.Handle);
+        Assert.Equal(nint.Zero, image.Handle);
+        Assert.True(snapshot.IsDisposed);
+        Assert.Null(snapshot.Image);
     }
 
     /// <summary>
