@@ -214,6 +214,21 @@ public sealed class CanvasControl : Control
     private readonly PresentedFrame _presented = new();
 
     /// <summary>
+    /// Layer rasters kept resident on the GPU (B125 stage 5), so a frame showing
+    /// the same drawing as the last one is not uploaded again.
+    /// </summary>
+    /// <remarks>
+    /// Owned here because it is filled and read inside the draw op, on the render
+    /// thread, where the lease's context lives. Nothing on the UI thread may touch
+    /// it — freeing a GPU resource from the wrong thread is B130 in another hat.
+    /// </remarks>
+    private readonly LayerTextureCache _textures = new();
+
+    /// <summary>Resident-texture counters, for the render report. Tests only.</summary>
+    internal (int Hits, int Misses, long Bytes) TextureResidency =>
+        (_textures.Hits, _textures.Misses, _textures.ResidentBytes);
+
+    /// <summary>
     /// Whether the durable presentation frame (B122) is in the paint path at all.
     /// </summary>
     /// <remarks>
@@ -2139,7 +2154,8 @@ public sealed class CanvasControl : Control
             NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
-            _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview));
+            _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
+            _textures));
     }
 
     /// <summary>
@@ -3825,7 +3841,8 @@ public sealed class CanvasControl : Control
         SKRect? lineMarquee = null,
         SKPoint lineDrag = default,
         IReadOnlyList<PathNodeGlyph>? pathNodes = null,
-        IReadOnlyList<Core.Documents.StrokePoint>? penPreview = null) : ICustomDrawOperation
+        IReadOnlyList<Core.Documents.StrokePoint>? penPreview = null,
+        LayerTextureCache? textures = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -3908,7 +3925,7 @@ public sealed class CanvasControl : Control
             // a composite can be GPU-backed at all (stage 4). A snapshot that
             // already carries an image returns it unchanged, which is every route
             // except the culled one.
-            var composed = snapshot.Materialise(lease.GrContext);
+            var composed = snapshot.Materialise(lease.GrContext, textures);
             var artwork = presented is null || !DurableFrameEnabled
                 ? composed
                 : presented.Present(lease.GrContext, composed, snapshot.ChangedInImage, snapshot.Seq);

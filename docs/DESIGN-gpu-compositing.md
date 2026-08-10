@@ -180,8 +180,22 @@ hardware.
    lease, uploading pass bitmaps per frame. Almost certainly *slower* than today
    on some hardware — the point is to measure the upload, which is the number the
    whole design rests on.
-5. **Resident layer textures.** Cache uploaded tiles, invalidated by the drawing
-   rather than the playhead. This is where the win actually arrives.
+5. **Resident layer textures.** `LayerTextureCache` keys uploaded textures by
+   bitmap instance *plus* `BitmapVersion` — identity alone is the trap
+   `LayerStackBake` documents, since a stroke commit stamps into a cached bitmap
+   in place and an instance survives its pixels changing. LRU inside a byte
+   budget, because VRAM is scarcer than RAM and on integrated graphics it is the
+   same memory the CPU is competing for. A refused upload falls back to drawing
+   the bitmap rather than throwing.
+
+   **The hit rate is a number B165 already measured**: a texture is reused
+   exactly when a layer shows the same drawing as the previous frame, which is
+   26% of layer draws at two layers, 51% at six and 59% at ten. The two changes
+   exploit the same property of animation from opposite ends, so one measurement
+   sizes both. The render report prints the achieved rate against those figures,
+   which is how a wrong invalidation shows up as a number rather than as a
+   feeling.
+
 6. **Retire the display-side `ComposeRing`** once nothing reads a composed image.
 
 Stage 4 is a gate. If the upload dominates on an integrated GPU, stage 5's

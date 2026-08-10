@@ -110,7 +110,15 @@ public sealed class RenderSnapshot(
     /// lock rather than a comment.
     /// </para>
     /// </remarks>
-    public SKImage Materialise(GRContext? gpu)
+    public SKImage Materialise(GRContext? gpu) => Materialise(gpu, null);
+
+    /// <inheritdoc cref="Materialise(GRContext?)"/>
+    /// <param name="textures">
+    /// Resident layer textures (B125 stage 5), so a layer showing the same
+    /// drawing as the last frame is not uploaded again. Ignored unless the
+    /// surface is GPU-backed.
+    /// </param>
+    public SKImage Materialise(GRContext? gpu, LayerTextureCache? textures)
     {
         lock (_gate)
         {
@@ -121,7 +129,7 @@ public sealed class RenderSnapshot(
                 throw new InvalidOperationException(
                     "This snapshot has neither an image nor a composite to perform.");
             }
-            _image = work.Compose(gpu, out var onGpu);
+            _image = work.Compose(gpu, textures, out var onGpu);
             GpuBacked = onGpu;
             return _image;
         }

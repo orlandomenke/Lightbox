@@ -961,7 +961,9 @@ public partial class MainWindow : Window
             Canvas.AnimationFrames,
             // The work the tick breakdown cannot see: drawing the composited
             // frame to the screen happens outside the tick entirely (B161).
-            _vm.Performance.FrameMs);
+            _vm.Performance.FrameMs,
+            Canvas.TextureResidency,
+            Rendering.GpuComposite.OptedIn);
     }
 
     /// <summary>

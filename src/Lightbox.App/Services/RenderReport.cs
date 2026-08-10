@@ -70,7 +70,9 @@ internal static class RenderReport
         (long Hits, long Misses, long Evictions, long Bytes, long Budget)? FrameCache = null,
         (int Frames, int Layers, int Strokes, double Fps)? Scene = null,
         (long Requested, long Delivered)? AnimationFrames = null,
-        double RenderMedianMs = 0);
+        double RenderMedianMs = 0,
+        (int Hits, int Misses, long Bytes)? TextureResidency = null,
+        bool GpuCompositeOptedIn = false);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -431,6 +433,54 @@ internal static class RenderReport
         }
     }
 
+    /// <summary>
+    /// Whether layer rasters are staying on the GPU between frames (B125 stage 5).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The one number stage 5 exists to move, and it can only be read here.</b>
+    /// A texture is reused exactly when a layer shows the same drawing as the
+    /// previous frame. B165 measured that share from the exposure sheet — 26% of
+    /// layer draws at two layers, 51% at six, 59% at ten — so the hit rate below
+    /// should land near that for the document being played. Well under it means
+    /// something is invalidating textures that did not change; well over it means
+    /// the playhead is not moving.
+    /// </para>
+    /// <para>
+    /// Absent unless GPU compositing was switched on, because there is nothing to
+    /// report otherwise and a row of zeroes reads like a failure rather than an
+    /// unused feature.
+    /// </para>
+    /// </remarks>
+    private static void AppendTextureResidency(StringBuilder sb, Facts facts)
+    {
+        if (!facts.GpuCompositeOptedIn) return;
+
+        sb.AppendLine("-- resident layer textures (B125 stage 5) --------------------");
+        if (facts.TextureResidency is not { } r || r.Hits + r.Misses == 0)
+        {
+            sb.AppendLine("no layer textures were asked for.");
+            sb.AppendLine();
+            sb.AppendLine("  GPU compositing is switched on but nothing composited through it.");
+            sb.AppendLine("  The culled route is the only one that goes to the GPU today, and");
+            sb.AppendLine("  it runs on a whole-canvas publish with the view zoomed in past the");
+            sb.AppendLine("  document edges. A fit-to-window view never takes it.");
+            sb.AppendLine();
+            return;
+        }
+
+        var total = r.Hits + r.Misses;
+        var rate = (double)r.Hits / total;
+        sb.AppendLine($"uploads avoided           {r.Hits} of {total} layer draws ({rate * 100:0.0}%)");
+        sb.AppendLine($"resident                  {r.Bytes / (1024.0 * 1024.0):0.0} MB");
+        sb.AppendLine();
+        sb.AppendLine("  Expect roughly 26% on a two-layer scene, 51% on six layers and 59%");
+        sb.AppendLine("  on ten — the share of layer draws that repeat a drawing, measured");
+        sb.AppendLine("  from the exposure sheet in B165. Much lower means textures are being");
+        sb.AppendLine("  invalidated by something other than the artist drawing.");
+        sb.AppendLine();
+    }
+
     private static void AppendPresentWait(StringBuilder sb, Facts facts)
     {
         var wait = facts.PresentWait;
@@ -785,6 +835,8 @@ internal static class RenderReport
                           + "   (16.7 ms is 60 fps)");
             sb.AppendLine();
         }
+
+        AppendTextureResidency(sb, facts);
 
         if (probe is { } p)
         {
