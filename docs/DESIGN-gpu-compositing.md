@@ -177,6 +177,71 @@ Stage 4 is a gate. If the upload dominates on an integrated GPU, stage 5's
 invalidation design is what has to carry it, and the estimate for the whole
 changes.
 
+## One machine, every machine: what stage 4's measurement can and cannot settle
+
+The owner's question, and it reshapes stage 4 rather than merely qualifying it:
+*measuring on one graphics card is fine, but this has to run better on every
+computer with one — right?*
+
+Yes. And the measurement generalises for **the decision stage 4 gates** while
+not generalising at all for **the decision to ship the GPU path**. Keeping those
+apart is the whole of the answer.
+
+**What generalises.** Stage 4 uploads every layer every frame, which is the
+worst case by construction — nothing about it is tuned to a vendor. Its number
+answers "how urgent is residency?", and residency (stage 5) is what fixes *both*
+classes of hardware:
+
+| | upload cost | once resident |
+| --- | --- | --- |
+| **Integrated** (the 5850U, the 2013 machine) | shares the system RAM bus — so an upload competes with the CPU work beside it | blending is cheap, VRAM is small and shared |
+| **Discrete** | crosses PCIe, a hard ceiling no driver tunes away | blending is effectively free, VRAM is plentiful |
+
+They fail differently and are cured by the same change. So a bad number on one
+integrated GPU does not mean "GPU compositing is wrong here", it means "stage 5
+is the feature and stage 4 was never the product" — which is exactly what a gate
+is for.
+
+**What does not generalise, and one of them is a trap.**
+
+- **A software rasteriser reports as a GPU.** `llvmpipe`/`swiftshader` provide a
+  real GL context that Skia accepts, so `GraphicsBackend` says "GPU" and every
+  pixel is drawn on the CPU — slower than today's path, with the status bar
+  claiming otherwise. This is not hypothetical: B125's own entry records the
+  status bar already misleading the owner once, for a milder version of this.
+- **Texture limits are hardware, not driver.** A 4K document needs a 4096-wide
+  texture and an 8K one needs 8192; older parts cap at 4096 or below, and the
+  2013 machine is genuinely the useful test here rather than a curiosity.
+- **Driver quality is the largest unknown and the least measurable** — Mesa
+  versus vendor blobs versus Windows versus Metal, on the same silicon.
+
+### The consequence: the choice is measured at runtime, not decided here
+
+This is the design change the question forces, and it is not defensive padding:
+
+> **The compositor is chosen on the machine it is running on, and the CPU path
+> stays a first-class fallback rather than a legacy branch.**
+
+Three rules follow, all of them testable without a GPU:
+
+1. **Probe, then choose.** `RenderReport.RunUploadProbe` already times a real
+   upload against the real context and reports a speedup. That number — not a
+   build flag and not a vendor list — decides whether a session composites on
+   the GPU. A speedup near 1× means the transfer is not the cost and the CPU
+   path is kept.
+2. **Refuse rather than degrade.** No context, a document wider than
+   `MaxTextureSize`, or a probe that comes back slower: fall back, and say so in
+   the report. A wrong answer that is merely slow is the good outcome here; the
+   bad one is a document that will not open on a laptop.
+3. **The fallback is exercised, not assumed.** The CPU path is what export
+   already uses (see *display-only*, above), so it cannot rot unnoticed — that
+   is a second reason for the export decision beyond blend determinism.
+
+**And it is why the render report exists.** It is the only way to collect
+hardware this repository will never own: backend, whether the durable frame is
+really GPU-backed, texture limits and a timed upload probe, written on the
+artist's machine. Two machines is a thin sample; a report per artist is not.
+
 ## How we will know it worked
 
 Not by feel, after the six rounds B156–B164 took to learn that. The render report
