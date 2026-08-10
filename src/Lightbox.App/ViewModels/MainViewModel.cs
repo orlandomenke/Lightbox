@@ -10854,6 +10854,32 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     internal SKRectI? LastPublishClip { get; private set; }
 
+    /// <summary>What the frame currently on screen was composed for (B165).</summary>
+    private Rendering.FrameFingerprint? _lastPublished;
+
+    /// <summary>
+    /// Playback frames that composed to the pixels already on screen and were
+    /// therefore not composed at all.
+    /// </summary>
+    internal int FramesReused { get; private set; }
+
+    /// <summary>
+    /// Forget the frame on screen, so the next publish composes rather than
+    /// reusing.
+    /// </summary>
+    /// <remarks>
+    /// <b>Called wherever the composite could change without the document or the
+    /// playhead changing</b> — a new document, a layer shown or hidden, a
+    /// setting that reaches pixels. The fingerprint cannot see those, and a
+    /// reuse across one of them shows the previous document's art. Cheap to call
+    /// and expensive to forget, so it is wired to the same places that already
+    /// invalidate the whole canvas.
+    /// </remarks>
+    internal void ForgetPublishedFrame() => _lastPublished = null;
+
+    /// <summary>Mark everything dirty, as any pixel-changing edit does. Tests only.</summary>
+    internal void MarkWholeCanvasDirtyForTests() => InvalidateWholeCanvas();
+
     /// <summary>
     /// The builder's view of a frame under a live transform. A method with a
     /// cached delegate rather than a lambda at the call site, so the publish
@@ -10922,6 +10948,36 @@ public sealed partial class MainViewModel : ObservableObject
         // install a frame one publish after the one that needed it, which is the
         // whole of the benefit gone.
         TakeWarmedFrames();
+
+        // B165, second half: if this frame would compose to exactly the pixels
+        // already on screen, do not compose it.
+        //
+        // On 2s every second playhead position exposes the drawings the last one
+        // did, so the composite is identical — and at 4K that composite measured
+        // 62.76 ms against an 83.3 ms budget, the largest single cost in the tick.
+        // Unlike B125's GPU work this is route-independent: it applies wherever
+        // the composite would have happened, including the tiled path playback
+        // actually takes.
+        //
+        // Playback only. While drawing, a publish is how a mark reaches the
+        // screen, and the dirty-region machinery already makes that cheap; adding
+        // a second "did anything change" question there would be two answers to
+        // one question, which is how they come to disagree.
+        var fingerprint = new Rendering.FrameFingerprint(
+            CurrentFrameIndex, ComposeScale, _pendingViewport,
+            CameraViewTransform(ComposeScale),
+            Rendering.UnchangedLayerRun.VisibleLayers(scene));
+        if (IsPlaying
+            && Rendering.FrameFingerprint.WouldBeIdentical(
+                _lastPublished, fingerprint, scene,
+                anythingDirty: _dirtyIsWholeCanvas || _pendingDirty is not null))
+        {
+            FramesReused++;
+            // Still prewarm: the worker is guessing at frames after this one, and
+            // a reused frame is exactly when there is spare time to do it in.
+            RequestPlaybackPrewarm(UnboundedCanvasOn || IsPlaying, ComposeScale);
+            return;
+        }
 
         // The pass list is built by ScenePassBuilder (B166): a pure function
         // from the document and the state below to an ordered list, with no
@@ -11091,6 +11147,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         Performance.RecordPublish(sw.Elapsed.TotalMilliseconds);
         LastPublishClip = usedClip;
+        _lastPublished = fingerprint;
         // Everything from here is the handoff: the snapshot swap, the retired
         // images being disposed, and the invalidate. Timed apart from the
         // composite above because one number for both is what sent B156 after
@@ -11532,6 +11589,16 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _dirtyIsWholeCanvas = true;
         _pendingDirty = null;
+        // B165: and forget what is on screen, so the next publish composes.
+        //
+        // The reuse guard already refuses while anything is dirty, so this is
+        // belt and braces — but it is the cheap half of a pair whose expensive
+        // half is stale art. The guard rests on an existing contract: anything
+        // that changes pixels must already mark the canvas dirty, or it would not
+        // reach the screen today either. This makes that dependency explicit
+        // instead of implicit, so a future invalidation path that forgets to mark
+        // dirty fails loudly at the canvas rather than quietly here.
+        _lastPublished = null;
     }
 
     // ---- camera ---------------------------------------------------------------
