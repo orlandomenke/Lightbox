@@ -10861,7 +10861,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// Playback frames that composed to the pixels already on screen and were
     /// therefore not composed at all.
     /// </summary>
-    internal int FramesReused { get; private set; }
+    public int FramesReused { get; private set; }
 
     /// <summary>
     /// Forget the frame on screen, so the next publish composes rather than

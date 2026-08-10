@@ -72,7 +72,8 @@ internal static class RenderReport
         (long Requested, long Delivered)? AnimationFrames = null,
         double RenderMedianMs = 0,
         (int Hits, int Misses, long Bytes)? TextureResidency = null,
-        bool GpuCompositeOptedIn = false);
+        bool GpuCompositeOptedIn = false,
+        int FramesReused = 0);
 
     /// <summary>
     /// Whether playback got the tile path, and what stopped it.
@@ -494,13 +495,25 @@ internal static class RenderReport
             return;
         }
 
-        sb.AppendLine($"compositing               GPU asked for: {gpu} on the card, {cpu} on the processor");
+        // Both counts are of the DEFERRED route only — the one B125 moved into the
+        // draw op. The tiled and ring compositors build their own surfaces and
+        // never reach this helper, so they are invisible here. Saying "0 on the
+        // processor" without that is the third false line this file has had: it
+        // reads as "no CPU compositing happened" when in truth all of it did.
+        sb.AppendLine(
+            $"compositing               of the publishes that could use the card: {gpu} did, {cpu} fell back");
+        if (gpu + cpu == 0)
+        {
+            sb.AppendLine("  !! no publish even reached that path, so EVERY frame was composited");
+            sb.AppendLine("     on the processor by the tiled or full-document compositor.");
+            sb.AppendLine("     Only the culled route goes to the card today, and it needs the view");
+            sb.AppendLine("     zoomed in past the document edges on a whole-canvas publish — a");
+            sb.AppendLine("     fit-to-window view never takes it, and neither does playback.");
+            return;
+        }
         if (gpu == 0)
         {
-            sb.AppendLine("  !! nothing composited on the card. Only the culled route goes to the");
-            sb.AppendLine("     GPU today, and it needs the view zoomed in past the document edges");
-            sb.AppendLine("     on a whole-canvas publish. Playback takes the tiled compositor");
-            sb.AppendLine("     instead, which is still CPU — see the tile path section above.");
+            sb.AppendLine("  !! reached the path and fell back every time — see the refusals below.");
             return;
         }
         if (Rendering.GpuComposite.RefusedAllocations > 0)
@@ -638,6 +651,11 @@ internal static class RenderReport
         }
 
         sb.AppendLine($"playback ticks            {facts.TickCount}");
+        if (facts.FramesReused > 0)
+        {
+            sb.AppendLine($"  frames not composited   {facts.FramesReused}  (B165: the playhead moved but no");
+            sb.AppendLine("                          visible layer changed drawing, so the picture was reused)");
+        }
         var total = 0.0;
         foreach (var phase in phases)
         {
