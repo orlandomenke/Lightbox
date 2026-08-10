@@ -52,7 +52,11 @@ public class PlaybackThroughTilesTests : BrushStateIsolated
 
     private static SKBitmap Pixels(Lightbox.App.Rendering.RenderSnapshot snapshot)
     {
-        var bmp = SKBitmap.FromImage(snapshot.Image);
+        // B167 phase 3b: the tiled route hands over a description rather than
+        // pixels, so the composite is performed here — on the CPU, since a test
+        // has no lease to take a GRContext from.
+        using var composed = snapshot.Materialise(null);
+        var bmp = SKBitmap.FromImage(composed);
         Assert.NotNull(bmp);
         return bmp!;
     }

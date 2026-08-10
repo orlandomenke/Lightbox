@@ -10920,6 +10920,28 @@ public sealed partial class MainViewModel : ObservableObject
     /// release takes straight back out.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Let go of everything a published snapshot held: unpin what it borrowed,
+    /// free what this publish allocated.
+    /// </summary>
+    /// <remarks>
+    /// <b>Two opposite operations on one list, which is why they are named
+    /// together.</b> Layer bitmaps belong to the frame cache and must be released
+    /// without being freed; flattened tile bitmaps belong to nobody and must be
+    /// freed. Disposing a borrowed one is B130; leaking an owned one is a
+    /// viewport-sized bitmap per frame of playback.
+    /// </remarks>
+    private Action ReleaseFor(List<RenderPass> passes, List<SKBitmap>? owned)
+    {
+        var unpin = PinPasses(passes);
+        if (owned is null || owned.Count == 0) return unpin;
+        return () =>
+        {
+            unpin();
+            for (var i = 0; i < owned.Count; i++) owned[i].Dispose();
+        };
+    }
+
     private Action PinPasses(List<RenderPass> passes)
     {
         // One list per publish, sized to the passes rather than grown. A publish
@@ -11092,10 +11114,30 @@ public sealed partial class MainViewModel : ObservableObject
 
         SKImage? image;
         DeferredCompose? deferred = null;
+        // Bitmaps this publish allocated rather than borrowed (B167 phase 3a):
+        // flattened tiles. Borrowed passes are unpinned when the snapshot dies;
+        // these have to be freed, which is the opposite operation and the one
+        // thing easy to get wrong now that they cross a thread.
+        List<SKBitmap>? flattenedOwned = null;
         if (plan.Route == ComposeRoute.Unbounded)
         {
-            // Unbounded canvas: use tiled compositing for only visible viewport
-            image = ComposeUnboundedSnapshot(scene, passes, background, renderScale, cameraView, seq);
+            // Unbounded canvas: use tiled compositing for only visible viewport.
+            //
+            // Tile passes are flattened into bitmap passes first (B167 phase 3),
+            // which is what makes the composite below a pure function of bitmaps
+            // and therefore movable to the render thread. The flattened bitmaps
+            // are freshly allocated rather than borrowed from a cache, so they
+            // are disposed here rather than unpinned.
+            // B167 phase 3b: describe it rather than do it. Flattening still
+            // happens here — it needs the tile cache — but the blending, which
+            // phase 1 measured at roughly two thirds of Compose, moves to the
+            // draw op where the graphics context is.
+            var vp = _pendingViewport!.Value;
+            flattenedOwned = [];
+            passes = FlattenTilePasses(passes, scene, vp, renderScale, flattenedOwned);
+            deferred = new DeferredCompose(
+                passes, background, renderScale, info, vp, Tiled: true);
+            image = null;
             usedClip = imageCovers;
         }
         else if (plan.CullRect is { } cullRect)
@@ -11168,7 +11210,7 @@ public sealed partial class MainViewModel : ObservableObject
                 image, (int)viewWidth, (int)viewHeight, seq, imageCovers,
                 SnapshotGeometry.ChangedInImageSpace(
                     usedClip, imageCovers, renderScale, throughCamera: cameraView is not null),
-                passes, PinPasses(passes), deferred));
+                passes, ReleaseFor(passes, flattenedOwned), deferred));
         }
         else
         {
@@ -11178,6 +11220,7 @@ public sealed partial class MainViewModel : ObservableObject
             // disposal at all — it was never performed, which is the cheapest
             // this path has ever been.
             image?.Dispose();
+            if (flattenedOwned is not null) foreach (var b in flattenedOwned) b.Dispose();
         }
 
         // Last, and after the frame is on its way to the screen: the worker
@@ -11333,177 +11376,77 @@ public sealed partial class MainViewModel : ObservableObject
     /// silently dropped.
     /// </para>
     /// </remarks>
-    private SKImage ComposeUnboundedSnapshot(
-        Lightbox.Core.Documents.Scene scene,
-        List<RenderPass> passes,
-        SKColor background,
-        double renderScale,
-        SKMatrix44? cameraView,
-        long seq)
+    /// <summary>
+    /// Turn tile-native passes into ordinary bitmap passes with a placement
+    /// matrix, flattening their visible tiles here (B167 phase 3).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is what dissolves the blocker rather than confronting it.</b> The
+    /// tiled composite is the one playback takes and the one that has to move to
+    /// the render thread — but it reads <c>_tileFrames</c>, which the view model
+    /// owns and the draw op cannot reach. Flattening first turns every tile pass
+    /// into a bitmap pass, and a bitmap pass is something the deferred compositor
+    /// already carries across a thread with a lifetime protocol that works.
+    /// </para>
+    /// <para>
+    /// <b>The flattening still happens here, on the UI thread, exactly as before.</b>
+    /// Phase 1 measured it at 30–35% of Compose; this moves the other two thirds,
+    /// and caching the flatten is a separate phase with its own staleness risk.
+    /// </para>
+    /// <para>
+    /// <b>These bitmaps are owned, not borrowed</b> — <c>CompositeToBitmap</c>
+    /// allocates a new one each time. So they are disposed rather than unpinned,
+    /// which is the opposite of every other pass in a published list and the one
+    /// thing to get right when this crosses a thread.
+    /// </para>
+    /// </remarks>
+    private List<RenderPass> FlattenTilePasses(
+        List<RenderPass> passes, Scene scene, SKRectI viewport, double renderScale,
+        List<SKBitmap> owned)
     {
-        var viewport = _pendingViewport!.Value;
-        var info = new SKImageInfo(
-            Math.Max(1, (int)Math.Ceiling(viewport.Width * renderScale)),
-            Math.Max(1, (int)Math.Ceiling(viewport.Height * renderScale)),
-            SKColorType.Rgba8888,
-            SKAlphaType.Premul);
-
-        using var surface = SKSurface.Create(info)
-            ?? throw new InvalidOperationException("Failed to create render surface");
-        var canvas = surface.Canvas;
-        canvas.Clear(background);
-
-        // Document space under the viewport: everything below draws in
-        // document coordinates and lands where the artist is looking.
-        canvas.Save();
-        canvas.Scale((float)renderScale);
-        canvas.Translate(-viewport.Left, -viewport.Top);
-
-        foreach (var pass in passes)
+        List<RenderPass>? flattened = null;
+        for (var i = 0; i < passes.Count; i++)
         {
-            if (pass.Bitmap is null && pass.SourceFrame is null) continue;
+            if (passes[i].SourceFrame is not { } tileSrc) continue;
 
-            var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
-            using var paint = new SKPaint
-            {
-                Color = SKColors.White.WithAlpha(alpha),
-                BlendMode = pass.Blend,
-            };
-            if (pass.Tint is { } tint)
-            {
-                paint.ColorFilter = SKColorFilter.CreateBlendMode(tint, SKBlendMode.SrcIn);
-            }
+            flattened ??= [.. passes];
+            // A tile-native pass: composite the visible tiles 1:1 at the pyramid
+            // level nearest the screen's resolution, then place that one image in
+            // document space — the outer transform does the rest. The residual
+            // resample is a single ≤2× downscale of one image, so deep zoom-outs
+            // get box-mip quality instead of skip-sampling shimmer, and the
+            // intermediate is bounded by the surface however many document pixels
+            // the viewport spans.
+            var (_, pyramid) = _tileFrames.Get(tileSrc, scene.Width, scene.Height);
+            var level = Lightbox.Raster.TilePyramid.LevelFor(renderScale);
+            var step = Lightbox.Raster.TilePyramid.StepOf(level);
+            var lvp = SKRectI.Create(
+                FloorDiv(viewport.Left, step),
+                FloorDiv(viewport.Top, step),
+                Math.Max(1, viewport.Width / step + 2),
+                Math.Max(1, viewport.Height / step + 2));
 
-            // Mirrors SceneRenderer.DrawPass: an eraser overlay or a
-            // translucent/blended layer combines with its own layer before
-            // meeting the stack.
-            var needsIsolation = pass.Overlay is { Erases: true }
-                || alpha != 255
-                || pass.Blend != SKBlendMode.SrcOver;
-            if (needsIsolation) canvas.SaveLayer(paint);
-            var contentPaint = needsIsolation ? null : paint;
+            SKBitmap flat;
+            using (Profile(_profilingTick, Services.TickProfile.Phase.TileFlatten))
+            {
+                flat = Lightbox.Raster.TileCompositor.CompositeToBitmap(
+                    pyramid.Level(level), lvp);
+            }
+            owned.Add(flat);
 
-            if (pass.SourceFrame is { } tileSrc)
-            {
-                // A tile-native pass: composite the visible tiles 1:1 at the
-                // pyramid level nearest the screen's resolution, then place
-                // that one image in document space — the outer transform does
-                // the rest. The residual resample is a single ≤2× downscale of
-                // one image, so deep zoom-outs get box-mip quality instead of
-                // skip-sampling shimmer, and the intermediate is bounded by
-                // the surface however many document pixels the viewport spans.
-                var (_, pyramid) = _tileFrames.Get(tileSrc, scene.Width, scene.Height);
-                var level = Lightbox.Raster.TilePyramid.LevelFor(renderScale);
-                var step = Lightbox.Raster.TilePyramid.StepOf(level);
-                var lvp = SKRectI.Create(
-                    FloorDiv(viewport.Left, step),
-                    FloorDiv(viewport.Top, step),
-                    Math.Max(1, viewport.Width / step + 2),
-                    Math.Max(1, viewport.Height / step + 2));
-                // B167 phase 1: flattening the visible tiles is one of the two
-                // costs inside Compose and they were a single number. Playback
-                // takes this route, so the split decides which of B167's later
-                // phases is the feature and which is plumbing.
-                SKBitmap flat;
-                using (Profile(_profilingTick, Services.TickProfile.Phase.TileFlatten))
-                {
-                    flat = Lightbox.Raster.TileCompositor.CompositeToBitmap(
-                        pyramid.Level(level), lvp);
-                }
-                using var flatOwned = flat;
-                using var view = SKImage.FromBitmap(flatOwned);
-                if (view is not null)
-                {
-                    canvas.Save();
-                    canvas.Translate(lvp.Left * step, lvp.Top * step);
-                    canvas.Scale(step);
-                    canvas.DrawImage(view, 0, 0, Linear, contentPaint);
-                    canvas.Restore();
-                }
-            }
-            else if (pass.Matrix is { } m)
-            {
-                // A positioned pass — a reference strip. Its matrix nests
-                // inside the viewport transform, exactly as it nests inside
-                // the scene transform on the bounded path.
-                canvas.Save();
-                canvas.Concat(m);
-                DrawWhole(canvas, pass, contentPaint);
-                canvas.Restore();
-            }
-            else if (pass.Source is not null)
-            {
-                DrawWhole(canvas, pass, contentPaint);
-            }
-            else
-            {
-                // The ordinary layer: draw only the part the viewport can
-                // see. The source rectangle is clamped to the bitmap — the
-                // viewport of an unbounded canvas extends past every edge of
-                // the nominal document, and a source rect off the bitmap is
-                // undefined rather than transparent.
-                var src = SKRectI.Intersect(
-                    viewport, SKRectI.Create(0, 0, pass.Bitmap!.Width, pass.Bitmap.Height));
-                if (src.Width > 0 && src.Height > 0)
-                {
-                    using var img = SKImage.FromBitmap(pass.Bitmap);
-                    if (img is not null)
-                    {
-                        canvas.DrawImage(
-                            img, src,
-                            SKRect.Create(src.Left, src.Top, src.Width, src.Height),
-                            Linear, contentPaint);
-                    }
-                }
-            }
-
-            if (pass.Overlay is { } overlay)
-            {
-                using var strokePaint = new SKPaint
-                {
-                    Color = SKColors.White.WithAlpha(
-                        (byte)Math.Round(Math.Clamp(overlay.Opacity, 0, 1) * 255)),
-                    BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
-                };
-                var src = SKRectI.Intersect(
-                    viewport,
-                    SKRectI.Create(0, 0, overlay.Scratch.Width, overlay.Scratch.Height));
-                if (src.Width > 0 && src.Height > 0)
-                {
-                    using var scratch = SKImage.FromBitmap(overlay.Scratch);
-                    if (scratch is not null)
-                    {
-                        canvas.DrawImage(
-                            scratch, src,
-                            SKRect.Create(src.Left, src.Top, src.Width, src.Height),
-                            Linear, strokePaint);
-                    }
-                }
-            }
-
-            if (needsIsolation) canvas.Restore();
+            // Translate then scale, which is what the canvas did around the draw.
+            var placement = SKMatrix.CreateScaleTranslation(
+                step, step, lvp.Left * step, lvp.Top * step);
+            var p = passes[i];
+            flattened[i] = new RenderPass(
+                flat, p.Tint, p.Opacity, p.Blend, p.Overlay, placement);
         }
-
-        canvas.Restore();
-        canvas.Flush();
-        return surface.Snapshot();
+        return flattened ?? passes;
     }
+
 
     /// <summary>A pass drawn in full — a windowed reference cell, or one under its own matrix.</summary>
-    private static void DrawWhole(SKCanvas canvas, RenderPass pass, SKPaint? paint)
-    {
-        using var img = SKImage.FromBitmap(pass.Bitmap);
-        if (img is null) return;
-        if (pass.Source is { } window)
-        {
-            canvas.DrawImage(
-                img, window, SKRect.Create(window.Width, window.Height), Linear, paint);
-        }
-        else
-        {
-            canvas.DrawImage(img, 0, 0, Linear, paint);
-        }
-    }
 
     private static readonly SKSamplingOptions Linear = new(SKFilterMode.Linear);
 
