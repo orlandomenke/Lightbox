@@ -442,17 +442,22 @@ public static class SceneRenderer
             }
             else if (pass.Matrix is { } m)
             {
-                // A positioned pass — a reference strip. Its matrix nests
+                // A positioned pass — a reference strip, or a flattened tile
+                // pass, which is every layer on this route. Its matrix nests
                 // inside the viewport transform, exactly as it nests inside
                 // the scene transform on the bounded path.
+                //
+                // Residency is passed through here because this is the arm the
+                // tiled route actually takes: without it the flatten cache's
+                // stable bitmaps were re-uploaded every frame. See DrawWhole.
                 canvas.Save();
                 canvas.Concat(m);
-                DrawWhole(canvas, pass, contentPaint);
+                DrawWhole(canvas, pass, contentPaint, resident, gpu);
                 canvas.Restore();
             }
             else if (pass.Source is not null)
             {
-                DrawWhole(canvas, pass, contentPaint);
+                DrawWhole(canvas, pass, contentPaint, resident, gpu);
             }
             else
             {
@@ -509,10 +514,71 @@ public static class SceneRenderer
         canvas.Flush();
         return surface.Snapshot();
     }
-    private static void DrawWhole(SKCanvas canvas, RenderPass pass, SKPaint? paint)
+    /// <summary>
+    /// Draw a whole pass — a positioned strip, or a flattened tile pass under its
+    /// placement matrix.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This took a resident texture only after the first GPU-on render report
+    /// showed why it had to (2026-08-12).</b> That capture read
+    /// <c>310 publishes composited on the card</c> and, three sections later,
+    /// <c>no layer textures were asked for</c> — a contradiction that turned out
+    /// to be a wiring gap rather than a measurement error.
+    /// </para>
+    /// <para>
+    /// <b>Every flattened tile pass carries a placement matrix</b>
+    /// (<c>MainViewModel.FlattenTilePasses</c>), so on the tiled route every pass
+    /// took the matrix arm and arrived here — and this method called
+    /// <see cref="SKImage.FromBitmap"/> unconditionally, which uploads the pixels
+    /// again on every draw. Only the ordinary-layer arm consulted residency, and
+    /// on the route playback takes nothing reaches it. So the cache B125 stage 5
+    /// built was never asked a single question on the one path it was meant to
+    /// serve.
+    /// </para>
+    /// <para>
+    /// <b>What makes these worth keeping resident is B167 phase 2.</b> The flatten
+    /// cache made these bitmaps stable across frames — the same capture measured
+    /// <b>99% reuse, 867 of 876 passes</b> — and then this method threw that
+    /// stability away by re-uploading a 31.6 MB bitmap per layer per frame at 4K.
+    /// A stable bitmap re-uploaded every frame is precisely the case a texture
+    /// cache exists for.
+    /// </para>
+    /// <para>
+    /// <b>What this is not:</b> it is not phase 5. Phase 5 uploads the <em>tiles</em>
+    /// and composites them on the card, skipping the flatten entirely. This keeps
+    /// the flatten and stops re-uploading its result — a fraction of the work, and
+    /// the honest way to find out whether the upload was ever the cost. Phase 5
+    /// stays blocked on the re-measurement this makes possible.
+    /// </para>
+    /// </remarks>
+    /// <param name="resident">
+    /// Non-null only when the caller has a GPU-backed surface, which is why
+    /// <paramref name="gpu"/> is dereferenced with <c>!</c> below rather than
+    /// re-checked — the same idiom the ordinary-layer arm above uses, and the
+    /// reason it is an idiom is that two checks of one invariant can disagree.
+    /// </param>
+    internal static void DrawWhole(
+        SKCanvas canvas, RenderPass pass, SKPaint? paint,
+        LayerTextureCache? resident = null, GRContext? gpu = null)
     {
-        using var img = SKImage.FromBitmap(pass.Bitmap);
+        if (pass.Bitmap is not { } bitmap) return;
+
+        // A resident texture is already on the card, so it is drawn directly
+        // rather than wrapped — SKImage.FromBitmap is the upload this avoids.
+        if (resident?.Resident(gpu!, bitmap) is { } texture)
+        {
+            DrawImage(canvas, texture, pass, paint);
+            return;
+        }
+
+        using var img = SKImage.FromBitmap(bitmap);
         if (img is null) return;
+        DrawImage(canvas, img, pass, paint);
+    }
+
+    private static void DrawImage(SKCanvas canvas, SKImage img, RenderPass pass, SKPaint? paint)
+    {
         if (pass.Source is { } window)
         {
             canvas.DrawImage(
