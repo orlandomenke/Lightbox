@@ -27,6 +27,22 @@ Marquee, freehand, polygon, ellipse and magic wand, with **Shift** to add and
 **Alt** to subtract. Grow, shrink and feather. A selection clips painting, and
 the clip is part of the record, so a reload paints the same shape.
 
+**Ctrl+D deselects, whatever tool you are holding.** Worth saying plainly
+because a selection clips painting: if the brush seems to have stopped working,
+the usual reason is a selection still up somewhere off screen, and Ctrl+D is
+the answer. **Ctrl+A** selects the whole canvas — except with one of the arrows
+in hand, where "all" means the objects on the canvas rather than the canvas.
+
+**Delete clears what is inside the selection; Backspace fills it with the
+background colour.** Both leave the outline up, because the next thing you
+usually do with an emptied region is put something else in it, and both are
+ordinary undo steps. With no selection up, Delete falls back to deleting
+whatever lines the Arrow has picked.
+
+**A selection belongs to its document.** Switch tabs and it stays behind;
+switch back and it is where you left it. A new document starts with nothing
+selected.
+
 **Ctrl+T** starts a transform. The gizmo gives move, scale, rotate and a
 draggable pivot; **Perspective** mode gives four free corners. The drawing
 moves *with* the gizmo — you see the result while you drag, not after you

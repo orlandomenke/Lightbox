@@ -1,8 +1,11 @@
+using Lightbox.Core.Documents;
+
 namespace Lightbox.App.ViewModels;
 
 /// <summary>
 /// Where the artist was in a document: the frame and layer they were on, which
-/// reference they had selected, and how the canvas was framed.
+/// reference they had selected, how the canvas was framed, and what they had
+/// selected.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -56,6 +59,29 @@ public sealed class DocumentScopedState
     /// second is restored verbatim.
     /// </remarks>
     public CanvasViewState? View;
+
+    /// <summary>
+    /// The selection outline, remembered while another tab is active, or null
+    /// when nothing is selected.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B171.</b> This was the one piece of per-document state living in the
+    /// view model instead of here, and the symptom was not "the ants are still
+    /// up" — it was <em>the new document will not paint</em>, because a
+    /// selection clips every stroke and this one described a canvas that was no
+    /// longer on screen. Contours are in document coordinates, so carrying them
+    /// to a differently sized document is not merely stale, it is nonsense.
+    /// </para>
+    /// <para>
+    /// Remembered rather than discarded, for the reason <see cref="View"/> is:
+    /// a selection is work, and coming back to a tab to find it gone is the
+    /// same loss as coming back to find the framing reset. The leak and the
+    /// memory are the same fix — state that belongs to a document cannot be
+    /// carried to another one once it has somewhere of its own to live.
+    /// </para>
+    /// </remarks>
+    public List<List<StrokePoint>>? Selection;
 }
 
 /// <summary>The canvas view transform, as a value that can be put down and picked up.</summary>

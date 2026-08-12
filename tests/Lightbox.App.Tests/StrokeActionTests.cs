@@ -325,12 +325,22 @@ public class StrokeActionTests(ITestOutputHelper output)
         Assert.Contains("lines.delete", ids);
         Assert.Contains("lines.recolour", ids);
 
-        // Delete has a default; recolour deliberately does not, and being listed
-        // is what lets an artist give it one.
+        // B173 took Delete off `lines.delete` and gave it to `select.clear`,
+        // which falls back to deleting lines when no region is selected — so
+        // the behaviour survives while the key belongs to one id. Neither entry
+        // has a default now, and both are still listed, which is the property
+        // this test is actually about: an action the Configure window cannot
+        // see is an action an artist cannot bind.
         var delete = map.Definitions.First(d => d.Id == "lines.delete");
         output.WriteLine($"lines.delete -> {delete.GestureText}");
-        Assert.NotNull(delete.Default);
+        Assert.Null(delete.Default);
         Assert.Null(map.Definitions.First(d => d.Id == "lines.recolour").Default);
+
+        // And the key it gave up is registered rather than wired into the key
+        // handler, which is the failure the registry exists to prevent.
+        var clear = map.Definitions.First(d => d.Id == "select.clear");
+        Assert.NotNull(clear.Default);
+        Assert.Equal(Avalonia.Input.Key.Delete, clear.Default!.Key);
     }
 
     [AvaloniaFact]
