@@ -135,6 +135,31 @@ public sealed partial class MainViewModel : ObservableObject
          _tileFlats.CachedBytes, TileFlattenCache.ByteBudget);
 
     /// <summary>
+    /// Bytes held by bitmaps that have left a cache and cannot be freed yet,
+    /// because a published snapshot is still reading them (B179).
+    /// </summary>
+    /// <remarks>
+    /// <b>Every cache tracked this and nothing ever printed it.</b> That is the
+    /// blind spot B179 was reported through: a machine at 12 GB while every
+    /// budget line in the report read comfortably inside its limit. These bytes
+    /// are in neither <c>CachedBytes</c> nor the budget by design — they are not
+    /// cache contents — but they are real memory, they are unbounded, and a
+    /// report that omits them cannot be used to find them.
+    /// </remarks>
+    internal (long Frames, long Flattens) AwaitingUnpinBytes =>
+        (_cache.AwaitingUnpinBytes, _tileFlats.AwaitingUnpinBytes);
+
+    /// <summary>How many distinct bitmaps published snapshots are pinning.</summary>
+    internal (int Frames, int Flattens) PinnedBitmaps =>
+        (_cache.PinnedCount, _tileFlats.PinnedCount);
+
+    /// <summary>
+    /// Tile bytes held, which the report counted in passes and never in bytes.
+    /// </summary>
+    internal (long Bytes, long Budget) TileStoreBytes =>
+        (_tileFrames.AllocatedBytes, TileFrameCache.ByteBudget);
+
+    /// <summary>
     /// The shape of the scene, which is what decides whether it fits the cache.
     /// </summary>
     /// <remarks>
@@ -744,6 +769,10 @@ public sealed partial class MainViewModel : ObservableObject
             leaving.State.FrameIndex = CurrentFrameIndex;
             leaving.State.LayerIndex = ActiveLayerIndex;
             leaving.State.ReferenceIndex = ActiveReferenceIndex;
+            // B171. Handed over rather than copied: AttachEditor is about to
+            // drop the view model's reference, so the tab becomes the only
+            // owner and there is nothing left to alias.
+            leaving.State.Selection = HasSelection ? _selectionContours : null;
         }
         AttachEditor(value.Editor);
         // B56, and note that the line below it already had the guard: a document with no layers
@@ -755,6 +784,13 @@ public sealed partial class MainViewModel : ObservableObject
         // is read and an out-of-range value means "this document has fewer
         // strips than that one did" rather than an error to repair.
         ActiveReferenceIndex = value.State.ReferenceIndex;
+        // B171. After AttachEditor cleared it, so this is a restore rather than
+        // a survival: a tab with no remembered selection arrives with none.
+        if (value.State.Selection is { Count: > 0 } remembered)
+        {
+            _selectionContours = remembered;
+            NotifySelection();
+        }
         RecallDocumentBrush();
         _switchingTabs = false;
         // After the switch, so a handler asking the view model anything sees the
@@ -908,6 +944,15 @@ public sealed partial class MainViewModel : ObservableObject
         _editor.Changed -= OnDocumentChanged;
         _editor = editor;
         _editor.Changed += OnDocumentChanged;
+        // B171. A selection describes *this* document's canvas, in that
+        // document's coordinates, so it cannot follow the editor being swapped
+        // out. Cleared here rather than in each caller because this is the
+        // funnel every document change goes through — a new document, a tab
+        // switch, an open, a close — and the previous bug was precisely that
+        // four callers each cleared some of the per-document state and none of
+        // them cleared this. A tab switch puts its own selection back
+        // immediately afterwards; every other path wants the empty one.
+        ClearSelectionState();
         // ClearFrameRenders subsumes the _cache.Clear() this used to be: it
         // empties the tile cache alongside it, through the one funnel.
         ClearFrameRenders();
@@ -3855,7 +3900,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// </para>
     /// </remarks>
     public Rendering.CanvasCursorKind PointerIntent =>
-        Rendering.CanvasCursor.For(ActiveTool, CurrentTarget);
+        Rendering.CanvasCursor.For(ActiveTool, CurrentTarget, _hoverModifiers);
 
     /// <summary>Why the active tool would do nothing here, or null.</summary>
     /// <remarks>
@@ -3864,12 +3909,30 @@ public sealed partial class MainViewModel : ObservableObject
     /// pointer already refuses, which is the half an artist notices; this is the
     /// half that says why, and it is ready for the surface that will hold it.
     /// </remarks>
-    public string? PointerRefusal => Rendering.CanvasCursor.Refusal(ActiveTool, CurrentTarget);
+    public string? PointerRefusal =>
+        Rendering.CanvasCursor.Refusal(ActiveTool, CurrentTarget, _hoverModifiers);
 
-    private Rendering.CanvasTarget CurrentTarget => new(
-        LayerHidden: !ActiveLayer.Visible,
-        LayerLocked: ActiveLayer.Locked,
-        AlphaLocked: ActiveLayer.AlphaLocked);
+    /// <summary>Whether the refusal has anything to say, for the status line.</summary>
+    public bool HasPointerRefusal => PointerRefusal is not null;
+
+    private Rendering.CanvasTarget CurrentTarget
+    {
+        get
+        {
+            var alphaLocked = ActiveLayer.AlphaLocked;
+            return new Rendering.CanvasTarget(
+                LayerHidden: !ActiveLayer.Visible,
+                LayerLocked: ActiveLayer.Locked,
+                AlphaLocked: alphaLocked,
+                // The two that need a place. With the pointer off the canvas
+                // there is no place, so both stay permissive — the cursor
+                // under-reports rather than inventing a refusal.
+                NothingUnderPointer:
+                    alphaLocked && _hoverPoint is { } a && !PaintUnder(a.X, a.Y),
+                OutsideSelection:
+                    _hoverPoint is { } b && !InsideSelection(b.X, b.Y));
+        }
+    }
 
     /// <summary>
     /// Re-ask the mapping, because something it reads has changed underneath it.
@@ -3885,6 +3948,96 @@ public sealed partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(PointerIntent));
         OnPropertyChanged(nameof(PointerRefusal));
+        OnPropertyChanged(nameof(HasPointerRefusal));
+    }
+
+    private Avalonia.Input.KeyModifiers _hoverModifiers;
+    private (double X, double Y)? _hoverPoint;
+
+    /// <summary>
+    /// The pointer moved: remember where, and re-ask what the tool would do.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is what lets the last two refusals be true rather than assumed.</b>
+    /// Whether the pointer is inside the selection and whether there is paint
+    /// under an alpha-locked brush are the only two facts that vary pixel by
+    /// pixel rather than per layer, so they need a position and nothing else did.
+    /// </para>
+    /// <para>
+    /// <b>Bounded, as invariant 6 requires.</b> The selection test is
+    /// point-in-polygon over the outline — proportional to the contour, not to
+    /// the canvas — where <c>SelectionMask</c> would rasterise a full
+    /// <c>w × h</c> mask on every move. The alpha read is one pixel, and only
+    /// when the layer is alpha-locked, because that is the only case whose
+    /// answer is used.
+    /// </para>
+    /// </remarks>
+    public void UpdatePointerContext(double x, double y, Avalonia.Input.KeyModifiers modifiers)
+    {
+        _hoverPoint = (x, y);
+        _hoverModifiers = modifiers;
+        RefreshPointerIntent();
+    }
+
+    /// <summary>The pointer left the canvas: stop claiming to know where it is.</summary>
+    public void ClearPointerContext()
+    {
+        if (_hoverPoint is null) return;
+        _hoverPoint = null;
+        RefreshPointerIntent();
+    }
+
+    /// <summary>Whether a stroke coordinate falls inside the active selection.</summary>
+    /// <remarks>
+    /// Even-odd, matching <c>BrushEngine.PathFromContours</c> — a hole in a
+    /// selection is outside it, and the cursor has to agree with the renderer
+    /// about that or it forbids in the wrong places.
+    /// </remarks>
+    private bool InsideSelection(double x, double y)
+    {
+        if (!HasSelection) return true;
+        // Surface space: the contours are the mask's, and so is the question.
+        var (px, py) = (x - Scene.Left, y - Scene.Top);
+        var inside = false;
+        foreach (var contour in _selectionContours)
+        {
+            for (int i = 0, j = contour.Count - 1; i < contour.Count; j = i++)
+            {
+                var a = contour[i];
+                var b = contour[j];
+                if (a.Y > py != b.Y > py &&
+                    px < (b.X - a.X) * (py - a.Y) / (b.Y - a.Y) + a.X)
+                {
+                    inside = !inside;
+                }
+            }
+        }
+        return inside;
+    }
+
+    /// <summary>Whether the active layer has any paint at a stroke coordinate.</summary>
+    /// <remarks>
+    /// Only asked when the layer is alpha-locked, because that is the only time
+    /// the answer changes what the pointer says — and it costs a bitmap read, so
+    /// asking it otherwise would be paying per pointer event for nothing.
+    /// </remarks>
+    private bool PaintUnder(double x, double y)
+    {
+        var px = (int)Math.Round(x - Scene.Left);
+        var py = (int)Math.Round(y - Scene.Top);
+        if (px < 0 || py < 0 || px >= Scene.Width || py >= Scene.Height) return false;
+        if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return false;
+        try
+        {
+            return _cache.Get(frame, Scene.Width, Scene.Height).GetPixel(px, py).Alpha > 0;
+        }
+        catch
+        {
+            // A cache miss mid-resize is not worth a crash on a hover; assume
+            // paint, which is the permissive answer and never forbids wrongly.
+            return true;
+        }
     }
 
     /// <summary>
@@ -4047,6 +4200,12 @@ public sealed partial class MainViewModel : ObservableObject
         // which is why this is one line rather than a mode.
         if (value != ToolId.Arrow) ClearStrokeSelection();
 
+        // Same one-line rule for the hover preview: it is drawn state that only
+        // the white arrow can act on, so it must not outlive the tool. Without
+        // this the last-hovered line keeps its points on screen while the brush
+        // is painting over them.
+        if (value != ToolId.DirectSelect) ClearPathHover();
+
         // The pen keeps what it drew rather than dropping it, which is the same
         // answer Escape gets and for the same reason: reaching for another tool
         // mid-path is not a request to throw a minute of authoring away.
@@ -4171,7 +4330,28 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Fill every pixel of the current selection, as one undo step.</summary>
-    private void FillWholeSelection()
+    private void FillWholeSelection() =>
+        StrokeOverWholeSelection(ToolKind.Fill, ColorHex, ActiveSwatchId, "fill-selection");
+
+    /// <summary>
+    /// Lay one region-shaped stroke over the whole selection, as one undo step.
+    /// </summary>
+    /// <remarks>
+    /// <b>B173.</b> The fill and the clear are the same operation with a
+    /// different <see cref="ToolKind"/>, so they share a body rather than the
+    /// clear being a copy that drifts. Both go through the record — invariant 1
+    /// and invariant 3 — which is what makes undo free and what stops "delete"
+    /// meaning something the reload cannot reproduce.
+    /// </remarks>
+    /// <param name="swatchId">
+    /// Null for the eraser and for the background fill: a swatch reference
+    /// exists so recolouring a palette entry moves the art with it, and neither
+    /// of these is art in that sense — the eraser has no colour at all, and
+    /// Backspace means "the background as it is now" rather than "follow this
+    /// swatch forever".
+    /// </param>
+    private void StrokeOverWholeSelection(
+        ToolKind tool, string color, string? swatchId, string label)
     {
         if (_selectionContours.Count == 0) return;
         if (PaintTargetOrKey() is not { } target) return;
@@ -4179,16 +4359,16 @@ public sealed partial class MainViewModel : ObservableObject
 
         var stroke = new Stroke
         {
-            Tool = ToolKind.Fill,
-            Color = ColorHex,
-            SwatchId = ActiveSwatchId,
-            PaletteId = ActivePaletteId,
+            Tool = tool,
+            Color = color,
+            SwatchId = swatchId,
+            PaletteId = swatchId is null ? null : ActivePaletteId,
             Brush = new BrushSettings { Opacity = 1, AntiAlias = AntiAliasing },
             Points = [.. _selectionContours[0]],
             Holes = _selectionContours.Count > 1
                 ? _selectionContours.Skip(1).Select(c => c.ToList()).ToList()
                 : null,
-            Label = "fill-selection",
+            Label = label,
         };
         if (PrepareClipForSelection() is { } clip) stroke.ClipId = clip.Id;
 
@@ -4206,7 +4386,67 @@ public sealed partial class MainViewModel : ObservableObject
         InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
-        AiStatus = $"Filled the selection with {ColorHex}.";
+        AiStatus = tool == ToolKind.ClearRegion
+            ? "Cleared the selection."
+            : $"Filled the selection with {color}.";
+    }
+
+    /// <summary>
+    /// Delete: clear what is inside the selection, leaving the outline up.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B173, and the precedence is the decided part.</b> A live marquee wins
+    /// and the selected lines are the fallback — Photoshop's rule, and the one
+    /// an artist arrives with. It is worth writing down that this goes
+    /// <em>against</em> the precedent next door: <see cref="NudgeSelection"/>
+    /// asks the line selection first and says why. So the two keys disagree
+    /// about which selection they mean, knowingly.
+    /// </para>
+    /// <para>
+    /// The cost of that disagreement is real and is why <b>B171 had to land
+    /// first</b>: Delete silently changes meaning while a stale marquee is up,
+    /// and before B171 a marquee could be left up by a document the artist had
+    /// already closed. With selections scoped to their document, a marquee
+    /// being up is something the artist did to *this* drawing.
+    /// </para>
+    /// <para>
+    /// The outline stays after the clear, because the next thing an artist does
+    /// with an emptied region is usually put something else in it.
+    /// </para>
+    /// </remarks>
+    [RelayCommand]
+    private void DeleteSelectionContents()
+    {
+        if (IsPlaying) return;
+        if (HasSelection)
+        {
+            if (!CanEdit(ActiveLayer, "erase on it")) return;
+            StrokeOverWholeSelection(ToolKind.ClearRegion, ColorHex, null, "clear-selection");
+            return;
+        }
+        DeleteSelectedLinesCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Backspace: flood the selection with the background colour.
+    /// </summary>
+    /// <remarks>
+    /// <b>B173.</b> The counterpart to <see cref="DeleteSelectionContents"/>,
+    /// and deliberately a *fill* rather than an erase — the two keys differ in
+    /// what is left behind, which is the whole reason both exist. No fallback
+    /// when nothing is selected: Backspace has never meant anything on the
+    /// canvas, so there is no established behaviour to preserve, and inventing
+    /// one here would be a second decision smuggled in beside the asked-for one.
+    /// </remarks>
+    [RelayCommand]
+    private void FillSelectionWithBackground()
+    {
+        if (IsPlaying) return;
+        if (!HasSelection) return;
+        if (!CanEdit(ActiveLayer, "fill on it")) return;
+        StrokeOverWholeSelection(
+            ToolKind.Fill, BackgroundColorHex, null, "fill-selection-background");
     }
 
     /// <param name="invertSmart">
@@ -4522,11 +4762,34 @@ public sealed partial class MainViewModel : ObservableObject
         SelectionChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Whether Select All and Deselect should mean the objects on the canvas
+    /// rather than a region of it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B168.</b> Both commands used to ask <c>ActiveTool == ToolId.Select</c>,
+    /// which names the wrong tool — and not by a near miss. <see cref="ToolId.Select"/>
+    /// is the <em>marquee</em>: the tool whose entire job is making the region
+    /// these commands then could not touch. The tools that pick objects are the
+    /// two arrows, exactly as <c>ToolId.Arrow</c>'s own documentation says
+    /// ("picks <b>things</b> … not areas of pixels").
+    /// </para>
+    /// <para>
+    /// So the old condition was inverted in effect: Ctrl+D with the marquee in
+    /// hand cleared object selections and left the marquee up, and Ctrl+A took
+    /// all the objects instead of the canvas. One property, asked by both, so a
+    /// fix to one cannot drift from the other.
+    /// </para>
+    /// </remarks>
+    private bool ObjectSelectionIsTheSubject =>
+        ActiveTool is ToolId.Arrow or ToolId.DirectSelect;
+
     [RelayCommand]
     private void SelectAll()
     {
-        // In Select tool mode, select all canvas objects; otherwise select all pixels
-        if (ActiveTool == ToolId.Select)
+        // With an arrow in hand, "all" means the objects; otherwise the canvas.
+        if (ObjectSelectionIsTheSubject)
         {
             var frame = PaintTargetOrKey();
             if (frame is not Frame pf) return;
@@ -4598,22 +4861,45 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Deselect: afterwards, nothing is selected.
+    /// </summary>
+    /// <remarks>
+    /// <b>B168.</b> Unlike <see cref="SelectAll"/> this asks no question at all,
+    /// and the asymmetry is the point. "Select all" has to know what *all*
+    /// means, so it consults <see cref="ObjectSelectionIsTheSubject"/>; "none"
+    /// means none, and a deselect that clears one kind of selection while
+    /// leaving another live is the bug rather than a subtlety. It also means
+    /// the artist can never be left holding a selection they cannot see how to
+    /// remove — which is what made this a P1: a marquee clips painting, so the
+    /// symptom of a failed deselect is <em>the application stopped drawing</em>.
+    /// </remarks>
     [RelayCommand]
     private void Deselect()
     {
-        // In Select tool mode, deselect all canvas objects; otherwise deselect pixels
-        if (ActiveTool == ToolId.Select)
-        {
-            _selectionManager.ClearAllSelections();
-        }
-        else
-        {
-            // Pixel/stroke deselection (existing behavior)
-            if (!HasSelection && _polygonPoints.Count == 0) return;
-            _selectionContours = [];
-            _polygonPoints.Clear();
-            NotifySelection();
-        }
+        // Already a no-op when nothing is picked — it guards its own event.
+        _selectionManager.ClearAllSelections();
+        if (!HasSelection && _polygonPoints.Count == 0) return;
+        _selectionContours = [];
+        _polygonPoints.Clear();
+        NotifySelection();
+    }
+
+    /// <summary>
+    /// Drop every selection without announcing it — for a document swap, where
+    /// the announcement belongs to the swap rather than to the selection.
+    /// </summary>
+    /// <remarks>
+    /// <b>B171.</b> Deliberately not <see cref="Deselect"/>: that is a command
+    /// an artist issued and it publishes a snapshot, which during
+    /// <c>AttachEditor</c> would publish a frame from a half-swapped document.
+    /// </remarks>
+    private void ClearSelectionState()
+    {
+        _selectionManager.ClearAllSelections();
+        _selectionContours = [];
+        _polygonPoints.Clear();
+        OnPropertyChanged(nameof(HasSelection));
     }
 
     /// <summary>Arrow keys over the canvas: shift the selection outline by whole pixels.</summary>

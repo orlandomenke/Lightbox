@@ -285,3 +285,202 @@ public class SelectionTests
         Assert.Equal(0, bmp.GetPixel(100, 50).Alpha); // clipped away entirely
     }
 }
+
+/// <summary>
+/// What Select All, Deselect, Delete and Backspace mean — and which document
+/// they mean it about.
+/// </summary>
+/// <remarks>
+/// B168, B171 and B173, together because they are the same surface and because
+/// two of them only make sense beside each other: B173's Delete asks whether a
+/// marquee is live, and B171 is why the answer can be trusted.
+/// </remarks>
+[Collection("BrushState")]
+public class SelectionScopeTests : BrushStateIsolated
+{
+    private static List<StrokePoint> Box(double l, double t, double r, double b) =>
+        [new(l, t, 1), new(r, t, 1), new(r, b, 1), new(l, b, 1)];
+
+    private static MainViewModel Marqueed(ToolId tool)
+    {
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        vm.ApplySelectionShape(Box(50, 50, 200, 200), add: false, subtract: false);
+        vm.ActiveTool = tool;
+        Assert.True(vm.HasSelection);
+        return vm;
+    }
+
+    // ---- B168: the commands asked which tool was held, not what was selected --
+
+    [AvaloniaFact]
+    public void DeselectClearsAMarqueeWhileTheSelectToolIsActive()
+    {
+        // The tool that *makes* a marquee was the one tool whose deselect
+        // could not clear it — the old branch read ToolId.Select and meant
+        // the arrows.
+        var vm = Marqueed(ToolId.Select);
+        vm.DeselectCommand.Execute(null);
+        Assert.False(vm.HasSelection);
+    }
+
+    [AvaloniaFact]
+    public void DeselectClearsAMarqueeWhicheverToolIsHeld()
+    {
+        // "None" means none, from anywhere: an artist must never be left
+        // holding a selection they cannot see how to remove, because a
+        // selection clips painting and the symptom is "it stopped drawing".
+        foreach (var tool in new[] { ToolId.Brush, ToolId.Select, ToolId.Arrow, ToolId.DirectSelect })
+        {
+            var vm = Marqueed(tool);
+            vm.DeselectCommand.Execute(null);
+            Assert.False(vm.HasSelection);
+        }
+    }
+
+    [AvaloniaFact]
+    public void SelectAllTakesTheWholeCanvasWhileTheSelectToolIsActive()
+    {
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        vm.ActiveTool = ToolId.Select;
+        vm.SelectAllCommand.Execute(null);
+
+        Assert.True(vm.HasSelection);
+        var contour = vm.SelectionContours[0];
+        Assert.Equal(vm.Doc.Scene.Width, contour.Max(p => p.X));
+        Assert.Equal(vm.Doc.Scene.Height, contour.Max(p => p.Y));
+    }
+
+    [AvaloniaFact]
+    public void SelectAllStillMeansTheObjectsWithAnArrowInHand()
+    {
+        // The other half of the same branch: "all" has to know what all means,
+        // and with an arrow in hand it is the objects rather than the canvas.
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        (vm.Doc.Scene.Guides ??= []).Add(new Guide { Kind = GuideKind.Line, X = 100, Y = 0 });
+        vm.ActiveTool = ToolId.Arrow;
+
+        vm.SelectAllCommand.Execute(null);
+        Assert.False(vm.HasSelection); // not the canvas
+    }
+
+    // ---- B171: a selection belongs to its document ---------------------------
+
+    [AvaloniaFact]
+    public void ANewDocumentStartsWithNothingSelected()
+    {
+        var vm = Marqueed(ToolId.Select);
+        vm.NewDocument(new NewDocumentSettings("Second", 640, 480, 12, 72, "#ffffff", false));
+
+        Assert.False(vm.HasSelection);
+    }
+
+    [AvaloniaFact]
+    public void SwitchingTabsDoesNotCarryASelectionAcross()
+    {
+        // Two real tabs, because the document the app opens on is not one —
+        // `Tabs` is empty until something adds to it, which is part of why the
+        // leak existed: with no tab there was nowhere for a selection to be put
+        // down, so it stayed on the view model and outlived its document.
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        vm.NewDocument(new NewDocumentSettings("First", 800, 600, 12, 72, "#ffffff", false));
+        var first = vm.ActiveTab!;
+        vm.ApplySelectionShape(Box(50, 50, 200, 200), add: false, subtract: false);
+        Assert.True(vm.HasSelection);
+
+        vm.NewDocument(new NewDocumentSettings("Second", 640, 480, 12, 72, "#ffffff", false));
+        Assert.False(vm.HasSelection);
+
+        // …and coming back finds it where it was left. The leak and the memory
+        // are one fix: state that belongs to a document cannot travel to
+        // another one once it has somewhere of its own to live.
+        vm.ActiveTab = first;
+        Assert.True(vm.HasSelection);
+
+        vm.ActiveTab = vm.Tabs[^1];
+        Assert.False(vm.HasSelection);
+    }
+
+    // ---- B173: Delete and Backspace act on the region ------------------------
+
+    [AvaloniaFact]
+    public void DeleteClearsWhatIsInsideTheMarquee()
+    {
+        var vm = new MainViewModel(null) { SmoothStrokes = false, BrushSize = 40 };
+        vm.ColorHex = "#101010";
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(160, 100, 1);
+        vm.EndStroke();
+
+        vm.ApplySelectionShape(Box(50, 50, 200, 200), add: false, subtract: false);
+        vm.DeleteSelectionContentsCommand.Execute(null);
+
+        var strokes = vm.PaintedCel().Strokes;
+        Assert.Equal(ToolKind.ClearRegion, strokes[^1].Tool);
+
+        using var bmp = Lightbox.Raster.FrameRasterizer.Rasterize(
+            strokes, vm.Doc.Scene.Width, vm.Doc.Scene.Height);
+        Assert.Equal(0, bmp.GetPixel(130, 100).Alpha);
+
+        // The outline stays: the next thing done with an emptied region is
+        // usually putting something else in it.
+        Assert.True(vm.HasSelection);
+    }
+
+    [AvaloniaFact]
+    public void BackspaceFillsTheMarqueeWithTheBackgroundColour()
+    {
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        vm.ColorHex = "#101010";
+        vm.BackgroundColorHex = "#20c040";
+
+        vm.ApplySelectionShape(Box(50, 50, 200, 200), add: false, subtract: false);
+        vm.FillSelectionWithBackgroundCommand.Execute(null);
+
+        var strokes = vm.PaintedCel().Strokes;
+        Assert.Equal(ToolKind.Fill, strokes[^1].Tool);
+        // The background, not the foreground — the two keys differ in what
+        // they leave behind, which is the whole reason both exist.
+        Assert.Equal("#20c040", strokes[^1].Color);
+
+        using var bmp = Lightbox.Raster.FrameRasterizer.Rasterize(
+            strokes, vm.Doc.Scene.Width, vm.Doc.Scene.Height);
+        var px = bmp.GetPixel(120, 120);
+        Assert.Equal(0x20, px.Red);
+        Assert.Equal(0xc0, px.Green);
+        Assert.Equal(0x40, px.Blue);
+    }
+
+    [AvaloniaFact]
+    public void DeleteStillRemovesTheSelectedLinesWhenNoRegionIsUp()
+    {
+        // The fallback is what lets `lines.delete` keep its meaning in the case
+        // it used to have: marquee first, lines second.
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(160, 100, 1);
+        vm.EndStroke();
+
+        var id = vm.PaintedCel().Strokes[^1].Id;
+        vm.ActiveTool = ToolId.Arrow;
+        vm.Selection.SelectStroke(id);
+        Assert.False(vm.HasSelection);
+
+        vm.DeleteSelectionContentsCommand.Execute(null);
+        Assert.DoesNotContain(vm.PaintedCel().Strokes, s => s.Id == id);
+    }
+
+    [AvaloniaFact]
+    public void BackspaceDoesNothingWithNoRegionUp()
+    {
+        // No fallback invented for it: Backspace has never meant anything on
+        // the canvas, so there is no established behaviour to preserve.
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(160, 100, 1);
+        vm.EndStroke();
+        var before = vm.PaintedCel().Strokes.Count;
+
+        vm.FillSelectionWithBackgroundCommand.Execute(null);
+        Assert.Equal(before, vm.PaintedCel().Strokes.Count);
+    }
+}

@@ -174,10 +174,20 @@ arms need to go. It works on a straight run too — drag the middle of a straigh
 line and it bends, which is how you turn a corner-to-corner segment into a curve
 without adding anything.
 
-**The white arrow (N)** is the same thing as a tool rather than a gesture — for
-when you are already inside a line and want to keep reshaping. It does nothing
-until a line is isolated, which is on purpose: it and the Arrow do different
-jobs and blurring them is how a click starts meaning two things.
+**The white arrow (N)** is the same thing as a tool rather than a gesture.
+**Hover a line with it and you see its points** before you commit to anything —
+which is how you tell a line with three points from one with thirty without
+going inside it first. **One click** goes in and takes hold of whatever was
+under the pointer, so you can start dragging a point immediately.
+
+One click here, two with the Arrow, and the difference is deliberate: a click
+with the Arrow ordinarily means *pick this whole thing*, so reaching into
+geometry has to be asked for twice. Reaching into geometry is the only thing
+the white arrow does, so there is nothing to ask twice about.
+
+The two tools still do different jobs — the Arrow picks whole lines, the white
+arrow picks the points inside one — and blurring them is how a click starts
+meaning two things.
 
 > **Reshaping keeps the weight you drew with.** A line that tapers at the ends
 > still tapers after you have moved its points about — the pressure spreads
@@ -278,19 +288,25 @@ a ring; the eyedropper, the fill and the shape tools show a crosshair; the move
 tool shows arrows; the two selection arrows show a pointer.
 
 **If the pointer shows a "no" symbol, the tool will not do anything where you
-are** — that is the point of it. It means one of:
+are** — that is the point of it, and the reason why appears in the strip at the
+bottom of the window. It means one of:
 
 - the layer is **hidden**. Turn its eye back on in the Layers panel.
 - the layer is **locked**. Unlock it with the padlock.
+- you are **outside the selection**. Strokes only land inside it.
+- the layer is **alpha locked** and there is no paint under the brush. Alpha lock
+  means "only draw where I have already drawn", so bare canvas is off limits —
+  move over existing paint and the pointer allows it again.
 
-Before, these did nothing and said nothing, which is hard to tell apart from the
-application being broken. Now you find out before you commit to a stroke rather
-than after.
+The last two change as you move, because they are about *where you are* rather
+than about the layer. Before, all four did nothing and said nothing, which is
+hard to tell apart from the application being broken.
 
-*Planned:* the pointer does not yet refuse for the two cases that depend on
-exactly where you are — outside a selection, or on an alpha-locked layer with no
-paint under the brush. Those still fail silently for now, and the pointer stays
-optimistic rather than guessing.
+**Hold `Ctrl` and the brush becomes an eyedropper** for as long as you hold it —
+the colour you want is usually already on the canvas, and fetching a tool to get
+it breaks the stroke you were about to make. The pointer changes to say so. It
+also stops refusing while you hold it, because picking a colour off a locked
+layer was always allowed.
 
 ---
 

@@ -487,6 +487,38 @@ public sealed class CanvasControl : Control
     /// <summary>The camera gizmo's drags, as document-space deltas per move.
     /// The window maps them onto the framing at the playhead, which keys it —
     /// adjusting the camera IS keying it, same as the numeric fields.</summary>
+    /// <summary>
+    /// The pointer moved over the document: stroke coordinates and the keys
+    /// held, so the view model can answer the two questions about a place that
+    /// only a place can answer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Raised on hover only — while a gesture is in progress the answer is
+    /// already decided and re-asking it would cost a bitmap read per pointer
+    /// event during the one operation that can least afford it (invariant 6).
+    /// </para>
+    /// <para>
+    /// Coalesced by position: a pen reports far more moves than it crosses
+    /// pixels, and every duplicate would be a wasted read of the same pixel.
+    /// </para>
+    /// </remarks>
+    public event Action<double, double, KeyModifiers>? PointerHovered;
+
+    private (int X, int Y, KeyModifiers Mods)? _lastHoverReport;
+
+    private void ReportHover(Point view, KeyModifiers modifiers)
+    {
+        if (PointerHovered is null) return;
+        var (x, y) = ViewToDoc(view);
+        if (!double.IsFinite(x) || !double.IsFinite(y)) return;
+
+        var key = ((int)Math.Round(x), (int)Math.Round(y), modifiers);
+        if (_lastHoverReport == key) return;
+        _lastHoverReport = key;
+        PointerHovered.Invoke(x, y, modifiers);
+    }
+
     public event Action<double, double>? CameraPanned;
 
     /// <summary>Multiplicative zoom change from a corner drag.</summary>
@@ -1274,14 +1306,21 @@ public sealed class CanvasControl : Control
     /// <summary>Let go: one undo step for the whole drag.</summary>
     private Action? _commitPathEdit;
 
+    /// <summary>
+    /// Preview what a click would reach into. Returns whether the answer moved.
+    /// </summary>
+    private Func<double, double, double, bool>? _hoverPathPart;
+
     public void SetPathEditHandlers(
         Func<double, double, double, bool, ViewModels.PathHit>? grab,
         Action<ViewModels.PathHit, double, double, double, double, bool>? drag,
-        Action? commit)
+        Action? commit,
+        Func<double, double, double, bool>? hover = null)
     {
         _grabPathPart = grab;
         _dragPathPart = drag;
         _commitPathEdit = commit;
+        _hoverPathPart = hover;
     }
 
     private ViewModels.PathHit _pathGrab = ViewModels.PathHit.Miss;
@@ -2836,6 +2875,12 @@ public sealed class CanvasControl : Control
                     return;
                 case CanvasToolMode.PathEdit:
                     e.Pointer.Capture(this);
+                    // B172. Entering isolation and grabbing a part are one
+                    // question here — "what does a click with the white arrow
+                    // mean" — and the answer lives in the view model, like every
+                    // other decision this control delegates. It used to be able
+                    // to grab only, so the tool was inert until the *black*
+                    // arrow had opened the line first.
                     _pathGrab = _grabPathPart?.Invoke(
                         x, y, DocTolerance(GrabPixels),
                         e.KeyModifiers.HasFlag(KeyModifiers.Shift)) ?? ViewModels.PathHit.Miss;
@@ -3026,6 +3071,10 @@ public sealed class CanvasControl : Control
         try
         {
             _hoverPoint = e.GetPosition(this);
+            // Only while nothing is being dragged: mid-gesture the question is
+            // already answered, and asking it again would put a bitmap read in
+            // the pointer path of the one operation that cannot afford it.
+            if (!_painting && !_panning) ReportHover(_hoverPoint.Value, e.KeyModifiers);
             // The brush cursor must follow the pointer no matter what state
             // we're in — repaints coalesce, so this is cheap.
             //
@@ -3248,6 +3297,20 @@ public sealed class CanvasControl : Control
                 }
                 e.Handled = true;
                 return;
+            }
+
+            // Not dragging anything, white arrow in hand: preview the line
+            // under the pointer. The view model answers whether the preview
+            // actually moved, so an unchanged hover costs a hit test and no
+            // repaint — a hover fires on every pointer event, and this is a
+            // per-event path.
+            if (ToolMode == CanvasToolMode.PathEdit && !_pathGrab.IsHit)
+            {
+                var (hx, hy) = ViewToDoc(e.GetPosition(this));
+                _hoverPathPart?.Invoke(hx, hy, DocTolerance(GrabPixels));
+                // Deliberately not handled: a preview is not an interaction,
+                // and swallowing the move here would stop everything below it
+                // that also wants to know where the pointer is.
             }
 
             // reshaping a node or a handle?

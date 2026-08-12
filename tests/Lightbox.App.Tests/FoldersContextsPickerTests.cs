@@ -35,11 +35,25 @@ public class ContextShortcutTests
         // latter until the Arrow tool gained something to delete; this assertion
         // used to read `Assert.Null(... Canvas)` and was correct at the time.
         // Both halves are asserted so neither can quietly take the other's key.
+        //
+        // B173 moved the canvas half from `lines.delete` to `select.clear`,
+        // which asks whether a region is selected and falls back to the lines
+        // when none is. The twin arrangement is unchanged — one id per context,
+        // never two on the same key — and the precedence lives in the command
+        // rather than in a second binding, which is what keeps this assertion
+        // able to say what Delete means from one place.
         var delete = new KeyEventArgs { Key = Key.Delete, KeyModifiers = KeyModifiers.None };
         Assert.Equal("docker.deleteLayer", map.IdFor(delete, ShortcutScope.In(DockPanelId.Layers)));
-        Assert.Equal("lines.delete", map.IdFor(delete, ShortcutScope.Canvas));
+        Assert.Equal("select.clear", map.IdFor(delete, ShortcutScope.Canvas));
         // And neither is global, or it would fire over the other's area too.
         Assert.Null(map.IdFor(delete, ShortcutScope.In(DockPanelId.Timeline)));
+
+        // Backspace is the same shape: the layer docker blanks a layer, the
+        // canvas floods the selection with the background.
+        var back = new KeyEventArgs { Key = Key.Back, KeyModifiers = KeyModifiers.None };
+        Assert.Equal("docker.clearLayer", map.IdFor(back, ShortcutScope.In(DockPanelId.Layers)));
+        Assert.Equal("select.fillBackground", map.IdFor(back, ShortcutScope.Canvas));
+        Assert.Null(map.IdFor(back, ShortcutScope.In(DockPanelId.Timeline)));
     }
 
     [Fact]

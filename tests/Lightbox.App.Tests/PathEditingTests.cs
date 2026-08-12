@@ -956,6 +956,176 @@ public class PathEditingTests(ITestOutputHelper output)
         Assert.NotEqual(arrow.Default!.Key, entry.Default!.Key);
     }
 
+    // ---- B172: the white arrow on its own -------------------------------------
+
+    /// <summary>
+    /// A single click with the white arrow enters the line under it.
+    /// </summary>
+    /// <remarks>
+    /// It could not, and nothing else in that tool's path could either: the
+    /// only route into isolation was the <em>black</em> arrow's double-click,
+    /// so the white arrow was inert unless another tool had opened the line
+    /// first. This drives <c>GrabPathPart</c> because that is what the canvas
+    /// calls — testing <c>BeginPathEdit</c> instead would pass on the broken
+    /// build, which is the whole point of the anchor being here.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheWhiteArrowEntersAPathByClickingIt()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.DirectSelect;
+        Assert.False(vm.PathEditActive);
+
+        var on = line.Points[30];
+        var hit = vm.GrabPathPart(on.X, on.Y, tolerance: 6);
+
+        Assert.True(vm.PathEditActive);
+        Assert.Equal(line.Id, vm.IsolatedStrokeId);
+        // …and the same click takes hold of what was under it, so the first
+        // drag is not swallowed by the click that made it possible.
+        Assert.True(hit.IsHit);
+    }
+
+    [AvaloniaFact]
+    public void ClickingEmptyCanvasWithTheWhiteArrowEntersNothing()
+    {
+        var vm = WithStrokes(Drawn());
+        vm.ActiveTool = ToolId.DirectSelect;
+
+        var hit = vm.GrabPathPart(20, 20, tolerance: 6);
+
+        Assert.False(hit.IsHit);
+        Assert.False(vm.PathEditActive);
+    }
+
+    [AvaloniaFact]
+    public void TheWhiteArrowPicksAPointWithoutLosingTheOthers()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.DirectSelect;
+
+        var on = line.Points[30];
+        vm.GrabPathPart(on.X, on.Y, tolerance: 6);
+        var session = vm.PathEdit;
+        Assert.NotNull(session);
+
+        var node = session!.Path.Nodes[0];
+        vm.GrabPathPart(node.X, node.Y, tolerance: 6);
+
+        // Narrowing the selection to one point must not take the others off
+        // screen: the overlay draws the isolated path's whole node list, and
+        // an artist reshaping a curve is looking at its neighbours.
+        Assert.True(session.IsNodeSelected(0));
+        Assert.True(session.NodeCount > 1);
+        output.WriteLine($"{session.NodeCount} nodes, selected 0");
+    }
+
+    // ---- roadmap: hover previews the geometry ---------------------------------
+
+    /// <summary>
+    /// Hovering a line with the white arrow shows its points before any click.
+    /// </summary>
+    /// <remarks>
+    /// The first piece of the vector-selection roadmap item, and first because
+    /// it is what makes the rest discoverable: until the geometry is visible
+    /// before a click, every other gesture in that item is guesswork.
+    /// </remarks>
+    [AvaloniaFact]
+    public void HoveringALinePreviewsItsPointsAndHandles()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.DirectSelect;
+
+        var on = line.Points[30];
+        Assert.True(vm.HoverPathAt(on.X, on.Y, tolerance: 6));
+
+        Assert.NotNull(vm.PathHover);
+        Assert.Equal(line.Id, vm.PathHover!.StrokeId);
+        Assert.True(vm.PathHover.Path.Nodes.Count > 1);
+        // A preview only. Hovering must not enter the line — that is what the
+        // click is for, and a mode you fall into by moving the mouse is the
+        // "mushy" tool Q53 rejected.
+        Assert.False(vm.PathEditActive);
+    }
+
+    [AvaloniaFact]
+    public void HoveringAwayFromEveryLineShowsNothing()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.DirectSelect;
+
+        var on = line.Points[30];
+        vm.HoverPathAt(on.X, on.Y, tolerance: 6);
+        Assert.NotNull(vm.PathHover);
+
+        Assert.True(vm.HoverPathAt(20, 20, tolerance: 6));
+        Assert.Null(vm.PathHover);
+    }
+
+    /// <summary>
+    /// Moving along a line the preview already shows costs nothing.
+    /// </summary>
+    /// <remarks>
+    /// A hover fires on every pointer event and the fit runs over every point
+    /// of the stroke, so refitting per event would be work proportional to a
+    /// stroke's length in a per-event path — the shape invariant 6 rules out.
+    /// The report is the changed flag, which is what the canvas repaints on.
+    /// </remarks>
+    [AvaloniaFact]
+    public void HoveringAlongTheSameLineDoesNotRefitIt()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.DirectSelect;
+
+        Assert.True(vm.HoverPathAt(line.Points[30].X, line.Points[30].Y, 6));
+        var first = vm.PathHover!.Path;
+
+        for (var i = 25; i < 36; i++)
+        {
+            Assert.False(
+                vm.HoverPathAt(line.Points[i].X, line.Points[i].Y, 6),
+                "moving along the same line reported a change");
+        }
+        Assert.Same(first, vm.PathHover!.Path);
+    }
+
+    [AvaloniaFact]
+    public void IsolationOwnsTheOverlayRatherThanTheHover()
+    {
+        // One channel, one owner: previewing a neighbour while its nodes are
+        // being dragged would draw two sets of points and say nothing about
+        // which the next click belongs to.
+        var a = Drawn(seed: 0);
+        var b = Drawn(seed: 3);
+        var vm = WithStrokes(a, b);
+        vm.ActiveTool = ToolId.DirectSelect;
+
+        Assert.True(vm.BeginPathEdit(a.Id));
+        Assert.False(vm.HoverPathAt(b.Points[30].X, b.Points[30].Y, 6));
+        Assert.Null(vm.PathHover);
+    }
+
+    [AvaloniaFact]
+    public void LeavingTheWhiteArrowDropsThePreview()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.DirectSelect;
+        vm.HoverPathAt(line.Points[30].X, line.Points[30].Y, 6);
+        Assert.NotNull(vm.PathHover);
+
+        // Drawn state the artist can no longer act on must not outlive its
+        // tool, or the last-hovered line keeps its points on screen while the
+        // brush paints over them.
+        vm.ActiveTool = ToolId.Brush;
+        Assert.Null(vm.PathHover);
+    }
+
     private static PathEditSession SessionOnASmoothNode(out int index)
     {
         var line = Drawn();

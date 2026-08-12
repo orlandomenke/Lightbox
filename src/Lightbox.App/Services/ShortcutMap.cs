@@ -159,7 +159,12 @@ public sealed class ShortcutMap
             // the context twins below — Delete over the canvas removes lines,
             // Delete over the layer list removes a layer, and each is what an
             // artist would expect from where their pointer is.
-            new("lines.delete", "Delete the selected lines (canvas)", "Tools", G(Key.Delete), ShortcutContext.Canvas),
+            // B173 took Delete off this and gave it to `select.clear`, which
+            // falls back to here when no region is selected — so Delete still
+            // deletes lines in the case it used to, and the entry keeps its id
+            // so an artist's rebinding survives. It has no default now for
+            // `lines.recolour`'s reason, stated below: that is allowed.
+            new("lines.delete", "Delete the selected lines (canvas)", "Tools", null),
             // No default gesture, and that is allowed rather than an oversight:
             // every sensible letter is taken, and the button in the arrow's
             // options bar is the way in. Being here is what lets an artist bind
@@ -174,6 +179,16 @@ public sealed class ShortcutMap
             new("select.none", "Deselect", "Tools", G(Key.D, KeyModifiers.Control)),
             new("select.invert", "Invert selection", "Tools", G(Key.I, KeyModifiers.Control | KeyModifiers.Shift)),
             new("select.cancel", "Cancel polygon", "Tools", G(Key.Escape)),
+            // B173. Canvas-scoped for the reason the Delete twins above are:
+            // `docker.deleteLayer` and `docker.clearLayer` own the same two
+            // keys over the Layers docker, and each is what an artist expects
+            // from where their pointer is. Delete clears what is inside the
+            // region, Backspace floods it with the background — the two differ
+            // in what is left behind, which is why both exist rather than one.
+            new("select.clear", "Clear the selection's contents", "Tools",
+                G(Key.Delete), ShortcutContext.Canvas),
+            new("select.fillBackground", "Fill the selection with the background", "Tools",
+                G(Key.Back), ShortcutContext.Canvas),
             new("color.swap", "Swap foreground and background", "Tools", G(Key.X)),
             new("color.reset", "Reset to black over white", "Tools", G(Key.D)),
 

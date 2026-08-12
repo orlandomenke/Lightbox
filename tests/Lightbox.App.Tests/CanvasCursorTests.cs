@@ -1,6 +1,8 @@
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Lightbox.App.Rendering;
 using Lightbox.App.ViewModels;
+using Lightbox.Core.Documents;
 using Xunit;
 
 namespace Lightbox.App.Tests;
@@ -189,6 +191,74 @@ public class CanvasCursorTests(ITestOutputHelper output)
         }
     }
 
+    // ---- modifiers ----------------------------------------------------------------------
+
+    /// <summary>
+    /// Ctrl over a paint or fill tool is a held eyedropper, and the pointer says
+    /// so.
+    /// </summary>
+    /// <remarks>
+    /// Not invented: the canvas branches on exactly this before it looks at the
+    /// tool, on the grounds that <em>"the colour you want is almost always
+    /// already on the canvas."</em> It is the one modifier an artist holds
+    /// mid-stroke, so it is the one the cursor would most obviously lie about.
+    /// </remarks>
+    [Theory]
+    [InlineData(ToolId.Brush)]
+    [InlineData(ToolId.Eraser)]
+    [InlineData(ToolId.Fill)]
+    public void HoldingControlOverAPaintToolShowsTheEyedropper(ToolId tool)
+    {
+        Assert.Equal(ToolId.Picker, CanvasCursor.Effective(tool, KeyModifiers.Control));
+        Assert.Equal(
+            CanvasCursorKind.Pick, CanvasCursor.For(tool, new CanvasTarget(), KeyModifiers.Control));
+    }
+
+    /// <summary>
+    /// Holding Ctrl over a locked layer stops forbidding, because picking a
+    /// colour off a locked layer is allowed and always was.
+    /// </summary>
+    /// <remarks>
+    /// The consequence that makes reading modifiers worth doing at all: without
+    /// it the pointer refuses a gesture the application performs perfectly.
+    /// </remarks>
+    [Fact]
+    public void TheHeldEyedropperIsNotStoppedByTheLayer()
+    {
+        var locked = new CanvasTarget(LayerLocked: true);
+
+        Assert.NotNull(CanvasCursor.Refusal(ToolId.Brush, locked));
+        Assert.Null(CanvasCursor.Refusal(ToolId.Brush, locked, KeyModifiers.Control));
+        Assert.NotEqual(
+            CanvasCursorKind.Forbidden, CanvasCursor.For(ToolId.Brush, locked, KeyModifiers.Control));
+    }
+
+    /// <summary>
+    /// Only Ctrl, and only on the three tools the canvas actually branches on.
+    /// </summary>
+    /// <remarks>
+    /// Shift and Alt change what several tools <em>do</em> — a fill inverts, a
+    /// wand adds or subtracts — but not which kind of action it is, and a cursor
+    /// that changed for each would be flicker rather than information. This is
+    /// the test that stops the mapping growing beyond what the canvas does.
+    /// </remarks>
+    [Fact]
+    public void NoOtherModifierChangesTheTool()
+    {
+        foreach (var tool in Enum.GetValues<ToolId>())
+        {
+            Assert.Equal(tool, CanvasCursor.Effective(tool, KeyModifiers.Shift));
+            Assert.Equal(tool, CanvasCursor.Effective(tool, KeyModifiers.Alt));
+            Assert.Equal(tool, CanvasCursor.Effective(tool, KeyModifiers.None));
+        }
+
+        // And Ctrl leaves alone the tools the canvas does not offer it on.
+        foreach (var tool in new[] { ToolId.Pen, ToolId.Arrow, ToolId.Move, ToolId.Gradient })
+        {
+            Assert.Equal(tool, CanvasCursor.Effective(tool, KeyModifiers.Control));
+        }
+    }
+
     // ---- the wiring, so the mapping is not decoration ------------------------------------
 
     /// <summary>
@@ -217,6 +287,141 @@ public class CanvasCursorTests(ITestOutputHelper output)
         output.WriteLine($"{vm.PointerIntent}: {vm.PointerRefusal}");
         Assert.Equal(CanvasCursorKind.Forbidden, vm.PointerIntent);
         Assert.Contains("locked", vm.PointerRefusal!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ---- the two facts that need a place ------------------------------------------------
+
+    /// <summary>A rectangular selection, as the marquee would make one.</summary>
+    private static void Rect(MainViewModel vm, double x, double y, double w, double h) =>
+        vm.ApplySelectionShape(
+            [
+                new StrokePoint(x, y, 1), new StrokePoint(x + w, y, 1),
+                new StrokePoint(x + w, y + h, 1), new StrokePoint(x, y + h, 1),
+            ],
+            add: false, subtract: false);
+
+    /// <summary>
+    /// Outside the selection is a refusal, and it needs the pointer's position
+    /// to be one.
+    /// </summary>
+    /// <remarks>
+    /// The first of the two facts that vary pixel by pixel rather than per
+    /// layer. Until the view model was told where the pointer is, this sat at
+    /// its permissive default and the refusal could never fire.
+    /// </remarks>
+    [AvaloniaFact]
+    public void MovingOutsideTheSelectionRefusesAndMovingBackDoesNot()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.SelectToolCommand.Execute(ToolId.Brush);
+        Rect(vm, 20, 20, 60, 60);
+        Assert.True(vm.HasSelection);
+
+        vm.UpdatePointerContext(40, 40, KeyModifiers.None);
+        output.WriteLine($"inside: {vm.PointerIntent} / {vm.PointerRefusal}");
+        Assert.Null(vm.PointerRefusal);
+
+        vm.UpdatePointerContext(200, 200, KeyModifiers.None);
+        output.WriteLine($"outside: {vm.PointerIntent} / {vm.PointerRefusal}");
+        Assert.Equal(CanvasCursorKind.Forbidden, vm.PointerIntent);
+        Assert.Contains("selection", vm.PointerRefusal!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// With the pointer off the canvas, neither positional refusal fires.
+    /// </summary>
+    /// <remarks>
+    /// There is no place, so there is no fact — and the cursor under-reports
+    /// rather than inventing a refusal, which is the right way round. Without
+    /// this the pointer would forbid the moment it left the widget and keep
+    /// forbidding on the way back.
+    /// </remarks>
+    [AvaloniaFact]
+    public void WithNoPointerOnTheCanvasNothingPositionalIsRefused()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.SelectToolCommand.Execute(ToolId.Brush);
+        Rect(vm, 20, 20, 60, 60);
+
+        vm.UpdatePointerContext(200, 200, KeyModifiers.None);
+        Assert.NotNull(vm.PointerRefusal);
+
+        vm.ClearPointerContext();
+
+        Assert.Null(vm.PointerRefusal);
+        Assert.NotEqual(CanvasCursorKind.Forbidden, vm.PointerIntent);
+    }
+
+    /// <summary>
+    /// Alpha lock refuses over bare canvas and allows over paint — the second
+    /// fact that needs a position.
+    /// </summary>
+    /// <remarks>
+    /// The one refusal that changes within a single layer, so it is the one a
+    /// per-layer answer gets most wrong: stated as "this layer is alpha locked"
+    /// it would forbid everywhere, including the places the brush works
+    /// perfectly.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AlphaLockRefusesOverBareCanvasAndAllowsOverPaint()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.SelectToolCommand.Execute(ToolId.Brush);
+        // Something to paint on, laid down through the real path so the cached
+        // pixels are the ones the pointer will actually read.
+        vm.BrushSize = 24;
+        vm.BeginStroke(30, 30, 1);
+        vm.MoveStroke(70, 30, 1);
+        vm.EndStroke();
+        vm.PaintLayer().AlphaLocked = true;
+
+        vm.UpdatePointerContext(50, 30, KeyModifiers.None);
+        output.WriteLine($"over paint: {vm.PointerRefusal ?? "(allowed)"}");
+        Assert.Null(vm.PointerRefusal);
+
+        vm.UpdatePointerContext(50, 200, KeyModifiers.None);
+        output.WriteLine($"over bare canvas: {vm.PointerRefusal ?? "(allowed)"}");
+        Assert.NotNull(vm.PointerRefusal);
+        Assert.Contains("Alpha lock", vm.PointerRefusal!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Holding Ctrl reaches the view model too, not just the mapping.</summary>
+    [AvaloniaFact]
+    public void HoldingControlOnTheCanvasArmsTheEyedropper()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.SelectToolCommand.Execute(ToolId.Brush);
+        vm.PaintLayer().Locked = true;
+
+        vm.UpdatePointerContext(40, 40, KeyModifiers.None);
+        Assert.Equal(CanvasCursorKind.Forbidden, vm.PointerIntent);
+
+        vm.UpdatePointerContext(40, 40, KeyModifiers.Control);
+
+        output.WriteLine($"with ctrl: {vm.PointerIntent} / {vm.PointerRefusal}");
+        Assert.Equal(CanvasCursorKind.Pick, vm.PointerIntent);
+        Assert.Null(vm.PointerRefusal);
+    }
+
+    /// <summary>The status line has something to show, and knows when not to.</summary>
+    /// <remarks>
+    /// <c>HasPointerRefusal</c> is what keeps the strip empty in the ordinary
+    /// case: a refusal that were always present would just be furniture, and an
+    /// artist would stop reading it long before it mattered.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheStatusLineOnlyAppearsWhenThereIsSomethingToSay()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.SelectToolCommand.Execute(ToolId.Brush);
+        vm.UpdatePointerContext(40, 40, KeyModifiers.None);
+        Assert.False(vm.HasPointerRefusal);
+
+        vm.PaintLayer().Visible = false;
+        vm.UpdatePointerContext(41, 41, KeyModifiers.None);
+
+        Assert.True(vm.HasPointerRefusal);
+        Assert.Equal(vm.PointerRefusal, vm.PointerRefusal);
     }
 
     /// <summary>Switching tool changes what the pointer promises.</summary>

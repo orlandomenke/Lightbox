@@ -43,7 +43,8 @@ public partial class MainWindow : Window
         Canvas.SetPathEditHandlers(
             _vm.GrabPathPart,
             _vm.DragPathPart,
-            () => _vm.CommitPathEdit());
+            () => _vm.CommitPathEdit(),
+            _vm.HoverPathAt);
         // One subscription for both halves, because they are one fact: the nodes
         // the overlay draws must be the nodes the hit test will find. B147 is the
         // cost of a canvas keeping a copy that something forgets to refresh.
@@ -351,6 +352,8 @@ public partial class MainWindow : Window
         // If canvas input ever fails, say so in the status bar instead of dying silently.
         Canvas.CanvasError += message => _vm.AiStatus = message;
 
+        Canvas.PointerHovered += (x, y, mods) => _vm.UpdatePointerContext(x, y, mods);
+        Canvas.PointerExited += (_, _) => _vm.ClearPointerContext();
         Canvas.ViewChanged += () =>
         {
             // The text, not the Content: the readout's content is a TextBlock that carries
@@ -882,7 +885,13 @@ public partial class MainWindow : Window
     {
         if (_vm.PathEdit is not { } session)
         {
-            Canvas.SetPathNodes(null);
+            // Nothing isolated: show what the white arrow is hovering, if
+            // anything. Same channel as isolation and the pen, because it is
+            // the same overlay and only one of the three can be live — see
+            // PublishPenPath for why two node lists would be a question with no
+            // answer. Nothing is drawn selected: a hover is a preview of what
+            // is there, not a claim about what is picked.
+            Canvas.SetPathNodes(HoverGlyphs());
             return;
         }
 
@@ -894,6 +903,20 @@ public partial class MainWindow : Window
                 n.X, n.Y, n.InX, n.InY, n.OutX, n.OutY, n.Corner, session.IsNodeSelected(i)));
         }
         Canvas.SetPathNodes(glyphs);
+    }
+
+    /// <summary>The hovered line's points, or null when nothing is hovered.</summary>
+    private IReadOnlyList<Rendering.CanvasControl.PathNodeGlyph>? HoverGlyphs()
+    {
+        if (_vm.PathHover is not { } hover) return null;
+
+        var glyphs = new List<Rendering.CanvasControl.PathNodeGlyph>(hover.Path.Nodes.Count);
+        foreach (var n in hover.Path.Nodes)
+        {
+            glyphs.Add(new Rendering.CanvasControl.PathNodeGlyph(
+                n.X, n.Y, n.InX, n.InY, n.OutX, n.OutY, n.Corner, Selected: false));
+        }
+        return glyphs;
     }
 
     /// <summary>
@@ -965,7 +988,10 @@ public partial class MainWindow : Window
             Canvas.TextureResidency,
             Rendering.GpuComposite.OptedIn,
             _vm.FramesReused,
-            _vm.FlattenCacheTraffic);
+            _vm.FlattenCacheTraffic,
+            _vm.AwaitingUnpinBytes,
+            _vm.PinnedBitmaps,
+            _vm.TileStoreBytes);
     }
 
     /// <summary>
@@ -3376,6 +3402,17 @@ public partial class MainWindow : Window
                 break;
             case "lines.delete":
                 _vm.DeleteSelectedLinesCommand.Execute(null);
+                break;
+            // B173. Delete asks the marquee first and falls back to the lines,
+            // so the decision lives in the command rather than being split
+            // between here and there — this is the case the shortcut registry
+            // exists to keep honest, and a branch in the key handler is exactly
+            // what the Configure window cannot see.
+            case "select.clear":
+                _vm.DeleteSelectionContentsCommand.Execute(null);
+                break;
+            case "select.fillBackground":
+                _vm.FillSelectionWithBackgroundCommand.Execute(null);
                 break;
             case "lines.recolour":
                 _vm.RecolourSelectedLinesCommand.Execute(null);
