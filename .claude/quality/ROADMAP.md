@@ -290,6 +290,16 @@ the test needs relaxing.
 - [?] Liquify
 - [?] Clone stamp
 - [?] Healing brush
+- [~] Vector selection that matches the hand it was learned with `evidence: PathHoverPreview, PathEditSession, CloseIndicator, PenActive, PathEditingTests, HoveringALinePreviewsItsPointsAndHandles, ClickingALineWithTheWhiteArrowSelectsAllOfItLikeTheArrow, PickingOnePointKeepsTheOthersVisible, TheHeldModifierEntersDirectSelectFromThePen, ClickingTheCloseIndicatorStrokesTheWholeShape`
+  - **The two arrows exist and do not yet behave like the tools they are named after.** Requested against Illustrator, which is the vocabulary anyone doing this work already has, and the pieces are specific enough to build without further design:
+    - **Hover previews the geometry.** Moving over a line shows its points and handles before anything is clicked, so an artist knows what they are about to grab. Nothing shows geometry on hover today.
+    - **Clicking the line selects the whole path**, exactly as the black Arrow does — the white arrow's difference is what it can then do to it, not what a click means.
+    - **Clicking a point or a handle picks that one and leaves the rest visible.** Selection narrows; the drawing does not disappear around it. `PathEditSession` already tracks node selection, so this is the presentation half.
+    - **A modifier held over the pen enters direct select**, the way Illustrator's Ctrl does, so a path can be corrected mid-draw without putting the tool down. This is the same registry problem as B176 and should reuse whatever momentary machinery that lands — two independent hold implementations is how one of them becomes unrebindable.
+    - **The pen shows an on-canvas close indicator**, and clicking it strokes the whole shape. Closing a path is currently something you find out worked afterwards.
+    - **A modifier over the white arrow widens the stroke.** Line weight after the fact already exists as the Width tool; this is reaching it without a tool change.
+  - **The one part that is a defect and not a feature is filed separately as B172**: the white arrow cannot enter a path at all today — `_enterPathEdit` is wired only to the black Arrow's double-click — so the tool is inert on its own. That is a bug with a repro and it should not wait for this item; this item is what the tool does *once it works*.
+  - Ordering: hover preview first. It is the cheapest of the six, it is the one that makes the others discoverable, and until geometry is visible before a click every other gesture here is guesswork with a mouse.
 
 ### Interop
 

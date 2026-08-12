@@ -38,18 +38,7 @@ archive. The archive is `BUGS.md` itself.
 
 <!-- Append new reports below this line, oldest first. -->
 
-- Erasing somethings shows the transparency checkerboard while erasing. Sometimes crashing the application.
-- Press and hold E should have the same behaviour as the Eyedropper tool with I, a quick switch to eraser on hold, return to previous tool.
-- On canvas icons show a cross instead of their respective tool icon; fill, eyedropper.
-- Selection tool:
-- Deselecting does not work anymore not by shortcut, not by on screen buttons.
-- closing and opening a new document in the same session should not keep selection up.
-- Backspace fill selection with background color, delete, delete whatever is inside the selection
-- Vector tooling:
-- Direct select is not able to select, or enter, strokes. Selecting should work like the arrow tool. On hover shouw points and handles; clicking the line shows all but selects all like arrow. Clicking a point or handle selects that handle, but keeps the rest of the points visible. Modifier key: widen stroke
-- Pen tool: show on canvas icon for closing a shape. Clicking it should stroke the entire shape. Add modifier key (press and hold) to enter direct select tool. Like how illustrator handles it.
-- Palette docker; create visual separation between the hierarchy and swatches. Hierarchy can be rescaled and scollable, do not overflow hide the swatches.
-- Brush: ink is really responsive; flat medium and pencil lag.  
+*(empty)*
 
 ## Needs a decision
 
@@ -84,4 +73,41 @@ Worth keeping visible rather than folding into the entry: the B66 tests pinned
 the decision each dialog makes and still could not see the pair, because neither
 dialog is reachable headlessly. Two correct prompts in sequence are one bad
 prompt, and only a person looking at the screen was ever going to catch it.
+
+**Batch of 2026-08-12 — twelve lines became ten bugs and one roadmap item.**
+B168 (deselect inert under the Select tool, and `SelectAll` broken the same
+way), B169 and B170 (the live eraser cutting through the layers beneath, and
+the crash beside it, filed apart), B171 (a selection surviving into the next
+document), B172 (the white arrow unable to enter a path), B173 (Delete and
+Backspace ignoring a marquee), B174 (the palette hierarchy pinned at 128 px
+under an inert splitter), B175 (fill and the eyedropper wearing the shared
+crosshair), B176 (no momentary tools), B177 (Pencil and the flat brushes
+lagging while the badge calls them Fast).
+
+**Two decisions were prompted rather than assumed, and one went against the
+recommendation.** Where feature-shaped reports land: the small missing
+affordances became P3 `ui`/`canvas` entries so `bugs.py mine` surfaces them to
+whoever next edits the area, and the two vector reports became one Pillar 0
+roadmap item because they specify an interaction model rather than a broken
+behaviour. On Delete's precedence — the marquee wins and lines are the
+fallback, which is Photoshop's rule and the one an artist arrives with. It is
+recorded on B173 with what it costs: `NudgeSelection` asks the line selection
+*first* and says why in a comment, so the two keys will disagree about which
+selection they mean, and Delete quietly changes meaning while a stale marquee
+is up. B171 makes stale marquees more likely than they should be, which is why
+B173 says to land B171 first.
+
+**One report's premise was wrong, and it made the request bigger.** "Press and
+hold E should have the same behaviour as the Eyedropper tool with I" assumes
+`I` is momentary. It is not — it is a latching switch, exactly like `E`.
+Nothing in the application holds a tool for the duration of a key, so B176 is
+about building that rather than about copying it. Filed on the reported
+symptom, corrected in the entry, because a report that is wrong about the cause
+is still right about the gap.
+
+**The one claim filed as unconfirmed** is the palette docker's overflow hiding
+the swatches. With the tree's height hard-coded it cannot push them off, so
+B174 records the report as made and says to measure before changing anything —
+and notes that fixing the resize is what makes real overflow possible, so the
+scroll wants to land in the same commit rather than after it.
 
