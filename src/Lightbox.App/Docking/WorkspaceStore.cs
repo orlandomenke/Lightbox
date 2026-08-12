@@ -139,7 +139,7 @@ public sealed class WorkspaceStore
     /// sidebar, and a tab costs a word in a header.
     /// </remarks>
     private static readonly DockPanelId[] Colour =
-        [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient];
+        [DockPanelId.Color, DockPanelId.Palette, DockPanelId.Gradient, DockPanelId.Channels];
 
     /// <summary>
     /// The timeline family (Q58): the track view in front, the exposure sheet
@@ -165,7 +165,8 @@ public sealed class WorkspaceStore
             right: [[DockPanelId.Project], [DockPanelId.Layers], Colour],
             bottom: [TimelineFamily]));
         store.Workspaces.Add(Built("Game art", ProjectType.GameArt,
-            right: [[DockPanelId.Project], [DockPanelId.Layers], [DockPanelId.Palette, DockPanelId.Color]],
+            right: [[DockPanelId.Project], [DockPanelId.Layers],
+                    [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],
             bottom: [TimelineFamily]));
         store.Workspaces.Add(Built("Storyboard", ProjectType.Storyboard,
             right: [[DockPanelId.Project], [DockPanelId.Sheets]],
@@ -174,7 +175,8 @@ public sealed class WorkspaceStore
             right: [[DockPanelId.Project], [DockPanelId.Layers], Colour, [DockPanelId.Sheets]],
             bottom: []));
         store.Workspaces.Add(Built("Asset library", ProjectType.AssetLibrary,
-            right: [[DockPanelId.Project], [DockPanelId.Palette, DockPanelId.Color]],
+            right: [[DockPanelId.Project],
+                    [DockPanelId.Palette, DockPanelId.Color, DockPanelId.Channels]],
             bottom: []));
         store.Current = "Default";
         return store;

@@ -709,6 +709,12 @@ public sealed partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(ShowTimeline));
             }
         };
+        // Bringing the Channels tab forward — opening the panel, or clicking
+        // its tab — is the moment its thumbnails are first wanted; the
+        // ordinary refresh only runs on document edits. RefreshChannelThumbs
+        // gates itself on the tab actually showing, so this costs nothing for
+        // every other layout change.
+        Workspace.Changed += RefreshChannelThumbs;
         // Through RegisterResources rather than resetting the registry
         // directly, so the pickers' palette source is wired from the first
         // moment too — otherwise every flyout opens with no palette until
@@ -4930,6 +4936,75 @@ public sealed partial class MainViewModel : ObservableObject
         return SKBitmap.FromImage(image);
     }
 
+    // ---- channels -----------------------------------------------------------
+
+    /// <summary>
+    /// Which channel the canvas is soloing, if any. View-only (invariant 5):
+    /// the canvas control reads it, the record never hears about it.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRedSolo))]
+    [NotifyPropertyChangedFor(nameof(IsGreenSolo))]
+    [NotifyPropertyChangedFor(nameof(IsBlueSolo))]
+    [NotifyPropertyChangedFor(nameof(IsAlphaSolo))]
+    private ChannelSolo _channelSolo = ChannelSolo.None;
+
+    public bool IsRedSolo => ChannelSolo == ChannelSolo.Red;
+
+    public bool IsGreenSolo => ChannelSolo == ChannelSolo.Green;
+
+    public bool IsBlueSolo => ChannelSolo == ChannelSolo.Blue;
+
+    public bool IsAlphaSolo => ChannelSolo == ChannelSolo.Alpha;
+
+    /// <summary>Solo this channel, or un-solo it if it already is — one click in, one click out.</summary>
+    [RelayCommand]
+    private void ToggleChannelSolo(ChannelSolo channel) =>
+        ChannelSolo = ChannelSolo == channel ? ChannelSolo.None : channel;
+
+    [ObservableProperty]
+    private Avalonia.Media.Imaging.Bitmap? _channelThumbRed;
+
+    [ObservableProperty]
+    private Avalonia.Media.Imaging.Bitmap? _channelThumbGreen;
+
+    [ObservableProperty]
+    private Avalonia.Media.Imaging.Bitmap? _channelThumbBlue;
+
+    [ObservableProperty]
+    private Avalonia.Media.Imaging.Bitmap? _channelThumbAlpha;
+
+    /// <summary>
+    /// True when the Channels panel is the tab actually showing — not merely
+    /// resting behind Color in the colour family's strip.
+    /// </summary>
+    private bool ChannelsTabShowing
+    {
+        get
+        {
+            var layout = Workspace.Layout;
+            return layout.IsVisible(Docking.DockPanelId.Channels)
+                && layout.ActiveOf(layout.SlotOf(Docking.DockPanelId.Channels)) == Docking.DockPanelId.Channels;
+        }
+    }
+
+    /// <summary>
+    /// Redraw the Channels panel's four thumbnails from what the canvas
+    /// currently shows. Gated on the tab actually showing, because the
+    /// composite below materialises a document-sized bitmap — a price the
+    /// default layout must not pay for a tab nobody has brought forward
+    /// (the unbounded-canvas budget is the test that caught this).
+    /// </summary>
+    private void RefreshChannelThumbs()
+    {
+        if (!ChannelsTabShowing) return;
+        using var composite = CompositeVisibleLayers();
+        ChannelThumbRed = ThumbnailRenderer.RenderChannel(composite, ChannelSolo.Red);
+        ChannelThumbGreen = ThumbnailRenderer.RenderChannel(composite, ChannelSolo.Green);
+        ChannelThumbBlue = ThumbnailRenderer.RenderChannel(composite, ChannelSolo.Blue);
+        ChannelThumbAlpha = ThumbnailRenderer.RenderChannel(composite, ChannelSolo.Alpha);
+    }
+
     // ---- magic wand -------------------------------------------------------------
 
     [ObservableProperty]
@@ -5812,6 +5887,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleColorDocker() => ColorDockerVisible = !ColorDockerVisible;
+
+    [RelayCommand]
+    private void ToggleChannelsDocker() =>
+        Workspace.ChannelsDockerVisible = !Workspace.ChannelsDockerVisible;
 
     [RelayCommand]
     private void ToggleSheetsDocker() => SheetsDockerVisible = !SheetsDockerVisible;
@@ -10665,6 +10744,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
         RefreshLayerThumbs();
+        RefreshChannelThumbs();
         _dirtyThumbIds.Clear();
         _allThumbsDirty = false;
     }

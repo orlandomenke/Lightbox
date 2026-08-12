@@ -1657,12 +1657,6 @@ test reopens the bug.
 
 ### ui
 
-- [x] **B186** `P2` `ui` Clicking a tab leaves it glued to the pointer — the drag starts after the release `evidence: DockerDragRoutingTests, AMoveWithTheButtonUpNeverStartsADrag, APressAndPullOnATabStartsTheDrag_HoweverManyTabsThereAre`
-  - Repro: click a docker tab to switch to it, let go, then move the mouse. The tab tears out and chases the pointer, and no release ever puts it down. Reported as "when switching tabs it keeps the tab attached to the pointer".
-  - Cause: the release is not guaranteed to arrive. Clicking a tab rebuilds the strip, the pointer's capture goes down with the old `ListBoxItem`, and the release routes past the header that armed `_pressed` on the press — so the next innocent move, button long since up, crossed the drag threshold and started a drag with no release coming to end it. B183's fix made the press audible; this is the matching hole on the way out.
-  - Fix, in both halves of the machinery: `HeaderMoved` disarms unless the move says the left button is down (a drag can only start while the button is held), and the host's `OnPanelDragMoved` cancels a live drag the same way — a lost release must never leave a ghost chasing the mouse. The end-to-end drag test now carries `RawInputModifiers.LeftMouseButton` on its moves, which is what a real platform sends with every move while the button is held.
-  - P2 rather than P1: the feature works, but every tab switch leaves a trap behind it, and escaping the stuck ghost is not obvious.
-
 - [x] **B183** `P1` `ui` No docker can be dragged, so nothing can be undocked, redocked or regrouped by hand `evidence: DockerDragRoutingTests, APressAndPullOnATabStartsTheDrag_HoweverManyTabsThereAre, PickingUpATabStillSelectsIt, TheFloatButtonIsStillNotAGrip`
   - Repro: press any docker's tab and pull. Nothing tears out — the tab selects and the pointer drags nothing, on every docker, docked or floating. Reported as "docker tabs are not draggable" and "cannot be undocked and redocked", which is the whole docking feature inoperable from the pointer's side.
   - Cause: two correct pieces that never met. `LandedOnTheGrip` (B155) made the **tab** the grip, and Avalonia's `ListBox` marks a press that lands on an item as **handled** while selecting it — so the header's plain `PointerPressed` subscription heard presses everywhere *except* the one place a panel is picked up by. Selection worked, the drag never armed.
@@ -1692,6 +1686,12 @@ test reopens the bug.
   - Cause: `CanvasHost` was still on `Grid.Column="2"` after the docking rework renumbered the work area's columns to seven. Column 2 is the *left dock strip's* cell — `Auto`, and empty by default — so it sized itself to the zoom bar floating on top of the canvas and the canvas got no width. Column 4 (`*`, `MinWidth=240`) held the space open and empty, which is why it read as a dead renderer rather than a missing control.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
+
+- [x] **B186** `P2` `ui` Clicking a tab leaves it glued to the pointer — the drag starts after the release `evidence: DockerDragRoutingTests, AMoveWithTheButtonUpNeverStartsADrag, APressAndPullOnATabStartsTheDrag_HoweverManyTabsThereAre`
+  - Repro: click a docker tab to switch to it, let go, then move the mouse. The tab tears out and chases the pointer, and no release ever puts it down. Reported as "when switching tabs it keeps the tab attached to the pointer".
+  - Cause: the release is not guaranteed to arrive. Clicking a tab rebuilds the strip, the pointer's capture goes down with the old `ListBoxItem`, and the release routes past the header that armed `_pressed` on the press — so the next innocent move, button long since up, crossed the drag threshold and started a drag with no release coming to end it. B183's fix made the press audible; this is the matching hole on the way out.
+  - Fix, in both halves of the machinery: `HeaderMoved` disarms unless the move says the left button is down (a drag can only start while the button is held), and the host's `OnPanelDragMoved` cancels a live drag the same way — a lost release must never leave a ghost chasing the mouse. The end-to-end drag test now carries `RawInputModifiers.LeftMouseButton` on its moves, which is what a real platform sends with every move while the button is held.
+  - P2 rather than P1: the feature works, but every tab switch leaves a trap behind it, and escaping the stuck ghost is not obvious.
 
 - [x] **B155** `P2` `ui` The whole docker header is the drag grip, except the tabs — which is backwards `evidence: LoneDockerDragTests, APressOnATabIsAGrip_HoweverManyTabsThereAre, APressOnTheBareHeaderIsNotAGrip, WithNoTabsAtAllTheTitleIsTheGrip, TheCloseButtonIsStillNotAGrip`
   - Repro: press the empty part of any docker's header — the space to the right of the tabs, before the float and close buttons — and drag. The panel tears out. Now press the tab itself and drag: with two or more tabs, nothing happens.

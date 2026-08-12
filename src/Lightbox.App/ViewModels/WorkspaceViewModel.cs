@@ -148,6 +148,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         set => SetVisible(DockPanelId.Gradient, value);
     }
 
+    public bool ChannelsDockerVisible
+    {
+        get => _layout.IsVisible(DockPanelId.Channels);
+        set => SetVisible(DockPanelId.Channels, value);
+    }
+
     public bool ReferenceDockerVisible
     {
         get => _layout.IsVisible(DockPanelId.Reference);
@@ -257,6 +263,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         DockPanelId.Sheets => nameof(SheetsDockerVisible),
         DockPanelId.Palette => nameof(PaletteDockerVisible),
         DockPanelId.Gradient => nameof(GradientDockerVisible),
+        DockPanelId.Channels => nameof(ChannelsDockerVisible),
         DockPanelId.Reference => nameof(ReferenceDockerVisible),
         DockPanelId.Symbols => nameof(SymbolsPanelVisible),
         DockPanelId.ToolOptions => nameof(ToolOptionsDockerVisible),

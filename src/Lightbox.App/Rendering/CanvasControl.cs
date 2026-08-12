@@ -69,6 +69,7 @@ public sealed class CanvasControl : Control
             BrushCursorRoundnessProperty,
             BrushCursorAngleProperty,
             LazyRadiusProperty,
+            SoloProperty,
         ];
         AffectsRender<CanvasControl>(RepaintOnChange);
 
@@ -623,6 +624,19 @@ public sealed class CanvasControl : Control
     }
 
     private IReadOnlyList<GuideLine>? _guides;
+
+    /// <summary>
+    /// Show one channel of the artwork as grayscale, or all of them as normal.
+    /// View-only: the record is untouched, only the draw changes.
+    /// </summary>
+    public static readonly StyledProperty<ChannelSolo> SoloProperty =
+        AvaloniaProperty.Register<CanvasControl, ChannelSolo>(nameof(Solo));
+
+    public ChannelSolo Solo
+    {
+        get => GetValue(SoloProperty);
+        set => SetValue(SoloProperty, value);
+    }
 
     /// <summary>
     /// The rig marks to draw, or null for none — in which case no rig furniture
@@ -2213,7 +2227,7 @@ public sealed class CanvasControl : Control
             ReferenceBoxes, _newBox, Guides, _draftGuide, WithRigPreview(RigMarks),
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
-            _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures));
+            _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo));
     }
 
     /// <summary>
@@ -4058,7 +4072,8 @@ public sealed class CanvasControl : Control
         IReadOnlyList<PathNodeGlyph>? pathNodes = null,
         IReadOnlyList<Core.Documents.StrokePoint>? penPreview = null,
         IReadOnlyList<Core.Documents.StrokePoint>? pathTrace = null,
-        LayerTextureCache? textures = null) : ICustomDrawOperation
+        LayerTextureCache? textures = null,
+        ChannelSolo solo = ChannelSolo.None) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4179,7 +4194,8 @@ public sealed class CanvasControl : Control
                 c => DrawTransparencyCheckerboard(c, view),
                 ToPainterLines(guides),
                 draftGuide is { } d ? ToPainterLine(d) : null,
-                snapshot.DocViewport);
+                snapshot.DocViewport,
+                ChannelSoloFilters.For(solo));
             DrawCameraFrame(canvas);
             DrawGradientAxis(canvas);
             // B58. Over the artwork and over the guides, under the selection ants:

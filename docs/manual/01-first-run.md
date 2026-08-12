@@ -55,9 +55,10 @@ From the top:
 
 ### Panels
 
-Eight panels: **Project**, **Layers**, **Color**, **Reference sheets**,
-**Palette**, **Gradient**, **Reference**, **Timeline**. Open and close them
-from **View ▸ Dockers**, where every panel toggle lives in one submenu.
+The panels — **Project**, **Layers**, **Color**, **Palette**, **Gradient**,
+**Channels**, **Reference sheets**, **Reference**, **Symbols**,
+**Tool options**, **Timeline**, **X-sheet** and **Graph editor** — open and
+close from **View ▸ Dockers**, where every panel toggle lives in one submenu.
 
 Each panel's header is three things at once:
 
@@ -77,13 +78,20 @@ body, or on an edge, and it gets a slot of its own as before. Dragging the last
 tab out of a group leaves the remaining panel an ordinary panel again — a group
 is nothing more than the panels currently sharing a slot.
 
-Tabbing is how a workspace offers more than it has room for. Colour, palette and
-gradient ship tabbed together in every built-in arrangement, Default included:
-they are three ways of
-answering one question and you want one at a time, so they cost one slot between
-them instead of three. Things you use *at the same time* — the layers list, the
-project tree, the timeline — are never tabbed together, and dragging one there
-is the only way to make it so.
+Tabbing is how a workspace offers more than it has room for. Colour, palette,
+gradient and channels ship tabbed together in every built-in arrangement,
+Default included: they are ways of answering one question and you want one at
+a time, so they cost one slot between them instead of four. Things you use *at
+the same time* — the layers list, the project tree, the timeline — are never
+tabbed together, and dragging one there is the only way to make it so.
+
+**A side holds at most four slots.** A drop that would open a fifth strip
+lands as a tab in the nearest slot instead — nothing is refused, and the panel
+is where you dropped it, just tabbed. Reopening a closed panel follows the
+same idea: it goes back to the group you closed it out of, or joins its family
+(the colour panels, the timeline views) if it has never been placed by hand.
+A panel whose whole family is closed opens alone, and the family finds it as
+its members reopen.
 
 While you drag, two things tell you what is about to happen. A small **ghost**
 follows the pointer naming the panel you are carrying, and a **highlight** shows

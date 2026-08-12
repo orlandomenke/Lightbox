@@ -51,12 +51,15 @@ public static class GuidePainter
         Action<SKCanvas>? checkerboard,
         IReadOnlyList<Line>? guides,
         Line? draft,
-        SKRectI? docViewport = null)
+        SKRectI? docViewport = null,
+        SKColorFilter? artworkFilter = null)
     {
         checkerboard?.Invoke(canvas);
         if (artwork is not null)
         {
-            using var paint = new SKPaint { IsAntialias = true };
+            // The filter applies to the artwork alone — soloing a channel must
+            // not grey out the guides an artist is still aiming with.
+            using var paint = new SKPaint { IsAntialias = true, ColorFilter = artworkFilter };
 
             // When compositing is viewport-culled, the image is smaller than the document.
             // Draw it at the viewport position with its actual size.
