@@ -633,10 +633,30 @@ internal static class RenderReport
                           + $"{pins.Flattens} flatten(s)");
         }
 
+        // Skia's own two caches (B179's second narrowing). Neither is a budget
+        // this application owns, and both purge to a limit rather than on
+        // dispose — so a texture handed back is purgeable, not freed, and the
+        // cache sitting at its ceiling is design rather than a leak. Printed
+        // because the first capture found 2362 MB outside everything above, and
+        // "outside everything we track" is only useful once the list is long
+        // enough to be worth trusting.
+        var skiaCpu = Rendering.SkiaMemory.Cpu;
+        sb.AppendLine($"skia's own caches");
+        sb.AppendLine(Rendering.SkiaMemory.Gpu is { } skiaGpu
+            ? $"  gpu resources           {Mb(skiaGpu.Used)} of {Mb(skiaGpu.Limit)}"
+            : "  gpu resources           not measured — no frame has drawn on a GPU lease yet");
+        sb.AppendLine($"  cpu images and glyphs   {Mb(skiaCpu.Used)} of {Mb(skiaCpu.Limit)}");
+
         if (working > 0 && accounted > 0)
         {
-            var unaccounted = working - accounted;
+            var skiaHeld = (Rendering.SkiaMemory.Gpu?.Used ?? 0) + skiaCpu.Used;
+            var unaccounted = working - accounted - skiaHeld;
             sb.AppendLine();
+            if (skiaHeld > 0)
+            {
+                sb.AppendLine($"  >> Skia is holding {Mb(skiaHeld)} on its own account, on top of the");
+                sb.AppendLine($"     {Mb(accounted)} above.");
+            }
             sb.AppendLine($"  >> {Mb(unaccounted)} is NOT in any cache this report tracks.");
             // A managed process carries a runtime, an Avalonia tree and Skia's own
             // context; a few hundred megabytes over is ordinary and says nothing.
