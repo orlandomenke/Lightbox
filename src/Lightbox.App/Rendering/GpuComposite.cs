@@ -166,13 +166,42 @@ internal static class GpuComposite
     /// when the toggle moves.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A mirror rather than a read, because this is consulted from the render
     /// thread inside the draw op and the settings object lives on the view model.
     /// A bool written on the UI thread and read on the render thread is the one
     /// shape of sharing that needs no synchronisation — a torn read of a bool
     /// does not exist, and being one frame stale after a toggle is invisible.
+    /// </para>
+    /// <para>
+    /// <b>Moving it clears the counters, and that is B182 rather than tidiness.</b>
+    /// Nothing else in the application ever calls <see cref="ResetCounters"/>, so
+    /// the tallies ran for the life of the process — and every composite made
+    /// while the toggle was <em>off</em> landed in <see cref="CpuComposites"/>,
+    /// which the report then prints as a fallback. A capture taken after a
+    /// bisect therefore read <c>160 did, 207 fell back</c> when nothing had
+    /// fallen back at all: the 207 were the previous playback, taken with the
+    /// path switched off. That is the exact reading a discriminating experiment
+    /// cannot survive, and it happened on the one bug the experiment was for.
+    /// </para>
+    /// <para>
+    /// The counts are only ever printed for the mode that is running, so
+    /// clearing them on the transition loses nothing and makes the line mean
+    /// what it says.
+    /// </para>
     /// </remarks>
-    internal static bool SettingEnabled { get; set; }
+    internal static bool SettingEnabled
+    {
+        get => _settingEnabled;
+        set
+        {
+            if (_settingEnabled == value) return;
+            _settingEnabled = value;
+            ResetCounters();
+        }
+    }
+
+    private static bool _settingEnabled;
 
     /// <summary>For tests: force the opt-in on or off, or null to read the real answer.</summary>
     internal static bool? OptInOverride

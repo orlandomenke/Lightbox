@@ -534,6 +534,7 @@ internal static class RenderReport
         // reads as "no CPU compositing happened" when in truth all of it did.
         sb.AppendLine(
             $"compositing               of the publishes that could use the card: {gpu} did, {cpu} fell back");
+        sb.AppendLine("  counted since the toggle was last switched on, not since launch (B182).");
         if (gpu + cpu == 0)
         {
             sb.AppendLine("  !! no publish even reached that path, so EVERY frame was composited");
@@ -557,6 +558,17 @@ internal static class RenderReport
         {
             sb.AppendLine(
                 $"  !! {Rendering.GpuComposite.RefusedTooLarge} composite(s) were larger than this card's textures.");
+        }
+        // A fallback with no refusal behind it is a different thing entirely, and
+        // "fell back" reads like a failure either way. Say which one it was: with
+        // both refusal tallies at zero, the card was never asked — those publishes
+        // ran on a lease that had no graphics context, which is ordinary.
+        if (cpu > 0
+            && Rendering.GpuComposite.RefusedAllocations == 0
+            && Rendering.GpuComposite.RefusedTooLarge == 0)
+        {
+            sb.AppendLine("  none of those were refusals — the card was never asked, because those");
+            sb.AppendLine("  publishes drew on a lease with no graphics context. Nothing is failing.");
         }
     }
 

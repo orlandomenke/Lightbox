@@ -123,4 +123,37 @@ public sealed class GpuCompositeToggleTests(ITestOutputHelper output) : BrushSta
             vm.GpuCompositing = false;
         }
     }
+
+    /// <summary>
+    /// <b>B182: moving the toggle clears the composite tallies</b>, so a capture
+    /// taken after a bisect describes the mode it was taken in.
+    /// </summary>
+    /// <remarks>
+    /// The counters are process-lifetime and nothing else resets them, so every
+    /// composite made while the path was off was counted as a fallback the moment
+    /// it was switched on. A real capture read <c>160 did, 207 fell back</c> with
+    /// no refusal behind a single one of the 207 — they were the previous
+    /// playback. Losing the count of the mode you are no longer in costs nothing;
+    /// the report only ever prints the one that is running.
+    /// </remarks>
+    [AvaloniaFact]
+    public void SwitchingItOnForgetsWhatHappenedWhileItWasOff()
+    {
+        GpuComposite.OptInOverride = null;
+        var vm = VmLayers.PaperVm();
+        vm.GpuCompositing = false;
+
+        GpuComposite.ResetCounters();
+        GpuComposite.CountCompositeForTests(onGpu: false, times: 207);
+        Assert.Equal(207, GpuComposite.CpuComposites);
+
+        vm.GpuCompositing = true;
+
+        output.WriteLine($"after the toggle: {GpuComposite.GpuComposites} gpu, "
+                         + $"{GpuComposite.CpuComposites} cpu");
+        Assert.Equal(0, GpuComposite.CpuComposites);
+        Assert.Equal(0, GpuComposite.GpuComposites);
+
+        vm.GpuCompositing = false;
+    }
 }
