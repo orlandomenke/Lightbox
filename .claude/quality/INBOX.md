@@ -38,6 +38,19 @@ archive. The archive is `BUGS.md` itself.
 
 <!-- Append new reports below this line, oldest first. -->
 
+- Erasing somethings shows the transparency checkerboard while erasing. Sometimes crashing the application.
+- Press and hold E should have the same behaviour as the Eyedropper tool with I, a quick switch to eraser on hold, return to previous tool.
+- On canvas icons show a cross instead of their respective tool icon; fill, eyedropper.
+- Selection tool:
+- Deselecting does not work anymore not by shortcut, not by on screen buttons.
+- closing and opening a new document in the same session should not keep selection up.
+- Backspace fill selection with background color, delete, delete whatever is inside the selection
+- Vector tooling:
+- Direct select is not able to select, or enter, strokes. Selecting should work like the arrow tool. On hover shouw points and handles; clicking the line shows all but selects all like arrow. Clicking a point or handle selects that handle, but keeps the rest of the points visible. Modifier key: widen stroke
+- Pen tool: show on canvas icon for closing a shape. Clicking it should stroke the entire shape. Add modifier key (press and hold) to enter direct select tool. Like how illustrator handles it.
+- Palette docker; create visual separation between the hierarchy and swatches. Hierarchy can be rescaled and scollable, do not overflow hide the swatches.
+- Brush: ink is really responsive; flat medium and pencil lag.  
+
 ## Needs a decision
 
 <!-- Reports that could not be turned into a BUGS.md entry without a human call. -->
