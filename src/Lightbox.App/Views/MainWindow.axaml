@@ -3895,6 +3895,8 @@
                                   <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).RetimeMenuLabel}"
                                             Click="OnRetimeCel"
                                             ToolTip.Tip="Re-space this cel's range to the pattern chosen on the timeline bar" />
+                                  <MenuItem Header="Timing chart…" Click="OnEditTimingChart"
+                                            ToolTip.Tip="The ladder on this extreme: where its inbetweens sit on the way to the next key" />
                                   <MenuItem Header="Clear cel" Click="OnClearCel"
                                             ToolTip.Tip="Blank the drawing, keep its slot on the timeline" />
                                   <MenuItem Header="Delete cel" Click="OnDeleteCel"

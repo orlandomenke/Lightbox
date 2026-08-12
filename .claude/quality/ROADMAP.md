@@ -516,7 +516,10 @@ every other AI feature and are only legible together.
 - [?] Arc prediction
 - [?] Spacing visualization
 - [?] Spacing assistant
-- [?] Timing charts
+- [x] Timing charts `evidence: TimingChart, TimingChartView, TimingChartTests, TimingChartVmTests, TheChartPlacesTheInbetweensExactlyOnItsRungs, TheInbetweenerObeysTheChartOverTheBar`
+  - The ladder on the extreme (Q58): `Frame.Chart` holds the rungs, the cel
+    menu's editor writes them, and both inbetweeners and the intended-spacing
+    curve read the same list — one authored object, every consumer.
 - [?] Automatic contact frame detection
 - [?] Perspective consistency checker
 - [?] Silhouette readability preview

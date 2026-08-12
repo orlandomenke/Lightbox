@@ -87,6 +87,9 @@ public sealed class FrameConverter : JsonConverter<Frame>
         if (root.TryGetProperty("ai", out var ai))
             frame.Ai = JsonSerializer.Deserialize<AiProvenance>(ai.GetRawText(), options);
 
+        if (root.TryGetProperty("chart", out var chart))
+            frame.Chart = JsonSerializer.Deserialize<List<double>>(chart.GetRawText(), options);
+
         return frame;
     }
 
@@ -130,6 +133,12 @@ public sealed class FrameConverter : JsonConverter<Frame>
         {
             writer.WritePropertyName("ai");
             JsonSerializer.Serialize(writer, value.Ai, options);
+        }
+
+        if (value.Chart is { Count: > 0 })
+        {
+            writer.WritePropertyName("chart");
+            JsonSerializer.Serialize(writer, value.Chart, options);
         }
 
         writer.WriteEndObject();
