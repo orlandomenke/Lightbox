@@ -125,7 +125,7 @@ public sealed class GpuCompositeToggleTests(ITestOutputHelper output) : BrushSta
     }
 
     /// <summary>
-    /// <b>B182: moving the toggle clears the composite tallies</b>, so a capture
+    /// <b>B184: moving the toggle clears the composite tallies</b>, so a capture
     /// taken after a bisect describes the mode it was taken in.
     /// </summary>
     /// <remarks>

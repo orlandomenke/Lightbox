@@ -141,13 +141,32 @@ public class BrushCatalogueTests : BrushStateIsolated
         }
     }
 
+    /// <summary>
+    /// The badge follows the cost tier exactly: Fast is unbadged, and the two
+    /// paid tiers each carry their own glyph. Rewritten for B177, which added
+    /// the Textured tier — wet edge and granulation were measured at 57–74% of
+    /// the laggy presets' commit cost while badged Fast, so "only the
+    /// expressive ones carry a badge" stopped being the true statement.
+    /// </summary>
     [AvaloniaFact]
-    public void OnlyTheExpressiveOnesCarryABadge()
+    public void TheBadgeFollowsTheCostTier()
     {
         var vm = new MainViewModel(null);
 
-        Assert.All(vm.BrushPresetChoices, p =>
-            Assert.Equal(p.IsExpressive, p.CostBadge.Length > 0));
+        Assert.All(vm.BrushPresetChoices, p => Assert.Equal(
+            p.Cost switch
+            {
+                BrushCost.Expressive => "◈",
+                BrushCost.Textured => "◇",
+                _ => "",
+            },
+            p.CostBadge));
+
+        // The tier is populated: the presets the artist reported as laggy are
+        // the ones wearing the new glyph.
+        var textured = vm.BrushPresetChoices
+            .Where(p => p.Cost == BrushCost.Textured).Select(p => p.Name).ToList();
+        Assert.Contains(textured, name => name.Contains("Pencil", StringComparison.OrdinalIgnoreCase));
     }
 
     [AvaloniaFact]

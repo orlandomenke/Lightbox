@@ -171,6 +171,39 @@ public class ResizeDialogTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void SwapTradesWidthForHeight()
+    {
+        var vm = Vm(Doc(400, 300), ResizeMode.Canvas);
+
+        vm.Swap();
+
+        output.WriteLine($"{vm.Width} x {vm.Height}");
+        Assert.Equal(300, vm.Width);
+        Assert.Equal(400, vm.Height);
+        Assert.True(vm.CanApply);
+    }
+
+    /// <summary>
+    /// Swap steps around the aspect link on purpose.
+    /// </summary>
+    /// <remarks>
+    /// A swap changes the aspect ratio by definition; a linked field that
+    /// "corrected" the other half back would turn the button into a no-op.
+    /// </remarks>
+    [Fact]
+    public void SwapIgnoresTheLink()
+    {
+        var vm = Vm(Doc(400, 300), ResizeMode.Image);
+        Assert.True(vm.Linked);
+
+        vm.Swap();
+
+        output.WriteLine($"{vm.Width} x {vm.Height}, linked {vm.Linked}");
+        Assert.Equal(300, vm.Width);
+        Assert.Equal(400, vm.Height);
+    }
+
+    [Fact]
     public void ResetPutsTheFieldsBack()
     {
         var vm = Vm(Doc(400, 300), ResizeMode.Image);

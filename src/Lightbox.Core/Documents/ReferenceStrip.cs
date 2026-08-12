@@ -104,6 +104,34 @@ public sealed class ReferenceStrip
 
     public string Name { get; set; } = "Reference";
 
+    /// <summary>
+    /// The character-sheet view this strip is a flattening of, or null for an
+    /// ordinary imported reference — and null writes no key, the usual rule.
+    /// </summary>
+    /// <remarks>
+    /// A linked strip is <b>derived, live</b> (Q69): editing the view
+    /// re-flattens the strip, so the taped-up copy never shows yesterday's
+    /// drawing. The link degrades the way <see cref="VideoPath"/> does — a
+    /// view deleted from under it leaves the last pixels standing and the
+    /// strip becomes an ordinary embedded reference, because losing the
+    /// source is no reason to lose the picture.
+    /// </remarks>
+    public string? SheetViewId { get; set; }
+
+    /// <summary>
+    /// Show the first cell on every frame, ignoring the slot row — the strip
+    /// as a photograph taped to the lightbox rather than footage laid along
+    /// the timeline.
+    /// </summary>
+    /// <remarks>
+    /// Without this a strip is only visible on frames with an assigned slot
+    /// (<see cref="CellAt"/>), which is right for a strip *of frames* and
+    /// wrong for a character sheet: extending the slot row to the scene's
+    /// length breaks the moment the scene grows a frame, and a reference
+    /// that silently vanishes past frame N reads as a rendering bug.
+    /// </remarks>
+    public bool Pinned { get; set; }
+
     /// <summary>The whole sheet, base64 PNG. Empty for a video reference.</summary>
     public string Png { get; set; } = "";
 
@@ -196,6 +224,7 @@ public sealed class ReferenceStrip
     /// <summary>The cell shown at a timeline index, or null.</summary>
     public ReferenceCell? CellAt(int frame)
     {
+        if (Pinned) return Cells.Count > 0 ? Cells[0] : null;
         if (frame < 0 || frame >= Slots.Count) return null;
         var index = Slots[frame];
         return index >= 0 && index < Cells.Count ? Cells[index] : null;
@@ -207,6 +236,88 @@ public sealed class ReferenceStrip
         if (frame < 0) return;
         while (Slots.Count <= frame) Slots.Add(-1);
         Slots[frame] = cell;
+    }
+
+    /// <summary>
+    /// Timeline frames where this clip's bar is cut (Q57), or null — no key
+    /// until the artist splits. A split point divides a contiguous run of
+    /// assigned slots so each section can slide and trim on its own; points
+    /// that stop falling inside a contiguous run (because the sections moved
+    /// apart and the gap now divides them) are normalised away.
+    /// </summary>
+    public List<int>? SplitPoints { get; set; }
+
+    /// <summary>
+    /// The clip's sections on the timeline: contiguous runs of assigned
+    /// slots, divided further at <see cref="SplitPoints"/>. Inclusive frame
+    /// ranges, in timeline order.
+    /// </summary>
+    public IReadOnlyList<(int Start, int End)> AssignedRuns()
+    {
+        var runs = new List<(int Start, int End)>();
+        int? start = null;
+        for (var i = 0; i <= Slots.Count; i++)
+        {
+            var assigned = i < Slots.Count && Slots[i] >= 0;
+            if (assigned && start is null)
+            {
+                start = i;
+            }
+            else if (assigned && start is { } s && SplitPoints?.Contains(i) == true)
+            {
+                runs.Add((s, i - 1));
+                start = i;
+            }
+            else if (!assigned && start is { } open)
+            {
+                runs.Add((open, i - 1));
+                start = null;
+            }
+        }
+        return runs;
+    }
+
+    /// <summary>Drop split points that no longer sit inside a contiguous run.</summary>
+    public void NormaliseSplitPoints()
+    {
+        if (SplitPoints is null) return;
+        SplitPoints.RemoveAll(p =>
+            p <= 0 || p >= Slots.Count || Slots[p] < 0 || Slots[p - 1] < 0);
+        if (SplitPoints.Count == 0) SplitPoints = null;
+    }
+
+    /// <summary>
+    /// Slide one section (Q57): the assignments in the inclusive range move
+    /// by <paramref name="delta"/>. The caller has already clamped the delta
+    /// against the neighbouring sections; assignments pushed past frame zero
+    /// are dropped, as in <see cref="SlideSlots"/>.
+    /// </summary>
+    public void SlideRange(int start, int end, int delta)
+    {
+        if (delta == 0) return;
+        var moved = new List<(int At, int Cell)>();
+        for (var i = Math.Max(0, start); i <= Math.Min(end, Slots.Count - 1); i++)
+        {
+            if (Slots[i] < 0) continue;
+            moved.Add((i + delta, Slots[i]));
+            Slots[i] = -1;
+        }
+        foreach (var (at, cell) in moved)
+        {
+            if (at < 0) continue;
+            Assign(at, cell);
+        }
+        if (SplitPoints is not null)
+        {
+            for (var i = 0; i < SplitPoints.Count; i++)
+            {
+                if (SplitPoints[i] > start && SplitPoints[i] <= end + 1)
+                {
+                    SplitPoints[i] += delta;
+                }
+            }
+        }
+        NormaliseSplitPoints();
     }
 
     /// <summary>
@@ -304,6 +415,7 @@ public sealed class ReferenceStrip
         var copy = (ReferenceStrip)MemberwiseClone();
         copy.Cells = Cells.ConvertAll(c => c.Clone());
         copy.Slots = [.. Slots];
+        copy.SplitPoints = SplitPoints is null ? null : [.. SplitPoints];
         return copy;
     }
 }

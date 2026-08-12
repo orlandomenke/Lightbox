@@ -516,7 +516,10 @@ every other AI feature and are only legible together.
 - [?] Arc prediction
 - [?] Spacing visualization
 - [?] Spacing assistant
-- [?] Timing charts
+- [x] Timing charts `evidence: TimingChart, TimingChartView, TimingChartTests, TimingChartVmTests, TheChartPlacesTheInbetweensExactlyOnItsRungs, TheInbetweenerObeysTheChartOverTheBar`
+  - The ladder on the extreme (Q58): `Frame.Chart` holds the rungs, the cel
+    menu's editor writes them, and both inbetweeners and the intended-spacing
+    curve read the same list — one authored object, every consumer.
 - [?] Automatic contact frame detection
 - [?] Perspective consistency checker
 - [?] Silhouette readability preview
@@ -1362,6 +1365,19 @@ Already built ✅:
 - Reference strips (imported animation cycles with per-frame alignment)
 - Shared palette across character animations
 - **Deterministic rendering** (enables reference-aware brushes — unique capability)
+
+- Reference view in a floating window — a live viewer beside the art (Q69);
+  the window follows the sheet as it is edited, drawing still happens in the tab
+- A sheet view taped onto the canvas — flattened into a `ReferenceStrip`,
+  pinned to every frame, live (Q69)
+
+Next for the floating window, deliberately not in the first cut (Q69):
+- [ ] **An editable canvas in the reference window** `evidence: ReferenceViewCanvasTests`
+  — draw on the sheet where it floats, instead of switching to its tab. Needs
+  input routing and a decision about shared-versus-split brush state, so it
+  starts as a design note, not a feature branch. The window's content pane is
+  a single `Image` control precisely so this replaces one control when it
+  comes.
 
 ### **Critical Usability Gaps: Reference Management** ❌
 

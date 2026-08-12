@@ -29,6 +29,12 @@ from the Pen or either arrow, and that is deliberate: those have work in flight
 must never be the thing that finishes it. Move keeps Ctrl for its own "drag the
 whole layer".
 
+**The tool keys work the same way when held.** Tap **E** and you have chosen
+the eraser, as ever; *hold* **E**, scrub, and let go, and you never left the
+brush. **I** does the same for the eyedropper. The split is how long the key is
+down — a quick press is a choice, anything longer is a borrow — which is
+Photoshop's spring-loaded rule, so the reflex transfers.
+
 ### Arrow and Select are not the same tool
 
 They sound alike and they do different things, so it is worth one paragraph.
@@ -292,7 +298,9 @@ there, so a drawn rectangle has square corners and a flick still has a point.
 
 The pointer changes with the tool, so you can tell what is armed without looking
 away from the drawing. The brush and the eraser show their real size and shape as
-a ring; the eyedropper, the fill and the shape tools show a crosshair; the move
+a ring; the eyedropper and the fill show a crosshair with their own icon beside
+it — the crosshair is where the tool acts, the icon says which one you are
+holding; the pen, the shapes and the selections show a plain crosshair; the move
 tool shows arrows; the two selection arrows show a pointer.
 
 **If the pointer shows a "no" symbol, the tool will not do anything where you

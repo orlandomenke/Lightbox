@@ -174,7 +174,7 @@ internal static class GpuComposite
     /// does not exist, and being one frame stale after a toggle is invisible.
     /// </para>
     /// <para>
-    /// <b>Moving it clears the counters, and that is B182 rather than tidiness.</b>
+    /// <b>Moving it clears the counters, and that is B184 rather than tidiness.</b>
     /// Nothing else in the application ever calls <see cref="ResetCounters"/>, so
     /// the tallies ran for the life of the process — and every composite made
     /// while the toggle was <em>off</em> landed in <see cref="CpuComposites"/>,

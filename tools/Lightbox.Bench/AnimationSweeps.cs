@@ -836,6 +836,11 @@ public static class AnimationSweeps
                 var w = h * 16 / 9 / 2 * 2;
                 scene = SceneOf(3, Frames, 20, w, h);
                 rig = new TileRig(w, h);
+                // Scan eviction, because that is what the app sets while
+                // playing (B182) — without it this row measured 277 ms at
+                // 1440p against the bitmap path's 186: a thrashing tile
+                // cache is dearer per miss than a thrashing bitmap cache.
+                rig.Tiles.Eviction = FrameBitmapCache.EvictionOrder.MostRecent;
                 for (var i = 0; i < Frames; i++) CompositeTiled(rig, scene, i);
                 at = 0;
                 return rig;
@@ -933,6 +938,7 @@ public static class AnimationSweeps
                 if (tiles)
                 {
                     tileRig = new TileRig(w, h);
+                    tileRig.Tiles.Eviction = FrameBitmapCache.EvictionOrder.MostRecent;
                     for (var i = 0; i < Frames; i++) CompositeTiled(tileRig, scene, i);
                     at = 0;
                     return tileRig;

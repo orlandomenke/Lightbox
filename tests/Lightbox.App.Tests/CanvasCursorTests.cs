@@ -464,4 +464,44 @@ public class CanvasCursorTests(ITestOutputHelper output)
             Assert.True(char.IsUpper(reason![0]), $"not a sentence: {reason}");
         }
     }
+
+    // ---- the last step: a kind becomes a pointer (B175) ------------------------------
+
+    /// <summary>
+    /// <b>B175.</b> <c>Armed</c> told the picker and the fill apart, and the
+    /// control's private mapping collapsed both onto the same cross as every
+    /// precise tool. The decision was right and the rendering threw it away.
+    /// </summary>
+    [AvaloniaFact]
+    public void ThePickerAndTheFillGetTheirOwnPointers()
+    {
+        var pick = PointerCursors.For(CanvasCursorKind.Pick);
+        var fill = PointerCursors.For(CanvasCursorKind.Fill);
+        var precise = PointerCursors.For(CanvasCursorKind.Precise);
+
+        Assert.NotSame(pick, precise);
+        Assert.NotSame(fill, precise);
+        Assert.NotSame(pick, fill);
+    }
+
+    /// <summary>
+    /// The property rather than the two cases, deliberately: a mapping that
+    /// collapses two kinds today will collapse the next kind added, and a kind
+    /// that <c>Armed</c> keeps distinct existing at all is a promise that the
+    /// pointer shows the difference.
+    /// </summary>
+    [AvaloniaFact]
+    public void EveryArmedCursorKindMapsToADistinctPointer()
+    {
+        var kinds = Enum.GetValues<ToolId>()
+            .Select(CanvasCursor.Armed)
+            .Distinct()
+            .ToList();
+
+        var cursors = kinds.Select(PointerCursors.For).Distinct().ToList();
+        output.WriteLine(
+            $"{kinds.Count} armed kinds -> {cursors.Count} distinct pointers "
+            + $"({string.Join(", ", kinds)})");
+        Assert.Equal(kinds.Count, cursors.Count);
+    }
 }

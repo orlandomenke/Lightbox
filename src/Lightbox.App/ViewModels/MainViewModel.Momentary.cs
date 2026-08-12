@@ -88,6 +88,91 @@ public partial class MainViewModel
         }
     }
 
+    // ---- held letter keys (B176) -------------------------------------------------
+    // The same borrow-and-restore, triggered by a key rather than a flag. A
+    // modifier is a state the whole window can consult (ApplyHeldModifiers reads
+    // KeyModifiers on every event); a letter held down is not — it needs the
+    // press and the release delivered as calls, and it must survive key repeat,
+    // which re-fires the press for as long as the key is down.
+
+    /// <summary>The tool a held letter key will give back, or null.</summary>
+    private ToolId? _momentaryFrom;
+
+    /// <summary>When the hold began, from <see cref="MomentaryClock"/>.</summary>
+    private long _momentaryHeldSince;
+
+    /// <summary>Whether a letter key is currently standing in for a tool.</summary>
+    public bool IsHoldingMomentaryTool => _momentaryFrom is not null;
+
+    /// <summary>
+    /// Milliseconds under which a press-and-release is a tap, and latches.
+    /// </summary>
+    /// <remarks>
+    /// One key, both behaviours, split by duration — Photoshop's spring-loaded
+    /// rule, so the muscle memory transfers: tap E and you have chosen the
+    /// eraser; hold it, scrub, and let go, and you never left the brush. 300 ms
+    /// is Photoshop's own threshold for the same decision.
+    /// </remarks>
+    public const int MomentaryTapMilliseconds = 300;
+
+    /// <summary>Test seam: the clock the tap/hold split reads.</summary>
+    public Func<long> MomentaryClock { get; set; } = () => Environment.TickCount64;
+
+    /// <summary>
+    /// A momentary key went down: borrow its tool. Idempotent under key repeat.
+    /// </summary>
+    public void BeginMomentaryTool(ToolId tool)
+    {
+        // Key repeat re-fires the press for as long as the key is down; the
+        // first press is the one that started the clock.
+        if (_momentaryFrom is not null) return;
+        if (ActiveTool == tool) return;
+
+        _momentaryFrom = ActiveTool;
+        _momentaryHeldSince = MomentaryClock();
+        SetToolWithoutSideEffects(tool);
+    }
+
+    /// <summary>
+    /// The key came back up: a hold restores the interrupted tool, a tap keeps
+    /// the new one — the latch the key always meant.
+    /// </summary>
+    public void EndMomentaryTool(ToolId tool)
+    {
+        if (_momentaryFrom is not { } owner) return;
+        _momentaryFrom = null;
+
+        // Something else moved the tool mid-hold (a click on the rail is a
+        // decision); the release has nothing left to restore.
+        if (ActiveTool != tool) return;
+
+        if (MomentaryClock() - _momentaryHeldSince >= MomentaryTapMilliseconds)
+        {
+            SetToolWithoutSideEffects(owner);
+            return;
+        }
+
+        // A tap is the deliberate switch this key performed before it could be
+        // held, so the switch's consequences happen now — they were suppressed
+        // at the press because a press cannot know yet which one it is.
+        LeaveToolStateBehind(tool);
+    }
+
+    /// <summary>
+    /// The window lost focus mid-hold and will never see the key-up: restore.
+    /// </summary>
+    /// <remarks>
+    /// The same reason <see cref="ApplyHeldModifiers"/> is called on
+    /// <c>Deactivated</c> — a momentary tool that does not survive alt-tabbing
+    /// away is a stuck mode.
+    /// </remarks>
+    public void CancelMomentaryTool()
+    {
+        if (_momentaryFrom is not { } owner) return;
+        _momentaryFrom = null;
+        SetToolWithoutSideEffects(owner);
+    }
+
     /// <summary>
     /// Switch the tool for a borrow, skipping what a deliberate switch does.
     /// </summary>

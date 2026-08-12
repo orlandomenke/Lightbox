@@ -187,11 +187,13 @@ public sealed class WorkspaceTests : BrushStateIsolated
         // the bug, not the fix.
         var (w, vm) = Open();
 
-        vm.Workspace.JoinGroup(DockPanelId.Palette, DockPanelId.Color);
+        // Sheets joins Layers: a two-tab group made fresh, now that the
+        // colour family already ships tabbed.
+        vm.Workspace.JoinGroup(DockPanelId.Sheets, DockPanelId.Layers);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         var docker = Strip(w, DockSide.Right).Children.OfType<Docker>()
-            .First(d => d.Tabs?.Count() > 1);
+            .First(d => d.Tabs?.Count() == 2);
         var strip = docker.GetVisualDescendants().OfType<ListBox>().First();
         var items = strip.GetVisualDescendants().OfType<ListBoxItem>().ToList();
         Assert.Equal(2, items.Count);
@@ -275,9 +277,15 @@ public sealed class WorkspaceTests : BrushStateIsolated
         // view even if just only one docker is present." Every panel wears the
         // one header treatment, and a slot of one shows exactly one tab, lit —
         // an unlit lone tab reads as a panel that is somehow not showing.
+        // Layers and Sheets are the default layout's lone dockers; the colour
+        // family is a real group and is asserted elsewhere.
         var (w, _) = Open();
 
-        foreach (var docker in Strip(w, DockSide.Right).Children.OfType<Docker>())
+        var lone = Strip(w, DockSide.Right).Children.OfType<Docker>()
+            .Where(d => d.PanelId is DockPanelId.Layers or DockPanelId.Sheets)
+            .ToList();
+        Assert.NotEmpty(lone);
+        foreach (var docker in lone)
         {
             Assert.NotNull(docker.Tabs);
             var only = Assert.Single(docker.Tabs!);

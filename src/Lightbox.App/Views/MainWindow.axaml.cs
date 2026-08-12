@@ -22,6 +22,9 @@ public partial class MainWindow : Window
 
     private Services.IpcServer? _ipc;
 
+    /// <summary>The momentary tool key currently down, and what it borrowed (B176).</summary>
+    private (Avalonia.Input.Key Key, ToolId Tool)? _momentaryToolKey;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -66,26 +69,29 @@ public partial class MainWindow : Window
             _vm.DragWidth,
             () => _vm.EndWidthDrag());
         TimelineTrackView.KeyDragged += OnTrackKeyDragged;
-        // The clip bars (Q57): body slides, edges trim; the view model owns
-        // what that does to the record.
-        TimelineTrackView.AudioClipEdited += (kind, delta) =>
+        // The clip bars (Q57): body slides, edges trim, right-click splits;
+        // the view model owns what that does to the record. An audio bar's
+        // StripIndex is its section index; a video bar is named by its strip
+        // and the frame its section starts on.
+        TimelineTrackView.AudioClipEdited += (bar, kind, delta) =>
         {
             switch (kind)
             {
-                case Controls.ClipEditKind.Slide: _vm.SlideAudioClip(delta); break;
-                case Controls.ClipEditKind.TrimIn: _vm.TrimAudioClipIn(delta); break;
-                case Controls.ClipEditKind.TrimOut: _vm.TrimAudioClipOut(delta); break;
+                case Controls.ClipEditKind.Slide: _vm.SlideAudioClip(bar.StripIndex, delta); break;
+                case Controls.ClipEditKind.TrimIn: _vm.TrimAudioClipIn(bar.StripIndex, delta); break;
+                case Controls.ClipEditKind.TrimOut: _vm.TrimAudioClipOut(bar.StripIndex, delta); break;
             }
         };
-        TimelineTrackView.VideoClipEdited += (strip, kind, delta) =>
+        TimelineTrackView.VideoClipEdited += (bar, kind, delta) =>
         {
             switch (kind)
             {
-                case Controls.ClipEditKind.Slide: _vm.SlideVideoClip(strip, delta); break;
-                case Controls.ClipEditKind.TrimIn: _vm.TrimVideoClipIn(strip, delta); break;
-                case Controls.ClipEditKind.TrimOut: _vm.TrimVideoClipOut(strip, delta); break;
+                case Controls.ClipEditKind.Slide: _vm.SlideVideoClip(bar.StripIndex, bar.Start, delta); break;
+                case Controls.ClipEditKind.TrimIn: _vm.TrimVideoClipIn(bar.StripIndex, bar.Start, delta); break;
+                case Controls.ClipEditKind.TrimOut: _vm.TrimVideoClipOut(bar.StripIndex, bar.Start, delta); break;
             }
         };
+        TimelineTrackView.ClipMenuRequested += OnClipMenu;
         GraphEditorView.KeyEdited += (series, from, to, value) => _vm.EditCameraKey(series, from, to, value);
         GraphEditorView.KeyAddRequested += frame => _vm.AddCameraKeyAt(frame);
         GraphEditorView.KeyMenuRequested += OnGraphKeyMenu;
@@ -374,10 +380,26 @@ public partial class MainWindow : Window
         // of — the failure mode that makes a momentary tool worse than none.
         AddHandler(
             KeyUpEvent,
-            (_, e) => _vm.ApplyHeldModifiers(e.KeyModifiers),
+            (_, e) =>
+            {
+                _vm.ApplyHeldModifiers(e.KeyModifiers);
+                // The other half of a momentary tool key (B176): matched on the
+                // physical key rather than the gesture, so a modifier pressed
+                // mid-hold cannot orphan the release.
+                if (_momentaryToolKey is { } held && e.Key == held.Key)
+                {
+                    _momentaryToolKey = null;
+                    _vm.EndMomentaryTool(held.Tool);
+                }
+            },
             Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // And a window that loses focus mid-hold never sees the key-up at all.
-        Deactivated += (_, _) => _vm.ApplyHeldModifiers(Avalonia.Input.KeyModifiers.None);
+        Deactivated += (_, _) =>
+        {
+            _vm.ApplyHeldModifiers(Avalonia.Input.KeyModifiers.None);
+            _momentaryToolKey = null;
+            _vm.CancelMomentaryTool();
+        };
         RecentMenu.SubmenuOpened += (_, _) => RefreshRecentMenu();
         ConvertProjectMenu.SubmenuOpened += (_, _) => RefreshConvertMenu();
         TemplatesMenu.SubmenuOpened += (_, _) => RefreshTemplatesMenu();
@@ -1740,6 +1762,108 @@ public partial class MainWindow : Window
         if (CellOf(sender) is { } cell) _vm.ApplyTimingAt(cell);
     }
 
+    /// <summary>
+    /// The timing chart editor (Q58), as a small window over the cel: the
+    /// ladder from this extreme to the next key, preset shapes to start
+    /// from, and a clear that returns the extreme to the bar's default.
+    /// Edits write through the view model, so each is one undo step.
+    /// </summary>
+    private void OnEditTimingChart(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is not { } cell) return;
+        var anchor = _vm.ChartAnchorFrame(cell);
+        if (anchor < 0)
+        {
+            _vm.AiStatus = "A timing chart needs a key drawing to sit on.";
+            return;
+        }
+
+        var dialog = new Window
+        {
+            Title = $"Timing chart on frame {anchor + 1}",
+            Width = 300,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+
+        var ladder = new Controls.TimingChartView { Rungs = _vm.ChartAt(cell) };
+
+        // Whether the chart is live, derived from the record on every edit —
+        // a stale chart is ignored by the spacing curve, and that has to be
+        // readable here rather than discovered by counting drawings.
+        var state = new TextBlock { FontSize = 11, Opacity = 0.7, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        void RefreshState()
+        {
+            var rungs = _vm.ChartAt(cell)?.Count ?? 0;
+            var run = _vm.ChartRunInbetweens(cell);
+            state.Text = rungs == 0
+                ? "No chart — the bar's count and easing decide."
+                : run is not { } drawings || drawings == 0
+                    ? $"{rungs} rung{(rungs == 1 ? "" : "s")}: ＋ Inbetween draws one drawing per rung."
+                    : rungs == drawings
+                        ? $"{rungs} rung{(rungs == 1 ? "" : "s")}, matching the run — the spacing curve reads this chart."
+                        : $"{rungs} rung{(rungs == 1 ? "" : "s")} but the run holds {drawings} drawing{(drawings == 1 ? "" : "s")} — the spacing curve keeps the easing until they agree.";
+        }
+        RefreshState();
+
+        ladder.ChartEdited += chart =>
+        {
+            _vm.SetChartAt(cell, chart);
+            ladder.Rungs = _vm.ChartAt(cell);
+            RefreshState();
+        };
+
+        var hint = new TextBlock
+        {
+            Text = "Each rung is one inbetween. Drag to re-space, click to add, right-click to remove.",
+            FontSize = 11,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            Opacity = 0.7,
+        };
+
+        // Preset shapes seed the ladder with today's rung count (3 when
+        // empty), so "Ease in" answers with the chart it names rather than
+        // asking for a count first.
+        var presets = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4 };
+        foreach (var (label, easing) in (ValueTuple<string, Lightbox.Core.Inbetween.Easing>[])
+                 [("Even", Lightbox.Core.Inbetween.Easing.Linear),
+                  ("Ease in", Lightbox.Core.Inbetween.Easing.EaseIn),
+                  ("Ease out", Lightbox.Core.Inbetween.Easing.EaseOut),
+                  ("Ease in-out", Lightbox.Core.Inbetween.Easing.EaseInOut)])
+        {
+            var choice = easing;
+            var button = new Button { Content = label, FontSize = 11, Padding = new Thickness(6, 2) };
+            button.Click += (_, _) =>
+            {
+                // Seeded with the run's own drawing count when there is one,
+                // so the preset lands live rather than pre-stale.
+                var count = _vm.ChartAt(cell)?.Count
+                    ?? (_vm.ChartRunInbetweens(cell) is { } run and > 0 ? run : 3);
+                _vm.SetChartAt(cell, Lightbox.Core.Inbetween.TimingChart.FromEasing(count, choice));
+                ladder.Rungs = _vm.ChartAt(cell);
+                RefreshState();
+            };
+            presets.Children.Add(button);
+        }
+
+        var clear = new Button { Content = "Clear chart", FontSize = 11, Padding = new Thickness(6, 2) };
+        clear.Click += (_, _) =>
+        {
+            _vm.SetChartAt(cell, null);
+            ladder.Rungs = null;
+            RefreshState();
+        };
+
+        dialog.Content = new StackPanel
+        {
+            Margin = new Thickness(12),
+            Spacing = 8,
+            Children = { ladder, state, presets, clear, hint },
+        };
+        dialog.Show(this);
+    }
+
     private void OnSaveTimingPreset(object? sender, RoutedEventArgs e) => _vm.SaveTimingPreset();
 
     private void OnDeleteTimingPreset(object? sender, RoutedEventArgs e) => _vm.DeleteSelectedTimingPreset();
@@ -1988,6 +2112,33 @@ public partial class MainWindow : Window
             _vm.OpenReferenceView(view);
     }
 
+    /// <summary>One window per view: a second click brings it forward.</summary>
+    private readonly Dictionary<string, ReferenceViewWindow> _referenceViewWindows = [];
+
+    private void OnOpenReferenceViewWindow(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is not Lightbox.Core.Documents.ReferenceView view) return;
+        if (_referenceViewWindows.TryGetValue(view.Id, out var open))
+        {
+            open.Activate();
+            return;
+        }
+
+        var sheet = _vm.ReferenceSheetsView.FirstOrDefault(s => s.Views.Contains(view));
+        var window = new ReferenceViewWindow(_vm, view, sheet?.Name ?? "Reference");
+        _referenceViewWindows[view.Id] = window;
+        window.Closed += (_, _) => _referenceViewWindows.Remove(view.Id);
+        // A child of the main window: it floats beside the art, and closing
+        // the application does not leave a reference orphaned on the desktop.
+        window.Show(this);
+    }
+
+    private void OnToggleViewOnCanvas(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is Lightbox.Core.Documents.ReferenceView view)
+            _vm.ToggleViewOnCanvas(view);
+    }
+
     /// <summary>
     /// The text in a sheet or view name box, captured when it took focus, so
     /// losing focus can tell a rename from a click-through.
@@ -2017,7 +2168,10 @@ public partial class MainWindow : Window
             _vm.RefreshReferenceList();
             return;
         }
-        _vm.MarkReferenceRenamed();
+        // The DataContext says what was renamed — a sheet or a view — which the
+        // view model needs now that a sheet can belong to the project rather
+        // than to the document.
+        _vm.MarkReferenceRenamed(box.DataContext);
     }
 
     // ---- brush presets --------------------------------------------------------
@@ -3240,7 +3394,23 @@ public partial class MainWindow : Window
         // handlers is how a modifier gets stuck down when a key-up goes missing.
         _vm.ApplyHeldModifiers(e.KeyModifiers);
 
-        switch (_shortcuts.IdFor(e, CurrentShortcutScope()))
+        var shortcutId = _shortcuts.IdFor(e, CurrentShortcutScope());
+
+        // A momentary tool key (B176): the press borrows, and the release
+        // decides — a tap latches, a hold restores. The physical key is
+        // remembered here because the release may arrive with different
+        // modifiers than the press and would no longer resolve to the same
+        // gesture; the key itself is the identity that survives that.
+        if (shortcutId is not null
+            && _shortcuts.Find(shortcutId)?.MomentaryTool is { } momentary)
+        {
+            _momentaryToolKey = (e.Key, momentary);
+            _vm.BeginMomentaryTool(momentary);
+            e.Handled = true;
+            return;
+        }
+
+        switch (shortcutId)
         {
             case "file.save":
                 // Deliberately the same path as the menu item rather than _vm.Save(): a
@@ -3278,9 +3448,6 @@ public partial class MainWindow : Window
                 _ = ResizeAsync(ViewModels.ResizeMode.Image);
                 e.Handled = true;
                 break;
-            case "canvas.pickColor":
-                _vm.ActiveTool = ToolId.Picker;
-                break;
             case "timeline.insertKey":
                 _vm.InsertKeyframeAtPlayhead();
                 break;
@@ -3308,9 +3475,9 @@ public partial class MainWindow : Window
             case "tool.brush":
                 _vm.ActiveTool = ToolId.Brush; // back to the last-configured brush
                 break;
-            case "tool.eraser":
-                _vm.ActiveTool = ToolId.Eraser;
-                break;
+            // tool.eraser and canvas.pickColor never reach this switch: they
+            // carry MomentaryTool, so the branch above owns both their tap
+            // (latch) and their hold (borrow and restore).
             case "tool.fill":
                 _vm.ActiveTool = ToolId.Fill;
                 break;
@@ -3647,6 +3814,42 @@ public partial class MainWindow : Window
         remove.Click += (_, _) => _vm.RemoveCameraKeyAt(frame);
         flyout.Items.Add(remove);
         flyout.ShowAt(GraphEditorView, showAtPointer: true);
+    }
+
+    /// <summary>
+    /// Right-clicking a clip bar (Q57): what can be done to a section, at the
+    /// playhead. A cut is offered only where one is possible — inside a
+    /// section rather than at its edge — and says so when it is not, because a
+    /// menu item that silently does nothing teaches an artist to distrust the
+    /// menu.
+    /// </summary>
+    private void OnClipMenu(Controls.ClipBar bar, bool isAudio, Avalonia.Point at)
+    {
+        var frame = _vm.CurrentFrameIndex;
+        var insideSection = frame > bar.Start && frame <= bar.End;
+        var flyout = new MenuFlyout { Placement = PlacementMode.Pointer };
+
+        var split = new MenuItem
+        {
+            Header = $"Split at frame {frame + 1}",
+            IsEnabled = insideSection,
+        };
+        split.Click += (_, _) =>
+        {
+            if (isAudio) _vm.SplitAudioAtPlayhead();
+            else _vm.SplitVideoAtPlayhead(bar.StripIndex);
+        };
+        flyout.Items.Add(split);
+
+        if (!insideSection)
+        {
+            flyout.Items.Add(new MenuItem
+            {
+                Header = "Move the playhead inside the clip to cut it",
+                IsEnabled = false,
+            });
+        }
+        flyout.ShowAt(TimelineTrackView, showAtPointer: true);
     }
 
     // ---- the chrome is ours -------------------------------------------------
@@ -4092,14 +4295,15 @@ public partial class MainWindow : Window
         // selection, which has just been set to the row under the pointer.
         if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
 
-        if (pressed is not { Animation: not null } row) return;
+        // Documents and sheets drag; folders stay drop targets only.
+        if (pressed is not ({ Animation: not null } or { Sheet: not null }) || pressed is not { } row) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
 
         _draggedRow = row;
         try
         {
             var transfer = new DataTransfer();
-            transfer.Add(DataTransferItem.Create(ProjectRowFormat, row.Animation.Id));
+            transfer.Add(DataTransferItem.Create(ProjectRowFormat, row.Key ?? ""));
             await DragDrop.DoDragDropAsync(e, transfer, DragDropEffects.Move);
         }
         catch (Exception ex)

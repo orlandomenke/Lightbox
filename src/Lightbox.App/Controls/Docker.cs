@@ -161,9 +161,19 @@ public class Docker : ContentControl
         if (e.NameScope.Find<Border>("PART_Header") is { } header)
         {
             _header = header;
-            header.PointerPressed += (_, args) => HeaderPressed(args);
-            header.PointerMoved += (_, args) => HeaderMoved(args);
-            header.PointerReleased += (_, _) => HeaderReleased();
+            // handledEventsToo, because the grip IS the tab strip: the ListBox
+            // marks a press on a tab as handled while selecting it, so an
+            // ordinary subscription hears presses everywhere EXCEPT the one
+            // place a panel is picked up by. That shipped as "dockers cannot
+            // be dragged at all" (B183) — selection worked, the drag never
+            // armed. LandedOnTheGrip still decides what counts; this only
+            // makes sure the question is asked.
+            header.AddHandler(PointerPressedEvent, (_, args) => HeaderPressed(args),
+                Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+            header.AddHandler(PointerMovedEvent, (_, args) => HeaderMoved(args),
+                Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+            header.AddHandler(PointerReleasedEvent, (_, _) => HeaderReleased(),
+                Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         }
 
         if (e.NameScope.Find<Button>("PART_Float") is { } floater)

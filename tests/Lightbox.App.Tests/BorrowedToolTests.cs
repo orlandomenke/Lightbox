@@ -163,4 +163,134 @@ public class BorrowedToolTests(ITestOutputHelper output) : BrushStateIsolated
             Assert.Equal(tool, vm.ActiveTool);
         }
     }
+
+    // ---- held letter keys (B176) -------------------------------------------------
+    // The same borrow, triggered by a key: press borrows now, and the release
+    // splits tap from hold by duration — a tap is the switch the key always
+    // performed, a hold is a scrub that comes back.
+
+    /// <summary>A view model whose momentary clock the test moves by hand.</summary>
+    private static (MainViewModel Vm, Action<long> Advance) Clocked()
+    {
+        var vm = VmLayers.PaperVm();
+        long now = 0;
+        vm.MomentaryClock = () => now;
+        return (vm, ms => now += ms);
+    }
+
+    [AvaloniaFact]
+    public void HoldingEErasesAndReleasesBackToThePreviousTool()
+    {
+        var (vm, advance) = Clocked();
+        vm.ActiveTool = ToolId.Brush;
+
+        vm.BeginMomentaryTool(ToolId.Eraser);
+        Assert.Equal(ToolId.Eraser, vm.ActiveTool);
+        Assert.True(vm.IsHoldingMomentaryTool);
+
+        advance(MainViewModel.MomentaryTapMilliseconds + 200);
+        vm.EndMomentaryTool(ToolId.Eraser);
+
+        output.WriteLine($"released after a hold -> {vm.ActiveTool}");
+        Assert.Equal(ToolId.Brush, vm.ActiveTool);
+        Assert.False(vm.IsHoldingMomentaryTool);
+    }
+
+    [AvaloniaFact]
+    public void HoldingIPicksAndReleasesBackToThePreviousTool()
+    {
+        var (vm, advance) = Clocked();
+        vm.ActiveTool = ToolId.Brush;
+
+        vm.BeginMomentaryTool(ToolId.Picker);
+        Assert.Equal(ToolId.Picker, vm.ActiveTool);
+
+        advance(MainViewModel.MomentaryTapMilliseconds + 200);
+        vm.EndMomentaryTool(ToolId.Picker);
+
+        Assert.Equal(ToolId.Brush, vm.ActiveTool);
+    }
+
+    /// <summary>
+    /// A tap is not a hold: press and release inside the threshold latches the
+    /// tool, which is what the key did before any of this existed.
+    /// </summary>
+    [AvaloniaFact]
+    public void ATapLatchesTheToolRatherThanBouncingBack()
+    {
+        var (vm, advance) = Clocked();
+        vm.ActiveTool = ToolId.Brush;
+
+        vm.BeginMomentaryTool(ToolId.Eraser);
+        advance(MainViewModel.MomentaryTapMilliseconds - 200);
+        vm.EndMomentaryTool(ToolId.Eraser);
+
+        Assert.Equal(ToolId.Eraser, vm.ActiveTool);
+        Assert.False(vm.IsHoldingMomentaryTool);
+    }
+
+    /// <summary>Key repeat re-fires the press for as long as the key is down.</summary>
+    [AvaloniaFact]
+    public void KeyRepeatDoesNotDisturbTheHold()
+    {
+        var (vm, advance) = Clocked();
+        vm.ActiveTool = ToolId.Brush;
+
+        vm.BeginMomentaryTool(ToolId.Eraser);
+        advance(MainViewModel.MomentaryTapMilliseconds + 100);
+        // Repeats arrive after the threshold; they must not restart the clock
+        // or re-borrow from the eraser itself.
+        for (var i = 0; i < 10; i++) vm.BeginMomentaryTool(ToolId.Eraser);
+        vm.EndMomentaryTool(ToolId.Eraser);
+
+        Assert.Equal(ToolId.Brush, vm.ActiveTool);
+    }
+
+    /// <summary>
+    /// <b>Which shortcuts are momentary is data in the registry</b>, so the
+    /// Configure window can see and rebind them — and this holds the property
+    /// for every registered one, so the next momentary tool added is guarded
+    /// the day it is registered.
+    /// </summary>
+    [AvaloniaFact]
+    public void ARegisteredMomentaryShortcutRestoresTheToolItInterrupted()
+    {
+        var map = new Lightbox.App.Services.ShortcutMap();
+        var momentary = map.Definitions.Where(d => d.MomentaryTool is not null).ToList();
+
+        output.WriteLine($"momentary: {string.Join(", ", momentary.Select(d => d.Id))}");
+        Assert.Contains(momentary, d => d.Id == "tool.eraser");
+        Assert.Contains(momentary, d => d.Id == "canvas.pickColor");
+
+        foreach (var definition in momentary)
+        {
+            var (vm, advance) = Clocked();
+            vm.ActiveTool = ToolId.Brush;
+
+            vm.BeginMomentaryTool(definition.MomentaryTool!.Value);
+            Assert.Equal(definition.MomentaryTool, vm.ActiveTool);
+
+            advance(MainViewModel.MomentaryTapMilliseconds + 100);
+            vm.EndMomentaryTool(definition.MomentaryTool!.Value);
+            Assert.Equal(ToolId.Brush, vm.ActiveTool);
+        }
+    }
+
+    /// <summary>
+    /// The window deactivating mid-hold never delivers the key-up; restoring is
+    /// what keeps a held key from becoming a stuck mode.
+    /// </summary>
+    [AvaloniaFact]
+    public void LosingTheWindowMidHoldRestoresTheTool()
+    {
+        var (vm, _) = Clocked();
+        vm.ActiveTool = ToolId.Brush;
+        vm.BeginMomentaryTool(ToolId.Eraser);
+
+        // What Deactivated does.
+        vm.CancelMomentaryTool();
+
+        Assert.Equal(ToolId.Brush, vm.ActiveTool);
+        Assert.False(vm.IsHoldingMomentaryTool);
+    }
 }
