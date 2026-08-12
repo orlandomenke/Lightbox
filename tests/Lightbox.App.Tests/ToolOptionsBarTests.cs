@@ -108,6 +108,42 @@ public sealed class ToolOptionsBarTests(ITestOutputHelper output) : BrushStateIs
     }
 
     /// <summary>
+    /// B77's guard, at last: the colour block is docked left of the bar with
+    /// nothing conditional on it, so it is on screen whatever tool is held —
+    /// including the tools that do not use colour, which is the simpler rule
+    /// the entry argues for (no per-tool table to drift).
+    /// </summary>
+    /// <remarks>
+    /// The entry describes tests that never landed on any branch — the fix
+    /// shipped, the guard did not, and <c>bugs.py check</c> has flagged the
+    /// half ever since. IsEffectivelyVisible rather than IsVisible, because
+    /// what broke originally was a parent's binding, not the element's own.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData(ToolId.Brush)]
+    [InlineData(ToolId.Eraser)]
+    [InlineData(ToolId.Fill)]
+    [InlineData(ToolId.Shape)]
+    [InlineData(ToolId.Gradient)]
+    [InlineData(ToolId.Select)]
+    [InlineData(ToolId.Move)]
+    [InlineData(ToolId.Picker)]
+    public void TheColourSwitcherIsShownForEveryToolThatUsesColour(ToolId tool)
+    {
+        var (window, vm) = Open();
+        vm.ActiveTool = tool;
+        Pump();
+
+        var pair = window.GetVisualDescendants().OfType<Border>()
+            .Where(b => b.Name is "ForegroundSwatch" or "BackgroundSwatch").ToList();
+        output.WriteLine($"{tool}: {pair.Count} swatches, on screen {pair.Count(OnScreen)}");
+        // Exactly one pair — a second one would mean the move out of the brush
+        // section left the original behind.
+        Assert.Equal(2, pair.Count);
+        Assert.All(pair, s => Assert.True(OnScreen(s), $"{s.Name} is off screen with {tool} held"));
+    }
+
+    /// <summary>
     /// B90's control, checked where an artist meets it rather than on the view model.
     /// </summary>
     [AvaloniaFact]

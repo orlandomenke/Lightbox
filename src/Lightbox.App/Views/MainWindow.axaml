@@ -2190,9 +2190,9 @@
                                        ToolTip.Tip="Overfill (+) under the line work, or underfill (−) to keep a margin" />
                         <Slider Value="{Binding FillGrowPx}" Minimum="-16" Maximum="16" Margin="4,0" />
                       </DockPanel>
-                      <CheckBox Content="Smart fill" IsChecked="{Binding SmartFill}"
+                      <CheckBox Content="Smart fill" FontSize="12" IsChecked="{Binding SmartFill}"
                                 ToolTip.Tip="Sample every visible layer (fill what looks empty) instead of only the active layer" />
-                      <CheckBox Content="Below line work" IsChecked="{Binding FillBelowLines}"
+                      <CheckBox Content="Below line work" FontSize="12" IsChecked="{Binding FillBelowLines}"
                                 ToolTip.Tip="Tuck the fill under the lines; off = fill on top, preserving lines" />
                     </StackPanel>
 
@@ -2230,7 +2230,7 @@
                                          Increment="1" FormatString="0" MinWidth="44" />
                           <Slider Value="{Binding WandGapPx}" Minimum="0" Maximum="32" Margin="4,0" />
                         </DockPanel>
-                        <CheckBox Content="Sample all layers" IsChecked="{Binding WandSampleAllLayers}"
+                        <CheckBox Content="Sample all layers" FontSize="12" IsChecked="{Binding WandSampleAllLayers}"
                                   ToolTip.Tip="Select from what you see (all visible layers) instead of only the active layer" />
                       </StackPanel>
                       <DockPanel>
