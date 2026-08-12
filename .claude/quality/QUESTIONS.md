@@ -2475,11 +2475,11 @@ Generalising by *guessing* at machines nobody has measured would be the same
 error in a new direction; the render report is what turns guesses into data over
 time.
 
-## Q67 · Should strong anticipation be licensable when it reads exactly like a copied key?
+## Q67 · Should strong anticipation be licensable when it reads exactly like a copied key? — **answered 2026-08-12: (a) keep the band; anticipation is authored, in a breakdown**
 
 Raised by art-director in the G12 review of the Phase 0 verifier (2026-08-12),
-**prompted in-conversation the same day and unanswered** — the owner was away —
-so it rides at the top of a `[needs a decision]` PR per the protocol above.
+prompted in-conversation, and answered the same day on the `[needs a decision]`
+PR (#179): **(a)**, the recommendation.
 
 The betweenness band refuses a matched stroke sitting more than ~40% of its own
 travel from where interpolation puts it. That number was calibrated so a copied
@@ -2491,24 +2491,24 @@ is refused, and the verifier cannot tell a directorial choice from the failure
 it exists to catch. On an 80px swing, 30px of wind-back passes and 55px is
 refused as "did not stay between the keys".
 
-Options, with the recommendation first:
+The decision: **the band stays as calibrated, and anticipation is routed
+through authorship.** An artist who wants a strong anticipation draws it as a
+breakdown, which Phase 1 makes a hard constraint the arc must pass through;
+the copied-key refusal — the commonest small-model failure — stays intact.
+The accepted cost, recorded so it is not rediscovered as a bug: **the AI
+cannot invent strong anticipation mid-run**, only follow one the artist
+stated, and a model that tries will see "did not stay between the keys".
 
-- **(a) Keep the band, route anticipation through breakdowns — recommended.**
-  Anticipation is an authored choice: an artist who wants it draws it as a
-  breakdown, which Phase 1 makes a hard constraint the arc must pass through.
-  The copied-key refusal stays intact. Cost: the AI cannot *invent* strong
-  anticipation mid-run — it can only follow one the artist stated.
-- **(b) Widen `TravelSlack`.** Admits stronger anticipation everywhere, and
-  reopens the copied-key hole the band was tuned against. Rejected unless (a)
-  proves too tight in practice.
-- **(c) A shape signal.** A copied key matches the key's *shape* near-exactly;
-  a real anticipation redraws it. Shape difference could separate what
-  magnitude and direction cannot. Unproven and unmeasured — if (a) pinches,
-  this is the upgrade to prototype, not (b).
+The options not taken: (b) widening `TravelSlack` admits anticipation
+everywhere and reopens the copied-key hole the band was tuned against;
+(c) a shape signal — a copied key matches the key's *shape* near-exactly,
+real anticipation redraws it — stays the upgrade to prototype **if (a)
+pinches in practice**, and (b) stays rejected even then.
 
-## Q68 · Does the distorted-silhouette smear deserve a licence?
+## Q68 · Does the distorted-silhouette smear deserve a licence? — **answered 2026-08-12: (a) no — the 2× band stays, that frame is hand-drawn**
 
-Same review, same day, same unanswered prompt. `AreaSlack = 2.0` refuses a
+Same review, same day, answered alongside Q67 on PR #179: **(a)**, the
+recommendation. `AreaSlack = 2.0` refuses a
 closed shape whose area moves past 2× the interpolated expectation in either
 direction. Area-conserving squash and stretch passes — a 10:1 streak that keeps
 its area is fine — and a collapse to an eighth refuses, both as designed. The
@@ -2516,12 +2516,13 @@ edge the review named: **a smear style that deliberately draws the silhouette
 larger than the character** (≈3.5× area, to sell a fast whip in some 2D/cutout
 styles) is refused as a volume gain.
 
-- **(a) Leave it as the documented line — recommended.** Most smears are drawn
-  as separate streak strokes, which drag and interpretation already license;
-  the distorted-silhouette variant is rare and stays a frame the artist draws
-  by hand. Cost: one stylised technique the AI cannot propose.
-- **(b) Asymmetric band** (collapse strict at 0.5×, gain loose to ~4×). Lets a
-  model that balloons a shape mid-motion — a real small-model failure — pass
-  as a "smear" nobody asked for.
-- **(c) Tie the band to the latitude dial.** One dial then moves two unrelated
-  tolerances: turning it up for looser new ink also weakens the collapse check.
+The decision: **the 2× band stays the documented line.** Most smears are drawn
+as separate streak strokes, which drag and interpretation already license; the
+distorted-silhouette variant is rare and stays a frame the artist draws by
+hand. The accepted cost: one stylised technique the AI cannot propose.
+
+The options not taken: (b) an asymmetric band (collapse strict at 0.5×, gain
+loose to ~4×) lets a model that balloons a shape mid-motion — a real
+small-model failure — pass as a "smear" nobody asked for; (c) tying the band
+to the latitude dial makes one dial move two unrelated tolerances, so turning
+it up for looser new ink would also weaken the collapse check.
