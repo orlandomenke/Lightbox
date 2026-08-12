@@ -72,6 +72,14 @@ public partial class NewDocumentPanel : UserControl
         WorkspaceBox.SelectedIndex = 0;
     }
 
+    private void OnSwapSizeClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => SwapSize();
+
+    /// <summary>
+    /// Trade width for height — portrait to landscape in one gesture. The
+    /// preset stays where it was, like any other hand edit of the fields.
+    /// </summary>
+    public void SwapSize() => (WidthBox.Value, HeightBox.Value) = (HeightBox.Value, WidthBox.Value);
+
     private void OnPresetChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (PresetBox.SelectedItem is not Preset { Width: > 0 } preset) return;
@@ -90,9 +98,9 @@ public partial class NewDocumentPanel : UserControl
     public NewDocumentSettings Collect()
     {
         var name = string.IsNullOrWhiteSpace(NameBox.Text) ? "Untitled" : NameBox.Text.Trim();
-        var background = Services.ColorSpace.HexToRgb(BackgroundBox.Text ?? "") is null
+        var background = Services.ColorSpace.HexToRgb(BackgroundField.Hex ?? "") is null
             ? "#ffffff"
-            : BackgroundBox.Text!.Trim().ToLowerInvariant();
+            : BackgroundField.Hex!.Trim().ToLowerInvariant();
         return new NewDocumentSettings(
             name,
             (int)(WidthBox.Value ?? 1920),

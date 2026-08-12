@@ -11,7 +11,7 @@
   <StackPanel Margin="16" Spacing="12">
 
     <!-- Pixel size. Both modes have it; only the labels around it differ. -->
-    <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+    <Grid ColumnDefinitions="Auto,*,Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
       <TextBlock Grid.Row="0" Grid.Column="0" Text="Width" VerticalAlignment="Center" />
       <NumericUpDown Grid.Row="0" Grid.Column="1"
                      Value="{Binding Width}" Minimum="1" Maximum="30000" Increment="1"
@@ -20,6 +20,8 @@
       <NumericUpDown Grid.Row="0" Grid.Column="3"
                      Value="{Binding Height}" Minimum="1" Maximum="30000" Increment="1"
                      FormatString="0" />
+      <Button Grid.Row="0" Grid.Column="4" Classes="icon" Content="⇄" Click="OnSwap"
+              VerticalAlignment="Center" ToolTip.Tip="Swap width and height" />
 
       <CheckBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
                 IsChecked="{Binding Linked}" Content="Keep proportions" />
