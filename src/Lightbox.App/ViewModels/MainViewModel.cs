@@ -1538,6 +1538,10 @@ public sealed partial class MainViewModel : ObservableObject
         // funnel that sees a stroke commit — OnDocumentChanged returns early for those — so a
         // cache invalidated anywhere else would hand a model art that had since changed.
         InvalidateReferenceViewCache();
+        // Same funnel, same reason, pointed at the canvas instead of the AI:
+        // a view taped onto the canvas is re-flattened the moment its sheet
+        // is edited (Q69 chose live over snapshot). No linked strip, no cost.
+        RefreshLinkedReferenceStrips();
         if (_switchingTabs || ActiveTab is not { } tab) return;
         // Here rather than in OnDocumentChanged: stroke commits take that
         // method's scoped-edit early return, and a stroke is exactly the edit
@@ -1768,6 +1772,134 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Redraw the sheet list without claiming anything changed.</summary>
     public void RefreshReferenceList() => OnPropertyChanged(nameof(ReferenceSheetsView));
+
+    /// <summary>
+    /// Tape a flattened copy of the view onto the canvas, or take it down —
+    /// one strip per view, toggled. Returns the strip, or null when it was
+    /// removed or there is nowhere to put one.
+    /// </summary>
+    /// <remarks>
+    /// A <see cref="ReferenceStrip"/> rather than a layer, on purpose: the
+    /// strip already renders over the paper and under every drawing, carries
+    /// the opacity, scale and offset the request asked for, and holds the
+    /// standing promise that a reference never reaches an exported pixel. A
+    /// "temporary layer" would re-answer all four questions inside the layer
+    /// stack, where every answer is harder (Q69).
+    /// </remarks>
+    public ReferenceStrip? ToggleViewOnCanvas(ReferenceView view)
+    {
+        if (TargetTab is not { } target) return null;
+        var scene = target.Doc.Scene;
+
+        if (scene.References?.FirstOrDefault(s => s.SheetViewId == view.Id) is { } taped)
+        {
+            target.Editor.Perform(doc => doc.Scene.References?.Remove(taped));
+            Lightbox.Raster.ReferenceStripRegistry.Forget(taped.Id);
+            AfterReferenceChange();
+            return null;
+        }
+
+        var strip = new ReferenceStrip
+        {
+            Name = view.Name,
+            Png = RenderReferenceViewPng(view),
+            SheetWidth = view.Width,
+            SheetHeight = view.Height,
+            Cells = [new ReferenceCell { X = 0, Y = 0, Width = view.Width, Height = view.Height }],
+            SheetViewId = view.Id,
+            Pinned = true,
+        };
+        strip.Scale = FitScale(strip, scene);
+        strip.CentreOn(scene.Width, scene.Height);
+
+        var index = 0;
+        target.Editor.Perform(doc =>
+        {
+            doc.Scene.References ??= [];
+            index = doc.Scene.References.Count;
+            doc.Scene.References.Add(strip);
+        });
+        Lightbox.Raster.ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+        ActiveReferenceIndex = index;
+        AfterReferenceChange();
+        return strip;
+    }
+
+    /// <summary>Whether this view is currently taped onto the canvas.</summary>
+    public bool IsViewOnCanvas(ReferenceView view) =>
+        (SaveTargetTab?.Doc ?? Doc).Scene.References
+            ?.Any(s => s.SheetViewId == view.Id) == true;
+
+    /// <summary>
+    /// Guards <see cref="RefreshLinkedReferenceStrips"/> against the edits it
+    /// makes itself announcing back into it.
+    /// </summary>
+    private bool _refreshingLinkedStrips;
+
+    /// <summary>
+    /// Re-flatten every taped-up view whose picture no longer matches its
+    /// strip — the "live" half of Q69's decision.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Called from the edit funnel, so it runs on every document edit and has
+    /// to be cheap when there is nothing to do — the common case is no linked
+    /// strip and costs one null check. With a linked strip, the re-flatten
+    /// re-reads per-layer bitmaps that are already cached and pays one PNG
+    /// encode at the view's authored size, per edit, per linked strip. That
+    /// is the price of "live" and it was chosen knowingly over a snapshot
+    /// with a refresh button; the string compare below keeps edits that did
+    /// not change the picture from re-registering identical bytes.
+    /// </para>
+    /// <para>
+    /// Deliberately not an <c>Editor.Perform</c>: the strip's pixels are
+    /// derived from the view, so undoing the drawing already restores them —
+    /// this refresh re-runs on the undo's own funnel pass. A second undo step
+    /// for the derived copy would make the artist undo everything twice.
+    /// </para>
+    /// </remarks>
+    private void RefreshLinkedReferenceStrips()
+    {
+        if (_refreshingLinkedStrips) return;
+        var doc = SaveTargetTab?.Doc ?? Doc;
+        if (doc.Scene.References is not { Count: > 0 } strips) return;
+
+        _refreshingLinkedStrips = true;
+        try
+        {
+            var views = doc.ReferenceSheets.SelectMany(s => s.Views).ToDictionary(v => v.Id);
+            var changed = false;
+            foreach (var strip in strips)
+            {
+                if (strip.SheetViewId is not { } viewId) continue;
+                // A deleted view degrades like a missing video file: the last
+                // pixels stand and the strip stops following anything.
+                if (!views.TryGetValue(viewId, out var view)) continue;
+
+                var png = RenderReferenceViewPng(view);
+                if (png == strip.Png) continue;
+                strip.Png = png;
+                strip.SheetWidth = view.Width;
+                strip.SheetHeight = view.Height;
+                if (strip.Cells.Count == 1)
+                {
+                    strip.Cells[0].Width = view.Width;
+                    strip.Cells[0].Height = view.Height;
+                }
+                Lightbox.Raster.ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+                changed = true;
+            }
+            if (changed)
+            {
+                NotifyReference();
+                PublishSnapshot();
+            }
+        }
+        finally
+        {
+            _refreshingLinkedStrips = false;
+        }
+    }
 
     /// <summary>Open (or focus) the tab editing a character-sheet view.</summary>
     public void OpenReferenceView(ReferenceView view)
