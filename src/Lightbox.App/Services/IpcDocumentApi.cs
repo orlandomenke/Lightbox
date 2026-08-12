@@ -147,10 +147,12 @@ public sealed class IpcDocumentApi(MainViewModel vm)
 
     private IpcProtocol.Response ListReferenceViews()
     {
-        var doc = vm.SaveTargetTab?.Doc ?? vm.Doc;
+        // The view-model's list rather than the document's own: in a project
+        // the sheets an agent should see are the ones filed above the active
+        // document, the same set the docker and the AI payload use.
         return IpcProtocol.Response.Success(new
         {
-            Sheets = doc.ReferenceSheets.Select(s => new
+            Sheets = vm.ReferenceSheetsView.Select(s => new
             {
                 s.Id,
                 s.Name,
@@ -167,8 +169,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
     private IpcProtocol.Response RenderReferenceView(IpcProtocol.Request request)
     {
         var p = Payload<ViewRef>(request);
-        var doc = vm.SaveTargetTab?.Doc ?? vm.Doc;
-        var view = doc.ReferenceSheets.SelectMany(s => s.Views).FirstOrDefault(v => v.Id == p.ViewId)
+        var view = vm.ReferenceSheetsView.SelectMany(s => s.Views).FirstOrDefault(v => v.Id == p.ViewId)
                    ?? throw new ArgumentException($"No reference view with id \"{p.ViewId}\".");
         return IpcProtocol.Response.Success(new { PngBase64 = vm.RenderReferenceViewPng(view) });
     }

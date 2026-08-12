@@ -91,6 +91,12 @@ public sealed record OfferChoice(AssetScope Scope, string Kind, string Id, strin
     public override string ToString() => Label;
 }
 
+/// <summary>One place a sheet can be filed: a folder, or the project when null.</summary>
+public sealed record SheetHomeChoice(ProjectFolder? Folder, string Label)
+{
+    public override string ToString() => Label;
+}
+
 /// <summary>
 /// One line in the project window's Structure tab — a folder or a document,
 /// with the columns the docker has no width for.
@@ -117,24 +123,44 @@ public sealed partial class BoardRow : ObservableObject
         Depth = depth;
     }
 
+    /// <summary>A character sheet, filed in a folder or project-wide when none.</summary>
+    /// <remarks>
+    /// <b>Q25 re-answered.</b> The row exists so the window can do the one
+    /// thing the docker cannot: re-assign the sheet to another folder. It
+    /// never takes a status, an assignee or a tag — a sheet is reference art,
+    /// not a deliverable — and every bulk command guards on that.
+    /// </remarks>
+    public BoardRow(SheetRef sheet, ProjectFolder? folder, int depth)
+    {
+        Sheet = sheet;
+        Folder = folder;
+        Depth = depth;
+    }
+
     /// <summary>The folder this row is, or the one a document is filed in.</summary>
     public ProjectFolder? Folder { get; }
 
     /// <summary>The document this row is, or null on a folder row.</summary>
     public DocumentRef? Document { get; }
 
+    /// <summary>The character sheet this row is, or null on every other row.</summary>
+    public SheetRef? Sheet { get; }
+
     public int Depth { get; }
 
-    public bool IsFolder => Document is null;
+    public bool IsFolder => Document is null && Sheet is null;
+
+    public bool IsSheet => Sheet is not null;
 
     public double Indent => Depth * 16;
 
     public string Glyph =>
         Document is not null ? "▣"
+        : Sheet is not null ? "▤"
         : Folder is { Icon: { Length: > 0 } chosen } ? chosen
         : "🗀";
 
-    public string Name => Document?.Name ?? Folder?.Name ?? "";
+    public string Name => Document?.Name ?? Sheet?.Name ?? Folder?.Name ?? "";
 
     /// <summary>Every tag on this row, and on the folders above a document.</summary>
     /// <remarks>
@@ -147,7 +173,7 @@ public sealed partial class BoardRow : ObservableObject
 
     /// <summary>What is set on this row itself, so an edit knows what it removes.</summary>
     public IReadOnlyList<string> OwnTags =>
-        (Document?.Tags ?? Folder?.Tags ?? []).ToList();
+        Sheet is not null ? [] : (Document?.Tags ?? Folder?.Tags ?? []).ToList();
 
     public AssetStatus? Status => Document?.Status;
 
@@ -254,6 +280,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         Selected.Clear();
         foreach (var row in rows) Selected.Add(row);
         OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(HasSheetSelection));
         OnPropertyChanged(nameof(SelectionLabel));
         RefreshFacetEditor();
     }
@@ -310,6 +337,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         foreach (var row in Rows.Where(r => keep.Contains(Key(r)))) Selected.Add(row);
 
         OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(HasSheetSelection));
         OnPropertyChanged(nameof(SelectionLabel));
         RefreshFacetEditor();
         OnPropertyChanged(nameof(Summary));
@@ -322,7 +350,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ExportSummary));
     }
 
-    private static string Key(BoardRow row) => row.Document?.Id ?? row.Folder?.Id ?? "";
+    private static string Key(BoardRow row) => row.Document?.Id ?? row.Sheet?.Id ?? row.Folder?.Id ?? "";
 
     private void Emit(ProjectFolder? parent, int depth)
     {
@@ -333,6 +361,15 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
             Rows.Add(row);
 
             Emit(folder, depth + 1);
+            // Sheets above the drawings that consult them — the docker's order.
+            // A tag or assignee filter hides them: neither is a thing a sheet has.
+            if (TagFilter is null && AssigneeFilter is null)
+            {
+                foreach (var sheet in ProjectSheets.In(Manifest, folder))
+                {
+                    Rows.Add(new BoardRow(sheet, folder, depth + 1));
+                }
+            }
             foreach (var document in ProjectFolders.InOrder(Manifest, folder))
             {
                 if (Build(document, folder, depth + 1) is { } kept) Rows.Add(kept);
@@ -346,6 +383,13 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         }
 
         if (parent is not null) return;
+        if (TagFilter is null && AssigneeFilter is null)
+        {
+            foreach (var sheet in ProjectSheets.In(Manifest, null))
+            {
+                Rows.Add(new BoardRow(sheet, folder: null, 0));
+            }
+        }
         foreach (var loose in Manifest.Documents.Where(d => d.FolderId is null))
         {
             if (Build(loose, null, 0) is { } kept) Rows.Add(kept);
@@ -418,10 +462,13 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         get
         {
             var documents = SelectedDocuments.Count;
-            var folders = Selected.Count - documents;
-            if (folders == 0) return Count(documents, "document").ToUpperInvariant();
-            if (documents == 0) return Count(folders, "folder").ToUpperInvariant();
-            return $"{Count(folders, "folder")}, {Count(documents, "document")}".ToUpperInvariant();
+            var sheets = Selected.Count(r => r.Sheet is not null);
+            var folders = Selected.Count - documents - sheets;
+            var parts = new List<string>();
+            if (folders > 0) parts.Add(Count(folders, "folder"));
+            if (documents > 0) parts.Add(Count(documents, "document"));
+            if (sheets > 0) parts.Add(Count(sheets, "sheet"));
+            return string.Join(", ", parts).ToUpperInvariant();
         }
     }
 
@@ -485,7 +532,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         {
             var added = row.Document is { } d
                 ? ProjectBoard.Tag(d, tag)
-                : row.Folder is { } f && ProjectBoard.Tag(f, tag);
+                : row is { IsFolder: true, Folder: { } f } && ProjectBoard.Tag(f, tag);
             if (added) touched++;
         }
         Done(touched, $"tagged “{tag.Trim()}”");
@@ -501,7 +548,7 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         {
             var removed = row.Document is { } d
                 ? ProjectBoard.Untag(d, tag)
-                : row.Folder is { } f && ProjectBoard.Untag(f, tag);
+                : row is { IsFolder: true, Folder: { } f } && ProjectBoard.Untag(f, tag);
             if (removed) touched++;
         }
         Done(touched, $"untagged “{tag.Trim()}”");
@@ -516,6 +563,55 @@ public sealed partial class ProjectWindowViewModel : ObservableObject
         var person = choice?.Person is { Id.Length: > 0 } p ? p : null;
         foreach (var document in documents) ProjectBoard.Assign(document, person);
         Done(documents.Count, person is null ? "unassigned" : $"assigned to {person.Name}");
+    }
+
+    // ---- re-assigning sheets (Q25 re-answered) -----------------------------------
+
+    /// <summary>The sheets in the selection — what the re-file gesture acts on.</summary>
+    private List<SheetRef> SelectedSheets =>
+        [.. Selected.Select(r => r.Sheet).OfType<SheetRef>()];
+
+    public bool HasSheetSelection => Selected.Any(r => r.Sheet is not null);
+
+    /// <summary>
+    /// Where a sheet can be filed: the project itself, then every folder.
+    /// </summary>
+    /// <remarks>
+    /// Labelled by path rather than by name, because "combat" says nothing when
+    /// the knight and the goblin both have one.
+    /// </remarks>
+    public IReadOnlyList<SheetHomeChoice> SheetHomeChoices =>
+    [
+        new SheetHomeChoice(null, $"{_project.Name} (everything sees it)"),
+        .. ProjectFolders.All(Manifest)
+            .OrderBy(f => ProjectFolders.PathOf(Manifest, f), StringComparer.OrdinalIgnoreCase)
+            .Select(f => new SheetHomeChoice(f, ProjectFolders.PathOf(Manifest, f))),
+    ];
+
+    /// <summary>Picking one refiles, rather than needing a second Apply click.</summary>
+    [ObservableProperty]
+    private SheetHomeChoice? _sheetHomeToApply;
+
+    partial void OnSheetHomeToApplyChanged(SheetHomeChoice? value)
+    {
+        if (value is null) return;
+        FileSelectedSheets(value);
+        SheetHomeToApply = null;
+    }
+
+    /// <summary>File every selected sheet in the chosen folder — disk first (B106).</summary>
+    [RelayCommand]
+    public void FileSelectedSheets(SheetHomeChoice? choice)
+    {
+        if (choice is null) return;
+        var moved = 0;
+        foreach (var sheet in SelectedSheets)
+        {
+            if (ProjectSheets.Refile(_project, sheet, choice.Folder)) moved++;
+        }
+        Done(moved, choice.Folder is null
+            ? "filed on the project — every document sees them"
+            : $"filed in {choice.Folder.Name}");
     }
 
     private void Done(int count, string what)

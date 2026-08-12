@@ -313,6 +313,9 @@ public static class ProjectIo
         if (!File.Exists(path)) return null;
         var doc = DocJson.Load(path);
         ApplyFeatureDefaults(doc, project.Manifest.Type);
+        // Q25 re-answered: sheets written into documents under the old model
+        // are lifted into the project the first time the document is read.
+        ProjectSheets.Promote(project, reference, doc);
         project.Loaded[reference.Id] = doc;
         return doc;
     }
@@ -393,6 +396,11 @@ public static class ProjectIo
         // Resources first: writing them is what fills in Manifest.Palettes, so
         // the manifest has to be written after, not twice.
         SaveResources(project);
+
+        // Sheets before the manifest for the same reason: Save refreshes each
+        // entry's Name from its loaded content, and a manifest written first
+        // would carry yesterday's names.
+        ProjectSheets.Save(project);
 
         // Duration hints next, and for the same reason: they live on the
         // manifest, so refreshing them inside the document loop below would
@@ -959,7 +967,7 @@ public static class ProjectIo
     /// </remarks>
     public static readonly IReadOnlySet<string> SystemFolders = new HashSet<string>(
         [
-            DocumentsDir, LegacyDocumentsDir,
+            DocumentsDir, LegacyDocumentsDir, ProjectSheets.RootDir,
             "palettes", "gradients", "assets", ".autosave",
         ],
         StringComparer.OrdinalIgnoreCase);

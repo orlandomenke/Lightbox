@@ -60,6 +60,23 @@ public sealed class Project
     /// <summary>Documents read so far, by <see cref="DocumentRef.Id"/>.</summary>
     public Dictionary<string, Doc> Loaded { get; } = [];
 
+    /// <summary>Character sheets read so far, by <see cref="SheetRef.Id"/>.</summary>
+    /// <remarks>
+    /// The same lazy rule as <see cref="Loaded"/> and for the same reason: the
+    /// docker lists sheets from the manifest's names alone, and a sheet's views
+    /// are only read when somebody opens or renders one.
+    /// </remarks>
+    public Dictionary<string, ReferenceSheet> LoadedSheets { get; } = [];
+
+    /// <summary>Sheets edited since the last save, by <see cref="SheetRef.Id"/>.</summary>
+    /// <remarks>
+    /// Runtime, not serialized — the sheet-side counterpart of the dirty set
+    /// the docker keeps for documents. <c>ProjectSheets.Save</c> writes and
+    /// clears it, so a project with forty sheets rewrites one file when one
+    /// stroke lands.
+    /// </remarks>
+    public HashSet<string> DirtySheets { get; } = [];
+
     public string Name => Manifest.Name;
 
     /// <summary>The folders something has read.</summary>

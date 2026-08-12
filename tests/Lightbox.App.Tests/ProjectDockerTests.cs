@@ -1283,6 +1283,64 @@ public sealed class ProjectDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.Same(props, docker.Selected);
     }
 
+    // ---- character sheets in the tree (Q25 re-answered) --------------------------
+
+    /// <summary>"We see it in the project docker."</summary>
+    [AvaloniaFact]
+    public void ASheetIsARowUnderItsFolderAndDoubleClickOpensIt()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        var docker = vm.ProjectDocker;
+        var project = docker.Project!;
+        var knight = ProjectFolders.All(project.Manifest).Single(f => f.Name == "Knight");
+
+        var sheet = ProjectSheets.Add(project, "Knight sheet", knight);
+        docker.Refresh();
+
+        var row = Assert.Single(docker.Rows, r => r.Sheet?.Id == sheet.Id);
+        output.WriteLine($"row: {row.Glyph} {row.Name}, indent {row.Indent}");
+        Assert.True(row.IsSheet);
+        Assert.False(row.IsHeading);
+        Assert.Equal("▤", row.Glyph);
+        // Under its folder, indented like the documents beside it.
+        Assert.Equal(knight.Id, row.Folder!.Id);
+
+        // The docker's open gesture reaches the sheet: a view is made if the
+        // sheet has none, and the tab is the ownerless kind a project sheet uses.
+        docker.Selected = row;
+        docker.OpenSelected();
+        Assert.Equal(DocumentTabKind.Reference, vm.ActiveTab!.Kind);
+        Assert.Null(vm.ActiveTab.Owner);
+        Assert.Equal(sheet.Id, vm.ActiveTab.SheetSource!.Id);
+    }
+
+    /// <summary>Dragging a sheet row onto a folder refiles it, disk included.</summary>
+    [AvaloniaFact]
+    public void DraggingASheetOntoAFolderRefilesIt()
+    {
+        var vm = Vm();
+        vm.NewProject(_root, "Knight");
+        WithKnight(vm);
+        var docker = vm.ProjectDocker;
+        var project = docker.Project!;
+        var knight = ProjectFolders.All(project.Manifest).Single(f => f.Name == "Knight");
+
+        var sheet = ProjectSheets.Add(project, "Knight sheet", knight);
+        vm.SaveProject();
+        var goblin = ProjectFolders.Add(project.Manifest, "Goblin");
+        docker.Refresh();
+
+        var row = Assert.Single(docker.Rows, r => r.Sheet?.Id == sheet.Id);
+        Assert.True(docker.Move(row, goblin));
+
+        var entry = ProjectSheets.FindRef(project.Manifest, sheet.Id)!;
+        Assert.Equal(goblin.Id, entry.FolderId);
+        Assert.False(File.Exists(Path.Combine(_root, "knight", "knight-sheet.sheet.json")));
+        Assert.True(File.Exists(Path.Combine(_root, "goblin", "knight-sheet.sheet.json")));
+    }
+
     private static string MainWindowXaml()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
